@@ -42,7 +42,7 @@ def multiply(a: float, b: float) -> float:
 deprecated_module(
     deprecated_in="2.0",
     remove_in="3.0",
-    message="Use `new_calculator` instead.",
+    message_template="Use `new_calculator` instead.",
 )
 ```
 
@@ -70,7 +70,7 @@ deprecated_module(
     target=_new_calculator,  # every unknown attr forwarded here
     deprecated_in="2.0",
     remove_in="3.0",
-    message="Use `new_calculator` instead.",
+    message_template="Use `new_calculator` instead.",
 )
 ```
 
@@ -110,7 +110,7 @@ old_utils = deprecated_instance(
     name="old_utils",
     deprecated_in="2.0",
     remove_in="3.0",
-    message="Use `my_package.new_calculator` instead.",
+    message_template="Use `my_package.new_calculator` instead.",
 )
 ```
 

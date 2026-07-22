@@ -149,6 +149,51 @@ dataclasses.replace(info, empty_args_mapping=True)
 
 ______________________________________________________________________
 
+## Pick Your Upgrade Path
+
+Each adjacent-release delta is documented once, in the per-version section below it belongs to — pick the tab matching the version you are upgrading *from*, then read the linked sections in order to reach the current release (v0.12).
+
+=== "From v0.11"
+
+    1. [Coming from v0.11](#coming-from-v011) — changes in v0.12.
+
+=== "From v0.10"
+
+    1. [Coming from v0.10](#coming-from-v010) — changes in v0.11.
+    2. [Coming from v0.11](#coming-from-v011) — changes in v0.12.
+
+=== "From v0.9"
+
+    1. [Coming from v0.9](#coming-from-v09) — changes in v0.10.
+    2. [Coming from v0.10](#coming-from-v010) — changes in v0.11.
+    3. [Coming from v0.11](#coming-from-v011) — changes in v0.12.
+
+=== "From v0.8"
+
+    1. [Coming from v0.8](#coming-from-v08) — changes in v0.9.
+    2. [Coming from v0.9](#coming-from-v09) — changes in v0.10.
+    3. [Coming from v0.10](#coming-from-v010) — changes in v0.11.
+    4. [Coming from v0.11](#coming-from-v011) — changes in v0.12.
+
+=== "From v0.7"
+
+    1. [Coming from v0.7](#coming-from-v07) — changes in v0.8.
+    2. [Coming from v0.8](#coming-from-v08) — changes in v0.9.
+    3. [Coming from v0.9](#coming-from-v09) — changes in v0.10.
+    4. [Coming from v0.10](#coming-from-v010) — changes in v0.11.
+    5. [Coming from v0.11](#coming-from-v011) — changes in v0.12.
+
+=== "From v0.6 or earlier"
+
+    1. [Coming from v0.6 and earlier](#coming-from-v06-and-earlier) — changes in v0.7.
+    2. [Coming from v0.7](#coming-from-v07) — changes in v0.8.
+    3. [Coming from v0.8](#coming-from-v08) — changes in v0.9.
+    4. [Coming from v0.9](#coming-from-v09) — changes in v0.10.
+    5. [Coming from v0.10](#coming-from-v010) — changes in v0.11.
+    6. [Coming from v0.11](#coming-from-v011) — changes in v0.12.
+
+______________________________________________________________________
+
 ## Coming from v0.11
 
 Here is what changed in v0.12 that you might have missed:
@@ -188,13 +233,31 @@ There is consequently no single-proxy way to get a blanket "warn on every access
 
 ### `deprecated()` slimmed to common arguments only
 
-The front-door `deprecated()` dispatcher now exposes only the arguments common to both dispatch shapes: `target`, `deprecated_in`, `remove_in`, `stream`, `num_warns`, `template_mgs`, `args_mapping`, `args_extra`, `skip_if`, `update_docstring`, and `docstring_style`. The one shape-specific option, class-only `attrs_mapping`, raises `TypeError` (unexpected keyword argument) on the front door — use `deprecated_class(attrs_mapping=...)` directly.
+The front-door `deprecated()` dispatcher now exposes only the arguments common to both dispatch shapes: `target`, `deprecated_in`, `remove_in`, `stream`, `num_warns`, `message_template`, `args_mapping`, `args_extra`, `skip_if`, `update_docstring`, and `docstring_style`. The one shape-specific option, class-only `attrs_mapping`, raises `TypeError` (unexpected keyword argument) on the front door — use `deprecated_class(attrs_mapping=...)` directly.
 
-As part of this alignment, `template_mgs` and `skip_if` passed through `@deprecated` on a class are now forwarded to the proxy (`template_mgs` used to be dropped silently on the class-dispatch path).
+As part of this alignment, `message_template` and `skip_if` passed through `@deprecated` on a class are now forwarded to the proxy (`message_template` used to be dropped silently on the class-dispatch path).
 
 ### `skip_if` now available on proxies
 
 `deprecated_class()` and `deprecated_instance()` gained the `skip_if` option (previously callable-only). When the condition evaluates `True` at access time, the proxy transparently serves the wrapped source — no warning, no `attrs_mapping` redirect, no `args_mapping`/`args_extra` handling, no target forwarding, and no `read_only` enforcement — mirroring the callable form, where a skipped call executes the source body unchanged. The condition may be consulted more than once per proxy operation, so keep the callable cheap and stable.
+
+### `template_mgs` → `message_template`
+
+The custom-notice parameter was a typo (`mgs` for `msg`). It is now `message_template` on every factory (`@deprecated`, `deprecated_callable`, `deprecated_class`, `deprecated_instance`, and `deprecated_module`). The old name keeps working as a deprecated alias until v1.0:
+
+```python
+# phmdoctest:skip — illustrative rename, not a runnable block
+# Before — still works, but emits a FutureWarning
+@deprecated(target=new_fn, deprecated_in="1.0", remove_in="2.0", template_mgs="v%(deprecated_in)s: gone")
+def old_fn(): ...
+
+
+# After — the canonical name
+@deprecated(target=new_fn, deprecated_in="1.0", remove_in="2.0", message_template="v%(deprecated_in)s: gone")
+def old_fn(): ...
+```
+
+Passing both `message_template` and `template_mgs` raises `TypeError`. Audit code reading `__deprecated__.template_mgs` keeps working through a read-only alias, but the stored field is now `message_template`.
 
 See the [Changelog](../changelog.md) for the complete v0.12 release notes.
 

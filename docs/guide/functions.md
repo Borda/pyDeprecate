@@ -139,7 +139,7 @@ from deprecate import deprecated, void
     deprecated_in="0.6",
     remove_in="1.0",
     # custom message template
-    template_mgs="`%(source_name)s` was deprecated, use `%(target_path)s`",
+    message_template="`%(source_name)s` was deprecated, use `%(target_path)s`",
     # as target args are different, define mapping from source to target func
     args_mapping={"preds": "y_pred", "target": "y_true", "blabla": None},
 )
@@ -279,17 +279,17 @@ These modes differ in whether the function body runs, whether a warning fires, a
 
 ### Behaviour comparison
 
-|                               | `TargetMode.NOTIFY`                                                                                       | `TargetMode.ARGS_REMAP` (with `args_mapping`)                              | `target=<callable>`                                                                                                                                                                            |
-| ----------------------------- | --------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Warning emitted**           | Yes — up to `num_warns` times (default: once)                                                             | Per deprecated arg, up to `num_warns` times (default: once)                | Yes — up to `num_warns` times (default: once)                                                                                                                                                  |
-| **Warning template**          | `"… was deprecated since vX. It will be removed in vY."`                                                  | `"… uses deprecated arguments: …"`                                         | `"… was deprecated … in favour of …"`                                                                                                                                                          |
-| **`template_mgs` specifiers** | `source_name`, `source_path`, `deprecated_in`, `remove_in` only — `target_name`/`target_path` unavailable | `source_name`, `source_path`, `argument_map`, `deprecated_in`, `remove_in` | All specifiers incl. `target_name`, `target_path`                                                                                                                                              |
-| **Function body**             | Runs with caller's args + source defaults filled in                                                       | Runs after argument renaming/dropping                                      | **Does not run** under normal forwarding — body is dead code, calls intercepted first. **Exception**: `skip_if=True` at call time bypasses forwarding and executes the source body as fallback |
-| **`args_mapping` applied**    | `⚠`                                                                                                       | `✓` renames or drops listed args                                           | `✓` renames or drops args before forwarding                                                                                                                                                    |
-| **`args_extra` injected**     | `⚠`                                                                                                       | `✓` merged into kwargs before call                                         | `✓` merged into kwargs before forwarding                                                                                                                                                       |
-| **Source defaults merged**    | `✓`                                                                                                       | `✗`                                                                        | `✓`                                                                                                                                                                                            |
-| **`skip_if` effect**          | `⊛`                                                                                                       | `⊛`                                                                        | `⊛`                                                                                                                                                                                            |
-| **`stream=None` effect**      | `⊘` body still runs                                                                                       | `⊘` remapping still runs                                                   | `⊘` forwarding still runs                                                                                                                                                                      |
+|                                   | `TargetMode.NOTIFY`                                                                                       | `TargetMode.ARGS_REMAP` (with `args_mapping`)                              | `target=<callable>`                                                                                                                                                                            |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Warning emitted**               | Yes — up to `num_warns` times (default: once)                                                             | Per deprecated arg, up to `num_warns` times (default: once)                | Yes — up to `num_warns` times (default: once)                                                                                                                                                  |
+| **Warning template**              | `"… was deprecated since vX. It will be removed in vY."`                                                  | `"… uses deprecated arguments: …"`                                         | `"… was deprecated … in favour of …"`                                                                                                                                                          |
+| **`message_template` specifiers** | `source_name`, `source_path`, `deprecated_in`, `remove_in` only — `target_name`/`target_path` unavailable | `source_name`, `source_path`, `argument_map`, `deprecated_in`, `remove_in` | All specifiers incl. `target_name`, `target_path`                                                                                                                                              |
+| **Function body**                 | Runs with caller's args + source defaults filled in                                                       | Runs after argument renaming/dropping                                      | **Does not run** under normal forwarding — body is dead code, calls intercepted first. **Exception**: `skip_if=True` at call time bypasses forwarding and executes the source body as fallback |
+| **`args_mapping` applied**        | `⚠`                                                                                                       | `✓` renames or drops listed args                                           | `✓` renames or drops args before forwarding                                                                                                                                                    |
+| **`args_extra` injected**         | `⚠`                                                                                                       | `✓` merged into kwargs before call                                         | `✓` merged into kwargs before forwarding                                                                                                                                                       |
+| **Source defaults merged**        | `✓`                                                                                                       | `✗`                                                                        | `✓`                                                                                                                                                                                            |
+| **`skip_if` effect**              | `⊛`                                                                                                       | `⊛`                                                                        | `⊛`                                                                                                                                                                                            |
+| **`stream=None` effect**          | `⊘` body still runs                                                                                       | `⊘` remapping still runs                                                   | `⊘` forwarding still runs                                                                                                                                                                      |
 
 **Legend:** `✓` applied · `✗` not applied · `⚠` ignored with `UserWarning` (will be `TypeError` in v1.0) · `⊘` warning suppressed, processing continues · `⊛` `skip_if` bypasses everything · `—` not applicable
 
@@ -347,14 +347,14 @@ from deprecate import TargetMode, deprecated
     deprecated_in="0.3",
     remove_in="0.6",
     args_mapping=dict(c1="nc1"),
-    template_mgs="Depr: v%(deprecated_in)s rm v%(remove_in)s for args: %(argument_map)s.",
+    message_template="Depr: v%(deprecated_in)s rm v%(remove_in)s for args: %(argument_map)s.",
 )
 @deprecated(
     TargetMode.ARGS_REMAP,
     deprecated_in="0.4",
     remove_in="0.7",
     args_mapping=dict(nc1="nc2"),
-    template_mgs="Depr: v%(deprecated_in)s rm v%(remove_in)s for args: %(argument_map)s.",
+    message_template="Depr: v%(deprecated_in)s rm v%(remove_in)s for args: %(argument_map)s.",
 )
 def any_pow(base, c1: float = 0, nc1: float = 0, nc2: float = 2) -> float:
     return base**nc2

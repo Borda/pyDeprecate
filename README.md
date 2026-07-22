@@ -194,7 +194,7 @@ Not sure which API to reach for? Start here.
 | `stream`           | `deprecation_warning`       | Warning sink callable (set `None` to silence warnings)                                                                                                                  |
 | `num_warns`        | `1`                         | `0` never · `1` once · `-1` always · `N` exactly N times                                                                                                                |
 | `args_mapping`     | `None`                      | `{"old": "new"}` rename · `{"old": None}` drop                                                                                                                          |
-| `template_mgs`     | `None`                      | Custom warning message template (`%`-style placeholders)                                                                                                                |
+| `message_template` | `None`                      | Custom warning message template (`%`-style placeholders)                                                                                                                |
 | `args_extra`       | `None`                      | Fixed kwargs injected into the target call                                                                                                                              |
 | `skip_if`          | `False`                     | `bool` or `Callable → bool`; deactivate the deprecation machinery when true                                                                                             |
 | `update_docstring` | `False`                     | Append Sphinx `.. deprecated::` notice to docstring                                                                                                                     |
@@ -202,7 +202,7 @@ Not sure which API to reach for? Start here.
 
 > [!TIP]
 > All three decorators share every parameter above. The only differences: `deprecated_class()` adds the class-only `attrs_mapping` (attribute-name remapping — `TypeError` on the other two), and a **class source** is dispatched to `deprecated_class` by `@deprecated` but rejected with `TypeError` by `deprecated_callable()`. `TargetMode.AUTO` is front-door-only: `deprecated_callable()` defaults `target` to `TargetMode.NOTIFY`, `deprecated_class()` leaves it unset, and both raise `TypeError` when handed `TargetMode.AUTO` explicitly.
-> `deprecated_instance()` shares `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_extra`, `template_mgs`, and `skip_if`; it requires `obj` and adds `name` (display name) and `read_only`.
+> `deprecated_instance()` shares `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_extra`, `message_template`, and `skip_if`; it requires `obj` and adds `name` (display name) and `read_only`.
 
 </details>
 
@@ -425,7 +425,7 @@ from deprecate import deprecated, void
     deprecated_in="0.6",
     remove_in="1.0",
     # custom message template
-    template_mgs="`%(source_name)s` was deprecated, use `%(target_path)s`",
+    message_template="`%(source_name)s` was deprecated, use `%(target_path)s`",
     # as target args are different, define mapping from source to target func
     args_mapping={"preds": "y_pred", "target": "y_true", "blabla": None},
 )
@@ -573,14 +573,14 @@ from deprecate import TargetMode, deprecated
     deprecated_in="0.3",
     remove_in="0.6",
     args_mapping=dict(c1="nc1"),
-    template_mgs="Depr: v%(deprecated_in)s rm v%(remove_in)s for args: %(argument_map)s.",
+    message_template="Depr: v%(deprecated_in)s rm v%(remove_in)s for args: %(argument_map)s.",
 )
 @deprecated(
     target=TargetMode.ARGS_REMAP,
     deprecated_in="0.4",
     remove_in="0.7",
     args_mapping=dict(nc1="nc2"),
-    template_mgs="Depr: v%(deprecated_in)s rm v%(remove_in)s for args: %(argument_map)s.",
+    message_template="Depr: v%(deprecated_in)s rm v%(remove_in)s for args: %(argument_map)s.",
 )
 def any_pow(base, c1: float = 0, nc1: float = 0, nc2: float = 2) -> float:
     return base**nc2
@@ -1204,7 +1204,7 @@ def add(a: float, b: float) -> float:
 # `__name__` is passed explicitly here; it is optional (auto-detected from the caller frame when omitted),
 # but passing it is the robust idiom — auto-detection relies on `sys._getframe` and only works when the
 # call sits directly in the module body, not when routed through a helper.
-deprecated_module(__name__, deprecated_in="2.0", remove_in="3.0", message="Use `new_calculator` instead.")
+deprecated_module(__name__, deprecated_in="2.0", remove_in="3.0", message_template="Use `new_calculator` instead.")
 # old_calculator.add(1, 2)  # warns: FutureWarning, returns 3
 ```
 
