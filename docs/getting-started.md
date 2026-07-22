@@ -136,24 +136,23 @@ Every parameter each factory accepts, with its default. 🚫 marks a parameter t
 | Parameter          | `@deprecated`         | `deprecated_callable` | `deprecated_class`    | `deprecated_instance` | `deprecated_module` |
 | ------------------ | --------------------- | --------------------- | --------------------- | --------------------- | ------------------- |
 | `obj`              | 🚫                    | 🚫                    | 🚫                    | **required**          | 🚫                  |
-| `module_name`      | 🚫                    | 🚫                    | 🚫                    | 🚫                    | `None`              |
+| `name`             | 🚫                    | 🚫                    | 🚫                    | `""`                  | `None`              |
 | `target`           | `TargetMode.AUTO`     | `TargetMode.NOTIFY`   | `None`                | 🚫                    | `None`              |
 | `args_mapping`     | `None`                | `None`                | `None`                | 🚫                    | 🚫                  |
 | `attrs_mapping`    | 🚫                    | 🚫                    | `None`                | 🚫                    | `None`              |
 | `args_extra`       | `None`                | `None`                | `None`                | `None`                | 🚫                  |
-| `deprecated_in`    | `""`                  | `""`                  | `""`                  | `""`                  | **required**        |
-| `remove_in`        | `""`                  | `""`                  | `""`                  | `""`                  | **required**        |
+| `deprecated_in`    | `""`                  | `""`                  | `""`                  | `""`                  | `""`                |
+| `remove_in`        | `""`                  | `""`                  | `""`                  | `""`                  | `""`                |
 | `num_warns`        | `1`                   | `1`                   | `1`                   | `1`                   | 🚫                  |
 | `stream`           | `deprecation_warning` | `deprecation_warning` | `deprecation_warning` | `deprecation_warning` | `None`              |
 | `template_mgs`     | `None`                | `None`                | `None`                | `None`                | 🚫                  |
 | `message`          | 🚫                    | 🚫                    | 🚫                    | 🚫                    | `""`                |
 | `skip_if`          | `False`               | `False`               | `False`               | `False`               | 🚫                  |
 | `read_only`        | 🚫                    | 🚫                    | 🚫                    | `False`               | 🚫                  |
-| `name`             | 🚫                    | 🚫                    | 🚫                    | `""`                  | 🚫                  |
 | `update_docstring` | `False`               | `False`               | `False`               | 🚫                    | 🚫                  |
 | `docstring_style`  | `"auto"`              | `"auto"`              | `"auto"`              | 🚫                    | 🚫                  |
 
-Notes: `deprecation_warning` is the default `FutureWarning` sink (`stream=None` silences it). `deprecated_module`'s `module_name` is auto-detected from the caller's `__name__` when omitted. The front door `@deprecated` exposes only the parameters common to `deprecated_callable` and `deprecated_class`; the class-only `attrs_mapping` is 🚫 there — use `deprecated_class(attrs_mapping=...)` directly.
+Notes: `deprecation_warning` is the default `FutureWarning` sink (`stream=None` silences it). `name` is a display label for `deprecated_instance` and the module's `__name__` for `deprecated_module` (auto-detected from the caller when omitted). The front door `@deprecated` exposes only the parameters common to `deprecated_callable` and `deprecated_class`; the class-only `attrs_mapping` is 🚫 there — use `deprecated_class(attrs_mapping=...)` directly.
 
 ______________________________________________________________________
 

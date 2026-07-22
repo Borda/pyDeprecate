@@ -234,13 +234,48 @@ class _DeprecatedModuleWrapper(types.ModuleType):
         return _resolve_missing_attr(name, d, d.get("__deprecated__"))
 
 
+def _resolve_module_name(name: Optional[str], caller_frame: types.FrameType) -> str:
+    """Resolve the target module name, auto-detecting from the caller frame when ``name`` is omitted.
+
+    Args:
+        name: Explicit ``__name__`` of the module being deprecated, or ``None`` to auto-detect.
+        caller_frame: The frame of the direct caller of :func:`deprecated_module` (its ``sys._getframe(1)``),
+            passed in so detection is independent of this helper's own call depth.
+
+    Returns:
+        The resolved module name.
+
+    Raises:
+        TypeError: If ``name`` is omitted and the call is made from inside a function or class body
+            (``f_locals`` differs from ``f_globals``) rather than at module top level.
+        ValueError: If ``name`` is omitted and the caller frame's ``__name__`` cannot be determined.
+
+    """
+    if name is not None:
+        return name
+    # Auto-detection is only meaningful from a module's top level, where the caller frame's ``f_locals`` IS
+    # its ``f_globals`` (both are the module namespace). Inside a function or class body the two are distinct
+    # dicts, yet ``f_globals["__name__"]`` still names the ENCLOSING module — so a naive auto-detect from a
+    # nested call would silently deprecate that whole module as a side effect. Reject it with a ``TypeError``
+    # naming the fix; passing ``name`` explicitly bypasses this guard entirely.
+    if caller_frame.f_locals is not caller_frame.f_globals:
+        raise TypeError(
+            "`deprecated_module()` was called without `name` from inside a function or class body."
+            " Call it at module top level, or pass `name` explicitly."
+        )
+    caller_name: Optional[str] = caller_frame.f_globals.get("__name__")
+    if caller_name is None:
+        raise ValueError("`deprecated_module()` called without `name` and caller frame `__name__` not found.")
+    return caller_name
+
+
 def deprecated_module(
-    module_name: Optional[str] = None,
+    name: Optional[str] = None,
     *,
     target: Optional[types.ModuleType] = None,
     attrs_mapping: Optional[dict[str, Optional[str]]] = None,
-    deprecated_in: str,
-    remove_in: str,
+    deprecated_in: str = "",
+    remove_in: str = "",
     stream: Optional[Callable[..., Any]] = None,
     message: str = "",
 ) -> None:
@@ -261,12 +296,12 @@ def deprecated_module(
         fetch by orders of magnitude. Cache the value locally instead of reading it in a hot loop.
 
     Args:
-        module_name: The ``__name__`` of the module being deprecated.  When omitted (or ``None``), the caller's
+        name: The ``__name__`` of the module being deprecated.  When omitted (or ``None``), the caller's
             ``__name__`` is detected automatically via ``sys._getframe()``, so calling ``deprecated_module(
             deprecated_in="1.0", remove_in="2.0")`` from inside a module body works without explicitly passing
             ``__name__``.  Auto-detection reads the *direct* caller frame, so it must be called straight from the
             module body — not from a helper function (which would deprecate the helper's module) and not from a
-            script run as ``__main__`` (which would deprecate ``"__main__"``).  Pass ``module_name`` explicitly to
+            script run as ``__main__`` (which would deprecate ``"__main__"``).  Pass ``name`` explicitly to
             avoid both pitfalls.
         target: Optional replacement module.  When given, missing-attribute access is forwarded to this module (Mode 2).
         attrs_mapping: Optional per-attribute mapping ``{"old_name": "new_name"}`` or ``{"old_name": None}`` to
@@ -275,8 +310,10 @@ def deprecated_module(
             bodies coexist): a listed name is always resolved via the mapping, never returned as its stale local
             value.  When supplied alongside ``target``, listed names resolve via the mapping and all other names fall
             through to ``target``.
-        deprecated_in: Version string when this module was deprecated (e.g. ``"1.0"``).
-        remove_in: Version string when this module will be removed (e.g. ``"2.0"``).
+        deprecated_in: Version string when this module was deprecated (e.g. ``"1.0"``).  Defaults to ``""``;
+            when omitted a decoration-time :class:`UserWarning` fires (the notice omits the version and expiry
+            audits cannot gate the module), matching :func:`~deprecate.deprecated`.
+        remove_in: Version string when this module will be removed (e.g. ``"2.0"``).  Defaults to ``""``.
         stream: Callable used to emit the warning instead of :func:`warnings.warn`.  Pass ``None`` (default) to use
             the standard :mod:`warnings` machinery.  Note: there is no warn budget — unlike ``@deprecated``'s
             ``num_warns``, a warning fires on *every* public attribute access.  The default warnings path is
@@ -286,12 +323,12 @@ def deprecated_module(
         message: Optional extra text appended to the generated warning message.
 
     Raises:
-        ValueError: If ``module_name`` is not found in :data:`sys.modules`; if ``module_name`` is omitted and the
-            caller frame's ``__name__`` cannot be determined; or if ``target`` points at the module being deprecated
-            itself (a self-redirect would recurse indefinitely on every missing-attribute lookup).
-        TypeError: If ``module_name`` is omitted and the call is made from inside a function or class body
+        ValueError: If the resolved module ``name`` is not found in :data:`sys.modules`; if ``name`` is omitted
+            and the caller frame's ``__name__`` cannot be determined; or if ``target`` points at the module being
+            deprecated itself (a self-redirect would recurse indefinitely on every missing-attribute lookup).
+        TypeError: If ``name`` is omitted and the call is made from inside a function or class body
             rather than at module top level (auto-detection would otherwise deprecate the enclosing module);
-            pass ``module_name`` explicitly to call from a non-module scope.  Also raised if the module's type
+            pass ``name`` explicitly to call from a non-module scope.  Also raised if the module's type
             declares ``__slots__`` (incompatible memory layout prevents ``__class__`` reassignment) — wrap in a
             plain :class:`types.ModuleType` first if needed.
 
@@ -310,28 +347,22 @@ def deprecated_module(
         >>> del sys.modules["demo_old"]
 
     """
-    if module_name is None:
-        caller_frame = sys._getframe(1)
-        # Auto-detection is only meaningful from a module's top level, where the caller frame's
-        # ``f_locals`` IS its ``f_globals`` (both are the module namespace). Inside a function or class
-        # body the two are distinct dicts, yet ``f_globals["__name__"]`` still names the ENCLOSING
-        # module — so a naive auto-detect from a nested call would silently deprecate that whole module
-        # as a side effect. Reject it with a ``TypeError`` that names the fix. Passing ``module_name``
-        # explicitly bypasses this guard entirely.
-        if caller_frame.f_locals is not caller_frame.f_globals:
-            raise TypeError(
-                "`deprecated_module()` was called without `module_name` from inside a function or class body."
-                " Call it at module top level, or pass `module_name` explicitly."
-            )
-        caller_name: Optional[str] = caller_frame.f_globals.get("__name__")
-        if caller_name is None:
-            raise ValueError(
-                "`deprecated_module()` called without `module_name` and caller frame `__name__` not found."
-            )
-        module_name = caller_name
+    module_name = _resolve_module_name(name, sys._getframe(1))
 
     if module_name not in sys.modules:
         raise ValueError(f"`deprecated_module()` called with {module_name!r} which is not in `sys.modules`.")
+
+    # Missing-version notice, mirroring `@deprecated`: a deprecation without a `deprecated_in` version
+    # produces a vaguer notice and cannot be gated by expiry audits. Fired once here at call time (module
+    # deprecation runs once at import) so the gap surfaces during development, not silently at runtime.
+    if not deprecated_in:
+        warnings.warn(
+            f"`deprecated_module` on {module_name!r} has no `deprecated_in` set."
+            " Deprecation notices and expiry audits will omit the `deprecated_in` version."
+            " Pass `deprecated_in` for a meaningful deprecation notice.",
+            UserWarning,
+            stacklevel=2,
+        )
 
     mod = sys.modules[module_name]
 
