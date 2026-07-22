@@ -16,7 +16,7 @@ from typing import cast
 
 import pytest
 
-from deprecate import TargetMode, assert_no_warnings, deprecated_callable, deprecated_class
+from deprecate import TargetMode, assert_no_warnings, deprecated, deprecated_callable, deprecated_class
 from deprecate._types import DeprecationConfig, _DeprecatedCallable
 from deprecate.proxy import _DeprecatedProxy
 from tests.collection_deprecate import (
@@ -41,6 +41,7 @@ from tests.collection_deprecate import (
     make_deprecated_with_attrs_mapping_kwarg,
     make_deprecated_with_message_template_on_class,
 )
+from tests.collection_targets import Palette
 
 
 class TestClassDispatchInformationalWarning:
@@ -296,6 +297,28 @@ class TestCommonArgsOnlyOnDispatcher:
         with pytest.warns(FutureWarning, match="Custom notice for `Palette`."):
             proxy()
 
+    def test_template_mgs_alias_fires_exactly_once_on_class_dispatch(self) -> None:
+        """Instantiating a class-dispatch proxy built via ``template_mgs=`` emits exactly one ``FutureWarning``.
+
+        The alias's own decoration-time migration notice is a separate, one-time event; it must not cause
+        the proxy's call-time warning to double-fire. A maintainer combining the front door with the legacy
+        alias on a class source must see the same "at most once" contract that ``message_template=`` already
+        has on this path.
+
+        """
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")  # decoration fires its own one-time alias + class-dispatch notices
+            proxy = deprecated(
+                deprecated_in="1.0", remove_in="2.0", template_mgs="Alias notice for `%(source_name)s`."
+            )(Palette)
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            proxy()
+
+        future_warns = [w for w in caught if issubclass(w.category, FutureWarning)]
+        assert len(future_warns) == 1
+
 
 class TestArgsMappingDefaultTargetAutoResolveOnDispatcher:
     """``@deprecated(args_mapping=...)`` on a class with NO explicit ``target=`` auto-resolves."""
@@ -430,3 +453,35 @@ class TestDispatcherStacking:
 
         dep_warns = [w for w in caught if w.category in (FutureWarning, DeprecationWarning)]
         assert dep_warns
+
+
+class TestTemplateMgsAliasOnClassDispatchEntryPoint:
+    """The deprecated ``template_mgs`` alias resolves through the ``@deprecated`` front door on a CLASS source.
+
+    The alias fold happens at the very top of ``deprecated()``, before the callable-vs-class dispatch
+    decision is made — a maintainer who never migrated off the old, typo'd ``template_mgs`` spelling and
+    reaches for the friendly front door on a class must get the exact same fold as the callable path.
+    """
+
+    def test_alias_alone_warns_and_resolves(self) -> None:
+        """Supplying only ``template_mgs`` warns ``FutureWarning`` and is adopted as ``message_template``."""
+        with pytest.warns(FutureWarning, match="`template_mgs` is deprecated"):
+            proxy = deprecated(
+                deprecated_in="1.0", remove_in="2.0", template_mgs="Alias notice for `%(source_name)s`."
+            )(Palette)
+        dep = object.__getattribute__(proxy, "__deprecated__")
+        assert dep.message_template == "Alias notice for `%(source_name)s`."
+
+    def test_alias_and_message_template_together_raises(self) -> None:
+        """Supplying both ``template_mgs`` and ``message_template`` on a class source raises ``TypeError``.
+
+        The conflict is detected before the class-dispatch decision is even made, so a class source fails
+        just as loudly as a callable one — no silent merge.
+        """
+        with pytest.raises(TypeError, match="pass only one"):
+            deprecated(
+                deprecated_in="1.0",
+                remove_in="2.0",
+                message_template="Canonical notice.",
+                template_mgs="Legacy notice.",
+            )(Palette)
