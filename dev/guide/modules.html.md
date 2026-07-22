@@ -34,7 +34,7 @@ def multiply(a: float, b: float) -> float:
 
 
 # Mark this module deprecated — call once at the bottom.
-# module_name is optional; when omitted it is auto-detected from the caller's __name__.
+# name is optional; when omitted it is auto-detected from the caller's __name__.
 # Without message=, the warning reads:
 #   FutureWarning: The `old_calculator` module was deprecated since v2.0. It will be removed in v3.0.
 # With message= (as below), it appends your text:
@@ -48,7 +48,7 @@ deprecated_module(
 
 `import old_calculator; old_calculator.add(1, 2)` emits a `FutureWarning` and returns the result. Every public attribute access — real functions, classes, constants — warns because `deprecated_module()` replaces the module's `__class__` with an intercepting wrapper.
 
-> **Call it at module top level when omitting `module_name`.** Auto-detection reads the caller frame's `__name__`, which only names the intended module when the call sits directly in the module body. Calling it without `module_name` from inside a function or class body (e.g. a `_setup_deprecations()` helper) raises `TypeError` — the frame's `__name__` would point at the enclosing module and silently deprecate all of it. Pass `module_name` explicitly to call from any other scope.
+> **Call it at module top level when omitting `name`.** Auto-detection reads the caller frame's `__name__`, which only names the intended module when the call sits directly in the module body. Calling it without `name` from inside a function or class body (e.g. a `_setup_deprecations()` helper) raises `TypeError` — the frame's `__name__` would point at the enclosing module and silently deprecate all of it. Pass `name` explicitly to call from any other scope.
 
 ## Mode 2 — redirect to a replacement module
 

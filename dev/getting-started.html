@@ -95,7 +95,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-04-21",
-  "dateModified": "2026-07-08"
+  "dateModified": "2026-07-22"
 }
 </script>
 
@@ -418,6 +418,23 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="API at a Glance">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#parameter-matrix-across-the-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Parameter matrix across the API
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1296,6 +1313,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="API at a Glance">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#parameter-matrix-across-the-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Parameter matrix across the API
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
     </ul>
@@ -1445,8 +1479,8 @@
 <tbody>
 <tr>
 <td><code>target</code></td>
-<td><code>TargetMode.NOTIFY</code></td>
-<td><code>Callable</code> to forward to · <code>TargetMode.ARGS_REMAP</code> to remap args · <code>TargetMode.NOTIFY</code> (default) warn-only</td>
+<td><code>TargetMode.AUTO</code></td>
+<td><code>Callable</code> to forward to · <code>TargetMode.ARGS_REMAP</code> to remap args · <code>TargetMode.NOTIFY</code> warn-only · <code>TargetMode.AUTO</code> (default) infers the mode from the other arguments</td>
 </tr>
 <tr>
 <td><code>deprecated_in</code></td>
@@ -1486,7 +1520,7 @@
 <tr>
 <td><code>skip_if</code></td>
 <td><code>False</code></td>
-<td><code>bool</code> or <code>Callable → bool</code>; skip deprecation when true</td>
+<td><code>bool</code> or <code>Callable → bool</code>; deactivate the deprecation machinery when true</td>
 </tr>
 <tr>
 <td><code>update_docstring</code></td>
@@ -1500,7 +1534,154 @@
 </tr>
 </tbody>
 </table>
-<p><code>@deprecated_class()</code> shares <code>target</code>, <code>deprecated_in</code>, <code>remove_in</code>, <code>num_warns</code>, <code>stream</code>, <code>args_mapping</code>, <code>attrs_mapping</code>, <code>args_extra</code>, <code>template_mgs</code>, <code>update_docstring</code>, and <code>docstring_style</code>. <code>deprecated_instance()</code> shares <code>deprecated_in</code>, <code>remove_in</code>, <code>num_warns</code>, <code>stream</code>, <code>args_extra</code>, and <code>template_mgs</code>; it requires <code>obj</code> and adds <code>name</code> (display name) and <code>read_only</code>.</p>
+<p>Prefer passing an explicit <code>target</code> (<code>TargetMode.NOTIFY</code>, <code>TargetMode.ARGS_REMAP</code>, or a callable) so the intent is visible at the call site — <code>TargetMode.AUTO</code> is only the front-door default that resolves an omitted <code>target</code>, and you never write it yourself.</p>
+<p>All three decorators (<code>@deprecated</code>, <code>deprecated_callable()</code>, <code>deprecated_class()</code>) share every parameter above. The only differences: <code>deprecated_class()</code> adds the class-only <code>attrs_mapping</code> (attribute-name remapping — <code>TypeError</code> on the other two), and a class source is dispatched to <code>deprecated_class</code> by <code>@deprecated</code> but rejected with <code>TypeError</code> by <code>deprecated_callable()</code>. <code>TargetMode.AUTO</code> is front-door-only: <code>deprecated_callable()</code> defaults <code>target</code> to <code>TargetMode.NOTIFY</code>, <code>deprecated_class()</code> leaves it unset, and both raise <code>TypeError</code> when handed <code>TargetMode.AUTO</code> explicitly.</p>
+<p><code>deprecated_instance()</code> shares <code>deprecated_in</code>, <code>remove_in</code>, <code>num_warns</code>, <code>stream</code>, <code>args_extra</code>, <code>template_mgs</code>, and <code>skip_if</code>; it requires <code>obj</code> and adds <code>name</code> (display name) and <code>read_only</code>.</p>
+<h3 id="parameter-matrix-across-the-api">Parameter matrix across the API<a class="headerlink" href="#parameter-matrix-across-the-api" title="Permanent link">🔗</a></h3>
+<p>Every parameter each factory accepts, with its default. 🚫 marks a parameter the factory does <strong>not</strong> accept — passing it raises <code>TypeError</code>. <strong>required</strong> marks a parameter with no default.</p>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th><code>@deprecated</code></th>
+<th><code>deprecated_callable</code></th>
+<th><code>deprecated_class</code></th>
+<th><code>deprecated_instance</code></th>
+<th><code>deprecated_module</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>obj</code></td>
+<td>🚫</td>
+<td>🚫</td>
+<td>🚫</td>
+<td><strong>required</strong></td>
+<td>🚫</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>🚫</td>
+<td>🚫</td>
+<td>🚫</td>
+<td><code>""</code></td>
+<td><code>None</code></td>
+</tr>
+<tr>
+<td><code>target</code></td>
+<td><code>TargetMode.AUTO</code></td>
+<td><code>TargetMode.NOTIFY</code></td>
+<td><code>None</code></td>
+<td>🚫</td>
+<td><code>None</code></td>
+</tr>
+<tr>
+<td><code>args_mapping</code></td>
+<td><code>None</code></td>
+<td><code>None</code></td>
+<td><code>None</code></td>
+<td>🚫</td>
+<td>🚫</td>
+</tr>
+<tr>
+<td><code>attrs_mapping</code></td>
+<td>🚫</td>
+<td>🚫</td>
+<td><code>None</code></td>
+<td>🚫</td>
+<td><code>None</code></td>
+</tr>
+<tr>
+<td><code>args_extra</code></td>
+<td><code>None</code></td>
+<td><code>None</code></td>
+<td><code>None</code></td>
+<td><code>None</code></td>
+<td>🚫</td>
+</tr>
+<tr>
+<td><code>deprecated_in</code></td>
+<td><code>""</code></td>
+<td><code>""</code></td>
+<td><code>""</code></td>
+<td><code>""</code></td>
+<td><code>""</code></td>
+</tr>
+<tr>
+<td><code>remove_in</code></td>
+<td><code>""</code></td>
+<td><code>""</code></td>
+<td><code>""</code></td>
+<td><code>""</code></td>
+<td><code>""</code></td>
+</tr>
+<tr>
+<td><code>num_warns</code></td>
+<td><code>1</code></td>
+<td><code>1</code></td>
+<td><code>1</code></td>
+<td><code>1</code></td>
+<td>🚫</td>
+</tr>
+<tr>
+<td><code>stream</code></td>
+<td><code>deprecation_warning</code></td>
+<td><code>deprecation_warning</code></td>
+<td><code>deprecation_warning</code></td>
+<td><code>deprecation_warning</code></td>
+<td><code>None</code></td>
+</tr>
+<tr>
+<td><code>template_mgs</code></td>
+<td><code>None</code></td>
+<td><code>None</code></td>
+<td><code>None</code></td>
+<td><code>None</code></td>
+<td>🚫</td>
+</tr>
+<tr>
+<td><code>message</code></td>
+<td>🚫</td>
+<td>🚫</td>
+<td>🚫</td>
+<td>🚫</td>
+<td><code>""</code></td>
+</tr>
+<tr>
+<td><code>skip_if</code></td>
+<td><code>False</code></td>
+<td><code>False</code></td>
+<td><code>False</code></td>
+<td><code>False</code></td>
+<td>🚫</td>
+</tr>
+<tr>
+<td><code>read_only</code></td>
+<td>🚫</td>
+<td>🚫</td>
+<td>🚫</td>
+<td><code>False</code></td>
+<td>🚫</td>
+</tr>
+<tr>
+<td><code>update_docstring</code></td>
+<td><code>False</code></td>
+<td><code>False</code></td>
+<td><code>False</code></td>
+<td>🚫</td>
+<td>🚫</td>
+</tr>
+<tr>
+<td><code>docstring_style</code></td>
+<td><code>"auto"</code></td>
+<td><code>"auto"</code></td>
+<td><code>"auto"</code></td>
+<td>🚫</td>
+<td>🚫</td>
+</tr>
+</tbody>
+</table>
+<p>Notes: <code>deprecation_warning</code> is the default <code>FutureWarning</code> sink (<code>stream=None</code> silences it). <code>name</code> is a display label for <code>deprecated_instance</code> and the module's <code>__name__</code> for <code>deprecated_module</code> (auto-detected from the caller when omitted). The front door <code>@deprecated</code> exposes only the parameters common to <code>deprecated_callable</code> and <code>deprecated_class</code>; the class-only <code>attrs_mapping</code> is 🚫 there — use <code>deprecated_class(attrs_mapping=...)</code> directly.</p>
 <hr />
 <p>Next: <a href="guide/use-cases.html">Use Cases</a> — overview of all deprecation patterns with links to each topic. See also: <a href="guide/customization.html">Customization</a> · <a href="guide/audit.html">Audit Tools</a> · <a href="troubleshooting.html">Troubleshooting</a></p>
 
@@ -1525,7 +1706,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="July 8, 2026 11:02:10 UTC">2026-07-08</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="July 22, 2026 11:50:54 UTC">2026-07-22</span>
   </span>
 
     

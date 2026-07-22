@@ -104,15 +104,15 @@
           "name": "Why do I get UserWarning when applying @deprecated directly to a class?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Use @deprecated_class instead of @deprecated for classes. The @deprecated decorator is designed for functions and methods only; applying it directly to a class triggers this warning. The implicit fallback from @deprecated to @deprecated_class will become a TypeError in a future release."
+            "text": "Since v0.12, applying @deprecated directly to a class is first-class supported and permanent: it dispatches to @deprecated_class and produces an identical _DeprecatedProxy. The UserWarning is a one-time informational notice per class (keyed by module + qualified name, so same-named classes in different modules each warn) per process, not a deprecation of the pattern itself; only this notice is removed, in v1.0. Pass stream=None to suppress it, or apply @deprecated_class directly to skip the notice entirely and reach class-only options such as attrs_mapping without an extra hop."
           }
         },
         {
           "@type": "Question",
-          "name": "How do I migrate from @deprecated on a class to @deprecated_class?",
+          "name": "What changed with @deprecated on classes since v0.6.0?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Replace @deprecated with @deprecated_class on your class definition. Before v0.6.0, applying @deprecated directly to a class replaced the class object with a plain wrapper function, silently breaking isinstance, issubclass, and class attribute access. @deprecated_class wraps the class in a _DeprecatedProxy that forwards all attribute access and type checks correctly."
+            "text": "Before v0.6.0, applying @deprecated directly to a class replaced the class object with a plain wrapper function, silently breaking isinstance, issubclass, and class attribute access. Since v0.6.0.post0, @deprecated on a class delegates to @deprecated_class internally, wrapping the class in a _DeprecatedProxy that forwards all attribute access and type checks correctly — that delegation is now first-class supported (see the previous question). @deprecated_class remains the explicit, recommended API for classes, Enums, and dataclasses."
           }
         },
         {
@@ -176,7 +176,7 @@
           "name": "Why doesn't deprecated_class warn when I call it with the new argument name?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "This is intended behaviour. When args_mapping is provided without an explicit callable target, the proxy auto-resolves to TargetMode.ARGS_REMAP and warns only when an old argument name is actually present in the call. Callers already using the new argument name see no warning, matching the per-argument behaviour of @deprecated(target=TargetMode.ARGS_REMAP, args_mapping=...). To warn on every call regardless of argument names, set target=TargetMode.NOTIFY explicitly."
+            "text": "This is intended behaviour. When args_mapping is provided with target omitted, the proxy auto-resolves to TargetMode.ARGS_REMAP and warns only when an old argument name is actually present in the call. Callers already using the new argument name see no warning, matching the per-argument behaviour of @deprecated(target=TargetMode.ARGS_REMAP, args_mapping=...). Auto-resolve applies only when target is omitted — passing target=TargetMode.NOTIFY explicitly together with args_mapping is a misconfiguration: a UserWarning fires at decoration time, the mode stays NOTIFY, and the mapping is inert at runtime. To get a blanket warning on every call while also renaming an argument, stack two deprecated_class() layers: an inner ARGS_REMAP-only layer for the rename and an outer NOTIFY-only layer (no mapping) for the blanket notice."
           }
         },
         {
@@ -2336,19 +2336,19 @@
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydeprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>  <span class="c1"># wrong — no such module</span>
 </code></pre></div>
 <h2 id="userwarning-when-decorating-a-class">UserWarning when decorating a class<a class="headerlink" href="#userwarning-when-decorating-a-class" title="Permanent link">🔗</a></h2>
-<p><strong>Q:</strong> I applied <code>@deprecated</code> directly to a class and got <code>UserWarning: Direct use of @deprecated on class MyClass is deprecated since v0.6.0. Use @deprecated_class(...) instead. This will become a TypeError in a future release.</code> Why, and how do I fix it?</p>
-<p><strong>A:</strong> Use <code>@deprecated_class()</code> for classes. The <code>@deprecated</code> decorator is designed for functions and methods only.</p>
-<p>That warning is triggered specifically when <code>@deprecated</code> is applied directly to a class. This still works today because pyDeprecate delegates to <code>@deprecated_class()</code> under the hood, but that delegation path is itself deprecated and will become a <code>TypeError</code> in a future release. The warning is telling you to switch to the explicit class API now.</p>
-<div class="admonition danger">
-<p class="admonition-title">This delegation will become a TypeError in a future release</p>
-<p>The implicit fallback from <code>@deprecated</code> to <code>@deprecated_class()</code> is a temporary compatibility shim. Once it is removed, applying <code>@deprecated</code> to a class will raise <code>TypeError</code> immediately at decoration time. Migrate now to avoid a hard break on upgrade.</p>
-</div>
-<p>There are two supported alternatives depending on what you need. Use <code>@deprecated_class()</code> when you want to deprecate the class name itself (including Enums and dataclasses). Use <code>@deprecated</code> on <code>__init__</code> when you want to emit a deprecation notice only at instantiation time while keeping the class name in place.</p>
+<p><strong>Q:</strong> I applied <code>@deprecated</code> directly to a class and got <code>UserWarning: `@deprecated` on class `MyClass` now dispatches to `@deprecated_class`.</code> Is this a problem, and how do I stop it?</p>
+<p><strong>A:</strong> No — since v0.12, <code>@deprecated</code> on a class is first-class supported and permanent. It dispatches to <code>@deprecated_class()</code> under the hood and produces an identical <code>_DeprecatedProxy</code>; nothing is broken and nothing needs migrating. The <code>UserWarning</code> is a one-time informational notice — it fires at most once per class (keyed by module + qualified name, not bare name — same-named classes in different modules each warn), not on every decoration — telling you that the dispatch happened. Only this notice — not the dispatch support itself — is removed entirely, in v1.0.</p>
+<p>You have two ways to quiet it, and one alternative pattern for a different use case:</p>
+<ul>
+<li><strong>Apply <code>@deprecated_class()</code> directly</strong> — same result, and it skips the notice entirely. Prefer this for new code, and it is required to reach class-only knobs such as <code>attrs_mapping</code>.</li>
+<li><strong>Pass <code>stream=None</code></strong> — suppresses the notice (and every other deprecation notice from that decoration) while keeping <code>@deprecated</code> on the class.</li>
+<li><strong>Decorate <code>__init__</code> instead of the class</strong> — use this when you want a notice only at instantiation time while keeping the class name and identity untouched (no proxy involved).</li>
+</ul>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">TargetMode</span><span class="p">,</span> <span class="n">deprecated_class</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">enum</span><span class="w"> </span><span class="kn">import</span> <span class="n">Enum</span>
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
 <a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="c1"># Correct: use @deprecated_class for classes</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="c1"># Preferred: use @deprecated_class directly for classes — identical result, no notice</span>
 <a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="nd">@deprecated_class</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">TargetMode</span><span class="o">.</span><span class="n">NOTIFY</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
 <a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="k">class</span><span class="w"> </span><span class="nc">MyClass</span><span class="p">:</span>
 <a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>    <span class="k">pass</span>
@@ -2364,16 +2364,16 @@
 <a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">TargetMode</span><span class="p">,</span> <span class="n">deprecated</span>
 <a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a>
 <a id="__codelineno-3-20" name="__codelineno-3-20" href="#__codelineno-3-20"></a>
-<a id="__codelineno-3-21" name="__codelineno-3-21" href="#__codelineno-3-21"></a><span class="k">class</span><span class="w"> </span><span class="nc">MyClass</span><span class="p">:</span>
+<a id="__codelineno-3-21" name="__codelineno-3-21" href="#__codelineno-3-21"></a><span class="k">class</span><span class="w"> </span><span class="nc">MyOtherClass</span><span class="p">:</span>
 <a id="__codelineno-3-22" name="__codelineno-3-22" href="#__codelineno-3-22"></a>    <span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">TargetMode</span><span class="o">.</span><span class="n">NOTIFY</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
 <a id="__codelineno-3-23" name="__codelineno-3-23" href="#__codelineno-3-23"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-3-24" name="__codelineno-3-24" href="#__codelineno-3-24"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">val</span> <span class="o">=</span> <span class="n">val</span>  <span class="c1"># body still executes; warning fires on every new MyClass(...)</span>
+<a id="__codelineno-3-24" name="__codelineno-3-24" href="#__codelineno-3-24"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">val</span> <span class="o">=</span> <span class="n">val</span>  <span class="c1"># body still executes; warning fires on every new MyOtherClass(...)</span>
 <a id="__codelineno-3-25" name="__codelineno-3-25" href="#__codelineno-3-25"></a>
 <a id="__codelineno-3-26" name="__codelineno-3-26" href="#__codelineno-3-26"></a>
-<a id="__codelineno-3-27" name="__codelineno-3-27" href="#__codelineno-3-27"></a><span class="nb">print</span><span class="p">(</span><span class="n">MyClass</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span><span class="o">.</span><span class="n">val</span><span class="p">)</span>
+<a id="__codelineno-3-27" name="__codelineno-3-27" href="#__codelineno-3-27"></a><span class="nb">print</span><span class="p">(</span><span class="n">MyOtherClass</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span><span class="o">.</span><span class="n">val</span><span class="p">)</span>
 </code></pre></div>
 <details>
-  <summary>Output: <code>MyClass(5).val</code></summary>
+  <summary>Output: <code>MyOtherClass(5).val</code></summary>
 
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>5
 </code></pre></div>
@@ -2564,7 +2564,7 @@
 <h2 id="typeerror-skip_if-function-must-return-bool">TypeError: skip_if function must return bool<a class="headerlink" href="#typeerror-skip_if-function-must-return-bool" title="Permanent link">🔗</a></h2>
 <p><strong>Q:</strong> I see <code>TypeError: User function 'skip_if' shall return bool, but got: &lt;type&gt;</code>. What is wrong with my <code>skip_if</code> callable?</p>
 <p><strong>A:</strong> The callable passed to <code>skip_if</code> must return a <code>bool</code>. If it returns any other type — including a truthy int or a string — pyDeprecate raises <code>TypeError("User function 'skip_if' shall return bool, but got: ...")</code>.</p>
-<p>pyDeprecate enforces the return type strictly so that the conditional skip behaviour is unambiguous. The error message refers to <code>skip_if</code> itself, not the name of your callback. Wrap any non-bool expression in an explicit <code>bool()</code> call, or use a <code>lambda</code> that returns a literal <code>True</code> or <code>False</code>.</p>
+<p>pyDeprecate enforces the return type strictly so that the conditional skip behaviour is unambiguous. The error message refers to <code>skip_if</code> itself, not the name of your callback. Wrap any non-bool expression in an explicit <code>bool()</code> call, or use a <code>lambda</code> that returns a literal <code>True</code> or <code>False</code>. The same strict-bool contract applies wherever <code>skip_if</code> is accepted: <code>@deprecated</code>, <code>deprecated_callable()</code>, <code>deprecated_class()</code>, and <code>deprecated_instance()</code>.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="c1"># Minimal replacement function for examples</span>
 <a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">get_status</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>    <span class="k">return</span> <span class="s2">&quot;Hi!&quot;</span>
@@ -2572,7 +2572,7 @@
 <a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a>
 <a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a><span class="c1"># ---------------------------</span>
 <a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a>
-<a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
+<a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated_callable</span>
 <a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a>
 <a id="__codelineno-18-10" name="__codelineno-18-10" href="#__codelineno-18-10"></a>
 <a id="__codelineno-18-11" name="__codelineno-18-11" href="#__codelineno-18-11"></a><span class="c1"># Correct: function returns bool</span>
@@ -2580,13 +2580,13 @@
 <a id="__codelineno-18-13" name="__codelineno-18-13" href="#__codelineno-18-13"></a>    <span class="k">return</span> <span class="kc">False</span>  <span class="c1"># replace with your condition</span>
 <a id="__codelineno-18-14" name="__codelineno-18-14" href="#__codelineno-18-14"></a>
 <a id="__codelineno-18-15" name="__codelineno-18-15" href="#__codelineno-18-15"></a>
-<a id="__codelineno-18-16" name="__codelineno-18-16" href="#__codelineno-18-16"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">get_status</span><span class="p">,</span> <span class="n">skip_if</span><span class="o">=</span><span class="n">should_skip</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-18-16" name="__codelineno-18-16" href="#__codelineno-18-16"></a><span class="nd">@deprecated_callable</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">get_status</span><span class="p">,</span> <span class="n">skip_if</span><span class="o">=</span><span class="n">should_skip</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
 <a id="__codelineno-18-17" name="__codelineno-18-17" href="#__codelineno-18-17"></a><span class="k">def</span><span class="w"> </span><span class="nf">infer</span><span class="p">():</span>
 <a id="__codelineno-18-18" name="__codelineno-18-18" href="#__codelineno-18-18"></a>    <span class="k">pass</span>
 <a id="__codelineno-18-19" name="__codelineno-18-19" href="#__codelineno-18-19"></a>
 <a id="__codelineno-18-20" name="__codelineno-18-20" href="#__codelineno-18-20"></a>
 <a id="__codelineno-18-21" name="__codelineno-18-21" href="#__codelineno-18-21"></a><span class="c1"># Also correct: use a lambda</span>
-<a id="__codelineno-18-22" name="__codelineno-18-22" href="#__codelineno-18-22"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">get_status</span><span class="p">,</span> <span class="n">skip_if</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-18-22" name="__codelineno-18-22" href="#__codelineno-18-22"></a><span class="nd">@deprecated_callable</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">get_status</span><span class="p">,</span> <span class="n">skip_if</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
 <a id="__codelineno-18-23" name="__codelineno-18-23" href="#__codelineno-18-23"></a><span class="k">def</span><span class="w"> </span><span class="nf">infer_v2</span><span class="p">():</span>
 <a id="__codelineno-18-24" name="__codelineno-18-24" href="#__codelineno-18-24"></a>    <span class="k">pass</span>
 <a id="__codelineno-18-25" name="__codelineno-18-25" href="#__codelineno-18-25"></a>
@@ -2824,7 +2824,7 @@
 <hr />
 <h2 id="why-doesnt-deprecated_class-warn-when-i-call-it-with-the-new-argument-name">Why doesn't <code>deprecated_class</code> warn when I call it with the new argument name?<a class="headerlink" href="#why-doesnt-deprecated_class-warn-when-i-call-it-with-the-new-argument-name" title="Permanent link">🔗</a></h2>
 <p><strong>Q:</strong> I set up <code>deprecated_class(args_mapping={"old_arg": "new_arg"}, ...)</code> on my class but no warning fires when I call it with <code>new_arg=...</code>. Did I configure it incorrectly?</p>
-<p><strong>A:</strong> No — this is the intended behaviour. When <code>args_mapping</code> is provided without an explicit callable <code>target</code>, the proxy auto-resolves to <code>TargetMode.ARGS_REMAP</code> and warns <strong>only when the old argument name is actually present in the call</strong>. Callers who have already migrated to the new argument name see no warning. This matches the per-argument warning behaviour of <code>@deprecated(target=TargetMode.ARGS_REMAP, args_mapping=...)</code>.</p>
+<p><strong>A:</strong> No — this is the intended behaviour. When <code>args_mapping</code> is provided with <code>target</code> omitted, the proxy auto-resolves to <code>TargetMode.ARGS_REMAP</code> and warns <strong>only when the old argument name is actually present in the call</strong>. Callers who have already migrated to the new argument name see no warning. This matches the per-argument warning behaviour of <code>@deprecated(target=TargetMode.ARGS_REMAP, args_mapping=...)</code>.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated_class</span>
 <a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a>
 <a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a>
@@ -2852,7 +2852,7 @@
 
 </details>
 
-<p>To emit a deprecation notice for every instantiation regardless of which argument name is used, configure <code>target=TargetMode.NOTIFY</code> explicitly. Combining <code>TargetMode.NOTIFY</code> with <code>args_mapping</code> is a misconfiguration — <code>args_mapping</code> is not applied under <code>NOTIFY</code> and supplying it emits a construction-time <code>UserWarning</code> today that becomes a <code>TypeError</code> in v1.0.</p>
+<p><strong>Auto-resolve applies only when <code>target</code> is omitted.</strong> Passing <code>target=TargetMode.NOTIFY</code> explicitly together with <code>args_mapping</code> is a misconfiguration: a <code>UserWarning</code> fires at decoration time (<code>TypeError</code> in v1.0), the mode stays <code>NOTIFY</code>, and the mapping is inert at runtime (preserved in audit metadata, flagged <code>misconfigured</code>) — explicit configuration is never silently rewritten. With <code>target</code> omitted, the proxy auto-resolves a present <code>args_mapping</code> to <code>TargetMode.ARGS_REMAP</code> (on the <code>@deprecated</code> front door this is the <code>TargetMode.AUTO</code> default doing the inference). There is no single-proxy way to get a blanket per-instantiation warning while <code>args_mapping</code> is also active. If you need both — every instantiation warns <em>and</em> an old argument name is remapped — stack two <code>deprecated_class()</code> layers: an inner layer with <code>args_mapping</code> only (<code>ARGS_REMAP</code>) for the rename, and an outer layer with no mapping (<code>NOTIFY</code>) for the blanket notice. See <a href="guide/classes.html#nested-proxy-wrappers">Nested proxy wrappers</a> for the pattern.</p>
 <hr />
 <h2 id="i-passed-both-the-old-and-new-argument-names-at-the-same-time-which-value-wins">I passed both the old and new argument names at the same time — which value wins?<a class="headerlink" href="#i-passed-both-the-old-and-new-argument-names-at-the-same-time-which-value-wins" title="Permanent link">🔗</a></h2>
 <p><strong>Q:</strong> My function is decorated with <code>@deprecated(args_mapping={"val": "new_val"}, ...)</code>. A caller accidentally passes both <code>val=5</code> and <code>new_val=6</code> in the same call. Which value does the target receive for <code>new_val</code>?</p>
@@ -3848,7 +3848,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="July 18, 2026 08:27:06 UTC">2026-07-18</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="July 22, 2026 11:50:54 UTC">2026-07-22</span>
   </span>
 
     

@@ -39,24 +39,22 @@ from pydeprecate import deprecated  # wrong — no such module
 
 ## UserWarning when decorating a class
 
-**Q:** I applied `@deprecated` directly to a class and got `UserWarning: Direct use of @deprecated on class MyClass is deprecated since v0.6.0. Use @deprecated_class(...) instead. This will become a TypeError in a future release.` Why, and how do I fix it?
+**Q:** I applied `@deprecated` directly to a class and got `` UserWarning: `@deprecated` on class `MyClass` now dispatches to `@deprecated_class`. `` Is this a problem, and how do I stop it?
 
-**A:** Use `@deprecated_class()` for classes. The `@deprecated` decorator is designed for functions and methods only.
+**A:** No — since v0.12, `@deprecated` on a class is first-class supported and permanent. It dispatches to `@deprecated_class()` under the hood and produces an identical `_DeprecatedProxy`; nothing is broken and nothing needs migrating. The `UserWarning` is a one-time informational notice — it fires at most once per class (keyed by module + qualified name, not bare name — same-named classes in different modules each warn), not on every decoration — telling you that the dispatch happened. Only this notice — not the dispatch support itself — is removed entirely, in v1.0.
 
-That warning is triggered specifically when `@deprecated` is applied directly to a class. This still works today because pyDeprecate delegates to `@deprecated_class()` under the hood, but that delegation path is itself deprecated and will become a `TypeError` in a future release. The warning is telling you to switch to the explicit class API now.
+You have two ways to quiet it, and one alternative pattern for a different use case:
 
-!!! danger "This delegation will become a TypeError in a future release"
-
-    The implicit fallback from `@deprecated` to `@deprecated_class()` is a temporary compatibility shim. Once it is removed, applying `@deprecated` to a class will raise `TypeError` immediately at decoration time. Migrate now to avoid a hard break on upgrade.
-
-There are two supported alternatives depending on what you need. Use `@deprecated_class()` when you want to deprecate the class name itself (including Enums and dataclasses). Use `@deprecated` on `__init__` when you want to emit a deprecation notice only at instantiation time while keeping the class name in place.
+- **Apply `@deprecated_class()` directly** — same result, and it skips the notice entirely. Prefer this for new code, and it is required to reach class-only knobs such as `attrs_mapping`.
+- **Pass `stream=None`** — suppresses the notice (and every other deprecation notice from that decoration) while keeping `@deprecated` on the class.
+- **Decorate `__init__` instead of the class** — use this when you want a notice only at instantiation time while keeping the class name and identity untouched (no proxy involved).
 
 ```python
 from deprecate import TargetMode, deprecated_class
 from enum import Enum
 
 
-# Correct: use @deprecated_class for classes
+# Preferred: use @deprecated_class directly for classes — identical result, no notice
 @deprecated_class(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
 class MyClass:
     pass
@@ -72,17 +70,17 @@ class MyEnum(Enum):
 from deprecate import TargetMode, deprecated
 
 
-class MyClass:
+class MyOtherClass:
     @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
     def __init__(self, val: int) -> None:
-        self.val = val  # body still executes; warning fires on every new MyClass(...)
+        self.val = val  # body still executes; warning fires on every new MyOtherClass(...)
 
 
-print(MyClass(5).val)
+print(MyOtherClass(5).val)
 ```
 
 <details>
-  <summary>Output: <code>MyClass(5).val</code></summary>
+  <summary>Output: <code>MyOtherClass(5).val</code></summary>
 
 ```
 5
@@ -312,7 +310,7 @@ True
 
 **A:** The callable passed to `skip_if` must return a `bool`. If it returns any other type — including a truthy int or a string — pyDeprecate raises `TypeError("User function 'skip_if' shall return bool, but got: ...")`.
 
-pyDeprecate enforces the return type strictly so that the conditional skip behaviour is unambiguous. The error message refers to `skip_if` itself, not the name of your callback. Wrap any non-bool expression in an explicit `bool()` call, or use a `lambda` that returns a literal `True` or `False`.
+pyDeprecate enforces the return type strictly so that the conditional skip behaviour is unambiguous. The error message refers to `skip_if` itself, not the name of your callback. Wrap any non-bool expression in an explicit `bool()` call, or use a `lambda` that returns a literal `True` or `False`. The same strict-bool contract applies wherever `skip_if` is accepted: `@deprecated`, `deprecated_callable()`, `deprecated_class()`, and `deprecated_instance()`.
 
 ```python
 # Minimal replacement function for examples
@@ -322,7 +320,7 @@ def get_status() -> str:
 
 # ---------------------------
 
-from deprecate import deprecated
+from deprecate import deprecated_callable
 
 
 # Correct: function returns bool
@@ -330,13 +328,13 @@ def should_skip() -> bool:
     return False  # replace with your condition
 
 
-@deprecated(target=get_status, skip_if=should_skip, deprecated_in="1.0", remove_in="2.0")
+@deprecated_callable(target=get_status, skip_if=should_skip, deprecated_in="1.0", remove_in="2.0")
 def infer():
     pass
 
 
 # Also correct: use a lambda
-@deprecated(target=get_status, skip_if=lambda: False, deprecated_in="1.0", remove_in="2.0")
+@deprecated_callable(target=get_status, skip_if=lambda: False, deprecated_in="1.0", remove_in="2.0")
 def infer_v2():
     pass
 
@@ -607,7 +605,7 @@ ______________________________________________________________________
 
 **Q:** I set up `deprecated_class(args_mapping={"old_arg": "new_arg"}, ...)` on my class but no warning fires when I call it with `new_arg=...`. Did I configure it incorrectly?
 
-**A:** No — this is the intended behaviour. When `args_mapping` is provided without an explicit callable `target`, the proxy auto-resolves to `TargetMode.ARGS_REMAP` and warns **only when the old argument name is actually present in the call**. Callers who have already migrated to the new argument name see no warning. This matches the per-argument warning behaviour of `@deprecated(target=TargetMode.ARGS_REMAP, args_mapping=...)`.
+**A:** No — this is the intended behaviour. When `args_mapping` is provided with `target` omitted, the proxy auto-resolves to `TargetMode.ARGS_REMAP` and warns **only when the old argument name is actually present in the call**. Callers who have already migrated to the new argument name see no warning. This matches the per-argument warning behaviour of `@deprecated(target=TargetMode.ARGS_REMAP, args_mapping=...)`.
 
 ```python
 from deprecate import deprecated_class
@@ -639,7 +637,7 @@ print(LegacyConfig(time_limit=30).timeout)  # old name — FutureWarning emitted
 
 </details>
 
-To emit a deprecation notice for every instantiation regardless of which argument name is used, configure `target=TargetMode.NOTIFY` explicitly. Combining `TargetMode.NOTIFY` with `args_mapping` is a misconfiguration — `args_mapping` is not applied under `NOTIFY` and supplying it emits a construction-time `UserWarning` today that becomes a `TypeError` in v1.0.
+**Auto-resolve applies only when `target` is omitted.** Passing `target=TargetMode.NOTIFY` explicitly together with `args_mapping` is a misconfiguration: a `UserWarning` fires at decoration time (`TypeError` in v1.0), the mode stays `NOTIFY`, and the mapping is inert at runtime (preserved in audit metadata, flagged `misconfigured`) — explicit configuration is never silently rewritten. With `target` omitted, the proxy auto-resolves a present `args_mapping` to `TargetMode.ARGS_REMAP` (on the `@deprecated` front door this is the `TargetMode.AUTO` default doing the inference). There is no single-proxy way to get a blanket per-instantiation warning while `args_mapping` is also active. If you need both — every instantiation warns *and* an old argument name is remapped — stack two `deprecated_class()` layers: an inner layer with `args_mapping` only (`ARGS_REMAP`) for the rename, and an outer layer with no mapping (`NOTIFY`) for the blanket notice. See [Nested proxy wrappers](guide/classes.md#nested-proxy-wrappers) for the pattern.
 
 ______________________________________________________________________
 

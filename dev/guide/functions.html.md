@@ -7,6 +7,10 @@ description: Deprecating Python functions and methods — simple forwarding, arg
 
 This page covers all deprecation patterns for Python functions and methods: forwarding to a replacement, renaming arguments, emitting a notice with no replacement, remapping arguments within the same function, stacking multiple decorators, and conditional suppression. For class deprecation see [Classes](classes.md); for async functions see [Async](async.md).
 
+!!! note "`@deprecated` vs. `deprecated_callable`"
+
+    `@deprecated` is the friendly front door: applied to a function, method, or other callable/descriptor it behaves exactly as documented on this page. Applied to a class instead, it dispatches to [`deprecated_class`](classes.md) (with a one-time informational notice) rather than raising an error. If you want a strict, callable-only form that rejects a class up front at decoration time — for example at a call site meant to enforce "only functions here" — use `deprecated_callable()`: it shares every parameter with `@deprecated` and raises `TypeError` immediately when applied to a class.
+
 ## Simple function forwarding
 
 !!! danger "Body is dead code when `target=<callable>`"
@@ -168,7 +172,7 @@ print(depr_accuracy([1, 0, 1, 2], [0, 1, 1, 2], 1.23))
 
 Use warn-only mode when a function is going away but has no replacement yet. The decorator emits a deprecation notice and then runs the function body normally. This is the right choice when callers need to update their own code, not switch to a different function.
 
-Since `target` defaults to `TargetMode.NOTIFY`, you can omit it entirely:
+Prefer spelling out `target=TargetMode.NOTIFY` — it makes the warn-only intent explicit at the call site. If you omit `target`, the `TargetMode.AUTO` default resolves to `TargetMode.NOTIFY` when no `args_mapping` is given, so this shorter form is equivalent:
 
 ```python
 from deprecate import deprecated
@@ -196,7 +200,7 @@ print(my_sum(1, 2))
 
 ## Rename arguments within one function
 
-Use `TargetMode.ARGS_REMAP` to rename or drop an argument within the same function. The decorator remaps the old argument name to the new one before the body runs, so your implementation only needs the new name. This is the right pattern when refactoring a signature without moving the function.
+Use `TargetMode.ARGS_REMAP` to rename or drop an argument within the same function. The decorator remaps the old argument name to the new one before the body runs, so your implementation only needs the new name. This is the right pattern when refactoring a signature without moving the function. Pass `target=TargetMode.ARGS_REMAP` explicitly alongside `args_mapping` — the recommended, self-documenting form. (On `@deprecated`, omitting `target` also works: a bare `args_mapping` auto-resolves via the `TargetMode.AUTO` default; the strict `deprecated_callable()` form always requires the explicit `target`.)
 
 ```python
 from deprecate import TargetMode, deprecated
@@ -270,6 +274,8 @@ These modes differ in whether the function body runs, whether a warning fires, a
 !!! tip
 
     `TargetMode.NOTIFY` replaces the old `target=None` sentinel and `TargetMode.ARGS_REMAP` replaces the old `target=True` sentinel. The old forms still work but emit a `FutureWarning` at decoration time.
+
+    On `@deprecated`, `target` defaults to `TargetMode.AUTO` — a fallback that resolves an *omitted* `target` at decoration time (`args_mapping` present → `ARGS_REMAP`, otherwise `NOTIFY`). The resolved mode — never `AUTO` itself — is stored in `DeprecationConfig`. Prefer passing the explicit mode so intent is visible at the call site; you never write `target=TargetMode.AUTO` yourself, and the strict `deprecated_callable()` (default `TargetMode.NOTIFY`) raises `TypeError` if you try.
 
 ### Behaviour comparison
 
@@ -456,10 +462,10 @@ Use [`validate_deprecation_chains()`](audit.md#detecting-deprecation-chains) in 
 
 ## Conditional skip
 
-`skip_if` accepts a boolean or a zero-argument callable returning a boolean. When it evaluates to `True`, the deprecation notice is suppressed and the call proceeds normally. This is useful when behaviour depends on runtime conditions, for example suppressing the notice once the caller has migrated to a newer dependency.
+`skip_if` accepts a boolean or a zero-argument callable returning a boolean. When it evaluates to `True`, the deprecation notice is suppressed and the call proceeds normally. This is useful when behaviour depends on runtime conditions, for example suppressing the notice once the caller has migrated to a newer dependency. `skip_if` is available on `@deprecated` and `deprecated_callable()` alike (and on the class/instance proxies — see [Classes](classes.md)):
 
 ```python
-from deprecate import TargetMode, deprecated
+from deprecate import TargetMode, deprecated_callable
 
 FAKE_VERSION = 1
 
@@ -468,7 +474,7 @@ def version_greater_1():
     return FAKE_VERSION > 1
 
 
-@deprecated(TargetMode.ARGS_REMAP, "0.3", "0.6", args_mapping=dict(c1="nc1"), skip_if=version_greater_1)
+@deprecated_callable(TargetMode.ARGS_REMAP, "0.3", "0.6", args_mapping=dict(c1="nc1"), skip_if=version_greater_1)
 def skip_pow(base, c1: float = 1, nc1: float = 1) -> float:
     return base ** (c1 - nc1)
 

@@ -95,7 +95,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-07-18",
-  "dateModified": "2026-07-18"
+  "dateModified": "2026-07-22"
 }
 </script>
 
@@ -1407,7 +1407,7 @@
 <a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>
 <a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>
 <a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="c1"># Mark this module deprecated — call once at the bottom.</span>
-<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="c1"># module_name is optional; when omitted it is auto-detected from the caller&#39;s __name__.</span>
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="c1"># name is optional; when omitted it is auto-detected from the caller&#39;s __name__.</span>
 <a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="c1"># Without message=, the warning reads:</span>
 <a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a><span class="c1">#   FutureWarning: The `old_calculator` module was deprecated since v2.0. It will be removed in v3.0.</span>
 <a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a><span class="c1"># With message= (as below), it appends your text:</span>
@@ -1420,7 +1420,7 @@
 </code></pre></div>
 <p><code>import old_calculator; old_calculator.add(1, 2)</code> emits a <code>FutureWarning</code> and returns the result. Every public attribute access — real functions, classes, constants — warns because <code>deprecated_module()</code> replaces the module's <code>__class__</code> with an intercepting wrapper.</p>
 <blockquote>
-<p><strong>Call it at module top level when omitting <code>module_name</code>.</strong> Auto-detection reads the caller frame's <code>__name__</code>, which only names the intended module when the call sits directly in the module body. Calling it without <code>module_name</code> from inside a function or class body (e.g. a <code>_setup_deprecations()</code> helper) raises <code>TypeError</code> — the frame's <code>__name__</code> would point at the enclosing module and silently deprecate all of it. Pass <code>module_name</code> explicitly to call from any other scope.</p>
+<p><strong>Call it at module top level when omitting <code>name</code>.</strong> Auto-detection reads the caller frame's <code>__name__</code>, which only names the intended module when the call sits directly in the module body. Calling it without <code>name</code> from inside a function or class body (e.g. a <code>_setup_deprecations()</code> helper) raises <code>TypeError</code> — the frame's <code>__name__</code> would point at the enclosing module and silently deprecate all of it. Pass <code>name</code> explicitly to call from any other scope.</p>
 </blockquote>
 <h2 id="mode-2-redirect-to-a-replacement-module">Mode 2 — redirect to a replacement module<a class="headerlink" href="#mode-2-redirect-to-a-replacement-module" title="Permanent link">🔗</a></h2>
 <p>Use this when you rename an entire module. Attribute lookups that are missing from the old module's <code>__dict__</code> are forwarded to <code>new_calculator</code>, so callers get both a warning and the correct value. Real attributes already defined in the old module (functions, constants) are served from its <code>__dict__</code> directly — they warn but are not forwarded.</p>
@@ -1518,7 +1518,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="July 18, 2026 08:27:06 UTC">2026-07-18</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="July 22, 2026 11:50:54 UTC">2026-07-22</span>
   </span>
 
     

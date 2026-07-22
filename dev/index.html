@@ -1473,7 +1473,7 @@
 <li><strong>Decorator stacking</strong> — stack <code>@deprecated</code> decorators for multi-version migrations: rename arguments across releases (<code>ARGS_REMAP + ARGS_REMAP</code>), then deprecate the whole function when a complete replacement arrives (<code>ARGS_REMAP + NOTIFY</code>). Unsupported combinations warn at decoration time, not at call time.</li>
 <li><strong>Custom streams</strong> — route warnings to <code>logging</code>, standard <code>warnings</code>, or any callable via the <code>stream</code> parameter; <code>stream=None</code> silences output while forwarding still occurs.</li>
 <li><strong>Custom message templates</strong> — <code>template_mgs</code> overrides the default message with <code>%</code>-style placeholders (<code>source_name</code>, <code>target_path</code>, <code>deprecated_in</code>, <code>remove_in</code>, <code>argument_map</code>).</li>
-<li><strong>Conditional skip</strong> — <code>skip_if=callable</code> suppresses the deprecation notice when a runtime condition is met (e.g. caller has migrated to a newer dependency).</li>
+<li><strong>Conditional skip</strong> — <code>skip_if=callable</code> suppresses the deprecation machinery when a runtime condition is met (e.g. caller has migrated to a newer dependency); available on decorators and proxies alike.</li>
 <li><strong>CI audit tools</strong> — <a href="guide/audit.html#enforcing-removal-deadlines"><code>validate_deprecation_expiry()</code></a> catches zombie code past its deadline, <a href="guide/audit.html#detecting-deprecation-chains"><code>validate_deprecation_chains()</code></a> detects double-deprecation chains, and <a href="guide/audit.html#validating-wrapper-configuration"><code>find_deprecation_wrappers()</code></a> surfaces misconfigured <code>args_mapping</code> keys before they silently do nothing.</li>
 <li><strong>Static type-checker signals</strong> — native PEP 702 static diagnostics come from <code>warnings.deprecated</code>. For projects that need both static-checker hints and runtime call-forwarding, <code>warnings.deprecated</code> (for the static signal) and pyDeprecate's <code>@deprecated</code> (for forwarding) can be applied separately to the same function.</li>
 <li><strong>CLI</strong> — <code>pydeprecate check src/</code> / <code>pydeprecate all src/</code> runs all audit checks from the command line. See <a href="guide/cli.html">CLI Reference</a>.</li>
@@ -1760,7 +1760,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="July 8, 2026 11:02:10 UTC">2026-07-08</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="July 22, 2026 11:50:54 UTC">2026-07-22</span>
   </span>
 
     
