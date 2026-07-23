@@ -1,169 +1,259 @@
 ---
 id: migration
-description: Align your pyDeprecate usage with the current idiomatic API — each section shows the legacy shorthand and the cleaner modern form, with a note on why the new pattern is clearer.
+description: Upgrade pyDeprecate safely with source-version checklists, compatibility notes, and executable before-and-after examples.
 ---
 
 # Migration Guide
 
-## Align with the Current API
+The current development target is **v0.12**. This guide contains only rewrites, deprecations, and observable changes that existing users need to handle when upgrading. New APIs and capabilities belong in the [Changelog](../changelog.md) and topic guides.
 
-v0.8 introduced `TargetMode` as the explicit, readable way to express deprecation intent. If you are still using the legacy boolean shorthands (`None`, `True`, `False` as `target` values), the snippets below show the modern equivalent — they are clearer, pass linting cleanly, and are what we will require going forward.
+## Migrate Legacy Target Values
+
+v0.8 introduced `TargetMode` so deprecation intent no longer depends on the legacy `None`, `True`, and `False` sentinels. These examples show the current form and the caller behavior to preserve during migration.
 
 ### `target=None` → `TargetMode.NOTIFY`
 
-`target=None` was a magic sentinel meaning "emit a deprecation notice, then run the function body". Using it today emits a `FutureWarning` at decoration time because the intent was ambiguous — `None` could plausibly mean "no target" rather than "notify-only mode". `TargetMode.NOTIFY` says that intent explicitly. Better still, an omitted `target` resolves to `TargetMode.NOTIFY` when no mapping is given (via the `TargetMode.AUTO` default), so you can often drop `target` entirely:
+`target=None` means "warn, then run the decorated body". It still works, but emits `FutureWarning` at decoration time. Omit `target` for the shortest current form; the `TargetMode.AUTO` default resolves to `TargetMode.NOTIFY` when no mapping is present. Use `target=TargetMode.NOTIFY` when being explicit helps the reader.
+
+```diff
+- # DEPRECATED API — legacy sentinel
+- @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
++ # DEPRECATED API — current warn-only form
++ @deprecated(deprecated_in="1.0", remove_in="2.0")
+```
 
 ```python
-# Legacy form — still works, but emits FutureWarning
-from deprecate import deprecated
-
-
-@deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
-def my_func(x: int) -> int:
-    return x * 2
-
-
-# Idiomatic pyDeprecate — target omitted; resolves to NOTIFY (no mapping given)
 from deprecate import deprecated
 
 
 @deprecated(deprecated_in="1.0", remove_in="2.0")
-def my_func(x: int) -> int:
-    return x * 2
+def refresh_cache(cache_key: str) -> str:
+    """Refresh one cached value."""
+    return f"refreshed:{cache_key}"
 
 
-print(my_func(2))
+print(refresh_cache("products"))
 ```
 
 <details>
-  <summary>Output: <code>my_func(2)</code></summary>
+  <summary>Output: <code>refresh_cache("products")</code></summary>
 
 ```
-4
+refreshed:products
 ```
 
 </details>
 
-`TargetMode.NOTIFY` emits a deprecation notice (subject to `num_warns` — once by default, not on every call) and then executes the function body as normal.
+The notice respects `num_warns` (once by default); the function body still executes normally.
 
 ### `target=True` → `TargetMode.ARGS_REMAP`
 
-`target=True` was the shorthand for argument-rename mode — it told pyDeprecate to remap kwargs and run the function body. Using a boolean for this was always a bit of a guess for readers; `TargetMode.ARGS_REMAP` makes the intent self-documenting:
+`target=True` remaps deprecated keyword names within the same function. Replace it with `TargetMode.ARGS_REMAP`; existing callers can keep the old keyword during the migration window while new callers use the replacement.
+
+```diff
+- target=True,
++ target=TargetMode.ARGS_REMAP,
+```
 
 ```python
-# Legacy form — still works, but emits FutureWarning
-from deprecate import deprecated
-
-
-@deprecated(target=True, args_mapping={"lr": "learning_rate"}, deprecated_in="1.0", remove_in="2.0")
-def my_func(lr: float = 0.0, learning_rate: float = 0.0) -> float:
-    return learning_rate * 2
-
-
-# Modern form
 from deprecate import TargetMode, deprecated
 
 
-@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"lr": "learning_rate"}, deprecated_in="1.0", remove_in="2.0")
-def my_func(lr: float = 0.0, learning_rate: float = 0.0) -> float:
-    return learning_rate * 2
+@deprecated(
+    target=TargetMode.ARGS_REMAP,
+    args_mapping={"ttl": "cache_ttl"},
+    deprecated_in="1.0",
+    remove_in="2.0",
+)
+def configure_cache(cache_ttl: int = 60) -> int:
+    """Return the configured cache lifetime."""
+    return cache_ttl
 
 
-print(my_func(lr=1, learning_rate=2))
+# DEPRECATED API — old callers are remapped and warned.
+print(configure_cache(ttl=30))
+# NEW API — callers use the replacement keyword directly.
+print(configure_cache(cache_ttl=45))
 ```
 
 <details>
-  <summary>Output: <code>my_func(lr=1, learning_rate=2)</code></summary>
+  <summary>Output: <code>configure_cache(...)</code></summary>
 
 ```
-4
+30
+45
 ```
 
 </details>
 
 ### `target=False` → `TargetMode.NOTIFY` or a callable target
 
-`target=False` was never a well-defined mode — passing `False` as a target callable made no semantic sense, so pyDeprecate fell through to `TargetMode.NOTIFY` while emitting a `UserWarning`. The modern form picks the mode you actually want:
+`target=False` was never a valid target. On a callable it now emits `UserWarning` at decoration time and behaves like warn-only mode. Proxy factories treat it like an omitted target while marking the configuration as misconfigured, so a supplied mapping may still be inferred; do not rely on either compatibility path. Choose the behavior you actually need:
+
+```diff
+- # DEPRECATED API — invalid legacy sentinel
+- @deprecated(target=False, deprecated_in="1.0", remove_in="2.0")
++ # DEPRECATED API — keep running this body after warning
++ @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
+```
 
 ```python
-# Legacy form — UserWarning now; invalid going forward
-from deprecate import deprecated
-
-
-@deprecated(target=False, deprecated_in="1.0", remove_in="2.0")
-def my_func(x: int) -> int:
-    return x * 2
-
-
-# Modern form — warn only, body executes unchanged
 from deprecate import TargetMode, deprecated
 
 
-@deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
-def my_func(x: int) -> int:
-    return x * 2
+@deprecated(
+    target=TargetMode.NOTIFY,
+    deprecated_in="1.0",
+    remove_in="2.0",
+)
+def legacy_checksum(payload: str) -> int:
+    """Compute the retained legacy checksum."""
+    return len(payload)
 
 
-print(my_func(3))
+print(legacy_checksum("abc"))
 ```
 
 <details>
-  <summary>Output: <code>my_func(3)</code></summary>
+  <summary>Output: <code>legacy_checksum("abc")</code></summary>
 
 ```
-6
+3
 ```
 
 </details>
 
-The same applies inside `deprecated_class()` and the proxy path — `target=False` is not a valid mode in any context.
+If the old API should forward to a replacement, pass that callable instead. The deprecated body is then not executed:
+
+```python
+from deprecate import deprecated
+
+
+def checksum_v2(payload: bytes) -> int:
+    """Compute the replacement checksum."""
+    return sum(payload)
+
+
+@deprecated(
+    target=checksum_v2,
+    args_mapping={"text": "payload"},
+    deprecated_in="1.0",
+    remove_in="2.0",
+)
+def checksum(text: bytes) -> int:
+    """Retain the deprecated signature during migration."""
+    ...
+
+
+# DEPRECATED API — forwards to checksum_v2 and warns.
+print(checksum(text=b"abc"))
+# NEW API — callers move directly to the replacement.
+print(checksum_v2(payload=b"abc"))
+```
+
+<details>
+  <summary>Output: <code>checksum(...)</code> and <code>checksum_v2(...)</code></summary>
+
+```
+294
+294
+```
+
+</details>
+
+The same rule applies to `deprecated_class()` and `deprecated_instance()`: `target=False` is not a valid mode.
 
 ### Misconfigured `TargetMode` combinations
 
-Some `TargetMode` + argument combinations are contradictory; pyDeprecate emits a `UserWarning` at decoration time when it detects them. Resolving these makes the intent unambiguous and silences the notice:
+Contradictory combinations emit `UserWarning` at decoration time. The warning is a migration task: the ignored configuration is scheduled to become an error in v1.0.
 
-| Combination                                    | Cleaner alternative                                                                                                            |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `TargetMode.ARGS_REMAP` without `args_mapping` | Add `args_mapping={"old": "new"}`, or switch to `TargetMode.NOTIFY` if you only need a deprecation notice                      |
-| `TargetMode.NOTIFY` with `args_mapping`        | Omit `target` (`@deprecated` auto-resolves to `ARGS_REMAP`), pass `TargetMode.ARGS_REMAP` explicitly, or remove `args_mapping` |
-| `TargetMode.NOTIFY` with `args_extra`          | Use a callable `target=` if you need to inject extra kwargs into a forwarded call                                              |
+| Combination                                                         | Migration                                                                                                    |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `TargetMode.ARGS_REMAP` without `args_mapping`                      | Add a real mapping, or use `TargetMode.NOTIFY` for warn-only behavior.                                       |
+| Explicit `TargetMode.NOTIFY` with `args_mapping`                    | Omit `target` so `AUTO` infers `ARGS_REMAP`, select `ARGS_REMAP` explicitly, or remove the mapping.          |
+| Explicit `TargetMode.NOTIFY` with `args_extra`                      | Use a callable `target` if extra kwargs must reach a replacement, or remove `args_extra`.                    |
+| `deprecated_class(target=TargetMode.NOTIFY, attrs_mapping=...)`     | Omit `target` so the proxy infers `ATTRS_REMAP`, select `ATTRS_REMAP` explicitly, or remove the mapping.     |
+| `deprecated_class(target=TargetMode.ATTRS_REMAP)` without a mapping | Add `attrs_mapping={"old": "new"}`, or use `NOTIFY` for class-wide warnings.                                 |
+| `@deprecated(target=TargetMode.ATTRS_REMAP)`                        | Use `deprecated_class(attrs_mapping=...)`; the common front door does not expose class-only `attrs_mapping`. |
 
-> The same applies on `deprecated_class()` (and `@deprecated` on a class): explicit `TargetMode.NOTIFY` with `args_mapping` or `attrs_mapping` warns and the mapping stays inert. In every case the flag fires only for an *explicitly passed* `NOTIFY` — omitting `target` auto-resolves a present mapping instead; see the [v0.12 changes](#pick-your-upgrade-path) below.
+An explicitly supplied `NOTIFY` is never rewritten: its mapping stays inert. Inference happens only when `target` is omitted.
 
 ### `DeprecationWrapperInfo` field renames
 
-Two fields on `DeprecationWrapperInfo` were renamed in v0.8 to be consistent with the rest of the API. The old names still work but emit a `DeprecationWarning` on access — swapping them out is a one-line change:
+Two audit fields were renamed in v0.8. The old properties still work but emit `DeprecationWarning` and will be removed in v1.0:
+
+```diff
+- # DEPRECATED API — compatibility properties
+- info.empty_mapping
+- info.identity_mapping
+- dataclasses.replace(info, empty_mapping=True)
++ # NEW API — stored field names
++ info.empty_args_mapping
++ info.identity_args_mapping
++ dataclasses.replace(info, empty_args_mapping=True)
+```
+
+The replacement fields are regular dataclass fields, so introspection and `dataclasses.replace()` use them directly:
 
 ```python
-# phmdoctest:skip — info object requires audit context; snippet shows attribute names only
-# Legacy names — emit DeprecationWarning on access
-info.empty_mapping
-info.identity_mapping
-dataclasses.replace(info, empty_mapping=True)
+from dataclasses import replace
 
-# Modern names
-info.empty_args_mapping
-info.identity_args_mapping
-dataclasses.replace(info, empty_args_mapping=True)
+from deprecate.audit import DeprecationWrapperInfo
+
+
+info = DeprecationWrapperInfo(
+    empty_args_mapping=True,
+    identity_args_mapping=["timeout"],
+)
+updated = replace(info, empty_args_mapping=False)
+
+print(info.empty_args_mapping)
+print(info.identity_args_mapping)
+print(updated.empty_args_mapping)
 ```
+
+<details>
+  <summary>Output: <code>info fields and updated.empty_args_mapping</code></summary>
+
+```
+True
+['timeout']
+False
+```
+
+</details>
 
 ______________________________________________________________________
 
 ## Pick Your Upgrade Path
 
-Pick the tab matching the version you are upgrading *from* — each tab lists, in order, every breaking and behaviour change between that version and the current release (v0.12), inline. Only breaking and behaviour changes are shown; purely additive releases carry nothing to migrate and are skipped. Where a change was later superseded, the tab shows the net final state rather than each intermediate step. See the [Changelog](../changelog.md) for the complete per-release notes.
+Pick the tab matching the version you are upgrading **from**. Each tab is a self-contained checklist of later migration-relevant compatibility changes:
 
-=== "v0.11"
+1. Apply every **Action required** item.
+2. Review changed warnings, errors, audit scope, and proxy behavior.
+3. Run your suite with `FutureWarning` promoted to an error, then run your pyDeprecate audit/expiry CI checks.
+
+Releases with no migration work are skipped. Where a later release superseded an intermediate behavior, the tab describes the final v0.12 development behavior.
+
+=== "v0.11.x"
 
     --8<-- "guide/_deltas/v0.12.md"
 
-=== "v0.10"
+=== "v0.10.1"
 
     --8<-- "guide/_deltas/v0.11.md"
 
     --8<-- "guide/_deltas/v0.12.md"
 
-=== "v0.9"
+=== "v0.10.0"
+
+    **First account for v0.10.1:** circular callable-target chains now raise a named `RuntimeError` instead of ending in `RecursionError`.
+
+    --8<-- "guide/_deltas/v0.11.md"
+
+    --8<-- "guide/_deltas/v0.12.md"
+
+=== "v0.9.x"
 
     --8<-- "guide/_deltas/v0.10.md"
 
@@ -171,7 +261,7 @@ Pick the tab matching the version you are upgrading *from* — each tab lists, i
 
     --8<-- "guide/_deltas/v0.12.md"
 
-=== "v0.8"
+=== "v0.8.x"
 
     --8<-- "guide/_deltas/v0.9.md"
 
@@ -181,7 +271,7 @@ Pick the tab matching the version you are upgrading *from* — each tab lists, i
 
     --8<-- "guide/_deltas/v0.12.md"
 
-=== "v0.7"
+=== "v0.7.x"
 
     --8<-- "guide/_deltas/v0.8.md"
 
@@ -193,7 +283,7 @@ Pick the tab matching the version you are upgrading *from* — each tab lists, i
 
     --8<-- "guide/_deltas/v0.12.md"
 
-=== "v0.6"
+=== "v0.6.0.post0"
 
     --8<-- "guide/_deltas/v0.8.md"
 
@@ -205,7 +295,21 @@ Pick the tab matching the version you are upgrading *from* — each tab lists, i
 
     --8<-- "guide/_deltas/v0.12.md"
 
-=== "v0.5"
+=== "v0.6.0"
+
+    **First account for v0.6.0.post0:** backward support for `@deprecated` on a class was restored through delegation to `deprecated_class()`. Existing class decorators need no rewrite for v0.12; delegation remains permanent and only its informational notice is scheduled for removal.
+
+    --8<-- "guide/_deltas/v0.8.md"
+
+    --8<-- "guide/_deltas/v0.9.md"
+
+    --8<-- "guide/_deltas/v0.10.md"
+
+    --8<-- "guide/_deltas/v0.11.md"
+
+    --8<-- "guide/_deltas/v0.12.md"
+
+=== "v0.5.x"
 
     --8<-- "guide/_deltas/v0.6.md"
 
@@ -219,7 +323,7 @@ Pick the tab matching the version you are upgrading *from* — each tab lists, i
 
     --8<-- "guide/_deltas/v0.12.md"
 
-=== "v0.4"
+=== "v0.4.x"
 
     --8<-- "guide/_deltas/v0.6.md"
 
@@ -233,7 +337,7 @@ Pick the tab matching the version you are upgrading *from* — each tab lists, i
 
     --8<-- "guide/_deltas/v0.12.md"
 
-=== "v0.3"
+=== "v0.3.x"
 
     --8<-- "guide/_deltas/v0.4.md"
 
@@ -249,7 +353,7 @@ Pick the tab matching the version you are upgrading *from* — each tab lists, i
 
     --8<-- "guide/_deltas/v0.12.md"
 
-=== "v0.2"
+=== "v0.2.x"
 
     --8<-- "guide/_deltas/v0.4.md"
 
@@ -265,7 +369,7 @@ Pick the tab matching the version you are upgrading *from* — each tab lists, i
 
     --8<-- "guide/_deltas/v0.12.md"
 
-=== "v0.1"
+=== "v0.1.x"
 
     --8<-- "guide/_deltas/v0.4.md"
 

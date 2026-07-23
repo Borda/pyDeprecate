@@ -172,24 +172,26 @@ def deprecated(
     :func:`~deprecate.proxy.deprecated_class` — reach for it directly when you need the full class scope.
 
     Args:
-        target: How to handle the deprecation. Defaults to :attr:`~deprecate.TargetMode.NOTIFY` (warn-only; source
-            body executes unchanged for a callable, or every proxy access warns for a class). Pass an explicit
-            value to forward calls or remap arguments:
+        target: How to handle the deprecation. Defaults to :attr:`~deprecate.TargetMode.AUTO`, a decoration-time
+            inference value that is resolved before metadata is stored. Pass an explicit value to forward calls
+            or select a fixed mode:
 
             - ``Callable``: Forward all calls to this callable (function, method, or class). The decorated
               source's body is **not executed** under normal forwarding — use ``pass`` or ``...`` as the body.
             - :attr:`~deprecate.TargetMode.ARGS_REMAP` (or legacy ``True``): Self-deprecation — deprecate argument
               names only, remapping them within the same function body (callable source) or constructor
               (class source).
-            - :attr:`~deprecate.TargetMode.NOTIFY` (default): Warning-only mode — no forwarding. **On a class
-              source**, when ``args_mapping`` is also present, the mode auto-resolves to
-              :attr:`~deprecate.TargetMode.ARGS_REMAP` instead — a mapping present is always applied. **On a
-              callable source**, NOTIFY + ``args_mapping`` remains a misconfiguration (``args_mapping`` is not
-              applied, and a :class:`UserWarning` fires) — auto-resolve is class-path-only.
+            - :attr:`~deprecate.TargetMode.NOTIFY`: Warning-only mode — no forwarding. The source body executes
+              unchanged for a callable; a class proxy emits class-wide warnings. An explicitly selected
+              ``NOTIFY`` is never rewritten: combining it with ``args_mapping`` is a misconfiguration, leaves
+              the mapping inert, and emits :class:`UserWarning`.
+            - :attr:`~deprecate.TargetMode.AUTO` (default): Infer the mode only when ``target`` is omitted.
+              ``args_mapping`` resolves to :attr:`~deprecate.TargetMode.ARGS_REMAP`; no mapping resolves to
+              warning-only behavior. The resolved value, never ``AUTO``, is stored in
+              :class:`~deprecate.DeprecationConfig`.
 
-            Omitting ``target`` is the preferred way to express warn-only deprecation. Passing ``target=None``
-            is a legacy synonym that also resolves to :attr:`~deprecate.TargetMode.NOTIFY` but emits a
-            :class:`FutureWarning` directing you to use the enum form.
+            Passing ``target=None`` is a legacy warn-only synonym that emits :class:`FutureWarning` directing
+            callers to use :attr:`~deprecate.TargetMode.NOTIFY`.
         deprecated_in: Version when the source was deprecated (e.g., "1.0.0"). Default is empty string.
         remove_in: Version when the source will be removed (e.g., "2.0.0"). Default is empty string.
         stream: Function to output warnings (default: :func:`~deprecate.deprecation.deprecation_warning`, which is
@@ -204,8 +206,9 @@ def deprecated(
             ``target_name``, ``target_path``, ``deprecated_in``, ``remove_in``, ``argument_map``); see
             :func:`deprecated_callable` for the full specifier reference.
         args_mapping: Map or skip arguments when forwarding — ``{"old_arg": "new_arg"}`` renames, ``{"old_arg":
-            None}`` drops. On a class source this remaps constructor keyword arguments and, when present without
-            an explicit callable ``target``, auto-resolves the mode to :attr:`~deprecate.TargetMode.ARGS_REMAP`.
+            None}`` drops. When ``target`` is omitted, a mapping auto-resolves a callable or class source to
+            :attr:`~deprecate.TargetMode.ARGS_REMAP`. An explicit :attr:`~deprecate.TargetMode.NOTIFY` leaves the
+            mapping inert and emits :class:`UserWarning`.
         args_extra: Additional keyword arguments merged into the forwarded call after ``args_mapping`` is applied.
             Ignored under :attr:`~deprecate.TargetMode.NOTIFY`.
         skip_if: Conditionally deactivate the deprecation machinery — a ``bool``, or a zero-argument ``Callable``
