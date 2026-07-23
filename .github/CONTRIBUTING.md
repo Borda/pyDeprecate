@@ -359,6 +359,12 @@ pyDeprecate/
 │       ├── inject.py           # Runtime injection helpers: TEMPLATE_DOC_*, _update_docstring_*()
 │       ├── griffe_ext.py       # Griffe extension for mkdocstrings / MkDocs (beta)
 │       └── sphinx_ext.py       # Sphinx autodoc extension (beta)
+├── docs/
+│   └── guide/
+│       ├── migration.md        # Source-version upgrade paths assembled from compatibility deltas
+│       └── _deltas/
+│           ├── breaking/       # Required rewrites in v0.N-to-v0.M.md snippets
+│           └── behavior/       # Observable changes in v0.N-to-v0.M.md snippets
 ├── tests/                      # Test suite
 │   ├── collection_targets.py       # Target functions (new implementations)
 │   ├── collection_deprecate.py     # Deprecated wrappers (@deprecated)
@@ -729,18 +735,20 @@ def test_without_warning() -> None:
 
 The project ships two separate documentation surfaces:
 
-| Surface            | File                        | Purpose                                                             |
-| ------------------ | --------------------------- | ------------------------------------------------------------------- |
-| PyPI cover page    | `README.md`                 | Install instructions, full API reference — do **not** prune         |
-| Docs site home     | `docs/index.md`             | Curated overview — links to topic pages; **not** a README copy      |
-| Getting started    | `docs/getting-started.md`   | Install + quick-start                                               |
-| Use cases          | `docs/guide/use-cases.md`   | Patterns extracted from real usage                                  |
-| void() helper      | `docs/guide/void-helper.md` | void() stub helper reference                                        |
-| Audit tools        | `docs/guide/audit.md`       | validate\_\* and find_deprecation_wrappers()                        |
-| Troubleshooting    | `docs/troubleshooting.md`   | Q&A; also drives FAQPage JSON-LD                                    |
-| Theme override     | `docs/overrides/main.html`  | Jinja2 template — OG tags + JSON-LD per page; **prettier-excluded** |
-| AI discoverability | `docs/llms.txt`             | Spec-compliant link directory for AI crawlers                       |
-| AI crawler policy  | `docs/robots.txt`           | Crawler allow/block rules; comment links to `docs/llms.txt`         |
+| Surface            | File                        | Purpose                                                               |
+| ------------------ | --------------------------- | --------------------------------------------------------------------- |
+| PyPI cover page    | `README.md`                 | Install instructions, full API reference — do **not** prune           |
+| Docs site home     | `docs/index.md`             | Curated overview — links to topic pages; **not** a README copy        |
+| Getting started    | `docs/getting-started.md`   | Install + quick-start                                                 |
+| Use cases          | `docs/guide/use-cases.md`   | Patterns extracted from real usage                                    |
+| Migration guide    | `docs/guide/migration.md`   | Source-version upgrade paths to the current API                       |
+| Migration deltas   | `docs/guide/_deltas/`       | Heading-free interval snippets split into `breaking/` and `behavior/` |
+| void() helper      | `docs/guide/void-helper.md` | void() stub helper reference                                          |
+| Audit tools        | `docs/guide/audit.md`       | validate\_\* and find_deprecation_wrappers()                          |
+| Troubleshooting    | `docs/troubleshooting.md`   | Q&A; also drives FAQPage JSON-LD                                      |
+| Theme override     | `docs/overrides/main.html`  | Jinja2 template — OG tags + JSON-LD per page; **prettier-excluded**   |
+| AI discoverability | `docs/llms.txt`             | Spec-compliant link directory for AI crawlers                         |
+| AI crawler policy  | `docs/robots.txt`           | Crawler allow/block rules; comment links to `docs/llms.txt`           |
 
 ### Local Build
 
@@ -771,6 +779,7 @@ When making changes, keep all surfaces in sync:
 4. **README stays authoritative for install and full API** — `docs/index.md` is a curated overview that links out, never a verbatim copy.
 5. **Never copy README → docs in CI** — the build workflow (`build-docs.yml`) does not copy `README.md`; tracked `docs/index.md` is used directly.
 6. **AI crawler policy** — when a new mainstream AI crawler is released, add a `User-agent: <bot> / Allow: /` pair to `docs/robots.txt`. The comment line referencing `docs/llms.txt` must stay current if the llms.txt URL changes.
+7. **Migration fragments use minor-line granularity** — store required rewrites under `_deltas/breaking/v0.N-to-v0.M.md` and observable changes under `_deltas/behavior/v0.N-to-v0.M.md`. Patch and post releases are folded into the minor interval whose destination contains them; do not create patch-specific fragments or `Coming from` sections. Fragments intentionally omit headings and outer admonitions: the `Coming from ...` section and its `Breaking changes` / `Behavior changes` tabs provide that context after injection. Keep each compatibility item in exactly one category. Atomic minor intervals can be composed; a verified cumulative file such as `v0.4-to-v0.12.md` may replace a long include chain when it stays self-contained.
 
 ### Code Example Conventions
 
