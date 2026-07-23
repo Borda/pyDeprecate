@@ -1,6 +1,7 @@
 # Agent Configuration for pyDeprecate
 
 > [!IMPORTANT]
+>
 > **For detailed coding standards, testing requirements, and contribution workflows**, see the [Contributing Guide](.github/CONTRIBUTING.md). This file provides agent-specific behavioral instructions and quick reference only.
 
 ## 🎯 Design Principles
@@ -14,6 +15,7 @@ When a proposed feature conflicts with simplicity, complexity wins only when rob
 ## ⚓ Before Any Work: Anchor with Repository Context
 
 > [!IMPORTANT]
+>
 > **Before starting any work, agents MUST anchor themselves with the repository context.** Read these files in order:
 
 1. **Configuration files** (source of truth):
@@ -34,6 +36,7 @@ When a proposed feature conflicts with simplicity, complexity wins only when rob
 ### Configuration Files Are Source of Truth
 
 > [!WARNING]
+>
 > **If documentation contradicts actual configuration**, the configuration files have **higher authority**. When you detect a mismatch:
 >
 > 1. **Trust the config file** (e.g., `pyproject.toml`, `.pre-commit-config.yaml`)

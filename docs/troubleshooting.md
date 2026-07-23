@@ -1724,7 +1724,7 @@ deprecated_module(
     target=_new_calculator,
     deprecated_in="2.0",
     remove_in="3.0",
-    message="Use `new_calculator` instead.",
+    message_template="Use `new_calculator` instead.",
 )
 # old_calculator.add(1, 2)  # warns: FutureWarning + returns new_calculator.add(1, 2)
 ```

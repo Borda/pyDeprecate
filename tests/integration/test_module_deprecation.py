@@ -486,6 +486,38 @@ class TestGuard:
             deprecated_module(mod_name, target=mod, **_DEPRS_CASE_MOD_ARGS)
 
 
+class TestMessageTemplateValidation:
+    """``deprecated_module()`` validates ``message_template`` at decoration time, matching the other 4 factories.
+
+    Before this validation existed, a bare ``%``-conversion crashed with a raw ``TypeError`` or silently
+    dumped the whole substitution mapping into the warning text, and an unknown ``%(name)s`` placeholder
+    raised a cryptic ``KeyError`` at the first warn emit rather than a clear, immediate error.
+    """
+
+    def test_bare_percent_conversion_raises_value_error(self, make_tmp_module: Callable[..., types.ModuleType]) -> None:
+        """A literal ``%`` not part of a ``%(name)s`` placeholder raises ``ValueError`` at decoration time.
+
+        Before validation, ``"migrate now, 50% faster" % args`` crashed with a raw ``TypeError`` at the
+        first warn emit — long after the mistake was made — instead of failing loudly where the caller
+        can see it.
+        """
+        mod_name = "_test_bare_percent_tmp"
+        make_tmp_module(mod_name)
+        with pytest.raises(ValueError, match="bare `%`-conversion"):
+            deprecated_module(mod_name, message_template="migrate now, 50% faster", **_DEPRS_CASE_MOD_ARGS)
+
+    def test_unknown_placeholder_raises_value_error(self, make_tmp_module: Callable[..., types.ModuleType]) -> None:
+        """An unknown ``%(name)s`` placeholder raises ``ValueError``, not a raw ``KeyError``.
+
+        Before validation, ``"%(bad_key)s" % args`` raised a bare ``KeyError('bad_key')`` at the first
+        warn emit, with no indication of which placeholders were actually available.
+        """
+        mod_name = "_test_bad_placeholder_tmp"
+        make_tmp_module(mod_name)
+        with pytest.raises(ValueError, match="Invalid message_template"):
+            deprecated_module(mod_name, message_template="%(bad_key)s", **_DEPRS_CASE_MOD_ARGS)
+
+
 class TestSlotsGuard:
     """``deprecated_module()`` raises ``TypeError`` when the module's type declares ``__slots__``."""
 

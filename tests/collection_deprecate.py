@@ -433,7 +433,7 @@ _deprecation_sum_msg = deprecated(
     target=base_sum_kwargs,
     deprecated_in="0.1",
     remove_in="0.5",
-    template_mgs="v%(deprecated_in)s: `%(source_name)s` was deprecated, use `%(target_name)s`",
+    message_template="v%(deprecated_in)s: `%(source_name)s` was deprecated, use `%(target_name)s`",
 )
 
 
@@ -443,7 +443,7 @@ def decorated_sum_msg(a: int, b: int = 5) -> int:
 
     Examples:
         Library wants to control exactly what the user sees instead of the default
-        template. Uses `template_mgs` with format specifiers.
+        template. Uses `message_template` with format specifiers.
 
     """
     return void(a, b)
@@ -532,7 +532,7 @@ def depr_class_args_only_mode_warns_on_deprecated_arg(x: int = 0, old_x: int = 0
     return double_value(x)
 
 
-@deprecated(target=base_pow_args, deprecated_in="1.0", remove_in="1.3", template_mgs=_SHORT_MSG_FUNC)
+@deprecated(target=base_pow_args, deprecated_in="1.0", remove_in="1.3", message_template=_SHORT_MSG_FUNC)
 def depr_pow_args(a: float, b: float) -> float:
     """Positional argument forwarding with a compact warning template.
 
@@ -631,7 +631,7 @@ wrapped_pow_self = _deprecation_pow_self(original_pow_self)
 
 @deprecated(
     target=TargetMode.ARGS_REMAP,
-    template_mgs="The `%(source_name)s` uses depr. args: %(argument_map)s.",
+    message_template="The `%(source_name)s` uses depr. args: %(argument_map)s.",
     args_mapping={"c1": "nc1", "c2": "nc2"},
 )
 def depr_pow_self_double(base: float, c1: float = 0, c2: float = 0, nc1: float = 1, nc2: float = 2) -> float:
@@ -645,8 +645,8 @@ def depr_pow_self_double(base: float, c1: float = 0, c2: float = 0, nc1: float =
     return base ** (c1 + c2 + nc1 + nc2)
 
 
-@deprecated(TargetMode.ARGS_REMAP, "0.3", "0.6", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS)
-@deprecated(TargetMode.ARGS_REMAP, "0.4", "0.7", args_mapping={"nc1": "nc2"}, template_mgs=_SHORT_MSG_ARGS)
+@deprecated(TargetMode.ARGS_REMAP, "0.3", "0.6", args_mapping={"c1": "nc1"}, message_template=_SHORT_MSG_ARGS)
+@deprecated(TargetMode.ARGS_REMAP, "0.4", "0.7", args_mapping={"nc1": "nc2"}, message_template=_SHORT_MSG_ARGS)
 def depr_pow_self_twice(base: float, c1: float = 0, nc1: float = 0, nc2: float = 2) -> float:
     """Chained deprecation: multi-step parameter migration across versions.
 
@@ -765,10 +765,10 @@ def make_async_stacked_notify() -> Callable:
 
 
 @deprecated_callable(
-    TargetMode.ARGS_REMAP, "0.3", "0.4", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=True
+    TargetMode.ARGS_REMAP, "0.3", "0.4", args_mapping={"c1": "nc1"}, message_template=_SHORT_MSG_ARGS, skip_if=True
 )
 @deprecated_callable(
-    TargetMode.ARGS_REMAP, "0.1", "0.2", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=False
+    TargetMode.ARGS_REMAP, "0.1", "0.2", args_mapping={"c1": "nc1"}, message_template=_SHORT_MSG_ARGS, skip_if=False
 )
 def depr_pow_skip_if_true_false(base: float, c1: float = 1, nc1: float = 1) -> float:
     """Conditional skip: outer decorator skipped, inner fires.
@@ -782,10 +782,10 @@ def depr_pow_skip_if_true_false(base: float, c1: float = 1, nc1: float = 1) -> f
 
 
 @deprecated_callable(
-    TargetMode.ARGS_REMAP, "0.1", "0.2", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=False
+    TargetMode.ARGS_REMAP, "0.1", "0.2", args_mapping={"c1": "nc1"}, message_template=_SHORT_MSG_ARGS, skip_if=False
 )
 @deprecated_callable(
-    TargetMode.ARGS_REMAP, "0.3", "0.4", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=True
+    TargetMode.ARGS_REMAP, "0.3", "0.4", args_mapping={"c1": "nc1"}, message_template=_SHORT_MSG_ARGS, skip_if=True
 )
 def depr_pow_skip_if_false_true(base: float, c1: float = 1, nc1: float = 1) -> float:
     """Conditional skip: inner decorator skipped, outer fires.
@@ -804,7 +804,7 @@ def original_pow_skip(base: float, c1: float = 1, nc1: float = 1) -> float:
 
 
 _deprecation_pow_skip_if_true = deprecated_callable(
-    TargetMode.ARGS_REMAP, "0.1", "0.2", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=True
+    TargetMode.ARGS_REMAP, "0.1", "0.2", args_mapping={"c1": "nc1"}, message_template=_SHORT_MSG_ARGS, skip_if=True
 )
 
 
@@ -824,7 +824,12 @@ wrapped_pow_skip_if_true = _deprecation_pow_skip_if_true(original_pow_skip)
 
 
 _deprecation_pow_skip_if_func = deprecated_callable(
-    TargetMode.ARGS_REMAP, "0.1", "0.2", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=lambda: True
+    TargetMode.ARGS_REMAP,
+    "0.1",
+    "0.2",
+    args_mapping={"c1": "nc1"},
+    message_template=_SHORT_MSG_ARGS,
+    skip_if=lambda: True,
 )
 
 
@@ -844,7 +849,12 @@ wrapped_pow_skip_if_func = _deprecation_pow_skip_if_func(original_pow_skip)
 
 
 @deprecated_callable(
-    TargetMode.ARGS_REMAP, "0.1", "0.3", args_mapping={"c1": "nc1"}, template_mgs=_SHORT_MSG_ARGS, skip_if=lambda: 42
+    TargetMode.ARGS_REMAP,
+    "0.1",
+    "0.3",
+    args_mapping={"c1": "nc1"},
+    message_template=_SHORT_MSG_ARGS,
+    skip_if=lambda: 42,
 )
 def depr_pow_skip_if_func_int(base: float, c1: float = 1, nc1: float = 1) -> float:
     """Invalid skip_if callback returning non-bool (expected failure).
@@ -2699,17 +2709,17 @@ def make_deprecated_explicit_auto_on_function() -> Any:  # noqa: ANN401
     return _explicit_auto_fn
 
 
-def make_deprecated_with_template_mgs_on_class() -> Any:  # noqa: ANN401
-    """Apply ``@deprecated(template_mgs=...)`` to a class — the dispatcher forwards the template to the proxy.
+def make_deprecated_with_message_template_on_class() -> Any:  # noqa: ANN401
+    """Apply ``@deprecated(message_template=...)`` to a class — the dispatcher forwards the template to the proxy.
 
-    ``template_mgs`` is common to both dispatch shapes, so the front door must forward it onto
+    ``message_template`` is common to both dispatch shapes, so the front door must forward it onto
     ``deprecated_class`` — proxy access warnings must render the custom template exactly as a direct
-    ``deprecated_class(template_mgs=...)`` call would (the dispatcher used to drop it silently).
+    ``deprecated_class(message_template=...)`` call would (the dispatcher used to drop it silently).
 
     """
     with catch_warnings():
         simplefilter("ignore", UserWarning)  # suppress the one-time informational class-dispatch notice
-        return deprecated(template_mgs="Custom notice for `%(source_name)s`.", **_DEPRS_CASE_STD_ARGS)(Palette)
+        return deprecated(message_template="Custom notice for `%(source_name)s`.", **_DEPRS_CASE_STD_ARGS)(Palette)
 
 
 def make_deprecated_with_args_mapping_on_class_default_target() -> Any:  # noqa: ANN401

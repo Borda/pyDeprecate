@@ -22,7 +22,7 @@ from typing import Callable, cast
 
 import pytest
 
-from deprecate import assert_no_warnings
+from deprecate import assert_no_warnings, deprecated
 from deprecate._types import DeprecationConfig, _DeprecatedCallable
 from tests.collection_depr_legacy import decorated_pow_self as legacy_pow_self
 from tests.collection_depr_legacy import decorated_sum_warn_only as legacy_sum_warn_only
@@ -702,3 +702,36 @@ class TestVarPositionalForwarding:
         """
         result = deprecated_var_positional_remap(1, 2, new_kwarg="world")
         assert result == (1, 2, "world")
+
+
+class TestTemplateMgsAliasOnFunctionEntryPoint:
+    """The deprecated ``template_mgs`` alias resolves through the ``@deprecated`` function entry point.
+
+    A maintainer who never migrated off the old, typo'd ``template_mgs`` spelling decorates a plain
+    function (not a class) with it directly — this must keep working end-to-end through the full
+    decoration path, not just the isolated ``_resolve_message_template_alias`` unit test.
+    """
+
+    def test_alias_alone_warns_and_resolves(self) -> None:
+        """Supplying only ``template_mgs`` warns ``FutureWarning`` and is adopted as ``message_template``."""
+        with pytest.warns(FutureWarning, match="`template_mgs` is deprecated"):
+            wrapped = deprecated(
+                target=base_sum_kwargs,
+                deprecated_in="1.0",
+                remove_in="2.0",
+                template_mgs="Alias notice for `%(source_name)s`.",
+            )(base_sum_kwargs)
+        assert (
+            cast(_DeprecatedCallable, wrapped).__deprecated__.message_template == "Alias notice for `%(source_name)s`."
+        )
+
+    def test_alias_and_message_template_together_raises(self) -> None:
+        """Supplying both ``template_mgs`` and ``message_template`` raises ``TypeError`` — no silent merge."""
+        with pytest.raises(TypeError, match="pass only one"):
+            deprecated(
+                target=base_sum_kwargs,
+                deprecated_in="1.0",
+                remove_in="2.0",
+                message_template="Canonical notice.",
+                template_mgs="Legacy notice.",
+            )(base_sum_kwargs)

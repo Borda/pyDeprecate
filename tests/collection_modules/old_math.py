@@ -14,4 +14,13 @@ def square(x: int) -> int:
     return x * x
 
 
-deprecate.deprecated_module(__name__, deprecated_in="1.0", remove_in="2.0", message="Use new_math instead.")
+deprecate.deprecated_module(
+    __name__,
+    deprecated_in="1.0",
+    remove_in="2.0",
+    # message_template replaces the built-in notice; %-placeholders keep the deprecation context
+    message_template=(
+        "The `%(source_name)s` module was deprecated since v%(deprecated_in)s;"
+        " use `new_math` instead. It will be removed in v%(remove_in)s."
+    ),
+)

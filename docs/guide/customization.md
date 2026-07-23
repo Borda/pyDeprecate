@@ -7,7 +7,7 @@ description: Customize pyDeprecate deprecation messages with built-in templates 
 
 ## Deprecation Messages and Templates
 
-pyDeprecate picks a deprecation message template automatically based on how you configured the decorator. Override it with `template_mgs` when the defaults do not fit.
+pyDeprecate picks a deprecation message template automatically based on how you configured the decorator. Override it with `message_template` when the defaults do not fit.
 
 ### Default templates
 
@@ -25,7 +25,7 @@ The selection logic is:
 2. If `TargetMode.ARGS_REMAP` and the caller passes a deprecated argument from `args_mapping` → `TEMPLATE_WARNING_ARGUMENTS`
 3. If `TargetMode.NOTIFY` → `TEMPLATE_WARNING_NO_TARGET`
 
-When you provide `template_mgs`, your custom template replaces whichever default would have been chosen.
+When you provide `message_template`, your custom template replaces whichever default would have been chosen.
 
 ### Placeholder variables
 
@@ -57,7 +57,7 @@ def detect_objects(x: int) -> int:
     target=detect_objects,
     deprecated_in="2.0",
     remove_in="3.0",
-    template_mgs=("[MIGRATION] `%(source_name)s` is removed in v%(remove_in)s. Switch to `%(target_path)s`."),
+    message_template=("[MIGRATION] `%(source_name)s` is removed in v%(remove_in)s. Switch to `%(target_path)s`."),
 )
 def detect(x: int) -> int:
     pass
@@ -88,7 +88,7 @@ from deprecate import TargetMode, deprecated
     deprecated_in="1.5",
     remove_in="2.0",
     args_mapping={"lr": "learning_rate"},
-    template_mgs="%(source_name)s: renamed args %(argument_map)s (since v%(deprecated_in)s, removal v%(remove_in)s)",
+    message_template="%(source_name)s: renamed args %(argument_map)s (since v%(deprecated_in)s, removal v%(remove_in)s)",
 )
 def train(lr: float = 0.01, learning_rate: float = 0.01) -> float:
     return learning_rate

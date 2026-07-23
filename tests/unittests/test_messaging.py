@@ -4,9 +4,53 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from deprecate import deprecated
-from deprecate.messaging import _raise_warn, _raise_warn_arguments, _raise_warn_callable, _validate_template_mgs
+from deprecate import assert_no_warnings, deprecated
+from deprecate.messaging import (
+    _raise_warn,
+    _raise_warn_arguments,
+    _raise_warn_callable,
+    _resolve_message_template_alias,
+    _validate_message_template,
+)
 from tests.collection_targets import base_sum_kwargs
+
+
+class TestResolveMessageTemplateAlias:
+    """``_resolve_message_template_alias`` folds the deprecated ``template_mgs`` alias into ``message_template``."""
+
+    def test_passthrough_when_alias_absent(self) -> None:
+        """With no legacy ``template_mgs`` supplied, the canonical ``message_template`` value passes through silently.
+
+        The common case: callers use the current ``message_template`` name. The resolver must return that value
+        unchanged and emit no warning, so the alias machinery is invisible to code already on the new name.
+
+        """
+        with assert_no_warnings():
+            resolved = _resolve_message_template_alias("keep %(source_name)s", None)
+        assert resolved == "keep %(source_name)s"
+
+    def test_alias_used_and_warns(self) -> None:
+        """Supplying only the legacy ``template_mgs`` returns its value and emits a ``FutureWarning``.
+
+        A caller still on the old, typo'd name (``mgs`` for ``msg``) must keep working during the deprecation
+        window: the resolver adopts their template as ``message_template`` and fires a ``FutureWarning`` naming
+        the rename so they migrate before the alias is removed in v1.0.
+
+        """
+        with pytest.warns(FutureWarning, match="`template_mgs` is deprecated"):
+            resolved = _resolve_message_template_alias(None, "legacy %(remove_in)s")
+        assert resolved == "legacy %(remove_in)s"
+
+    def test_both_supplied_raises(self) -> None:
+        """Passing both the canonical name and the legacy alias raises ``TypeError`` — no silent merge.
+
+        There is no meaningful way to combine two message templates, so a caller who supplies both
+        ``message_template`` and ``template_mgs`` has made a mistake that must fail loudly rather than pick one
+        arbitrarily.
+
+        """
+        with pytest.raises(TypeError, match="pass only one"):
+            _resolve_message_template_alias("a", "b")
 
 
 class TestRaiseWarn:
@@ -81,13 +125,13 @@ class TestRaiseWarnCallable:
         assert "new_func" not in msg
 
     def test_custom_template_overrides_default(self) -> None:
-        """A custom template_mgs overrides both built-in templates and receives the same substitutions."""
+        """A custom message_template overrides both built-in templates and receives the same substitutions."""
         stream = MagicMock()
 
         def old_func() -> None:
             pass
 
-        _raise_warn_callable(stream, old_func, None, "1.0", "2.0", template_mgs="custom: %(source_name)s")
+        _raise_warn_callable(stream, old_func, None, "1.0", "2.0", message_template="custom: %(source_name)s")
         assert stream.call_args[0][0] == "custom: old_func"
 
 
@@ -122,24 +166,24 @@ class TestRaiseWarnArguments:
         assert "y" in msg
 
     def test_custom_template_overrides_default(self) -> None:
-        """A custom template_mgs overrides the default argument-rename template."""
+        """A custom message_template overrides the default argument-rename template."""
         stream = MagicMock()
 
         def my_func(old: int = 0, new: int = 0) -> None:
             pass
 
-        _raise_warn_arguments(stream, my_func, {"old": "new"}, "1.0", "2.0", template_mgs="map: %(argument_map)s")
+        _raise_warn_arguments(stream, my_func, {"old": "new"}, "1.0", "2.0", message_template="map: %(argument_map)s")
         assert stream.call_args[0][0].startswith("map: ")
 
 
 class TestTemplateMgsValidation:
-    """A malformed ``template_mgs`` is detected at decoration time, not at first call (B6)."""
+    """A malformed ``message_template`` is detected at decoration time, not at first call (B6)."""
 
     def test_unknown_placeholder_raises_at_decoration(self) -> None:
         """An unknown ``%(...)s`` key raises ``ValueError`` when ``@deprecated`` is applied — before any call."""
-        with pytest.raises(ValueError, match="Invalid template_mgs"):
+        with pytest.raises(ValueError, match="Invalid message_template"):
             deprecated(
-                target=base_sum_kwargs, deprecated_in="0.8", remove_in="1.0", template_mgs="bad %(unknown_key)s"
+                target=base_sum_kwargs, deprecated_in="0.8", remove_in="1.0", message_template="bad %(unknown_key)s"
             )(base_sum_kwargs)
 
     def test_valid_template_accepted_at_decoration(self) -> None:
@@ -149,7 +193,7 @@ class TestTemplateMgsValidation:
             target=base_sum_kwargs,
             deprecated_in="0.8",
             remove_in="1.0",
-            template_mgs="`%(source_name)s` -> `%(target_name)s` since v%(deprecated_in)s",
+            message_template="`%(source_name)s` -> `%(target_name)s` since v%(deprecated_in)s",
         )(base_sum_kwargs)
         assert callable(wrapper)
 
@@ -198,21 +242,21 @@ class TestRaiseWarnStacklevel:
 
 
 class TestTemplateBareConversion:
-    """Bare ``%``-conversions in ``template_mgs`` must be rejected at decoration time."""
+    """Bare ``%``-conversions in ``message_template`` must be rejected at decoration time."""
 
     def test_bare_s_rejected(self) -> None:
         """``"%s"`` silently renders the whole substitution mapping at call time, so it must be rejected up front."""
         with pytest.raises(ValueError, match="bare `%`-conversion"):
-            _validate_template_mgs("Deprecated: %s")
+            _validate_message_template("Deprecated: %s")
 
     def test_escaped_percent_allowed(self) -> None:
         """A literal ``%%`` alongside a valid mapping key is legitimate and must pass validation."""
-        _validate_template_mgs("100%% done: %(source_name)s")  # no exception raised = accepted
+        _validate_message_template("100%% done: %(source_name)s")  # no exception raised = accepted
 
     def test_bare_conversion_raises_on_decoration(self) -> None:
         """The bare-conversion guard fires when the decorator is applied, not on first call."""
         with pytest.raises(ValueError, match="bare `%`-conversion"):
 
-            @deprecated(deprecated_in="1.0", remove_in="2.0", template_mgs="gone %d")
+            @deprecated(deprecated_in="1.0", remove_in="2.0", message_template="gone %d")
             def old() -> int:
                 return 1

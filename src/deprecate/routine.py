@@ -44,7 +44,7 @@ from deprecate._types import (
     _WrapperState,
 )
 from deprecate.docstring.inject import _update_docstring_with_deprecation, normalize_docstring_style
-from deprecate.messaging import _validate_template_mgs, deprecation_warning
+from deprecate.messaging import _resolve_message_template_alias, _validate_message_template, deprecation_warning
 from deprecate.utils import _get_signature, _unwrap_descriptor_target
 
 # ContextVar storing the active-wrapper id-set for the current async task or sync call stack.
@@ -155,7 +155,7 @@ def _packing_descriptor(  # noqa: C901 — property-path guards (fget/fset/fdel 
 
         # Closure captured on the returned ``_DeprecatedProperty`` so chain-style
         # ``@value.setter`` / ``@value.deleter`` can re-wrap freshly-supplied accessors
-        # with the same packing config (template_mgs, stream, deprecated_in, remove_in,
+        # with the same packing config (message_template, stream, deprecated_in, remove_in,
         # num_warns, skip_if, stacklevel). args_mapping / args_extra / callable target are
         # blocked above by TypeError guards and are never reachable here.
         # Without this, ``property.setter(fn)`` would build a plain ``property`` whose new
@@ -187,12 +187,13 @@ def deprecated_callable(  # noqa: C901
     remove_in: str = "",
     stream: Optional[Callable] = deprecation_warning,
     num_warns: int = 1,
-    template_mgs: Optional[str] = None,
+    message_template: Optional[str] = None,
     args_mapping: Optional[dict[str, Optional[str]]] = None,
     args_extra: Optional[dict[str, Any]] = None,
     skip_if: Union[bool, Callable] = False,
     update_docstring: bool = False,
     docstring_style: Literal["auto", "rst", "mkdocs", "markdown"] = "auto",
+    template_mgs: Optional[str] = None,
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Decorate a function/method with warning message and forward calls to target — the strict callable form.
 
@@ -241,7 +242,7 @@ def deprecated_callable(  # noqa: C901
             - ``-1``: Show warning on every call
             - ``0``: Suppress deprecation warnings emitted for the decorated function/argument
             - ``N > 1``: Show warning N times total
-        template_mgs: Custom warning message template with format specifiers:
+        message_template: Custom warning message template with format specifiers:
             - ``source_name``: Function name (e.g., "my_func")
             - ``source_path``: Full path (e.g., "module.my_func")
             - ``target_name``: Target function name (only for callable targets)
@@ -273,14 +274,17 @@ def deprecated_callable(  # noqa: C901
             - ``"mkdocs"`` or ``"markdown"``: Explicitly force a Markdown admonition of the form
               ``!!! warning "Deprecated in X"``.
             Validated eagerly at decoration time regardless of ``update_docstring``.
+        template_mgs: Deprecated alias for ``message_template`` (renamed in ``v0.12``; the old spelling was a
+            typo). Supplying it emits a :class:`FutureWarning` and its value is used as ``message_template``;
+            supplying both raises :class:`TypeError`. Removed in ``v1.0``.
 
     Returns:
         Decorator function that wraps the source function/method.
 
     Warns:
-        UserWarning: If ``deprecated_in`` is absent, ``stream`` is not ``None``, and no ``template_mgs`` is set.
+        UserWarning: If ``deprecated_in`` is absent, ``stream`` is not ``None``, and no ``message_template`` is set.
             Fired at decoration time (not call time) to catch missing version metadata early. Suppressed by
-            passing ``stream=None`` or ``template_mgs``.
+            passing ``stream=None`` or ``message_template``.
 
     Raises:
         TypeError: If applied to a class. The strict form rejects a class source at decoration time (naming
@@ -327,6 +331,7 @@ def deprecated_callable(  # noqa: C901
         TypeError: `@deprecated_callable` cannot decorate class `OldClass` ...
 
     """
+    message_template = _resolve_message_template_alias(message_template, template_mgs)
     # ``TargetMode.AUTO`` is the ``@deprecated`` front-door default only — the strict form requires an
     # explicit mode so the decoration site documents its own intent.
     if target is TargetMode.AUTO:
@@ -361,12 +366,12 @@ def deprecated_callable(  # noqa: C901
             raise AssertionError(  # pragma: no cover
                 f"unreachable: {type(source)!r} was not handled by _packing_descriptor"
             )
-        # Probe ``template_mgs`` against every documented placeholder so typos and malformed
+        # Probe ``message_template`` against every documented placeholder so typos and malformed
         # conversion specifiers fail at decoration time instead of inside ``wrapped_fn``.
-        _validate_template_mgs(template_mgs)
-        # Note: template_mgs intentionally bypasses this guard — callers with custom templates
+        _validate_message_template(message_template)
+        # Note: message_template intentionally bypasses this guard — callers with custom templates
         # control their own messaging and may not rely on deprecated_in being present.
-        if not deprecated_in and stream is not None and not template_mgs:
+        if not deprecated_in and stream is not None and not message_template:
             warnings.warn(
                 f"`@deprecated` on `{source.__name__}` has no `deprecated_in` set."
                 " Deprecation notices and generated documentation will omit the `deprecated_in` version."
@@ -458,7 +463,7 @@ def deprecated_callable(  # noqa: C901
             args_extra=_args_extra,
             misconfigured=misconfigured,
             docstring_style=normalized_docstring_style,
-            template_mgs=template_mgs,
+            message_template=message_template,
             target_positional_only=_target_positional_only,
             target_positional_only_order=_target_positional_only_order,
             source_positional_only=_source_positional_only,

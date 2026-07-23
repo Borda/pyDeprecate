@@ -276,7 +276,7 @@ def _warn_stacking_misconfiguration(
     elif outer_target is TargetMode.NOTIFY and inner_target is TargetMode.NOTIFY:
         warnings.warn(
             f"'{name}' has duplicate @deprecated(NOTIFY) layers."
-            " Update the existing decorator's `deprecated_in`, `remove_in`, or `template_mgs` instead."
+            " Update the existing decorator's `deprecated_in`, `remove_in`, or `message_template` instead."
             f" Will be `TypeError` in `{_MAJOR_BREAK_VERSION}`.",
             UserWarning,
             stacklevel=stacklevel,
@@ -674,7 +674,7 @@ def _build_call_plan(  # noqa: C901, PLR0912
         args: The positional arguments the caller passed to the wrapper.
         kwargs: The keyword arguments the caller passed to the wrapper.
         dep_cfg: The frozen :class:`DeprecationConfig` for this wrapper.  ``args_mapping``, ``args_extra``,
-            ``deprecated_in``, ``remove_in``, and ``template_mgs`` are all read from this object.
+            ``deprecated_in``, ``remove_in``, and ``message_template`` are all read from this object.
             Precedence when keys collide: explicit new-name kwarg wins over the remapped old-name value;
             ``args_extra`` wins over both (it is merged last).
         stream: Warning stream (typically :func:`warnings.warn` partial), or ``None`` to suppress.
@@ -748,7 +748,7 @@ def _build_call_plan(  # noqa: C901, PLR0912
                 target=target,
                 deprecated_in=dep_cfg.deprecated_in,
                 remove_in=dep_cfg.remove_in,
-                template_mgs=dep_cfg.template_mgs,
+                message_template=dep_cfg.message_template,
                 stacklevel=_stacklevel_to_caller,
             )
         elif reason_argument:
@@ -758,7 +758,7 @@ def _build_call_plan(  # noqa: C901, PLR0912
                 arguments=reason_argument,
                 deprecated_in=dep_cfg.deprecated_in,
                 remove_in=dep_cfg.remove_in,
-                template_mgs=dep_cfg.template_mgs,
+                message_template=dep_cfg.message_template,
                 stacklevel=_stacklevel_to_caller,
             )
 

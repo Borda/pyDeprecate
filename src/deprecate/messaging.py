@@ -1,8 +1,8 @@
 """Deprecation warning templates and emission helpers.
 
 Shared warning machinery used by both :mod:`deprecate.routine` (function/method deprecation) and :mod:`deprecate.proxy`
-(class/instance proxies): the built-in ``%``-style message templates, the decoration-time ``template_mgs`` validator,
-and the call-time warning emitters that honour the per-wrapper warn budget.
+(class/instance proxies): the built-in ``%``-style message templates, the decoration-time ``message_template``
+validator, and the call-time warning emitters that honour the per-wrapper warn budget.
 
 Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 
@@ -43,9 +43,9 @@ deprecation_warning = partial(warn, category=FutureWarning)
 
 
 #: All ``%``-style placeholders accepted by the built-in warning templates.  Probing a user-supplied
-#: ``template_mgs`` against this mapping at decoration time surfaces typos (``%(wrong_name_or_typo)s``) and
+#: ``message_template`` against this mapping at decoration time surfaces typos (``%(wrong_name_or_typo)s``) and
 #: malformed conversion specifiers (``%(source_name)d``) before any call site ever triggers them.
-_TEMPLATE_MGS_PROBE_ARGS: dict[str, str] = {
+_MESSAGE_TEMPLATE_PROBE_ARGS: dict[str, str] = {
     "source_name": "x",
     "source_path": "x.y",
     "deprecated_in": "0.0",
@@ -56,41 +56,81 @@ _TEMPLATE_MGS_PROBE_ARGS: dict[str, str] = {
 }
 
 
-def _validate_template_mgs(template_mgs: Optional[str]) -> None:
-    """Probe ``template_mgs`` with every documented placeholder, raising at decoration time on failure.
+def _resolve_message_template_alias(
+    message_template: Optional[str],
+    template_mgs: Optional[str],
+    *,
+    stacklevel: int = 3,
+) -> Optional[str]:
+    """Fold the deprecated ``template_mgs`` keyword into ``message_template``.
+
+    ``template_mgs`` was a typo (``mgs`` for ``msg``); it was renamed to ``message_template`` in ``v0.12``.
+    The old name is accepted as a deprecated alias until ``v1.0``: supplying it emits a
+    :class:`FutureWarning` and its value is used as ``message_template``.  Supplying both raises
+    :class:`TypeError` — there is no sensible merge of two message templates.
 
     Args:
-        template_mgs: User-supplied warning message template, or ``None``.  ``None`` and empty strings are
+        message_template: The value of the canonical ``message_template`` argument (may be ``None``).
+        template_mgs: The value of the deprecated ``template_mgs`` alias (``None`` when not supplied).
+        stacklevel: Stack level forwarded to :func:`warnings.warn` so the notice points at the caller.
+
+    Returns:
+        The resolved ``message_template`` value.
+
+    Raises:
+        TypeError: If both ``message_template`` and ``template_mgs`` are supplied.
+
+    """
+    if template_mgs is None:
+        return message_template
+    if message_template is not None:
+        raise TypeError(
+            "Both `message_template` and `template_mgs` were supplied; pass only one (`template_mgs` deprecated)."
+        )
+    warn(
+        "`template_mgs` is deprecated since `v0.12` (renamed to `message_template`);"
+        " use `message_template` instead. Will be removed in `v1.0`.",
+        FutureWarning,
+        stacklevel=stacklevel,
+    )
+    return template_mgs
+
+
+def _validate_message_template(message_template: Optional[str]) -> None:
+    """Probe ``message_template`` with every documented placeholder, raising at decoration time on failure.
+
+    Args:
+        message_template: User-supplied warning message template, or ``None``.  ``None`` and empty strings are
             no-ops because the call sites already fall back to the built-in templates.
 
     Raises:
-        ValueError: When ``template_mgs`` references an unknown ``%(...)s`` key, uses a malformed conversion
+        ValueError: When ``message_template`` references an unknown ``%(...)s`` key, uses a malformed conversion
             specifier, or otherwise fails ``%``-formatting against the full placeholder set.
 
     """
-    if not template_mgs:
+    if not message_template:
         return
     # Reject bare ``%``-conversions (``%s``, ``%d``, a trailing ``%``) that are not part of a
     # ``%(name)s`` mapping key.  ``"...%s..." % {mapping}`` does not raise — it renders the whole
     # mapping dict into the message — so the probe below cannot catch them.  ``%%`` (escaped percent)
     # is legitimate and stripped before the search.
-    if re.search(r"%(?!\()", template_mgs.replace("%%", "")):
+    if re.search(r"%(?!\()", message_template.replace("%%", "")):
         raise ValueError(
-            f"Invalid template_mgs: bare `%`-conversion found in {template_mgs!r}; only mapping keys of the "
-            f"form `%(name)s` are supported. Available placeholders: {list(_TEMPLATE_MGS_PROBE_ARGS)}"
+            f"Invalid message_template: bare `%`-conversion found in {message_template!r}; only mapping keys of the "
+            f"form `%(name)s` are supported. Available placeholders: {list(_MESSAGE_TEMPLATE_PROBE_ARGS)}"
         )
     try:
-        template_mgs % _TEMPLATE_MGS_PROBE_ARGS
+        message_template % _MESSAGE_TEMPLATE_PROBE_ARGS
     except (KeyError, TypeError, ValueError) as exc:
         raise ValueError(
-            f"Invalid template_mgs: {exc!r}. Available placeholders: {list(_TEMPLATE_MGS_PROBE_ARGS)}"
+            f"Invalid message_template: {exc!r}. Available placeholders: {list(_MESSAGE_TEMPLATE_PROBE_ARGS)}"
         ) from exc
 
 
 def _raise_warn(
     stream: Callable,
     source: Callable,
-    template_mgs: str,
+    message_template: str,
     stacklevel: int = _DEFAULT_STACKLEVEL_TO_CALLER,
     **extras: str,
 ) -> None:
@@ -102,7 +142,7 @@ def _raise_warn(
     Args:
         stream: Callable that outputs the warning (e.g., warnings.warn, logging.warning).
         source: The deprecated function/method being wrapped.
-        template_mgs: Python format string with placeholders for message variables.
+        message_template: Python format string with placeholders for message variables.
         stacklevel: Passed to ``warnings.warn`` so the warning points to the user's call site.  Default 4 accounts for
             the ``_raise_warn → _raise_warn_callable/_raise_warn_arguments → wrapped_fn → caller`` chain.
         **extras: Additional string values to substitute into the template (e.g., deprecated_in="1.0", remove_in="2.0").
@@ -126,7 +166,7 @@ def _raise_warn(
     source_name = _source_display_name(source)
     source_path = f"{source.__module__}.{source_name}"
     msg_args = dict(source_name=source_name, source_path=source_path, **extras)
-    msg = template_mgs % msg_args
+    msg = message_template % msg_args
     try:
         stream(msg, stacklevel=stacklevel)
     except TypeError as _exc:
@@ -147,7 +187,7 @@ def _raise_warn_callable(
     target: Union[None, bool, Callable, TargetMode, staticmethod, classmethod],
     deprecated_in: str,
     remove_in: str,
-    template_mgs: Optional[str] = None,
+    message_template: Optional[str] = None,
     stacklevel: int = _DEFAULT_STACKLEVEL_TO_CALLER,
 ) -> None:
     """Issue deprecation warning for callable (function/class) deprecation.
@@ -165,7 +205,7 @@ def _raise_warn_callable(
             - bool: Not applicable for this function (use _raise_warn_arguments instead)
         deprecated_in: Version when the source was marked deprecated (e.g., "1.0.0").
         remove_in: Version when the source will be removed (e.g., "2.0.0").
-        template_mgs: Custom message template. If None, uses :data:`TEMPLATE_WARNING_CALLABLE` when a target
+        message_template: Custom message template. If None, uses :data:`TEMPLATE_WARNING_CALLABLE` when a target
             callable is provided, otherwise :data:`TEMPLATE_WARNING_NO_TARGET`.
         stacklevel: Passed through to :func:`_raise_warn`; default 4 points to the user's call site.
 
@@ -207,7 +247,7 @@ def _raise_warn_callable(
     _raise_warn(
         stream=stream,
         source=source,
-        template_mgs=template_mgs or template_warn,
+        message_template=message_template or template_warn,
         stacklevel=stacklevel,
         deprecated_in=deprecated_in,
         remove_in=remove_in,
@@ -222,7 +262,7 @@ def _raise_warn_arguments(
     arguments: Mapping[str, Optional[str]],
     deprecated_in: str,
     remove_in: str,
-    template_mgs: Optional[str] = None,
+    message_template: Optional[str] = None,
     stacklevel: int = _DEFAULT_STACKLEVEL_TO_CALLER,
 ) -> None:
     """Issue deprecation warning for deprecated function arguments.
@@ -237,7 +277,7 @@ def _raise_warn_arguments(
             'removed_arg': None}``).
         deprecated_in: Version when arguments were marked deprecated (e.g., "1.0.0").
         remove_in: Version when arguments will be removed (e.g., "2.0.0").
-        template_mgs: Custom message template. If None, uses default template.
+        message_template: Custom message template. If None, uses default template.
         stacklevel: Passed through to :func:`_raise_warn`; default 4 points to the user's call site.
 
     Template Variables Available:
@@ -265,7 +305,7 @@ def _raise_warn_arguments(
     _raise_warn(
         stream,
         source,
-        template_mgs or TEMPLATE_WARNING_ARGUMENTS,
+        message_template or TEMPLATE_WARNING_ARGUMENTS,
         stacklevel=stacklevel,
         deprecated_in=deprecated_in,
         remove_in=remove_in,
