@@ -95,7 +95,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-06-15",
-  "dateModified": "2026-07-22"
+  "dateModified": "2026-07-23"
 }
 </script>
 
@@ -1887,7 +1887,7 @@
 </details>
 
 <h2 id="enums-and-dataclasses">Enums and dataclasses<a class="headerlink" href="#enums-and-dataclasses" title="Permanent link">🔗</a></h2>
-<p><code>deprecated_class()</code> wraps an Enum or dataclass in a transparent proxy that emits a deprecation notice on access and forwards attribute, item, and call operations to the replacement. Use <code>args_mapping</code> to rename or drop kwargs when the deprecated class is called. When <code>args_mapping</code> is provided without an explicit <code>target</code>, the proxy auto-resolves to <code>TargetMode.ARGS_REMAP</code> and warns <strong>only when an old argument name is actually used</strong> — matching the per-argument behaviour of <code>@deprecated(target=TargetMode.ARGS_REMAP, args_mapping=...)</code>. Callers already using the new argument names see no warning. Type checks (<code>isinstance</code>, <code>issubclass</code>) pass through without emitting notices, since they are structural checks rather than usage of the deprecated API. Use <code>args_extra</code> to inject fixed kwargs into every forwarded call, and <code>template_mgs</code> to override the default warning message — both work identically to their <code>@deprecated</code> counterparts.</p>
+<p><code>deprecated_class()</code> wraps an Enum or dataclass in a transparent proxy that emits a deprecation notice on access and forwards attribute, item, and call operations to the replacement. Use <code>args_mapping</code> to rename or drop kwargs when the deprecated class is called. When <code>args_mapping</code> is provided without an explicit <code>target</code>, the proxy auto-resolves to <code>TargetMode.ARGS_REMAP</code> and warns <strong>only when an old argument name is actually used</strong> — matching the per-argument behaviour of <code>@deprecated(target=TargetMode.ARGS_REMAP, args_mapping=...)</code>. Callers already using the new argument names see no warning. Type checks (<code>isinstance</code>, <code>issubclass</code>) pass through without emitting notices, since they are structural checks rather than usage of the deprecated API. Use <code>args_extra</code> to inject fixed kwargs into every forwarded call, and <code>message_template</code> to override the default warning message — both work identically to their <code>@deprecated</code> counterparts.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">enum</span><span class="w"> </span><span class="kn">import</span> <span class="n">Enum</span>
 <a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
 <a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated_class</span>
@@ -2655,7 +2655,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="July 22, 2026 11:50:54 UTC">2026-07-22</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="July 23, 2026 15:23:12 UTC">2026-07-23</span>
   </span>
 
     

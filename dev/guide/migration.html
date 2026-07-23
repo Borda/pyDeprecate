@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Align your pyDeprecate usage with the current idiomatic API — each section shows the legacy shorthand and the cleaner modern form, with a note on why the new pattern is clearer.">
+        <meta name="description" content="Upgrade pyDeprecate safely with source-version checklists, compatibility notes, and executable before-and-after examples.">
       
       
       
@@ -66,7 +66,7 @@
 <!-- Open Graph meta tags -->
 <meta property="og:type" content="article" />
 <meta property="og:title" content="Migration Guide — pyDeprecate" />
-<meta property="og:description" content="Align your pyDeprecate usage with the current idiomatic API — each section shows the legacy shorthand and the cleaner modern form, with a note on why the new pattern is clearer." />
+<meta property="og:description" content="Upgrade pyDeprecate safely with source-version checklists, compatibility notes, and executable before-and-after examples." />
 <meta property="og:url" content="https://borda.github.io/pyDeprecate/stable/guide/migration.html" />
 <meta property="og:site_name" content="pyDeprecate — Python Deprecation Library" />
 <meta property="og:image" content="https://borda.github.io/pyDeprecate/dev/assets/images/demo-docs-mkdocs.png" />
@@ -76,7 +76,7 @@
 <meta property="og:locale" content="en_US" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="Migration Guide — pyDeprecate" />
-<meta name="twitter:description" content="Align your pyDeprecate usage with the current idiomatic API — each section shows the legacy shorthand and the cleaner modern form, with a note on why the new pattern is clearer." />
+<meta name="twitter:description" content="Upgrade pyDeprecate safely with source-version checklists, compatibility notes, and executable before-and-after examples." />
 <meta name="twitter:image" content="https://borda.github.io/pyDeprecate/dev/assets/images/demo-docs-mkdocs.png" />
 <meta name="twitter:image:alt" content="pyDeprecate documentation" />
 
@@ -87,7 +87,7 @@
   "@context": "https://schema.org",
   "@type": "TechArticle",
   "headline": "Migration Guide",
-  "description": "Align your pyDeprecate usage with the current idiomatic API \u2014 each section shows the legacy shorthand and the cleaner modern form, with a note on why the new pattern is clearer.",
+  "description": "Upgrade pyDeprecate safely with source-version checklists, compatibility notes, and executable before-and-after examples.",
   "url": "https://borda.github.io/pyDeprecate/stable/guide/migration.html",
   "mainEntityOfPage": { "@type": "WebPage", "@id": "https://borda.github.io/pyDeprecate/stable/guide/migration.html" },
   "image": "https://borda.github.io/pyDeprecate/dev/assets/images/demo-docs-mkdocs.png",
@@ -95,7 +95,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-05-19",
-  "dateModified": "2026-07-22"
+  "dateModified": "2026-07-23"
 }
 </script>
 
@@ -870,15 +870,15 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#align-with-the-current-api" class="md-nav__link">
+  <a href="#migrate-legacy-target-values" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Align with the Current API
+        Migrate Legacy Target Values
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Align with the Current API">
+    <nav class="md-nav" aria-label="Migrate Legacy Target Values">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -942,22 +942,22 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#coming-from-v011" class="md-nav__link">
+  <a href="#pick-your-upgrade-path" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Coming from v0.11
+        Pick Your Upgrade Path
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Coming from v0.11">
+    <nav class="md-nav" aria-label="Pick Your Upgrade Path">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#deprecated-on-a-class-is-now-first-class-supported" class="md-nav__link">
+  <a href="#coming-from-v011x" class="md-nav__link">
     <span class="md-ellipsis">
       
-        @deprecated on a class is now first-class supported
+        Coming from v0.11.x
       
     </span>
   </a>
@@ -965,10 +965,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#targetmodeauto-how-an-omitted-target-is-resolved" class="md-nav__link">
+  <a href="#coming-from-v010x" class="md-nav__link">
     <span class="md-ellipsis">
       
-        TargetMode.AUTO — how an omitted target is resolved
+        Coming from v0.10.x
       
     </span>
   </a>
@@ -976,10 +976,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#explicit-targetmodenotify-with-a-mapping-is-never-silently-overridden" class="md-nav__link">
+  <a href="#coming-from-v09x" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Explicit TargetMode.NOTIFY with a mapping is never silently overridden
+        Coming from v0.9.x
       
     </span>
   </a>
@@ -987,10 +987,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#deprecated-slimmed-to-common-arguments-only" class="md-nav__link">
+  <a href="#coming-from-v08x" class="md-nav__link">
     <span class="md-ellipsis">
       
-        deprecated() slimmed to common arguments only
+        Coming from v0.8.x
       
     </span>
   </a>
@@ -998,10 +998,76 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#skip_if-now-available-on-proxies" class="md-nav__link">
+  <a href="#coming-from-v07x" class="md-nav__link">
     <span class="md-ellipsis">
       
-        skip_if now available on proxies
+        Coming from v0.7.x
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#coming-from-v06x" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Coming from v0.6.x
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#coming-from-v05x" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Coming from v0.5.x
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#coming-from-v04x" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Coming from v0.4.x
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#coming-from-v03x" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Coming from v0.3.x
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#coming-from-v02x" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Coming from v0.2.x
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#coming-from-v01x" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Coming from v0.1.x
       
     </span>
   </a>
@@ -1010,61 +1076,6 @@
         
       </ul>
     </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#coming-from-v010" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Coming from v0.10
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#coming-from-v09" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Coming from v0.9
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#coming-from-v08" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Coming from v0.8
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#coming-from-v07" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Coming from v0.7
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#coming-from-v06-and-earlier" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Coming from v0.6 and earlier
-      
-    </span>
-  </a>
   
 </li>
       
@@ -1412,15 +1423,15 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#align-with-the-current-api" class="md-nav__link">
+  <a href="#migrate-legacy-target-values" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Align with the Current API
+        Migrate Legacy Target Values
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Align with the Current API">
+    <nav class="md-nav" aria-label="Migrate Legacy Target Values">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1484,22 +1495,22 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#coming-from-v011" class="md-nav__link">
+  <a href="#pick-your-upgrade-path" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Coming from v0.11
+        Pick Your Upgrade Path
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Coming from v0.11">
+    <nav class="md-nav" aria-label="Pick Your Upgrade Path">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#deprecated-on-a-class-is-now-first-class-supported" class="md-nav__link">
+  <a href="#coming-from-v011x" class="md-nav__link">
     <span class="md-ellipsis">
       
-        @deprecated on a class is now first-class supported
+        Coming from v0.11.x
       
     </span>
   </a>
@@ -1507,10 +1518,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#targetmodeauto-how-an-omitted-target-is-resolved" class="md-nav__link">
+  <a href="#coming-from-v010x" class="md-nav__link">
     <span class="md-ellipsis">
       
-        TargetMode.AUTO — how an omitted target is resolved
+        Coming from v0.10.x
       
     </span>
   </a>
@@ -1518,10 +1529,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#explicit-targetmodenotify-with-a-mapping-is-never-silently-overridden" class="md-nav__link">
+  <a href="#coming-from-v09x" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Explicit TargetMode.NOTIFY with a mapping is never silently overridden
+        Coming from v0.9.x
       
     </span>
   </a>
@@ -1529,10 +1540,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#deprecated-slimmed-to-common-arguments-only" class="md-nav__link">
+  <a href="#coming-from-v08x" class="md-nav__link">
     <span class="md-ellipsis">
       
-        deprecated() slimmed to common arguments only
+        Coming from v0.8.x
       
     </span>
   </a>
@@ -1540,10 +1551,76 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#skip_if-now-available-on-proxies" class="md-nav__link">
+  <a href="#coming-from-v07x" class="md-nav__link">
     <span class="md-ellipsis">
       
-        skip_if now available on proxies
+        Coming from v0.7.x
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#coming-from-v06x" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Coming from v0.6.x
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#coming-from-v05x" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Coming from v0.5.x
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#coming-from-v04x" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Coming from v0.4.x
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#coming-from-v03x" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Coming from v0.3.x
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#coming-from-v02x" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Coming from v0.2.x
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#coming-from-v01x" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Coming from v0.1.x
       
     </span>
   </a>
@@ -1552,61 +1629,6 @@
         
       </ul>
     </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#coming-from-v010" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Coming from v0.10
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#coming-from-v09" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Coming from v0.9
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#coming-from-v08" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Coming from v0.8
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#coming-from-v07" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Coming from v0.7
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#coming-from-v06-and-earlier" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Coming from v0.6 and earlier
-      
-    </span>
-  </a>
   
 </li>
       
@@ -1628,254 +1650,1148 @@
 
 
 <h1 id="migration-guide">Migration Guide<a class="headerlink" href="#migration-guide" title="Permanent link">🔗</a></h1>
-<h2 id="align-with-the-current-api">Align with the Current API<a class="headerlink" href="#align-with-the-current-api" title="Permanent link">🔗</a></h2>
-<p>v0.8 introduced <code>TargetMode</code> as the explicit, readable way to express deprecation intent. If you are still using the legacy boolean shorthands (<code>None</code>, <code>True</code>, <code>False</code> as <code>target</code> values), the snippets below show the modern equivalent — they are clearer, pass linting cleanly, and are what we will require going forward.</p>
+<p>The current development target is <strong>v0.12</strong>. This guide contains only rewrites, deprecations, and observable changes that existing users need to handle when upgrading. New APIs and capabilities belong in the <a href="../changelog.html">Changelog</a> and topic guides.</p>
+<h2 id="migrate-legacy-target-values">Migrate Legacy Target Values<a class="headerlink" href="#migrate-legacy-target-values" title="Permanent link">🔗</a></h2>
+<p>v0.8 introduced <code>TargetMode</code> so deprecation intent no longer depends on the legacy <code>None</code>, <code>True</code>, and <code>False</code> sentinels. These examples show the current form and the caller behavior to preserve during migration.</p>
 <h3 id="targetnone-targetmodenotify"><code>target=None</code> → <code>TargetMode.NOTIFY</code><a class="headerlink" href="#targetnone-targetmodenotify" title="Permanent link">🔗</a></h3>
-<p><code>target=None</code> was a magic sentinel meaning "emit a deprecation notice, then run the function body". Using it today emits a <code>FutureWarning</code> at decoration time because the intent was ambiguous — <code>None</code> could plausibly mean "no target" rather than "notify-only mode". <code>TargetMode.NOTIFY</code> says that intent explicitly. Better still, an omitted <code>target</code> resolves to <code>TargetMode.NOTIFY</code> when no mapping is given (via the <code>TargetMode.AUTO</code> default), so you can often drop <code>target</code> entirely:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Legacy form — still works, but emits FutureWarning</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="k">def</span><span class="w"> </span><span class="nf">my_func</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="k">return</span> <span class="n">x</span> <span class="o">*</span> <span class="mi">2</span>
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="c1"># Idiomatic pyDeprecate — target omitted; resolves to NOTIFY (no mapping given)</span>
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
-<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>
-<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>
-<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
-<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="k">def</span><span class="w"> </span><span class="nf">my_func</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>    <span class="k">return</span> <span class="n">x</span> <span class="o">*</span> <span class="mi">2</span>
-<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>
-<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>
-<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="nb">print</span><span class="p">(</span><span class="n">my_func</span><span class="p">(</span><span class="mi">2</span><span class="p">))</span>
+<p><code>target=None</code> means "warn, then run the decorated body". It still works, but emits <code>FutureWarning</code> at decoration time. Omit <code>target</code> for the shortest current form; the <code>TargetMode.AUTO</code> default resolves to <code>TargetMode.NOTIFY</code> when no mapping is present. Use <code>target=TargetMode.NOTIFY</code> when being explicit helps the reader.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="gd">- # DEPRECATED API — legacy sentinel</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="gd">- @deprecated(target=None, deprecated_in=&quot;1.0&quot;, remove_in=&quot;2.0&quot;)</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="gi">+ # DEPRECATED API — current warn-only form</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="gi">+ @deprecated(deprecated_in=&quot;1.0&quot;, remove_in=&quot;2.0&quot;)</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="k">def</span><span class="w"> </span><span class="nf">refresh_cache</span><span class="p">(</span><span class="n">cache_key</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Refresh one cached value.&quot;&quot;&quot;</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>    <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;refreshed:</span><span class="si">{</span><span class="n">cache_key</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="nb">print</span><span class="p">(</span><span class="n">refresh_cache</span><span class="p">(</span><span class="s2">&quot;products&quot;</span><span class="p">))</span>
 </code></pre></div>
 <details>
-  <summary>Output: <code>my_func(2)</code></summary>
+  <summary>Output: <code>refresh_cache("products")</code></summary>
 
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>4
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>refreshed:products
 </code></pre></div>
 
 </details>
 
-<p><code>TargetMode.NOTIFY</code> emits a deprecation notice (subject to <code>num_warns</code> — once by default, not on every call) and then executes the function body as normal.</p>
+<p>The notice respects <code>num_warns</code> (once by default); the function body still executes normally.</p>
 <h3 id="targettrue-targetmodeargs_remap"><code>target=True</code> → <code>TargetMode.ARGS_REMAP</code><a class="headerlink" href="#targettrue-targetmodeargs_remap" title="Permanent link">🔗</a></h3>
-<p><code>target=True</code> was the shorthand for argument-rename mode — it told pyDeprecate to remap kwargs and run the function body. Using a boolean for this was always a bit of a guess for readers; <code>TargetMode.ARGS_REMAP</code> makes the intent self-documenting:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Legacy form — still works, but emits FutureWarning</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">args_mapping</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;lr&quot;</span><span class="p">:</span> <span class="s2">&quot;learning_rate&quot;</span><span class="p">},</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="k">def</span><span class="w"> </span><span class="nf">my_func</span><span class="p">(</span><span class="n">lr</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span> <span class="n">learning_rate</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>    <span class="k">return</span> <span class="n">learning_rate</span> <span class="o">*</span> <span class="mi">2</span>
-<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>
-<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>
-<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="c1"># Modern form</span>
-<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">TargetMode</span><span class="p">,</span> <span class="n">deprecated</span>
-<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>
-<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>
-<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">TargetMode</span><span class="o">.</span><span class="n">ARGS_REMAP</span><span class="p">,</span> <span class="n">args_mapping</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;lr&quot;</span><span class="p">:</span> <span class="s2">&quot;learning_rate&quot;</span><span class="p">},</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
-<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a><span class="k">def</span><span class="w"> </span><span class="nf">my_func</span><span class="p">(</span><span class="n">lr</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span> <span class="n">learning_rate</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
-<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a>    <span class="k">return</span> <span class="n">learning_rate</span> <span class="o">*</span> <span class="mi">2</span>
-<a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a>
-<a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a>
-<a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a><span class="nb">print</span><span class="p">(</span><span class="n">my_func</span><span class="p">(</span><span class="n">lr</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">learning_rate</span><span class="o">=</span><span class="mi">2</span><span class="p">))</span>
+<p><code>target=True</code> remaps deprecated keyword names within the same function. Replace it with <code>TargetMode.ARGS_REMAP</code>; existing callers can keep the old keyword during the migration window while new callers use the replacement.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="gd">- target=True,</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="gi">+ target=TargetMode.ARGS_REMAP,</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">TargetMode</span><span class="p">,</span> <span class="n">deprecated</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="nd">@deprecated</span><span class="p">(</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>    <span class="n">target</span><span class="o">=</span><span class="n">TargetMode</span><span class="o">.</span><span class="n">ARGS_REMAP</span><span class="p">,</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>    <span class="n">args_mapping</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;ttl&quot;</span><span class="p">:</span> <span class="s2">&quot;cache_ttl&quot;</span><span class="p">},</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>    <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>    <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">,</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="p">)</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="k">def</span><span class="w"> </span><span class="nf">configure_cache</span><span class="p">(</span><span class="n">cache_ttl</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">60</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Return the configured cache lifetime.&quot;&quot;&quot;</span>
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>    <span class="k">return</span> <span class="n">cache_ttl</span>
+<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>
+<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>
+<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a><span class="c1"># DEPRECATED API — old callers are remapped and warned.</span>
+<a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a><span class="nb">print</span><span class="p">(</span><span class="n">configure_cache</span><span class="p">(</span><span class="n">ttl</span><span class="o">=</span><span class="mi">30</span><span class="p">))</span>
+<a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a><span class="c1"># NEW API — callers use the replacement keyword directly.</span>
+<a id="__codelineno-4-18" name="__codelineno-4-18" href="#__codelineno-4-18"></a><span class="nb">print</span><span class="p">(</span><span class="n">configure_cache</span><span class="p">(</span><span class="n">cache_ttl</span><span class="o">=</span><span class="mi">45</span><span class="p">))</span>
 </code></pre></div>
 <details>
-  <summary>Output: <code>my_func(lr=1, learning_rate=2)</code></summary>
+  <summary>Output: <code>configure_cache(...)</code></summary>
 
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>4
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>30
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>45
 </code></pre></div>
 
 </details>
 
 <h3 id="targetfalse-targetmodenotify-or-a-callable-target"><code>target=False</code> → <code>TargetMode.NOTIFY</code> or a callable target<a class="headerlink" href="#targetfalse-targetmodenotify-or-a-callable-target" title="Permanent link">🔗</a></h3>
-<p><code>target=False</code> was never a well-defined mode — passing <code>False</code> as a target callable made no semantic sense, so pyDeprecate fell through to <code>TargetMode.NOTIFY</code> while emitting a <code>UserWarning</code>. The modern form picks the mode you actually want:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Legacy form — UserWarning now; invalid going forward</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="k">def</span><span class="w"> </span><span class="nf">my_func</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>    <span class="k">return</span> <span class="n">x</span> <span class="o">*</span> <span class="mi">2</span>
-<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>
-<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>
-<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="c1"># Modern form — warn only, body executes unchanged</span>
-<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">TargetMode</span><span class="p">,</span> <span class="n">deprecated</span>
-<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>
-<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>
-<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">TargetMode</span><span class="o">.</span><span class="n">NOTIFY</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">)</span>
-<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a><span class="k">def</span><span class="w"> </span><span class="nf">my_func</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a>    <span class="k">return</span> <span class="n">x</span> <span class="o">*</span> <span class="mi">2</span>
-<a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a>
-<a id="__codelineno-4-18" name="__codelineno-4-18" href="#__codelineno-4-18"></a>
-<a id="__codelineno-4-19" name="__codelineno-4-19" href="#__codelineno-4-19"></a><span class="nb">print</span><span class="p">(</span><span class="n">my_func</span><span class="p">(</span><span class="mi">3</span><span class="p">))</span>
+<p><code>target=False</code> was never a valid target. On a callable it now emits <code>UserWarning</code> at decoration time and behaves like warn-only mode. Proxy factories treat it like an omitted target while marking the configuration as misconfigured, so a supplied mapping may still be inferred; do not rely on either compatibility path. Choose the behavior you actually need:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="gd">- # DEPRECATED API — invalid legacy sentinel</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="gd">- @deprecated(target=False, deprecated_in=&quot;1.0&quot;, remove_in=&quot;2.0&quot;)</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="gi">+ # DEPRECATED API — keep running this body after warning</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="gi">+ @deprecated(target=TargetMode.NOTIFY, deprecated_in=&quot;1.0&quot;, remove_in=&quot;2.0&quot;)</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">TargetMode</span><span class="p">,</span> <span class="n">deprecated</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="nd">@deprecated</span><span class="p">(</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>    <span class="n">target</span><span class="o">=</span><span class="n">TargetMode</span><span class="o">.</span><span class="n">NOTIFY</span><span class="p">,</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>    <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>    <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">,</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="p">)</span>
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="k">def</span><span class="w"> </span><span class="nf">legacy_checksum</span><span class="p">(</span><span class="n">payload</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Compute the retained legacy checksum.&quot;&quot;&quot;</span>
+<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a>    <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">payload</span><span class="p">)</span>
+<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a>
+<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a>
+<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a><span class="nb">print</span><span class="p">(</span><span class="n">legacy_checksum</span><span class="p">(</span><span class="s2">&quot;abc&quot;</span><span class="p">))</span>
 </code></pre></div>
 <details>
-  <summary>Output: <code>my_func(3)</code></summary>
+  <summary>Output: <code>legacy_checksum("abc")</code></summary>
 
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>6
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>3
 </code></pre></div>
 
 </details>
 
-<p>The same applies inside <code>deprecated_class()</code> and the proxy path — <code>target=False</code> is not a valid mode in any context.</p>
+<p>If the old API should forward to a replacement, pass that callable instead. The deprecated body is then not executed:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">checksum_v2</span><span class="p">(</span><span class="n">payload</span><span class="p">:</span> <span class="nb">bytes</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Compute the replacement checksum.&quot;&quot;&quot;</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>    <span class="k">return</span> <span class="nb">sum</span><span class="p">(</span><span class="n">payload</span><span class="p">)</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="nd">@deprecated</span><span class="p">(</span>
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a>    <span class="n">target</span><span class="o">=</span><span class="n">checksum_v2</span><span class="p">,</span>
+<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a>    <span class="n">args_mapping</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;text&quot;</span><span class="p">:</span> <span class="s2">&quot;payload&quot;</span><span class="p">},</span>
+<a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a>    <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span>
+<a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a>    <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;2.0&quot;</span><span class="p">,</span>
+<a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a><span class="p">)</span>
+<a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a><span class="k">def</span><span class="w"> </span><span class="nf">checksum</span><span class="p">(</span><span class="n">text</span><span class="p">:</span> <span class="nb">bytes</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-9-16" name="__codelineno-9-16" href="#__codelineno-9-16"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Retain the deprecated signature during migration.&quot;&quot;&quot;</span>
+<a id="__codelineno-9-17" name="__codelineno-9-17" href="#__codelineno-9-17"></a>    <span class="o">...</span>
+<a id="__codelineno-9-18" name="__codelineno-9-18" href="#__codelineno-9-18"></a>
+<a id="__codelineno-9-19" name="__codelineno-9-19" href="#__codelineno-9-19"></a>
+<a id="__codelineno-9-20" name="__codelineno-9-20" href="#__codelineno-9-20"></a><span class="c1"># DEPRECATED API — forwards to checksum_v2 and warns.</span>
+<a id="__codelineno-9-21" name="__codelineno-9-21" href="#__codelineno-9-21"></a><span class="nb">print</span><span class="p">(</span><span class="n">checksum</span><span class="p">(</span><span class="n">text</span><span class="o">=</span><span class="sa">b</span><span class="s2">&quot;abc&quot;</span><span class="p">))</span>
+<a id="__codelineno-9-22" name="__codelineno-9-22" href="#__codelineno-9-22"></a><span class="c1"># NEW API — callers move directly to the replacement.</span>
+<a id="__codelineno-9-23" name="__codelineno-9-23" href="#__codelineno-9-23"></a><span class="nb">print</span><span class="p">(</span><span class="n">checksum_v2</span><span class="p">(</span><span class="n">payload</span><span class="o">=</span><span class="sa">b</span><span class="s2">&quot;abc&quot;</span><span class="p">))</span>
+</code></pre></div>
+<details>
+  <summary>Output: <code>checksum(...)</code> and <code>checksum_v2(...)</code></summary>
+
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>294
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>294
+</code></pre></div>
+
+</details>
+
+<p>The same rule applies to <code>deprecated_class()</code> and <code>deprecated_instance()</code>: <code>target=False</code> is not a valid mode.</p>
 <h3 id="misconfigured-targetmode-combinations">Misconfigured <code>TargetMode</code> combinations<a class="headerlink" href="#misconfigured-targetmode-combinations" title="Permanent link">🔗</a></h3>
-<p>Some <code>TargetMode</code> + argument combinations are contradictory; pyDeprecate emits a <code>UserWarning</code> at decoration time when it detects them. Resolving these makes the intent unambiguous and silences the notice:</p>
+<p>Contradictory combinations emit <code>UserWarning</code> at decoration time. The warning is a migration task: the ignored configuration is scheduled to become an error in v1.0.</p>
 <table>
 <thead>
 <tr>
 <th>Combination</th>
-<th>Cleaner alternative</th>
+<th>Migration</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><code>TargetMode.ARGS_REMAP</code> without <code>args_mapping</code></td>
-<td>Add <code>args_mapping={"old": "new"}</code>, or switch to <code>TargetMode.NOTIFY</code> if you only need a deprecation notice</td>
+<td>Add a real mapping, or use <code>TargetMode.NOTIFY</code> for warn-only behavior.</td>
 </tr>
 <tr>
-<td><code>TargetMode.NOTIFY</code> with <code>args_mapping</code></td>
-<td>Omit <code>target</code> (<code>@deprecated</code> auto-resolves to <code>ARGS_REMAP</code>), pass <code>TargetMode.ARGS_REMAP</code> explicitly, or remove <code>args_mapping</code></td>
+<td>Explicit <code>TargetMode.NOTIFY</code> with <code>args_mapping</code></td>
+<td>Omit <code>target</code> so <code>AUTO</code> infers <code>ARGS_REMAP</code>, select <code>ARGS_REMAP</code> explicitly, or remove the mapping.</td>
 </tr>
 <tr>
-<td><code>TargetMode.NOTIFY</code> with <code>args_extra</code></td>
-<td>Use a callable <code>target=</code> if you need to inject extra kwargs into a forwarded call</td>
+<td>Explicit <code>TargetMode.NOTIFY</code> with <code>args_extra</code></td>
+<td>Use a callable <code>target</code> if extra kwargs must reach a replacement, or remove <code>args_extra</code>.</td>
+</tr>
+<tr>
+<td><code>deprecated_class(target=TargetMode.NOTIFY, attrs_mapping=...)</code></td>
+<td>Omit <code>target</code> so the proxy infers <code>ATTRS_REMAP</code>, select <code>ATTRS_REMAP</code> explicitly, or remove the mapping.</td>
+</tr>
+<tr>
+<td><code>deprecated_class(target=TargetMode.ATTRS_REMAP)</code> without a mapping</td>
+<td>Add <code>attrs_mapping={"old": "new"}</code>, or use <code>NOTIFY</code> for class-wide warnings.</td>
+</tr>
+<tr>
+<td><code>@deprecated(target=TargetMode.ATTRS_REMAP)</code></td>
+<td>Use <code>deprecated_class(attrs_mapping=...)</code>; the common front door does not expose class-only <code>attrs_mapping</code>.</td>
 </tr>
 </tbody>
 </table>
-<blockquote>
-<p>The same applies on <code>deprecated_class()</code> (and <code>@deprecated</code> on a class): explicit <code>TargetMode.NOTIFY</code> with <code>args_mapping</code> or <code>attrs_mapping</code> warns and the mapping stays inert. In every case the flag fires only for an <em>explicitly passed</em> <code>NOTIFY</code> — omitting <code>target</code> auto-resolves a present mapping instead; see <a href="#coming-from-v011">Coming from v0.11</a> below.</p>
-</blockquote>
+<p>An explicitly supplied <code>NOTIFY</code> is never rewritten: its mapping stays inert. Inference happens only when <code>target</code> is omitted.</p>
 <h3 id="deprecationwrapperinfo-field-renames"><code>DeprecationWrapperInfo</code> field renames<a class="headerlink" href="#deprecationwrapperinfo-field-renames" title="Permanent link">🔗</a></h3>
-<p>Two fields on <code>DeprecationWrapperInfo</code> were renamed in v0.8 to be consistent with the rest of the API. The old names still work but emit a <code>DeprecationWarning</code> on access — swapping them out is a one-line change:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># phmdoctest:skip — info object requires audit context; snippet shows attribute names only</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="c1"># Legacy names — emit DeprecationWarning on access</span>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="n">info</span><span class="o">.</span><span class="n">empty_mapping</span>
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="n">info</span><span class="o">.</span><span class="n">identity_mapping</span>
-<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="n">dataclasses</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">info</span><span class="p">,</span> <span class="n">empty_mapping</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>
-<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="c1"># Modern names</span>
-<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="n">info</span><span class="o">.</span><span class="n">empty_args_mapping</span>
-<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="n">info</span><span class="o">.</span><span class="n">identity_args_mapping</span>
-<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="n">dataclasses</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">info</span><span class="p">,</span> <span class="n">empty_args_mapping</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<p>Two audit fields were renamed in v0.8. The old properties still work but emit <code>DeprecationWarning</code> and will be removed in v1.0:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="gd">- # DEPRECATED API — compatibility properties</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="gd">- info.empty_mapping</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="gd">- info.identity_mapping</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="gd">- dataclasses.replace(info, empty_mapping=True)</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="gi">+ # NEW API — stored field names</span>
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="gi">+ info.empty_args_mapping</span>
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="gi">+ info.identity_args_mapping</span>
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="gi">+ dataclasses.replace(info, empty_args_mapping=True)</span>
 </code></pre></div>
+<p>The replacement fields are regular dataclass fields, so introspection and <code>dataclasses.replace()</code> use them directly:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">replace</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate.audit</span><span class="w"> </span><span class="kn">import</span> <span class="n">DeprecationWrapperInfo</span>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="n">info</span> <span class="o">=</span> <span class="n">DeprecationWrapperInfo</span><span class="p">(</span>
+<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>    <span class="n">empty_args_mapping</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>    <span class="n">identity_args_mapping</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;timeout&quot;</span><span class="p">],</span>
+<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a><span class="p">)</span>
+<a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a><span class="n">updated</span> <span class="o">=</span> <span class="n">replace</span><span class="p">(</span><span class="n">info</span><span class="p">,</span> <span class="n">empty_args_mapping</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a>
+<a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a><span class="nb">print</span><span class="p">(</span><span class="n">info</span><span class="o">.</span><span class="n">empty_args_mapping</span><span class="p">)</span>
+<a id="__codelineno-12-13" name="__codelineno-12-13" href="#__codelineno-12-13"></a><span class="nb">print</span><span class="p">(</span><span class="n">info</span><span class="o">.</span><span class="n">identity_args_mapping</span><span class="p">)</span>
+<a id="__codelineno-12-14" name="__codelineno-12-14" href="#__codelineno-12-14"></a><span class="nb">print</span><span class="p">(</span><span class="n">updated</span><span class="o">.</span><span class="n">empty_args_mapping</span><span class="p">)</span>
+</code></pre></div>
+<details>
+  <summary>Output: <code>info fields and updated.empty_args_mapping</code></summary>
+
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>True
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>[&#39;timeout&#39;]
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>False
+</code></pre></div>
+
+</details>
+
 <hr />
-<h2 id="coming-from-v011">Coming from v0.11<a class="headerlink" href="#coming-from-v011" title="Permanent link">🔗</a></h2>
-<p>Here is what changed in v0.12 that you might have missed:</p>
-<h3 id="deprecated-on-a-class-is-now-first-class-supported"><code>@deprecated</code> on a class is now first-class supported<a class="headerlink" href="#deprecated-on-a-class-is-now-first-class-supported" title="Permanent link">🔗</a></h3>
-<p>Before v0.12, applying <code>@deprecated</code> directly to a class emitted a warning threatening <code>TypeError: ... will become a TypeError in a future release</code>. That threat is retired — <code>@deprecated</code> on a class now dispatches to <code>deprecated_class()</code> and produces an identical <code>_DeprecatedProxy</code>. The warning is now a one-time informational notice, fired at most once per class (keyed by module + qualified name, so same-named classes in different modules each warn) per process:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>`@deprecated` on class `MyClass` now dispatches to `@deprecated_class`.
-</code></pre></div>
-<p>The dispatch is permanent; only this notice is removed entirely, in v1.0, and suppressed by <code>stream=None</code>. Prefer <code>deprecated_class()</code> directly — same result, no notice, and required to reach class-only options such as <code>attrs_mapping</code>. See <a href="classes.html#deprecated-on-a-class"><code>@deprecated</code> on a class</a> for a runnable example.</p>
-<h3 id="targetmodeauto-how-an-omitted-target-is-resolved"><code>TargetMode.AUTO</code> — how an omitted <code>target</code> is resolved<a class="headerlink" href="#targetmodeauto-how-an-omitted-target-is-resolved" title="Permanent link">🔗</a></h3>
-<blockquote>
-<p><strong>Prefer an explicit <code>target</code>.</strong> <code>AUTO</code> exists only to give an <em>omitted</em> <code>target</code> a sensible default. Passing an explicit mode — <code>target=TargetMode.NOTIFY</code>, <code>target=TargetMode.ARGS_REMAP</code>, or a callable — keeps intent visible at the call site and is the recommended style everywhere in these docs. You never write <code>target=TargetMode.AUTO</code> yourself; the strict factories reject it.</p>
-</blockquote>
-<p><code>TargetMode</code> gained a fourth member, <code>AUTO</code>, which is the default value of <code>target</code> on the <code>@deprecated</code> front door (previously <code>TargetMode.NOTIFY</code>). It is a decoration-time fallback, not a runtime mode: when <code>target</code> is omitted, <code>AUTO</code> resolves to the mode implied by the rest of the configuration before the wrapper or proxy is built, and the resolved mode — never <code>AUTO</code> itself — is stored in <code>DeprecationConfig</code>:</p>
+<h2 id="pick-your-upgrade-path">Pick Your Upgrade Path<a class="headerlink" href="#pick-your-upgrade-path" title="Permanent link">🔗</a></h2>
+<p>Find the section matching the version you are upgrading <strong>from</strong>. Each section aggregates every later migration-relevant compatibility change into two tabs:</p>
+<ol>
+<li>Apply every item under <strong>Breaking changes</strong>.</li>
+<li>Review changed warnings, errors, audit scope, and proxy behavior under <strong>Behavior changes</strong>.</li>
+<li>Run your suite with <code>FutureWarning</code> promoted to an error, then run your pyDeprecate audit/expiry CI checks.</li>
+</ol>
+<p>This guide works at <strong>minor-line granularity</strong>. <code>v0.N.x</code> means the latest available bugfix release in that feature line. The paths assume your dependency constraint allows bugfix updates and that you update within <code>v0.N.x</code> before crossing to the next feature line. Patch and post releases are folded into their minor interval rather than receiving separate sections.</p>
+<p>Releases with no migration work are skipped. Where a later release superseded an intermediate behavior, the section describes the final v0.12.x development behavior.</p>
+<h3 id="coming-from-v011x">Coming from v0.11.x<a class="headerlink" href="#coming-from-v011x" title="Permanent link">🔗</a></h3>
+<div class="tabbed-set tabbed-alternate" data-tabs="1:2"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">Breaking changes</label><label for="__tabbed_1_2">Behavior changes</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<ul>
+<li><strong>Use <code>deprecated_class(attrs_mapping=...)</code> for attribute remapping.</strong> <code>deprecated()</code> no longer accepts the class-only <code>attrs_mapping</code> keyword. <code>@deprecated(target=TargetMode.ATTRS_REMAP)</code> also raises <code>TypeError</code> for functions and classes because the common front door cannot supply the required mapping.</li>
+<li><strong>Rename <code>template_mgs</code> to <code>message_template</code></strong> on <code>deprecated()</code>, <code>deprecated_class()</code>, and <code>deprecated_instance()</code>. The typo remains a warning alias until v1.0; supplying both names raises <code>TypeError</code>.</li>
+<li><strong>Fix explicit <code>TargetMode.NOTIFY</code> plus a mapping.</strong> It emits <code>UserWarning</code>, remains <code>NOTIFY</code>, leaves the mapping inert, and is marked misconfigured. Omit <code>target</code> to infer remapping, or select the matching remap mode explicitly.</li>
+</ul>
+</div>
+<div class="tabbed-block">
+<ul>
+<li><code>@deprecated</code> now defaults to <code>TargetMode.AUTO</code>. It resolves at decoration time: a function/class with <code>args_mapping</code> becomes <code>ARGS_REMAP</code>; a source without a mapping becomes warn-only. <code>AUTO</code> is never stored in <code>DeprecationConfig</code>; do not pass it explicitly because it exists only as the front-door default.</li>
+<li>Existing <code>@deprecated</code> use on a class remains supported; no code change or decorator rewrite is required. It permanently delegates to <code>deprecated_class()</code> and emits one informational <code>UserWarning</code> per module-qualified class. <code>stream=None</code> suppresses the notice. Only the notice, not backward support or delegation, is removed in v1.0.</li>
+<li><code>message_template</code> and <code>skip_if</code> supplied through <code>@deprecated</code> on a class now reach the proxy. <code>message_template</code> was previously dropped on that path.</li>
+<li>Non-callable sources now raise a direct <code>TypeError</code> pointing users to <code>deprecated_instance()</code> instead of failing later on <code>__name__</code>.</li>
+</ul>
+</div>
+</div>
+</div>
+<h3 id="coming-from-v010x">Coming from v0.10.x<a class="headerlink" href="#coming-from-v010x" title="Permanent link">🔗</a></h3>
+<div class="tabbed-set tabbed-alternate" data-tabs="2:2"><input checked="checked" id="__tabbed_2_1" name="__tabbed_2" type="radio" /><input id="__tabbed_2_2" name="__tabbed_2" type="radio" /><div class="tabbed-labels"><label for="__tabbed_2_1">Breaking changes</label><label for="__tabbed_2_2">Behavior changes</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<ul>
+<li><strong>Update proxy detection.</strong> <code>proxy.__class__</code> reports the wrapped object's type for <code>isinstance</code> transparency. Use <code>type(proxy)</code> when you need to detect <code>_DeprecatedProxy</code> itself.</li>
+<li><strong>Do not use an instance proxy as the second argument to <code>isinstance()</code> or <code>issubclass()</code>.</strong> This misuse now raises <code>TypeError</code> instead of returning <code>False</code>. Class-alias proxies remain valid there.</li>
+<li><strong>Review expiry CI scope.</strong> <code>validate_deprecation_expiry()</code> now defaults to <code>include_members=True</code>, so expired methods, constructors, descriptors, and properties can newly fail the gate. Pass <code>include_members=False</code> only when the old narrower scope is intentional.</li>
+<li><strong>Fix invalid <code>remove_in</code> versions.</strong> An unparsable <code>remove_in</code> now emits <code>UserWarning</code> during batch expiry instead of being skipped silently.</li>
+<li><strong>Fix misspelled CLI flags.</strong> Unknown flags now fail instead of being silently ignored.</li>
+<li>
+<p><strong>Use named <code>%</code> fields in custom message templates.</strong> Bare <code>%s</code> or <code>%d</code> conversions now raise <code>ValueError</code> when the decorator is applied.</p>
+</li>
+<li>
+<p><strong>Use <code>deprecated_class(attrs_mapping=...)</code> for attribute remapping.</strong> <code>deprecated()</code> no longer accepts the class-only <code>attrs_mapping</code> keyword. <code>@deprecated(target=TargetMode.ATTRS_REMAP)</code> also raises <code>TypeError</code> for functions and classes because the common front door cannot supply the required mapping.</p>
+</li>
+<li><strong>Rename <code>template_mgs</code> to <code>message_template</code></strong> on <code>deprecated()</code>, <code>deprecated_class()</code>, and <code>deprecated_instance()</code>. The typo remains a warning alias until v1.0; supplying both names raises <code>TypeError</code>.</li>
+<li><strong>Fix explicit <code>TargetMode.NOTIFY</code> plus a mapping.</strong> It emits <code>UserWarning</code>, remains <code>NOTIFY</code>, leaves the mapping inert, and is marked misconfigured. Omit <code>target</code> to infer remapping, or select the matching remap mode explicitly.</li>
+</ul>
+</div>
+<div class="tabbed-block">
+<ul>
+<li><code>repr()</code>, <code>str()</code>, equality, and hashing on a target-forwarding proxy now reflect the active target rather than the deprecated source.</li>
+<li>In-place operators such as <code>proxy += 1</code> rebind the name to the unwrapped result. Later uses are silent; avoid in-place operators if the proxy must retain its warning budget.</li>
+<li><code>args_mapping</code>, <code>args_extra</code>, and <code>attrs_mapping</code> are copied at decoration time. Mutating the original dict later no longer changes forwarding behavior.</li>
+<li>Constructing an <code>attrs_mapping</code>-only class proxy is now silent; only access to a listed deprecated attribute warns.</li>
+<li>Concurrent calls now respect exactly the configured <code>num_warns</code> budget. Tests that accidentally relied on one warning per racing thread will see fewer warnings.</li>
+<li>
+<p>Recursive audits deduplicate re-exports, include deprecated private and dunder members, warn and skip submodules that fail to import, and ignore unrelated foreign objects that raise during metadata probing. Counts and rows can therefore change in both directions.</p>
+</li>
+<li>
+<p><code>@deprecated</code> now defaults to <code>TargetMode.AUTO</code>. It resolves at decoration time: a function/class with <code>args_mapping</code> becomes <code>ARGS_REMAP</code>; a source without a mapping becomes warn-only. <code>AUTO</code> is never stored in <code>DeprecationConfig</code>; do not pass it explicitly because it exists only as the front-door default.</p>
+</li>
+<li>Existing <code>@deprecated</code> use on a class remains supported; no code change or decorator rewrite is required. It permanently delegates to <code>deprecated_class()</code> and emits one informational <code>UserWarning</code> per module-qualified class. <code>stream=None</code> suppresses the notice. Only the notice, not backward support or delegation, is removed in v1.0.</li>
+<li><code>message_template</code> and <code>skip_if</code> supplied through <code>@deprecated</code> on a class now reach the proxy. <code>message_template</code> was previously dropped on that path.</li>
+<li>Non-callable sources now raise a direct <code>TypeError</code> pointing users to <code>deprecated_instance()</code> instead of failing later on <code>__name__</code>.</li>
+</ul>
+</div>
+</div>
+</div>
+<h3 id="coming-from-v09x">Coming from v0.9.x<a class="headerlink" href="#coming-from-v09x" title="Permanent link">🔗</a></h3>
+<div class="tabbed-set tabbed-alternate" data-tabs="3:2"><input checked="checked" id="__tabbed_3_1" name="__tabbed_3" type="radio" /><input id="__tabbed_3_2" name="__tabbed_3" type="radio" /><div class="tabbed-labels"><label for="__tabbed_3_1">Breaking changes</label><label for="__tabbed_3_2">Behavior changes</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<ul>
+<li>
+<p><strong>Outer-order deprecated properties now warn on read, write, and delete.</strong> Under <code>filterwarnings=error::FutureWarning</code>, a setter or deleter that was previously silent now raises. If only reads should warn, keep inner order (<code>@property</code> outside <code>@deprecated</code>) or decorate only <code>fget</code>.</p>
+</li>
+<li>
+<p><strong>Update proxy detection.</strong> <code>proxy.__class__</code> reports the wrapped object's type for <code>isinstance</code> transparency. Use <code>type(proxy)</code> when you need to detect <code>_DeprecatedProxy</code> itself.</p>
+</li>
+<li><strong>Do not use an instance proxy as the second argument to <code>isinstance()</code> or <code>issubclass()</code>.</strong> This misuse now raises <code>TypeError</code> instead of returning <code>False</code>. Class-alias proxies remain valid there.</li>
+<li><strong>Review expiry CI scope.</strong> <code>validate_deprecation_expiry()</code> now defaults to <code>include_members=True</code>, so expired methods, constructors, descriptors, and properties can newly fail the gate. Pass <code>include_members=False</code> only when the old narrower scope is intentional.</li>
+<li><strong>Fix invalid <code>remove_in</code> versions.</strong> An unparsable <code>remove_in</code> now emits <code>UserWarning</code> during batch expiry instead of being skipped silently.</li>
+<li><strong>Fix misspelled CLI flags.</strong> Unknown flags now fail instead of being silently ignored.</li>
+<li>
+<p><strong>Use named <code>%</code> fields in custom message templates.</strong> Bare <code>%s</code> or <code>%d</code> conversions now raise <code>ValueError</code> when the decorator is applied.</p>
+</li>
+<li>
+<p><strong>Use <code>deprecated_class(attrs_mapping=...)</code> for attribute remapping.</strong> <code>deprecated()</code> no longer accepts the class-only <code>attrs_mapping</code> keyword. <code>@deprecated(target=TargetMode.ATTRS_REMAP)</code> also raises <code>TypeError</code> for functions and classes because the common front door cannot supply the required mapping.</p>
+</li>
+<li><strong>Rename <code>template_mgs</code> to <code>message_template</code></strong> on <code>deprecated()</code>, <code>deprecated_class()</code>, and <code>deprecated_instance()</code>. The typo remains a warning alias until v1.0; supplying both names raises <code>TypeError</code>.</li>
+<li><strong>Fix explicit <code>TargetMode.NOTIFY</code> plus a mapping.</strong> It emits <code>UserWarning</code>, remains <code>NOTIFY</code>, leaves the mapping inert, and is marked misconfigured. Omit <code>target</code> to infer remapping, or select the matching remap mode explicitly.</li>
+</ul>
+</div>
+<div class="tabbed-block">
+<ul>
+<li>When a caller supplies both deprecated and replacement keyword names, the explicit replacement value now wins regardless of call-site order.</li>
+<li>
+<p>Circular callable-target chains now raise a named <code>RuntimeError</code> instead of ending in <code>RecursionError</code>.</p>
+</li>
+<li>
+<p><code>repr()</code>, <code>str()</code>, equality, and hashing on a target-forwarding proxy now reflect the active target rather than the deprecated source.</p>
+</li>
+<li>In-place operators such as <code>proxy += 1</code> rebind the name to the unwrapped result. Later uses are silent; avoid in-place operators if the proxy must retain its warning budget.</li>
+<li><code>args_mapping</code>, <code>args_extra</code>, and <code>attrs_mapping</code> are copied at decoration time. Mutating the original dict later no longer changes forwarding behavior.</li>
+<li>Constructing an <code>attrs_mapping</code>-only class proxy is now silent; only access to a listed deprecated attribute warns.</li>
+<li>Concurrent calls now respect exactly the configured <code>num_warns</code> budget. Tests that accidentally relied on one warning per racing thread will see fewer warnings.</li>
+<li>
+<p>Recursive audits deduplicate re-exports, include deprecated private and dunder members, warn and skip submodules that fail to import, and ignore unrelated foreign objects that raise during metadata probing. Counts and rows can therefore change in both directions.</p>
+</li>
+<li>
+<p><code>@deprecated</code> now defaults to <code>TargetMode.AUTO</code>. It resolves at decoration time: a function/class with <code>args_mapping</code> becomes <code>ARGS_REMAP</code>; a source without a mapping becomes warn-only. <code>AUTO</code> is never stored in <code>DeprecationConfig</code>; do not pass it explicitly because it exists only as the front-door default.</p>
+</li>
+<li>Existing <code>@deprecated</code> use on a class remains supported; no code change or decorator rewrite is required. It permanently delegates to <code>deprecated_class()</code> and emits one informational <code>UserWarning</code> per module-qualified class. <code>stream=None</code> suppresses the notice. Only the notice, not backward support or delegation, is removed in v1.0.</li>
+<li><code>message_template</code> and <code>skip_if</code> supplied through <code>@deprecated</code> on a class now reach the proxy. <code>message_template</code> was previously dropped on that path.</li>
+<li>Non-callable sources now raise a direct <code>TypeError</code> pointing users to <code>deprecated_instance()</code> instead of failing later on <code>__name__</code>.</li>
+</ul>
+</div>
+</div>
+</div>
+<h3 id="coming-from-v08x">Coming from v0.8.x<a class="headerlink" href="#coming-from-v08x" title="Permanent link">🔗</a></h3>
+<div class="tabbed-set tabbed-alternate" data-tabs="4:2"><input checked="checked" id="__tabbed_4_1" name="__tabbed_4" type="radio" /><input id="__tabbed_4_2" name="__tabbed_4" type="radio" /><div class="tabbed-labels"><label for="__tabbed_4_1">Breaking changes</label><label for="__tabbed_4_2">Behavior changes</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<ul>
+<li><strong>Rename the CLI flag <code>--skip_errors</code> to <code>--exit-zero</code></strong> in every <code>check</code>, <code>expiry</code>, <code>chains</code>, and <code>all</code> command. The old flag is rejected. <code>--exit_zero</code> remains an underscore alias, but the dashed spelling is canonical.</li>
+<li>
+<p><strong>Fix unsupported stacked decorators.</strong> Six shapes, including callable-over-callable, now emit <code>UserWarning</code> at decoration time and become <code>TypeError</code> in v1.0. The supported lifecycle stack is outer <code>ARGS_REMAP</code> plus inner <code>NOTIFY</code>.</p>
+</li>
+<li>
+<p><strong>Outer-order deprecated properties now warn on read, write, and delete.</strong> Under <code>filterwarnings=error::FutureWarning</code>, a setter or deleter that was previously silent now raises. If only reads should warn, keep inner order (<code>@property</code> outside <code>@deprecated</code>) or decorate only <code>fget</code>.</p>
+</li>
+<li>
+<p><strong>Update proxy detection.</strong> <code>proxy.__class__</code> reports the wrapped object's type for <code>isinstance</code> transparency. Use <code>type(proxy)</code> when you need to detect <code>_DeprecatedProxy</code> itself.</p>
+</li>
+<li><strong>Do not use an instance proxy as the second argument to <code>isinstance()</code> or <code>issubclass()</code>.</strong> This misuse now raises <code>TypeError</code> instead of returning <code>False</code>. Class-alias proxies remain valid there.</li>
+<li><strong>Review expiry CI scope.</strong> <code>validate_deprecation_expiry()</code> now defaults to <code>include_members=True</code>, so expired methods, constructors, descriptors, and properties can newly fail the gate. Pass <code>include_members=False</code> only when the old narrower scope is intentional.</li>
+<li><strong>Fix invalid <code>remove_in</code> versions.</strong> An unparsable <code>remove_in</code> now emits <code>UserWarning</code> during batch expiry instead of being skipped silently.</li>
+<li><strong>Fix misspelled CLI flags.</strong> Unknown flags now fail instead of being silently ignored.</li>
+<li>
+<p><strong>Use named <code>%</code> fields in custom message templates.</strong> Bare <code>%s</code> or <code>%d</code> conversions now raise <code>ValueError</code> when the decorator is applied.</p>
+</li>
+<li>
+<p><strong>Use <code>deprecated_class(attrs_mapping=...)</code> for attribute remapping.</strong> <code>deprecated()</code> no longer accepts the class-only <code>attrs_mapping</code> keyword. <code>@deprecated(target=TargetMode.ATTRS_REMAP)</code> also raises <code>TypeError</code> for functions and classes because the common front door cannot supply the required mapping.</p>
+</li>
+<li><strong>Rename <code>template_mgs</code> to <code>message_template</code></strong> on <code>deprecated()</code>, <code>deprecated_class()</code>, and <code>deprecated_instance()</code>. The typo remains a warning alias until v1.0; supplying both names raises <code>TypeError</code>.</li>
+<li><strong>Fix explicit <code>TargetMode.NOTIFY</code> plus a mapping.</strong> It emits <code>UserWarning</code>, remains <code>NOTIFY</code>, leaves the mapping inert, and is marked misconfigured. Omit <code>target</code> to infer remapping, or select the matching remap mode explicitly.</li>
+</ul>
+</div>
+<div class="tabbed-block">
+<ul>
+<li>CLI scans suppress only warnings from <code>deprecate.*</code>; third-party warnings are now visible. CI that treats all warnings as errors may start failing on dependencies imported during a scan.</li>
+<li>
+<p>Audit code sees the supported <code>ARGS_REMAP + NOTIFY</code> chain as <code>ChainType.STACKED</code>, not <code>ChainType.TARGET</code>.</p>
+</li>
+<li>
+<p>When a caller supplies both deprecated and replacement keyword names, the explicit replacement value now wins regardless of call-site order.</p>
+</li>
+<li>
+<p>Circular callable-target chains now raise a named <code>RuntimeError</code> instead of ending in <code>RecursionError</code>.</p>
+</li>
+<li>
+<p><code>repr()</code>, <code>str()</code>, equality, and hashing on a target-forwarding proxy now reflect the active target rather than the deprecated source.</p>
+</li>
+<li>In-place operators such as <code>proxy += 1</code> rebind the name to the unwrapped result. Later uses are silent; avoid in-place operators if the proxy must retain its warning budget.</li>
+<li><code>args_mapping</code>, <code>args_extra</code>, and <code>attrs_mapping</code> are copied at decoration time. Mutating the original dict later no longer changes forwarding behavior.</li>
+<li>Constructing an <code>attrs_mapping</code>-only class proxy is now silent; only access to a listed deprecated attribute warns.</li>
+<li>Concurrent calls now respect exactly the configured <code>num_warns</code> budget. Tests that accidentally relied on one warning per racing thread will see fewer warnings.</li>
+<li>
+<p>Recursive audits deduplicate re-exports, include deprecated private and dunder members, warn and skip submodules that fail to import, and ignore unrelated foreign objects that raise during metadata probing. Counts and rows can therefore change in both directions.</p>
+</li>
+<li>
+<p><code>@deprecated</code> now defaults to <code>TargetMode.AUTO</code>. It resolves at decoration time: a function/class with <code>args_mapping</code> becomes <code>ARGS_REMAP</code>; a source without a mapping becomes warn-only. <code>AUTO</code> is never stored in <code>DeprecationConfig</code>; do not pass it explicitly because it exists only as the front-door default.</p>
+</li>
+<li>Existing <code>@deprecated</code> use on a class remains supported; no code change or decorator rewrite is required. It permanently delegates to <code>deprecated_class()</code> and emits one informational <code>UserWarning</code> per module-qualified class. <code>stream=None</code> suppresses the notice. Only the notice, not backward support or delegation, is removed in v1.0.</li>
+<li><code>message_template</code> and <code>skip_if</code> supplied through <code>@deprecated</code> on a class now reach the proxy. <code>message_template</code> was previously dropped on that path.</li>
+<li>Non-callable sources now raise a direct <code>TypeError</code> pointing users to <code>deprecated_instance()</code> instead of failing later on <code>__name__</code>.</li>
+</ul>
+</div>
+</div>
+</div>
+<h3 id="coming-from-v07x">Coming from v0.7.x<a class="headerlink" href="#coming-from-v07x" title="Permanent link">🔗</a></h3>
+<div class="tabbed-set tabbed-alternate" data-tabs="5:2"><input checked="checked" id="__tabbed_5_1" name="__tabbed_5" type="radio" /><input id="__tabbed_5_2" name="__tabbed_5" type="radio" /><div class="tabbed-labels"><label for="__tabbed_5_1">Breaking changes</label><label for="__tabbed_5_2">Behavior changes</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<ul>
+<li>Replace <code>target=None</code> with <code>TargetMode.NOTIFY</code> or omit <code>target</code> for a warn-only decorator.</li>
+<li>Replace <code>target=True</code> with <code>TargetMode.ARGS_REMAP</code>.</li>
+<li>Replace <code>DeprecationWrapperInfo.empty_mapping</code> with <code>empty_args_mapping</code>, and <code>identity_mapping</code> with <code>identity_args_mapping</code>. The old properties warn and are removed in v1.0.</li>
+<li>If code inspects <code>wrapper.__deprecated__.target</code>, compare with a <code>TargetMode</code>, callable, or <code>None</code>. <code>DeprecationConfig.target</code> stores a normalized value, never legacy <code>True</code> or <code>False</code>.</li>
+<li>
+<p>Update external documentation bookmarks from flat paths such as <code>/pyDeprecate/troubleshooting.html</code> to the versioned <code>/pyDeprecate/stable/troubleshooting.html</code> layout.</p>
+</li>
+<li>
+<p><strong>Rename the CLI flag <code>--skip_errors</code> to <code>--exit-zero</code></strong> in every <code>check</code>, <code>expiry</code>, <code>chains</code>, and <code>all</code> command. The old flag is rejected. <code>--exit_zero</code> remains an underscore alias, but the dashed spelling is canonical.</p>
+</li>
+<li>
+<p><strong>Fix unsupported stacked decorators.</strong> Six shapes, including callable-over-callable, now emit <code>UserWarning</code> at decoration time and become <code>TypeError</code> in v1.0. The supported lifecycle stack is outer <code>ARGS_REMAP</code> plus inner <code>NOTIFY</code>.</p>
+</li>
+<li>
+<p><strong>Outer-order deprecated properties now warn on read, write, and delete.</strong> Under <code>filterwarnings=error::FutureWarning</code>, a setter or deleter that was previously silent now raises. If only reads should warn, keep inner order (<code>@property</code> outside <code>@deprecated</code>) or decorate only <code>fget</code>.</p>
+</li>
+<li>
+<p><strong>Update proxy detection.</strong> <code>proxy.__class__</code> reports the wrapped object's type for <code>isinstance</code> transparency. Use <code>type(proxy)</code> when you need to detect <code>_DeprecatedProxy</code> itself.</p>
+</li>
+<li><strong>Do not use an instance proxy as the second argument to <code>isinstance()</code> or <code>issubclass()</code>.</strong> This misuse now raises <code>TypeError</code> instead of returning <code>False</code>. Class-alias proxies remain valid there.</li>
+<li><strong>Review expiry CI scope.</strong> <code>validate_deprecation_expiry()</code> now defaults to <code>include_members=True</code>, so expired methods, constructors, descriptors, and properties can newly fail the gate. Pass <code>include_members=False</code> only when the old narrower scope is intentional.</li>
+<li><strong>Fix invalid <code>remove_in</code> versions.</strong> An unparsable <code>remove_in</code> now emits <code>UserWarning</code> during batch expiry instead of being skipped silently.</li>
+<li><strong>Fix misspelled CLI flags.</strong> Unknown flags now fail instead of being silently ignored.</li>
+<li>
+<p><strong>Use named <code>%</code> fields in custom message templates.</strong> Bare <code>%s</code> or <code>%d</code> conversions now raise <code>ValueError</code> when the decorator is applied.</p>
+</li>
+<li>
+<p><strong>Use <code>deprecated_class(attrs_mapping=...)</code> for attribute remapping.</strong> <code>deprecated()</code> no longer accepts the class-only <code>attrs_mapping</code> keyword. <code>@deprecated(target=TargetMode.ATTRS_REMAP)</code> also raises <code>TypeError</code> for functions and classes because the common front door cannot supply the required mapping.</p>
+</li>
+<li><strong>Rename <code>template_mgs</code> to <code>message_template</code></strong> on <code>deprecated()</code>, <code>deprecated_class()</code>, and <code>deprecated_instance()</code>. The typo remains a warning alias until v1.0; supplying both names raises <code>TypeError</code>.</li>
+<li><strong>Fix explicit <code>TargetMode.NOTIFY</code> plus a mapping.</strong> It emits <code>UserWarning</code>, remains <code>NOTIFY</code>, leaves the mapping inert, and is marked misconfigured. Omit <code>target</code> to infer remapping, or select the matching remap mode explicitly.</li>
+</ul>
+</div>
+<div class="tabbed-block">
+<ul>
+<li>Omitting <code>deprecated_in</code> on a function or method emits <code>UserWarning</code> at decoration time. Add the version as part of every deprecation lifecycle.</li>
+<li><code>ARGS_REMAP</code> without <code>args_mapping</code>, <code>NOTIFY</code> with <code>args_mapping</code> or <code>args_extra</code>, and invalid <code>target=False</code> now warn immediately. These are migration failures, not harmless diagnostics; correct them before v1.0.</li>
+<li>
+<p>Omitting <code>target</code> is the canonical warn-only form. Its v0.12 default is <code>TargetMode.AUTO</code>, which resolves to <code>NOTIFY</code> when no mapping is present, so the user-visible result is unchanged.</p>
+</li>
+<li>
+<p>CLI scans suppress only warnings from <code>deprecate.*</code>; third-party warnings are now visible. CI that treats all warnings as errors may start failing on dependencies imported during a scan.</p>
+</li>
+<li>
+<p>Audit code sees the supported <code>ARGS_REMAP + NOTIFY</code> chain as <code>ChainType.STACKED</code>, not <code>ChainType.TARGET</code>.</p>
+</li>
+<li>
+<p>When a caller supplies both deprecated and replacement keyword names, the explicit replacement value now wins regardless of call-site order.</p>
+</li>
+<li>
+<p>Circular callable-target chains now raise a named <code>RuntimeError</code> instead of ending in <code>RecursionError</code>.</p>
+</li>
+<li>
+<p><code>repr()</code>, <code>str()</code>, equality, and hashing on a target-forwarding proxy now reflect the active target rather than the deprecated source.</p>
+</li>
+<li>In-place operators such as <code>proxy += 1</code> rebind the name to the unwrapped result. Later uses are silent; avoid in-place operators if the proxy must retain its warning budget.</li>
+<li><code>args_mapping</code>, <code>args_extra</code>, and <code>attrs_mapping</code> are copied at decoration time. Mutating the original dict later no longer changes forwarding behavior.</li>
+<li>Constructing an <code>attrs_mapping</code>-only class proxy is now silent; only access to a listed deprecated attribute warns.</li>
+<li>Concurrent calls now respect exactly the configured <code>num_warns</code> budget. Tests that accidentally relied on one warning per racing thread will see fewer warnings.</li>
+<li>
+<p>Recursive audits deduplicate re-exports, include deprecated private and dunder members, warn and skip submodules that fail to import, and ignore unrelated foreign objects that raise during metadata probing. Counts and rows can therefore change in both directions.</p>
+</li>
+<li>
+<p><code>@deprecated</code> now defaults to <code>TargetMode.AUTO</code>. It resolves at decoration time: a function/class with <code>args_mapping</code> becomes <code>ARGS_REMAP</code>; a source without a mapping becomes warn-only. <code>AUTO</code> is never stored in <code>DeprecationConfig</code>; do not pass it explicitly because it exists only as the front-door default.</p>
+</li>
+<li>Existing <code>@deprecated</code> use on a class remains supported; no code change or decorator rewrite is required. It permanently delegates to <code>deprecated_class()</code> and emits one informational <code>UserWarning</code> per module-qualified class. <code>stream=None</code> suppresses the notice. Only the notice, not backward support or delegation, is removed in v1.0.</li>
+<li><code>message_template</code> and <code>skip_if</code> supplied through <code>@deprecated</code> on a class now reach the proxy. <code>message_template</code> was previously dropped on that path.</li>
+<li>Non-callable sources now raise a direct <code>TypeError</code> pointing users to <code>deprecated_instance()</code> instead of failing later on <code>__name__</code>.</li>
+</ul>
+</div>
+</div>
+</div>
+<h3 id="coming-from-v06x">Coming from v0.6.x<a class="headerlink" href="#coming-from-v06x" title="Permanent link">🔗</a></h3>
+<div class="tabbed-set tabbed-alternate" data-tabs="6:2"><input checked="checked" id="__tabbed_6_1" name="__tabbed_6" type="radio" /><input id="__tabbed_6_2" name="__tabbed_6" type="radio" /><div class="tabbed-labels"><label for="__tabbed_6_1">Breaking changes</label><label for="__tabbed_6_2">Behavior changes</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<ul>
+<li>Replace <code>target=None</code> with <code>TargetMode.NOTIFY</code> or omit <code>target</code> for a warn-only decorator.</li>
+<li>Replace <code>target=True</code> with <code>TargetMode.ARGS_REMAP</code>.</li>
+<li>Replace <code>DeprecationWrapperInfo.empty_mapping</code> with <code>empty_args_mapping</code>, and <code>identity_mapping</code> with <code>identity_args_mapping</code>. The old properties warn and are removed in v1.0.</li>
+<li>If code inspects <code>wrapper.__deprecated__.target</code>, compare with a <code>TargetMode</code>, callable, or <code>None</code>. <code>DeprecationConfig.target</code> stores a normalized value, never legacy <code>True</code> or <code>False</code>.</li>
+<li>
+<p>Update external documentation bookmarks from flat paths such as <code>/pyDeprecate/troubleshooting.html</code> to the versioned <code>/pyDeprecate/stable/troubleshooting.html</code> layout.</p>
+</li>
+<li>
+<p><strong>Rename the CLI flag <code>--skip_errors</code> to <code>--exit-zero</code></strong> in every <code>check</code>, <code>expiry</code>, <code>chains</code>, and <code>all</code> command. The old flag is rejected. <code>--exit_zero</code> remains an underscore alias, but the dashed spelling is canonical.</p>
+</li>
+<li>
+<p><strong>Fix unsupported stacked decorators.</strong> Six shapes, including callable-over-callable, now emit <code>UserWarning</code> at decoration time and become <code>TypeError</code> in v1.0. The supported lifecycle stack is outer <code>ARGS_REMAP</code> plus inner <code>NOTIFY</code>.</p>
+</li>
+<li>
+<p><strong>Outer-order deprecated properties now warn on read, write, and delete.</strong> Under <code>filterwarnings=error::FutureWarning</code>, a setter or deleter that was previously silent now raises. If only reads should warn, keep inner order (<code>@property</code> outside <code>@deprecated</code>) or decorate only <code>fget</code>.</p>
+</li>
+<li>
+<p><strong>Update proxy detection.</strong> <code>proxy.__class__</code> reports the wrapped object's type for <code>isinstance</code> transparency. Use <code>type(proxy)</code> when you need to detect <code>_DeprecatedProxy</code> itself.</p>
+</li>
+<li><strong>Do not use an instance proxy as the second argument to <code>isinstance()</code> or <code>issubclass()</code>.</strong> This misuse now raises <code>TypeError</code> instead of returning <code>False</code>. Class-alias proxies remain valid there.</li>
+<li><strong>Review expiry CI scope.</strong> <code>validate_deprecation_expiry()</code> now defaults to <code>include_members=True</code>, so expired methods, constructors, descriptors, and properties can newly fail the gate. Pass <code>include_members=False</code> only when the old narrower scope is intentional.</li>
+<li><strong>Fix invalid <code>remove_in</code> versions.</strong> An unparsable <code>remove_in</code> now emits <code>UserWarning</code> during batch expiry instead of being skipped silently.</li>
+<li><strong>Fix misspelled CLI flags.</strong> Unknown flags now fail instead of being silently ignored.</li>
+<li>
+<p><strong>Use named <code>%</code> fields in custom message templates.</strong> Bare <code>%s</code> or <code>%d</code> conversions now raise <code>ValueError</code> when the decorator is applied.</p>
+</li>
+<li>
+<p><strong>Use <code>deprecated_class(attrs_mapping=...)</code> for attribute remapping.</strong> <code>deprecated()</code> no longer accepts the class-only <code>attrs_mapping</code> keyword. <code>@deprecated(target=TargetMode.ATTRS_REMAP)</code> also raises <code>TypeError</code> for functions and classes because the common front door cannot supply the required mapping.</p>
+</li>
+<li><strong>Rename <code>template_mgs</code> to <code>message_template</code></strong> on <code>deprecated()</code>, <code>deprecated_class()</code>, and <code>deprecated_instance()</code>. The typo remains a warning alias until v1.0; supplying both names raises <code>TypeError</code>.</li>
+<li><strong>Fix explicit <code>TargetMode.NOTIFY</code> plus a mapping.</strong> It emits <code>UserWarning</code>, remains <code>NOTIFY</code>, leaves the mapping inert, and is marked misconfigured. Omit <code>target</code> to infer remapping, or select the matching remap mode explicitly.</li>
+</ul>
+</div>
+<div class="tabbed-block">
+<ul>
+<li>Omitting <code>deprecated_in</code> on a function or method emits <code>UserWarning</code> at decoration time. Add the version as part of every deprecation lifecycle.</li>
+<li><code>ARGS_REMAP</code> without <code>args_mapping</code>, <code>NOTIFY</code> with <code>args_mapping</code> or <code>args_extra</code>, and invalid <code>target=False</code> now warn immediately. These are migration failures, not harmless diagnostics; correct them before v1.0.</li>
+<li>
+<p>Omitting <code>target</code> is the canonical warn-only form. Its v0.12 default is <code>TargetMode.AUTO</code>, which resolves to <code>NOTIFY</code> when no mapping is present, so the user-visible result is unchanged.</p>
+</li>
+<li>
+<p>CLI scans suppress only warnings from <code>deprecate.*</code>; third-party warnings are now visible. CI that treats all warnings as errors may start failing on dependencies imported during a scan.</p>
+</li>
+<li>
+<p>Audit code sees the supported <code>ARGS_REMAP + NOTIFY</code> chain as <code>ChainType.STACKED</code>, not <code>ChainType.TARGET</code>.</p>
+</li>
+<li>
+<p>When a caller supplies both deprecated and replacement keyword names, the explicit replacement value now wins regardless of call-site order.</p>
+</li>
+<li>
+<p>Circular callable-target chains now raise a named <code>RuntimeError</code> instead of ending in <code>RecursionError</code>.</p>
+</li>
+<li>
+<p><code>repr()</code>, <code>str()</code>, equality, and hashing on a target-forwarding proxy now reflect the active target rather than the deprecated source.</p>
+</li>
+<li>In-place operators such as <code>proxy += 1</code> rebind the name to the unwrapped result. Later uses are silent; avoid in-place operators if the proxy must retain its warning budget.</li>
+<li><code>args_mapping</code>, <code>args_extra</code>, and <code>attrs_mapping</code> are copied at decoration time. Mutating the original dict later no longer changes forwarding behavior.</li>
+<li>Constructing an <code>attrs_mapping</code>-only class proxy is now silent; only access to a listed deprecated attribute warns.</li>
+<li>Concurrent calls now respect exactly the configured <code>num_warns</code> budget. Tests that accidentally relied on one warning per racing thread will see fewer warnings.</li>
+<li>
+<p>Recursive audits deduplicate re-exports, include deprecated private and dunder members, warn and skip submodules that fail to import, and ignore unrelated foreign objects that raise during metadata probing. Counts and rows can therefore change in both directions.</p>
+</li>
+<li>
+<p><code>@deprecated</code> now defaults to <code>TargetMode.AUTO</code>. It resolves at decoration time: a function/class with <code>args_mapping</code> becomes <code>ARGS_REMAP</code>; a source without a mapping becomes warn-only. <code>AUTO</code> is never stored in <code>DeprecationConfig</code>; do not pass it explicitly because it exists only as the front-door default.</p>
+</li>
+<li>Existing <code>@deprecated</code> use on a class remains supported; no code change or decorator rewrite is required. It permanently delegates to <code>deprecated_class()</code> and emits one informational <code>UserWarning</code> per module-qualified class. <code>stream=None</code> suppresses the notice. Only the notice, not backward support or delegation, is removed in v1.0.</li>
+<li><code>message_template</code> and <code>skip_if</code> supplied through <code>@deprecated</code> on a class now reach the proxy. <code>message_template</code> was previously dropped on that path.</li>
+<li>Non-callable sources now raise a direct <code>TypeError</code> pointing users to <code>deprecated_instance()</code> instead of failing later on <code>__name__</code>.</li>
+</ul>
+</div>
+</div>
+</div>
+<h3 id="coming-from-v05x">Coming from v0.5.x<a class="headerlink" href="#coming-from-v05x" title="Permanent link">🔗</a></h3>
+<div class="tabbed-set tabbed-alternate" data-tabs="7:2"><input checked="checked" id="__tabbed_7_1" name="__tabbed_7" type="radio" /><input id="__tabbed_7_2" name="__tabbed_7" type="radio" /><div class="tabbed-labels"><label for="__tabbed_7_1">Breaking changes</label><label for="__tabbed_7_2">Behavior changes</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<ul>
+<li>
+<p><strong>Fix cross-class method forwarding.</strong> Passing a class target to a non-<code>__init__</code> instance method now raises <code>TypeError</code> at decoration time instead of forwarding a <code>self</code> of the wrong type.</p>
+</li>
+<li>
+<p><strong>Replace API names deprecated until v1.0:</strong></p>
 <table>
 <thead>
 <tr>
-<th>Front-door call</th>
-<th>Resolves to</th>
+<th>Deprecated API</th>
+<th>Replacement</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>@deprecated(args_mapping={...})</code> on a function</td>
-<td><code>TargetMode.ARGS_REMAP</code></td>
+<td><code>find_deprecated_callables</code></td>
+<td><code>find_deprecation_wrappers</code></td>
 </tr>
 <tr>
-<td><code>@deprecated()</code> on a function (no mapping)</td>
-<td><code>TargetMode.NOTIFY</code></td>
+<td><code>validate_deprecated_callable</code></td>
+<td><code>validate_deprecation_wrapper</code></td>
 </tr>
 <tr>
-<td><code>@deprecated(args_mapping={...})</code> on a class</td>
-<td>proxy auto-resolve → <code>TargetMode.ARGS_REMAP</code></td>
+<td><code>DeprecatedCallableInfo</code></td>
+<td><code>DeprecationWrapperInfo</code></td>
 </tr>
 <tr>
-<td><code>@deprecated()</code> on a class (no mapping)</td>
-<td>warn-only proxy (<code>DeprecationConfig.target is None</code>)</td>
+<td><code>no_warning_call</code></td>
+<td><code>assert_no_warnings</code></td>
 </tr>
 </tbody>
 </table>
-<p>The practical win on the callable path: <code>@deprecated(args_mapping={"old": "new"})</code> previously fell into the default <code>TargetMode.NOTIFY</code> and was flagged as a misconfiguration — now the omitted target infers <code>ARGS_REMAP</code> and the mapping is applied. Even so, spelling out <code>target=TargetMode.ARGS_REMAP</code> alongside <code>args_mapping</code> is clearer and is what the examples show.</p>
-<p><code>AUTO</code> is front-door-only. The strict forms keep explicit defaults — <code>deprecated_callable()</code> defaults to <code>TargetMode.NOTIFY</code>, <code>deprecated_class()</code> leaves <code>target</code> unset — and both raise <code>TypeError</code> when handed <code>target=TargetMode.AUTO</code>. Legacy proxy sentinels (<code>target=True</code> without a mapping, <code>target=False</code>) now also resolve to an unset target, so they follow the same auto-resolve as an omitted <code>target</code> (audit metadata records <code>None</code> for warn-only proxies).</p>
-<h3 id="explicit-targetmodenotify-with-a-mapping-is-never-silently-overridden">Explicit <code>TargetMode.NOTIFY</code> with a mapping is never silently overridden<a class="headerlink" href="#explicit-targetmodenotify-with-a-mapping-is-never-silently-overridden" title="Permanent link">🔗</a></h3>
-<p>Passing <code>target=TargetMode.NOTIFY</code> explicitly together with a mapping remains a misconfiguration on every path — your explicit configuration is never rewritten behind your back. A <code>UserWarning</code> fires at decoration time (<code>TypeError</code> in v1.0), the mode stays <code>NOTIFY</code>, and the mapping is inert at runtime; audit metadata keeps the mapping and flags the wrapper <code>misconfigured</code>. Omit <code>target</code> when you want the mapping applied — auto-resolve only ever fills in an <em>unset</em> target.</p>
-<p>There is consequently no single-proxy way to get a blanket "warn on every access" notice while a mapping is also active on that same proxy. If you need both, stack two <code>deprecated_class()</code> layers — an inner mapping-only layer (<code>ARGS_REMAP</code> / <code>ATTRS_REMAP</code>) plus an outer no-mapping layer (<code>NOTIFY</code>); see <a href="classes.html#nested-proxy-wrappers">Nested proxy wrappers</a>.</p>
-<h3 id="deprecated-slimmed-to-common-arguments-only"><code>deprecated()</code> slimmed to common arguments only<a class="headerlink" href="#deprecated-slimmed-to-common-arguments-only" title="Permanent link">🔗</a></h3>
-<p>The front-door <code>deprecated()</code> dispatcher now exposes only the arguments common to both dispatch shapes: <code>target</code>, <code>deprecated_in</code>, <code>remove_in</code>, <code>stream</code>, <code>num_warns</code>, <code>template_mgs</code>, <code>args_mapping</code>, <code>args_extra</code>, <code>skip_if</code>, <code>update_docstring</code>, and <code>docstring_style</code>. The one shape-specific option, class-only <code>attrs_mapping</code>, raises <code>TypeError</code> (unexpected keyword argument) on the front door — use <code>deprecated_class(attrs_mapping=...)</code> directly.</p>
-<p>As part of this alignment, <code>template_mgs</code> and <code>skip_if</code> passed through <code>@deprecated</code> on a class are now forwarded to the proxy (<code>template_mgs</code> used to be dropped silently on the class-dispatch path).</p>
-<h3 id="skip_if-now-available-on-proxies"><code>skip_if</code> now available on proxies<a class="headerlink" href="#skip_if-now-available-on-proxies" title="Permanent link">🔗</a></h3>
-<p><code>deprecated_class()</code> and <code>deprecated_instance()</code> gained the <code>skip_if</code> option (previously callable-only). When the condition evaluates <code>True</code> at access time, the proxy transparently serves the wrapped source — no warning, no <code>attrs_mapping</code> redirect, no <code>args_mapping</code>/<code>args_extra</code> handling, no target forwarding, and no <code>read_only</code> enforcement — mirroring the callable form, where a skipped call executes the source body unchanged. The condition may be consulted more than once per proxy operation, so keep the callable cheap and stable.</p>
-<p>See the <a href="../changelog.html">Changelog</a> for the complete v0.12 release notes.</p>
-<hr />
-<h2 id="coming-from-v010">Coming from v0.10<a class="headerlink" href="#coming-from-v010" title="Permanent link">🔗</a></h2>
-<p>Here is what changed in v0.11 that you might have missed. Watch this one first:</p>
-<ul>
-<li><strong>In-place operators on a proxy rebind the name to the unwrapped result.</strong> After <code>x += 1</code> on a <code>deprecated_instance</code> proxy, <code>x</code> is now a plain value (e.g. an <code>int</code>), not a re-wrapped proxy — so every later use of <code>x</code> is silent even if the deprecation window is still open. Assign to a fresh name, or avoid in-place operators, when you need the warning to keep firing.</li>
+</li>
+<li>
+<p>Replace <code>target=None</code> with <code>TargetMode.NOTIFY</code> or omit <code>target</code> for a warn-only decorator.</p>
+</li>
+<li>Replace <code>target=True</code> with <code>TargetMode.ARGS_REMAP</code>.</li>
+<li>Replace <code>DeprecationWrapperInfo.empty_mapping</code> with <code>empty_args_mapping</code>, and <code>identity_mapping</code> with <code>identity_args_mapping</code>. The old properties warn and are removed in v1.0.</li>
+<li>If code inspects <code>wrapper.__deprecated__.target</code>, compare with a <code>TargetMode</code>, callable, or <code>None</code>. <code>DeprecationConfig.target</code> stores a normalized value, never legacy <code>True</code> or <code>False</code>.</li>
+<li>
+<p>Update external documentation bookmarks from flat paths such as <code>/pyDeprecate/troubleshooting.html</code> to the versioned <code>/pyDeprecate/stable/troubleshooting.html</code> layout.</p>
+</li>
+<li>
+<p><strong>Rename the CLI flag <code>--skip_errors</code> to <code>--exit-zero</code></strong> in every <code>check</code>, <code>expiry</code>, <code>chains</code>, and <code>all</code> command. The old flag is rejected. <code>--exit_zero</code> remains an underscore alias, but the dashed spelling is canonical.</p>
+</li>
+<li>
+<p><strong>Fix unsupported stacked decorators.</strong> Six shapes, including callable-over-callable, now emit <code>UserWarning</code> at decoration time and become <code>TypeError</code> in v1.0. The supported lifecycle stack is outer <code>ARGS_REMAP</code> plus inner <code>NOTIFY</code>.</p>
+</li>
+<li>
+<p><strong>Outer-order deprecated properties now warn on read, write, and delete.</strong> Under <code>filterwarnings=error::FutureWarning</code>, a setter or deleter that was previously silent now raises. If only reads should warn, keep inner order (<code>@property</code> outside <code>@deprecated</code>) or decorate only <code>fget</code>.</p>
+</li>
+<li>
+<p><strong>Update proxy detection.</strong> <code>proxy.__class__</code> reports the wrapped object's type for <code>isinstance</code> transparency. Use <code>type(proxy)</code> when you need to detect <code>_DeprecatedProxy</code> itself.</p>
+</li>
+<li><strong>Do not use an instance proxy as the second argument to <code>isinstance()</code> or <code>issubclass()</code>.</strong> This misuse now raises <code>TypeError</code> instead of returning <code>False</code>. Class-alias proxies remain valid there.</li>
+<li><strong>Review expiry CI scope.</strong> <code>validate_deprecation_expiry()</code> now defaults to <code>include_members=True</code>, so expired methods, constructors, descriptors, and properties can newly fail the gate. Pass <code>include_members=False</code> only when the old narrower scope is intentional.</li>
+<li><strong>Fix invalid <code>remove_in</code> versions.</strong> An unparsable <code>remove_in</code> now emits <code>UserWarning</code> during batch expiry instead of being skipped silently.</li>
+<li><strong>Fix misspelled CLI flags.</strong> Unknown flags now fail instead of being silently ignored.</li>
+<li>
+<p><strong>Use named <code>%</code> fields in custom message templates.</strong> Bare <code>%s</code> or <code>%d</code> conversions now raise <code>ValueError</code> when the decorator is applied.</p>
+</li>
+<li>
+<p><strong>Use <code>deprecated_class(attrs_mapping=...)</code> for attribute remapping.</strong> <code>deprecated()</code> no longer accepts the class-only <code>attrs_mapping</code> keyword. <code>@deprecated(target=TargetMode.ATTRS_REMAP)</code> also raises <code>TypeError</code> for functions and classes because the common front door cannot supply the required mapping.</p>
+</li>
+<li><strong>Rename <code>template_mgs</code> to <code>message_template</code></strong> on <code>deprecated()</code>, <code>deprecated_class()</code>, and <code>deprecated_instance()</code>. The typo remains a warning alias until v1.0; supplying both names raises <code>TypeError</code>.</li>
+<li><strong>Fix explicit <code>TargetMode.NOTIFY</code> plus a mapping.</strong> It emits <code>UserWarning</code>, remains <code>NOTIFY</code>, leaves the mapping inert, and is marked misconfigured. Omit <code>target</code> to infer remapping, or select the matching remap mode explicitly.</li>
 </ul>
-<p>Everything else is additive:</p>
+</div>
+<div class="tabbed-block">
 <ul>
-<li><strong>Proxies forward operator and protocol dunders.</strong> Arithmetic (<code>proxy + 1</code>), comparison/ordering, context managers (<code>with proxy:</code>), iteration, numeric conversion (<code>int</code>/<code>float</code>/<code>round</code>/<code>abs</code>), <code>os.fspath</code>, <code>format</code>, and the async protocols now delegate to the wrapped object instead of raising <code>TypeError</code>. Data-use operations warn within the <code>num_warns</code> budget; cheap structural probes stay silent.</li>
-<li><strong>Subclassing a deprecated class alias works (PEP 560).</strong> <code>class Child(OldAlias)</code> previously raised a metaclass-arity <code>TypeError</code>; it now resolves to the active class and emits the deprecation warning (silent for <code>ATTRS_REMAP</code>- and <code>ARGS_REMAP</code>-only proxies).</li>
-<li>Proxy identity fixes, and call forwarding is ~2.4× faster — no code change required.</li>
+<li>
+<p>Across the v0.6.x line, backward support for <code>@deprecated</code> on a class was restored through delegation to <code>deprecated_class()</code>. Existing class decorators need no rewrite for v0.12; delegation remains permanent and only its informational notice is scheduled for removal.</p>
+</li>
+<li>
+<p>Omitting <code>deprecated_in</code> on a function or method emits <code>UserWarning</code> at decoration time. Add the version as part of every deprecation lifecycle.</p>
+</li>
+<li><code>ARGS_REMAP</code> without <code>args_mapping</code>, <code>NOTIFY</code> with <code>args_mapping</code> or <code>args_extra</code>, and invalid <code>target=False</code> now warn immediately. These are migration failures, not harmless diagnostics; correct them before v1.0.</li>
+<li>
+<p>Omitting <code>target</code> is the canonical warn-only form. Its v0.12 default is <code>TargetMode.AUTO</code>, which resolves to <code>NOTIFY</code> when no mapping is present, so the user-visible result is unchanged.</p>
+</li>
+<li>
+<p>CLI scans suppress only warnings from <code>deprecate.*</code>; third-party warnings are now visible. CI that treats all warnings as errors may start failing on dependencies imported during a scan.</p>
+</li>
+<li>
+<p>Audit code sees the supported <code>ARGS_REMAP + NOTIFY</code> chain as <code>ChainType.STACKED</code>, not <code>ChainType.TARGET</code>.</p>
+</li>
+<li>
+<p>When a caller supplies both deprecated and replacement keyword names, the explicit replacement value now wins regardless of call-site order.</p>
+</li>
+<li>
+<p>Circular callable-target chains now raise a named <code>RuntimeError</code> instead of ending in <code>RecursionError</code>.</p>
+</li>
+<li>
+<p><code>repr()</code>, <code>str()</code>, equality, and hashing on a target-forwarding proxy now reflect the active target rather than the deprecated source.</p>
+</li>
+<li>In-place operators such as <code>proxy += 1</code> rebind the name to the unwrapped result. Later uses are silent; avoid in-place operators if the proxy must retain its warning budget.</li>
+<li><code>args_mapping</code>, <code>args_extra</code>, and <code>attrs_mapping</code> are copied at decoration time. Mutating the original dict later no longer changes forwarding behavior.</li>
+<li>Constructing an <code>attrs_mapping</code>-only class proxy is now silent; only access to a listed deprecated attribute warns.</li>
+<li>Concurrent calls now respect exactly the configured <code>num_warns</code> budget. Tests that accidentally relied on one warning per racing thread will see fewer warnings.</li>
+<li>
+<p>Recursive audits deduplicate re-exports, include deprecated private and dunder members, warn and skip submodules that fail to import, and ignore unrelated foreign objects that raise during metadata probing. Counts and rows can therefore change in both directions.</p>
+</li>
+<li>
+<p><code>@deprecated</code> now defaults to <code>TargetMode.AUTO</code>. It resolves at decoration time: a function/class with <code>args_mapping</code> becomes <code>ARGS_REMAP</code>; a source without a mapping becomes warn-only. <code>AUTO</code> is never stored in <code>DeprecationConfig</code>; do not pass it explicitly because it exists only as the front-door default.</p>
+</li>
+<li>Existing <code>@deprecated</code> use on a class remains supported; no code change or decorator rewrite is required. It permanently delegates to <code>deprecated_class()</code> and emits one informational <code>UserWarning</code> per module-qualified class. <code>stream=None</code> suppresses the notice. Only the notice, not backward support or delegation, is removed in v1.0.</li>
+<li><code>message_template</code> and <code>skip_if</code> supplied through <code>@deprecated</code> on a class now reach the proxy. <code>message_template</code> was previously dropped on that path.</li>
+<li>Non-callable sources now raise a direct <code>TypeError</code> pointing users to <code>deprecated_instance()</code> instead of failing later on <code>__name__</code>.</li>
 </ul>
-<p>See the <a href="../changelog.html">Changelog</a> for the complete v0.11 release notes.</p>
-<hr />
-<h2 id="coming-from-v09">Coming from v0.9<a class="headerlink" href="#coming-from-v09" title="Permanent link">🔗</a></h2>
-<p>Here is what changed in v0.10 that you might have missed. The first item is a behaviour change:</p>
+</div>
+</div>
+</div>
+<h3 id="coming-from-v04x">Coming from v0.4.x<a class="headerlink" href="#coming-from-v04x" title="Permanent link">🔗</a></h3>
+<div class="tabbed-set tabbed-alternate" data-tabs="8:2"><input checked="checked" id="__tabbed_8_1" name="__tabbed_8" type="radio" /><input id="__tabbed_8_2" name="__tabbed_8" type="radio" /><div class="tabbed-labels"><label for="__tabbed_8_1">Breaking changes</label><label for="__tabbed_8_2">Behavior changes</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
 <ul>
-<li><strong><code>@deprecated @property</code> (outer order) now wraps <code>fset</code> and <code>fdel</code>.</strong> Writing to or deleting a deprecated property now fires <code>FutureWarning</code>; before v0.10 only reads warned. Under <code>filterwarnings=error::FutureWarning</code>, a write or delete that used to pass silently now raises. Keep the silent setter/deleter by using inner order (<code>@property @deprecated</code>) or by decorating only <code>fget</code>.</li>
-<li><strong><code>args_mapping</code> precedence fixed — explicit new name always wins.</strong> When a caller passes both the old and new argument names (<code>fn(val=5, new_val=6)</code>), the explicit new-name value now wins; previously the remapped old-name value could clobber it, regardless of call-site order.</li>
-<li><strong>Circular callable-target chains raise <code>RuntimeError</code>.</strong> An A → B → A target cycle previously ran into <code>RecursionError</code>; a re-entrancy guard now raises a clear <code>RuntimeError</code> naming the cycle.</li>
+<li>
+<p><strong>Fix cross-class method forwarding.</strong> Passing a class target to a non-<code>__init__</code> instance method now raises <code>TypeError</code> at decoration time instead of forwarding a <code>self</code> of the wrong type.</p>
+</li>
+<li>
+<p><strong>Replace API names deprecated until v1.0:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Deprecated API</th>
+<th>Replacement</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>find_deprecated_callables</code></td>
+<td><code>find_deprecation_wrappers</code></td>
+</tr>
+<tr>
+<td><code>validate_deprecated_callable</code></td>
+<td><code>validate_deprecation_wrapper</code></td>
+</tr>
+<tr>
+<td><code>DeprecatedCallableInfo</code></td>
+<td><code>DeprecationWrapperInfo</code></td>
+</tr>
+<tr>
+<td><code>no_warning_call</code></td>
+<td><code>assert_no_warnings</code></td>
+</tr>
+</tbody>
+</table>
+</li>
+<li>
+<p>Replace <code>target=None</code> with <code>TargetMode.NOTIFY</code> or omit <code>target</code> for a warn-only decorator.</p>
+</li>
+<li>Replace <code>target=True</code> with <code>TargetMode.ARGS_REMAP</code>.</li>
+<li>Replace <code>DeprecationWrapperInfo.empty_mapping</code> with <code>empty_args_mapping</code>, and <code>identity_mapping</code> with <code>identity_args_mapping</code>. The old properties warn and are removed in v1.0.</li>
+<li>If code inspects <code>wrapper.__deprecated__.target</code>, compare with a <code>TargetMode</code>, callable, or <code>None</code>. <code>DeprecationConfig.target</code> stores a normalized value, never legacy <code>True</code> or <code>False</code>.</li>
+<li>
+<p>Update external documentation bookmarks from flat paths such as <code>/pyDeprecate/troubleshooting.html</code> to the versioned <code>/pyDeprecate/stable/troubleshooting.html</code> layout.</p>
+</li>
+<li>
+<p><strong>Rename the CLI flag <code>--skip_errors</code> to <code>--exit-zero</code></strong> in every <code>check</code>, <code>expiry</code>, <code>chains</code>, and <code>all</code> command. The old flag is rejected. <code>--exit_zero</code> remains an underscore alias, but the dashed spelling is canonical.</p>
+</li>
+<li>
+<p><strong>Fix unsupported stacked decorators.</strong> Six shapes, including callable-over-callable, now emit <code>UserWarning</code> at decoration time and become <code>TypeError</code> in v1.0. The supported lifecycle stack is outer <code>ARGS_REMAP</code> plus inner <code>NOTIFY</code>.</p>
+</li>
+<li>
+<p><strong>Outer-order deprecated properties now warn on read, write, and delete.</strong> Under <code>filterwarnings=error::FutureWarning</code>, a setter or deleter that was previously silent now raises. If only reads should warn, keep inner order (<code>@property</code> outside <code>@deprecated</code>) or decorate only <code>fget</code>.</p>
+</li>
+<li>
+<p><strong>Update proxy detection.</strong> <code>proxy.__class__</code> reports the wrapped object's type for <code>isinstance</code> transparency. Use <code>type(proxy)</code> when you need to detect <code>_DeprecatedProxy</code> itself.</p>
+</li>
+<li><strong>Do not use an instance proxy as the second argument to <code>isinstance()</code> or <code>issubclass()</code>.</strong> This misuse now raises <code>TypeError</code> instead of returning <code>False</code>. Class-alias proxies remain valid there.</li>
+<li><strong>Review expiry CI scope.</strong> <code>validate_deprecation_expiry()</code> now defaults to <code>include_members=True</code>, so expired methods, constructors, descriptors, and properties can newly fail the gate. Pass <code>include_members=False</code> only when the old narrower scope is intentional.</li>
+<li><strong>Fix invalid <code>remove_in</code> versions.</strong> An unparsable <code>remove_in</code> now emits <code>UserWarning</code> during batch expiry instead of being skipped silently.</li>
+<li><strong>Fix misspelled CLI flags.</strong> Unknown flags now fail instead of being silently ignored.</li>
+<li>
+<p><strong>Use named <code>%</code> fields in custom message templates.</strong> Bare <code>%s</code> or <code>%d</code> conversions now raise <code>ValueError</code> when the decorator is applied.</p>
+</li>
+<li>
+<p><strong>Use <code>deprecated_class(attrs_mapping=...)</code> for attribute remapping.</strong> <code>deprecated()</code> no longer accepts the class-only <code>attrs_mapping</code> keyword. <code>@deprecated(target=TargetMode.ATTRS_REMAP)</code> also raises <code>TypeError</code> for functions and classes because the common front door cannot supply the required mapping.</p>
+</li>
+<li><strong>Rename <code>template_mgs</code> to <code>message_template</code></strong> on <code>deprecated()</code>, <code>deprecated_class()</code>, and <code>deprecated_instance()</code>. The typo remains a warning alias until v1.0; supplying both names raises <code>TypeError</code>.</li>
+<li><strong>Fix explicit <code>TargetMode.NOTIFY</code> plus a mapping.</strong> It emits <code>UserWarning</code>, remains <code>NOTIFY</code>, leaves the mapping inert, and is marked misconfigured. Omit <code>target</code> to infer remapping, or select the matching remap mode explicitly.</li>
 </ul>
-<p>New capabilities you can adopt:</p>
+</div>
+<div class="tabbed-block">
 <ul>
-<li><strong><code>deprecated_class(attrs_mapping={...})</code> + <code>TargetMode.ATTRS_REMAP</code></strong> for selective per-attribute deprecation, with per-attribute warning budgets and <code>None</code> for warn-only. On a <code>@dataclass</code>, auto-expand covers constructor kwargs too from a single call.</li>
-<li><strong><code>target=</code> accepts raw <code>staticmethod</code> / <code>classmethod</code> descriptors</strong> inside a class body — drop the old <code>.__func__</code> suffix.</li>
-<li><code>deprecated_class</code> stacking; opt-in strict <code>property</code> (<code>from deprecate import property</code>); the <code>DeprecationWrapperInfo.inner_order_property</code> audit flag; and <code>validate_mapping_compatibility()</code> for POSITIONAL_ONLY-remap detection in CI.</li>
+<li>
+<p>Across the v0.6.x line, backward support for <code>@deprecated</code> on a class was restored through delegation to <code>deprecated_class()</code>. Existing class decorators need no rewrite for v0.12; delegation remains permanent and only its informational notice is scheduled for removal.</p>
+</li>
+<li>
+<p>Omitting <code>deprecated_in</code> on a function or method emits <code>UserWarning</code> at decoration time. Add the version as part of every deprecation lifecycle.</p>
+</li>
+<li><code>ARGS_REMAP</code> without <code>args_mapping</code>, <code>NOTIFY</code> with <code>args_mapping</code> or <code>args_extra</code>, and invalid <code>target=False</code> now warn immediately. These are migration failures, not harmless diagnostics; correct them before v1.0.</li>
+<li>
+<p>Omitting <code>target</code> is the canonical warn-only form. Its v0.12 default is <code>TargetMode.AUTO</code>, which resolves to <code>NOTIFY</code> when no mapping is present, so the user-visible result is unchanged.</p>
+</li>
+<li>
+<p>CLI scans suppress only warnings from <code>deprecate.*</code>; third-party warnings are now visible. CI that treats all warnings as errors may start failing on dependencies imported during a scan.</p>
+</li>
+<li>
+<p>Audit code sees the supported <code>ARGS_REMAP + NOTIFY</code> chain as <code>ChainType.STACKED</code>, not <code>ChainType.TARGET</code>.</p>
+</li>
+<li>
+<p>When a caller supplies both deprecated and replacement keyword names, the explicit replacement value now wins regardless of call-site order.</p>
+</li>
+<li>
+<p>Circular callable-target chains now raise a named <code>RuntimeError</code> instead of ending in <code>RecursionError</code>.</p>
+</li>
+<li>
+<p><code>repr()</code>, <code>str()</code>, equality, and hashing on a target-forwarding proxy now reflect the active target rather than the deprecated source.</p>
+</li>
+<li>In-place operators such as <code>proxy += 1</code> rebind the name to the unwrapped result. Later uses are silent; avoid in-place operators if the proxy must retain its warning budget.</li>
+<li><code>args_mapping</code>, <code>args_extra</code>, and <code>attrs_mapping</code> are copied at decoration time. Mutating the original dict later no longer changes forwarding behavior.</li>
+<li>Constructing an <code>attrs_mapping</code>-only class proxy is now silent; only access to a listed deprecated attribute warns.</li>
+<li>Concurrent calls now respect exactly the configured <code>num_warns</code> budget. Tests that accidentally relied on one warning per racing thread will see fewer warnings.</li>
+<li>
+<p>Recursive audits deduplicate re-exports, include deprecated private and dunder members, warn and skip submodules that fail to import, and ignore unrelated foreign objects that raise during metadata probing. Counts and rows can therefore change in both directions.</p>
+</li>
+<li>
+<p><code>@deprecated</code> now defaults to <code>TargetMode.AUTO</code>. It resolves at decoration time: a function/class with <code>args_mapping</code> becomes <code>ARGS_REMAP</code>; a source without a mapping becomes warn-only. <code>AUTO</code> is never stored in <code>DeprecationConfig</code>; do not pass it explicitly because it exists only as the front-door default.</p>
+</li>
+<li>Existing <code>@deprecated</code> use on a class remains supported; no code change or decorator rewrite is required. It permanently delegates to <code>deprecated_class()</code> and emits one informational <code>UserWarning</code> per module-qualified class. <code>stream=None</code> suppresses the notice. Only the notice, not backward support or delegation, is removed in v1.0.</li>
+<li><code>message_template</code> and <code>skip_if</code> supplied through <code>@deprecated</code> on a class now reach the proxy. <code>message_template</code> was previously dropped on that path.</li>
+<li>Non-callable sources now raise a direct <code>TypeError</code> pointing users to <code>deprecated_instance()</code> instead of failing later on <code>__name__</code>.</li>
 </ul>
-<p>See the <a href="../changelog.html">Changelog</a> for the complete v0.10 release notes.</p>
-<hr />
-<h2 id="coming-from-v08">Coming from v0.8<a class="headerlink" href="#coming-from-v08" title="Permanent link">🔗</a></h2>
-<p>Here is what changed in v0.9 that you might have missed. The CLI rename is breaking:</p>
+</div>
+</div>
+</div>
+<h3 id="coming-from-v03x">Coming from v0.3.x<a class="headerlink" href="#coming-from-v03x" title="Permanent link">🔗</a></h3>
+<div class="tabbed-set tabbed-alternate" data-tabs="9:2"><input checked="checked" id="__tabbed_9_1" name="__tabbed_9" type="radio" /><input id="__tabbed_9_2" name="__tabbed_9" type="radio" /><div class="tabbed-labels"><label for="__tabbed_9_1">Breaking changes</label><label for="__tabbed_9_2">Behavior changes</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
 <ul>
-<li><strong>CLI flag renamed: <code>--skip_errors</code> → <code>--exit-zero</code>.</strong> The old flag is no longer accepted on any subcommand (<code>check</code>, <code>expiry</code>, <code>chains</code>, <code>all</code>) — update existing scripts. The canonical spelling is <code>--exit-zero</code> (dash); <code>--exit_zero</code> (underscore) is accepted as an alias. The new name matches the linter convention and describes the behaviour: exit-code override only, no exception suppression.</li>
-<li><strong>Misconfigured <code>@deprecated</code> stacking now warns at decoration time.</strong> Six previously-undefined stacking shapes (e.g. callable-over-callable) emit <code>UserWarning</code> naming the shape (→ <code>TypeError</code> in v1.0). The supported lifecycle shape is <code>ARGS_REMAP</code> (outer) + <code>NOTIFY</code> (inner): rename arguments first, deprecate the whole function later.</li>
-<li><strong>Audit reclassification:</strong> an <code>ARGS_REMAP + NOTIFY</code> chain is now reported as <code>ChainType.STACKED</code>, not <code>TARGET</code>.</li>
+<li><strong>Update warning filters and assertions from <code>DeprecationWarning</code> to <code>FutureWarning</code>.</strong> Application users now see the warnings under Python's default filters.</li>
+<li><strong>Run on Python 3.9 or newer.</strong> Python 3.8 support was removed.</li>
+<li>
+<p><strong>Review the license change from MIT to Apache-2.0</strong> if your distribution or compliance process records dependency licenses.</p>
+</li>
+<li>
+<p><strong>Fix cross-class method forwarding.</strong> Passing a class target to a non-<code>__init__</code> instance method now raises <code>TypeError</code> at decoration time instead of forwarding a <code>self</code> of the wrong type.</p>
+</li>
+<li>
+<p><strong>Replace API names deprecated until v1.0:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Deprecated API</th>
+<th>Replacement</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>find_deprecated_callables</code></td>
+<td><code>find_deprecation_wrappers</code></td>
+</tr>
+<tr>
+<td><code>validate_deprecated_callable</code></td>
+<td><code>validate_deprecation_wrapper</code></td>
+</tr>
+<tr>
+<td><code>DeprecatedCallableInfo</code></td>
+<td><code>DeprecationWrapperInfo</code></td>
+</tr>
+<tr>
+<td><code>no_warning_call</code></td>
+<td><code>assert_no_warnings</code></td>
+</tr>
+</tbody>
+</table>
+</li>
+<li>
+<p>Replace <code>target=None</code> with <code>TargetMode.NOTIFY</code> or omit <code>target</code> for a warn-only decorator.</p>
+</li>
+<li>Replace <code>target=True</code> with <code>TargetMode.ARGS_REMAP</code>.</li>
+<li>Replace <code>DeprecationWrapperInfo.empty_mapping</code> with <code>empty_args_mapping</code>, and <code>identity_mapping</code> with <code>identity_args_mapping</code>. The old properties warn and are removed in v1.0.</li>
+<li>If code inspects <code>wrapper.__deprecated__.target</code>, compare with a <code>TargetMode</code>, callable, or <code>None</code>. <code>DeprecationConfig.target</code> stores a normalized value, never legacy <code>True</code> or <code>False</code>.</li>
+<li>
+<p>Update external documentation bookmarks from flat paths such as <code>/pyDeprecate/troubleshooting.html</code> to the versioned <code>/pyDeprecate/stable/troubleshooting.html</code> layout.</p>
+</li>
+<li>
+<p><strong>Rename the CLI flag <code>--skip_errors</code> to <code>--exit-zero</code></strong> in every <code>check</code>, <code>expiry</code>, <code>chains</code>, and <code>all</code> command. The old flag is rejected. <code>--exit_zero</code> remains an underscore alias, but the dashed spelling is canonical.</p>
+</li>
+<li>
+<p><strong>Fix unsupported stacked decorators.</strong> Six shapes, including callable-over-callable, now emit <code>UserWarning</code> at decoration time and become <code>TypeError</code> in v1.0. The supported lifecycle stack is outer <code>ARGS_REMAP</code> plus inner <code>NOTIFY</code>.</p>
+</li>
+<li>
+<p><strong>Outer-order deprecated properties now warn on read, write, and delete.</strong> Under <code>filterwarnings=error::FutureWarning</code>, a setter or deleter that was previously silent now raises. If only reads should warn, keep inner order (<code>@property</code> outside <code>@deprecated</code>) or decorate only <code>fget</code>.</p>
+</li>
+<li>
+<p><strong>Update proxy detection.</strong> <code>proxy.__class__</code> reports the wrapped object's type for <code>isinstance</code> transparency. Use <code>type(proxy)</code> when you need to detect <code>_DeprecatedProxy</code> itself.</p>
+</li>
+<li><strong>Do not use an instance proxy as the second argument to <code>isinstance()</code> or <code>issubclass()</code>.</strong> This misuse now raises <code>TypeError</code> instead of returning <code>False</code>. Class-alias proxies remain valid there.</li>
+<li><strong>Review expiry CI scope.</strong> <code>validate_deprecation_expiry()</code> now defaults to <code>include_members=True</code>, so expired methods, constructors, descriptors, and properties can newly fail the gate. Pass <code>include_members=False</code> only when the old narrower scope is intentional.</li>
+<li><strong>Fix invalid <code>remove_in</code> versions.</strong> An unparsable <code>remove_in</code> now emits <code>UserWarning</code> during batch expiry instead of being skipped silently.</li>
+<li><strong>Fix misspelled CLI flags.</strong> Unknown flags now fail instead of being silently ignored.</li>
+<li>
+<p><strong>Use named <code>%</code> fields in custom message templates.</strong> Bare <code>%s</code> or <code>%d</code> conversions now raise <code>ValueError</code> when the decorator is applied.</p>
+</li>
+<li>
+<p><strong>Use <code>deprecated_class(attrs_mapping=...)</code> for attribute remapping.</strong> <code>deprecated()</code> no longer accepts the class-only <code>attrs_mapping</code> keyword. <code>@deprecated(target=TargetMode.ATTRS_REMAP)</code> also raises <code>TypeError</code> for functions and classes because the common front door cannot supply the required mapping.</p>
+</li>
+<li><strong>Rename <code>template_mgs</code> to <code>message_template</code></strong> on <code>deprecated()</code>, <code>deprecated_class()</code>, and <code>deprecated_instance()</code>. The typo remains a warning alias until v1.0; supplying both names raises <code>TypeError</code>.</li>
+<li><strong>Fix explicit <code>TargetMode.NOTIFY</code> plus a mapping.</strong> It emits <code>UserWarning</code>, remains <code>NOTIFY</code>, leaves the mapping inert, and is marked misconfigured. Omit <code>target</code> to infer remapping, or select the matching remap mode explicitly.</li>
 </ul>
-<p>New capabilities you can adopt:</p>
+</div>
+<div class="tabbed-block">
 <ul>
-<li><strong>Generator, <code>async def</code>, and async-generator support for <code>@deprecated</code></strong> — all three <code>TargetMode</code> shapes work; see <a href="async.html">Async &amp; generators</a> for the exact warning-timing rules.</li>
-<li><strong>Order-agnostic <code>@classmethod</code> / <code>@staticmethod</code></strong> — either decorator order produces the same deprecated descriptor.</li>
-<li><strong>Markdown audit tables</strong> via <code>generate_deprecation_table()</code> and the <code>pydeprecate status</code> CLI subcommand; <code>DeprecationStatus</code>, <code>TableStyle</code>, and <code>ChainType</code> are now public.</li>
+<li>
+<p>Mapping errors now include the originating class or function name. Tests that assert complete error strings may need updated expected text.</p>
+</li>
+<li>
+<p>Across the v0.6.x line, backward support for <code>@deprecated</code> on a class was restored through delegation to <code>deprecated_class()</code>. Existing class decorators need no rewrite for v0.12; delegation remains permanent and only its informational notice is scheduled for removal.</p>
+</li>
+<li>
+<p>Omitting <code>deprecated_in</code> on a function or method emits <code>UserWarning</code> at decoration time. Add the version as part of every deprecation lifecycle.</p>
+</li>
+<li><code>ARGS_REMAP</code> without <code>args_mapping</code>, <code>NOTIFY</code> with <code>args_mapping</code> or <code>args_extra</code>, and invalid <code>target=False</code> now warn immediately. These are migration failures, not harmless diagnostics; correct them before v1.0.</li>
+<li>
+<p>Omitting <code>target</code> is the canonical warn-only form. Its v0.12 default is <code>TargetMode.AUTO</code>, which resolves to <code>NOTIFY</code> when no mapping is present, so the user-visible result is unchanged.</p>
+</li>
+<li>
+<p>CLI scans suppress only warnings from <code>deprecate.*</code>; third-party warnings are now visible. CI that treats all warnings as errors may start failing on dependencies imported during a scan.</p>
+</li>
+<li>
+<p>Audit code sees the supported <code>ARGS_REMAP + NOTIFY</code> chain as <code>ChainType.STACKED</code>, not <code>ChainType.TARGET</code>.</p>
+</li>
+<li>
+<p>When a caller supplies both deprecated and replacement keyword names, the explicit replacement value now wins regardless of call-site order.</p>
+</li>
+<li>
+<p>Circular callable-target chains now raise a named <code>RuntimeError</code> instead of ending in <code>RecursionError</code>.</p>
+</li>
+<li>
+<p><code>repr()</code>, <code>str()</code>, equality, and hashing on a target-forwarding proxy now reflect the active target rather than the deprecated source.</p>
+</li>
+<li>In-place operators such as <code>proxy += 1</code> rebind the name to the unwrapped result. Later uses are silent; avoid in-place operators if the proxy must retain its warning budget.</li>
+<li><code>args_mapping</code>, <code>args_extra</code>, and <code>attrs_mapping</code> are copied at decoration time. Mutating the original dict later no longer changes forwarding behavior.</li>
+<li>Constructing an <code>attrs_mapping</code>-only class proxy is now silent; only access to a listed deprecated attribute warns.</li>
+<li>Concurrent calls now respect exactly the configured <code>num_warns</code> budget. Tests that accidentally relied on one warning per racing thread will see fewer warnings.</li>
+<li>
+<p>Recursive audits deduplicate re-exports, include deprecated private and dunder members, warn and skip submodules that fail to import, and ignore unrelated foreign objects that raise during metadata probing. Counts and rows can therefore change in both directions.</p>
+</li>
+<li>
+<p><code>@deprecated</code> now defaults to <code>TargetMode.AUTO</code>. It resolves at decoration time: a function/class with <code>args_mapping</code> becomes <code>ARGS_REMAP</code>; a source without a mapping becomes warn-only. <code>AUTO</code> is never stored in <code>DeprecationConfig</code>; do not pass it explicitly because it exists only as the front-door default.</p>
+</li>
+<li>Existing <code>@deprecated</code> use on a class remains supported; no code change or decorator rewrite is required. It permanently delegates to <code>deprecated_class()</code> and emits one informational <code>UserWarning</code> per module-qualified class. <code>stream=None</code> suppresses the notice. Only the notice, not backward support or delegation, is removed in v1.0.</li>
+<li><code>message_template</code> and <code>skip_if</code> supplied through <code>@deprecated</code> on a class now reach the proxy. <code>message_template</code> was previously dropped on that path.</li>
+<li>Non-callable sources now raise a direct <code>TypeError</code> pointing users to <code>deprecated_instance()</code> instead of failing later on <code>__name__</code>.</li>
 </ul>
-<p>See the <a href="../changelog.html">Changelog</a> for the complete v0.9 release notes.</p>
-<hr />
-<h2 id="coming-from-v07">Coming from v0.7<a class="headerlink" href="#coming-from-v07" title="Permanent link">🔗</a></h2>
-<p>Here is what changed in v0.8 that you might have missed:</p>
+</div>
+</div>
+</div>
+<h3 id="coming-from-v02x">Coming from v0.2.x<a class="headerlink" href="#coming-from-v02x" title="Permanent link">🔗</a></h3>
+<div class="tabbed-set tabbed-alternate" data-tabs="10:2"><input checked="checked" id="__tabbed_10_1" name="__tabbed_10" type="radio" /><input id="__tabbed_10_2" name="__tabbed_10" type="radio" /><div class="tabbed-labels"><label for="__tabbed_10_1">Breaking changes</label><label for="__tabbed_10_2">Behavior changes</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
 <ul>
-<li><code>TargetMode.NOTIFY</code> — replaces <code>target=None</code>; warn-only mode where the function body runs unchanged.</li>
-<li><code>TargetMode.ARGS_REMAP</code> — replaces <code>target=True</code>; argument-rename mode where kwargs are remapped and the body runs.</li>
-<li>Construction-time <code>UserWarning</code> for all misconfigured <code>TargetMode</code> combinations.</li>
-<li><code>target</code> parameter of <code>@deprecated</code> now defaults to <code>TargetMode.NOTIFY</code>, so <code>@deprecated(deprecated_in="1.0", remove_in="2.0")</code> is the canonical warn-only form. (Since v0.12 the front-door default is <code>TargetMode.AUTO</code>, which resolves to <code>NOTIFY</code> when no mapping is given — the canonical warn-only form is unchanged.)</li>
-<li><code>DeprecationWrapperInfo</code> field renames: <code>empty_mapping</code> → <code>empty_args_mapping</code>, <code>identity_mapping</code> → <code>identity_args_mapping</code>.</li>
-<li>New <code>DeprecationWrapperInfo.empty_deprecated_in</code> field for CI detection of wrappers with no version annotation.</li>
+<li><strong>Update warning filters and assertions from <code>DeprecationWarning</code> to <code>FutureWarning</code>.</strong> Application users now see the warnings under Python's default filters.</li>
+<li><strong>Run on Python 3.9 or newer.</strong> Python 3.8 support was removed.</li>
+<li>
+<p><strong>Review the license change from MIT to Apache-2.0</strong> if your distribution or compliance process records dependency licenses.</p>
+</li>
+<li>
+<p><strong>Fix cross-class method forwarding.</strong> Passing a class target to a non-<code>__init__</code> instance method now raises <code>TypeError</code> at decoration time instead of forwarding a <code>self</code> of the wrong type.</p>
+</li>
+<li>
+<p><strong>Replace API names deprecated until v1.0:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Deprecated API</th>
+<th>Replacement</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>find_deprecated_callables</code></td>
+<td><code>find_deprecation_wrappers</code></td>
+</tr>
+<tr>
+<td><code>validate_deprecated_callable</code></td>
+<td><code>validate_deprecation_wrapper</code></td>
+</tr>
+<tr>
+<td><code>DeprecatedCallableInfo</code></td>
+<td><code>DeprecationWrapperInfo</code></td>
+</tr>
+<tr>
+<td><code>no_warning_call</code></td>
+<td><code>assert_no_warnings</code></td>
+</tr>
+</tbody>
+</table>
+</li>
+<li>
+<p>Replace <code>target=None</code> with <code>TargetMode.NOTIFY</code> or omit <code>target</code> for a warn-only decorator.</p>
+</li>
+<li>Replace <code>target=True</code> with <code>TargetMode.ARGS_REMAP</code>.</li>
+<li>Replace <code>DeprecationWrapperInfo.empty_mapping</code> with <code>empty_args_mapping</code>, and <code>identity_mapping</code> with <code>identity_args_mapping</code>. The old properties warn and are removed in v1.0.</li>
+<li>If code inspects <code>wrapper.__deprecated__.target</code>, compare with a <code>TargetMode</code>, callable, or <code>None</code>. <code>DeprecationConfig.target</code> stores a normalized value, never legacy <code>True</code> or <code>False</code>.</li>
+<li>
+<p>Update external documentation bookmarks from flat paths such as <code>/pyDeprecate/troubleshooting.html</code> to the versioned <code>/pyDeprecate/stable/troubleshooting.html</code> layout.</p>
+</li>
+<li>
+<p><strong>Rename the CLI flag <code>--skip_errors</code> to <code>--exit-zero</code></strong> in every <code>check</code>, <code>expiry</code>, <code>chains</code>, and <code>all</code> command. The old flag is rejected. <code>--exit_zero</code> remains an underscore alias, but the dashed spelling is canonical.</p>
+</li>
+<li>
+<p><strong>Fix unsupported stacked decorators.</strong> Six shapes, including callable-over-callable, now emit <code>UserWarning</code> at decoration time and become <code>TypeError</code> in v1.0. The supported lifecycle stack is outer <code>ARGS_REMAP</code> plus inner <code>NOTIFY</code>.</p>
+</li>
+<li>
+<p><strong>Outer-order deprecated properties now warn on read, write, and delete.</strong> Under <code>filterwarnings=error::FutureWarning</code>, a setter or deleter that was previously silent now raises. If only reads should warn, keep inner order (<code>@property</code> outside <code>@deprecated</code>) or decorate only <code>fget</code>.</p>
+</li>
+<li>
+<p><strong>Update proxy detection.</strong> <code>proxy.__class__</code> reports the wrapped object's type for <code>isinstance</code> transparency. Use <code>type(proxy)</code> when you need to detect <code>_DeprecatedProxy</code> itself.</p>
+</li>
+<li><strong>Do not use an instance proxy as the second argument to <code>isinstance()</code> or <code>issubclass()</code>.</strong> This misuse now raises <code>TypeError</code> instead of returning <code>False</code>. Class-alias proxies remain valid there.</li>
+<li><strong>Review expiry CI scope.</strong> <code>validate_deprecation_expiry()</code> now defaults to <code>include_members=True</code>, so expired methods, constructors, descriptors, and properties can newly fail the gate. Pass <code>include_members=False</code> only when the old narrower scope is intentional.</li>
+<li><strong>Fix invalid <code>remove_in</code> versions.</strong> An unparsable <code>remove_in</code> now emits <code>UserWarning</code> during batch expiry instead of being skipped silently.</li>
+<li><strong>Fix misspelled CLI flags.</strong> Unknown flags now fail instead of being silently ignored.</li>
+<li>
+<p><strong>Use named <code>%</code> fields in custom message templates.</strong> Bare <code>%s</code> or <code>%d</code> conversions now raise <code>ValueError</code> when the decorator is applied.</p>
+</li>
+<li>
+<p><strong>Use <code>deprecated_class(attrs_mapping=...)</code> for attribute remapping.</strong> <code>deprecated()</code> no longer accepts the class-only <code>attrs_mapping</code> keyword. <code>@deprecated(target=TargetMode.ATTRS_REMAP)</code> also raises <code>TypeError</code> for functions and classes because the common front door cannot supply the required mapping.</p>
+</li>
+<li><strong>Rename <code>template_mgs</code> to <code>message_template</code></strong> on <code>deprecated()</code>, <code>deprecated_class()</code>, and <code>deprecated_instance()</code>. The typo remains a warning alias until v1.0; supplying both names raises <code>TypeError</code>.</li>
+<li><strong>Fix explicit <code>TargetMode.NOTIFY</code> plus a mapping.</strong> It emits <code>UserWarning</code>, remains <code>NOTIFY</code>, leaves the mapping inert, and is marked misconfigured. Omit <code>target</code> to infer remapping, or select the matching remap mode explicitly.</li>
 </ul>
-<p>See the <a href="../changelog.html">Changelog</a> for the complete v0.8 release notes.</p>
-<hr />
-<h2 id="coming-from-v06-and-earlier">Coming from v0.6 and earlier<a class="headerlink" href="#coming-from-v06-and-earlier" title="Permanent link">🔗</a></h2>
-<p>Releases before v0.7 were mostly additive — new features you can adopt but nothing you must change. Two upgrades did require action:</p>
+</div>
+<div class="tabbed-block">
 <ul>
-<li><strong>v0.6 — audit API renamed for consistency.</strong> <code>find_deprecated_callables</code> → <code>find_deprecation_wrappers</code>, <code>validate_deprecated_callable</code> → <code>validate_deprecation_wrapper</code>, <code>DeprecatedCallableInfo</code> → <code>DeprecationWrapperInfo</code>, and the test helper <code>no_warning_call</code> → <code>assert_no_warnings</code>. The old names stay as deprecated shims (emitting a warning on use) until v1.0 — swap them out at your convenience.</li>
-<li><strong>v0.4 — deprecation warnings switched from <code>DeprecationWarning</code> to <code>FutureWarning</code>.</strong> <code>DeprecationWarning</code> is hidden by Python's default filters outside test runs, so callers rarely saw it; <code>FutureWarning</code> is shown by default. If you filter or assert on the warning category, update it to <code>FutureWarning</code>. The same release raised the minimum Python to 3.9 and changed the license from MIT to Apache-2.0.</li>
+<li>
+<p>Mapping errors now include the originating class or function name. Tests that assert complete error strings may need updated expected text.</p>
+</li>
+<li>
+<p>Across the v0.6.x line, backward support for <code>@deprecated</code> on a class was restored through delegation to <code>deprecated_class()</code>. Existing class decorators need no rewrite for v0.12; delegation remains permanent and only its informational notice is scheduled for removal.</p>
+</li>
+<li>
+<p>Omitting <code>deprecated_in</code> on a function or method emits <code>UserWarning</code> at decoration time. Add the version as part of every deprecation lifecycle.</p>
+</li>
+<li><code>ARGS_REMAP</code> without <code>args_mapping</code>, <code>NOTIFY</code> with <code>args_mapping</code> or <code>args_extra</code>, and invalid <code>target=False</code> now warn immediately. These are migration failures, not harmless diagnostics; correct them before v1.0.</li>
+<li>
+<p>Omitting <code>target</code> is the canonical warn-only form. Its v0.12 default is <code>TargetMode.AUTO</code>, which resolves to <code>NOTIFY</code> when no mapping is present, so the user-visible result is unchanged.</p>
+</li>
+<li>
+<p>CLI scans suppress only warnings from <code>deprecate.*</code>; third-party warnings are now visible. CI that treats all warnings as errors may start failing on dependencies imported during a scan.</p>
+</li>
+<li>
+<p>Audit code sees the supported <code>ARGS_REMAP + NOTIFY</code> chain as <code>ChainType.STACKED</code>, not <code>ChainType.TARGET</code>.</p>
+</li>
+<li>
+<p>When a caller supplies both deprecated and replacement keyword names, the explicit replacement value now wins regardless of call-site order.</p>
+</li>
+<li>
+<p>Circular callable-target chains now raise a named <code>RuntimeError</code> instead of ending in <code>RecursionError</code>.</p>
+</li>
+<li>
+<p><code>repr()</code>, <code>str()</code>, equality, and hashing on a target-forwarding proxy now reflect the active target rather than the deprecated source.</p>
+</li>
+<li>In-place operators such as <code>proxy += 1</code> rebind the name to the unwrapped result. Later uses are silent; avoid in-place operators if the proxy must retain its warning budget.</li>
+<li><code>args_mapping</code>, <code>args_extra</code>, and <code>attrs_mapping</code> are copied at decoration time. Mutating the original dict later no longer changes forwarding behavior.</li>
+<li>Constructing an <code>attrs_mapping</code>-only class proxy is now silent; only access to a listed deprecated attribute warns.</li>
+<li>Concurrent calls now respect exactly the configured <code>num_warns</code> budget. Tests that accidentally relied on one warning per racing thread will see fewer warnings.</li>
+<li>
+<p>Recursive audits deduplicate re-exports, include deprecated private and dunder members, warn and skip submodules that fail to import, and ignore unrelated foreign objects that raise during metadata probing. Counts and rows can therefore change in both directions.</p>
+</li>
+<li>
+<p><code>@deprecated</code> now defaults to <code>TargetMode.AUTO</code>. It resolves at decoration time: a function/class with <code>args_mapping</code> becomes <code>ARGS_REMAP</code>; a source without a mapping becomes warn-only. <code>AUTO</code> is never stored in <code>DeprecationConfig</code>; do not pass it explicitly because it exists only as the front-door default.</p>
+</li>
+<li>Existing <code>@deprecated</code> use on a class remains supported; no code change or decorator rewrite is required. It permanently delegates to <code>deprecated_class()</code> and emits one informational <code>UserWarning</code> per module-qualified class. <code>stream=None</code> suppresses the notice. Only the notice, not backward support or delegation, is removed in v1.0.</li>
+<li><code>message_template</code> and <code>skip_if</code> supplied through <code>@deprecated</code> on a class now reach the proxy. <code>message_template</code> was previously dropped on that path.</li>
+<li>Non-callable sources now raise a direct <code>TypeError</code> pointing users to <code>deprecated_instance()</code> instead of failing later on <code>__name__</code>.</li>
 </ul>
-<p>Everything else in v0.1–v0.6 (the <code>deprecated_class</code> / <code>deprecated_instance</code> proxies, the <code>audit</code> module, <code>skip_if</code>, <code>void()</code>, <code>target=True</code> self-deprecation, <code>num_warns=-1</code>) was additive — adopt it when useful; existing code keeps working unchanged.</p>
-<p>See the <a href="../changelog.html">Changelog</a> for the complete pre-v0.7 release notes.</p>
+</div>
+</div>
+</div>
+<h3 id="coming-from-v01x">Coming from v0.1.x<a class="headerlink" href="#coming-from-v01x" title="Permanent link">🔗</a></h3>
+<div class="tabbed-set tabbed-alternate" data-tabs="11:2"><input checked="checked" id="__tabbed_11_1" name="__tabbed_11" type="radio" /><input id="__tabbed_11_2" name="__tabbed_11" type="radio" /><div class="tabbed-labels"><label for="__tabbed_11_1">Breaking changes</label><label for="__tabbed_11_2">Behavior changes</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<ul>
+<li><strong>Update warning filters and assertions from <code>DeprecationWarning</code> to <code>FutureWarning</code>.</strong> Application users now see the warnings under Python's default filters.</li>
+<li><strong>Run on Python 3.9 or newer.</strong> Python 3.8 support was removed.</li>
+<li>
+<p><strong>Review the license change from MIT to Apache-2.0</strong> if your distribution or compliance process records dependency licenses.</p>
+</li>
+<li>
+<p><strong>Fix cross-class method forwarding.</strong> Passing a class target to a non-<code>__init__</code> instance method now raises <code>TypeError</code> at decoration time instead of forwarding a <code>self</code> of the wrong type.</p>
+</li>
+<li>
+<p><strong>Replace API names deprecated until v1.0:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Deprecated API</th>
+<th>Replacement</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>find_deprecated_callables</code></td>
+<td><code>find_deprecation_wrappers</code></td>
+</tr>
+<tr>
+<td><code>validate_deprecated_callable</code></td>
+<td><code>validate_deprecation_wrapper</code></td>
+</tr>
+<tr>
+<td><code>DeprecatedCallableInfo</code></td>
+<td><code>DeprecationWrapperInfo</code></td>
+</tr>
+<tr>
+<td><code>no_warning_call</code></td>
+<td><code>assert_no_warnings</code></td>
+</tr>
+</tbody>
+</table>
+</li>
+<li>
+<p>Replace <code>target=None</code> with <code>TargetMode.NOTIFY</code> or omit <code>target</code> for a warn-only decorator.</p>
+</li>
+<li>Replace <code>target=True</code> with <code>TargetMode.ARGS_REMAP</code>.</li>
+<li>Replace <code>DeprecationWrapperInfo.empty_mapping</code> with <code>empty_args_mapping</code>, and <code>identity_mapping</code> with <code>identity_args_mapping</code>. The old properties warn and are removed in v1.0.</li>
+<li>If code inspects <code>wrapper.__deprecated__.target</code>, compare with a <code>TargetMode</code>, callable, or <code>None</code>. <code>DeprecationConfig.target</code> stores a normalized value, never legacy <code>True</code> or <code>False</code>.</li>
+<li>
+<p>Update external documentation bookmarks from flat paths such as <code>/pyDeprecate/troubleshooting.html</code> to the versioned <code>/pyDeprecate/stable/troubleshooting.html</code> layout.</p>
+</li>
+<li>
+<p><strong>Rename the CLI flag <code>--skip_errors</code> to <code>--exit-zero</code></strong> in every <code>check</code>, <code>expiry</code>, <code>chains</code>, and <code>all</code> command. The old flag is rejected. <code>--exit_zero</code> remains an underscore alias, but the dashed spelling is canonical.</p>
+</li>
+<li>
+<p><strong>Fix unsupported stacked decorators.</strong> Six shapes, including callable-over-callable, now emit <code>UserWarning</code> at decoration time and become <code>TypeError</code> in v1.0. The supported lifecycle stack is outer <code>ARGS_REMAP</code> plus inner <code>NOTIFY</code>.</p>
+</li>
+<li>
+<p><strong>Outer-order deprecated properties now warn on read, write, and delete.</strong> Under <code>filterwarnings=error::FutureWarning</code>, a setter or deleter that was previously silent now raises. If only reads should warn, keep inner order (<code>@property</code> outside <code>@deprecated</code>) or decorate only <code>fget</code>.</p>
+</li>
+<li>
+<p><strong>Update proxy detection.</strong> <code>proxy.__class__</code> reports the wrapped object's type for <code>isinstance</code> transparency. Use <code>type(proxy)</code> when you need to detect <code>_DeprecatedProxy</code> itself.</p>
+</li>
+<li><strong>Do not use an instance proxy as the second argument to <code>isinstance()</code> or <code>issubclass()</code>.</strong> This misuse now raises <code>TypeError</code> instead of returning <code>False</code>. Class-alias proxies remain valid there.</li>
+<li><strong>Review expiry CI scope.</strong> <code>validate_deprecation_expiry()</code> now defaults to <code>include_members=True</code>, so expired methods, constructors, descriptors, and properties can newly fail the gate. Pass <code>include_members=False</code> only when the old narrower scope is intentional.</li>
+<li><strong>Fix invalid <code>remove_in</code> versions.</strong> An unparsable <code>remove_in</code> now emits <code>UserWarning</code> during batch expiry instead of being skipped silently.</li>
+<li><strong>Fix misspelled CLI flags.</strong> Unknown flags now fail instead of being silently ignored.</li>
+<li>
+<p><strong>Use named <code>%</code> fields in custom message templates.</strong> Bare <code>%s</code> or <code>%d</code> conversions now raise <code>ValueError</code> when the decorator is applied.</p>
+</li>
+<li>
+<p><strong>Use <code>deprecated_class(attrs_mapping=...)</code> for attribute remapping.</strong> <code>deprecated()</code> no longer accepts the class-only <code>attrs_mapping</code> keyword. <code>@deprecated(target=TargetMode.ATTRS_REMAP)</code> also raises <code>TypeError</code> for functions and classes because the common front door cannot supply the required mapping.</p>
+</li>
+<li><strong>Rename <code>template_mgs</code> to <code>message_template</code></strong> on <code>deprecated()</code>, <code>deprecated_class()</code>, and <code>deprecated_instance()</code>. The typo remains a warning alias until v1.0; supplying both names raises <code>TypeError</code>.</li>
+<li><strong>Fix explicit <code>TargetMode.NOTIFY</code> plus a mapping.</strong> It emits <code>UserWarning</code>, remains <code>NOTIFY</code>, leaves the mapping inert, and is marked misconfigured. Omit <code>target</code> to infer remapping, or select the matching remap mode explicitly.</li>
+</ul>
+</div>
+<div class="tabbed-block">
+<ul>
+<li>
+<p>Mapping errors now include the originating class or function name. Tests that assert complete error strings may need updated expected text.</p>
+</li>
+<li>
+<p>Across the v0.6.x line, backward support for <code>@deprecated</code> on a class was restored through delegation to <code>deprecated_class()</code>. Existing class decorators need no rewrite for v0.12; delegation remains permanent and only its informational notice is scheduled for removal.</p>
+</li>
+<li>
+<p>Omitting <code>deprecated_in</code> on a function or method emits <code>UserWarning</code> at decoration time. Add the version as part of every deprecation lifecycle.</p>
+</li>
+<li><code>ARGS_REMAP</code> without <code>args_mapping</code>, <code>NOTIFY</code> with <code>args_mapping</code> or <code>args_extra</code>, and invalid <code>target=False</code> now warn immediately. These are migration failures, not harmless diagnostics; correct them before v1.0.</li>
+<li>
+<p>Omitting <code>target</code> is the canonical warn-only form. Its v0.12 default is <code>TargetMode.AUTO</code>, which resolves to <code>NOTIFY</code> when no mapping is present, so the user-visible result is unchanged.</p>
+</li>
+<li>
+<p>CLI scans suppress only warnings from <code>deprecate.*</code>; third-party warnings are now visible. CI that treats all warnings as errors may start failing on dependencies imported during a scan.</p>
+</li>
+<li>
+<p>Audit code sees the supported <code>ARGS_REMAP + NOTIFY</code> chain as <code>ChainType.STACKED</code>, not <code>ChainType.TARGET</code>.</p>
+</li>
+<li>
+<p>When a caller supplies both deprecated and replacement keyword names, the explicit replacement value now wins regardless of call-site order.</p>
+</li>
+<li>
+<p>Circular callable-target chains now raise a named <code>RuntimeError</code> instead of ending in <code>RecursionError</code>.</p>
+</li>
+<li>
+<p><code>repr()</code>, <code>str()</code>, equality, and hashing on a target-forwarding proxy now reflect the active target rather than the deprecated source.</p>
+</li>
+<li>In-place operators such as <code>proxy += 1</code> rebind the name to the unwrapped result. Later uses are silent; avoid in-place operators if the proxy must retain its warning budget.</li>
+<li><code>args_mapping</code>, <code>args_extra</code>, and <code>attrs_mapping</code> are copied at decoration time. Mutating the original dict later no longer changes forwarding behavior.</li>
+<li>Constructing an <code>attrs_mapping</code>-only class proxy is now silent; only access to a listed deprecated attribute warns.</li>
+<li>Concurrent calls now respect exactly the configured <code>num_warns</code> budget. Tests that accidentally relied on one warning per racing thread will see fewer warnings.</li>
+<li>
+<p>Recursive audits deduplicate re-exports, include deprecated private and dunder members, warn and skip submodules that fail to import, and ignore unrelated foreign objects that raise during metadata probing. Counts and rows can therefore change in both directions.</p>
+</li>
+<li>
+<p><code>@deprecated</code> now defaults to <code>TargetMode.AUTO</code>. It resolves at decoration time: a function/class with <code>args_mapping</code> becomes <code>ARGS_REMAP</code>; a source without a mapping becomes warn-only. <code>AUTO</code> is never stored in <code>DeprecationConfig</code>; do not pass it explicitly because it exists only as the front-door default.</p>
+</li>
+<li>Existing <code>@deprecated</code> use on a class remains supported; no code change or decorator rewrite is required. It permanently delegates to <code>deprecated_class()</code> and emits one informational <code>UserWarning</code> per module-qualified class. <code>stream=None</code> suppresses the notice. Only the notice, not backward support or delegation, is removed in v1.0.</li>
+<li><code>message_template</code> and <code>skip_if</code> supplied through <code>@deprecated</code> on a class now reach the proxy. <code>message_template</code> was previously dropped on that path.</li>
+<li>Non-callable sources now raise a direct <code>TypeError</code> pointing users to <code>deprecated_instance()</code> instead of failing later on <code>__name__</code>.</li>
+</ul>
+</div>
+</div>
+</div>
 <hr />
 <p>If you hit anything not covered here, <a href="https://github.com/Borda/pyDeprecate/issues">open an issue</a> — we are happy to help.</p>
 
@@ -1900,7 +2816,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="July 22, 2026 11:50:54 UTC">2026-07-22</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="July 23, 2026 15:23:12 UTC">2026-07-23</span>
   </span>
 
     

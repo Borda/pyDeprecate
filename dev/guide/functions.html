@@ -95,7 +95,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-06-15",
-  "dateModified": "2026-07-22"
+  "dateModified": "2026-07-23"
 }
 </script>
 
@@ -1702,7 +1702,7 @@
 <a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a>    <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;0.6&quot;</span><span class="p">,</span>
 <a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a>    <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span>
 <a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a>    <span class="c1"># custom message template</span>
-<a id="__codelineno-5-17" name="__codelineno-5-17" href="#__codelineno-5-17"></a>    <span class="n">template_mgs</span><span class="o">=</span><span class="s2">&quot;`</span><span class="si">%(source_name)s</span><span class="s2">` was deprecated, use `</span><span class="si">%(target_path)s</span><span class="s2">`&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-17" name="__codelineno-5-17" href="#__codelineno-5-17"></a>    <span class="n">message_template</span><span class="o">=</span><span class="s2">&quot;`</span><span class="si">%(source_name)s</span><span class="s2">` was deprecated, use `</span><span class="si">%(target_path)s</span><span class="s2">`&quot;</span><span class="p">,</span>
 <a id="__codelineno-5-18" name="__codelineno-5-18" href="#__codelineno-5-18"></a>    <span class="c1"># as target args are different, define mapping from source to target func</span>
 <a id="__codelineno-5-19" name="__codelineno-5-19" href="#__codelineno-5-19"></a>    <span class="n">args_mapping</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;preds&quot;</span><span class="p">:</span> <span class="s2">&quot;y_pred&quot;</span><span class="p">,</span> <span class="s2">&quot;target&quot;</span><span class="p">:</span> <span class="s2">&quot;y_true&quot;</span><span class="p">,</span> <span class="s2">&quot;blabla&quot;</span><span class="p">:</span> <span class="kc">None</span><span class="p">},</span>
 <a id="__codelineno-5-20" name="__codelineno-5-20" href="#__codelineno-5-20"></a><span class="p">)</span>
@@ -1842,7 +1842,7 @@
 <td><code>"… was deprecated … in favour of …"</code></td>
 </tr>
 <tr>
-<td><strong><code>template_mgs</code> specifiers</strong></td>
+<td><strong><code>message_template</code> specifiers</strong></td>
 <td><code>source_name</code>, <code>source_path</code>, <code>deprecated_in</code>, <code>remove_in</code> only — <code>target_name</code>/<code>target_path</code> unavailable</td>
 <td><code>source_name</code>, <code>source_path</code>, <code>argument_map</code>, <code>deprecated_in</code>, <code>remove_in</code></td>
 <td>All specifiers incl. <code>target_name</code>, <code>target_path</code></td>
@@ -1932,14 +1932,14 @@
 <a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>    <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;0.3&quot;</span><span class="p">,</span>
 <a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>    <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;0.6&quot;</span><span class="p">,</span>
 <a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a>    <span class="n">args_mapping</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span><span class="n">c1</span><span class="o">=</span><span class="s2">&quot;nc1&quot;</span><span class="p">),</span>
-<a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a>    <span class="n">template_mgs</span><span class="o">=</span><span class="s2">&quot;Depr: v</span><span class="si">%(deprecated_in)s</span><span class="s2"> rm v</span><span class="si">%(remove_in)s</span><span class="s2"> for args: </span><span class="si">%(argument_map)s</span><span class="s2">.&quot;</span><span class="p">,</span>
+<a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a>    <span class="n">message_template</span><span class="o">=</span><span class="s2">&quot;Depr: v</span><span class="si">%(deprecated_in)s</span><span class="s2"> rm v</span><span class="si">%(remove_in)s</span><span class="s2"> for args: </span><span class="si">%(argument_map)s</span><span class="s2">.&quot;</span><span class="p">,</span>
 <a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a><span class="p">)</span>
 <a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a><span class="nd">@deprecated</span><span class="p">(</span>
 <a id="__codelineno-14-12" name="__codelineno-14-12" href="#__codelineno-14-12"></a>    <span class="n">TargetMode</span><span class="o">.</span><span class="n">ARGS_REMAP</span><span class="p">,</span>
 <a id="__codelineno-14-13" name="__codelineno-14-13" href="#__codelineno-14-13"></a>    <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">&quot;0.4&quot;</span><span class="p">,</span>
 <a id="__codelineno-14-14" name="__codelineno-14-14" href="#__codelineno-14-14"></a>    <span class="n">remove_in</span><span class="o">=</span><span class="s2">&quot;0.7&quot;</span><span class="p">,</span>
 <a id="__codelineno-14-15" name="__codelineno-14-15" href="#__codelineno-14-15"></a>    <span class="n">args_mapping</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span><span class="n">nc1</span><span class="o">=</span><span class="s2">&quot;nc2&quot;</span><span class="p">),</span>
-<a id="__codelineno-14-16" name="__codelineno-14-16" href="#__codelineno-14-16"></a>    <span class="n">template_mgs</span><span class="o">=</span><span class="s2">&quot;Depr: v</span><span class="si">%(deprecated_in)s</span><span class="s2"> rm v</span><span class="si">%(remove_in)s</span><span class="s2"> for args: </span><span class="si">%(argument_map)s</span><span class="s2">.&quot;</span><span class="p">,</span>
+<a id="__codelineno-14-16" name="__codelineno-14-16" href="#__codelineno-14-16"></a>    <span class="n">message_template</span><span class="o">=</span><span class="s2">&quot;Depr: v</span><span class="si">%(deprecated_in)s</span><span class="s2"> rm v</span><span class="si">%(remove_in)s</span><span class="s2"> for args: </span><span class="si">%(argument_map)s</span><span class="s2">.&quot;</span><span class="p">,</span>
 <a id="__codelineno-14-17" name="__codelineno-14-17" href="#__codelineno-14-17"></a><span class="p">)</span>
 <a id="__codelineno-14-18" name="__codelineno-14-18" href="#__codelineno-14-18"></a><span class="k">def</span><span class="w"> </span><span class="nf">any_pow</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="n">c1</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">nc1</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">nc2</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">2</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
 <a id="__codelineno-14-19" name="__codelineno-14-19" href="#__codelineno-14-19"></a>    <span class="k">return</span> <span class="n">base</span><span class="o">**</span><span class="n">nc2</span>
@@ -2152,7 +2152,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="July 22, 2026 11:50:54 UTC">2026-07-22</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="July 23, 2026 15:23:12 UTC">2026-07-23</span>
   </span>
 
     
