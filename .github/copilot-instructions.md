@@ -1,6 +1,7 @@
 # Copilot Instructions for pyDeprecate
 
 > [!TIP]
+>
 > **For coding standards and contribution workflow**, see [CONTRIBUTING.md](CONTRIBUTING.md). **For agent behavioral rules**, see [AGENTS.md](../AGENTS.md). This file provides Copilot-specific guidance for understanding and working with the codebase.
 
 ## Project Overview
@@ -12,6 +13,7 @@ pyDeprecate is a lightweight Python library (Python 3.9+) for decorator-based de
 ## ⚠️ Important: Configuration Files Are Source of Truth
 
 > [!WARNING]
+>
 > **If this documentation contradicts actual configuration files**, the config files have **higher authority**. Trust `pyproject.toml`, `.pre-commit-config.yaml`, and other config files over documentation. When you detect a mismatch, suggest updating this documentation to match the actual configuration.
 
 **Configuration files** (source of truth):
@@ -100,6 +102,7 @@ Quick checklist:
 - Specific suggestions (inline with GitHub suggestion format)
 
 > [!NOTE]
+>
 > **Anchor Links**: GitHub strips emojis from section headers and then converts the remaining text to lowercase-with-dashes. For headers like `## 🚀 Quick Start`, the emoji is removed and the space after it becomes the leading dash, so the anchor is `#-quick-start`. Subsections without emojis (e.g., `### Reviewing PRs`) become `#reviewing-prs` (no dash prefix). All links in this repository follow this convention and are correct.
 
 ## Known Issues & Workarounds

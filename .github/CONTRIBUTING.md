@@ -3,9 +3,11 @@
 Thank you for your interest in contributing to pyDeprecate! We appreciate all contributions and welcome everyone, regardless of experience level. Your help makes this project better for everyone.
 
 > [!TIP]
+>
 > **First time contributing to open source?** Check out [First Contributions](https://github.com/firstcontributions/first-contributions) for a beginner-friendly guide that walks you through the entire process.
 
 > [!NOTE]
+>
 > **Configuration files are the source of truth.** If you notice this documentation contradicts actual configuration files (`pyproject.toml`, `.pre-commit-config.yaml`, etc.), please open an issue! The config files are always correct, and the documentation should be updated to match.
 
 ## 📖 Code of Conduct
@@ -46,6 +48,7 @@ Don't hesitate to ask! Open an issue or use discussions to:
 - Get guidance on where to contribute — Find areas where your skills and interests can make the biggest impact
 
 > [!TIP]
+>
 > Asking questions shows you're thoughtful and helps everyone learn together.
 
 ## 🐛 Reporting Bugs
@@ -74,6 +77,7 @@ Bug fixing is a great way to contribute! Here's how to get started:
 6. **Submit a PR** — Create a pull request with your fix, linking to the issue it addresses.
 
 > [!IMPORTANT]
+>
 > **Test-Driven Development (TDD) for bugs:** Always reproduce the bug in a test *before* implementing the fix. This is the most reliable way to ensure the bug is actually fixed and won't regress.
 
 ## 💡 Suggesting Improvements
@@ -106,6 +110,7 @@ Here's how to suggest and implement improvements:
 4. **Get consensus** — Ensure there's general agreement from the community before starting implementation.
 
 > [!CAUTION]
+>
 > Always get maintainer approval before implementing new features! This ensures your work aligns with project direction and won't be wasted effort. Features implemented without prior approval may be rejected.
 
 **When you have approval:**
@@ -119,6 +124,7 @@ Here's how to suggest and implement improvements:
 4. **Submit a PR** — Create a pull request, linking to the approved issue.
 
 > [!IMPORTANT]
+>
 > **Test coverage is mandatory for new features.** Untested features will not be merged. Tests ensure reliability and prevent regressions.
 
 ## 📬 Pull Requests
@@ -207,17 +213,21 @@ pytest .
 ```
 
 > [!TIP]
+>
 > Pre-commit hooks run **automatically** on every commit, handling all linting and formatting (ruff, mypy). You only need to run `pre-commit run --all-files` manually if you want to check before committing.
 
 > [!NOTE]
+>
 > When updating code examples in README.md, use `phmdoctest` to extract them as runnable tests. This ensures examples stay accurate and working as the codebase evolves. Code blocks paired with an output block must produce exactly that output when executed, which sometimes requires mocking external state (e.g. `unittest.mock.patch`); illustrative patterns that can't run standalone (like CI fixtures) are wrapped in nested functions marked `# Caution- no assertions.` so phmdoctest skips their execution.
 
 > [!IMPORTANT]
+>
 > **`make docs-tests` is the only supported way to (re)generate the docs example tests** under `tests/docs/` (and `tests/integration/test_readme.py`). It deletes the old generated `test_*.py` files first, so it never leaves stale artifacts behind. These files are gitignored local artifacts — running `pytest tests/docs/` against an out-of-date checkout otherwise produces confusing failures (e.g. `ModuleNotFoundError` for placeholder imports, or assertion drift against reprs that have since changed). A `tests/docs/conftest.py` guard fails collection with a `regenerate via make docs-tests` message when any generated file is older than the `docs/*.md` source it came from; the default `pytest .` run prunes `tests/docs/` and is unaffected.
 
 ## 💎 Quality Expectations
 
 > [!IMPORTANT]
+>
 > **Always do your best — that's the essential spirit of OSS contributions.**
 
 We value all levels of contribution and want to encourage everyone, regardless of skill level or time available. What matters is being reasonable and meaningful about what you can deliver:
@@ -247,6 +257,7 @@ Follow this pattern for branch names to keep the repository organized:
 - `chore/` — Maintenance tasks (e.g., `chore/update-dependencies`)
 
 > [!TIP]
+>
 > Always include the issue number when one exists. If there's no issue, use a descriptive name: `fix/typo-in-readme`
 
 ## 🚀 Quick Start
@@ -312,6 +323,7 @@ When a proposed feature conflicts with simplicity, complexity wins only when rob
 - No bare `except:` — always catch specific exceptions (e.g., `except ValueError:`, `except ImportError:`)
 
 > [!TIP]
+>
 > **All linting and formatting is automatically handled by pre-commit hooks** on every commit. Tools include `ruff` (formatting/linting) and `mypy` (type checking). Configs live in `pyproject.toml` and `.pre-commit-config.yaml`. The hooks will prevent commits with style violations.
 
 ### Architecture Constraints
@@ -398,6 +410,7 @@ Tests live in `tests/` and follow a **three-layer separation**:
 **`integration/`** — Each file covers one area of the public surface (functions, classes, audit, utils, docstrings, README examples). Tests call `@deprecated`-decorated code as a user would and assert on warnings, return values, and forwarded types. `test_readme.py` is generated by `phmdoctest` from README code blocks.
 
 > [!IMPORTANT]
+>
 > **README examples must be runnable.** Every Python code block in `README.md` is extracted by `phmdoctest` and executed as a test. Follow these rules when writing README examples:
 >
 > - Use `print()` for values you want to verify, paired with a `<details><summary>Output: <code>expression</code></summary>` block immediately after the code block. The `<summary>` label shows the **expression** being evaluated (e.g. `cfg.timeout`), not the `print()` wrapper.
@@ -414,6 +427,7 @@ Tests live in `tests/` and follow a **three-layer separation**:
 > - **Never import a fictional package name** in runnable examples — executable examples must import from actual test collection modules (`from tests import collection_deprecate`, `collection_misconfigured`, or `collection_chains`). For CI-template snippets that intentionally show a placeholder import, add `# phmdoctest:skip — CI template: replace my_package with your actual package` as the first line of the code block so phmdoctest skips execution.
 
 > [!NOTE]
+>
 > **Some docs examples use collection modules as fixtures and report hardcoded counts.** `docs/guide/audit.md` embeds expected output from scanning `tests.collection_misconfigured` with hardcoded numbers (wrappers scanned, empty mappings, etc.). When you add or remove entries from any `collection_*.py` module:
 >
 > - Update the expected counts in the relevant `docs/guide/*.md` code block output.
@@ -424,9 +438,11 @@ Tests live in `tests/` and follow a **three-layer separation**:
 **`unittests/`** — Tests import private symbols directly (e.g. `_raise_warn`, `_parse_version`) and use mocking/monkeypatching to stay isolated from external state. Each file mirrors a source module (`deprecation.py`, `docstring/inject.py`, `audit.py`, `utils.py`).
 
 > [!IMPORTANT]
+>
 > **Three-layer rule**: do not define target objects or deprecated wrappers directly inside `test_*.py` files. Place targets in `collection_targets.py`, deprecated wrappers in `collection_deprecate.py`, then import them in tests. This includes class definitions — do not define classes inside test functions; define them in the appropriate collection module instead.
 
 > [!IMPORTANT]
+>
 > **No local imports inside test functions.** All `import` and `from … import` statements must appear at module level, not inside test methods or helper functions. Import each fixture name at the top of the test file and use it directly in the test body.
 >
 > ```python
@@ -450,6 +466,7 @@ Tests live in `tests/` and follow a **three-layer separation**:
 > ```
 
 > [!NOTE]
+>
 > **Exception — one-off inline fixtures:** inline fixtures are allowed inside a test function when all of the following hold:
 >
 > - **Single use** — used by exactly one test and not reused elsewhere
@@ -592,6 +609,7 @@ def decorated_sum_warn_only(a: int, b: int = 5) -> int:
 **Test requirements:**
 
 > [!IMPORTANT]
+>
 > **All new features and bug fixes must include tests.** This is non-negotiable.
 
 - Every new function or behavior change must have accompanying tests.
@@ -640,6 +658,7 @@ class TestMyFeature:
 ```
 
 > [!NOTE]
+>
 > Test classes are most beneficial when you have multiple tests or need fixtures. For single standalone tests, a simple test function is sufficient.
 
 ### Common Patterns
@@ -735,9 +754,11 @@ make docs-tests   # regenerate tests/integration/test_readme.py and tests/docs/t
 ```
 
 > [!NOTE]
+>
 > Every Python code block in a docs page is extracted by `phmdoctest` and executed as a test. After updating any `docs/**/*.md` code example, regenerate the corresponding `tests/docs/test_<name>.py` file using the commands above. The generated files are gitignored — CI regenerates them automatically before running pytest.
 
 > [!NOTE]
+>
 > The `git-revision-date-localized` plugin requires a full git history. Run `git fetch --unshallow` (or use `fetch-depth: 0` in CI) if revision dates show as today for old files.
 
 ### Consistency Rules
@@ -785,6 +806,7 @@ Use `# NEW/FUTURE API —` when the replacement is defined in the same block imm
 | A new mainstream AI crawler is released                                     | `docs/robots.txt` (new `User-agent: <bot> / Allow: /` block)                                                                                                                                                  |
 
 > [!IMPORTANT]
+>
 > `docs/llms.txt` is the highest-leverage surface for AI agents. Update it in the same commit as the code change — never as a follow-up.
 
 ### Template Override
