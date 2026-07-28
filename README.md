@@ -287,8 +287,6 @@ In particular the target values (cases):
 
 | `target` value              | Use case                                                                | `args_mapping`                                            | Warning trigger                    |
 | --------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------- | ---------------------------------- |
-| `target` value              | Use case                                                                | `args_mapping`                                            | Warning trigger                    |
-| --------------------------- | ------------------------------------------------                        | --------------------------------------------------------- | ---------------------------------- |
 | `TargetMode.NOTIFY`         | Whole callable going away; no replacement yet                           | Ignored (warns; TypeError in v1.0)                        | Every call                         |
 | `TargetMode.ARGS_REMAP`     | Callable stays; argument names are renamed                              | Required                                                  | Only when old arg names are passed |
 | `<callable>`                | Callable replaced by another; calls forwarded                           | Optional                                                  | Every call                         |
@@ -392,8 +390,6 @@ This is an equivalent to the `@deprecated(...)` decorator form but applied to an
 
 </details>
 
-<br>
-
 ### 🔀 Advanced target argument mapping
 
 Use argument mapping when the replacement function keeps the same meaning but uses different parameter names:
@@ -441,8 +437,6 @@ sample output:
 
 </details>
 
-<br>
-
 ### ⚠ Deprecation warning only
 
 Base use-case with no forwarding and just raising a warning:
@@ -470,8 +464,6 @@ print(my_sum(1, 2))
 ```
 
 </details>
-
-<br>
 
 > [!NOTE]
 >
@@ -512,8 +504,6 @@ print(any_pow(2, 3))
 ```
 
 </details>
-
-<br>
 
 To **drop** an argument entirely (warn when it's passed, then discard it), map it to `None`:
 
@@ -638,8 +628,6 @@ print(compute_power(2, scale=3))  # → 1 warning  (function deprecated only)
 | `NOTIFY`     | `NOTIFY`       | ✗ `UserWarning` at decoration time | Update the existing decorator's versions instead of adding a second one |
 | `NOTIFY`     | `ARGS_REMAP`   | ✗ `UserWarning` at decoration time | Wrong order — swap: `ARGS_REMAP` on top, `NOTIFY` below                 |
 
-<br>
-
 ### ⚙ Conditional skip
 
 Use `skip_if` when the deprecation notice should depend on runtime state such as an installed package version. It is available on `@deprecated`, `deprecated_callable()`, `deprecated_class()`, and `deprecated_instance()`; on a class or instance proxy an active skip serves the wrapped source silently — no warning, no mapping, no target forwarding:
@@ -680,8 +668,6 @@ print(skip_pow(2, 3))
 
 </details>
 
-<br>
-
 <details>
   <summary>Output: <code>skip_pow(2, 3); skip_pow(2, 3)</code></summary>
 
@@ -691,8 +677,6 @@ print(skip_pow(2, 3))
 ```
 
 </details>
-
-<br>
 
 This pattern is useful when a migration is only active for some environments or dependency versions.
 
@@ -728,8 +712,6 @@ print(svc.run(5))
 ```
 
 </details>
-
-<br>
 
 <details>
   <summary>Output: <code>svc.run(5)</code></summary>
@@ -790,8 +772,6 @@ print(inst.my_d)  # returns: "efg"
 
 </details>
 
-<br>
-
 <details>
   <summary>Output: <code>inst.my_c; inst.my_d</code></summary>
 
@@ -801,8 +781,6 @@ efg
 ```
 
 </details>
-
-<br>
 
 ### 📦 Deprecating constants and instances
 
@@ -841,8 +819,6 @@ print(DEFAULTS["lr"])  # 0.001
 ```
 
 </details>
-
-<br>
 
 ### 🗂 Deprecating Enums and dataclasses
 
@@ -915,8 +891,6 @@ print((p_new.x, p_new.y))
 ```
 
 </details>
-
-<br>
 
 <details>
   <summary>Output: <code>Color.RED is ThemeColor.RED; Color(1) is ThemeColor.RED; (p_new.x, p_new.y)</code></summary>
@@ -1016,8 +990,6 @@ To deprecate attributes at different library versions, stack two `@deprecated_cl
 
 </details>
 
-<br>
-
 ### 📝 Automatic docstring updates
 
 You can automatically inject deprecation information into your function's docstring:
@@ -1065,8 +1037,6 @@ print(process.__doc__)
 ```
 
 </details>
-
-<br>
 
 If you build docs with MkDocs/Markdown, you can switch to admonition output:
 
@@ -1127,8 +1097,6 @@ With the extension registered, mkdocstrings will render the injected `!!! warnin
 
 </details>
 
-<br>
-
 ### ➕ Injecting new required arguments
 
 When the target function gains a new parameter that callers of the old API never passed, use `args_extra` to inject a fixed value at the wrapper level:
@@ -1169,8 +1137,6 @@ Sent to 'alice@example.com': 'Hello' [normal]
 ```
 
 </details>
-
-<br>
 
 > [!NOTE]
 >
@@ -1486,8 +1452,6 @@ print(f"Self-references: {len(self_refs)}")
 
 </details>
 
-<br>
-
 ### Generating Deprecation Tables
 
 If you want docs-friendly summaries, `generate_deprecation_table()` renders the discovered wrapper metadata as Markdown tables. The report includes deprecated class members such as methods and constructors, so wrapper metadata remains the single source of truth.
@@ -1635,8 +1599,6 @@ def test_deprecated_wrappers_are_valid():
 
 </details>
 
-<br>
-
 ### ⏰ Enforcing Deprecation Removal Deadlines
 
 When you deprecate code with a `remove_in` version, you're making a commitment to remove that code when that version is reached. However, it's easy to forget to actually remove the code—leading to "zombie code" that lingers past its scheduled removal.
@@ -1675,8 +1637,6 @@ print(f"Found {len(expired)} expired")
 ```
 
 </details>
-
-<br>
 
 <details>
   <summary>Output: expired count per scanned version</summary>
@@ -1736,8 +1696,6 @@ def enforce_deprecation_deadlines():
 ```
 
 </details>
-
-<br>
 
 > [!TIP]
 >
@@ -1803,8 +1761,6 @@ for func in (caller_target_chain, caller_stacked_chain, caller_direct):
 
 </details>
 
-<br>
-
 <details>
   <summary>Output: chain types</summary>
 
@@ -1854,8 +1810,6 @@ def enforce_no_deprecation_chains():
 ```
 
 </details>
-
-<br>
 
 > [!TIP]
 >
@@ -2035,8 +1989,6 @@ print(MyOtherClass(42).x)
 
 </details>
 
-<br>
-
 ### ❗ TypeError: `Failed mapping`
 
 **Problem:** `TypeError: Failed mapping of 'my_func', arguments not accepted by target: ['old_arg']`
@@ -2097,8 +2049,6 @@ print(MyOtherClass(42).x)
 
 </details>
 
-<br>
-
 ### ❗ TypeError: `User function 'should_ship' shall return bool`
 
 **Problem:** `TypeError: User function 'should_ship' shall return bool, but got: <type>`
@@ -2149,8 +2099,6 @@ Hi!
 
 </details>
 
-<br>
-
 ### ⚠️ Warning Not Showing
 
 **Problem:** You don't see the deprecation warning.
@@ -2196,8 +2144,6 @@ True
 </details>
 
 </details>
-
-<br>
 
 ### 📦 Deprecation Not Working Across Modules
 
