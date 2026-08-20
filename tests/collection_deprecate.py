@@ -1258,6 +1258,27 @@ class DeprecatedColorEnum(Enum):
     BLUE = 2
 
 
+# source payload behind `depr_ast_breadcrumb_dict` — exported so tests can assert `__wrapped__` identity
+ast_breadcrumb_source_dict = {"threshold": 0.5}
+
+# instance proxy over a plain `dict`: a C-level type with no introspectable signature, so the proxy's
+# `__signature__` breadcrumb falls back to None while `__wrapped__` still points at the source
+depr_ast_breadcrumb_dict = deprecated_instance(ast_breadcrumb_source_dict, **_DEPRS_CASE_STD_INF_ARGS, stream=None)
+
+
+class _AstFunctionalColorEnum(Enum):
+    """Source enum wrapped through the functional form of `deprecated_class` rather than by decoration."""
+
+    RED = 1
+
+
+# functional/assignment form — mypy infers `Deprecated[ColorEnum]` from `target=ColorEnum` here,
+# which the decorator form above cannot express
+DeprecatedColorEnumFunctional = deprecated_class(target=ColorEnum, **_DEPRS_CASE_STD_INF_ARGS, stream=None)(
+    _AstFunctionalColorEnum
+)
+
+
 @deprecated_class(target=NewDataClass, **_DEPRS_CASE_STD_INF_ARGS)
 @dataclass
 class DeprecatedColorDataClass:

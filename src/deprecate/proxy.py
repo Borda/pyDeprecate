@@ -12,6 +12,11 @@ Typical use cases:
 - Deprecating an Enum or dataclass in favor of a replacement type, with
   automatic forwarding of all attribute, item, and call access.
 
+Both entry points return an object satisfying :class:`~deprecate._types.Deprecated`, the public
+protocol for proxies. Every proxy carries ``__wrapped__`` (the source object) and ``__signature__``
+(the source's signature) so ``inspect.unwrap``, ``inspect.signature``, Sphinx autodoc, and IDEs
+resolve through the proxy to the original — reading either attribute emits no deprecation warning.
+
 Example:
     >>> import warnings
     >>> cfg = {"threshold": 0.5}
@@ -34,10 +39,11 @@ import types
 import warnings
 from collections.abc import Iterator
 from dataclasses import replace
-from typing import Any, Callable, Literal, Optional, SupportsIndex, Union, cast
+from typing import Any, Callable, Literal, Optional, SupportsIndex, TypeVar, Union, cast, overload
 
 from deprecate._dispatch import _split_positional_only_kwargs
 from deprecate._types import (
+    Deprecated,
     DeprecationConfig,
     TargetMode,
     _ProxyConfig,
@@ -53,6 +59,11 @@ from deprecate.messaging import (
     deprecation_warning,
 )
 from deprecate.utils import _apply_args_mapping_collisions, _get_args_mapping_positional_only_keys, _is_dataclass_target
+
+#: TypeVar bound to the instance type returned by calling a deprecated class proxy.
+#: When ``deprecated_class(target=NewCls, ...)`` is used, mypy infers ``_T = NewCls`` so that
+#: ``OldCls(1)`` is typed as ``NewCls`` rather than ``Any``.
+_T = TypeVar("_T")
 
 #: Stacklevel from inside ``_warn`` to the caller's frame.
 #: Chain: ``caller → __getattr__/__getitem__/__iter__/__call__ → _warn → stream → warnings.warn``.
@@ -129,6 +140,12 @@ class _DeprecatedProxy:
         to get the wrapped type (which is ``_DeprecatedProxy``).
 
     """
+
+    # Class-level annotations for the AST-friendliness breadcrumbs set in ``_set_ast_breadcrumbs``.
+    # Declared here so static type-checkers know they exist; assigned in ``__init__`` via
+    # ``object.__setattr__`` because the proxy overrides ``__setattr__`` to forward writes.
+    __wrapped__: Any
+    __signature__: Any
 
     @staticmethod
     def _get_static_attr_owner(obj: Any) -> Any:  # noqa: ANN401
@@ -427,11 +444,31 @@ class _DeprecatedProxy:
         _doc = getattr(obj, "__doc__", None)
         if _doc:
             object.__setattr__(self, "__doc__", _doc)
+        # AST-friendliness breadcrumbs: ``__wrapped__`` lets static tools (Sphinx, mypy with follow-wrapped,
+        # IDEs) trace the proxy back to the source object; ``__signature__`` exposes the source's signature
+        # to ``inspect.signature`` for tools that don't walk ``__wrapped__``.
+        self._set_ast_breadcrumbs(obj)
 
     # ------------------------------------------------------------------
     # Internal helpers — must use object.__getattribute__ / object.__setattr__
     # to avoid triggering the proxy's own __getattr__ / __setattr__.
     # ------------------------------------------------------------------
+
+    def _set_ast_breadcrumbs(self, obj: Any) -> None:  # noqa: ANN401
+        """Set ``__wrapped__`` and ``__signature__`` so static-analysis tools can trace the proxy.
+
+        Not every wrapped object is introspectable — builtins and instances of C types (e.g. a plain ``dict``) make
+        ``inspect.signature`` raise ``ValueError``/``TypeError``. In that case ``__signature__`` falls back to ``None``
+        rather than propagating: both attributes are always assigned so the proxy uniformly satisfies the
+        :class:`~deprecate._types.Deprecated` Protocol, and wrapping stays infallible at decoration time.
+
+        """
+        object.__setattr__(self, "__wrapped__", obj)
+        try:
+            sig: Any = inspect.signature(obj)
+        except (ValueError, TypeError):
+            sig = None
+        object.__setattr__(self, "__signature__", sig)
 
     @property
     def _cfg(self) -> _ProxyConfig:
@@ -1426,8 +1463,60 @@ def _build_proxy_warn_msg(
     }
 
 
+#: What ``deprecated_class`` accepts for decoration: a plain class, or an already-wrapped proxy when
+#: stacking (``deprecated_class(...)(deprecated_class(...)(Cls))``). ``Deprecated[Any]`` is the public
+#: spelling of what the decorator hands back, so it has to be accepted on the way in as well.
+_ClassOrProxy = Union[type, "_DeprecatedProxy", Deprecated[Any]]
+
+
+@overload
 def deprecated_class(
-    target: Any = None,  # noqa: ANN401
+    target: type[_T],
+    *,
+    deprecated_in: str = ...,
+    remove_in: str = ...,
+    num_warns: int = ...,
+    stream: Optional[Callable[..., None]] = ...,
+    message_template: Optional[str] = ...,
+    args_mapping: Optional[dict[str, Optional[str]]] = ...,
+    args_extra: Optional[dict[str, Any]] = ...,
+    attrs_mapping: Optional[dict[str, Optional[str]]] = ...,
+    skip_if: Union[bool, Callable[[], bool]] = ...,
+    update_docstring: bool = ...,
+    docstring_style: Literal["auto", "rst", "mkdocs", "markdown"] = ...,
+    template_mgs: Optional[str] = ...,
+    _misconfigured_override: bool = ...,
+    _stacklevel_extra: int = ...,
+) -> Callable[[_ClassOrProxy], "Deprecated[_T]"]: ...
+
+
+# Fallback for every non-class ``target``: a TargetMode, the legacy bool/None sentinels, a plain
+# callable, or another proxy. ``type[_T]`` above is matched first, so only these land here.
+# Returns the concrete ``_DeprecatedProxy`` rather than ``Deprecated[Any]``: the proxy forwards the
+# whole dunder surface (``int()``, ``with``, ``await``, ...) and the narrow Protocol would hide it.
+@overload
+def deprecated_class(
+    target: Any = ...,  # noqa: ANN401
+    *,
+    deprecated_in: str = ...,
+    remove_in: str = ...,
+    num_warns: int = ...,
+    stream: Optional[Callable[..., None]] = ...,
+    message_template: Optional[str] = ...,
+    args_mapping: Optional[dict[str, Optional[str]]] = ...,
+    args_extra: Optional[dict[str, Any]] = ...,
+    attrs_mapping: Optional[dict[str, Optional[str]]] = ...,
+    skip_if: Union[bool, Callable[[], bool]] = ...,
+    update_docstring: bool = ...,
+    docstring_style: Literal["auto", "rst", "mkdocs", "markdown"] = ...,
+    template_mgs: Optional[str] = ...,
+    _misconfigured_override: bool = ...,
+    _stacklevel_extra: int = ...,
+) -> Callable[[_ClassOrProxy], "_DeprecatedProxy"]: ...
+
+
+def deprecated_class(
+    target: Any = None,
     *,
     deprecated_in: str = "",
     remove_in: str = "",
@@ -1443,7 +1532,7 @@ def deprecated_class(
     template_mgs: Optional[str] = None,
     _misconfigured_override: bool = False,
     _stacklevel_extra: int = 0,
-) -> Callable[[Union[type, "_DeprecatedProxy"]], "_DeprecatedProxy"]:
+) -> Callable[[_ClassOrProxy], "_DeprecatedProxy"]:
     r"""Decorator factory for deprecating class definitions with optional target redirection.
 
     Apply ``@deprecated_class(...)`` to an Enum or dataclass to wrap the class in a
@@ -1538,7 +1627,11 @@ def deprecated_class(
             supplying both raises :class:`TypeError`.  Removed in ``v1.0``.
 
     Returns:
-        A decorator that wraps the class in a :class:`~deprecate.proxy._DeprecatedProxy`.
+        A decorator that wraps the class in a :class:`~deprecate.proxy._DeprecatedProxy`, which satisfies the public
+        :class:`~deprecate._types.Deprecated` Protocol.  Passing a class as *target* in the functional form
+        (``Old = deprecated_class(target=NewCls, ...)(_OldSource)``) narrows the return type to ``Deprecated[NewCls]``,
+        so calling the result is typed as producing a ``NewCls``.  Every other form keeps the concrete proxy type,
+        which is what makes the forwarded dunders (``int()``, ``with``, ``await``) visible to type checkers.
 
     Note:
         **Subclassing (PEP 560)**: the proxy implements ``__mro_entries__`` so
@@ -1605,7 +1698,7 @@ def deprecated_class(
             "or pass an explicit mode / replacement class."
         )
 
-    def decorator(cls: Union[type, "_DeprecatedProxy"]) -> "_DeprecatedProxy":
+    def decorator(cls: _ClassOrProxy) -> "_DeprecatedProxy":
         # When cls is a _DeprecatedProxy (stacking case), cls.__name__ triggers __getattr__
         # which emits a spurious warning. Retrieve the name safely via the stored metadata.
         cls_name = (
@@ -1697,7 +1790,10 @@ def deprecated_instance(
             supplying both raises :class:`TypeError`.  Removed in ``v1.0``.
 
     Returns:
-        A :class:`~deprecate.proxy._DeprecatedProxy` wrapping *obj*.
+        A :class:`~deprecate.proxy._DeprecatedProxy` wrapping *obj*, satisfying the public
+        :class:`~deprecate._types.Deprecated` Protocol.  Its ``__wrapped__`` attribute is *obj* itself, and
+        ``__signature__`` is *obj*'s signature — or ``None`` when *obj* has none to introspect (a plain ``dict``,
+        any C-level type). Reading either emits no warning.
 
     Note:
         **Operator warnings**: arithmetic operators (``+``, ``-``, ``*``, ``**``, ``//``, ``%``, ``<<``,

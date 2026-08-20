@@ -80,7 +80,7 @@ from deprecate.__about__ import *  # noqa: F403
 from deprecate._properties import (
     _StrictProperty as property,  # noqa: F401 # intentional: explicit-import only; excluded from __all__ to prevent star-import from silently enabling strict mode
 )
-from deprecate._types import TargetMode
+from deprecate._types import Deprecated, DeprecatedClass, DeprecatedInstance, TargetMode
 from deprecate.audit import (
     ChainType,
     DeprecatedCallableInfo,  # noqa: F401 # backward-compat alias for DeprecationWrapperInfo
@@ -108,6 +108,9 @@ from deprecate.utils import (
 
 __all__ = [
     "ChainType",
+    "Deprecated",
+    "DeprecatedClass",
+    "DeprecatedInstance",
     "DeprecationStatus",
     "DeprecationWrapperInfo",
     "TableStyle",
