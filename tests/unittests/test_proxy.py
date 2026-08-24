@@ -79,6 +79,7 @@ from tests.collection_targets import (
     SubclassableBase,
     WithInjected,
     _Pep702ProxyTarget,
+    base_sum_kwargs,
 )
 
 
@@ -2717,6 +2718,73 @@ class TestProxyCopyPickle:
         """
         with pytest.raises(pickle.PicklingError):
             pickle.dumps(DeprecatedColorEnum)
+
+    def test_copy_preserves_ast_breadcrumbs(self) -> None:
+        """A shallow copy carries the same AST breadcrumbs as a freshly constructed proxy.
+
+        Reconstruction bypasses ``__init__``, so the breadcrumbs have to be re-established explicitly.
+        Without that, a consumer who snapshots a deprecated symbol with ``copy.copy`` gets a proxy that
+        ``inspect.unwrap`` can no longer see through and that no longer structurally satisfies the public
+        ``Deprecated`` protocol — the "every proxy carries ``__wrapped__``" contract would hold only until
+        somebody copied one.
+        """
+        proxy = deprecated_instance(
+            base_sum_kwargs, name="legacy_sum", deprecated_in="1.0", remove_in="2.0", stream=None
+        )
+
+        dup = copy.copy(proxy)
+
+        assert dup.__wrapped__ is base_sum_kwargs
+        assert dup.__signature__ == inspect.signature(base_sum_kwargs)
+        assert isinstance(dup, Deprecated)
+
+    def test_deepcopy_rebinds_breadcrumb_to_copied_object(self) -> None:
+        """A deep copy points ``__wrapped__`` at its *own* wrapped object, not the original's.
+
+        ``deepcopy`` duplicates the wrapped payload, so a breadcrumb naively carried over from the source
+        proxy would describe an object the copy does not actually serve — mutating the copy would leave
+        ``inspect.unwrap`` reporting stale state. The breadcrumb must track the object the copy forwards to.
+        """
+        proxy = deprecated_instance(
+            {"limits": {"low": 1}}, name="cfg", deprecated_in="1.0", remove_in="2.0", stream=None
+        )
+
+        dup = copy.deepcopy(proxy)
+
+        assert dup.__wrapped__ is object.__getattribute__(dup, "_DeprecatedProxy__config").obj
+        assert dup.__wrapped__ is not proxy.__wrapped__
+
+    def test_deepcopy_of_class_proxy_preserves_breadcrumbs(self) -> None:
+        """Deep-copying a deprecated class alias keeps both breadcrumbs intact.
+
+        Classes are atomic under ``deepcopy``, so the copy forwards to the identical source class and must
+        report exactly the same ``__wrapped__`` and ``__signature__`` as the original alias — this is the
+        path Sphinx autodoc and IDEs walk when they encounter a copied module namespace.
+        """
+        original = cast(Deprecated[Any], DeprecatedColorEnum)
+
+        dup = cast(Deprecated[Any], copy.deepcopy(DeprecatedColorEnum))
+
+        assert dup.__wrapped__ is original.__wrapped__
+        assert dup.__signature__ == original.__signature__
+        assert dup.__signature__ is not None
+
+    def test_pickle_roundtrip_preserves_ast_breadcrumbs(self) -> None:
+        """A pickled proxy comes back with its breadcrumbs restored.
+
+        ``__reduce_ex__`` rebuilds the proxy through the same reconstruction helper as ``copy``, so a proxy
+        shipped across a process boundary must arrive introspectable rather than silently degraded. The
+        signature is recomputed from the restored source instead of travelling through the pickle stream,
+        which keeps ``Signature`` objects out of the payload entirely.
+        """
+        proxy = deprecated_instance(
+            base_sum_kwargs, name="legacy_sum", deprecated_in="1.0", remove_in="2.0", stream=None
+        )
+
+        restored = pickle.loads(pickle.dumps(proxy))  # noqa: S301
+
+        assert restored.__wrapped__ is base_sum_kwargs
+        assert restored.__signature__ == inspect.signature(base_sum_kwargs)
 
 
 class TestOperatorForwarding:

@@ -988,6 +988,8 @@ class _DeprecatedProxy:
     # deprecation travels with the object so a copied deprecated config keeps warning during
     # the migration window. The wrapped object is copied per the respective protocol; the
     # frozen DeprecationConfig metadata is preserved; the warn-budget counters are snapshotted.
+    # Both reconstruction paths bypass ``__init__``, so they re-establish the AST breadcrumbs
+    # explicitly against the object the new proxy actually serves — see ``_set_ast_breadcrumbs``.
     # ------------------------------------------------------------------
 
     def __copy__(self) -> "_DeprecatedProxy":
@@ -1011,11 +1013,15 @@ class _DeprecatedProxy:
         cls = type(self)
         new = cls.__new__(cls)
         memo[id(self)] = new
-        object.__setattr__(new, "_DeprecatedProxy__config", copy.deepcopy(self._cfg, memo))
+        new_cfg = copy.deepcopy(self._cfg, memo)
+        object.__setattr__(new, "_DeprecatedProxy__config", new_cfg)
         object.__setattr__(new, "__deprecated__", copy.deepcopy(self._dep, memo))
         doc = object.__getattribute__(self, "__dict__").get("__doc__")
         if doc is not None:
             object.__setattr__(new, "__doc__", doc)
+        # Breadcrumbs point at the *deep-copied* source, not the original's: this proxy forwards to
+        # ``new_cfg.obj``, so that is what ``inspect.unwrap`` and Sphinx must resolve to.
+        new._set_ast_breadcrumbs(new_cfg.obj)
         return new
 
     def __reduce_ex__(self, protocol: SupportsIndex) -> tuple[Any, ...]:
@@ -1235,6 +1241,12 @@ def _reconstruct_proxy(
     state is re-attached directly via ``object.__setattr__`` (bypassing the proxy's forwarding
     ``__setattr__``).
 
+    The AST breadcrumbs are re-derived from ``cfg.obj`` rather than carried in *cfg*: a copy wraps its
+    own (possibly copied) source, and recomputing keeps ``inspect.Signature`` objects out of the pickle
+    payload entirely.  Skipping this step would leave copied and unpickled proxies without
+    ``__wrapped__``/``__signature__``, so ``inspect.unwrap`` would stop at the proxy and the object would
+    no longer satisfy the :class:`~deprecate._types.Deprecated` Protocol.
+
     Args:
         cfg: Private mutable runtime state for the new proxy.
         dep: Frozen deprecation metadata (shared or copied by the caller as appropriate).
@@ -1247,6 +1259,7 @@ def _reconstruct_proxy(
     object.__setattr__(proxy, "__deprecated__", dep)
     if doc is not None:
         object.__setattr__(proxy, "__doc__", doc)
+    proxy._set_ast_breadcrumbs(cfg.obj)
     return proxy
 
 
