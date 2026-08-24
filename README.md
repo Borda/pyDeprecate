@@ -34,7 +34,7 @@ ______________________________________________________________________
   - [Class deprecation](#class-deprecation)
   - [Deprecating constants and instances](#deprecating-constants-and-instances)
   - [Deprecating Enums and dataclasses](#deprecating-enums-and-dataclasses)
-  - [Typing deprecated proxies](#typing-deprecated-proxies)
+  - [Typing deprecated proxies](#-typing-deprecated-proxies)
   - [Automatic docstring updates](#automatic-docstring-updates)
   - [Injecting new required arguments](#injecting-new-required-arguments)
   - [Async functions](#async-functions)
