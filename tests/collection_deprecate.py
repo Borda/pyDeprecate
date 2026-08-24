@@ -1273,10 +1273,20 @@ class _AstFunctionalColorEnum(Enum):
     RED = 1
 
 
-# functional/assignment form — mypy infers `Deprecated[ColorEnum]` from `target=ColorEnum` here,
-# which the decorator form above cannot express
-DeprecatedColorEnumFunctional = deprecated_class(target=ColorEnum, **_DEPRS_CASE_STD_INF_ARGS, stream=None)(
-    _AstFunctionalColorEnum
+# functional/assignment form — mypy infers `Deprecated[ColorEnum]` from `target=ColorEnum` here, which the
+# decorator form above cannot express; pinned statically by `assert_type` in `tests/unittests/test_proxy.py`.
+# The version kwargs are spelled out rather than splatting `_DEPRS_CASE_STD_INF_ARGS`: mypy resolves an
+# overloaded call against a `dict[str, Any]` splat by falling back to `Any`, which would silently erase the
+# very inference this fixture exists to demonstrate.
+DeprecatedColorEnumFunctional = deprecated_class(
+    target=ColorEnum, deprecated_in="1.0", remove_in="2.0", num_warns=-1, stream=None
+)(_AstFunctionalColorEnum)
+
+# same functional form with no class `target` — selects the fallback overload, which deliberately keeps the
+# concrete `_DeprecatedProxy` so the proxy's forwarded dunders (`int()`, `with`, `await`) stay visible to
+# type checkers; the companion `assert_type` pins that it never widens to `Deprecated[Any]`
+DeprecatedPaletteFunctionalFallback = deprecated_class(deprecated_in="1.0", remove_in="2.0", num_warns=-1, stream=None)(
+    Palette
 )
 
 

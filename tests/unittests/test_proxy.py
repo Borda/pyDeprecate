@@ -10,7 +10,7 @@ import warnings
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass as dc_decorator
 from enum import Enum
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 
@@ -42,6 +42,7 @@ from tests.collection_deprecate import (
     DeprecatedColorDataClass,
     DeprecatedColorEnum,
     DeprecatedColorEnumFunctional,
+    DeprecatedPaletteFunctionalFallback,
     MappedColorEnum,
     MappedDataClass,
     MappedDropArgDataClass,
@@ -3347,6 +3348,24 @@ class TestProxySkipIf:
 # class to the proxy it becomes at runtime, which is the decorator-form limitation documented on
 # `Deprecated`. Cast once so the breadcrumb reads below type-check against the real runtime object.
 _ast_class_proxy = cast(Deprecated[Any], DeprecatedColorEnum)
+
+
+if TYPE_CHECKING:
+    # Static type assertions — the only place the `deprecated_class` overloads are actually verified.
+    # `@overload` resolution is erased at runtime, so no runtime test can tell `Deprecated[ColorEnum]`
+    # apart from `Any` or from `_DeprecatedProxy`: the advertised inference could regress to either while
+    # every test below still passed. mypy analyses this block (always true for a type checker) but the
+    # interpreter never executes it, so the calls construct nothing and emit no warnings.
+    # NOTE: `[tool.mypy] mypy_path = "src"` is what makes these bite — without it `deprecate` is
+    # unresolvable from `tests/**`, `ignore_missing_imports` turns every symbol into `Any`, and
+    # `assert_type` degrades to a silent no-op that passes against any signature whatsoever.
+    from typing_extensions import assert_type
+
+    # class `target` → narrowing overload: the alias is `Deprecated[ColorEnum]` and calling it yields a `ColorEnum`
+    assert_type(DeprecatedColorEnumFunctional, Deprecated[ColorEnum])
+    assert_type(DeprecatedColorEnumFunctional(1), ColorEnum)
+    # no class `target` → fallback overload keeps the concrete proxy, never widening to `Deprecated[Any]`
+    assert_type(DeprecatedPaletteFunctionalFallback, _DeprecatedProxy)
 
 
 class TestProxyAstFriendliness:
