@@ -1487,6 +1487,9 @@ def deprecated_class(
     template_mgs: Optional[str] = ...,
     _misconfigured_override: bool = ...,
     _stacklevel_extra: int = ...,
+    # `...` is the mandated `@overload` stub body — ruff `D418` forbids swapping it for a docstring,
+    # so CodeQL's `py/ineffectual-statement` ("statement has no effect") is a false positive here.
+    # codeql[py/ineffectual-statement]
 ) -> Callable[[_ClassOrProxy], "Deprecated[_T]"]: ...
 
 
