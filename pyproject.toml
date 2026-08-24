@@ -1,6 +1,6 @@
 [build-system]
 requires = [
-  "setuptools>=80",
+  "setuptools>=82",
 ]
 
 [tool.ruff]
