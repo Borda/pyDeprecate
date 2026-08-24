@@ -930,3 +930,23 @@ def var_positional_remap_body(a: int, *extras: int, old_kwarg: str = "", new_kwa
     Wrapped by ``deprecated_var_positional_remap`` in :mod:`tests.collection_deprecate`.
     """
     return (a, *extras, new_kwarg)
+
+
+class HostileSignatureCallable:
+    """Callable source whose ``__signature__`` raises ``RuntimeError`` when read.
+
+    Wrapped objects are not always well-behaved: mocks, lazily built extension wrappers, and some model
+    metaclasses expose a ``__signature__`` descriptor that raises on access, and ``inspect.signature``
+    forwards that exception verbatim instead of normalising it to ``ValueError``/``TypeError``.  Wrapped by
+    ``make_deprecated_hostile_signature_instance`` in :mod:`tests.collection_deprecate` to prove that a
+    hostile introspection surface never turns into a decoration-time crash.
+    """
+
+    def __call__(self) -> str:
+        """Return a fixed marker; exists so ``inspect.signature`` gets past its ``callable()`` guard."""
+        return "called"
+
+    @property
+    def __signature__(self) -> Any:  # noqa: ANN401
+        """Always raise ``RuntimeError`` — stands in for any descriptor that cannot be introspected."""
+        raise RuntimeError("`__signature__` is deliberately unreadable")

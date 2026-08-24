@@ -462,11 +462,19 @@ class _DeprecatedProxy:
         rather than propagating: both attributes are always assigned so the proxy uniformly satisfies the
         :class:`~deprecate._types.Deprecated` Protocol, and wrapping stays infallible at decoration time.
 
+        Every ``Exception`` is caught, not just those two: ``ValueError``/``TypeError`` are merely the *normalised*
+        introspection failures. A source exposing a ``__signature__`` descriptor that raises — mocks, lazily built
+        extension wrappers, some model metaclasses — has that exception forwarded verbatim by ``inspect.signature``,
+        and a deep ``__wrapped__``/metaclass chain can surface a ``RecursionError``. The breadcrumbs are a
+        best-effort convenience for static tooling, never a precondition of the deprecation itself, so no
+        introspection failure may take down decoration. ``BaseException`` (``KeyboardInterrupt``, ``SystemExit``)
+        still propagates.
+
         """
         object.__setattr__(self, "__wrapped__", obj)
         try:
             sig: Any = inspect.signature(obj)
-        except (ValueError, TypeError):
+        except Exception:
             sig = None
         object.__setattr__(self, "__signature__", sig)
 

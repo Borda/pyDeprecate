@@ -57,6 +57,7 @@ from tests.collection_deprecate import (
     make_deprecated_class_skip_if_flag,
     make_deprecated_class_skip_if_non_bool,
     make_deprecated_class_skip_if_true,
+    make_deprecated_hostile_signature_instance,
     make_deprecated_instance_skip_if_true_read_only,
     pep702_proxy_stacked,
 )
@@ -66,6 +67,7 @@ from tests.collection_targets import (
     ColorEnum,
     CombinedAttrsArgsSource,
     CombinedAttrsArgsTarget,
+    HostileSignatureCallable,
     LegacyBoolAttrsSource,
     ManagedResource,
     NewDataClass,
@@ -3345,6 +3347,20 @@ class TestProxyAstFriendliness:
         always set (to ``None``) so ``@runtime_checkable`` Protocol checks succeed uniformly.
         """
         assert depr_ast_breadcrumb_dict.__signature__ is None
+
+    def test_signature_fallback_survives_hostile_descriptor(self) -> None:
+        """A source whose ``__signature__`` descriptor raises ``RuntimeError`` still wraps successfully.
+
+        ``ValueError``/``TypeError`` are only the *normalised* introspection failures. A wrapped object may
+        expose a ``__signature__`` property that raises anything at all — mocks, lazily built extension
+        wrappers, and some model metaclasses do — and ``inspect.signature`` forwards that exception verbatim
+        instead of converting it. Since the breadcrumbs are a convenience for static tooling, never a
+        precondition of the deprecation itself, such a source must degrade to ``__signature__ = None`` rather
+        than turning a routine ``deprecated_instance`` call into an import-time crash.
+        """
+        proxy = make_deprecated_hostile_signature_instance()
+        assert proxy.__signature__ is None
+        assert isinstance(proxy.__wrapped__, HostileSignatureCallable)
 
     def test_existing_runtime_behavior_unchanged(self) -> None:
         """Adding ``__wrapped__``/``__signature__`` does not affect runtime forwarding.

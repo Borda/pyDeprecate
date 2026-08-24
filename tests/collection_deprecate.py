@@ -61,6 +61,7 @@ from tests.collection_targets import (
     CombinedAttrsArgsTarget,
     CrossGuardClassTargetNew,
     DerivedPositionalOnlyTarget,
+    HostileSignatureCallable,
     ImmutablePositionalOnlyTarget,
     LegacyBoolAttrsSource,
     MixedPositionalOnlyTarget,
@@ -2863,3 +2864,15 @@ def make_deprecated_over_class_proxy() -> Any:  # noqa: ANN401
 
     inner_proxy = deprecated_class(deprecated_in="0.5", remove_in="1.0", stream=None)(_DispatchOverProxyInner)
     return deprecated(target=TargetMode.NOTIFY, deprecated_in="0.9", remove_in="1.5")(inner_proxy)
+
+
+def make_deprecated_hostile_signature_instance() -> Any:  # noqa: ANN401
+    """Wrap a source whose ``__signature__`` raises ``RuntimeError`` — wrapping must still succeed.
+
+    ``inspect.signature`` forwards a hostile descriptor's exception verbatim, so the proxy's breadcrumb helper
+    has to swallow it and fall back to ``__signature__ = None``.  Built lazily rather than at module level: a
+    regression to propagating the error would otherwise abort the import of this whole collection module and
+    take every unrelated test down with it.
+
+    """
+    return deprecated_instance(HostileSignatureCallable(), **_DEPRS_CASE_STD_INF_ARGS, stream=None)
