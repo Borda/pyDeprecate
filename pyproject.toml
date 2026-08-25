@@ -70,6 +70,10 @@ ignore = [
 ]
 
 [tool.mypy]
+# `src` layout: without this the package is unresolvable from `tests/**`, so `ignore_missing_imports`
+# below silently degrades every `deprecate` symbol to `Any` and the type-assertion fixtures in
+# `tests/unittests/test_proxy.py` would pass no matter how the public signatures regress.
+mypy_path = "src"
 files = [
   "src/deprecate",
 ]

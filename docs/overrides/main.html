@@ -428,6 +428,22 @@
             "@type": "Answer",
             "text": "When you stack a sync decorator on top of a @deprecated async def, the outermost callable is sync, so inspect.iscoroutinefunction returns False and asyncio frameworks reject it. Make any outer decorator that wraps async functions coroutine-aware: check inspect.iscoroutinefunction(fn) and emit an async def wrapper when True, or a sync wrapper when False. With this pattern, @my_decorator @deprecated ... async def fn(...) produces an async def wrapper whose iscoroutinefunction returns True."
           }
+        },
+        {
+          "@type": "Question",
+          "name": "How do I type-annotate the object returned by deprecated_class or deprecated_instance?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Import Deprecated from deprecate rather than annotating against the private _DeprecatedProxy. DeprecatedClass and DeprecatedInstance are aliases of the same object, offered so the annotation reads closer to the call that produced it. Deprecated[T] is generic in the type produced by calling the proxy, and mypy infers T from target= only in the functional form — Old = deprecated_class(target=New, ...)(_OldSource) is typed Deprecated[New], so Old(...) is known to produce a New. The decorator form @deprecated_class(target=New, ...) is identical at runtime but keeps the concrete _DeprecatedProxy return type, because mypy does not rebind a class statement to an instance return type. So does every other call shape, deliberately: the concrete type keeps the proxy's forwarded dunders such as int(), with and await visible, which the narrow protocol would hide. Deprecated remains the type to annotate against. Deprecated is a data protocol: isinstance(obj, Deprecated) works, but issubclass(SomeType, Deprecated) raises TypeError, as it does for every runtime-checkable protocol with non-method members."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why does Sphinx or my IDE show (*args, **kwargs) instead of my deprecated class's real signature?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "The tool is rendering the proxy rather than the class it wraps. Every pyDeprecate proxy carries two breadcrumbs back to the source: __wrapped__ is the source class or object, consumed by inspect.unwrap, Sphinx autodoc, griffe/mkdocstrings, and IDEs; __signature__ is the source's signature, consumed by inspect.signature and any tool that does not walk __wrapped__. Reading either attribute emits no deprecation warning, so documentation builds and IDE hovers stay quiet. If a tool still renders the proxy, point it at __wrapped__ explicitly. When the wrapped object has no introspectable signature — a plain dict passed to deprecated_instance, or any C-level type — __signature__ is None rather than absent, and wrapping never fails."
+          }
         }
       ]
     }

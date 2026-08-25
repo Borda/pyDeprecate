@@ -591,6 +591,7 @@ def depr_class_whole_mode_warns_on_call(x: int) -> int: ...
 - Only group call sites where **all three** of `deprecated_in`, `remove_in`, and `num_warns` are identical (or all three omit `num_warns`). Sites that differ on any key stay inline.
 - `_class_deprecation_*` shared instances (see above) and `_DEPRS_CASE_*` constants both go in the **constants block at the top of `collection_deprecate.py`**, right after `_SHORT_MSG_FUNC` / `_SHORT_MSG_ARGS`. This makes version metadata scannable in one place.
 - When adding a new fixture group that would form a third call site for an existing tuple, extract rather than inline.
+- **Exception — fixtures under `assert_type`:** a fixture whose *static* type is pinned by `assert_type` (currently `DeprecatedColorEnumFunctional` and `DeprecatedPaletteFunctionalFallback`, asserted in `tests/unittests/test_proxy.py`) spells its version kwargs out inline. mypy resolves an overloaded call against a `dict[str, Any]` splat by falling back to `Any`, which erases the overload the assertion exists to verify. Do not "unify" these back into a `_DEPRS_CASE_*` splat — the assertion would keep passing while proving nothing.
 
 **Docstrings in test collections:**
 

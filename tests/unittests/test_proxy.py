@@ -9,10 +9,12 @@ import pickle
 import warnings
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass as dc_decorator
-from typing import Any, cast
+from enum import Enum
+from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 
+from deprecate import Deprecated, DeprecatedClass, DeprecatedInstance
 from deprecate._types import TargetMode
 from deprecate.deprecation import deprecated
 from deprecate.proxy import _DeprecatedProxy, deprecated_class, deprecated_instance
@@ -39,6 +41,8 @@ from tests.collection_deprecate import (
     DeprecatedAttrsPaletteWithStream,
     DeprecatedColorDataClass,
     DeprecatedColorEnum,
+    DeprecatedColorEnumFunctional,
+    DeprecatedPaletteFunctionalFallback,
     MappedColorEnum,
     MappedDataClass,
     MappedDropArgDataClass,
@@ -47,11 +51,14 @@ from tests.collection_deprecate import (
     ProxyCallableWithArgsMapping,
     ProxyClassWithArgsExtra,
     WarnOnlyColorEnum,
+    ast_breadcrumb_source_dict,
+    depr_ast_breadcrumb_dict,
     depr_read_only_attrs_list,
     make_deprecated_class_attrs_skip_if_true,
     make_deprecated_class_skip_if_flag,
     make_deprecated_class_skip_if_non_bool,
     make_deprecated_class_skip_if_true,
+    make_deprecated_hostile_signature_instance,
     make_deprecated_instance_skip_if_true_read_only,
     pep702_proxy_stacked,
 )
@@ -61,6 +68,7 @@ from tests.collection_targets import (
     ColorEnum,
     CombinedAttrsArgsSource,
     CombinedAttrsArgsTarget,
+    HostileSignatureCallable,
     LegacyBoolAttrsSource,
     ManagedResource,
     NewDataClass,
@@ -72,6 +80,7 @@ from tests.collection_targets import (
     SubclassableBase,
     WithInjected,
     _Pep702ProxyTarget,
+    base_sum_kwargs,
 )
 
 
@@ -2711,6 +2720,73 @@ class TestProxyCopyPickle:
         with pytest.raises(pickle.PicklingError):
             pickle.dumps(DeprecatedColorEnum)
 
+    def test_copy_preserves_ast_breadcrumbs(self) -> None:
+        """A shallow copy carries the same AST breadcrumbs as a freshly constructed proxy.
+
+        Reconstruction bypasses ``__init__``, so the breadcrumbs have to be re-established explicitly.
+        Without that, a consumer who snapshots a deprecated symbol with ``copy.copy`` gets a proxy that
+        ``inspect.unwrap`` can no longer see through and that no longer structurally satisfies the public
+        ``Deprecated`` protocol — the "every proxy carries ``__wrapped__``" contract would hold only until
+        somebody copied one.
+        """
+        proxy = deprecated_instance(
+            base_sum_kwargs, name="legacy_sum", deprecated_in="1.0", remove_in="2.0", stream=None
+        )
+
+        dup = copy.copy(proxy)
+
+        assert dup.__wrapped__ is base_sum_kwargs
+        assert dup.__signature__ == inspect.signature(base_sum_kwargs)
+        assert isinstance(dup, Deprecated)
+
+    def test_deepcopy_rebinds_breadcrumb_to_copied_object(self) -> None:
+        """A deep copy points ``__wrapped__`` at its *own* wrapped object, not the original's.
+
+        ``deepcopy`` duplicates the wrapped payload, so a breadcrumb naively carried over from the source
+        proxy would describe an object the copy does not actually serve — mutating the copy would leave
+        ``inspect.unwrap`` reporting stale state. The breadcrumb must track the object the copy forwards to.
+        """
+        proxy = deprecated_instance(
+            {"limits": {"low": 1}}, name="cfg", deprecated_in="1.0", remove_in="2.0", stream=None
+        )
+
+        dup = copy.deepcopy(proxy)
+
+        assert dup.__wrapped__ is object.__getattribute__(dup, "_DeprecatedProxy__config").obj
+        assert dup.__wrapped__ is not proxy.__wrapped__
+
+    def test_deepcopy_of_class_proxy_preserves_breadcrumbs(self) -> None:
+        """Deep-copying a deprecated class alias keeps both breadcrumbs intact.
+
+        Classes are atomic under ``deepcopy``, so the copy forwards to the identical source class and must
+        report exactly the same ``__wrapped__`` and ``__signature__`` as the original alias — this is the
+        path Sphinx autodoc and IDEs walk when they encounter a copied module namespace.
+        """
+        original = cast(Deprecated[Any], DeprecatedColorEnum)
+
+        dup = cast(Deprecated[Any], copy.deepcopy(DeprecatedColorEnum))
+
+        assert dup.__wrapped__ is original.__wrapped__
+        assert dup.__signature__ == original.__signature__
+        assert dup.__signature__ is not None
+
+    def test_pickle_roundtrip_preserves_ast_breadcrumbs(self) -> None:
+        """A pickled proxy comes back with its breadcrumbs restored.
+
+        ``__reduce_ex__`` rebuilds the proxy through the same reconstruction helper as ``copy``, so a proxy
+        shipped across a process boundary must arrive introspectable rather than silently degraded. The
+        signature is recomputed from the restored source instead of travelling through the pickle stream,
+        which keeps ``Signature`` objects out of the payload entirely.
+        """
+        proxy = deprecated_instance(
+            base_sum_kwargs, name="legacy_sum", deprecated_in="1.0", remove_in="2.0", stream=None
+        )
+
+        restored = pickle.loads(pickle.dumps(proxy))  # noqa: S301
+
+        assert restored.__wrapped__ is base_sum_kwargs
+        assert restored.__signature__ == inspect.signature(base_sum_kwargs)
+
 
 class TestOperatorForwarding:
     """Type-level operator, conversion, and context-manager dunders forward to the active object."""
@@ -3266,3 +3342,179 @@ class TestProxySkipIf:
             proxy.append(3)
 
         assert list(proxy) == [1, 2, 3]
+
+
+# Statically `DeprecatedColorEnum` is still the class statement: mypy does not rebind a decorated
+# class to the proxy it becomes at runtime, which is the decorator-form limitation documented on
+# `Deprecated`. Cast once so the breadcrumb reads below type-check against the real runtime object.
+_ast_class_proxy = cast(Deprecated[Any], DeprecatedColorEnum)
+
+
+if TYPE_CHECKING:
+    # Static type assertions — the only place the `deprecated_class` overloads are actually verified.
+    # `@overload` resolution is erased at runtime, so no runtime test can tell `Deprecated[ColorEnum]`
+    # apart from `Any` or from `_DeprecatedProxy`: the advertised inference could regress to either while
+    # every test below still passed. mypy analyses this block (always true for a type checker) but the
+    # interpreter never executes it, so the calls construct nothing and emit no warnings.
+    # NOTE: `[tool.mypy] mypy_path = "src"` is what makes these bite — without it `deprecate` is
+    # unresolvable from `tests/**`, `ignore_missing_imports` turns every symbol into `Any`, and
+    # `assert_type` degrades to a silent no-op that passes against any signature whatsoever.
+    from typing_extensions import assert_type
+
+    # class `target` → narrowing overload: the alias is `Deprecated[ColorEnum]` and calling it yields a `ColorEnum`
+    assert_type(DeprecatedColorEnumFunctional, Deprecated[ColorEnum])
+    assert_type(DeprecatedColorEnumFunctional(1), ColorEnum)
+    # no class `target` → fallback overload keeps the concrete proxy, never widening to `Deprecated[Any]`
+    assert_type(DeprecatedPaletteFunctionalFallback, _DeprecatedProxy)
+
+
+class TestProxyAstFriendliness:
+    """The proxy exposes ``__wrapped__`` and ``__signature__`` for static-analysis tools.
+
+    Tools like Sphinx autodoc and ``inspect.signature`` need a stable breadcrumb back to the
+    original callable so they can render the source's documentation and signature rather than
+    the proxy's own internals. This set of tests pins down the contract.
+    """
+
+    def test_wrapped_points_to_source_on_class_proxy(self) -> None:
+        """``DeprecatedColorEnum.__wrapped__`` is the source enum class.
+
+        A user inspecting the deprecated symbol via ``inspect.unwrap`` or an AST-aware tool
+        that walks ``__wrapped__`` should land on the original class definition. Here the
+        source is the enum class itself (defined in the same fixture, wrapped by the proxy).
+        """
+        wrapped = _ast_class_proxy.__wrapped__
+        cfg = object.__getattribute__(DeprecatedColorEnum, "_DeprecatedProxy__config")
+        assert wrapped is cfg.obj
+        assert inspect.isclass(wrapped)
+        assert issubclass(wrapped, Enum)
+
+    def test_unwrap_reaches_source_on_class_proxy(self) -> None:
+        """``inspect.unwrap`` walks the proxy's ``__wrapped__`` chain down to the source class.
+
+        Sphinx autodoc and similar tools call ``inspect.unwrap`` rather than reading ``__wrapped__``
+        directly. Since the source enum is not itself a wrapper, unwrapping must terminate there
+        instead of looping or stopping at the proxy.
+        """
+        assert inspect.unwrap(DeprecatedColorEnum) is _ast_class_proxy.__wrapped__
+
+    def test_signature_matches_source_on_class_proxy(self) -> None:
+        """``DeprecatedColorEnum.__signature__`` equals ``inspect.signature`` of its source.
+
+        ``inspect.signature`` follows ``__signature__`` when present, so static tools that do
+        not walk ``__wrapped__`` still see the source's constructor signature.
+        """
+        source = _ast_class_proxy.__wrapped__
+        assert _ast_class_proxy.__signature__ == inspect.signature(source)
+
+    def test_inspect_signature_on_proxy_returns_source_signature(self) -> None:
+        """``inspect.signature(proxy)`` returns the source's signature.
+
+        This is the user-visible payoff: tools that call ``inspect.signature`` directly on the
+        deprecated symbol now get the real signature instead of an unhelpful ``(*args, **kwargs)``
+        or ``ValueError``.
+        """
+        source = _ast_class_proxy.__wrapped__
+        assert inspect.signature(DeprecatedColorEnum) == inspect.signature(source)
+
+    def test_wrapped_set_on_instance_proxy(self) -> None:
+        """``deprecated_instance`` also sets ``__wrapped__`` to the wrapped object.
+
+        Both public entry points must preserve the breadcrumb so the contract is consistent
+        across class and instance deprecation.
+        """
+        assert depr_ast_breadcrumb_dict.__wrapped__ is ast_breadcrumb_source_dict
+
+    def test_signature_silently_skipped_for_non_introspectable_object(self) -> None:
+        """``__signature__`` is ``None`` when ``inspect.signature(obj)`` raises.
+
+        Builtins and objects without a Python-level signature (e.g. ``dict``) make
+        ``inspect.signature`` raise ``ValueError``/``TypeError``. The proxy must not propagate
+        the exception at decoration time — wrapping must stay infallible. The attribute is
+        always set (to ``None``) so ``@runtime_checkable`` Protocol checks succeed uniformly.
+        """
+        assert depr_ast_breadcrumb_dict.__signature__ is None
+
+    def test_signature_fallback_survives_hostile_descriptor(self) -> None:
+        """A source whose ``__signature__`` descriptor raises ``RuntimeError`` still wraps successfully.
+
+        ``ValueError``/``TypeError`` are only the *normalised* introspection failures. A wrapped object may
+        expose a ``__signature__`` property that raises anything at all — mocks, lazily built extension
+        wrappers, and some model metaclasses do — and ``inspect.signature`` forwards that exception verbatim
+        instead of converting it. Since the breadcrumbs are a convenience for static tooling, never a
+        precondition of the deprecation itself, such a source must degrade to ``__signature__ = None`` rather
+        than turning a routine ``deprecated_instance`` call into an import-time crash.
+        """
+        proxy = make_deprecated_hostile_signature_instance()
+        assert proxy.__signature__ is None
+        assert isinstance(proxy.__wrapped__, HostileSignatureCallable)
+
+    def test_existing_runtime_behavior_unchanged(self) -> None:
+        """Adding ``__wrapped__``/``__signature__`` does not affect runtime forwarding.
+
+        A regression guard: the new attributes must be purely additive. Attribute access,
+        ``isinstance``, and item access continue to behave exactly as before.
+        """
+        with pytest.warns(FutureWarning):
+            assert DeprecatedColorEnum.RED is ColorEnum.RED
+
+
+class TestDeprecatedProtocol:
+    """The ``Deprecated`` Protocol is part of the public API surface.
+
+    Provides a documented, public type for the result of ``deprecated_class`` and
+    ``deprecated_instance`` so user code can annotate against it without importing a private name.
+    """
+
+    def test_public_symbols_exported(self) -> None:
+        """``Deprecated``, ``DeprecatedClass``, and ``DeprecatedInstance`` are public.
+
+        All three names must be importable from ``deprecate`` directly — this is the contract users
+        rely on for type annotations without needing to know the private ``_DeprecatedProxy`` name.
+        """
+        assert Deprecated is DeprecatedClass
+        assert Deprecated is DeprecatedInstance
+
+    def test_runtime_checkable_protocol(self) -> None:
+        """``Deprecated`` is ``@runtime_checkable``: ``isinstance`` works on proxy instances.
+
+        Although the Protocol is structural, runtime checks let user code write
+        ``isinstance(my_proxy, Deprecated)`` without a cast. Both ``deprecated_class`` and
+        ``deprecated_instance`` outputs must satisfy the Protocol at runtime.
+        """
+        assert isinstance(DeprecatedColorEnum, Deprecated)
+        assert isinstance(depr_ast_breadcrumb_dict, Deprecated)
+
+    def test_issubclass_rejects_data_protocol(self) -> None:
+        """``issubclass`` against ``Deprecated`` raises ``TypeError``.
+
+        ``Deprecated`` declares attributes (``__wrapped__``, ``__deprecated__``), which makes it a
+        *data* Protocol — Python only supports ``isinstance`` for those. Users reaching for
+        ``issubclass`` get a hard error rather than a wrong answer, so the docstring warning is pinned
+        here to catch any future change that silently loosens it.
+        """
+        with pytest.raises(TypeError, match="non-method members"):
+            issubclass(dict, Deprecated)  # type: ignore[misc]
+
+    def test_wrapped_is_typed_as_attribute_on_proxy_class(self) -> None:
+        """``_DeprecatedProxy`` declares ``__wrapped__`` and ``__signature__`` at class level.
+
+        Static type-checkers cannot introspect attributes set only in ``__init__`` without a
+        class-level declaration. The annotation lets mypy/pyright see the breadcrumb attributes.
+        """
+        # Inspect class annotations directly — attributes set only in __init__ are absent from __annotations__.
+        assert "__wrapped__" in _DeprecatedProxy.__annotations__
+        assert "__signature__" in _DeprecatedProxy.__annotations__
+
+    def test_functional_form_runtime_behaviour_unchanged_by_overloads(self) -> None:
+        """The functional/assignment form still works at runtime with generic-typed overloads.
+
+        ``@overload`` signatures are erased at runtime — only the implementation runs. This test guards
+        that adding the generic overloads (which let mypy infer ``Deprecated[ColorEnum]`` from
+        ``target=ColorEnum`` in the functional form) did not change runtime forwarding. Both forms —
+        ``deprecated_class(target=ColorEnum)(OldCls)`` and ``@deprecated_class(target=ColorEnum)`` — must
+        forward construction to the target identically.
+        """
+        # Runtime: calling the proxy forwards to the target constructor, exactly as the decorator form does.
+        assert DeprecatedColorEnumFunctional(1) is ColorEnum.RED
+        assert isinstance(DeprecatedColorEnumFunctional, Deprecated)

@@ -61,6 +61,7 @@ from tests.collection_targets import (
     CombinedAttrsArgsTarget,
     CrossGuardClassTargetNew,
     DerivedPositionalOnlyTarget,
+    HostileSignatureCallable,
     ImmutablePositionalOnlyTarget,
     LegacyBoolAttrsSource,
     MixedPositionalOnlyTarget,
@@ -1256,6 +1257,37 @@ class DeprecatedColorEnum(Enum):
 
     RED = 1
     BLUE = 2
+
+
+# source payload behind `depr_ast_breadcrumb_dict` — exported so tests can assert `__wrapped__` identity
+ast_breadcrumb_source_dict = {"threshold": 0.5}
+
+# instance proxy over a plain `dict`: a C-level type with no introspectable signature, so the proxy's
+# `__signature__` breadcrumb falls back to None while `__wrapped__` still points at the source
+depr_ast_breadcrumb_dict = deprecated_instance(ast_breadcrumb_source_dict, **_DEPRS_CASE_STD_INF_ARGS, stream=None)
+
+
+class _AstFunctionalColorEnum(Enum):
+    """Source enum wrapped through the functional form of `deprecated_class` rather than by decoration."""
+
+    RED = 1
+
+
+# functional/assignment form — mypy infers `Deprecated[ColorEnum]` from `target=ColorEnum` here, which the
+# decorator form above cannot express; pinned statically by `assert_type` in `tests/unittests/test_proxy.py`.
+# The version kwargs are spelled out rather than splatting `_DEPRS_CASE_STD_INF_ARGS`: mypy resolves an
+# overloaded call against a `dict[str, Any]` splat by falling back to `Any`, which would silently erase the
+# very inference this fixture exists to demonstrate.
+DeprecatedColorEnumFunctional = deprecated_class(
+    target=ColorEnum, deprecated_in="1.0", remove_in="2.0", num_warns=-1, stream=None
+)(_AstFunctionalColorEnum)
+
+# same functional form with no class `target` — selects the fallback overload, which deliberately keeps the
+# concrete `_DeprecatedProxy` so the proxy's forwarded dunders (`int()`, `with`, `await`) stay visible to
+# type checkers; the companion `assert_type` pins that it never widens to `Deprecated[Any]`
+DeprecatedPaletteFunctionalFallback = deprecated_class(deprecated_in="1.0", remove_in="2.0", num_warns=-1, stream=None)(
+    Palette
+)
 
 
 @deprecated_class(target=NewDataClass, **_DEPRS_CASE_STD_INF_ARGS)
@@ -2842,3 +2874,15 @@ def make_deprecated_over_class_proxy() -> Any:  # noqa: ANN401
 
     inner_proxy = deprecated_class(deprecated_in="0.5", remove_in="1.0", stream=None)(_DispatchOverProxyInner)
     return deprecated(target=TargetMode.NOTIFY, deprecated_in="0.9", remove_in="1.5")(inner_proxy)
+
+
+def make_deprecated_hostile_signature_instance() -> Any:  # noqa: ANN401
+    """Wrap a source whose ``__signature__`` raises ``RuntimeError`` — wrapping must still succeed.
+
+    ``inspect.signature`` forwards a hostile descriptor's exception verbatim, so the proxy's breadcrumb helper
+    has to swallow it and fall back to ``__signature__ = None``.  Built lazily rather than at module level: a
+    regression to propagating the error would otherwise abort the import of this whole collection module and
+    take every unrelated test down with it.
+
+    """
+    return deprecated_instance(HostileSignatureCallable(), **_DEPRS_CASE_STD_INF_ARGS, stream=None)
