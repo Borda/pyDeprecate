@@ -1005,13 +1005,13 @@ LegacyTrainingConfig 2.0
 
 ## Type annotations and static analysis
 
-`deprecated_class()` and `deprecated_instance()` both return a proxy object rather than a class. Annotate that proxy with `Deprecated`, the public protocol describing it — `DeprecatedClass` and `DeprecatedInstance` are aliases of the same type, offered so the annotation reads closer to the call that produced it.
+`deprecated_class()` and `deprecated_instance()` both return a proxy object rather than a class. Annotate that proxy with `DeprecationProxy`, the public protocol describing it.
 
-`Deprecated[T]` is generic in the type you get back when you call the proxy. mypy infers `T` from `target=` in the **functional form**, where the source class is passed as an argument:
+`DeprecationProxy[T]` is generic in the type you get back when you call the proxy, but `deprecated_class` and `deprecated_instance` return the concrete proxy in every call shape — mypy has nothing to infer `T` from on its own. A caller who wants the target type at a specific site annotates it there:
 
 ```python
 from enum import Enum
-from deprecate import Deprecated, deprecated_class
+from deprecate import DeprecationProxy, deprecated_class
 
 
 # NEW/FUTURE API — renamed to describe the palette rather than the widget
@@ -1027,16 +1027,17 @@ class _LegacyWidgetColor(Enum):
     BLUE = 2
 
 
-# functional form — mypy reads `target=BrandColor` and types this as `Deprecated[BrandColor]`,
-# so `WidgetColor(1)` below is known to produce a `BrandColor`
-WidgetColor = deprecated_class(target=BrandColor, deprecated_in="1.0", remove_in="2.0")(_LegacyWidgetColor)
+# explicit annotation — so `WidgetColor(1)` below is known to produce a `BrandColor`
+WidgetColor: DeprecationProxy[BrandColor] = deprecated_class(target=BrandColor, deprecated_in="1.0", remove_in="2.0")(
+    _LegacyWidgetColor
+)
 
 print(WidgetColor(1) is BrandColor.RED)  # warns: FutureWarning
-print(isinstance(WidgetColor, Deprecated))
+print(isinstance(WidgetColor, DeprecationProxy))
 ```
 
 <details>
-  <summary>Output: <code>WidgetColor(1) is BrandColor.RED; isinstance(WidgetColor, Deprecated)</code></summary>
+  <summary>Output: <code>WidgetColor(1) is BrandColor.RED; isinstance(WidgetColor, DeprecationProxy)</code></summary>
 
 ```
 True
@@ -1045,13 +1046,13 @@ True
 
 </details>
 
-The decorator form `@deprecated_class(target=BrandColor, ...)` behaves identically at runtime but keeps the concrete `_DeprecatedProxy` return type — mypy does not rebind a `class` statement to an instance return type. That is also what every other call shape returns, on purpose: the concrete type keeps the proxy's forwarded dunders (`int()`, `with`, `await`) visible, which the narrow protocol would hide. Reach for the functional form when you want the target type to flow into call sites; otherwise the decorator form is the more readable default, and `Deprecated` remains the type to annotate against either way.
+Every call shape — functional or decorator — returns the concrete `_DeprecatedProxy` type at runtime; that is deliberate, not an oversight. The concrete type keeps the proxy's forwarded dunders (`int()`, `with`, `await`) visible to type checkers, which the narrower protocol would hide. Annotate the assignment explicitly, as above, when you want the target type to flow into call sites; otherwise leave the annotation off and `DeprecationProxy` remains the type to reach for whenever you do annotate.
 
 One thing to watch in the functional form: the warning names the class you wrapped, not the variable you assigned it to — the example above reports `` `_LegacyWidgetColor` ``. Give the source class the name your callers know, or pass `message_template` to write the message yourself.
 
 !!! warning "`isinstance` only"
 
-    `Deprecated` declares attributes, not just methods, which makes it a *data* protocol. `isinstance(obj, Deprecated)` works, but `issubclass(SomeType, Deprecated)` raises `TypeError` — as it does for every runtime-checkable protocol with non-method members.
+    `DeprecationProxy` declares attributes, not just methods, which makes it a *data* protocol. `isinstance(obj, DeprecationProxy)` works, but `issubclass(SomeType, DeprecationProxy)` raises `TypeError` — as it does for every runtime-checkable protocol with non-method members.
 
 ### Breadcrumbs for documentation and IDE tools
 

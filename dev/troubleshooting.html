@@ -392,7 +392,7 @@
           "name": "How do I type-annotate the object returned by deprecated_class or deprecated_instance?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Import Deprecated from deprecate rather than annotating against the private _DeprecatedProxy. DeprecatedClass and DeprecatedInstance are aliases of the same object, offered so the annotation reads closer to the call that produced it. Deprecated[T] is generic in the type produced by calling the proxy, and mypy infers T from target= only in the functional form — Old = deprecated_class(target=New, ...)(_OldSource) is typed Deprecated[New], so Old(...) is known to produce a New. The decorator form @deprecated_class(target=New, ...) is identical at runtime but keeps the concrete _DeprecatedProxy return type, because mypy does not rebind a class statement to an instance return type. So does every other call shape, deliberately: the concrete type keeps the proxy's forwarded dunders such as int(), with and await visible, which the narrow protocol would hide. Deprecated remains the type to annotate against. Deprecated is a data protocol: isinstance(obj, Deprecated) works, but issubclass(SomeType, Deprecated) raises TypeError, as it does for every runtime-checkable protocol with non-method members."
+            "text": "Import DeprecationProxy from deprecate rather than annotating against the private _DeprecatedProxy. DeprecationProxy[T] is generic in the type produced by calling the proxy, but deprecated_class and deprecated_instance return the concrete proxy in every call shape, so there is no form mypy can infer T from automatically. Annotate the assignment explicitly where you want the target type: Old: DeprecationProxy[New] = deprecated_class(target=New, ...)(_OldSource), so Old(...) is known to produce a New. Every call shape keeps the concrete _DeprecatedProxy return type at runtime when left unannotated, deliberately: the concrete type keeps the proxy's forwarded dunders such as int(), with and await visible, which the narrow protocol would hide. DeprecationProxy remains the type to annotate against. DeprecationProxy is a data protocol: isinstance(obj, DeprecationProxy) works, but issubclass(SomeType, DeprecationProxy) raises TypeError, as it does for every runtime-checkable protocol with non-method members."
           }
         },
         {
@@ -3781,10 +3781,10 @@
 <p>Both deprecated names forward to the same non-deprecated implementation with no cycle.</p>
 <h2 id="how-do-i-type-annotate-the-object-returned-by-deprecated_class-deprecated_instance">How do I type-annotate the object returned by <code>deprecated_class</code> / <code>deprecated_instance</code>?<a class="headerlink" href="#how-do-i-type-annotate-the-object-returned-by-deprecated_class-deprecated_instance" title="Permanent link">🔗</a></h2>
 <p><strong>Q:</strong> mypy reports the result of <code>deprecated_class(...)</code> as <code>_DeprecatedProxy</code>, a private name. What is the supported type to annotate against?</p>
-<p><strong>A:</strong> Import <code>Deprecated</code> from <code>deprecate</code>. <code>DeprecatedClass</code> and <code>DeprecatedInstance</code> are aliases of the same object, provided so an annotation reads closer to the call that produced it — all three are the same type, and <code>Deprecated is DeprecatedClass</code> is <code>True</code>.</p>
-<p><code>Deprecated[T]</code> is generic in the type produced by calling the proxy. mypy infers <code>T</code> from <code>target=</code> only in the <strong>functional form</strong>, where the source class is an argument rather than a decorated statement:</p>
+<p><strong>A:</strong> Import <code>DeprecationProxy</code> from <code>deprecate</code>.</p>
+<p><code>DeprecationProxy[T]</code> is generic in the type produced by calling the proxy, but <code>deprecated_class</code> and <code>deprecated_instance</code> return the concrete proxy in every call shape — there is nothing for mypy to infer <code>T</code> from on its own. Annotate the assignment explicitly at the call site instead:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-89-1" name="__codelineno-89-1" href="#__codelineno-89-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
-<a id="__codelineno-89-2" name="__codelineno-89-2" href="#__codelineno-89-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">Deprecated</span><span class="p">,</span> <span class="n">deprecated_class</span>
+<a id="__codelineno-89-2" name="__codelineno-89-2" href="#__codelineno-89-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">DeprecationProxy</span><span class="p">,</span> <span class="n">deprecated_class</span>
 <a id="__codelineno-89-3" name="__codelineno-89-3" href="#__codelineno-89-3"></a>
 <a id="__codelineno-89-4" name="__codelineno-89-4" href="#__codelineno-89-4"></a>
 <a id="__codelineno-89-5" name="__codelineno-89-5" href="#__codelineno-89-5"></a><span class="nd">@dataclass</span>
@@ -3797,10 +3797,12 @@
 <a id="__codelineno-89-12" name="__codelineno-89-12" href="#__codelineno-89-12"></a>    <span class="n">attempts</span><span class="p">:</span> <span class="nb">int</span>
 <a id="__codelineno-89-13" name="__codelineno-89-13" href="#__codelineno-89-13"></a>
 <a id="__codelineno-89-14" name="__codelineno-89-14" href="#__codelineno-89-14"></a>
-<a id="__codelineno-89-15" name="__codelineno-89-15" href="#__codelineno-89-15"></a><span class="c1"># functional form — mypy infers `Deprecated[RetryPolicy]`, so `RetryConfig(3)` is typed `RetryPolicy`</span>
-<a id="__codelineno-89-16" name="__codelineno-89-16" href="#__codelineno-89-16"></a><span class="n">RetryConfig</span> <span class="o">=</span> <span class="n">deprecated_class</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">RetryPolicy</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">"1.4"</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">"2.0"</span><span class="p">)(</span><span class="n">_LegacyRetryConfig</span><span class="p">)</span>
-<a id="__codelineno-89-17" name="__codelineno-89-17" href="#__codelineno-89-17"></a>
-<a id="__codelineno-89-18" name="__codelineno-89-18" href="#__codelineno-89-18"></a><span class="nb">print</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">RetryConfig</span><span class="p">(</span><span class="mi">3</span><span class="p">),</span> <span class="n">RetryPolicy</span><span class="p">))</span>  <span class="c1"># warns: FutureWarning</span>
+<a id="__codelineno-89-15" name="__codelineno-89-15" href="#__codelineno-89-15"></a><span class="c1"># explicit annotation — so `RetryConfig(3)` is typed `RetryPolicy`</span>
+<a id="__codelineno-89-16" name="__codelineno-89-16" href="#__codelineno-89-16"></a><span class="n">RetryConfig</span><span class="p">:</span> <span class="n">DeprecationProxy</span><span class="p">[</span><span class="n">RetryPolicy</span><span class="p">]</span> <span class="o">=</span> <span class="n">deprecated_class</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">RetryPolicy</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">"1.4"</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">"2.0"</span><span class="p">)(</span>
+<a id="__codelineno-89-17" name="__codelineno-89-17" href="#__codelineno-89-17"></a>    <span class="n">_LegacyRetryConfig</span>
+<a id="__codelineno-89-18" name="__codelineno-89-18" href="#__codelineno-89-18"></a><span class="p">)</span>
+<a id="__codelineno-89-19" name="__codelineno-89-19" href="#__codelineno-89-19"></a>
+<a id="__codelineno-89-20" name="__codelineno-89-20" href="#__codelineno-89-20"></a><span class="nb">print</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">RetryConfig</span><span class="p">(</span><span class="mi">3</span><span class="p">),</span> <span class="n">RetryPolicy</span><span class="p">))</span>  <span class="c1"># warns: FutureWarning</span>
 </code></pre></div>
 <details>
   <summary>Output: <code>isinstance(RetryConfig(3), RetryPolicy)</code></summary>
@@ -3810,10 +3812,10 @@
 
 </details>
 
-<p>The decorator form <code>@deprecated_class(target=RetryPolicy, ...)</code> behaves identically at runtime but keeps the concrete <code>_DeprecatedProxy</code> return type — mypy does not rebind a <code>class</code> statement to an instance return type, so there is nothing for it to infer <code>T</code> from. That is deliberate everywhere except the functional form above: the concrete proxy type is what keeps the forwarded dunders (<code>int()</code>, <code>with</code>, <code>await</code>) visible, which the narrow protocol would hide. You can still <em>annotate</em> any of them as <code>Deprecated</code>.</p>
+<p>Every call shape — functional or decorator — returns the concrete <code>_DeprecatedProxy</code> type at runtime, deliberately: it keeps the forwarded dunders (<code>int()</code>, <code>with</code>, <code>await</code>) visible, which the narrower protocol would hide. You can still <em>annotate</em> any of them as <code>DeprecationProxy</code>, or as <code>DeprecationProxy[T]</code> when you want the target type to flow into call sites.</p>
 <div class="admonition warning">
 <p class="admonition-title"><code>issubclass</code> raises <code>TypeError</code></p>
-<p><code>Deprecated</code> declares attributes (<code>__wrapped__</code>, <code>__deprecated__</code>), which makes it a <em>data</em> protocol. Python supports only <code>isinstance</code> for those: <code>isinstance(obj, Deprecated)</code> works, <code>issubclass(SomeType, Deprecated)</code> raises <code>TypeError: Protocols with non-method members don't support issubclass()</code>. This is a CPython rule for every runtime-checkable protocol with non-method members, not a pyDeprecate restriction.</p>
+<p><code>DeprecationProxy</code> declares attributes (<code>__wrapped__</code>, <code>__deprecated__</code>), which makes it a <em>data</em> protocol. Python supports only <code>isinstance</code> for those: <code>isinstance(obj, DeprecationProxy)</code> works, <code>issubclass(SomeType, DeprecationProxy)</code> raises <code>TypeError: Protocols with non-method members don't support issubclass()</code>. This is a CPython rule for every runtime-checkable protocol with non-method members, not a pyDeprecate restriction.</p>
 </div>
 <h2 id="sphinx-my-ide-shows-args-kwargs-instead-of-my-deprecated-classs-real-signature">Sphinx / my IDE shows <code>(*args, **kwargs)</code> instead of my deprecated class's real signature<a class="headerlink" href="#sphinx-my-ide-shows-args-kwargs-instead-of-my-deprecated-classs-real-signature" title="Permanent link">🔗</a></h2>
 <p><strong>Q:</strong> Autodoc renders the proxy rather than the wrapped class, or <code>inspect.signature()</code> on a deprecated alias returns something useless. How do I reach the original?</p>
@@ -3999,7 +4001,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="August 25, 2026 06:35:51 UTC">2026-08-25</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="August 25, 2026 10:00:03 UTC">2026-08-25</span>
   </span>
 
     
