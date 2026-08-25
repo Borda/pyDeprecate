@@ -3478,6 +3478,25 @@ class TestDeprecatedProtocol:
         assert deprecate.DeprecationProxy is DeprecationProxy
         assert "DeprecationProxy" in deprecate.__all__
 
+    @pytest.mark.parametrize(
+        "legacy_name",
+        [
+            pytest.param("Deprecated", id="bare-protocol-alias"),
+            pytest.param("DeprecatedClass", id="class-alias"),
+            pytest.param("DeprecatedInstance", id="instance-alias"),
+        ],
+    )
+    def test_legacy_aliases_removed(self, legacy_name: str) -> None:
+        """The pre-rename aliases are gone from the package surface, not merely undocumented.
+
+        ``Deprecated``, ``DeprecatedClass`` and ``DeprecatedInstance`` were all bound to the same object
+        before the rename to ``DeprecationProxy``. Absence is currently only a matter of nobody
+        re-adding them; without this guard a stray re-export — or an ``__all__`` entry left behind by a
+        merge — would restore names the rename exists to retire, and no other test would notice.
+        """
+        assert not hasattr(deprecate, legacy_name)
+        assert legacy_name not in deprecate.__all__
+
     def test_runtime_checkable_protocol(self) -> None:
         """``DeprecationProxy`` is ``@runtime_checkable``: ``isinstance`` works on proxy instances.
 
@@ -3509,14 +3528,13 @@ class TestDeprecatedProtocol:
         assert "__wrapped__" in _DeprecatedProxy.__annotations__
         assert "__signature__" in _DeprecatedProxy.__annotations__
 
-    def test_functional_form_runtime_behaviour_unchanged_by_overloads(self) -> None:
-        """The functional/assignment form still works at runtime with generic-typed overloads.
+    def test_functional_form_forwards_like_decorator_form(self) -> None:
+        """The functional/assignment form forwards construction exactly as the decorator form does.
 
-        ``@overload`` signatures are erased at runtime — only the implementation runs. This test guards
-        that adding the generic overloads (which let mypy infer ``DeprecationProxy[ColorEnum]`` from
-        ``target=ColorEnum`` in the functional form) did not change runtime forwarding. Both forms —
-        ``deprecated_class(target=ColorEnum)(OldCls)`` and ``@deprecated_class(target=ColorEnum)`` — must
-        forward construction to the target identically.
+        ``deprecated_class`` returns the concrete ``_DeprecatedProxy`` in every call shape, so the choice
+        between ``deprecated_class(target=ColorEnum)(OldCls)`` and ``@deprecated_class(target=ColorEnum)``
+        is a static-annotation concern only. This pins that it stays a static one: whichever form a caller
+        picks — annotated or not — the proxy must forward construction to the target identically at runtime.
         """
         # Runtime: calling the proxy forwards to the target constructor, exactly as the decorator form does.
         assert DeprecatedColorEnumFunctional(1) is ColorEnum.RED

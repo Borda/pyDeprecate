@@ -602,11 +602,11 @@ class DeprecationProxy(Protocol, Generic[_T_co]):
         This Protocol is the type to *annotate* against; it is not what the public functions declare as their
         return type. ``deprecated_class`` and ``deprecated_instance`` return the concrete
         :class:`~deprecate.proxy._DeprecatedProxy`, whose forwarded dunders (``int()``, ``with``, ``await``, ...)
-        a narrow Protocol would hide from type checkers. The one exception is the **functional/assignment form**
-        with a class ``target`` — ``OldCls = deprecated_class(target=NewCls, ...)(OldClsDef)`` — which narrows to
-        ``DeprecationProxy[NewCls]``, mypy inferring ``T`` from the ``target`` argument. The decorator form
+        a narrow Protocol would hide from type checkers. No call shape narrows to ``DeprecationProxy[T]`` on its
+        own, so to let the target type flow into call sites, annotate the one site that needs it —
+        ``OldCls: DeprecationProxy[NewCls] = deprecated_class(target=NewCls, ...)(OldClsDef)``. The decorator form
         ``@deprecated_class(target=NewCls, ...)`` is typed as the raw source class because mypy does not rebind a
-        class definition to an instance return type; full inference there would require returning a real class
+        class definition to an instance return type; annotating it would require returning a real class
         instead of a proxy.
 
     !!! warning "``isinstance`` only"
@@ -627,13 +627,13 @@ class DeprecationProxy(Protocol, Generic[_T_co]):
         >>> OldColor.__wrapped__ is OldColor.__wrapped__  # breadcrumb back to the source class
         True
 
-        The functional/assignment form is what gives mypy the target type — it infers
-        ``DeprecationProxy[NewColor]`` here, so ``OldColorAlias(1)`` is typed as ``NewColor``:
+        An explicit annotation on the assignment is what gives mypy the target type — spelled out as
+        ``DeprecationProxy[NewColor]``, ``OldColorAlias(1)`` is typed as ``NewColor``:
 
         >>> _decorator = deprecated_class(target=NewColor, deprecated_in="1.0", remove_in="2.0", stream=None)
         >>> class _OldColorSource:
         ...     pass
-        >>> OldColorAlias = _decorator(_OldColorSource)
+        >>> OldColorAlias: DeprecationProxy[NewColor] = _decorator(_OldColorSource)
         >>> isinstance(OldColorAlias(1), NewColor)
         True
 
