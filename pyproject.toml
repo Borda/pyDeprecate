@@ -91,9 +91,16 @@ show_error_codes = "True"
 [tool.pytest]
 ini_options.testpaths = [ "src", "tests" ]
 ini_options.norecursedirs = [
+  # runtime artifact dirs: one-off scripts land here and `--doctest-modules` imports every `.py`
+  # it walks, so a script with module-level `raise SystemExit` aborts the whole collection
+  ".cache",
   ".claude",
   ".git",
   ".github",
+  ".notes",
+  ".plans",
+  ".reports",
+  ".temp",
   "build",
   "demo-*",
   "dist",
