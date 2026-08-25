@@ -1707,13 +1707,13 @@ Both deprecated names forward to the same non-deprecated implementation with no 
 
 **Q:** mypy reports the result of `deprecated_class(...)` as `_DeprecatedProxy`, a private name. What is the supported type to annotate against?
 
-**A:** Import `Deprecated` from `deprecate`. `DeprecatedClass` and `DeprecatedInstance` are aliases of the same object, provided so an annotation reads closer to the call that produced it — all three are the same type, and `Deprecated is DeprecatedClass` is `True`.
+**A:** Import `DeprecationProxy` from `deprecate`.
 
-`Deprecated[T]` is generic in the type produced by calling the proxy. mypy infers `T` from `target=` only in the **functional form**, where the source class is an argument rather than a decorated statement:
+`DeprecationProxy[T]` is generic in the type produced by calling the proxy, but `deprecated_class` and `deprecated_instance` return the concrete proxy in every call shape — there is nothing for mypy to infer `T` from on its own. Annotate the assignment explicitly at the call site instead:
 
 ```python
 from dataclasses import dataclass
-from deprecate import Deprecated, deprecated_class
+from deprecate import DeprecationProxy, deprecated_class
 
 
 @dataclass
@@ -1726,8 +1726,10 @@ class _LegacyRetryConfig:
     attempts: int
 
 
-# functional form — mypy infers `Deprecated[RetryPolicy]`, so `RetryConfig(3)` is typed `RetryPolicy`
-RetryConfig = deprecated_class(target=RetryPolicy, deprecated_in="1.4", remove_in="2.0")(_LegacyRetryConfig)
+# explicit annotation — so `RetryConfig(3)` is typed `RetryPolicy`
+RetryConfig: DeprecationProxy[RetryPolicy] = deprecated_class(target=RetryPolicy, deprecated_in="1.4", remove_in="2.0")(
+    _LegacyRetryConfig
+)
 
 print(isinstance(RetryConfig(3), RetryPolicy))  # warns: FutureWarning
 ```
@@ -1741,11 +1743,11 @@ True
 
 </details>
 
-The decorator form `@deprecated_class(target=RetryPolicy, ...)` behaves identically at runtime but keeps the concrete `_DeprecatedProxy` return type — mypy does not rebind a `class` statement to an instance return type, so there is nothing for it to infer `T` from. That is deliberate everywhere except the functional form above: the concrete proxy type is what keeps the forwarded dunders (`int()`, `with`, `await`) visible, which the narrow protocol would hide. You can still *annotate* any of them as `Deprecated`.
+Every call shape — functional or decorator — returns the concrete `_DeprecatedProxy` type at runtime, deliberately: it keeps the forwarded dunders (`int()`, `with`, `await`) visible, which the narrower protocol would hide. You can still *annotate* any of them as `DeprecationProxy`, or as `DeprecationProxy[T]` when you want the target type to flow into call sites.
 
 !!! warning "`issubclass` raises `TypeError`"
 
-    `Deprecated` declares attributes (`__wrapped__`, `__deprecated__`), which makes it a *data* protocol. Python supports only `isinstance` for those: `isinstance(obj, Deprecated)` works, `issubclass(SomeType, Deprecated)` raises `TypeError: Protocols with non-method members don't support issubclass()`. This is a CPython rule for every runtime-checkable protocol with non-method members, not a pyDeprecate restriction.
+    `DeprecationProxy` declares attributes (`__wrapped__`, `__deprecated__`), which makes it a *data* protocol. Python supports only `isinstance` for those: `isinstance(obj, DeprecationProxy)` works, `issubclass(SomeType, DeprecationProxy)` raises `TypeError: Protocols with non-method members don't support issubclass()`. This is a CPython rule for every runtime-checkable protocol with non-method members, not a pyDeprecate restriction.
 
 ## Sphinx / my IDE shows `(*args, **kwargs)` instead of my deprecated class's real signature
 

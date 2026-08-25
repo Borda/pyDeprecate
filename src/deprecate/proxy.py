@@ -12,7 +12,7 @@ Typical use cases:
 - Deprecating an Enum or dataclass in favor of a replacement type, with
   automatic forwarding of all attribute, item, and call access.
 
-Both entry points return an object satisfying :class:`~deprecate._types.Deprecated`, the public
+Both entry points return an object satisfying :class:`~deprecate._types.DeprecationProxy`, the public
 protocol for proxies. Every proxy carries ``__wrapped__`` (the source object) and ``__signature__``
 (the source's signature) so ``inspect.unwrap``, ``inspect.signature``, Sphinx autodoc, and IDEs
 resolve through the proxy to the original — reading either attribute emits no deprecation warning.
@@ -39,12 +39,12 @@ import types
 import warnings
 from collections.abc import Iterator
 from dataclasses import replace
-from typing import Any, Callable, Literal, Optional, SupportsIndex, TypeVar, Union, cast, overload
+from typing import Any, Callable, Literal, Optional, SupportsIndex, Union, cast
 
 from deprecate._dispatch import _split_positional_only_kwargs
 from deprecate._types import (
-    Deprecated,
     DeprecationConfig,
+    DeprecationProxy,
     TargetMode,
     _ProxyConfig,
 )
@@ -59,11 +59,6 @@ from deprecate.messaging import (
     deprecation_warning,
 )
 from deprecate.utils import _apply_args_mapping_collisions, _get_args_mapping_positional_only_keys, _is_dataclass_target
-
-#: TypeVar bound to the instance type returned by calling a deprecated class proxy.
-#: When ``deprecated_class(target=NewCls, ...)`` is used, mypy infers ``_T = NewCls`` so that
-#: ``OldCls(1)`` is typed as ``NewCls`` rather than ``Any``.
-_T = TypeVar("_T")
 
 #: Stacklevel from inside ``_warn`` to the caller's frame.
 #: Chain: ``caller → __getattr__/__getitem__/__iter__/__call__ → _warn → stream → warnings.warn``.
@@ -460,7 +455,7 @@ class _DeprecatedProxy:
         Not every wrapped object is introspectable — builtins and instances of C types (e.g. a plain ``dict``) make
         ``inspect.signature`` raise ``ValueError``/``TypeError``. In that case ``__signature__`` falls back to ``None``
         rather than propagating: both attributes are always assigned so the proxy uniformly satisfies the
-        :class:`~deprecate._types.Deprecated` Protocol, and wrapping stays infallible at decoration time.
+        :class:`~deprecate._types.DeprecationProxy` Protocol, and wrapping stays infallible at decoration time.
 
         Every ``Exception`` is caught, not just those two: ``ValueError``/``TypeError`` are merely the *normalised*
         introspection failures. A source exposing a ``__signature__`` descriptor that raises — mocks, lazily built
@@ -1245,7 +1240,7 @@ def _reconstruct_proxy(
     own (possibly copied) source, and recomputing keeps ``inspect.Signature`` objects out of the pickle
     payload entirely.  Skipping this step would leave copied and unpickled proxies without
     ``__wrapped__``/``__signature__``, so ``inspect.unwrap`` would stop at the proxy and the object would
-    no longer satisfy the :class:`~deprecate._types.Deprecated` Protocol.
+    no longer satisfy the :class:`~deprecate._types.DeprecationProxy` Protocol.
 
     Args:
         cfg: Private mutable runtime state for the new proxy.
@@ -1485,65 +1480,13 @@ def _build_proxy_warn_msg(
 
 
 #: What ``deprecated_class`` accepts for decoration: a plain class, or an already-wrapped proxy when
-#: stacking (``deprecated_class(...)(deprecated_class(...)(Cls))``). ``Deprecated[Any]`` is the public
-#: spelling of what the decorator hands back, so it has to be accepted on the way in as well.
-_ClassOrProxy = Union[type, "_DeprecatedProxy", Deprecated[Any]]
-
-
-@overload
-def deprecated_class(
-    target: type[_T],
-    *,
-    deprecated_in: str = ...,
-    remove_in: str = ...,
-    num_warns: int = ...,
-    stream: Optional[Callable[..., None]] = ...,
-    message_template: Optional[str] = ...,
-    args_mapping: Optional[dict[str, Optional[str]]] = ...,
-    args_extra: Optional[dict[str, Any]] = ...,
-    attrs_mapping: Optional[dict[str, Optional[str]]] = ...,
-    skip_if: Union[bool, Callable[[], bool]] = ...,
-    update_docstring: bool = ...,
-    docstring_style: Literal["auto", "rst", "mkdocs", "markdown"] = ...,
-    template_mgs: Optional[str] = ...,
-    _misconfigured_override: bool = ...,
-    _stacklevel_extra: int = ...,
-    # `...` is the mandated `@overload` stub body — ruff `D418` forbids swapping it for a docstring,
-    # so CodeQL's `py/ineffectual-statement` ("statement has no effect") is a false positive here.
-    # codeql[py/ineffectual-statement]
-) -> Callable[[_ClassOrProxy], "Deprecated[_T]"]: ...
-
-
-# Fallback for every non-class ``target``: a TargetMode, the legacy bool/None sentinels, a plain
-# callable, or another proxy. ``type[_T]`` above is matched first, so only these land here.
-# Returns the concrete ``_DeprecatedProxy`` rather than ``Deprecated[Any]``: the proxy forwards the
-# whole dunder surface (``int()``, ``with``, ``await``, ...) and the narrow Protocol would hide it.
-@overload
-def deprecated_class(
-    target: Any = ...,  # noqa: ANN401
-    *,
-    deprecated_in: str = ...,
-    remove_in: str = ...,
-    num_warns: int = ...,
-    stream: Optional[Callable[..., None]] = ...,
-    message_template: Optional[str] = ...,
-    args_mapping: Optional[dict[str, Optional[str]]] = ...,
-    args_extra: Optional[dict[str, Any]] = ...,
-    attrs_mapping: Optional[dict[str, Optional[str]]] = ...,
-    skip_if: Union[bool, Callable[[], bool]] = ...,
-    update_docstring: bool = ...,
-    docstring_style: Literal["auto", "rst", "mkdocs", "markdown"] = ...,
-    template_mgs: Optional[str] = ...,
-    _misconfigured_override: bool = ...,
-    _stacklevel_extra: int = ...,
-    # `...` is the mandated `@overload` stub body — ruff `D418` forbids swapping it for a docstring,
-    # so CodeQL's `py/ineffectual-statement` ("statement has no effect") is a false positive here.
-    # codeql[py/ineffectual-statement]
-) -> Callable[[_ClassOrProxy], "_DeprecatedProxy"]: ...
+#: stacking (``deprecated_class(...)(deprecated_class(...)(Cls))``). ``DeprecationProxy[Any]`` is the
+#: public spelling of a proxy, so annotating with it and passing it back in has to work too.
+_ClassOrProxy = Union[type, "_DeprecatedProxy", DeprecationProxy[Any]]
 
 
 def deprecated_class(
-    target: Any = None,
+    target: Any = None,  # noqa: ANN401
     *,
     deprecated_in: str = "",
     remove_in: str = "",
@@ -1655,10 +1598,10 @@ def deprecated_class(
 
     Returns:
         A decorator that wraps the class in a :class:`~deprecate.proxy._DeprecatedProxy`, which satisfies the public
-        :class:`~deprecate._types.Deprecated` Protocol.  Passing a class as *target* in the functional form
-        (``Old = deprecated_class(target=NewCls, ...)(_OldSource)``) narrows the return type to ``Deprecated[NewCls]``,
-        so calling the result is typed as producing a ``NewCls``.  Every other form keeps the concrete proxy type,
-        which is what makes the forwarded dunders (``int()``, ``with``, ``await``) visible to type checkers.
+        :class:`~deprecate._types.DeprecationProxy` Protocol.  The concrete proxy type is returned in every form,
+        deliberately: it is what keeps the forwarded dunders (``int()``, ``with``, ``await``) visible to type
+        checkers, which the narrow Protocol would hide.  To let the target type flow into call sites, annotate the
+        one site that needs it — ``Old: DeprecationProxy[NewCls] = deprecated_class(target=NewCls, ...)(_OldSource)``.
 
     Note:
         **Subclassing (PEP 560)**: the proxy implements ``__mro_entries__`` so
@@ -1818,7 +1761,7 @@ def deprecated_instance(
 
     Returns:
         A :class:`~deprecate.proxy._DeprecatedProxy` wrapping *obj*, satisfying the public
-        :class:`~deprecate._types.Deprecated` Protocol.  Its ``__wrapped__`` attribute is *obj* itself, and
+        :class:`~deprecate._types.DeprecationProxy` Protocol.  Its ``__wrapped__`` attribute is *obj* itself, and
         ``__signature__`` is *obj*'s signature — or ``None`` when *obj* has none to introspect (a plain ``dict``,
         any C-level type). Reading either emits no warning.
 

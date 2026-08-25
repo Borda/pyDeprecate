@@ -579,7 +579,7 @@ _T_co = TypeVar("_T_co", covariant=True)
 
 
 @runtime_checkable
-class Deprecated(Protocol, Generic[_T_co]):
+class DeprecationProxy(Protocol, Generic[_T_co]):
     """Public type produced by :func:`~deprecate.proxy.deprecated_class` / :func:`~deprecate.proxy.deprecated_instance`.
 
     Documents the public contract that deprecated proxies satisfy:
@@ -593,37 +593,42 @@ class Deprecated(Protocol, Generic[_T_co]):
     :class:`~deprecate.proxy._DeprecatedProxy` satisfy this Protocol structurally, so no explicit ``isinstance``
     check is required.
 
+    !!! note "Protocol vs implementation"
+        ``DeprecationProxy`` (public, this Protocol) describes the contract; :class:`~deprecate.proxy._DeprecatedProxy`
+        (private) is the concrete runtime class that satisfies it. Annotate against the former, never import
+        the latter.
+
     !!! note "Static-typing scope"
         This Protocol is the type to *annotate* against; it is not what the public functions declare as their
         return type. ``deprecated_class`` and ``deprecated_instance`` return the concrete
         :class:`~deprecate.proxy._DeprecatedProxy`, whose forwarded dunders (``int()``, ``with``, ``await``, ...)
         a narrow Protocol would hide from type checkers. The one exception is the **functional/assignment form**
         with a class ``target`` — ``OldCls = deprecated_class(target=NewCls, ...)(OldClsDef)`` — which narrows to
-        ``Deprecated[NewCls]``, mypy inferring ``T`` from the ``target`` argument. The decorator form
+        ``DeprecationProxy[NewCls]``, mypy inferring ``T`` from the ``target`` argument. The decorator form
         ``@deprecated_class(target=NewCls, ...)`` is typed as the raw source class because mypy does not rebind a
         class definition to an instance return type; full inference there would require returning a real class
         instead of a proxy.
 
     !!! warning "``isinstance`` only"
         This is a *data* Protocol (it declares attributes, not just methods), so only ``isinstance`` is
-        supported at runtime. ``issubclass(SomeType, Deprecated)`` raises :class:`TypeError`, as it does
+        supported at runtime. ``issubclass(SomeType, DeprecationProxy)`` raises :class:`TypeError`, as it does
         for every ``@runtime_checkable`` Protocol with non-method members.
 
     Example:
-        >>> from deprecate import deprecated_class, Deprecated
+        >>> from deprecate import deprecated_class, DeprecationProxy
         >>> class NewColor:
         ...     def __init__(self, code: int) -> None:
         ...         self.code = code
         >>> @deprecated_class(target=NewColor, deprecated_in="1.0", remove_in="2.0", stream=None)
         ... class OldColor:
         ...     pass
-        >>> isinstance(OldColor, Deprecated)
+        >>> isinstance(OldColor, DeprecationProxy)
         True
         >>> OldColor.__wrapped__ is OldColor.__wrapped__  # breadcrumb back to the source class
         True
 
         The functional/assignment form is what gives mypy the target type — it infers
-        ``Deprecated[NewColor]`` here, so ``OldColorAlias(1)`` is typed as ``NewColor``:
+        ``DeprecationProxy[NewColor]`` here, so ``OldColorAlias(1)`` is typed as ``NewColor``:
 
         >>> _decorator = deprecated_class(target=NewColor, deprecated_in="1.0", remove_in="2.0", stream=None)
         >>> class _OldColorSource:
@@ -649,12 +654,6 @@ class Deprecated(Protocol, Generic[_T_co]):
     def __getitem__(self, key: Any) -> Any:  # noqa: ANN401
         """Forward item access (e.g. ``proxy['key']`` -> ``source['key']``)."""
         raise NotImplementedError
-
-
-#: Alias for use with :func:`~deprecate.proxy.deprecated_class`; clearer at type-annotation sites.
-DeprecatedClass = Deprecated
-#: Alias for use with :func:`~deprecate.proxy.deprecated_instance`; clearer at type-annotation sites.
-DeprecatedInstance = Deprecated
 
 
 @dataclass
