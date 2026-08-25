@@ -386,6 +386,22 @@
             "@type": "Answer",
             "text": "When you stack a sync decorator on top of a @deprecated async def, the outermost callable is sync, so inspect.iscoroutinefunction returns False and asyncio frameworks reject it. Make any outer decorator that wraps async functions coroutine-aware: check inspect.iscoroutinefunction(fn) and emit an async def wrapper when True, or a sync wrapper when False. With this pattern, @my_decorator @deprecated ... async def fn(...) produces an async def wrapper whose iscoroutinefunction returns True."
           }
+        },
+        {
+          "@type": "Question",
+          "name": "How do I type-annotate the object returned by deprecated_class or deprecated_instance?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Import Deprecated from deprecate rather than annotating against the private _DeprecatedProxy. DeprecatedClass and DeprecatedInstance are aliases of the same object, offered so the annotation reads closer to the call that produced it. Deprecated[T] is generic in the type produced by calling the proxy, and mypy infers T from target= only in the functional form — Old = deprecated_class(target=New, ...)(_OldSource) is typed Deprecated[New], so Old(...) is known to produce a New. The decorator form @deprecated_class(target=New, ...) is identical at runtime but keeps the concrete _DeprecatedProxy return type, because mypy does not rebind a class statement to an instance return type. So does every other call shape, deliberately: the concrete type keeps the proxy's forwarded dunders such as int(), with and await visible, which the narrow protocol would hide. Deprecated remains the type to annotate against. Deprecated is a data protocol: isinstance(obj, Deprecated) works, but issubclass(SomeType, Deprecated) raises TypeError, as it does for every runtime-checkable protocol with non-method members."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why does Sphinx or my IDE show (*args, **kwargs) instead of my deprecated class's real signature?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "The tool is rendering the proxy rather than the class it wraps. Every pyDeprecate proxy carries two breadcrumbs back to the source: __wrapped__ is the source class or object, consumed by inspect.unwrap, Sphinx autodoc, griffe/mkdocstrings, and IDEs; __signature__ is the source's signature, consumed by inspect.signature and any tool that does not walk __wrapped__. Reading either attribute emits no deprecation warning, so documentation builds and IDE hovers stay quiet. If a tool still renders the proxy, point it at __wrapped__ explicitly. When the wrapped object has no introspectable signature — a plain dict passed to deprecated_instance, or any C-level type — __signature__ is None rather than absent, and wrapping never fails."
+          }
         }
       ]
     }
@@ -1642,6 +1658,28 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#how-do-i-type-annotate-the-object-returned-by-deprecated_class-deprecated_instance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How do I type-annotate the object returned by deprecated_class / deprecated_instance?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sphinx-my-ide-shows-args-kwargs-instead-of-my-deprecated-classs-real-signature" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sphinx / my IDE shows (*args, **kwargs) instead of my deprecated class's real signature
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#module-deprecation-accessing-a-missing-attribute-raises-attributeerror" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2202,6 +2240,28 @@
     <span class="md-ellipsis">
       
         RuntimeError: Circular deprecation cycle detected
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-do-i-type-annotate-the-object-returned-by-deprecated_class-deprecated_instance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How do I type-annotate the object returned by deprecated_class / deprecated_instance?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sphinx-my-ide-shows-args-kwargs-instead-of-my-deprecated-classs-real-signature" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sphinx / my IDE shows (*args, **kwargs) instead of my deprecated class's real signature
       
     </span>
   </a>
@@ -3719,24 +3779,115 @@
 <a id="__codelineno-88-13" name="__codelineno-88-13" href="#__codelineno-88-13"></a><span class="k">def</span><span class="w"> </span><span class="nf">also_old_fn</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span> <span class="o">...</span>
 </code></pre></div>
 <p>Both deprecated names forward to the same non-deprecated implementation with no cycle.</p>
+<h2 id="how-do-i-type-annotate-the-object-returned-by-deprecated_class-deprecated_instance">How do I type-annotate the object returned by <code>deprecated_class</code> / <code>deprecated_instance</code>?<a class="headerlink" href="#how-do-i-type-annotate-the-object-returned-by-deprecated_class-deprecated_instance" title="Permanent link">🔗</a></h2>
+<p><strong>Q:</strong> mypy reports the result of <code>deprecated_class(...)</code> as <code>_DeprecatedProxy</code>, a private name. What is the supported type to annotate against?</p>
+<p><strong>A:</strong> Import <code>Deprecated</code> from <code>deprecate</code>. <code>DeprecatedClass</code> and <code>DeprecatedInstance</code> are aliases of the same object, provided so an annotation reads closer to the call that produced it — all three are the same type, and <code>Deprecated is DeprecatedClass</code> is <code>True</code>.</p>
+<p><code>Deprecated[T]</code> is generic in the type produced by calling the proxy. mypy infers <code>T</code> from <code>target=</code> only in the <strong>functional form</strong>, where the source class is an argument rather than a decorated statement:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-89-1" name="__codelineno-89-1" href="#__codelineno-89-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
+<a id="__codelineno-89-2" name="__codelineno-89-2" href="#__codelineno-89-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">Deprecated</span><span class="p">,</span> <span class="n">deprecated_class</span>
+<a id="__codelineno-89-3" name="__codelineno-89-3" href="#__codelineno-89-3"></a>
+<a id="__codelineno-89-4" name="__codelineno-89-4" href="#__codelineno-89-4"></a>
+<a id="__codelineno-89-5" name="__codelineno-89-5" href="#__codelineno-89-5"></a><span class="nd">@dataclass</span>
+<a id="__codelineno-89-6" name="__codelineno-89-6" href="#__codelineno-89-6"></a><span class="k">class</span><span class="w"> </span><span class="nc">RetryPolicy</span><span class="p">:</span>
+<a id="__codelineno-89-7" name="__codelineno-89-7" href="#__codelineno-89-7"></a>    <span class="n">attempts</span><span class="p">:</span> <span class="nb">int</span>
+<a id="__codelineno-89-8" name="__codelineno-89-8" href="#__codelineno-89-8"></a>
+<a id="__codelineno-89-9" name="__codelineno-89-9" href="#__codelineno-89-9"></a>
+<a id="__codelineno-89-10" name="__codelineno-89-10" href="#__codelineno-89-10"></a><span class="nd">@dataclass</span>
+<a id="__codelineno-89-11" name="__codelineno-89-11" href="#__codelineno-89-11"></a><span class="k">class</span><span class="w"> </span><span class="nc">_LegacyRetryConfig</span><span class="p">:</span>
+<a id="__codelineno-89-12" name="__codelineno-89-12" href="#__codelineno-89-12"></a>    <span class="n">attempts</span><span class="p">:</span> <span class="nb">int</span>
+<a id="__codelineno-89-13" name="__codelineno-89-13" href="#__codelineno-89-13"></a>
+<a id="__codelineno-89-14" name="__codelineno-89-14" href="#__codelineno-89-14"></a>
+<a id="__codelineno-89-15" name="__codelineno-89-15" href="#__codelineno-89-15"></a><span class="c1"># functional form — mypy infers `Deprecated[RetryPolicy]`, so `RetryConfig(3)` is typed `RetryPolicy`</span>
+<a id="__codelineno-89-16" name="__codelineno-89-16" href="#__codelineno-89-16"></a><span class="n">RetryConfig</span> <span class="o">=</span> <span class="n">deprecated_class</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">RetryPolicy</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">"1.4"</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">"2.0"</span><span class="p">)(</span><span class="n">_LegacyRetryConfig</span><span class="p">)</span>
+<a id="__codelineno-89-17" name="__codelineno-89-17" href="#__codelineno-89-17"></a>
+<a id="__codelineno-89-18" name="__codelineno-89-18" href="#__codelineno-89-18"></a><span class="nb">print</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">RetryConfig</span><span class="p">(</span><span class="mi">3</span><span class="p">),</span> <span class="n">RetryPolicy</span><span class="p">))</span>  <span class="c1"># warns: FutureWarning</span>
+</code></pre></div>
+<details>
+  <summary>Output: <code>isinstance(RetryConfig(3), RetryPolicy)</code></summary>
+
+<div class="highlight"><pre><span></span><code><a id="__codelineno-90-1" name="__codelineno-90-1" href="#__codelineno-90-1"></a>True
+</code></pre></div>
+
+</details>
+
+<p>The decorator form <code>@deprecated_class(target=RetryPolicy, ...)</code> behaves identically at runtime but keeps the concrete <code>_DeprecatedProxy</code> return type — mypy does not rebind a <code>class</code> statement to an instance return type, so there is nothing for it to infer <code>T</code> from. That is deliberate everywhere except the functional form above: the concrete proxy type is what keeps the forwarded dunders (<code>int()</code>, <code>with</code>, <code>await</code>) visible, which the narrow protocol would hide. You can still <em>annotate</em> any of them as <code>Deprecated</code>.</p>
+<div class="admonition warning">
+<p class="admonition-title"><code>issubclass</code> raises <code>TypeError</code></p>
+<p><code>Deprecated</code> declares attributes (<code>__wrapped__</code>, <code>__deprecated__</code>), which makes it a <em>data</em> protocol. Python supports only <code>isinstance</code> for those: <code>isinstance(obj, Deprecated)</code> works, <code>issubclass(SomeType, Deprecated)</code> raises <code>TypeError: Protocols with non-method members don't support issubclass()</code>. This is a CPython rule for every runtime-checkable protocol with non-method members, not a pyDeprecate restriction.</p>
+</div>
+<h2 id="sphinx-my-ide-shows-args-kwargs-instead-of-my-deprecated-classs-real-signature">Sphinx / my IDE shows <code>(*args, **kwargs)</code> instead of my deprecated class's real signature<a class="headerlink" href="#sphinx-my-ide-shows-args-kwargs-instead-of-my-deprecated-classs-real-signature" title="Permanent link">🔗</a></h2>
+<p><strong>Q:</strong> Autodoc renders the proxy rather than the wrapped class, or <code>inspect.signature()</code> on a deprecated alias returns something useless. How do I reach the original?</p>
+<p><strong>A:</strong> Every proxy carries two breadcrumbs pointing back at what it wraps, and reading either one emits <strong>no</strong> deprecation warning — documentation builds and IDE hovers stay quiet:</p>
+<table>
+<thead>
+<tr>
+<th>Attribute</th>
+<th>Points to</th>
+<th>Consumed by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>__wrapped__</code></td>
+<td>the source class or object</td>
+<td><code>inspect.unwrap</code>, Sphinx autodoc, griffe/mkdocstrings, IDEs</td>
+</tr>
+<tr>
+<td><code>__signature__</code></td>
+<td>the source's signature</td>
+<td><code>inspect.signature</code>, and tools that do not walk <code>__wrapped__</code></td>
+</tr>
+</tbody>
+</table>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-91-1" name="__codelineno-91-1" href="#__codelineno-91-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">inspect</span>
+<a id="__codelineno-91-2" name="__codelineno-91-2" href="#__codelineno-91-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
+<a id="__codelineno-91-3" name="__codelineno-91-3" href="#__codelineno-91-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated_class</span>
+<a id="__codelineno-91-4" name="__codelineno-91-4" href="#__codelineno-91-4"></a>
+<a id="__codelineno-91-5" name="__codelineno-91-5" href="#__codelineno-91-5"></a>
+<a id="__codelineno-91-6" name="__codelineno-91-6" href="#__codelineno-91-6"></a><span class="nd">@dataclass</span>
+<a id="__codelineno-91-7" name="__codelineno-91-7" href="#__codelineno-91-7"></a><span class="k">class</span><span class="w"> </span><span class="nc">RetryPolicy</span><span class="p">:</span>
+<a id="__codelineno-91-8" name="__codelineno-91-8" href="#__codelineno-91-8"></a>    <span class="n">attempts</span><span class="p">:</span> <span class="nb">int</span>
+<a id="__codelineno-91-9" name="__codelineno-91-9" href="#__codelineno-91-9"></a>    <span class="n">backoff</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
+<a id="__codelineno-91-10" name="__codelineno-91-10" href="#__codelineno-91-10"></a>
+<a id="__codelineno-91-11" name="__codelineno-91-11" href="#__codelineno-91-11"></a>
+<a id="__codelineno-91-12" name="__codelineno-91-12" href="#__codelineno-91-12"></a><span class="nd">@deprecated_class</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">RetryPolicy</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">"1.4"</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">"2.0"</span><span class="p">)</span>
+<a id="__codelineno-91-13" name="__codelineno-91-13" href="#__codelineno-91-13"></a><span class="nd">@dataclass</span>
+<a id="__codelineno-91-14" name="__codelineno-91-14" href="#__codelineno-91-14"></a><span class="k">class</span><span class="w"> </span><span class="nc">RetryConfig</span><span class="p">:</span>
+<a id="__codelineno-91-15" name="__codelineno-91-15" href="#__codelineno-91-15"></a>    <span class="n">attempts</span><span class="p">:</span> <span class="nb">int</span>
+<a id="__codelineno-91-16" name="__codelineno-91-16" href="#__codelineno-91-16"></a>    <span class="n">backoff</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
+<a id="__codelineno-91-17" name="__codelineno-91-17" href="#__codelineno-91-17"></a>
+<a id="__codelineno-91-18" name="__codelineno-91-18" href="#__codelineno-91-18"></a>
+<a id="__codelineno-91-19" name="__codelineno-91-19" href="#__codelineno-91-19"></a><span class="nb">print</span><span class="p">(</span><span class="n">inspect</span><span class="o">.</span><span class="n">unwrap</span><span class="p">(</span><span class="n">RetryConfig</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="p">)</span>
+<a id="__codelineno-91-20" name="__codelineno-91-20" href="#__codelineno-91-20"></a><span class="nb">print</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">inspect</span><span class="o">.</span><span class="n">signature</span><span class="p">(</span><span class="n">RetryConfig</span><span class="p">)))</span>
+</code></pre></div>
+<details>
+  <summary>Output: <code>inspect.unwrap(RetryConfig).__name__; str(inspect.signature(RetryConfig))</code></summary>
+
+<div class="highlight"><pre><span></span><code><a id="__codelineno-92-1" name="__codelineno-92-1" href="#__codelineno-92-1"></a>RetryConfig
+<a id="__codelineno-92-2" name="__codelineno-92-2" href="#__codelineno-92-2"></a>(attempts: int, backoff: float = 1.0) -&gt; None
+</code></pre></div>
+
+</details>
+
+<p>If a tool still renders the proxy, point it at <code>__wrapped__</code> explicitly. When the wrapped object has no introspectable signature — a plain <code>dict</code> handed to <code>deprecated_instance()</code>, or any C-level type — <code>__signature__</code> is <code>None</code> rather than missing; wrapping never fails because the source cannot be introspected.</p>
 <hr />
 <h2 id="module-deprecation-accessing-a-missing-attribute-raises-attributeerror">Module deprecation: accessing a missing attribute raises AttributeError<a class="headerlink" href="#module-deprecation-accessing-a-missing-attribute-raises-attributeerror" title="Permanent link">🔗</a></h2>
 <p><strong>Q:</strong> I called <code>deprecated_module()</code> in Mode 1 (no <code>target=</code>). Real attributes warn correctly, but accessing a name that is not in the module raises <code>AttributeError</code> instead of just warning. Is there a way to forward missing-attr lookups to a replacement module?</p>
 <p><strong>A:</strong> Yes — that is exactly what Mode 2 (<code>target=new_module</code>) does. Mode 1 intercepts every public attribute access (real or missing) via <code>__getattribute__</code>, so real attributes warn and are returned. However, for names <strong>not</strong> in the module's <code>__dict__</code>, Mode 1 raises <code>AttributeError</code> after warning because there is no target to forward to.</p>
 <p>If you want unknown names to warn <strong>and</strong> resolve, switch to Mode 2:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-89-1" name="__codelineno-89-1" href="#__codelineno-89-1"></a><span class="c1"># phmdoctest:skip — CI template; new_calculator is not installed</span>
-<a id="__codelineno-89-2" name="__codelineno-89-2" href="#__codelineno-89-2"></a><span class="c1"># old_calculator.py — redirect missing-attr lookups to new_calculator</span>
-<a id="__codelineno-89-3" name="__codelineno-89-3" href="#__codelineno-89-3"></a><span class="kn">import</span><span class="w"> </span><span class="nn">new_calculator</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">_new_calculator</span>
-<a id="__codelineno-89-4" name="__codelineno-89-4" href="#__codelineno-89-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated_module</span>
-<a id="__codelineno-89-5" name="__codelineno-89-5" href="#__codelineno-89-5"></a>
-<a id="__codelineno-89-6" name="__codelineno-89-6" href="#__codelineno-89-6"></a><span class="n">deprecated_module</span><span class="p">(</span>
-<a id="__codelineno-89-7" name="__codelineno-89-7" href="#__codelineno-89-7"></a>    <span class="vm">__name__</span><span class="p">,</span>
-<a id="__codelineno-89-8" name="__codelineno-89-8" href="#__codelineno-89-8"></a>    <span class="n">target</span><span class="o">=</span><span class="n">_new_calculator</span><span class="p">,</span>
-<a id="__codelineno-89-9" name="__codelineno-89-9" href="#__codelineno-89-9"></a>    <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">"2.0"</span><span class="p">,</span>
-<a id="__codelineno-89-10" name="__codelineno-89-10" href="#__codelineno-89-10"></a>    <span class="n">remove_in</span><span class="o">=</span><span class="s2">"3.0"</span><span class="p">,</span>
-<a id="__codelineno-89-11" name="__codelineno-89-11" href="#__codelineno-89-11"></a>    <span class="n">message_template</span><span class="o">=</span><span class="s2">"Use `new_calculator` instead."</span><span class="p">,</span>
-<a id="__codelineno-89-12" name="__codelineno-89-12" href="#__codelineno-89-12"></a><span class="p">)</span>
-<a id="__codelineno-89-13" name="__codelineno-89-13" href="#__codelineno-89-13"></a><span class="c1"># old_calculator.add(1, 2)  # warns: FutureWarning + returns new_calculator.add(1, 2)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-93-1" name="__codelineno-93-1" href="#__codelineno-93-1"></a><span class="c1"># phmdoctest:skip — CI template; new_calculator is not installed</span>
+<a id="__codelineno-93-2" name="__codelineno-93-2" href="#__codelineno-93-2"></a><span class="c1"># old_calculator.py — redirect missing-attr lookups to new_calculator</span>
+<a id="__codelineno-93-3" name="__codelineno-93-3" href="#__codelineno-93-3"></a><span class="kn">import</span><span class="w"> </span><span class="nn">new_calculator</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">_new_calculator</span>
+<a id="__codelineno-93-4" name="__codelineno-93-4" href="#__codelineno-93-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated_module</span>
+<a id="__codelineno-93-5" name="__codelineno-93-5" href="#__codelineno-93-5"></a>
+<a id="__codelineno-93-6" name="__codelineno-93-6" href="#__codelineno-93-6"></a><span class="n">deprecated_module</span><span class="p">(</span>
+<a id="__codelineno-93-7" name="__codelineno-93-7" href="#__codelineno-93-7"></a>    <span class="vm">__name__</span><span class="p">,</span>
+<a id="__codelineno-93-8" name="__codelineno-93-8" href="#__codelineno-93-8"></a>    <span class="n">target</span><span class="o">=</span><span class="n">_new_calculator</span><span class="p">,</span>
+<a id="__codelineno-93-9" name="__codelineno-93-9" href="#__codelineno-93-9"></a>    <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">"2.0"</span><span class="p">,</span>
+<a id="__codelineno-93-10" name="__codelineno-93-10" href="#__codelineno-93-10"></a>    <span class="n">remove_in</span><span class="o">=</span><span class="s2">"3.0"</span><span class="p">,</span>
+<a id="__codelineno-93-11" name="__codelineno-93-11" href="#__codelineno-93-11"></a>    <span class="n">message_template</span><span class="o">=</span><span class="s2">"Use `new_calculator` instead."</span><span class="p">,</span>
+<a id="__codelineno-93-12" name="__codelineno-93-12" href="#__codelineno-93-12"></a><span class="p">)</span>
+<a id="__codelineno-93-13" name="__codelineno-93-13" href="#__codelineno-93-13"></a><span class="c1"># old_calculator.add(1, 2)  # warns: FutureWarning + returns new_calculator.add(1, 2)</span>
 </code></pre></div>
 <hr />
 <h2 id="does-from-old_calculator-import-still-trigger-the-deprecation-warning">Does <code>from old_calculator import *</code> still trigger the deprecation warning?<a class="headerlink" href="#does-from-old_calculator-import-still-trigger-the-deprecation-warning" title="Permanent link">🔗</a></h2>
@@ -3748,37 +3899,37 @@
 <p><strong>Q:</strong> I only imported a deprecated module once, but pytest collection, Sphinx autodoc, or my IDE/linter triggers many <code>FutureWarning</code>s. Why?</p>
 <p><strong>A:</strong> That is expected in Mode 1 and Mode 2. <code>deprecated_module()</code> overrides the module's <code>__getattribute__</code>, so any public attribute probe emits a warning even when the access comes from tooling rather than your own code. Test and documentation tools often call <code>getattr()</code>, inspect plugin metadata, or walk module attributes repeatedly during discovery, so pytest's collection probes, plugin-spec lookups, Sphinx autodoc, IDE completion, and linters can fan out into many warnings.</p>
 <p>If that noise is expected in tests, scope it in test config with <code>warnings.filterwarnings</code> instead of suppressing warnings globally:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-90-1" name="__codelineno-90-1" href="#__codelineno-90-1"></a><span class="c1"># tests/conftest.py</span>
-<a id="__codelineno-90-2" name="__codelineno-90-2" href="#__codelineno-90-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">warnings</span>
-<a id="__codelineno-90-3" name="__codelineno-90-3" href="#__codelineno-90-3"></a>
-<a id="__codelineno-90-4" name="__codelineno-90-4" href="#__codelineno-90-4"></a><span class="n">warnings</span><span class="o">.</span><span class="n">filterwarnings</span><span class="p">(</span><span class="s2">"ignore"</span><span class="p">,</span> <span class="n">category</span><span class="o">=</span><span class="ne">FutureWarning</span><span class="p">,</span> <span class="n">module</span><span class="o">=</span><span class="sa">r</span><span class="s2">"^old_module$"</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-94-1" name="__codelineno-94-1" href="#__codelineno-94-1"></a><span class="c1"># tests/conftest.py</span>
+<a id="__codelineno-94-2" name="__codelineno-94-2" href="#__codelineno-94-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">warnings</span>
+<a id="__codelineno-94-3" name="__codelineno-94-3" href="#__codelineno-94-3"></a>
+<a id="__codelineno-94-4" name="__codelineno-94-4" href="#__codelineno-94-4"></a><span class="n">warnings</span><span class="o">.</span><span class="n">filterwarnings</span><span class="p">(</span><span class="s2">"ignore"</span><span class="p">,</span> <span class="n">category</span><span class="o">=</span><span class="ne">FutureWarning</span><span class="p">,</span> <span class="n">module</span><span class="o">=</span><span class="sa">r</span><span class="s2">"^old_module$"</span><span class="p">)</span>
 </code></pre></div>
 <p>Replace <code>old_module</code> with the deprecated module's import path. This keeps the warning visible elsewhere while silencing the noisy introspection path during test collection.</p>
 <hr />
 <h2 id="does-the-deprecation-survive-copy-deepcopy-and-pickle">Does the deprecation survive <code>copy</code>, <code>deepcopy</code>, and <code>pickle</code>?<a class="headerlink" href="#does-the-deprecation-survive-copy-deepcopy-and-pickle" title="Permanent link">🔗</a></h2>
 <p><strong>Q:</strong> I copied (or pickled and restored) an object wrapped by <code>deprecated_instance</code> / <code>deprecated_class</code> — does the deprecation still apply to the copy?</p>
 <p><strong>A:</strong> Yes for <code>copy.copy</code> and <code>copy.deepcopy</code>. Copying a deprecated proxy returns a proxy again, so the deprecation warning travels with the object during the migration window. Warning counters are snapshotted at copy time, and each copy keeps its own counter independently. Copy operations are themselves silent — the copy protocol methods rebuild the proxy directly instead of going through attribute access, so no warning fires until the copy is actually used. Exception: <code>deprecated_class</code> proxies cannot be pickled in the common pattern where the proxy replaces the decorated class's module-level name — pickle cannot find the original class by reference and raises <code>PicklingError</code>. <code>deprecated_instance</code> proxies wrapping plain objects (dicts, lists, custom objects) are fully picklable.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-91-1" name="__codelineno-91-1" href="#__codelineno-91-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">copy</span>
-<a id="__codelineno-91-2" name="__codelineno-91-2" href="#__codelineno-91-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">pickle</span>
-<a id="__codelineno-91-3" name="__codelineno-91-3" href="#__codelineno-91-3"></a>
-<a id="__codelineno-91-4" name="__codelineno-91-4" href="#__codelineno-91-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated_instance</span>
-<a id="__codelineno-91-5" name="__codelineno-91-5" href="#__codelineno-91-5"></a>
-<a id="__codelineno-91-6" name="__codelineno-91-6" href="#__codelineno-91-6"></a><span class="c1"># NEW API — the canonical settings object going forward</span>
-<a id="__codelineno-91-7" name="__codelineno-91-7" href="#__codelineno-91-7"></a><span class="n">NEW_LIMITS</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"max_retries"</span><span class="p">:</span> <span class="mi">3</span><span class="p">}</span>
-<a id="__codelineno-91-8" name="__codelineno-91-8" href="#__codelineno-91-8"></a>
-<a id="__codelineno-91-9" name="__codelineno-91-9" href="#__codelineno-91-9"></a><span class="c1"># DEPRECATED API — `OLD_LIMITS` kept as a deprecated alias during the migration window</span>
-<a id="__codelineno-91-10" name="__codelineno-91-10" href="#__codelineno-91-10"></a><span class="n">OLD_LIMITS</span> <span class="o">=</span> <span class="n">deprecated_instance</span><span class="p">(</span><span class="n">NEW_LIMITS</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">"OLD_LIMITS"</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">"1.0"</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">"2.0"</span><span class="p">)</span>
-<a id="__codelineno-91-11" name="__codelineno-91-11" href="#__codelineno-91-11"></a>
-<a id="__codelineno-91-12" name="__codelineno-91-12" href="#__codelineno-91-12"></a><span class="n">restored</span> <span class="o">=</span> <span class="n">pickle</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">pickle</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">OLD_LIMITS</span><span class="p">))</span>  <span class="c1"># noqa: S301  # silent — pickling rebuilds the proxy, not a usage</span>
-<a id="__codelineno-91-13" name="__codelineno-91-13" href="#__codelineno-91-13"></a><span class="n">duplicate</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">OLD_LIMITS</span><span class="p">)</span>  <span class="c1"># silent</span>
-<a id="__codelineno-91-14" name="__codelineno-91-14" href="#__codelineno-91-14"></a>
-<a id="__codelineno-91-15" name="__codelineno-91-15" href="#__codelineno-91-15"></a><span class="nb">print</span><span class="p">(</span><span class="n">restored</span><span class="p">[</span><span class="s2">"max_retries"</span><span class="p">])</span>  <span class="c1"># warns: FutureWarning</span>
-<a id="__codelineno-91-16" name="__codelineno-91-16" href="#__codelineno-91-16"></a><span class="nb">print</span><span class="p">(</span><span class="n">duplicate</span><span class="p">[</span><span class="s2">"max_retries"</span><span class="p">])</span>  <span class="c1"># warns: FutureWarning — each copy has its own counter snapshotted from the original</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-95-1" name="__codelineno-95-1" href="#__codelineno-95-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">copy</span>
+<a id="__codelineno-95-2" name="__codelineno-95-2" href="#__codelineno-95-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">pickle</span>
+<a id="__codelineno-95-3" name="__codelineno-95-3" href="#__codelineno-95-3"></a>
+<a id="__codelineno-95-4" name="__codelineno-95-4" href="#__codelineno-95-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated_instance</span>
+<a id="__codelineno-95-5" name="__codelineno-95-5" href="#__codelineno-95-5"></a>
+<a id="__codelineno-95-6" name="__codelineno-95-6" href="#__codelineno-95-6"></a><span class="c1"># NEW API — the canonical settings object going forward</span>
+<a id="__codelineno-95-7" name="__codelineno-95-7" href="#__codelineno-95-7"></a><span class="n">NEW_LIMITS</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"max_retries"</span><span class="p">:</span> <span class="mi">3</span><span class="p">}</span>
+<a id="__codelineno-95-8" name="__codelineno-95-8" href="#__codelineno-95-8"></a>
+<a id="__codelineno-95-9" name="__codelineno-95-9" href="#__codelineno-95-9"></a><span class="c1"># DEPRECATED API — `OLD_LIMITS` kept as a deprecated alias during the migration window</span>
+<a id="__codelineno-95-10" name="__codelineno-95-10" href="#__codelineno-95-10"></a><span class="n">OLD_LIMITS</span> <span class="o">=</span> <span class="n">deprecated_instance</span><span class="p">(</span><span class="n">NEW_LIMITS</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">"OLD_LIMITS"</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">"1.0"</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">"2.0"</span><span class="p">)</span>
+<a id="__codelineno-95-11" name="__codelineno-95-11" href="#__codelineno-95-11"></a>
+<a id="__codelineno-95-12" name="__codelineno-95-12" href="#__codelineno-95-12"></a><span class="n">restored</span> <span class="o">=</span> <span class="n">pickle</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">pickle</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">OLD_LIMITS</span><span class="p">))</span>  <span class="c1"># noqa: S301  # silent — pickling rebuilds the proxy, not a usage</span>
+<a id="__codelineno-95-13" name="__codelineno-95-13" href="#__codelineno-95-13"></a><span class="n">duplicate</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">OLD_LIMITS</span><span class="p">)</span>  <span class="c1"># silent</span>
+<a id="__codelineno-95-14" name="__codelineno-95-14" href="#__codelineno-95-14"></a>
+<a id="__codelineno-95-15" name="__codelineno-95-15" href="#__codelineno-95-15"></a><span class="nb">print</span><span class="p">(</span><span class="n">restored</span><span class="p">[</span><span class="s2">"max_retries"</span><span class="p">])</span>  <span class="c1"># warns: FutureWarning</span>
+<a id="__codelineno-95-16" name="__codelineno-95-16" href="#__codelineno-95-16"></a><span class="nb">print</span><span class="p">(</span><span class="n">duplicate</span><span class="p">[</span><span class="s2">"max_retries"</span><span class="p">])</span>  <span class="c1"># warns: FutureWarning — each copy has its own counter snapshotted from the original</span>
 </code></pre></div>
 <details><summary>Output: <code>restored["max_retries"]; duplicate["max_retries"]</code></summary>
 
-<div class="highlight"><pre><span></span><code><a id="__codelineno-92-1" name="__codelineno-92-1" href="#__codelineno-92-1"></a>3
-<a id="__codelineno-92-2" name="__codelineno-92-2" href="#__codelineno-92-2"></a>3
+<div class="highlight"><pre><span></span><code><a id="__codelineno-96-1" name="__codelineno-96-1" href="#__codelineno-96-1"></a>3
+<a id="__codelineno-96-2" name="__codelineno-96-2" href="#__codelineno-96-2"></a>3
 </code></pre></div>
 
 </details>
@@ -3787,23 +3938,23 @@
 <h2 id="my-expiry-gate-reports-more-expired-wrappers-after-upgrading">My expiry gate reports more expired wrappers after upgrading<a class="headerlink" href="#my-expiry-gate-reports-more-expired-wrappers-after-upgrading" title="Permanent link">🔗</a></h2>
 <p><strong>Q:</strong> After upgrading pyDeprecate, <code>validate_deprecation_expiry</code> (and <code>pydeprecate expiry</code>) suddenly reports more expired wrappers than before — nothing in my code changed. Why?</p>
 <p><strong>A:</strong> <code>validate_deprecation_expiry</code> now includes deprecated class members by default (<code>include_members=True</code>), matching <code>find_deprecation_wrappers</code> and <code>generate_deprecation_table</code>. Expired member wrappers — for example an <code>__init__</code> carrying deprecation metadata — are now counted, so totals can rise after upgrading even though your code is unchanged. The newly reported entries are real expired deprecations that were previously invisible to the gate.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-93-1" name="__codelineno-93-1" href="#__codelineno-93-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">validate_deprecation_expiry</span>
-<a id="__codelineno-93-2" name="__codelineno-93-2" href="#__codelineno-93-2"></a>
-<a id="__codelineno-93-3" name="__codelineno-93-3" href="#__codelineno-93-3"></a><span class="c1"># For testing purposes, we use the test module; normally you would import your own package</span>
-<a id="__codelineno-93-4" name="__codelineno-93-4" href="#__codelineno-93-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">tests</span><span class="w"> </span><span class="kn">import</span> <span class="n">collection_deprecate</span> <span class="k">as</span> <span class="n">my_package</span>
-<a id="__codelineno-93-5" name="__codelineno-93-5" href="#__codelineno-93-5"></a>
-<a id="__codelineno-93-6" name="__codelineno-93-6" href="#__codelineno-93-6"></a><span class="c1"># Default scope now includes deprecated class members</span>
-<a id="__codelineno-93-7" name="__codelineno-93-7" href="#__codelineno-93-7"></a><span class="n">expired</span> <span class="o">=</span> <span class="n">validate_deprecation_expiry</span><span class="p">(</span><span class="n">my_package</span><span class="p">,</span> <span class="s2">"0.5"</span><span class="p">)</span>
-<a id="__codelineno-93-8" name="__codelineno-93-8" href="#__codelineno-93-8"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Found </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">expired</span><span class="p">)</span><span class="si">}</span><span class="s2"> expired"</span><span class="p">)</span>
-<a id="__codelineno-93-9" name="__codelineno-93-9" href="#__codelineno-93-9"></a>
-<a id="__codelineno-93-10" name="__codelineno-93-10" href="#__codelineno-93-10"></a><span class="c1"># Restore the previous module-level-only scope</span>
-<a id="__codelineno-93-11" name="__codelineno-93-11" href="#__codelineno-93-11"></a><span class="n">expired</span> <span class="o">=</span> <span class="n">validate_deprecation_expiry</span><span class="p">(</span><span class="n">my_package</span><span class="p">,</span> <span class="s2">"0.5"</span><span class="p">,</span> <span class="n">include_members</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-<a id="__codelineno-93-12" name="__codelineno-93-12" href="#__codelineno-93-12"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Found </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">expired</span><span class="p">)</span><span class="si">}</span><span class="s2"> expired"</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-97-1" name="__codelineno-97-1" href="#__codelineno-97-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">validate_deprecation_expiry</span>
+<a id="__codelineno-97-2" name="__codelineno-97-2" href="#__codelineno-97-2"></a>
+<a id="__codelineno-97-3" name="__codelineno-97-3" href="#__codelineno-97-3"></a><span class="c1"># For testing purposes, we use the test module; normally you would import your own package</span>
+<a id="__codelineno-97-4" name="__codelineno-97-4" href="#__codelineno-97-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">tests</span><span class="w"> </span><span class="kn">import</span> <span class="n">collection_deprecate</span> <span class="k">as</span> <span class="n">my_package</span>
+<a id="__codelineno-97-5" name="__codelineno-97-5" href="#__codelineno-97-5"></a>
+<a id="__codelineno-97-6" name="__codelineno-97-6" href="#__codelineno-97-6"></a><span class="c1"># Default scope now includes deprecated class members</span>
+<a id="__codelineno-97-7" name="__codelineno-97-7" href="#__codelineno-97-7"></a><span class="n">expired</span> <span class="o">=</span> <span class="n">validate_deprecation_expiry</span><span class="p">(</span><span class="n">my_package</span><span class="p">,</span> <span class="s2">"0.5"</span><span class="p">)</span>
+<a id="__codelineno-97-8" name="__codelineno-97-8" href="#__codelineno-97-8"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Found </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">expired</span><span class="p">)</span><span class="si">}</span><span class="s2"> expired"</span><span class="p">)</span>
+<a id="__codelineno-97-9" name="__codelineno-97-9" href="#__codelineno-97-9"></a>
+<a id="__codelineno-97-10" name="__codelineno-97-10" href="#__codelineno-97-10"></a><span class="c1"># Restore the previous module-level-only scope</span>
+<a id="__codelineno-97-11" name="__codelineno-97-11" href="#__codelineno-97-11"></a><span class="n">expired</span> <span class="o">=</span> <span class="n">validate_deprecation_expiry</span><span class="p">(</span><span class="n">my_package</span><span class="p">,</span> <span class="s2">"0.5"</span><span class="p">,</span> <span class="n">include_members</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<a id="__codelineno-97-12" name="__codelineno-97-12" href="#__codelineno-97-12"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Found </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">expired</span><span class="p">)</span><span class="si">}</span><span class="s2"> expired"</span><span class="p">)</span>
 </code></pre></div>
 <details><summary>Output: <code>Found ... expired</code></summary>
 
-<div class="highlight"><pre><span></span><code><a id="__codelineno-94-1" name="__codelineno-94-1" href="#__codelineno-94-1"></a>Found 31 expired
-<a id="__codelineno-94-2" name="__codelineno-94-2" href="#__codelineno-94-2"></a>Found 28 expired
+<div class="highlight"><pre><span></span><code><a id="__codelineno-98-1" name="__codelineno-98-1" href="#__codelineno-98-1"></a>Found 31 expired
+<a id="__codelineno-98-2" name="__codelineno-98-2" href="#__codelineno-98-2"></a>Found 28 expired
 </code></pre></div>
 
 </details>
@@ -3813,7 +3964,7 @@
 <h2 id="userwarning-audit-skipped-module-during-a-recursive-scan">UserWarning: <code>audit: skipped &lt;module&gt;</code> during a recursive scan<a class="headerlink" href="#userwarning-audit-skipped-module-during-a-recursive-scan" title="Permanent link">🔗</a></h2>
 <p><strong>Q:</strong> A recursive audit scan (<code>find_deprecation_wrappers</code>, <code>validate_deprecation_expiry</code>, <code>pydeprecate check</code> / <code>all</code>) emits <code>UserWarning: audit: skipped &lt;module&gt;: &lt;exception&gt;</code>. What does it mean?</p>
 <p><strong>A:</strong> Recursive scans import every submodule of the scanned package, so module-level code runs. When a submodule raises any exception at import time — not just <code>ImportError</code> — the scanner emits this warning and continues with the remaining modules instead of aborting the whole scan:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-95-1" name="__codelineno-95-1" href="#__codelineno-95-1"></a>UserWarning: audit: skipped my_package.legacy_ext: RuntimeError('optional native extension not built')
+<div class="highlight"><pre><span></span><code><a id="__codelineno-99-1" name="__codelineno-99-1" href="#__codelineno-99-1"></a>UserWarning: audit: skipped my_package.legacy_ext: RuntimeError('optional native extension not built')
 </code></pre></div>
 <p>The scan results are complete for every module that imported successfully; only the named submodule is missing. Investigate and fix that submodule (or accept the gap if the failure is expected, e.g. an optional dependency) — one broken submodule no longer kills the CI gate, but its deprecations are not audited until it imports cleanly.</p>
 <hr />
@@ -3848,7 +3999,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="July 23, 2026 15:23:12 UTC">2026-07-23</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="August 25, 2026 06:35:51 UTC">2026-08-25</span>
   </span>
 
     

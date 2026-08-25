@@ -1703,6 +1703,96 @@ def also_old_fn(x: int) -> int: ...
 
 Both deprecated names forward to the same non-deprecated implementation with no cycle.
 
+## How do I type-annotate the object returned by `deprecated_class` / `deprecated_instance`?
+
+**Q:** mypy reports the result of `deprecated_class(...)` as `_DeprecatedProxy`, a private name. What is the supported type to annotate against?
+
+**A:** Import `Deprecated` from `deprecate`. `DeprecatedClass` and `DeprecatedInstance` are aliases of the same object, provided so an annotation reads closer to the call that produced it — all three are the same type, and `Deprecated is DeprecatedClass` is `True`.
+
+`Deprecated[T]` is generic in the type produced by calling the proxy. mypy infers `T` from `target=` only in the **functional form**, where the source class is an argument rather than a decorated statement:
+
+```python
+from dataclasses import dataclass
+from deprecate import Deprecated, deprecated_class
+
+
+@dataclass
+class RetryPolicy:
+    attempts: int
+
+
+@dataclass
+class _LegacyRetryConfig:
+    attempts: int
+
+
+# functional form — mypy infers `Deprecated[RetryPolicy]`, so `RetryConfig(3)` is typed `RetryPolicy`
+RetryConfig = deprecated_class(target=RetryPolicy, deprecated_in="1.4", remove_in="2.0")(_LegacyRetryConfig)
+
+print(isinstance(RetryConfig(3), RetryPolicy))  # warns: FutureWarning
+```
+
+<details>
+  <summary>Output: <code>isinstance(RetryConfig(3), RetryPolicy)</code></summary>
+
+```
+True
+```
+
+</details>
+
+The decorator form `@deprecated_class(target=RetryPolicy, ...)` behaves identically at runtime but keeps the concrete `_DeprecatedProxy` return type — mypy does not rebind a `class` statement to an instance return type, so there is nothing for it to infer `T` from. That is deliberate everywhere except the functional form above: the concrete proxy type is what keeps the forwarded dunders (`int()`, `with`, `await`) visible, which the narrow protocol would hide. You can still *annotate* any of them as `Deprecated`.
+
+!!! warning "`issubclass` raises `TypeError`"
+
+    `Deprecated` declares attributes (`__wrapped__`, `__deprecated__`), which makes it a *data* protocol. Python supports only `isinstance` for those: `isinstance(obj, Deprecated)` works, `issubclass(SomeType, Deprecated)` raises `TypeError: Protocols with non-method members don't support issubclass()`. This is a CPython rule for every runtime-checkable protocol with non-method members, not a pyDeprecate restriction.
+
+## Sphinx / my IDE shows `(*args, **kwargs)` instead of my deprecated class's real signature
+
+**Q:** Autodoc renders the proxy rather than the wrapped class, or `inspect.signature()` on a deprecated alias returns something useless. How do I reach the original?
+
+**A:** Every proxy carries two breadcrumbs pointing back at what it wraps, and reading either one emits **no** deprecation warning — documentation builds and IDE hovers stay quiet:
+
+| Attribute       | Points to                  | Consumed by                                                   |
+| --------------- | -------------------------- | ------------------------------------------------------------- |
+| `__wrapped__`   | the source class or object | `inspect.unwrap`, Sphinx autodoc, griffe/mkdocstrings, IDEs   |
+| `__signature__` | the source's signature     | `inspect.signature`, and tools that do not walk `__wrapped__` |
+
+```python
+import inspect
+from dataclasses import dataclass
+from deprecate import deprecated_class
+
+
+@dataclass
+class RetryPolicy:
+    attempts: int
+    backoff: float = 1.0
+
+
+@deprecated_class(target=RetryPolicy, deprecated_in="1.4", remove_in="2.0")
+@dataclass
+class RetryConfig:
+    attempts: int
+    backoff: float = 1.0
+
+
+print(inspect.unwrap(RetryConfig).__name__)
+print(str(inspect.signature(RetryConfig)))
+```
+
+<details>
+  <summary>Output: <code>inspect.unwrap(RetryConfig).__name__; str(inspect.signature(RetryConfig))</code></summary>
+
+```
+RetryConfig
+(attempts: int, backoff: float = 1.0) -> None
+```
+
+</details>
+
+If a tool still renders the proxy, point it at `__wrapped__` explicitly. When the wrapped object has no introspectable signature — a plain `dict` handed to `deprecated_instance()`, or any C-level type — `__signature__` is `None` rather than missing; wrapping never fails because the source cannot be introspected.
+
 ______________________________________________________________________
 
 ## Module deprecation: accessing a missing attribute raises AttributeError

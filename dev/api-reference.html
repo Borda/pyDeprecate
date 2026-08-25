@@ -95,7 +95,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-05-23",
-  "dateModified": "2026-07-20"
+  "dateModified": "2026-08-25"
 }
 </script>
 
@@ -1484,6 +1484,56 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#deprecate.Deprecated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;Deprecated
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" Deprecated">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#deprecate.Deprecated.__call__" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;__call__
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deprecate.Deprecated.__getattr__" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;__getattr__
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deprecate.Deprecated.__getitem__" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;__getitem__
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#utilities" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2232,6 +2282,56 @@
       
     </span>
   </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deprecate.Deprecated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;Deprecated
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" Deprecated">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#deprecate.Deprecated.__call__" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;__call__
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deprecate.Deprecated.__getattr__" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;__getattr__
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deprecate.Deprecated.__getitem__" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;__getitem__
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -3131,6 +3231,10 @@ TypeError: <code>@deprecated_callable</code> cannot decorate class <code>OldClas
 <code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">deprecate</span><span class="o">.</span><span class="n">proxy</span><span class="o">.</span><span class="n">deprecated_class</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s1">''</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s1">''</span><span class="p">,</span> <span class="n">num_warns</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">stream</span><span class="o">=</span><span class="n">deprecation_warning</span><span class="p">,</span> <span class="n">message_template</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">args_mapping</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">args_extra</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">attrs_mapping</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">skip_if</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">update_docstring</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">docstring_style</span><span class="o">=</span><span class="s1">'auto'</span><span class="p">,</span> <span class="n">template_mgs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">_misconfigured_override</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">_stacklevel_extra</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span></code>
 
 <a href="#deprecate.proxy.deprecated_class" class="headerlink" title="Permanent link">🔗</a></h2>
+          <div class="doc-overloads">
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">deprecated_class</span><span class="p">(</span><span class="n">target</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">_T</span><span class="p">],</span> <span class="o">*</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="o">...</span><span class="p">,</span> <span class="n">remove_in</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="o">...</span><span class="p">,</span> <span class="n">num_warns</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="o">...</span><span class="p">,</span> <span class="n">stream</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]]</span> <span class="o">=</span> <span class="o">...</span><span class="p">,</span> <span class="n">message_template</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="o">...</span><span class="p">,</span> <span class="n">args_mapping</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]]]</span> <span class="o">=</span> <span class="o">...</span><span class="p">,</span> <span class="n">args_extra</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="o">...</span><span class="p">,</span> <span class="n">attrs_mapping</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]]]</span> <span class="o">=</span> <span class="o">...</span><span class="p">,</span> <span class="n">skip_if</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">bool</span><span class="p">,</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="nb">bool</span><span class="p">]]</span> <span class="o">=</span> <span class="o">...</span><span class="p">,</span> <span class="n">update_docstring</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="o">...</span><span class="p">,</span> <span class="n">docstring_style</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s1">'auto'</span><span class="p">,</span> <span class="s1">'rst'</span><span class="p">,</span> <span class="s1">'mkdocs'</span><span class="p">,</span> <span class="s1">'markdown'</span><span class="p">]</span> <span class="o">=</span> <span class="o">...</span><span class="p">,</span> <span class="n">template_mgs</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="o">...</span><span class="p">,</span> <span class="n">_misconfigured_override</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="o">...</span><span class="p">,</span> <span class="n">_stacklevel_extra</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="o">...</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">_ClassOrProxy</span><span class="p">],</span> <span class="n">Deprecated</span><span class="p">[</span><span class="n">_T</span><span class="p">]]</span>
+</code></pre></div><div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">deprecated_class</span><span class="p">(</span><span class="n">target</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="o">...</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="o">...</span><span class="p">,</span> <span class="n">remove_in</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="o">...</span><span class="p">,</span> <span class="n">num_warns</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="o">...</span><span class="p">,</span> <span class="n">stream</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]]</span> <span class="o">=</span> <span class="o">...</span><span class="p">,</span> <span class="n">message_template</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="o">...</span><span class="p">,</span> <span class="n">args_mapping</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]]]</span> <span class="o">=</span> <span class="o">...</span><span class="p">,</span> <span class="n">args_extra</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="o">...</span><span class="p">,</span> <span class="n">attrs_mapping</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]]]</span> <span class="o">=</span> <span class="o">...</span><span class="p">,</span> <span class="n">skip_if</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">bool</span><span class="p">,</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="nb">bool</span><span class="p">]]</span> <span class="o">=</span> <span class="o">...</span><span class="p">,</span> <span class="n">update_docstring</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="o">...</span><span class="p">,</span> <span class="n">docstring_style</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s1">'auto'</span><span class="p">,</span> <span class="s1">'rst'</span><span class="p">,</span> <span class="s1">'mkdocs'</span><span class="p">,</span> <span class="s1">'markdown'</span><span class="p">]</span> <span class="o">=</span> <span class="o">...</span><span class="p">,</span> <span class="n">template_mgs</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="o">...</span><span class="p">,</span> <span class="n">_misconfigured_override</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="o">...</span><span class="p">,</span> <span class="n">_stacklevel_extra</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="o">...</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">_ClassOrProxy</span><span class="p">],</span> <span class="n">_DeprecatedProxy</span><span class="p">]</span>
+</code></pre></div>          </div>
 
 
     <div class="doc doc-contents first">
@@ -3442,11 +3546,51 @@ supplying both raises :class:<code>TypeError</code>.  Removed in <code>v1.0</cod
       <tbody>
           <tr class="doc-section-item">
             <td>
-                  <code><span title="typing.Callable">Callable</span>[[<span title="typing.Union">Union</span>[<span title="type">type</span>, <span title="deprecate.proxy._DeprecatedProxy">_DeprecatedProxy</span>]], <span title="deprecate.proxy._DeprecatedProxy">_DeprecatedProxy</span>]</code>
+                  <code><span title="typing.Callable">Callable</span>[[<span title="deprecate.proxy._ClassOrProxy">_ClassOrProxy</span>], <span title="deprecate.proxy._DeprecatedProxy">_DeprecatedProxy</span>]</code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>A decorator that wraps the class in a :class:<code>~deprecate.proxy._DeprecatedProxy</code>.</p>
+                <p>A decorator that wraps the class in a :class:<code>~deprecate.proxy._DeprecatedProxy</code>, which satisfies the public</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="typing.Callable">Callable</span>[[<span title="deprecate.proxy._ClassOrProxy">_ClassOrProxy</span>], <span title="deprecate.proxy._DeprecatedProxy">_DeprecatedProxy</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="typing.Callable">Callable</span>[[<span title="deprecate.proxy._ClassOrProxy">_ClassOrProxy</span>], <span title="deprecate.proxy._DeprecatedProxy">_DeprecatedProxy</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>(<code>Old = deprecated_class(target=NewCls, ...)(_OldSource)</code>) narrows the return type to <code>Deprecated[NewCls]</code>,</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="typing.Callable">Callable</span>[[<span title="deprecate.proxy._ClassOrProxy">_ClassOrProxy</span>], <span title="deprecate.proxy._DeprecatedProxy">_DeprecatedProxy</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>so calling the result is typed as producing a <code>NewCls</code>.  Every other form keeps the concrete proxy type,</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="typing.Callable">Callable</span>[[<span title="deprecate.proxy._ClassOrProxy">_ClassOrProxy</span>], <span title="deprecate.proxy._DeprecatedProxy">_DeprecatedProxy</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>which is what makes the forwarded dunders (<code>int()</code>, <code>with</code>, <code>await</code>) visible to type checkers.</p>
               </div>
             </td>
           </tr>
@@ -3753,6 +3897,36 @@ supplying both raises :class:<code>TypeError</code>.  Removed in <code>v1.0</cod
             <td>
               <div class="doc-md-description">
                 
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+<td></td>            <td>
+                  <code><span title="deprecate.proxy._DeprecatedProxy">_DeprecatedProxy</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+<td></td>            <td>
+                  <code><span title="deprecate.proxy._DeprecatedProxy">_DeprecatedProxy</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>__signature__</code> is <em>obj</em>'s signature — or <code>None</code> when <em>obj</em> has none to introspect (a plain <code>dict</code>,</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+<td></td>            <td>
+                  <code><span title="deprecate.proxy._DeprecatedProxy">_DeprecatedProxy</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>any C-level type). Reading either emits no warning.</p>
               </div>
             </td>
           </tr>
@@ -5570,6 +5744,171 @@ attribute access instead of call arguments. Selected automatically by :attr:<cod
 
     </div>
 
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="deprecate.Deprecated" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>deprecate.Deprecated</code>
+
+
+<a href="#deprecate.Deprecated" class="headerlink" title="Permanent link">🔗</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="typing.Protocol">Protocol</span></code>, <code><span title="typing.Generic">Generic</span>[<span title="deprecate._types._T_co">_T_co</span>]</code></p>
+
+
+
+        <p>Public type produced by :func:<code>~deprecate.proxy.deprecated_class</code> / :func:<code>~deprecate.proxy.deprecated_instance</code>.</p>
+<p>Documents the public contract that deprecated proxies satisfy:</p>
+<ul>
+<li><code>__wrapped__</code> points back to the source object/class for static-analysis tools (Sphinx, mypy, IDEs).</li>
+<li><code>__deprecated__</code> carries :class:<code>DeprecationConfig</code> metadata consumed by audit tools.</li>
+<li>Attribute, item, and call access is transparently forwarded to the wrapped source.</li>
+</ul>
+<p>The type parameter <code>T</code> describes the instance type returned by calling the proxy (i.e. the target
+type for class-forwarding proxies). It is purely a static affordance: runtime instances of
+:class:<code>~deprecate.proxy._DeprecatedProxy</code> satisfy this Protocol structurally, so no explicit <code>isinstance</code>
+check is required.</p>
+<div class="admonition note">
+<p class="admonition-title">Static-typing scope</p>
+<p>This Protocol is the type to <em>annotate</em> against; it is not what the public functions declare as their
+return type. <code>deprecated_class</code> and <code>deprecated_instance</code> return the concrete
+:class:<code>~deprecate.proxy._DeprecatedProxy</code>, whose forwarded dunders (<code>int()</code>, <code>with</code>, <code>await</code>, ...)
+a narrow Protocol would hide from type checkers. The one exception is the <strong>functional/assignment form</strong>
+with a class <code>target</code> — <code>OldCls = deprecated_class(target=NewCls, ...)(OldClsDef)</code> — which narrows to
+<code>Deprecated[NewCls]</code>, mypy inferring <code>T</code> from the <code>target</code> argument. The decorator form
+<code>@deprecated_class(target=NewCls, ...)</code> is typed as the raw source class because mypy does not rebind a
+class definition to an instance return type; full inference there would require returning a real class
+instead of a proxy.</p>
+</div>
+<div class="admonition warning">
+<p class="admonition-title"><code>isinstance</code> only</p>
+<p>This is a <em>data</em> Protocol (it declares attributes, not just methods), so only <code>isinstance</code> is
+supported at runtime. <code>issubclass(SomeType, Deprecated)</code> raises :class:<code>TypeError</code>, as it does
+for every <code>@runtime_checkable</code> Protocol with non-method members.</p>
+</div>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <blockquote>
+<blockquote>
+<blockquote>
+<p>from deprecate import deprecated_class, Deprecated
+class NewColor:
+...     def <strong>init</strong>(self, code: int) -&gt; None:
+...         self.code = code
+@deprecated_class(target=NewColor, deprecated_in="1.0", remove_in="2.0", stream=None)
+... class OldColor:
+...     pass
+isinstance(OldColor, Deprecated)
+True
+OldColor.<strong>wrapped</strong> is OldColor.<strong>wrapped</strong>  # breadcrumb back to the source class
+True</p>
+</blockquote>
+</blockquote>
+</blockquote>
+<p>The functional/assignment form is what gives mypy the target type — it infers
+<code>Deprecated[NewColor]</code> here, so <code>OldColorAlias(1)</code> is typed as <code>NewColor</code>:</p>
+<blockquote>
+<blockquote>
+<blockquote>
+<p>_decorator = deprecated_class(target=NewColor, deprecated_in="1.0", remove_in="2.0", stream=None)
+class _OldColorSource:
+...     pass
+OldColorAlias = _decorator(_OldColorSource)
+isinstance(OldColorAlias(1), NewColor)
+True</p>
+</blockquote>
+</blockquote>
+</blockquote>
+</details>
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="deprecate.Deprecated.__call__" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="fm">__call__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
+
+<a href="#deprecate.Deprecated.__call__" class="headerlink" title="Permanent link">🔗</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Forward a call to the wrapped source (e.g. <code>OldColor(1)</code> -&gt; <code>NewColor(1)</code>).</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="deprecate.Deprecated.__getattr__" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="fm">__getattr__</span><span class="p">(</span><span class="n">name</span><span class="p">)</span></code>
+
+<a href="#deprecate.Deprecated.__getattr__" class="headerlink" title="Permanent link">🔗</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Forward attribute access (e.g. <code>OldColor.RED</code> -&gt; <code>NewColor.RED</code>).</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="deprecate.Deprecated.__getitem__" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="fm">__getitem__</span><span class="p">(</span><span class="n">key</span><span class="p">)</span></code>
+
+<a href="#deprecate.Deprecated.__getitem__" class="headerlink" title="Permanent link">🔗</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Forward item access (e.g. <code>proxy['key']</code> -&gt; <code>source['key']</code>).</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
 </div><h2 id="utilities">Utilities<a class="headerlink" href="#utilities" title="Permanent link">🔗</a></h2>
 
 
@@ -5835,7 +6174,7 @@ without triggering deprecation warnings.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="July 20, 2026 15:28:16 UTC">2026-07-20</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="August 25, 2026 06:35:51 UTC">2026-08-25</span>
   </span>
 
     
