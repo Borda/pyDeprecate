@@ -14,7 +14,8 @@ from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 
-from deprecate import Deprecated, DeprecatedClass, DeprecatedInstance
+import deprecate
+from deprecate import DeprecationProxy
 from deprecate._types import TargetMode
 from deprecate.deprecation import deprecated
 from deprecate.proxy import _DeprecatedProxy, deprecated_class, deprecated_instance
@@ -682,7 +683,7 @@ class TestDecoratorEnum:
         ],
     )
     def test_warns_and_redirects_to_target_member(self, action: Callable[[], object]) -> None:
-        """Deprecated Enum call, attribute, and item access should warn and resolve to target member."""
+        """DeprecationProxy Enum call, attribute, and item access should warn and resolve to target member."""
         with pytest.warns(
             FutureWarning,
             match=(
@@ -734,7 +735,7 @@ class TestArgsMapping:
         ],
     )
     def test_remap_kwargs(self, kwargs: dict[str, object], expected_label: str, expected_total: int) -> None:
-        """Deprecated dataclass calls should remap renamed kwargs and preserve explicit non-remapped kwargs.
+        """DeprecationProxy dataclass calls should remap renamed kwargs and preserve explicit non-remapped kwargs.
 
         When an old kwarg name is passed (e.g. ``name`` mapped to ``label``), the proxy emits the per-argument
         deprecation template (``old -> new``) — matching the decorator's argument-deprecation form.
@@ -2726,7 +2727,7 @@ class TestProxyCopyPickle:
         Reconstruction bypasses ``__init__``, so the breadcrumbs have to be re-established explicitly.
         Without that, a consumer who snapshots a deprecated symbol with ``copy.copy`` gets a proxy that
         ``inspect.unwrap`` can no longer see through and that no longer structurally satisfies the public
-        ``Deprecated`` protocol — the "every proxy carries ``__wrapped__``" contract would hold only until
+        ``DeprecationProxy`` protocol — the "every proxy carries ``__wrapped__``" contract would hold only until
         somebody copied one.
         """
         proxy = deprecated_instance(
@@ -2737,7 +2738,7 @@ class TestProxyCopyPickle:
 
         assert dup.__wrapped__ is base_sum_kwargs
         assert dup.__signature__ == inspect.signature(base_sum_kwargs)
-        assert isinstance(dup, Deprecated)
+        assert isinstance(dup, DeprecationProxy)
 
     def test_deepcopy_rebinds_breadcrumb_to_copied_object(self) -> None:
         """A deep copy points ``__wrapped__`` at its *own* wrapped object, not the original's.
@@ -2762,9 +2763,9 @@ class TestProxyCopyPickle:
         report exactly the same ``__wrapped__`` and ``__signature__`` as the original alias — this is the
         path Sphinx autodoc and IDEs walk when they encounter a copied module namespace.
         """
-        original = cast(Deprecated[Any], DeprecatedColorEnum)
+        original = cast(DeprecationProxy[Any], DeprecatedColorEnum)
 
-        dup = cast(Deprecated[Any], copy.deepcopy(DeprecatedColorEnum))
+        dup = cast(DeprecationProxy[Any], copy.deepcopy(DeprecatedColorEnum))
 
         assert dup.__wrapped__ is original.__wrapped__
         assert dup.__signature__ == original.__signature__
@@ -3346,26 +3347,27 @@ class TestProxySkipIf:
 
 # Statically `DeprecatedColorEnum` is still the class statement: mypy does not rebind a decorated
 # class to the proxy it becomes at runtime, which is the decorator-form limitation documented on
-# `Deprecated`. Cast once so the breadcrumb reads below type-check against the real runtime object.
-_ast_class_proxy = cast(Deprecated[Any], DeprecatedColorEnum)
+# `DeprecationProxy`. Cast once so the breadcrumb reads below type-check against the real runtime object.
+_ast_class_proxy = cast(DeprecationProxy[Any], DeprecatedColorEnum)
 
 
 if TYPE_CHECKING:
-    # Static type assertions — the only place the `deprecated_class` overloads are actually verified.
-    # `@overload` resolution is erased at runtime, so no runtime test can tell `Deprecated[ColorEnum]`
-    # apart from `Any` or from `_DeprecatedProxy`: the advertised inference could regress to either while
-    # every test below still passed. mypy analyses this block (always true for a type checker) but the
-    # interpreter never executes it, so the calls construct nothing and emit no warnings.
+    # `deprecated_class` returns the concrete `_DeprecatedProxy` in every call shape — no overloads, no
+    # target-driven narrowing. Pinned statically because the runtime object is the same either way: a
+    # regression that silently widened the return type to `Any` would leave every runtime test passing.
+    # mypy analyses this block (always true for a type checker) but the interpreter never executes it,
+    # so the calls construct nothing and emit no warnings.
     # NOTE: `[tool.mypy] mypy_path = "src"` is what makes these bite — without it `deprecate` is
     # unresolvable from `tests/**`, `ignore_missing_imports` turns every symbol into `Any`, and
     # `assert_type` degrades to a silent no-op that passes against any signature whatsoever.
     from typing_extensions import assert_type
 
-    # class `target` → narrowing overload: the alias is `Deprecated[ColorEnum]` and calling it yields a `ColorEnum`
-    assert_type(DeprecatedColorEnumFunctional, Deprecated[ColorEnum])
-    assert_type(DeprecatedColorEnumFunctional(1), ColorEnum)
-    # no class `target` → fallback overload keeps the concrete proxy, never widening to `Deprecated[Any]`
+    assert_type(DeprecatedColorEnumFunctional, _DeprecatedProxy)
     assert_type(DeprecatedPaletteFunctionalFallback, _DeprecatedProxy)
+    # A caller who wants the target type at a specific site annotates it there; the proxy satisfies the
+    # public Protocol structurally, so no cast is needed.
+    _typed_alias: DeprecationProxy[ColorEnum] = DeprecatedColorEnumFunctional
+    assert_type(_typed_alias(1), ColorEnum)
 
 
 class TestProxyAstFriendliness:
@@ -3460,41 +3462,61 @@ class TestProxyAstFriendliness:
 
 
 class TestDeprecatedProtocol:
-    """The ``Deprecated`` Protocol is part of the public API surface.
+    """The ``DeprecationProxy`` Protocol is part of the public API surface.
 
     Provides a documented, public type for the result of ``deprecated_class`` and
     ``deprecated_instance`` so user code can annotate against it without importing a private name.
     """
 
-    def test_public_symbols_exported(self) -> None:
-        """``Deprecated``, ``DeprecatedClass``, and ``DeprecatedInstance`` are public.
+    def test_public_symbol_exported(self) -> None:
+        """``DeprecationProxy`` is importable from ``deprecate`` and listed in ``__all__``.
 
-        All three names must be importable from ``deprecate`` directly — this is the contract users
-        rely on for type annotations without needing to know the private ``_DeprecatedProxy`` name.
+        This is the contract users rely on for type annotations without needing to know the private
+        ``_DeprecatedProxy`` name; a symbol missing from ``__all__`` is invisible to star-imports and
+        to the docs build, so both halves are pinned here.
         """
-        assert Deprecated is DeprecatedClass
-        assert Deprecated is DeprecatedInstance
+        assert deprecate.DeprecationProxy is DeprecationProxy
+        assert "DeprecationProxy" in deprecate.__all__
+
+    @pytest.mark.parametrize(
+        "legacy_name",
+        [
+            pytest.param("Deprecated", id="bare-protocol-alias"),
+            pytest.param("DeprecatedClass", id="class-alias"),
+            pytest.param("DeprecatedInstance", id="instance-alias"),
+        ],
+    )
+    def test_legacy_aliases_removed(self, legacy_name: str) -> None:
+        """The pre-rename aliases are gone from the package surface, not merely undocumented.
+
+        ``Deprecated``, ``DeprecatedClass`` and ``DeprecatedInstance`` were all bound to the same object
+        before the rename to ``DeprecationProxy``. Absence is currently only a matter of nobody
+        re-adding them; without this guard a stray re-export — or an ``__all__`` entry left behind by a
+        merge — would restore names the rename exists to retire, and no other test would notice.
+        """
+        assert not hasattr(deprecate, legacy_name)
+        assert legacy_name not in deprecate.__all__
 
     def test_runtime_checkable_protocol(self) -> None:
-        """``Deprecated`` is ``@runtime_checkable``: ``isinstance`` works on proxy instances.
+        """``DeprecationProxy`` is ``@runtime_checkable``: ``isinstance`` works on proxy instances.
 
         Although the Protocol is structural, runtime checks let user code write
-        ``isinstance(my_proxy, Deprecated)`` without a cast. Both ``deprecated_class`` and
+        ``isinstance(my_proxy, DeprecationProxy)`` without a cast. Both ``deprecated_class`` and
         ``deprecated_instance`` outputs must satisfy the Protocol at runtime.
         """
-        assert isinstance(DeprecatedColorEnum, Deprecated)
-        assert isinstance(depr_ast_breadcrumb_dict, Deprecated)
+        assert isinstance(DeprecatedColorEnum, DeprecationProxy)
+        assert isinstance(depr_ast_breadcrumb_dict, DeprecationProxy)
 
     def test_issubclass_rejects_data_protocol(self) -> None:
-        """``issubclass`` against ``Deprecated`` raises ``TypeError``.
+        """``issubclass`` against ``DeprecationProxy`` raises ``TypeError``.
 
-        ``Deprecated`` declares attributes (``__wrapped__``, ``__deprecated__``), which makes it a
+        ``DeprecationProxy`` declares attributes (``__wrapped__``, ``__deprecated__``), which makes it a
         *data* Protocol — Python only supports ``isinstance`` for those. Users reaching for
         ``issubclass`` get a hard error rather than a wrong answer, so the docstring warning is pinned
         here to catch any future change that silently loosens it.
         """
         with pytest.raises(TypeError, match="non-method members"):
-            issubclass(dict, Deprecated)  # type: ignore[misc]
+            issubclass(dict, DeprecationProxy)  # type: ignore[misc]
 
     def test_wrapped_is_typed_as_attribute_on_proxy_class(self) -> None:
         """``_DeprecatedProxy`` declares ``__wrapped__`` and ``__signature__`` at class level.
@@ -3506,15 +3528,14 @@ class TestDeprecatedProtocol:
         assert "__wrapped__" in _DeprecatedProxy.__annotations__
         assert "__signature__" in _DeprecatedProxy.__annotations__
 
-    def test_functional_form_runtime_behaviour_unchanged_by_overloads(self) -> None:
-        """The functional/assignment form still works at runtime with generic-typed overloads.
+    def test_functional_form_forwards_like_decorator_form(self) -> None:
+        """The functional/assignment form forwards construction exactly as the decorator form does.
 
-        ``@overload`` signatures are erased at runtime — only the implementation runs. This test guards
-        that adding the generic overloads (which let mypy infer ``Deprecated[ColorEnum]`` from
-        ``target=ColorEnum`` in the functional form) did not change runtime forwarding. Both forms —
-        ``deprecated_class(target=ColorEnum)(OldCls)`` and ``@deprecated_class(target=ColorEnum)`` — must
-        forward construction to the target identically.
+        ``deprecated_class`` returns the concrete ``_DeprecatedProxy`` in every call shape, so the choice
+        between ``deprecated_class(target=ColorEnum)(OldCls)`` and ``@deprecated_class(target=ColorEnum)``
+        is a static-annotation concern only. This pins that it stays a static one: whichever form a caller
+        picks — annotated or not — the proxy must forward construction to the target identically at runtime.
         """
         # Runtime: calling the proxy forwards to the target constructor, exactly as the decorator form does.
         assert DeprecatedColorEnumFunctional(1) is ColorEnum.RED
-        assert isinstance(DeprecatedColorEnumFunctional, Deprecated)
+        assert isinstance(DeprecatedColorEnumFunctional, DeprecationProxy)

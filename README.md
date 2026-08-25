@@ -171,7 +171,7 @@ Not sure which API to reach for? Start here.
 | Warn only — original body still runs          | `@deprecated(deprecated_in="1.0", remove_in="2.0")`                      |
 | Deprecating a class, Enum, or dataclass name  | `@deprecated_class(target=NewClass)`                                     |
 | Deprecating a module-level constant or object | `deprecated_instance(obj, ...)`                                          |
-| Annotating the proxy those two return         | `Deprecated` (aliases: `DeprecatedClass`, `DeprecatedInstance`)          |
+| Annotating the proxy those two return         | `DeprecationProxy`                                                       |
 
 > **Note:** Legacy `target=None` and `target=True` emit `FutureWarning` at decoration time in v0.8 and become `TypeError` in v1.0. Use `TargetMode.NOTIFY` and `TargetMode.ARGS_REMAP` respectively.
 
@@ -911,20 +911,20 @@ True
 ### 🏷 Typing deprecated proxies
 
 <details>
-<summary>Example: annotating with <code>Deprecated</code> and reading proxy breadcrumbs</summary>
+<summary>Example: annotating with <code>DeprecationProxy</code> and reading proxy breadcrumbs</summary>
 
-`deprecated_class()` and `deprecated_instance()` return a proxy, not a class. Annotate it with the public `Deprecated` protocol instead of reaching for a private name — `DeprecatedClass` and `DeprecatedInstance` are aliases of the same type, so pick whichever reads better at the annotation site.
+`deprecated_class()` and `deprecated_instance()` return a proxy, not a class. Annotate it with the public `DeprecationProxy` protocol instead of reaching for a private name.
 
-`Deprecated[T]` is generic in what calling the proxy produces. mypy infers `T` from `target=` in the functional form with a class target (`Old = deprecated_class(target=New, ...)(_OldSource)`), which is the one call shape that returns `Deprecated[New]`. Every other shape, including the decorator form, is identical at runtime but keeps the concrete `_DeprecatedProxy` return type so the proxy's forwarded dunders (`int()`, `with`, `await`) stay visible to type checkers.
+`DeprecationProxy[T]` is generic in what calling the proxy produces, but `deprecated_class` and `deprecated_instance` return the concrete proxy in every call shape — mypy does not infer `T` from `target=` on its own. A caller who wants the target type at a specific site annotates it there: `Old: DeprecationProxy[NewCls] = deprecated_class(target=NewCls, deprecated_in="1.0", remove_in="2.0")(_OldSource)`. Keeping the concrete `_DeprecatedProxy` return type everywhere else is deliberate — it keeps the proxy's forwarded dunders (`int()`, `with`, `await`) visible to type checkers, which the narrower protocol would hide.
 
 Every proxy also carries `__wrapped__` (the source object) and `__signature__` (the source's signature), so `inspect.unwrap`, `inspect.signature`, Sphinx autodoc, and IDEs resolve through the proxy to the real thing. Reading either attribute emits no warning.
 
-> [!NOTE] `Deprecated` is a *data* protocol — `isinstance(obj, Deprecated)` works, but `issubclass()` raises `TypeError`.
+> [!NOTE] `DeprecationProxy` is a *data* protocol — `isinstance(obj, DeprecationProxy)` works, but `issubclass()` raises `TypeError`.
 
 ```python
 import inspect
 from dataclasses import dataclass
-from deprecate import Deprecated, deprecated_class
+from deprecate import DeprecationProxy, deprecated_class
 
 
 # NEW/FUTURE API — renamed for clarity
@@ -942,7 +942,7 @@ class RetryConfig:
     backoff: float = 1.0
 
 
-print(isinstance(RetryConfig, Deprecated))
+print(isinstance(RetryConfig, DeprecationProxy))
 # Breadcrumbs read straight off the proxy — no deprecation warning
 print(inspect.unwrap(RetryConfig).__name__)
 print(str(inspect.signature(RetryConfig)))
@@ -953,7 +953,7 @@ print(str(inspect.signature(RetryConfig)))
 <br>
 
 <details>
-  <summary>Output: <code>isinstance(RetryConfig, Deprecated); inspect.unwrap(RetryConfig).__name__; str(inspect.signature(RetryConfig))</code></summary>
+  <summary>Output: <code>isinstance(RetryConfig, DeprecationProxy); inspect.unwrap(RetryConfig).__name__; str(inspect.signature(RetryConfig))</code></summary>
 
 ```
 True
