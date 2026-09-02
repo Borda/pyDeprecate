@@ -475,17 +475,22 @@ def test_deprecated_func_accuracy(func: Callable, expected: float) -> None:
 
 
 def test_deprecated_func_attribute_set_at_decoration_time() -> None:
-    """Test that __deprecated__ attribute is set at decoration time, not call time.
+    """Test that __deprecation_config__ attribute is set at decoration time, not call time.
 
-    This verifies that the __deprecated__ attribute is available immediately after the decorator is applied, without
-    needing to call the function first.
+    This verifies that the __deprecation_config__ attribute is available immediately after the decorator is
+    applied, without needing to call the function first; and that __deprecated__ is already a rendered
+    message string at the same point.
 
     """
-    # Verify __deprecated__ is set WITHOUT calling the function (using decorated_sum from collection_deprecate)
+    # Verify both attrs are set WITHOUT calling the function (using decorated_sum from collection_deprecate)
+    assert hasattr(decorated_sum, "__deprecation_config__")
     assert hasattr(decorated_sum, "__deprecated__")
-    assert decorated_sum.__deprecated__ == DeprecationConfig(
+    assert decorated_sum.__deprecation_config__ == DeprecationConfig(
         deprecated_in="0.1", remove_in="0.5", name="decorated_sum", target=base_sum_kwargs, args_mapping=None
     )
+    assert isinstance(decorated_sum.__deprecated__, str)
+    assert "decorated_sum" in decorated_sum.__deprecated__
+    assert "0.1" in decorated_sum.__deprecated__
 
 
 class TestDeprecatedFunctionWrappers:
@@ -715,7 +720,8 @@ class TestTemplateMgsAliasOnFunctionEntryPoint:
                 template_mgs="Alias notice for `%(source_name)s`.",
             )(base_sum_kwargs)
         assert (
-            cast(_DeprecatedCallable, wrapped).__deprecated__.message_template == "Alias notice for `%(source_name)s`."
+            cast(_DeprecatedCallable, wrapped).__deprecation_config__.message_template
+            == "Alias notice for `%(source_name)s`."
         )
 
     def test_alias_and_message_template_together_raises(self) -> None:

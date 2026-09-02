@@ -325,17 +325,22 @@ class TestDeprecatedClassMethod:
 
 
 def test_deprecated_class_attribute_set_at_decoration_time() -> None:
-    """Test that __deprecated__ attribute is set at decoration time, not call time.
+    """Test that __deprecation_config__ attribute is set at decoration time, not call time.
 
-    This verifies that the __deprecated__ attribute is available immediately after the decorator is applied, without
-    needing to call the class first.
+    This verifies that the __deprecation_config__ attribute is available immediately after the decorator is
+    applied, without needing to call the class first; and that __deprecated__ is already a rendered message
+    string at the same point, not deferred to first warning emission.
 
     """
-    # Verify __deprecated__ is set on the __init__ WITHOUT instantiating the class
+    # Verify __deprecation_config__/__deprecated__ are set on __init__ WITHOUT instantiating the class
+    assert hasattr(PastCls.__init__, "__deprecation_config__")
     assert hasattr(PastCls.__init__, "__deprecated__")
-    assert PastCls.__init__.__deprecated__ == DeprecationConfig(
+    assert PastCls.__init__.__deprecation_config__ == DeprecationConfig(
         deprecated_in="0.2", remove_in="0.4", name="__init__", target=NewCls, args_mapping=None
     )
+    assert isinstance(PastCls.__init__.__deprecated__, str)
+    assert "PastCls" in PastCls.__init__.__deprecated__
+    assert "0.2" in PastCls.__init__.__deprecated__
 
 
 class _ClassFormBase:
@@ -374,8 +379,8 @@ class TestEnumFormEquivalence(_ClassFormBase):
         assert issubclass(NewEnum, proxy)  # type: ignore[arg-type]
 
     def test_deprecated_metadata(self, proxy: _DeprecatedProxy, name: str) -> None:
-        """__deprecated__ records correct DeprecationConfig for both forms."""
-        dep = object.__getattribute__(proxy, "__deprecated__")
+        """__deprecation_config__ records correct DeprecationConfig for both forms."""
+        dep = object.__getattribute__(proxy, "__deprecation_config__")
         assert isinstance(dep, DeprecationConfig)
         assert dep.deprecated_in == "0.5"
         assert dep.remove_in == "1.0"
@@ -409,8 +414,8 @@ class TestDataclassFormEquivalence(_ClassFormBase):
         assert instance.total == 0
 
     def test_deprecated_metadata(self, proxy: _DeprecatedProxy, name: str) -> None:
-        """__deprecated__ records correct DeprecationConfig for both forms."""
-        dep = object.__getattribute__(proxy, "__deprecated__")
+        """__deprecation_config__ records correct DeprecationConfig for both forms."""
+        dep = object.__getattribute__(proxy, "__deprecation_config__")
         assert isinstance(dep, DeprecationConfig)
         assert dep.deprecated_in == "0.5"
         assert dep.remove_in == "1.0"
@@ -462,7 +467,7 @@ class TestDeprecatedClassWithTargetMode:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UserWarning)
             cls = make_class_target_notify_with_args()
-        dep = object.__getattribute__(cls, "__deprecated__")
+        dep = object.__getattribute__(cls, "__deprecation_config__")
         assert dep.target is TargetMode.NOTIFY
         assert dep.misconfigured is True
 
@@ -476,7 +481,7 @@ class TestDeprecatedClassWithTargetMode:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UserWarning)
             cls = make_class_omitted_target_with_args()
-        dep = object.__getattribute__(cls, "__deprecated__")
+        dep = object.__getattribute__(cls, "__deprecation_config__")
         assert dep.target is TargetMode.ARGS_REMAP
         assert dep.args_mapping == {"old_key": "new_key"}
         assert dep.misconfigured is False
@@ -515,7 +520,7 @@ class TestDeprecatedClassWithTargetMode:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UserWarning)
             cls = make_class_target_args_remap()
-        dep = object.__getattribute__(cls, "__deprecated__")
+        dep = object.__getattribute__(cls, "__deprecation_config__")
         assert dep.target is TargetMode.ARGS_REMAP
         assert dep.args_mapping == {"old_key": "new_key"}
 
@@ -566,7 +571,7 @@ class TestTemplateMgsAliasOnDeprecatedClassEntryPoint:
             proxy = deprecated_class(
                 deprecated_in="1.0", remove_in="2.0", template_mgs="Alias notice for `%(source_name)s`."
             )(Palette)
-        dep = object.__getattribute__(proxy, "__deprecated__")
+        dep = object.__getattribute__(proxy, "__deprecation_config__")
         assert dep.message_template == "Alias notice for `%(source_name)s`."
 
     def test_alias_and_message_template_together_raises(self) -> None:

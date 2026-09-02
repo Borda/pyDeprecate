@@ -335,6 +335,14 @@
         },
         {
           "@type": "Question",
+          "name": "Why do I get AttributeError: 'str' object has no attribute 'target' after upgrading to v0.13?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Since v0.13, __deprecated__ holds a plain PEP 702-conformant message string instead of the DeprecationConfig object, matching the convention used by the standard library's warnings.deprecated / typing_extensions.deprecated. This fixes a collision where PEP-702-aware tooling (IDE hover, pyright, mypy) reading pyDeprecate's __deprecated__ got a DeprecationConfig repr where a message string belongs. The config object moved to __deprecation_config__ — read it through the public get_deprecation_config(obj) helper rather than either attribute directly; it also falls back to a legacy __deprecated__-as-config layout for objects built by a pre-v0.13 release. Affects every wrapper kind: functions, methods, class proxies, instance proxies, and modules."
+          }
+        },
+        {
+          "@type": "Question",
           "name": "How does @deprecated handle target functions with positional-only parameters?",
           "acceptedAnswer": {
             "@type": "Answer",

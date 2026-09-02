@@ -128,7 +128,7 @@ class TestTemplateMgsAliasOnDeprecatedInstanceEntryPoint:
                 remove_in="2.0",
                 template_mgs="Alias notice for `%(source_name)s`.",
             )
-        dep = object.__getattribute__(proxy, "__deprecated__")
+        dep = object.__getattribute__(proxy, "__deprecation_config__")
         assert dep.message_template == "Alias notice for `%(source_name)s`."
 
     def test_alias_and_message_template_together_raises(self) -> None:

@@ -289,11 +289,11 @@ class TestDefaultTarget:
     """Omitting `target` defaults to TargetMode.NOTIFY — warn-only, no forwarding."""
 
     def test_resolves_to_notify(self) -> None:
-        """Omitting target stores TargetMode.NOTIFY in __deprecated__.target."""
+        """Omitting target stores TargetMode.NOTIFY in __deprecation_config__.target."""
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             fn = make_default_target_with_versions()
-        assert cast(_DeprecatedCallable, fn).__deprecated__.target is TargetMode.NOTIFY
+        assert cast(_DeprecatedCallable, fn).__deprecation_config__.target is TargetMode.NOTIFY
 
     def test_no_decoration_time_future_warning(self) -> None:
         """Omitting target emits no FutureWarning at decoration time (unlike target=None)."""
@@ -376,7 +376,7 @@ class TestLegacySentinels:
                 return x
 
     def test_false_stores_notify_enum_in_deprecated_config(self) -> None:
-        """``target=False`` is normalised to TargetMode.NOTIFY in __deprecated__.target."""
+        """``target=False`` is normalised to TargetMode.NOTIFY in __deprecation_config__.target."""
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UserWarning)
 
@@ -384,10 +384,10 @@ class TestLegacySentinels:
             def _fn(x: int) -> int:
                 return x
 
-        assert cast(_DeprecatedCallable, _fn).__deprecated__.target is TargetMode.NOTIFY
+        assert cast(_DeprecatedCallable, _fn).__deprecation_config__.target is TargetMode.NOTIFY
 
     def test_true_stores_args_remap_enum_in_deprecated_config(self) -> None:
-        """``target=True`` is normalised to TargetMode.ARGS_REMAP in __deprecated__.target."""
+        """``target=True`` is normalised to TargetMode.ARGS_REMAP in __deprecation_config__.target."""
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", FutureWarning)
 
@@ -395,10 +395,10 @@ class TestLegacySentinels:
             def _fn(x: int) -> int:
                 return x
 
-        assert cast(_DeprecatedCallable, _fn).__deprecated__.target is TargetMode.ARGS_REMAP
+        assert cast(_DeprecatedCallable, _fn).__deprecation_config__.target is TargetMode.ARGS_REMAP
 
     def test_none_stores_notify_enum_in_deprecated_config(self) -> None:
-        """``target=None`` is normalised to TargetMode.NOTIFY in __deprecated__.target."""
+        """``target=None`` is normalised to TargetMode.NOTIFY in __deprecation_config__.target."""
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", FutureWarning)
 
@@ -406,7 +406,7 @@ class TestLegacySentinels:
             def _fn(x: int) -> int:
                 return x
 
-        assert cast(_DeprecatedCallable, _fn).__deprecated__.target is TargetMode.NOTIFY
+        assert cast(_DeprecatedCallable, _fn).__deprecation_config__.target is TargetMode.NOTIFY
 
 
 class TestFromLegacyErrors:

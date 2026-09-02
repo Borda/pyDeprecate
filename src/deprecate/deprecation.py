@@ -163,7 +163,7 @@ def deprecated(
 
     For a **callable** source (function, method, lambda, or descriptor) this forwards to the strict
     :func:`deprecated_callable` implementation: identical call forwarding, argument mapping, warning control,
-    and ``__deprecated__`` metadata.  For a **class** source it delegates to
+    and ``__deprecation_config__`` metadata.  For a **class** source it delegates to
     :func:`~deprecate.proxy.deprecated_class`, emitting a ``UserWarning`` (suppressed when ``stream=None``);
     prefer ``@deprecated_class()`` directly for classes.
 

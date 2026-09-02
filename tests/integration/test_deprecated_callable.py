@@ -1,7 +1,7 @@
 """Tests for the strict callable-only alias ``deprecated_callable``.
 
 ``deprecated_callable`` is the strict sibling of ``deprecated``: on any callable source it behaves
-identically (same forwarding, warning, and ``__deprecated__`` metadata), but applying it to a class
+identically (same forwarding, warning, and ``__deprecation_config__`` metadata), but applying it to a class
 is a decoration-time ``TypeError`` rather than a silent delegation to ``deprecated_class``. These
 tests pin both halves of that contract — behavioural parity with ``deprecated`` on callables, and the
 loud rejection of class sources.
@@ -39,12 +39,12 @@ class TestCallableParity:
     def test_metadata_matches_deprecated_twin(self) -> None:
         """The alias records the same forwarding config as an identically-configured ``deprecated`` twin.
 
-        Audit tooling discovers wrappers through ``__deprecated__``; the strict alias must populate that
-        contract exactly as ``deprecated`` does so a migration to the alias is invisible to the audit
+        Audit tooling discovers wrappers through ``__deprecation_config__``; the strict alias must populate
+        that contract exactly as ``deprecated`` does so a migration to the alias is invisible to the audit
         pipeline. Only the source ``name`` legitimately differs between the two wrapper functions.
         """
-        alias_cfg = cast(_DeprecatedCallable, deprecated_callable_double).__deprecated__
-        twin_cfg = cast(_DeprecatedCallable, deprecated_double_twin).__deprecated__
+        alias_cfg = cast(_DeprecatedCallable, deprecated_callable_double).__deprecation_config__
+        twin_cfg = cast(_DeprecatedCallable, deprecated_double_twin).__deprecation_config__
         assert alias_cfg.target is double_value
         assert twin_cfg.target is double_value
         assert alias_cfg.deprecated_in == twin_cfg.deprecated_in

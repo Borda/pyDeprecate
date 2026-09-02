@@ -121,17 +121,17 @@ def self_referencing_deprecation(old_arg: int = 1, new_arg: int = 2) -> int:
     set the target to itself after decoration.
 
     Examples:
-        The `__deprecated__` target is manually set to the wrapper itself after
+        The `__deprecation_config__` target is manually set to the wrapper itself after
         decoration, creating a circular reference that makes the deprecation meaningless.
 
     """
     return void(old_arg, new_arg)
 
 
-# Manually update the __deprecated__ attribute to make it self-referencing
+# Manually update the __deprecation_config__ attribute to make it self-referencing
 self_ref_typed = cast(_DeprecatedCallable, self_referencing_deprecation)
-deprecated_info = self_ref_typed.__deprecated__
-self_ref_typed.__deprecated__ = replace(deprecated_info, target=self_referencing_deprecation)
+deprecated_info = self_ref_typed.__deprecation_config__
+self_ref_typed.__deprecation_config__ = replace(deprecated_info, target=self_referencing_deprecation)
 
 
 # ---------------------------------------------------------------------------

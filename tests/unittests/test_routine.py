@@ -259,8 +259,9 @@ class TestEmptyVersionGuardSymmetry:
 class TestPEP702StackingRegression:
     """Stacking ``typing_extensions.deprecated`` outside ``@deprecated`` no longer crashes (B1a).
 
-    PEP 702 ``typing_extensions.deprecated`` overwrites the inner wrapper's ``__deprecated__`` attribute with the
-    message string. Before the fix, ``wrapped_fn`` re-read that attribute at call time and crashed with
+    PEP 702 ``typing_extensions.deprecated`` overwrites the inner wrapper's ``__deprecated__`` attribute with its
+    own message string (and does not touch ``__deprecation_config__``). Before the fix predating this attribute
+    split, ``wrapped_fn`` re-read the (then config-typed) ``__deprecated__`` at call time and crashed with
     ``AttributeError: 'str' object has no attribute 'misconfigured'``. The fix captures the ``DeprecationConfig``
     instance in a closure variable so the call path survives arbitrary outer decorators rewriting ``__deprecated__``.
 

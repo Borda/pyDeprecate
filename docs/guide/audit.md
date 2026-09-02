@@ -21,6 +21,18 @@ Three things go wrong with deprecations in practice: a `remove_in` deadline pass
     | `func.__deprecated__.target is True`  | `func.__deprecated__.target is TargetMode.ARGS_REMAP` |
     | `func.__deprecated__.target is False` | `func.__deprecated__.misconfigured`                   |
 
+!!! warning "Breaking change in v0.13: `__deprecated__` is now a plain message string"
+
+    Since v0.13, `__deprecated__` holds a PEP 702-conformant message string, not the `DeprecationConfig` object — this lets PEP-702-aware tooling (IDE hover, `pyright`, `mypy`) read it correctly. The config object moved to `__deprecation_config__`; read it via the public `get_deprecation_config(obj)` helper rather than either attribute directly:
+
+    | Before v0.13                                         | v0.13+                                       |
+    | ---------------------------------------------------- | -------------------------------------------- |
+    | `func.__deprecated__.target`                         | `get_deprecation_config(func).target`        |
+    | `func.__deprecated__.deprecated_in`                  | `get_deprecation_config(func).deprecated_in` |
+    | `isinstance(func.__deprecated__, DeprecationConfig)` | `get_deprecation_config(func) is not None`   |
+
+    Every wrapper kind is affected — functions, methods, class proxies, instance proxies, and modules. See the [v0.12-to-v0.13 migration guide](migration.md) for the full list.
+
 ## Validating Wrapper Configuration
 
 Use these utilities to verify that a deprecated wrapper is correctly configured: that `args_mapping` keys exist in the function signature, that the mapping has a real effect, and that the target does not point back to the same function. `validate_deprecation_wrapper()` inspects a single function; `find_deprecation_wrappers()` scans an entire package.
@@ -29,7 +41,7 @@ Use these utilities to verify that a deprecated wrapper is correctly configured:
 
 - `module` — module name where the function is defined (empty for direct validation)
 - `function` — function name
-- `deprecated_info` — the `__deprecated__` attribute as a `DeprecationConfig` dataclass from the decorator
+- `deprecated_info` — the `__deprecation_config__` attribute as a `DeprecationConfig` dataclass from the decorator
 - `invalid_args` — list of `args_mapping` keys that do not exist in the function signature
 - `empty_args_mapping` — `True` if `args_mapping` is `None` or empty
 - `identity_args_mapping` — list of args where key equals value (e.g. `{"arg": "arg"}` — no effect)
@@ -43,7 +55,7 @@ Use these utilities to verify that a deprecated wrapper is correctly configured:
 
 ### Validating a single function
 
-`validate_deprecation_wrapper()` extracts the configuration from the function's `__deprecated__` attribute and returns a `DeprecationWrapperInfo` dataclass. Use it in development or in a targeted pytest assertion to confirm a specific wrapper is sound before shipping.
+`validate_deprecation_wrapper()` extracts the configuration from the function's `__deprecation_config__` attribute and returns a `DeprecationWrapperInfo` dataclass. Use it in development or in a targeted pytest assertion to confirm a specific wrapper is sound before shipping.
 
 ```python
 from deprecate import TargetMode, validate_deprecation_wrapper, deprecated, DeprecationWrapperInfo
@@ -794,7 +806,7 @@ matrix = generate_deprecation_table(my_package, current_version="1.5", recursive
 > | `my_package.depr_pow_args`                  | callable          | `my_package.base_pow_args`            |      |      |  D   |  R   |      |
 > | `my_package.decorated_sum`                  | callable          | `my_package.base_sum_kwargs`          |  D   |      |      |      |      |
 
-The table derives all data from `__deprecated__` decorator metadata so it stays in sync with the code automatically. Install the `audit` extra (`pip install pyDeprecate[audit]`) to enable lifecycle status evaluation.
+The table derives all data from `__deprecation_config__` decorator metadata so it stays in sync with the code automatically. Install the `audit` extra (`pip install pyDeprecate[audit]`) to enable lifecycle status evaluation.
 
 ## See also
 

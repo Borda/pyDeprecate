@@ -122,11 +122,11 @@ class TestFix3aTargetNoneWithArgsMappingOnClass:
         assert not misconfig_warns
 
     def test_proxy_target_auto_promotes_to_args_remap(self) -> None:
-        """Resulting proxy stores TargetMode.ARGS_REMAP (not NOTIFY) on __deprecated__."""
+        """Resulting proxy stores TargetMode.ARGS_REMAP (not NOTIFY) on __deprecation_config__."""
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             cls = make_class_target_none_with_args_mapping()
-        dep = object.__getattribute__(cls, "__deprecated__")
+        dep = object.__getattribute__(cls, "__deprecation_config__")
         assert dep.target is TargetMode.ARGS_REMAP
 
     def test_args_mapping_preserved_on_proxy(self) -> None:
@@ -134,7 +134,7 @@ class TestFix3aTargetNoneWithArgsMappingOnClass:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             cls = make_class_target_none_with_args_mapping()
-        dep = object.__getattribute__(cls, "__deprecated__")
+        dep = object.__getattribute__(cls, "__deprecation_config__")
         assert dep.args_mapping == {"old": "new"}
 
     def test_instantiation_with_old_arg_warns_and_remaps(self) -> None:
@@ -164,7 +164,7 @@ class TestFix3bTargetFalseOnClass:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             cls = make_class_target_false()
-        dep = object.__getattribute__(cls, "__deprecated__")
+        dep = object.__getattribute__(cls, "__deprecation_config__")
         assert dep.misconfigured is True
 
     def test_audit_reports_misconfigured_target(self) -> None:
@@ -180,7 +180,7 @@ class TestFix3bTargetFalseOnClass:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             cls = make_class_target_false_with_args_mapping()
-        dep = object.__getattribute__(cls, "__deprecated__")
+        dep = object.__getattribute__(cls, "__deprecation_config__")
         assert dep.misconfigured is True
 
     def test_audit_reports_misconfigured_with_args_mapping(self) -> None:

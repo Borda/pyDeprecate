@@ -36,8 +36,8 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 """
 
 # Note: Proxy objects are discoverable via the generic ``callable(obj)`` +
-# ``hasattr(obj, "__deprecated__")`` scan in :func:`find_deprecation_wrappers` and
-# :func:`validate_deprecation_expiry`. The ``__deprecated__`` schema is now unified
+# ``_has_deprecation_meta(obj)`` scan in :func:`find_deprecation_wrappers` and
+# :func:`validate_deprecation_expiry`. The ``__deprecation_config__`` schema is now unified
 # across ``@deprecated`` and :class:`~deprecate.proxy._DeprecatedProxy` via
 # :class:`~deprecate._types.DeprecationConfig` — both always populate the ``name`` field,
 # so ``validate_deprecation_wrapper`` can read it correctly for proxy objects too.
@@ -273,7 +273,7 @@ class DeprecationWrapperInfo:
     Attributes:
         module: Module name where the wrapper is defined (empty for direct validation).
         function: Wrapper name.
-        deprecated_info: The ``__deprecated__`` attribute from the decorator,
+        deprecated_info: The ``__deprecation_config__`` attribute from the decorator,
             as a :class:`~deprecate._types.DeprecationConfig`.
         invalid_args: List of ``args_mapping`` keys that don't exist in the wrapper's signature.
         empty_args_mapping: True if ``args_mapping`` is None or empty (no argument remapping).
@@ -464,7 +464,7 @@ def _detect_chain_type(
     """Return the chain type when target or attrs_mapping forms a deprecation chain, else None."""
     chain_type: Optional[ChainType] = None
     if callable(target) and _has_deprecation_meta(target):
-        wrp_depr_tgt = target.__deprecated__.target
+        wrp_depr_tgt = target.__deprecation_config__.target
         chain_type = ChainType.STACKED if wrp_depr_tgt is TargetMode.ARGS_REMAP else ChainType.TARGET
     elif _is_args_remap:
         wrapped = getattr(func, "__wrapped__", None)
@@ -473,7 +473,7 @@ def _detect_chain_type(
         if (
             wrapped is not None
             and _has_deprecation_meta(wrapped)
-            and wrapped.__deprecated__.target is TargetMode.ARGS_REMAP
+            and wrapped.__deprecation_config__.target is TargetMode.ARGS_REMAP
         ):
             chain_type = ChainType.STACKED
     attrs_mapping = dep_info.attrs_mapping
@@ -506,8 +506,8 @@ def validate_deprecation_wrapper(func: Union[Callable, types.ModuleType]) -> Dep
     """Validate a deprecated callable or module wrapper and return structured metadata.
 
     This is a development tool to check if deprecated wrappers are configured correctly and will have the intended
-    effect. It examines the ``__deprecated__`` attribute set by the :func:`~deprecate.deprecated` decorator and
-    identifies
+    effect. It examines the ``__deprecation_config__`` attribute set by the :func:`~deprecate.deprecated` decorator
+    and identifies
     configurations that would result in zero impact:
 
     - args_mapping keys that don't exist in the function's signature
@@ -518,12 +518,13 @@ def validate_deprecation_wrapper(func: Union[Callable, types.ModuleType]) -> Dep
 
     Args:
         func: The deprecated wrapper to validate. Accepts either a callable decorated with ``@deprecated`` or a module
-            object passed through :func:`deprecated_module`. Must have a ``__deprecated__`` attribute.
+            object passed through :func:`deprecated_module`. Must have a ``__deprecation_config__`` attribute.
 
     Returns:
         :class:`~deprecate.audit.DeprecationWrapperInfo`: Dataclass with validation results:
             - function: Name of the wrapper being validated
-            - deprecated_info: The typed :class:`~deprecate._types.DeprecationConfig` metadata from ``__deprecated__``
+            - deprecated_info: The typed :class:`~deprecate._types.DeprecationConfig` metadata from
+              ``__deprecation_config__``
             - invalid_args: List of args_mapping keys not in wrapper signature
             - empty_args_mapping: True if args_mapping is None or empty
             - identity_args_mapping: List of args where key equals value (no effect)
@@ -532,7 +533,7 @@ def validate_deprecation_wrapper(func: Union[Callable, types.ModuleType]) -> Dep
             - empty_deprecated_in: True when ``deprecated_in`` is absent or empty
 
     Raises:
-        ValueError: If the wrapper has missing or invalid ``__deprecated__`` metadata (expected
+        ValueError: If the wrapper has missing or invalid ``__deprecation_config__`` metadata (expected
             :class:`~deprecate._types.DeprecationConfig`).
 
     Example:
@@ -570,17 +571,18 @@ def validate_deprecation_wrapper(func: Union[Callable, types.ModuleType]) -> Dep
     if inspect.ismodule(func):
         if not _has_deprecation_meta(func):
             raise ValueError(
-                f"Module {getattr(func, '__name__', func)!r} has missing or invalid `__deprecated__` metadata. "
-                "Ensure `deprecated_module()` was called on it."
+                f"Module {getattr(func, '__name__', func)!r} has missing or invalid `__deprecation_config__` "
+                "(or legacy `__deprecated__`) metadata. Ensure `deprecated_module()` was called on it."
             )
         return _scan_module_meta(func)
     if not _has_deprecation_meta(func):
         raise ValueError(
-            f"Function {getattr(func, '__name__', func)} has missing or invalid `__deprecated__` metadata. "
-            "Expected `DeprecationConfig`; ensure it is decorated with `@deprecated`."
+            f"Function {getattr(func, '__name__', func)} has missing or invalid `__deprecation_config__` "
+            "(or legacy `__deprecated__`) metadata. Expected `DeprecationConfig`; ensure it is decorated"
+            " with `@deprecated`."
         )
 
-    dep_info = func.__deprecated__
+    dep_info = func.__deprecation_config__
     args_mapping = dep_info.args_mapping
     target = dep_info.target
     _is_args_remap = target is TargetMode.ARGS_REMAP
@@ -682,13 +684,13 @@ def _check_deprecated_wrapper_expiry(func: Union[Callable, types.ModuleType], cu
     equal to the scheduled removal version, it raises an AssertionError indicating the code must be deleted.
 
     Args:
-        func: The deprecated callable to check. Must have a ``__deprecated__`` attribute set by the ``@deprecated``
-            decorator.
+        func: The deprecated callable to check. Must have a ``__deprecation_config__`` attribute set by the
+            ``@deprecated`` decorator.
         current_version: The current version of the package (e.g., "2.0.0"). Should follow PEP 440 versioning
             conventions.
 
     Raises:
-        ValueError: If the wrapper has missing or invalid ``__deprecated__`` metadata (expected
+        ValueError: If the wrapper has missing or invalid ``__deprecation_config__`` metadata (expected
             :class:`~deprecate._types.DeprecationConfig`).
         ValueError: If the ``remove_in`` field is missing from the deprecation metadata.
         AssertionError: If the current version is greater than or equal to the scheduled removal version, indicating
@@ -893,7 +895,7 @@ def _scan_callable(
     member_name: Optional[str] = None,
     descriptor_kind: Optional[str] = None,
 ) -> Optional[DeprecationWrapperInfo]:
-    """Emit a result if ``obj`` carries ``__deprecated__`` metadata."""
+    """Emit a result if ``obj`` carries ``__deprecation_config__`` metadata."""
     if _has_deprecation_meta(obj):
         info = validate_deprecation_wrapper(obj)
         api_type = _classify_wrapper_api_type(obj, info, member_name=member_name, descriptor_kind=descriptor_kind)
@@ -904,20 +906,21 @@ def _scan_callable(
 def _scan_module_meta(mod: Any) -> DeprecationWrapperInfo:  # noqa: ANN401
     """Build :class:`~deprecate.audit.DeprecationWrapperInfo` for a deprecated module.
 
-    Called only when the module itself carries ``__deprecated__`` metadata (set by
+    Called only when the module itself carries ``__deprecation_config__`` metadata (set by
     :func:`~deprecate.module.deprecated_module`).  Bypasses callable introspection entirely because a module is not a
     callable and has no signature to validate.
 
     Args:
-        mod: The module object carrying ``__deprecated__`` metadata.  The caller is responsible for verifying that
-            :func:`~deprecate._types._has_deprecation_meta` returned ``True`` before calling this function.
+        mod: The module object carrying ``__deprecation_config__`` metadata.  The caller is responsible for
+            verifying that :func:`~deprecate._types._has_deprecation_meta` returned ``True`` before calling this
+            function.
 
     Returns:
         A :class:`~deprecate.audit.DeprecationWrapperInfo` with ``api_type="module"`` and all validation fields set
         to safe defaults (no invalid args, no misconfig).
 
     """
-    dep_info: DeprecationConfig = mod.__deprecated__
+    dep_info: DeprecationConfig = mod.__deprecation_config__
     # Read via __dict__ to avoid triggering the PEP 562 __getattr__ hook.
     # str(mod) must be lazy — eager evaluation calls _module_repr which accesses __spec__ via getattr
     # and may trigger the module's own __getattr__ before __spec__ is in __dict__.
@@ -978,7 +981,7 @@ def _descriptor_underlying_callables(obj: Any) -> tuple[Any, ...]:  # noqa: ANN4
 
 
 def _member_has_deprecation_meta(obj: Any) -> bool:  # noqa: ANN401
-    """Return ``True`` if a class member — peeking through descriptors — carries ``__deprecated__`` metadata.
+    """Return ``True`` if a class member — peeking through descriptors — carries ``__deprecation_config__`` metadata.
 
     Descriptors store the deprecation metadata on the underlying callable (``classmethod``/``staticmethod``
     ``__func__``, ``property`` accessors, ``cached_property`` ``func``), so a plain :func:`_has_deprecation_meta`
@@ -1000,8 +1003,8 @@ def _scan_class(cls: Any, module_name: str, cls_name: str) -> list[DeprecationWr
         return results
     for attr_name, obj in members:
         # Skip private/dunder members that are *not* themselves deprecated. Deprecated private or dunder
-        # members (e.g. a deprecated ``_legacy`` method or ``__eq__``) still carry ``__deprecated__`` and must
-        # be surfaced so they can expire — only ``__init__`` is exempt.
+        # members (e.g. a deprecated ``_legacy`` method or ``__eq__``) still carry ``__deprecation_config__``
+        # and must be surfaced so they can expire — only ``__init__`` is exempt.
         if attr_name.startswith("_") and attr_name != "__init__" and not _member_has_deprecation_meta(obj):
             continue
         qualified = f"{cls_name}.{attr_name}"
@@ -1118,7 +1121,7 @@ def _scan_module(
 
     # Pre-loop: if the module itself is deprecated (via deprecated_module()), record it first.
     # Use __dict__.get to avoid triggering foreign PEP 562 __getattr__ hooks on third-party modules.
-    if isinstance(mod.__dict__.get("__deprecated__"), DeprecationConfig):
+    if isinstance(mod.__dict__.get("__deprecation_config__"), DeprecationConfig):
         results.append(_scan_module_meta(mod))
 
     try:
@@ -1167,7 +1170,7 @@ def find_deprecation_wrappers(
         Each contains:
             - module: Module name where the wrapper is defined
             - function: Wrapper name
-            - deprecated_info: DeprecationConfig metadata from the decorator (``__deprecated__`` attribute)
+            - deprecated_info: DeprecationConfig metadata from the decorator (``__deprecation_config__`` attribute)
             - invalid_args: List of args_mapping keys not in wrapper signature
             - empty_args_mapping: True if args_mapping is None or empty
             - identity_args_mapping: List of identity mappings (key == value)
@@ -1197,7 +1200,7 @@ def find_deprecation_wrappers(
           with heavy import-time work (GPU init, network access) make the scan correspondingly expensive
         - Skips submodules that fail to import — any exception raised by module-level code is reported as a
           ``UserWarning`` (``audit: skipped <module>: ...``) and the scan continues
-        - Inspects the ``__deprecated__`` attribute set by the :func:`~deprecate.deprecated` decorator
+        - Inspects the ``__deprecation_config__`` attribute set by the :func:`~deprecate.deprecated` decorator
         - Skips private/magic attributes and imports from other modules
         - Uses static member inspection to avoid scan-time side effects from dynamic attribute access
 
@@ -1294,10 +1297,10 @@ def _format_report_target(target: Any) -> str:  # noqa: ANN401
         return getattr(target, "__name__", str(target))
     if isinstance(target, _DeprecatedProxy):
         # A chained-proxy target (the New API is itself a deprecated alias). Bypass proxy
-        # ``__getattr__`` interception to read the static metadata directly — ``__deprecated__``
+        # ``__getattr__`` interception to read the static metadata directly — ``__deprecation_config__``
         # is stored in the instance ``__dict__`` via ``object.__setattr__`` in ``_DeprecatedProxy.__init__``,
         # so ``object.__getattribute__`` retrieves it without triggering forwarding logic.
-        return object.__getattribute__(target, "__deprecated__").name
+        return object.__getattribute__(target, "__deprecation_config__").name
     if callable(target):
         target_module = getattr(target, "__module__", "")
         target_name = getattr(target, "__qualname__", getattr(target, "__name__", str(target)))
@@ -1445,7 +1448,7 @@ def generate_deprecation_table(
 ) -> str:
     """Generate a markdown table summarizing deprecated wrappers.
 
-    The table is derived from ``__deprecated__`` metadata and includes both
+    The table is derived from ``__deprecation_config__`` metadata and includes both
     top-level wrappers and deprecated class members (methods/constructors).
 
     Args:
@@ -1558,7 +1561,7 @@ def validate_deprecation_chains(
     Both types are wasteful: wrappers should point directly to the final (non-deprecated) implementation with
     composed argument mappings.
 
-    Detection is based purely on decorator metadata (``__deprecated__`` attributes) — no source-code or AST
+    Detection is based purely on decorator metadata (``__deprecation_config__`` attributes) — no source-code or AST
     inspection is performed.
 
     Args:

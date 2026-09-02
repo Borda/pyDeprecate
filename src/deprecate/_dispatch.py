@@ -219,7 +219,7 @@ def _warn_stacking_misconfiguration(
 ) -> None:
     """Emit ``UserWarning`` at decoration time for unsupported stacking combinations.
 
-    Only called when ``source`` already carries ``__deprecated__`` metadata (i.e. is itself a
+    Only called when ``source`` already carries ``__deprecation_config__`` metadata (i.e. is itself a
     ``@deprecated`` wrapper).  Supported combinations are silently accepted:
 
     - ``ARGS_REMAP`` (outer) + ``ARGS_REMAP`` (inner): multi-step arg renames across versions.
@@ -234,7 +234,7 @@ def _warn_stacking_misconfiguration(
     ``callable`` (inner).
 
     """
-    inner_target = source.__deprecated__.target
+    inner_target = source.__deprecation_config__.target
     name = source.__name__
 
     if callable(outer_target) and callable(inner_target):

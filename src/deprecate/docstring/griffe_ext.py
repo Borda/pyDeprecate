@@ -10,7 +10,7 @@ reads docstrings from the source AST, so it never sees that runtime change.
 
 This extension bridges the gap: after Griffe has visited a module it imports
 the module at runtime and replaces every AST docstring whose callable carries
-a ``__deprecated__`` attribute (set by pyDeprecate) with the live ``__doc__``.
+``__deprecation_config__`` metadata (set by pyDeprecate) with the live ``__doc__``.
 
 Usage in ``mkdocs.yml``::
 
@@ -35,6 +35,8 @@ from __future__ import annotations
 import importlib
 import sys
 
+from deprecate._types import get_deprecation_config
+
 try:
     import griffe
 except ImportError:
@@ -47,7 +49,7 @@ else:
         def on_module(self, *, mod: griffe.Module, loader: griffe.GriffeLoader, **kwargs: object) -> None:
             """Run after a module is fully loaded by Griffe.
 
-            For each function or method in *mod* that carries a ``__deprecated__`` attribute (set by pyDeprecate),
+            For each function or method in *mod* that carries ``__deprecation_config__`` metadata (set by pyDeprecate),
             replace the Griffe docstring with the runtime value so that mkdocstrings renders the injected notice.
 
             """
@@ -125,7 +127,7 @@ else:
         @staticmethod
         def _replace_docstring(griffe_obj: griffe.Object, runtime_obj: object) -> None:
             """Overwrite the Griffe docstring when the runtime ``__doc__`` differs."""
-            if not getattr(runtime_obj, "__deprecated__", None):
+            if get_deprecation_config(runtime_obj) is None:
                 return
             runtime_doc = getattr(runtime_obj, "__doc__", None)
             if not runtime_doc:

@@ -201,7 +201,7 @@ class TestAutoTargetOnFrontDoor:
             fn = make_deprecated_auto_args_mapping_on_function()
 
         assert not [w for w in caught if "ignores `args_mapping`" in str(w.message)]
-        assert fn.__deprecated__.target is TargetMode.ARGS_REMAP
+        assert fn.__deprecation_config__.target is TargetMode.ARGS_REMAP
         with pytest.warns(FutureWarning, match="old_c"):
             assert fn(old_c=3.0) == 6.0
 
@@ -212,7 +212,7 @@ class TestAutoTargetOnFrontDoor:
             fn = make_deprecated_explicit_auto_on_function()
 
         assert not [w for w in caught if issubclass(w.category, UserWarning)]
-        assert fn.__deprecated__.target is TargetMode.ARGS_REMAP
+        assert fn.__deprecation_config__.target is TargetMode.ARGS_REMAP
 
     def test_auto_never_stored_in_metadata_for_warn_only(self) -> None:
         """A warn-only ``@deprecated`` function resolves AUTO to ``NOTIFY`` in its stored metadata.
@@ -222,7 +222,7 @@ class TestAutoTargetOnFrontDoor:
 
         """
         fn = make_deprecated_on_fresh_function_warn_only()
-        assert fn.__deprecated__.target is TargetMode.NOTIFY
+        assert fn.__deprecation_config__.target is TargetMode.NOTIFY
 
     def test_strict_callable_form_rejects_auto(self) -> None:
         """``deprecated_callable(target=TargetMode.AUTO)`` raises ``TypeError`` naming the front door.
@@ -334,7 +334,7 @@ class TestArgsMappingDefaultTargetAutoResolveOnDispatcher:
         """
         wrapped = make_deprecated_with_args_mapping_on_class_default_target()
 
-        dep = object.__getattribute__(wrapped, "__deprecated__")
+        dep = object.__getattribute__(wrapped, "__deprecation_config__")
         assert dep.target is TargetMode.ARGS_REMAP
         assert dep.args_mapping == {"old_c": "c"}
         assert dep.misconfigured is False
@@ -438,8 +438,8 @@ class TestDispatcherStacking:
         """
         wrapped = make_deprecated_over_class_proxy()
 
-        assert hasattr(wrapped, "__deprecated__")
-        dep = cast(_DeprecatedCallable, wrapped).__deprecated__
+        assert hasattr(wrapped, "__deprecation_config__")
+        dep = cast(_DeprecatedCallable, wrapped).__deprecation_config__
         assert isinstance(dep, DeprecationConfig)
         assert dep.target is TargetMode.NOTIFY
 
@@ -469,7 +469,7 @@ class TestTemplateMgsAliasOnClassDispatchEntryPoint:
             proxy = deprecated(
                 deprecated_in="1.0", remove_in="2.0", template_mgs="Alias notice for `%(source_name)s`."
             )(Palette)
-        dep = object.__getattribute__(proxy, "__deprecated__")
+        dep = object.__getattribute__(proxy, "__deprecation_config__")
         assert dep.message_template == "Alias notice for `%(source_name)s`."
 
     def test_alias_and_message_template_together_raises(self) -> None:

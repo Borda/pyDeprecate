@@ -89,7 +89,7 @@ class TestProxyInit:
     """Internal state initialisation for _DeprecatedProxy instances."""
 
     def test_internal_state_stored_correctly(self) -> None:
-        """Constructor stores runtime config in ``__config`` and metadata in ``__deprecated__``."""
+        """Constructor stores runtime config in ``__config`` and metadata in ``__deprecation_config__``."""
         obj = {"a": 1}
         proxy = _DeprecatedProxy(obj=obj, name="x", deprecated_in="1.0", remove_in="2.0", num_warns=3, stream=None)
         cfg = object.__getattribute__(proxy, "_DeprecatedProxy__config")
@@ -98,7 +98,7 @@ class TestProxyInit:
         assert cfg.stream is None
         assert cfg.read_only is False
         assert cfg.warned == 0
-        meta = object.__getattribute__(proxy, "__deprecated__")
+        meta = object.__getattribute__(proxy, "__deprecation_config__")
         assert meta.name == "x"
         assert meta.deprecated_in == "1.0"
         assert meta.remove_in == "2.0"
@@ -289,7 +289,7 @@ class TestProxyTemplateMgs:
         proxy = _DeprecatedProxy(
             obj={}, name="legacy_obj", deprecated_in="1.0", remove_in="2.0", message_template="CUSTOM %(source_name)s"
         )
-        dep = object.__getattribute__(proxy, "__deprecated__")
+        dep = object.__getattribute__(proxy, "__deprecation_config__")
         assert dep.message_template == "CUSTOM %(source_name)s"
 
     def test_deprecated_class_custom_template_applied(self) -> None:
@@ -585,7 +585,7 @@ class TestDecoratorFactory:
 
     def test_uses_class_name_as_proxy_name(self) -> None:
         """The proxy name is taken from the decorated class __name__."""
-        name = object.__getattribute__(WarnOnlyColorEnum, "__deprecated__").name
+        name = object.__getattribute__(WarnOnlyColorEnum, "__deprecation_config__").name
         assert name == "WarnOnlyColorEnum"
 
     def test_no_target_reads_from_source(self) -> None:
@@ -615,7 +615,7 @@ class TestDecoratorFactory:
             class BareDefaultTargetClass:
                 """Plain class deprecated with no explicit target — proves the factory default."""
 
-        dep = object.__getattribute__(BareDefaultTargetClass, "__deprecated__")
+        dep = object.__getattribute__(BareDefaultTargetClass, "__deprecation_config__")
         assert dep.target is None
         assert dep.misconfigured is False
 
@@ -649,7 +649,7 @@ class TestDecoratorFactory:
         assert len(caught) == 1
         assert str(caught[0].message) == warning_message
 
-        dep = object.__getattribute__(OldClass, "__deprecated__")
+        dep = object.__getattribute__(OldClass, "__deprecation_config__")
         assert dep.target is None
 
         obj = OldClass()
@@ -667,7 +667,7 @@ class TestDecoratorFactory:
                     return "ok"
 
         assert len(caught) == 1
-        dep = object.__getattribute__(OldClass, "__deprecated__")
+        dep = object.__getattribute__(OldClass, "__deprecation_config__")
         assert dep.target is TargetMode.ARGS_REMAP
 
 
@@ -763,7 +763,7 @@ class TestArgsMapping:
 
     def test_args_mapping_stored_in_proxy(self) -> None:
         """Proxy should retain args_mapping so audit and introspection can verify remapping behavior."""
-        mapping = object.__getattribute__(MappedDataClass, "__deprecated__").args_mapping
+        mapping = object.__getattribute__(MappedDataClass, "__deprecation_config__").args_mapping
         assert mapping == {"name": "label", "count": "total"}
 
     def test_enum_remap_kwarg(self) -> None:
@@ -971,25 +971,25 @@ class TestDeprecatedInstance:
     def test_name_auto_inferred_from_type(self) -> None:
         """Without name=, proxy name defaults to type(obj).__name__."""
         proxy = deprecated_instance({"k": 1}, deprecated_in="1.0", remove_in="2.0", stream=None)
-        dep = object.__getattribute__(proxy, "__deprecated__")
+        dep = object.__getattribute__(proxy, "__deprecation_config__")
         assert dep.name == "dict"
 
     def test_name_auto_inferred_for_list(self) -> None:
         """Type name inference works for any built-in type."""
         proxy = deprecated_instance([1, 2], deprecated_in="1.0", remove_in="2.0", stream=None)
-        dep = object.__getattribute__(proxy, "__deprecated__")
+        dep = object.__getattribute__(proxy, "__deprecation_config__")
         assert dep.name == "list"
 
     def test_name_explicitly_set(self) -> None:
         """Explicit name= overrides the type-based inference."""
         proxy = deprecated_instance({}, name="my_config", deprecated_in="1.0", remove_in="2.0", stream=None)
-        dep = object.__getattribute__(proxy, "__deprecated__")
+        dep = object.__getattribute__(proxy, "__deprecation_config__")
         assert dep.name == "my_config"
 
     def test_version_metadata_stored(self) -> None:
         """deprecated_in and remove_in are stored verbatim in DeprecationConfig."""
         proxy = deprecated_instance([], deprecated_in="2.0", remove_in="3.5", stream=None)
-        dep = object.__getattribute__(proxy, "__deprecated__")
+        dep = object.__getattribute__(proxy, "__deprecation_config__")
         assert dep.deprecated_in == "2.0"
         assert dep.remove_in == "3.5"
 
@@ -1214,7 +1214,7 @@ class TestProxyArgsMappingBehavior:
             class _ProxyNotifyWithArgsMapping:
                 pass
 
-        meta = object.__getattribute__(_ProxyNotifyWithArgsMapping, "__deprecated__")
+        meta = object.__getattribute__(_ProxyNotifyWithArgsMapping, "__deprecation_config__")
         assert meta.target is TargetMode.NOTIFY
         assert meta.misconfigured is True
 
@@ -1235,7 +1235,7 @@ class TestProxyArgsMappingBehavior:
 
         misconfig_warns = [w for w in caught if "ignores `args_mapping`" in str(w.message)]
         assert not misconfig_warns
-        meta = object.__getattribute__(_ProxyOmittedWithArgsMapping, "__deprecated__")
+        meta = object.__getattribute__(_ProxyOmittedWithArgsMapping, "__deprecation_config__")
         assert meta.target is TargetMode.ARGS_REMAP
         assert meta.args_mapping == {"old_key": "new_key"}
 
@@ -1706,14 +1706,14 @@ class TestDeprecatedAttrs:
         assert _Chained.a == 2
 
     def test_attrs_mapping_stored_in_metadata(self) -> None:
-        """``attrs_mapping`` is visible in ``__deprecated__`` metadata for audit tools.
+        """``attrs_mapping`` is visible in ``__deprecation_config__`` metadata for audit tools.
 
-        Audit tooling reads ``DeprecationConfig`` via ``obj.__deprecated__`` to build deprecation tables and enforce
-        expiry policies.  The ``attrs_mapping`` dict must be stored in the frozen ``DeprecationConfig`` so that
-        ``find_deprecation_wrappers`` can surface it without reading internal proxy state.
+        Audit tooling reads ``DeprecationConfig`` via ``obj.__deprecation_config__`` to build deprecation tables
+        and enforce expiry policies.  The ``attrs_mapping`` dict must be stored in the frozen ``DeprecationConfig``
+        so that ``find_deprecation_wrappers`` can surface it without reading internal proxy state.
 
         """
-        meta = object.__getattribute__(DeprecatedAttrsPalette, "__deprecated__")
+        meta = object.__getattribute__(DeprecatedAttrsPalette, "__deprecation_config__")
         assert meta.attrs_mapping == {"color": "colour", "txt": "text"}
 
     def test_attrs_mapping_with_callable_target_resolves_against_target_namespace(
@@ -1924,8 +1924,8 @@ class TestAttrsMappingCombinations:
         explicit_value = DeprecatedAttrsExplicitMode.color  # type: ignore[attr-defined]
         implicit_value = DeprecatedAttrsPalette.color  # type: ignore[attr-defined]
         assert explicit_value == implicit_value
-        explicit_meta = object.__getattribute__(DeprecatedAttrsExplicitMode, "__deprecated__")
-        implicit_meta = object.__getattribute__(DeprecatedAttrsPalette, "__deprecated__")
+        explicit_meta = object.__getattribute__(DeprecatedAttrsExplicitMode, "__deprecation_config__")
+        implicit_meta = object.__getattribute__(DeprecatedAttrsPalette, "__deprecation_config__")
         assert explicit_meta.target is implicit_meta.target is TargetMode.ATTRS_REMAP
 
     def test_explicit_attrs_remap_stored_in_dep_config_target(self) -> None:
@@ -1936,7 +1936,7 @@ class TestAttrsMappingCombinations:
         distinguish the explicit from the implicit auto-resolve at the metadata level.
 
         """
-        meta = object.__getattribute__(DeprecatedAttrsExplicitMode, "__deprecated__")
+        meta = object.__getattribute__(DeprecatedAttrsExplicitMode, "__deprecation_config__")
         assert meta.target is TargetMode.ATTRS_REMAP
 
     def test_legacy_true_with_attrs_mapping_does_not_raise_value_error(self) -> None:
@@ -1953,7 +1953,7 @@ class TestAttrsMappingCombinations:
 
         assert isinstance(instance, LegacyBoolAttrsSource)
         assert instance.ready is True
-        meta = object.__getattribute__(DeprecatedAttrsLegacyTrue, "__deprecated__")
+        meta = object.__getattribute__(DeprecatedAttrsLegacyTrue, "__deprecation_config__")
         assert meta.target is TargetMode.ATTRS_REMAP
         assert meta.misconfigured is False
 
@@ -1965,7 +1965,7 @@ class TestAttrsMappingCombinations:
         that audit tooling has a single canonical mode marker regardless of how the caller spelled the config.
 
         """
-        meta = object.__getattribute__(DeprecatedAttrsPalette, "__deprecated__")
+        meta = object.__getattribute__(DeprecatedAttrsPalette, "__deprecation_config__")
         assert meta.target is TargetMode.ATTRS_REMAP
 
     # ------------------------------------------------------------------
@@ -2044,7 +2044,7 @@ class TestAttrsMappingCombinations:
                 stream=None,
             )(_NotifyAttrsContradiction)
 
-        meta = object.__getattribute__(proxy, "__deprecated__")
+        meta = object.__getattribute__(proxy, "__deprecation_config__")
         assert meta.target is TargetMode.NOTIFY
         assert meta.misconfigured is True
         assert meta.attrs_mapping == {"color": "colour"}
@@ -2068,7 +2068,7 @@ class TestAttrsMappingCombinations:
             proxy = deprecated_class(target=TargetMode.ATTRS_REMAP, deprecated_in="1.0", remove_in="2.0", stream=None)(
                 _AttrsRemapMissingMapping
             )
-        meta = object.__getattribute__(proxy, "__deprecated__")
+        meta = object.__getattribute__(proxy, "__deprecation_config__")
         assert meta.misconfigured is True
 
     def test_empty_attrs_mapping_warns_at_decoration(self) -> None:
@@ -2087,7 +2087,7 @@ class TestAttrsMappingCombinations:
             proxy = deprecated_class(attrs_mapping={}, deprecated_in="1.0", remove_in="2.0", stream=None)(
                 _EmptyAttrsMapping
             )
-        meta = object.__getattribute__(proxy, "__deprecated__")
+        meta = object.__getattribute__(proxy, "__deprecation_config__")
         assert meta.misconfigured is True
 
     def test_attrs_remap_on_function_raises_typeerror(self) -> None:
@@ -2221,12 +2221,12 @@ class TestDataclassAutoExpand:
             _ = DepAutoExpandDC.old_field  # class-proxy access, not instance attr
 
     def test_auto_expanded_keys_recorded_on_deprecated_meta(self) -> None:
-        """``args_mapping_auto_expanded`` on ``__deprecated__`` lists the auto-copied key.
+        """``args_mapping_auto_expanded`` on ``__deprecation_config__`` lists the auto-copied key.
 
         Audit tools read ``DeprecationConfig.args_mapping_auto_expanded`` to distinguish
         auto-generated entries from user-supplied ones.
         """
-        meta = object.__getattribute__(DepAutoExpandDC, "__deprecated__")
+        meta = object.__getattribute__(DepAutoExpandDC, "__deprecation_config__")
         assert "old_field" in meta.args_mapping_auto_expanded
 
     def test_explicit_args_mapping_not_overwritten(self) -> None:
@@ -2241,7 +2241,7 @@ class TestDataclassAutoExpand:
             deprecated_in="1.0",
             remove_in="2.0",
         )(AutoExpandDC)
-        meta = object.__getattribute__(proxy, "__deprecated__")
+        meta = object.__getattribute__(proxy, "__deprecation_config__")
         assert "old_field" not in meta.args_mapping_auto_expanded
 
     def test_drop_mapping_entry_not_auto_expanded(self) -> None:
@@ -2263,7 +2263,7 @@ class TestDataclassAutoExpand:
                 target=_Target, deprecated_in="1.0", remove_in="2.0", attrs_mapping={"field": None}
             )(_Target)
         # Drop-mapping entry must not appear in args_mapping (no auto-expansion for None values)
-        dep = object.__getattribute__(proxy, "__deprecated__")
+        dep = object.__getattribute__(proxy, "__deprecation_config__")
         assert dep.args_mapping is None or "field" not in (dep.args_mapping or {})
 
     def test_req_dc_constructor_kwarg_warns_after_auto_expand(self) -> None:
@@ -2304,7 +2304,7 @@ class TestDataclassAutoExpand:
         ``old_computed`` → ``computed_field`` must be excluded because ``computed_field``
         is not a valid ``__init__`` kwarg — passing it to the constructor raises ``TypeError``.
         """
-        meta = object.__getattribute__(DepAutoExpandInitFalseDC, "__deprecated__")
+        meta = object.__getattribute__(DepAutoExpandInitFalseDC, "__deprecation_config__")
         assert "old_field" in meta.args_mapping_auto_expanded
         assert "old_computed" not in meta.args_mapping_auto_expanded
 
@@ -2329,7 +2329,7 @@ class TestDataclassAutoExpand:
         ``old_field`` → ``new_field`` must appear in ``args_mapping_auto_expanded`` because
         ``new_field`` is in ``inspect.signature``.
         """
-        meta = object.__getattribute__(DepAutoExpandOverriddenInitDC, "__deprecated__")
+        meta = object.__getattribute__(DepAutoExpandOverriddenInitDC, "__deprecation_config__")
         assert "old_field" in meta.args_mapping_auto_expanded
 
     def test_overridden_init_absent_field_not_auto_expanded(self) -> None:
@@ -2340,7 +2340,7 @@ class TestDataclassAutoExpand:
         ``dataclasses.fields()`` would (incorrectly) include it; ``inspect.signature`` correctly
         excludes it.  Passing ``old_skipped`` to the constructor must not raise ``TypeError``.
         """
-        meta = object.__getattribute__(DepAutoExpandOverriddenInitDC, "__deprecated__")
+        meta = object.__getattribute__(DepAutoExpandOverriddenInitDC, "__deprecation_config__")
         assert "old_skipped" not in meta.args_mapping_auto_expanded
 
     def test_overridden_init_constructor_kwarg_warns(self) -> None:
@@ -2418,12 +2418,12 @@ class TestPositionalOnlyForwarding:
             )(PositionalOnlyTarget)
 
     def test_incompatible_key_recorded_on_deprecated_meta(self) -> None:
-        """``args_mapping_positional_only`` on ``__deprecated__`` lists the offending old key.
+        """``args_mapping_positional_only`` on ``__deprecation_config__`` lists the offending old key.
 
         The field is populated at decoration time so audit tools can surface it without
         re-inspecting the constructor signature at report time.
         """
-        meta = object.__getattribute__(DepPositionalOnly, "__deprecated__")
+        meta = object.__getattribute__(DepPositionalOnly, "__deprecation_config__")
         assert "old_val" in meta.args_mapping_positional_only
 
     def test_call_with_deprecated_kwarg_does_not_crash(self) -> None:
@@ -2640,10 +2640,10 @@ class TestProxyCopyPickle:
         assert proxy["limits"]["low"] == 1
 
     def test_copy_preserves_deprecation_metadata(self) -> None:
-        """Audit tools must still discover a copied proxy via its ``__deprecated__`` metadata."""
+        """Audit tools must still discover a copied proxy via its ``__deprecation_config__`` metadata."""
         proxy = deprecated_instance({"k": 1}, name="cfg", deprecated_in="1.0", remove_in="2.0", stream=None)
         dup = copy.copy(proxy)
-        meta = object.__getattribute__(dup, "__deprecated__")
+        meta = object.__getattribute__(dup, "__deprecation_config__")
         assert meta.name == "cfg"
         assert meta.deprecated_in == "1.0"
         assert meta.remove_in == "2.0"
@@ -2658,7 +2658,7 @@ class TestProxyCopyPickle:
 
         restored = pickle.loads(pickle.dumps(proxy))  # noqa: S301
         assert type(restored) is _DeprecatedProxy
-        assert object.__getattribute__(restored, "__deprecated__").name == "cfg"
+        assert object.__getattribute__(restored, "__deprecation_config__").name == "cfg"
         with pytest.warns(FutureWarning, match=r"The `cfg` was deprecated since v1\.0"):
             assert restored["k"] == 41
 
@@ -3211,7 +3211,7 @@ class TestProxyAttrsMappingDefensiveCopy:
             obj=_P9Config, name="_P9Config", deprecated_in="1.0", remove_in="2.0", attrs_mapping=mapping
         )
         mapping["old_attr"] = "hijacked"
-        assert proxy.__deprecated__.attrs_mapping == {"old_attr": "new_attr"}
+        assert proxy.__deprecation_config__.attrs_mapping == {"old_attr": "new_attr"}
 
 
 class TestProxyStreamStacklevelProbe:
@@ -3510,7 +3510,7 @@ class TestDeprecatedProtocol:
     def test_issubclass_rejects_data_protocol(self) -> None:
         """``issubclass`` against ``DeprecationProxy`` raises ``TypeError``.
 
-        ``DeprecationProxy`` declares attributes (``__wrapped__``, ``__deprecated__``), which makes it a
+        ``DeprecationProxy`` declares attributes (``__wrapped__``, ``__deprecation_config__``), which makes it a
         *data* Protocol — Python only supports ``isinstance`` for those. Users reaching for
         ``issubclass`` get a hard error rather than a wrong answer, so the docstring warning is pinned
         here to catch any future change that silently loosens it.

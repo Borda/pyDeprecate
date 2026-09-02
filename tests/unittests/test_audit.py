@@ -121,7 +121,7 @@ class TestHasDeprecationMeta:
         ],
     )
     def test_returns_true_for_deprecated_decorated_callable(self, target_val: Union[TargetMode, bool]) -> None:
-        """@deprecated-decorated callables carry __deprecated__, so the guard returns True."""
+        """@deprecated-decorated callables carry __deprecation_config__, so the guard returns True."""
 
         @deprecated(deprecated_in="1.0", remove_in="2.0", target=target_val)
         def fn() -> None:
@@ -130,7 +130,7 @@ class TestHasDeprecationMeta:
         assert _has_deprecation_meta(fn) is True
 
     def test_returns_false_for_plain_callable(self) -> None:
-        """Undecorated callables have no __deprecated__, so the guard returns False."""
+        """Undecorated callables have no __deprecation_config__, so the guard returns False."""
 
         def plain() -> None:
             pass
@@ -139,13 +139,13 @@ class TestHasDeprecationMeta:
 
     @pytest.mark.parametrize("obj", [pytest.param("string", id="str"), pytest.param(42, id="int")])
     def test_returns_false_for_non_callable(self, obj: object) -> None:
-        """Non-callables without __deprecated__ return False."""
+        """Non-callables without __deprecation_config__ return False."""
         assert _has_deprecation_meta(obj) is False
 
     def test_meta_is_deprecation_info_instance(self) -> None:
-        """The __deprecated__ attribute on a proxy is a typed DeprecationConfig dataclass."""
+        """The __deprecation_config__ attribute on a proxy is a typed DeprecationConfig dataclass."""
         proxy = _DeprecatedProxy(obj={}, name="cfg", deprecated_in="1.0", remove_in="2.0", stream=None)
-        assert isinstance(object.__getattribute__(proxy, "__deprecated__"), DeprecationConfig)
+        assert isinstance(object.__getattribute__(proxy, "__deprecation_config__"), DeprecationConfig)
 
 
 @_requires_packaging
@@ -523,7 +523,7 @@ class TestFormatReportProxyTarget:
         final_cls = type("FinalApi", (), {})
         mid = deprecated_class(target=final_cls, deprecated_in="1.0", remove_in="2.0")(type("MidApi", (), {}))
         old = deprecated_class(target=mid, deprecated_in="1.0", remove_in="2.0")(type("OldApi", (), {}))
-        target = object.__getattribute__(old, "__deprecated__").target
+        target = object.__getattribute__(old, "__deprecation_config__").target
 
         with warnings.catch_warnings():
             warnings.simplefilter("error")  # any warning emitted during formatting fails the test
@@ -1230,7 +1230,7 @@ class TestNormalizeVersionStringLocalSegment:
 
 
 class TestScanClassPrivateDeprecated:
-    """Deprecated private/dunder members carry ``__deprecated__`` and must be surfaced so they can expire."""
+    """Deprecated private/dunder members carry ``__deprecation_config__`` and must be surfaced so they can expire."""
 
     def test_member_meta_peeks_through_descriptor(self) -> None:
         """The helper detects deprecation metadata stored on a descriptor's underlying callable."""
@@ -1240,7 +1240,7 @@ class TestScanClassPrivateDeprecated:
         """The helper detects deprecation metadata stored on a classmethod's underlying ``__func__``.
 
         ``classmethod`` objects store the wrapped function in ``__func__``; ``_member_has_deprecation_meta``
-        must unwrap it to find ``__deprecated__`` rather than inspecting the ``classmethod`` itself.
+        must unwrap it to find ``__deprecation_config__`` rather than inspecting the ``classmethod`` itself.
         """
         assert _member_has_deprecation_meta(_AudPrivateMembers.__dict__["_cls_legacy"]) is True
 

@@ -9,7 +9,7 @@ description: Deprecating an entire Python module — in-place warn intercepting 
 
 ## When to use `deprecated_module()`
 
-Reach for `deprecated_module()` when a module is being replaced or renamed and you want every attribute access on the old name to warn callers automatically. Place the call at the bottom of the file being deprecated: it reassigns the module's `__class__` to an intercepting wrapper, attaches `__deprecated__` metadata so that [`find_deprecation_wrappers()`](audit.md) can discover it, and emits a `FutureWarning` on every public attribute access.
+Reach for `deprecated_module()` when a module is being replaced or renamed and you want every attribute access on the old name to warn callers automatically. Place the call at the bottom of the file being deprecated: it reassigns the module's `__class__` to an intercepting wrapper, attaches `__deprecation_config__` metadata so that [`find_deprecation_wrappers()`](audit.md) can discover it, and emits a `FutureWarning` on every public attribute access.
 
 ## Mode 1 — in-place warn
 
@@ -122,7 +122,7 @@ Star imports (`from old_calculator import *`) still trigger the deprecation warn
 
 ## Audit integration
 
-`find_deprecation_wrappers()` discovers modules marked with `deprecated_module()` the same way it discovers function and class wrappers — by reading the `__deprecated__` attribute attached to the module object:
+`find_deprecation_wrappers()` discovers modules marked with `deprecated_module()` the same way it discovers function and class wrappers — by reading the `__deprecation_config__` attribute attached to the module object:
 
 ```python
 # phmdoctest:skip — CI template: replace my_package with your actual package

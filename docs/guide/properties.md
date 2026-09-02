@@ -126,7 +126,7 @@ class Config:
 
 !!! note "Audit discoverability with explicit construction"
 
-    `find_deprecation_wrappers` discovers explicit-construction properties via the accessor that carries `__deprecated__` metadata. For setter-only properties (`property(None, fset)`), it discovers via `fset`; if `fget` is plain (not deprecated), it falls through to `fset` or `fdel`.
+    `find_deprecation_wrappers` discovers explicit-construction properties via the accessor that carries `__deprecation_config__` metadata. For setter-only properties (`property(None, fset)`), it discovers via `fset`; if `fget` is plain (not deprecated), it falls through to `fset` or `fdel`.
 
 ### Strict mode: `from deprecate import property`
 

@@ -14,7 +14,7 @@ from functools import partial
 from typing import Callable, Optional, Union
 from warnings import warn
 
-from deprecate._types import TargetMode, _WrapperState
+from deprecate._types import DeprecationConfig, TargetMode, _WrapperState
 from deprecate.utils import _unwrap_descriptor_target
 
 # caller → wrapped_fn → _raise_warn_callable/_raise_warn_arguments → _raise_warn → warnings.warn
@@ -165,8 +165,7 @@ def _raise_warn(
     """
     source_name = _source_display_name(source)
     source_path = f"{source.__module__}.{source_name}"
-    msg_args = dict(source_name=source_name, source_path=source_path, **extras)
-    msg = message_template % msg_args
+    msg = _format_deprecation_message(message_template, source_name, source_path, **extras)
     try:
         stream(msg, stacklevel=stacklevel)
     except TypeError as _exc:
@@ -174,6 +173,77 @@ def _raise_warn(
             stream(msg)
         else:
             raise
+
+
+def _format_deprecation_message(
+    message_template: str,
+    source_name: str,
+    source_path: str,
+    **extras: str,
+) -> str:
+    """Render *message_template* against ``source_name``/``source_path`` plus scenario-specific ``extras``.
+
+    Shared by the call-time emitters (:func:`_raise_warn`) and the decoration-time static renderer
+    (:func:`_render_static_deprecation_message`) so both paths format messages identically.
+
+    """
+    msg_args = dict(source_name=source_name, source_path=source_path, **extras)
+    return message_template % msg_args
+
+
+def _render_static_deprecation_message(dep: DeprecationConfig, source_name: str, source_path: str) -> str:
+    """Render the PEP-702-conformant ``__deprecated__`` message string for *dep* at decoration time.
+
+    Selects the same built-in template :func:`_raise_warn_callable` / :func:`_raise_warn_arguments` would use
+    for the first call, from ``dep`` alone (no live call-site information is available at decoration time).  An
+    ``ARGS_REMAP`` config renders the **full** ``args_mapping`` (every configured rename), not the subset a
+    single call would trigger — this is a static snapshot, not a per-call message.  ``message_template`` was
+    already validated against every placeholder at decoration time (:func:`_validate_message_template`), so
+    formatting here never raises.
+
+    Args:
+        dep: The frozen deprecation metadata to render.
+        source_name: Display name of the deprecated source (see :func:`_source_display_name`).
+        source_path: Fully-qualified path of the deprecated source (``f"{module}.{source_name}"``).
+
+    Returns:
+        The rendered message string, suitable for the wrapper's ``__deprecated__`` attribute.
+
+    """
+    if dep.target is TargetMode.ARGS_REMAP:
+        argument_map = ", ".join(
+            TEMPLATE_ARGUMENT_MAPPING % {"old_arg": old, "new_arg": str(new)}
+            for old, new in (dep.args_mapping or {}).items()
+        )
+        return _format_deprecation_message(
+            dep.message_template or TEMPLATE_WARNING_ARGUMENTS,
+            source_name,
+            source_path,
+            deprecated_in=dep.deprecated_in,
+            remove_in=dep.remove_in,
+            argument_map=argument_map,
+        )
+    if callable(dep.target):
+        target_name = getattr(dep.target, "__name__", str(dep.target))
+        target_module = getattr(dep.target, "__module__", "")
+        target_path = f"{target_module}.{target_name}" if target_module else target_name
+        return _format_deprecation_message(
+            dep.message_template or TEMPLATE_WARNING_CALLABLE,
+            source_name,
+            source_path,
+            deprecated_in=dep.deprecated_in,
+            remove_in=dep.remove_in,
+            target_name=target_name,
+            target_path=target_path,
+        )
+    # NOTIFY, ATTRS_REMAP, or no target: warn-only shape, no redirect to name.
+    return _format_deprecation_message(
+        dep.message_template or TEMPLATE_WARNING_NO_TARGET,
+        source_name,
+        source_path,
+        deprecated_in=dep.deprecated_in,
+        remove_in=dep.remove_in,
+    )
 
 
 def _source_display_name(source: Callable) -> str:

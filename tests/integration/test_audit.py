@@ -150,7 +150,7 @@ class TestValidateDeprecatedWrapper:
         def plain_function(x: int) -> int:
             return x
 
-        with pytest.raises(ValueError, match="missing or invalid `__deprecated__` metadata"):
+        with pytest.raises(ValueError, match="missing or invalid `__deprecation_config__`"):
             validate_deprecation_wrapper(plain_function)
 
 
@@ -829,7 +829,7 @@ class TestCheckDeprecationExpiry:
 
     def test_non_deprecated_callable_raises_value_error(self) -> None:
         """Non-decorated callable raises ValueError immediately."""
-        with pytest.raises(ValueError, match="missing or invalid `__deprecated__` metadata"):
+        with pytest.raises(ValueError, match="missing or invalid `__deprecation_config__`"):
             _check_deprecated_wrapper_expiry(plain_function_target, "1.0")
 
     def test_no_remove_in_raises_value_error(self) -> None:
@@ -974,7 +974,7 @@ class TestBackwardCompatShims:
 
     Only the shim's own deprecation warning is asserted.  The underlying audit helpers
     (:func:`~deprecate.audit.validate_deprecation_wrapper`, :func:`~deprecate.audit.find_deprecation_wrappers`)
-    read ``__deprecated__`` metadata without invoking the deprecated callable, so no additional
+    read ``__deprecation_config__`` metadata without invoking the deprecated callable, so no additional
     warning originates from the fixture functions themselves.
 
     """

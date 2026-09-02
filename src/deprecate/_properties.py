@@ -49,10 +49,10 @@ class _DeprecatedProperty(property):
             wrap. Required — always set by ``packing()``; never ``None``.
 
     Note:
-        ``_DeprecatedProperty`` itself does **not** carry a ``__deprecated__`` attribute —
-        that attribute lives on the individual wrapped accessors (``fget``, ``fset``, ``fdel``).
+        ``_DeprecatedProperty`` itself does **not** carry ``__deprecation_config__`` metadata —
+        that metadata lives on the individual wrapped accessors (``fget``, ``fset``, ``fdel``).
         ``find_deprecation_wrappers`` discovers properties via whichever non-``None`` accessor
-        carries ``__deprecated__`` first. A setter-only property (``fget=None``) is discovered
+        carries ``__deprecation_config__`` first. A setter-only property (``fget=None``) is discovered
         via ``fset``; a plain-getter property whose ``fget`` is not deprecated but whose ``fset``
         is deprecated is likewise discovered via ``fset``.
 
@@ -106,8 +106,8 @@ class _StrictProperty(property):
     ``@property`` over ``@deprecated`` (``@deprecated`` closer to ``def``). That order wraps only ``fget``; any
     setter or deleter added afterwards is built from the plain :class:`property` base and never warns, so writes
     and deletes silently bypass the deprecation notice. ``_StrictProperty`` raises :class:`TypeError` the moment it
-    is handed a getter that already carries ``__deprecated__`` metadata — before any instance is created — steering
-    authors to the canonical *outer order* ``@deprecated(...) @property``.
+    is handed a getter that already carries ``__deprecation_config__`` metadata — before any instance is created —
+    steering authors to the canonical *outer order* ``@deprecated(...) @property``.
 
     Because it subclasses the builtin :class:`property`, every ``isinstance(obj, property)`` branch in the decorator
     and audit machinery treats it transparently: the outer ``@deprecated`` converts it to a
@@ -140,10 +140,10 @@ class _StrictProperty(property):
         """Construct the property, rejecting an already-deprecated getter.
 
         Args:
-            fget: Getter callable, or ``None``. A :class:`TypeError` is raised when it carries ``__deprecated__``
-                metadata (the inner-order signature). The guard fires on ``fget`` only; ``fset`` and ``fdel``
-                are accepted without inspection — the decorator-stacking inner-order bug is structurally a
-                getter-ordering issue.
+            fget: Getter callable, or ``None``. A :class:`TypeError` is raised when it carries
+                ``__deprecation_config__`` metadata (the inner-order signature). The guard fires on ``fget``
+                only; ``fset`` and ``fdel`` are accepted without inspection — the decorator-stacking
+                inner-order bug is structurally a getter-ordering issue.
             fset: Setter callable, or ``None``.
             fdel: Deleter callable, or ``None``.
             doc: Property docstring; ``None`` defers to ``fget.__doc__``.
