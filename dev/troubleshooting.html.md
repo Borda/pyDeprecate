@@ -398,6 +398,8 @@ True True
 
 If you are writing tests and need to verify that a warning fires, use `pytest.warns(FutureWarning)` on the first call and `assert_no_warnings(FutureWarning)` on subsequent calls. See [Testing Deprecated Code](guide/audit.md#testing-deprecated-code) for full examples.
 
+**The `num_warns` budget is per-process, not per-deployment.** A long-running service — a worker, a web server — that hits a deprecated code path once at startup exhausts the default `num_warns=1` immediately; the path stays completely silent for the rest of that process's life, even after weeks of steady-state traffic. Checking production logs and seeing nothing does not mean the deprecated path is unused — it may mean the one allowed warning already fired and scrolled out of the retained log window. To confirm whether a deprecated path is still being hit in a running service: restart the process (the counter resets) and watch for the warning again, or redeploy temporarily with `num_warns=-1` to log every call.
+
 ## Deprecation target path incorrect across modules
 
 **Q:** I moved a function to a different module and the deprecation message shows an unexpected path. How do I fix the displayed module path?
@@ -1080,6 +1082,50 @@ asyncio.run(consume(agen))
 ```
 
 **Note:** Because the wrapper is a sync function, `inspect.isasyncgenfunction(old_stream)` returns `False`. Frameworks that check this flag may misclassify the wrapper — wrap it in a thin `async def` passthrough if introspection matters.
+
+______________________________________________________________________
+
+## My deprecated wrapper's warning fires when I define a function, not when I call it
+
+**Q:** I have a deprecated function that is meant to be used as a decorator (`@deprecated(target=new_wrapper, ...)` applied to a wrapper-producing function). When I apply it with `@` syntax to one of my own functions, the deprecation warning fires immediately — at the `def` statement — before my function is ever called. Is this a bug in decorator ordering?
+
+**A:** No — this is by design, not a timing bug. `@my_deprecated_wrapper` on `def my_func(): ...` is exactly equivalent to `my_func = my_deprecated_wrapper(my_func)`: decorating a function **is** calling the deprecated wrapper, immediately, at the point the `def` statement executes (definition time — which is also import time, if the `def` sits at module scope). The deprecation warning fires there because that is when the deprecated callable actually runs; it has nothing to do with `my_func` being called later.
+
+```python
+from deprecate import deprecated
+
+
+def new_wrapper(func):
+    return func
+
+
+@deprecated(target=new_wrapper, deprecated_in="0.9", remove_in="1.0")
+def old_wrapper(func):
+    return func
+
+
+# Warning fires HERE, at the @old_wrapper line — decorating IS calling old_wrapper(sample)
+@old_wrapper
+def sample(x: int) -> int:
+    return x * 2
+
+
+# FutureWarning: The `old_wrapper` was deprecated since v0.9 in favor of `new_wrapper`.
+
+# Calling sample(...) later does not warn again — the deprecated call already happened above
+print(sample(5))
+```
+
+<details>
+  <summary>Output: <code>sample(5)</code></summary>
+
+```
+10
+```
+
+</details>
+
+This is consistent with every other pyDeprecate warning: the message fires when the deprecated callable is invoked, never deferred to some later "use" of its return value. There is no option to defer the warning until `sample(...)` runs instead — that would require wrapping `old_wrapper`'s return value in a second layer of interception, which brings its own `num_warns`/introspection complications for no clear benefit. If you need the warning to appear at the call site of the wrapped function instead of at definition time, decorate the target explicitly at the call site rather than via `@` syntax on the definition, or apply `@deprecated` directly to `sample` instead of to the wrapper that produces it.
 
 ______________________________________________________________________
 
