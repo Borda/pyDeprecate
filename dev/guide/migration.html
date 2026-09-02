@@ -1867,9 +1867,8 @@
 <div class="tabbed-content">
 <div class="tabbed-block">
 <ul>
-<li><strong>Use <code>deprecated_class(attrs_mapping=...)</code> for attribute remapping.</strong> <code>deprecated()</code> no longer accepts the class-only <code>attrs_mapping</code> keyword. <code>@deprecated(target=TargetMode.ATTRS_REMAP)</code> also raises <code>TypeError</code> for functions and classes because the common front door cannot supply the required mapping.</li>
-<li><strong>Rename <code>template_mgs</code> to <code>message_template</code></strong> on <code>deprecated()</code>, <code>deprecated_class()</code>, and <code>deprecated_instance()</code>. The typo remains a warning alias until v1.0; supplying both names raises <code>TypeError</code>.</li>
-<li><strong>Fix explicit <code>TargetMode.NOTIFY</code> plus a mapping.</strong> It emits <code>UserWarning</code>, remains <code>NOTIFY</code>, leaves the mapping inert, and is marked misconfigured. Omit <code>target</code> to infer remapping, or select the matching remap mode explicitly.</li>
+<li><strong><code>@deprecated(target=TargetMode.ATTRS_REMAP)</code> now raises <code>TypeError</code> for a class source.</strong> It already raised for functions. <code>ATTRS_REMAP</code> needs the class-only <code>attrs_mapping</code> keyword, which the common front door does not expose, so a class source previously built a proxy that remapped nothing. Use <code>deprecated_class(attrs_mapping=...)</code>.</li>
+<li><strong>Rename <code>template_mgs</code> to <code>message_template</code></strong> on <code>deprecated()</code>, <code>deprecated_callable()</code>, <code>deprecated_class()</code>, and <code>deprecated_instance()</code>. The typo remains a warning alias until v1.0; supplying both names raises <code>TypeError</code>.</li>
 </ul>
 </div>
 <div class="tabbed-block">
@@ -1878,6 +1877,7 @@
 <li>Existing <code>@deprecated</code> use on a class remains supported; no code change or decorator rewrite is required. It permanently delegates to <code>deprecated_class()</code> and emits one informational <code>UserWarning</code> per module-qualified class. <code>stream=None</code> suppresses the notice. Only the notice, not backward support or delegation, is removed in v1.0.</li>
 <li><code>message_template</code> and <code>skip_if</code> supplied through <code>@deprecated</code> on a class now reach the proxy. <code>message_template</code> was previously dropped on that path.</li>
 <li>Non-callable sources now raise a direct <code>TypeError</code> pointing users to <code>deprecated_instance()</code> instead of failing later on <code>__name__</code>.</li>
+<li>Explicit <code>target=TargetMode.NOTIFY</code> together with a mapping still emits <code>UserWarning</code>, stays <code>NOTIFY</code>, leaves the mapping inert, and is marked misconfigured — unchanged from v0.11.0, and a <code>TypeError</code> in v1.0. What changed is that an <em>omitted</em> <code>target</code> no longer lands here: it auto-resolves instead. Omit <code>target</code> to infer remapping, or select the matching remap mode explicitly.</li>
 </ul>
 </div>
 </div>
@@ -1896,10 +1896,9 @@
 <p><strong>Use named <code>%</code> fields in custom message templates.</strong> Bare <code>%s</code> or <code>%d</code> conversions now raise <code>ValueError</code> when the decorator is applied.</p>
 </li>
 <li>
-<p><strong>Use <code>deprecated_class(attrs_mapping=...)</code> for attribute remapping.</strong> <code>deprecated()</code> no longer accepts the class-only <code>attrs_mapping</code> keyword. <code>@deprecated(target=TargetMode.ATTRS_REMAP)</code> also raises <code>TypeError</code> for functions and classes because the common front door cannot supply the required mapping.</p>
+<p><strong><code>@deprecated(target=TargetMode.ATTRS_REMAP)</code> now raises <code>TypeError</code> for a class source.</strong> It already raised for functions. <code>ATTRS_REMAP</code> needs the class-only <code>attrs_mapping</code> keyword, which the common front door does not expose, so a class source previously built a proxy that remapped nothing. Use <code>deprecated_class(attrs_mapping=...)</code>.</p>
 </li>
-<li><strong>Rename <code>template_mgs</code> to <code>message_template</code></strong> on <code>deprecated()</code>, <code>deprecated_class()</code>, and <code>deprecated_instance()</code>. The typo remains a warning alias until v1.0; supplying both names raises <code>TypeError</code>.</li>
-<li><strong>Fix explicit <code>TargetMode.NOTIFY</code> plus a mapping.</strong> It emits <code>UserWarning</code>, remains <code>NOTIFY</code>, leaves the mapping inert, and is marked misconfigured. Omit <code>target</code> to infer remapping, or select the matching remap mode explicitly.</li>
+<li><strong>Rename <code>template_mgs</code> to <code>message_template</code></strong> on <code>deprecated()</code>, <code>deprecated_callable()</code>, <code>deprecated_class()</code>, and <code>deprecated_instance()</code>. The typo remains a warning alias until v1.0; supplying both names raises <code>TypeError</code>.</li>
 </ul>
 </div>
 <div class="tabbed-block">
@@ -1918,6 +1917,7 @@
 <li>Existing <code>@deprecated</code> use on a class remains supported; no code change or decorator rewrite is required. It permanently delegates to <code>deprecated_class()</code> and emits one informational <code>UserWarning</code> per module-qualified class. <code>stream=None</code> suppresses the notice. Only the notice, not backward support or delegation, is removed in v1.0.</li>
 <li><code>message_template</code> and <code>skip_if</code> supplied through <code>@deprecated</code> on a class now reach the proxy. <code>message_template</code> was previously dropped on that path.</li>
 <li>Non-callable sources now raise a direct <code>TypeError</code> pointing users to <code>deprecated_instance()</code> instead of failing later on <code>__name__</code>.</li>
+<li>Explicit <code>target=TargetMode.NOTIFY</code> together with a mapping still emits <code>UserWarning</code>, stays <code>NOTIFY</code>, leaves the mapping inert, and is marked misconfigured — unchanged from v0.11.0, and a <code>TypeError</code> in v1.0. What changed is that an <em>omitted</em> <code>target</code> no longer lands here: it auto-resolves instead. Omit <code>target</code> to infer remapping, or select the matching remap mode explicitly.</li>
 </ul>
 </div>
 </div>
@@ -1941,10 +1941,9 @@
 <p><strong>Use named <code>%</code> fields in custom message templates.</strong> Bare <code>%s</code> or <code>%d</code> conversions now raise <code>ValueError</code> when the decorator is applied.</p>
 </li>
 <li>
-<p><strong>Use <code>deprecated_class(attrs_mapping=...)</code> for attribute remapping.</strong> <code>deprecated()</code> no longer accepts the class-only <code>attrs_mapping</code> keyword. <code>@deprecated(target=TargetMode.ATTRS_REMAP)</code> also raises <code>TypeError</code> for functions and classes because the common front door cannot supply the required mapping.</p>
+<p><strong><code>@deprecated(target=TargetMode.ATTRS_REMAP)</code> now raises <code>TypeError</code> for a class source.</strong> It already raised for functions. <code>ATTRS_REMAP</code> needs the class-only <code>attrs_mapping</code> keyword, which the common front door does not expose, so a class source previously built a proxy that remapped nothing. Use <code>deprecated_class(attrs_mapping=...)</code>.</p>
 </li>
-<li><strong>Rename <code>template_mgs</code> to <code>message_template</code></strong> on <code>deprecated()</code>, <code>deprecated_class()</code>, and <code>deprecated_instance()</code>. The typo remains a warning alias until v1.0; supplying both names raises <code>TypeError</code>.</li>
-<li><strong>Fix explicit <code>TargetMode.NOTIFY</code> plus a mapping.</strong> It emits <code>UserWarning</code>, remains <code>NOTIFY</code>, leaves the mapping inert, and is marked misconfigured. Omit <code>target</code> to infer remapping, or select the matching remap mode explicitly.</li>
+<li><strong>Rename <code>template_mgs</code> to <code>message_template</code></strong> on <code>deprecated()</code>, <code>deprecated_callable()</code>, <code>deprecated_class()</code>, and <code>deprecated_instance()</code>. The typo remains a warning alias until v1.0; supplying both names raises <code>TypeError</code>.</li>
 </ul>
 </div>
 <div class="tabbed-block">
@@ -1969,6 +1968,7 @@
 <li>Existing <code>@deprecated</code> use on a class remains supported; no code change or decorator rewrite is required. It permanently delegates to <code>deprecated_class()</code> and emits one informational <code>UserWarning</code> per module-qualified class. <code>stream=None</code> suppresses the notice. Only the notice, not backward support or delegation, is removed in v1.0.</li>
 <li><code>message_template</code> and <code>skip_if</code> supplied through <code>@deprecated</code> on a class now reach the proxy. <code>message_template</code> was previously dropped on that path.</li>
 <li>Non-callable sources now raise a direct <code>TypeError</code> pointing users to <code>deprecated_instance()</code> instead of failing later on <code>__name__</code>.</li>
+<li>Explicit <code>target=TargetMode.NOTIFY</code> together with a mapping still emits <code>UserWarning</code>, stays <code>NOTIFY</code>, leaves the mapping inert, and is marked misconfigured — unchanged from v0.11.0, and a <code>TypeError</code> in v1.0. What changed is that an <em>omitted</em> <code>target</code> no longer lands here: it auto-resolves instead. Omit <code>target</code> to infer remapping, or select the matching remap mode explicitly.</li>
 </ul>
 </div>
 </div>
@@ -1996,10 +1996,9 @@
 <p><strong>Use named <code>%</code> fields in custom message templates.</strong> Bare <code>%s</code> or <code>%d</code> conversions now raise <code>ValueError</code> when the decorator is applied.</p>
 </li>
 <li>
-<p><strong>Use <code>deprecated_class(attrs_mapping=...)</code> for attribute remapping.</strong> <code>deprecated()</code> no longer accepts the class-only <code>attrs_mapping</code> keyword. <code>@deprecated(target=TargetMode.ATTRS_REMAP)</code> also raises <code>TypeError</code> for functions and classes because the common front door cannot supply the required mapping.</p>
+<p><strong><code>@deprecated(target=TargetMode.ATTRS_REMAP)</code> now raises <code>TypeError</code> for a class source.</strong> It already raised for functions. <code>ATTRS_REMAP</code> needs the class-only <code>attrs_mapping</code> keyword, which the common front door does not expose, so a class source previously built a proxy that remapped nothing. Use <code>deprecated_class(attrs_mapping=...)</code>.</p>
 </li>
-<li><strong>Rename <code>template_mgs</code> to <code>message_template</code></strong> on <code>deprecated()</code>, <code>deprecated_class()</code>, and <code>deprecated_instance()</code>. The typo remains a warning alias until v1.0; supplying both names raises <code>TypeError</code>.</li>
-<li><strong>Fix explicit <code>TargetMode.NOTIFY</code> plus a mapping.</strong> It emits <code>UserWarning</code>, remains <code>NOTIFY</code>, leaves the mapping inert, and is marked misconfigured. Omit <code>target</code> to infer remapping, or select the matching remap mode explicitly.</li>
+<li><strong>Rename <code>template_mgs</code> to <code>message_template</code></strong> on <code>deprecated()</code>, <code>deprecated_callable()</code>, <code>deprecated_class()</code>, and <code>deprecated_instance()</code>. The typo remains a warning alias until v1.0; supplying both names raises <code>TypeError</code>.</li>
 </ul>
 </div>
 <div class="tabbed-block">
@@ -2030,6 +2029,7 @@
 <li>Existing <code>@deprecated</code> use on a class remains supported; no code change or decorator rewrite is required. It permanently delegates to <code>deprecated_class()</code> and emits one informational <code>UserWarning</code> per module-qualified class. <code>stream=None</code> suppresses the notice. Only the notice, not backward support or delegation, is removed in v1.0.</li>
 <li><code>message_template</code> and <code>skip_if</code> supplied through <code>@deprecated</code> on a class now reach the proxy. <code>message_template</code> was previously dropped on that path.</li>
 <li>Non-callable sources now raise a direct <code>TypeError</code> pointing users to <code>deprecated_instance()</code> instead of failing later on <code>__name__</code>.</li>
+<li>Explicit <code>target=TargetMode.NOTIFY</code> together with a mapping still emits <code>UserWarning</code>, stays <code>NOTIFY</code>, leaves the mapping inert, and is marked misconfigured — unchanged from v0.11.0, and a <code>TypeError</code> in v1.0. What changed is that an <em>omitted</em> <code>target</code> no longer lands here: it auto-resolves instead. Omit <code>target</code> to infer remapping, or select the matching remap mode explicitly.</li>
 </ul>
 </div>
 </div>
@@ -2066,10 +2066,9 @@
 <p><strong>Use named <code>%</code> fields in custom message templates.</strong> Bare <code>%s</code> or <code>%d</code> conversions now raise <code>ValueError</code> when the decorator is applied.</p>
 </li>
 <li>
-<p><strong>Use <code>deprecated_class(attrs_mapping=...)</code> for attribute remapping.</strong> <code>deprecated()</code> no longer accepts the class-only <code>attrs_mapping</code> keyword. <code>@deprecated(target=TargetMode.ATTRS_REMAP)</code> also raises <code>TypeError</code> for functions and classes because the common front door cannot supply the required mapping.</p>
+<p><strong><code>@deprecated(target=TargetMode.ATTRS_REMAP)</code> now raises <code>TypeError</code> for a class source.</strong> It already raised for functions. <code>ATTRS_REMAP</code> needs the class-only <code>attrs_mapping</code> keyword, which the common front door does not expose, so a class source previously built a proxy that remapped nothing. Use <code>deprecated_class(attrs_mapping=...)</code>.</p>
 </li>
-<li><strong>Rename <code>template_mgs</code> to <code>message_template</code></strong> on <code>deprecated()</code>, <code>deprecated_class()</code>, and <code>deprecated_instance()</code>. The typo remains a warning alias until v1.0; supplying both names raises <code>TypeError</code>.</li>
-<li><strong>Fix explicit <code>TargetMode.NOTIFY</code> plus a mapping.</strong> It emits <code>UserWarning</code>, remains <code>NOTIFY</code>, leaves the mapping inert, and is marked misconfigured. Omit <code>target</code> to infer remapping, or select the matching remap mode explicitly.</li>
+<li><strong>Rename <code>template_mgs</code> to <code>message_template</code></strong> on <code>deprecated()</code>, <code>deprecated_callable()</code>, <code>deprecated_class()</code>, and <code>deprecated_instance()</code>. The typo remains a warning alias until v1.0; supplying both names raises <code>TypeError</code>.</li>
 </ul>
 </div>
 <div class="tabbed-block">
@@ -2107,6 +2106,7 @@
 <li>Existing <code>@deprecated</code> use on a class remains supported; no code change or decorator rewrite is required. It permanently delegates to <code>deprecated_class()</code> and emits one informational <code>UserWarning</code> per module-qualified class. <code>stream=None</code> suppresses the notice. Only the notice, not backward support or delegation, is removed in v1.0.</li>
 <li><code>message_template</code> and <code>skip_if</code> supplied through <code>@deprecated</code> on a class now reach the proxy. <code>message_template</code> was previously dropped on that path.</li>
 <li>Non-callable sources now raise a direct <code>TypeError</code> pointing users to <code>deprecated_instance()</code> instead of failing later on <code>__name__</code>.</li>
+<li>Explicit <code>target=TargetMode.NOTIFY</code> together with a mapping still emits <code>UserWarning</code>, stays <code>NOTIFY</code>, leaves the mapping inert, and is marked misconfigured — unchanged from v0.11.0, and a <code>TypeError</code> in v1.0. What changed is that an <em>omitted</em> <code>target</code> no longer lands here: it auto-resolves instead. Omit <code>target</code> to infer remapping, or select the matching remap mode explicitly.</li>
 </ul>
 </div>
 </div>
@@ -2143,10 +2143,9 @@
 <p><strong>Use named <code>%</code> fields in custom message templates.</strong> Bare <code>%s</code> or <code>%d</code> conversions now raise <code>ValueError</code> when the decorator is applied.</p>
 </li>
 <li>
-<p><strong>Use <code>deprecated_class(attrs_mapping=...)</code> for attribute remapping.</strong> <code>deprecated()</code> no longer accepts the class-only <code>attrs_mapping</code> keyword. <code>@deprecated(target=TargetMode.ATTRS_REMAP)</code> also raises <code>TypeError</code> for functions and classes because the common front door cannot supply the required mapping.</p>
+<p><strong><code>@deprecated(target=TargetMode.ATTRS_REMAP)</code> now raises <code>TypeError</code> for a class source.</strong> It already raised for functions. <code>ATTRS_REMAP</code> needs the class-only <code>attrs_mapping</code> keyword, which the common front door does not expose, so a class source previously built a proxy that remapped nothing. Use <code>deprecated_class(attrs_mapping=...)</code>.</p>
 </li>
-<li><strong>Rename <code>template_mgs</code> to <code>message_template</code></strong> on <code>deprecated()</code>, <code>deprecated_class()</code>, and <code>deprecated_instance()</code>. The typo remains a warning alias until v1.0; supplying both names raises <code>TypeError</code>.</li>
-<li><strong>Fix explicit <code>TargetMode.NOTIFY</code> plus a mapping.</strong> It emits <code>UserWarning</code>, remains <code>NOTIFY</code>, leaves the mapping inert, and is marked misconfigured. Omit <code>target</code> to infer remapping, or select the matching remap mode explicitly.</li>
+<li><strong>Rename <code>template_mgs</code> to <code>message_template</code></strong> on <code>deprecated()</code>, <code>deprecated_callable()</code>, <code>deprecated_class()</code>, and <code>deprecated_instance()</code>. The typo remains a warning alias until v1.0; supplying both names raises <code>TypeError</code>.</li>
 </ul>
 </div>
 <div class="tabbed-block">
@@ -2184,6 +2183,7 @@
 <li>Existing <code>@deprecated</code> use on a class remains supported; no code change or decorator rewrite is required. It permanently delegates to <code>deprecated_class()</code> and emits one informational <code>UserWarning</code> per module-qualified class. <code>stream=None</code> suppresses the notice. Only the notice, not backward support or delegation, is removed in v1.0.</li>
 <li><code>message_template</code> and <code>skip_if</code> supplied through <code>@deprecated</code> on a class now reach the proxy. <code>message_template</code> was previously dropped on that path.</li>
 <li>Non-callable sources now raise a direct <code>TypeError</code> pointing users to <code>deprecated_instance()</code> instead of failing later on <code>__name__</code>.</li>
+<li>Explicit <code>target=TargetMode.NOTIFY</code> together with a mapping still emits <code>UserWarning</code>, stays <code>NOTIFY</code>, leaves the mapping inert, and is marked misconfigured — unchanged from v0.11.0, and a <code>TypeError</code> in v1.0. What changed is that an <em>omitted</em> <code>target</code> no longer lands here: it auto-resolves instead. Omit <code>target</code> to infer remapping, or select the matching remap mode explicitly.</li>
 </ul>
 </div>
 </div>
@@ -2254,10 +2254,9 @@
 <p><strong>Use named <code>%</code> fields in custom message templates.</strong> Bare <code>%s</code> or <code>%d</code> conversions now raise <code>ValueError</code> when the decorator is applied.</p>
 </li>
 <li>
-<p><strong>Use <code>deprecated_class(attrs_mapping=...)</code> for attribute remapping.</strong> <code>deprecated()</code> no longer accepts the class-only <code>attrs_mapping</code> keyword. <code>@deprecated(target=TargetMode.ATTRS_REMAP)</code> also raises <code>TypeError</code> for functions and classes because the common front door cannot supply the required mapping.</p>
+<p><strong><code>@deprecated(target=TargetMode.ATTRS_REMAP)</code> now raises <code>TypeError</code> for a class source.</strong> It already raised for functions. <code>ATTRS_REMAP</code> needs the class-only <code>attrs_mapping</code> keyword, which the common front door does not expose, so a class source previously built a proxy that remapped nothing. Use <code>deprecated_class(attrs_mapping=...)</code>.</p>
 </li>
-<li><strong>Rename <code>template_mgs</code> to <code>message_template</code></strong> on <code>deprecated()</code>, <code>deprecated_class()</code>, and <code>deprecated_instance()</code>. The typo remains a warning alias until v1.0; supplying both names raises <code>TypeError</code>.</li>
-<li><strong>Fix explicit <code>TargetMode.NOTIFY</code> plus a mapping.</strong> It emits <code>UserWarning</code>, remains <code>NOTIFY</code>, leaves the mapping inert, and is marked misconfigured. Omit <code>target</code> to infer remapping, or select the matching remap mode explicitly.</li>
+<li><strong>Rename <code>template_mgs</code> to <code>message_template</code></strong> on <code>deprecated()</code>, <code>deprecated_callable()</code>, <code>deprecated_class()</code>, and <code>deprecated_instance()</code>. The typo remains a warning alias until v1.0; supplying both names raises <code>TypeError</code>.</li>
 </ul>
 </div>
 <div class="tabbed-block">
@@ -2300,6 +2299,7 @@
 <li>Existing <code>@deprecated</code> use on a class remains supported; no code change or decorator rewrite is required. It permanently delegates to <code>deprecated_class()</code> and emits one informational <code>UserWarning</code> per module-qualified class. <code>stream=None</code> suppresses the notice. Only the notice, not backward support or delegation, is removed in v1.0.</li>
 <li><code>message_template</code> and <code>skip_if</code> supplied through <code>@deprecated</code> on a class now reach the proxy. <code>message_template</code> was previously dropped on that path.</li>
 <li>Non-callable sources now raise a direct <code>TypeError</code> pointing users to <code>deprecated_instance()</code> instead of failing later on <code>__name__</code>.</li>
+<li>Explicit <code>target=TargetMode.NOTIFY</code> together with a mapping still emits <code>UserWarning</code>, stays <code>NOTIFY</code>, leaves the mapping inert, and is marked misconfigured — unchanged from v0.11.0, and a <code>TypeError</code> in v1.0. What changed is that an <em>omitted</em> <code>target</code> no longer lands here: it auto-resolves instead. Omit <code>target</code> to infer remapping, or select the matching remap mode explicitly.</li>
 </ul>
 </div>
 </div>
@@ -2370,10 +2370,9 @@
 <p><strong>Use named <code>%</code> fields in custom message templates.</strong> Bare <code>%s</code> or <code>%d</code> conversions now raise <code>ValueError</code> when the decorator is applied.</p>
 </li>
 <li>
-<p><strong>Use <code>deprecated_class(attrs_mapping=...)</code> for attribute remapping.</strong> <code>deprecated()</code> no longer accepts the class-only <code>attrs_mapping</code> keyword. <code>@deprecated(target=TargetMode.ATTRS_REMAP)</code> also raises <code>TypeError</code> for functions and classes because the common front door cannot supply the required mapping.</p>
+<p><strong><code>@deprecated(target=TargetMode.ATTRS_REMAP)</code> now raises <code>TypeError</code> for a class source.</strong> It already raised for functions. <code>ATTRS_REMAP</code> needs the class-only <code>attrs_mapping</code> keyword, which the common front door does not expose, so a class source previously built a proxy that remapped nothing. Use <code>deprecated_class(attrs_mapping=...)</code>.</p>
 </li>
-<li><strong>Rename <code>template_mgs</code> to <code>message_template</code></strong> on <code>deprecated()</code>, <code>deprecated_class()</code>, and <code>deprecated_instance()</code>. The typo remains a warning alias until v1.0; supplying both names raises <code>TypeError</code>.</li>
-<li><strong>Fix explicit <code>TargetMode.NOTIFY</code> plus a mapping.</strong> It emits <code>UserWarning</code>, remains <code>NOTIFY</code>, leaves the mapping inert, and is marked misconfigured. Omit <code>target</code> to infer remapping, or select the matching remap mode explicitly.</li>
+<li><strong>Rename <code>template_mgs</code> to <code>message_template</code></strong> on <code>deprecated()</code>, <code>deprecated_callable()</code>, <code>deprecated_class()</code>, and <code>deprecated_instance()</code>. The typo remains a warning alias until v1.0; supplying both names raises <code>TypeError</code>.</li>
 </ul>
 </div>
 <div class="tabbed-block">
@@ -2416,6 +2415,7 @@
 <li>Existing <code>@deprecated</code> use on a class remains supported; no code change or decorator rewrite is required. It permanently delegates to <code>deprecated_class()</code> and emits one informational <code>UserWarning</code> per module-qualified class. <code>stream=None</code> suppresses the notice. Only the notice, not backward support or delegation, is removed in v1.0.</li>
 <li><code>message_template</code> and <code>skip_if</code> supplied through <code>@deprecated</code> on a class now reach the proxy. <code>message_template</code> was previously dropped on that path.</li>
 <li>Non-callable sources now raise a direct <code>TypeError</code> pointing users to <code>deprecated_instance()</code> instead of failing later on <code>__name__</code>.</li>
+<li>Explicit <code>target=TargetMode.NOTIFY</code> together with a mapping still emits <code>UserWarning</code>, stays <code>NOTIFY</code>, leaves the mapping inert, and is marked misconfigured — unchanged from v0.11.0, and a <code>TypeError</code> in v1.0. What changed is that an <em>omitted</em> <code>target</code> no longer lands here: it auto-resolves instead. Omit <code>target</code> to infer remapping, or select the matching remap mode explicitly.</li>
 </ul>
 </div>
 </div>
@@ -2491,10 +2491,9 @@
 <p><strong>Use named <code>%</code> fields in custom message templates.</strong> Bare <code>%s</code> or <code>%d</code> conversions now raise <code>ValueError</code> when the decorator is applied.</p>
 </li>
 <li>
-<p><strong>Use <code>deprecated_class(attrs_mapping=...)</code> for attribute remapping.</strong> <code>deprecated()</code> no longer accepts the class-only <code>attrs_mapping</code> keyword. <code>@deprecated(target=TargetMode.ATTRS_REMAP)</code> also raises <code>TypeError</code> for functions and classes because the common front door cannot supply the required mapping.</p>
+<p><strong><code>@deprecated(target=TargetMode.ATTRS_REMAP)</code> now raises <code>TypeError</code> for a class source.</strong> It already raised for functions. <code>ATTRS_REMAP</code> needs the class-only <code>attrs_mapping</code> keyword, which the common front door does not expose, so a class source previously built a proxy that remapped nothing. Use <code>deprecated_class(attrs_mapping=...)</code>.</p>
 </li>
-<li><strong>Rename <code>template_mgs</code> to <code>message_template</code></strong> on <code>deprecated()</code>, <code>deprecated_class()</code>, and <code>deprecated_instance()</code>. The typo remains a warning alias until v1.0; supplying both names raises <code>TypeError</code>.</li>
-<li><strong>Fix explicit <code>TargetMode.NOTIFY</code> plus a mapping.</strong> It emits <code>UserWarning</code>, remains <code>NOTIFY</code>, leaves the mapping inert, and is marked misconfigured. Omit <code>target</code> to infer remapping, or select the matching remap mode explicitly.</li>
+<li><strong>Rename <code>template_mgs</code> to <code>message_template</code></strong> on <code>deprecated()</code>, <code>deprecated_callable()</code>, <code>deprecated_class()</code>, and <code>deprecated_instance()</code>. The typo remains a warning alias until v1.0; supplying both names raises <code>TypeError</code>.</li>
 </ul>
 </div>
 <div class="tabbed-block">
@@ -2540,6 +2539,7 @@
 <li>Existing <code>@deprecated</code> use on a class remains supported; no code change or decorator rewrite is required. It permanently delegates to <code>deprecated_class()</code> and emits one informational <code>UserWarning</code> per module-qualified class. <code>stream=None</code> suppresses the notice. Only the notice, not backward support or delegation, is removed in v1.0.</li>
 <li><code>message_template</code> and <code>skip_if</code> supplied through <code>@deprecated</code> on a class now reach the proxy. <code>message_template</code> was previously dropped on that path.</li>
 <li>Non-callable sources now raise a direct <code>TypeError</code> pointing users to <code>deprecated_instance()</code> instead of failing later on <code>__name__</code>.</li>
+<li>Explicit <code>target=TargetMode.NOTIFY</code> together with a mapping still emits <code>UserWarning</code>, stays <code>NOTIFY</code>, leaves the mapping inert, and is marked misconfigured — unchanged from v0.11.0, and a <code>TypeError</code> in v1.0. What changed is that an <em>omitted</em> <code>target</code> no longer lands here: it auto-resolves instead. Omit <code>target</code> to infer remapping, or select the matching remap mode explicitly.</li>
 </ul>
 </div>
 </div>
@@ -2615,10 +2615,9 @@
 <p><strong>Use named <code>%</code> fields in custom message templates.</strong> Bare <code>%s</code> or <code>%d</code> conversions now raise <code>ValueError</code> when the decorator is applied.</p>
 </li>
 <li>
-<p><strong>Use <code>deprecated_class(attrs_mapping=...)</code> for attribute remapping.</strong> <code>deprecated()</code> no longer accepts the class-only <code>attrs_mapping</code> keyword. <code>@deprecated(target=TargetMode.ATTRS_REMAP)</code> also raises <code>TypeError</code> for functions and classes because the common front door cannot supply the required mapping.</p>
+<p><strong><code>@deprecated(target=TargetMode.ATTRS_REMAP)</code> now raises <code>TypeError</code> for a class source.</strong> It already raised for functions. <code>ATTRS_REMAP</code> needs the class-only <code>attrs_mapping</code> keyword, which the common front door does not expose, so a class source previously built a proxy that remapped nothing. Use <code>deprecated_class(attrs_mapping=...)</code>.</p>
 </li>
-<li><strong>Rename <code>template_mgs</code> to <code>message_template</code></strong> on <code>deprecated()</code>, <code>deprecated_class()</code>, and <code>deprecated_instance()</code>. The typo remains a warning alias until v1.0; supplying both names raises <code>TypeError</code>.</li>
-<li><strong>Fix explicit <code>TargetMode.NOTIFY</code> plus a mapping.</strong> It emits <code>UserWarning</code>, remains <code>NOTIFY</code>, leaves the mapping inert, and is marked misconfigured. Omit <code>target</code> to infer remapping, or select the matching remap mode explicitly.</li>
+<li><strong>Rename <code>template_mgs</code> to <code>message_template</code></strong> on <code>deprecated()</code>, <code>deprecated_callable()</code>, <code>deprecated_class()</code>, and <code>deprecated_instance()</code>. The typo remains a warning alias until v1.0; supplying both names raises <code>TypeError</code>.</li>
 </ul>
 </div>
 <div class="tabbed-block">
@@ -2664,6 +2663,7 @@
 <li>Existing <code>@deprecated</code> use on a class remains supported; no code change or decorator rewrite is required. It permanently delegates to <code>deprecated_class()</code> and emits one informational <code>UserWarning</code> per module-qualified class. <code>stream=None</code> suppresses the notice. Only the notice, not backward support or delegation, is removed in v1.0.</li>
 <li><code>message_template</code> and <code>skip_if</code> supplied through <code>@deprecated</code> on a class now reach the proxy. <code>message_template</code> was previously dropped on that path.</li>
 <li>Non-callable sources now raise a direct <code>TypeError</code> pointing users to <code>deprecated_instance()</code> instead of failing later on <code>__name__</code>.</li>
+<li>Explicit <code>target=TargetMode.NOTIFY</code> together with a mapping still emits <code>UserWarning</code>, stays <code>NOTIFY</code>, leaves the mapping inert, and is marked misconfigured — unchanged from v0.11.0, and a <code>TypeError</code> in v1.0. What changed is that an <em>omitted</em> <code>target</code> no longer lands here: it auto-resolves instead. Omit <code>target</code> to infer remapping, or select the matching remap mode explicitly.</li>
 </ul>
 </div>
 </div>
@@ -2739,10 +2739,9 @@
 <p><strong>Use named <code>%</code> fields in custom message templates.</strong> Bare <code>%s</code> or <code>%d</code> conversions now raise <code>ValueError</code> when the decorator is applied.</p>
 </li>
 <li>
-<p><strong>Use <code>deprecated_class(attrs_mapping=...)</code> for attribute remapping.</strong> <code>deprecated()</code> no longer accepts the class-only <code>attrs_mapping</code> keyword. <code>@deprecated(target=TargetMode.ATTRS_REMAP)</code> also raises <code>TypeError</code> for functions and classes because the common front door cannot supply the required mapping.</p>
+<p><strong><code>@deprecated(target=TargetMode.ATTRS_REMAP)</code> now raises <code>TypeError</code> for a class source.</strong> It already raised for functions. <code>ATTRS_REMAP</code> needs the class-only <code>attrs_mapping</code> keyword, which the common front door does not expose, so a class source previously built a proxy that remapped nothing. Use <code>deprecated_class(attrs_mapping=...)</code>.</p>
 </li>
-<li><strong>Rename <code>template_mgs</code> to <code>message_template</code></strong> on <code>deprecated()</code>, <code>deprecated_class()</code>, and <code>deprecated_instance()</code>. The typo remains a warning alias until v1.0; supplying both names raises <code>TypeError</code>.</li>
-<li><strong>Fix explicit <code>TargetMode.NOTIFY</code> plus a mapping.</strong> It emits <code>UserWarning</code>, remains <code>NOTIFY</code>, leaves the mapping inert, and is marked misconfigured. Omit <code>target</code> to infer remapping, or select the matching remap mode explicitly.</li>
+<li><strong>Rename <code>template_mgs</code> to <code>message_template</code></strong> on <code>deprecated()</code>, <code>deprecated_callable()</code>, <code>deprecated_class()</code>, and <code>deprecated_instance()</code>. The typo remains a warning alias until v1.0; supplying both names raises <code>TypeError</code>.</li>
 </ul>
 </div>
 <div class="tabbed-block">
@@ -2788,6 +2787,7 @@
 <li>Existing <code>@deprecated</code> use on a class remains supported; no code change or decorator rewrite is required. It permanently delegates to <code>deprecated_class()</code> and emits one informational <code>UserWarning</code> per module-qualified class. <code>stream=None</code> suppresses the notice. Only the notice, not backward support or delegation, is removed in v1.0.</li>
 <li><code>message_template</code> and <code>skip_if</code> supplied through <code>@deprecated</code> on a class now reach the proxy. <code>message_template</code> was previously dropped on that path.</li>
 <li>Non-callable sources now raise a direct <code>TypeError</code> pointing users to <code>deprecated_instance()</code> instead of failing later on <code>__name__</code>.</li>
+<li>Explicit <code>target=TargetMode.NOTIFY</code> together with a mapping still emits <code>UserWarning</code>, stays <code>NOTIFY</code>, leaves the mapping inert, and is marked misconfigured — unchanged from v0.11.0, and a <code>TypeError</code> in v1.0. What changed is that an <em>omitted</em> <code>target</code> no longer lands here: it auto-resolves instead. Omit <code>target</code> to infer remapping, or select the matching remap mode explicitly.</li>
 </ul>
 </div>
 </div>

@@ -14,6 +14,10 @@ Auto-generated from source docstrings. For usage examples see the [User Guide](g
 
 ::: deprecate.proxy.deprecated_instance
 
+## Module
+
+::: deprecate.module.deprecated_module
+
 ## Audit
 
 ::: deprecate.audit.find_deprecation_wrappers

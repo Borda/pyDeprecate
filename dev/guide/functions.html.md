@@ -275,7 +275,7 @@ These modes differ in whether the function body runs, whether a warning fires, a
 
     `TargetMode.NOTIFY` replaces the old `target=None` sentinel and `TargetMode.ARGS_REMAP` replaces the old `target=True` sentinel. The old forms still work but emit a `FutureWarning` at decoration time.
 
-    On `@deprecated`, `target` defaults to `TargetMode.AUTO` — a fallback that resolves an *omitted* `target` at decoration time (`args_mapping` present → `ARGS_REMAP`, otherwise `NOTIFY`). The resolved mode — never `AUTO` itself — is stored in `DeprecationConfig`. Prefer passing the explicit mode so intent is visible at the call site; you never write `target=TargetMode.AUTO` yourself, and the strict `deprecated_callable()` (default `TargetMode.NOTIFY`) raises `TypeError` if you try.
+    On `@deprecated`, `target` defaults to `TargetMode.AUTO` — a fallback that resolves an *omitted* `target` at decoration time (a non-empty `args_mapping` → `ARGS_REMAP`, otherwise `NOTIFY`; an empty `{}` counts as no mapping). The resolved mode — never `AUTO` itself — is stored in `DeprecationConfig`. Prefer passing the explicit mode so intent is visible at the call site. The front door accepts `target=TargetMode.AUTO` written out — it is identical to omitting `target` — but it conveys nothing extra; the strict `deprecated_callable()` (default `TargetMode.NOTIFY`) raises `TypeError` if you try.
 
 ### Behaviour comparison
 
