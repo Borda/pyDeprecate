@@ -183,6 +183,14 @@
         },
         {
           "@type": "Question",
+          "name": "Why did the deprecation warning stop appearing in my long-running service?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "The num_warns budget is per-process, not per-deployment. A worker or server that hits a deprecated path once at startup exhausts the default num_warns=1 immediately and stays silent for the rest of that process's life, even across weeks of steady-state traffic. Seeing nothing in production logs does not mean the deprecated path is unused. To confirm whether it is still being hit: restart the process to reset the counter and watch for the warning again, or temporarily redeploy with num_warns=-1 to log every call."
+          }
+        },
+        {
+          "@type": "Question",
           "name": "Why does the deprecation path show incorrectly when the target is in another module?",
           "acceptedAnswer": {
             "@type": "Answer",
@@ -267,6 +275,14 @@
           "acceptedAnswer": {
             "@type": "Answer",
             "text": "This is intentional. pyDeprecate wraps async generator sources with a sync callable that fires the deprecation warning eagerly at call time and returns the async generator object. Iteration with async for proceeds normally after that. Because the wrapper is sync, inspect.isasyncgenfunction(wrapper) returns False; if a framework checks this flag, wrap it in a thin async def passthrough before applying @deprecated."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why does my deprecated wrapper's warning fire when I define a function, not when I call it?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "This is by design, not a timing bug. Applying a deprecated decorator with @ syntax to a def statement is exactly equivalent to calling the deprecated wrapper immediately with that function as its argument, so the warning fires at definition time (which is also import time, for a def at module scope) rather than when the decorated function is later called. This is consistent with every other pyDeprecate warning: the message fires when the deprecated callable itself runs, never deferred to a later use of its return value. There is no option to defer the warning until the decorated function is called instead."
           }
         },
         {
