@@ -51,6 +51,10 @@ Calling `addition(1, 2)` now emits a `FutureWarning` and transparently forwards 
 - **Argument deprecation** — `TargetMode.ARGS_REMAP` warns only when the old argument name is actually passed; callers who have already migrated see no noise.
 - **Class and Enum support** — `@deprecated_class` wraps entire classes, Enums, and dataclasses in a transparent proxy where `isinstance` and `issubclass` just work.
 - **Instance / constant proxy** — `deprecated_instance(obj, ...)` wraps module-level objects (dicts, lists, custom objects) with optional `read_only` enforcement and transparent attribute/item access.
+- **Module deprecation** — [`deprecated_module(__name__, ...)`](guide/modules.md) retires an entire module in one call, warning on every public attribute access (including names already in `__dict__` and star-imports, which a PEP 562 `__getattr__` hook cannot reach). Warn in place, redirect to a replacement, or alias from the parent package.
+- **Strict callable-only form** — `@deprecated_callable()` shares every `@deprecated` parameter but raises `TypeError` at decoration time on a class source, for codebases where the implicit class dispatch should be an error.
+- **Mode inference** — `@deprecated` defaults to `TargetMode.AUTO`, resolving the mode at decoration time from the rest of the configuration; the concrete mode is what audit tooling sees, never `AUTO`.
+- **Public proxy protocol** — annotate against [`DeprecationProxy`](api-reference.md) instead of the private `_DeprecatedProxy`; proxies also carry `__wrapped__` / `__signature__` breadcrumbs so `inspect`, Sphinx, griffe, and IDEs resolve through to the source.
 - **Configurable frequency** — `num_warns=1` (default) emits once per function, not on every call. Set `-1` for always or `N` for exactly N times.
 - **Docstring injection** — `update_docstring=True` appends a Sphinx `.. deprecated::` or MkDocs admonition notice automatically, keeping rendered API docs accurate.
 - **Sphinx Plugin** — ships `deprecate.docstring.sphinx_ext` so `_DeprecatedProxy` objects render with their injected deprecation notice in Sphinx autodoc.
@@ -122,7 +126,7 @@ The alternatives emit a deprecation notice but leave forwarding, argument mappin
 
 ✍️ = possible but requires manual implementation <br /> † `warnings.deprecated` in the stdlib on Python 3.13+ (PEP 702); also available as the `typing_extensions.deprecated` backport for Python < 3.13
 
-_Positioning guide reviewed for pyDeprecate v0.11.0.dev0, July 2026. This is not a full cell-by-cell external audit; [open an issue](https://github.com/Borda/pyDeprecate/issues) if you spot an inaccuracy._
+_Positioning guide reviewed for pyDeprecate v0.12.0, August 2026. This is not a full cell-by-cell external audit; [open an issue](https://github.com/Borda/pyDeprecate/issues) if you spot an inaccuracy._
 
 > **When to prefer `warnings.deprecated` (PEP 702):** If your project targets Python 3.13+ and you only need simple call-site warnings visible to static type-checkers (mypy, pyright, IDEs), the stdlib decorator is the right choice — zero extra dependency. Choose `pyDeprecate` when you need call-forwarding, argument remapping, proxy wrapping of module-level constants, or CI audit tools — none of those exist in PEP 702.
 

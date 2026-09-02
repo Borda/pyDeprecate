@@ -164,14 +164,16 @@ Not sure which API to reach for? Start here.
 
 **Pick the right decorator:**
 
-| Scenario                                      | API to use                                                               |
-| --------------------------------------------- | ------------------------------------------------------------------------ |
-| Renaming a function or method                 | `@deprecated(target=new_func)`                                           |
-| Renaming an argument within the same function | `@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old": "new"})` |
-| Warn only — original body still runs          | `@deprecated(deprecated_in="1.0", remove_in="2.0")`                      |
-| Deprecating a class, Enum, or dataclass name  | `@deprecated_class(target=NewClass)`                                     |
-| Deprecating a module-level constant or object | `deprecated_instance(obj, ...)`                                          |
-| Annotating the proxy those two return         | `DeprecationProxy`                                                       |
+| Scenario                                        | API to use                                                               |
+| ----------------------------------------------- | ------------------------------------------------------------------------ |
+| Renaming a function or method                   | `@deprecated(target=new_func)`                                           |
+| Renaming an argument within the same function   | `@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old": "new"})` |
+| Warn only — original body still runs            | `@deprecated(deprecated_in="1.0", remove_in="2.0")`                      |
+| Deprecating a class, Enum, or dataclass name    | `@deprecated_class(target=NewClass)`                                     |
+| Deprecating a module-level constant or object   | `deprecated_instance(obj, ...)`                                          |
+| Retiring an entire module                       | `deprecated_module(__name__, ...)`                                       |
+| Refusing a class up front (strict callables)    | `@deprecated_callable(target=new_func)`                                  |
+| Annotating the proxy the two proxy forms return | `DeprecationProxy`                                                       |
 
 > **Note:** Legacy `target=None` and `target=True` emit `FutureWarning` at decoration time in v0.8 and become `TypeError` in v1.0. Use `TargetMode.NOTIFY` and `TargetMode.ARGS_REMAP` respectively.
 
@@ -296,7 +298,7 @@ In particular the target values (cases):
 
 > [!TIP]
 >
-> **Prefer passing an explicit `target`** — one of the first three rows — so the intent is visible at the call site. `TargetMode.AUTO` is only the default that resolves an omitted `target`; you never write `target=TargetMode.AUTO` yourself, and the strict `deprecated_callable()` / `deprecated_class()` forms reject it. `TargetMode.NOTIFY` replaces the old `target=None` sentinel and `TargetMode.ARGS_REMAP` replaces the old `target=True` sentinel; the old forms still work but emit a `FutureWarning` at decoration time.
+> **Prefer passing an explicit `target`** — one of the first three rows — so the intent is visible at the call site. `TargetMode.AUTO` is only the default that resolves an omitted `target`. The front door does accept it explicitly — it behaves exactly as omitting `target` — but writing it says nothing an omitted `target` does not, so prefer the concrete mode; the strict `deprecated_callable()` / `deprecated_class()` forms reject it outright with `TypeError`. `TargetMode.NOTIFY` replaces the old `target=None` sentinel and `TargetMode.ARGS_REMAP` replaces the old `target=True` sentinel; the old forms still work but emit a `FutureWarning` at decoration time.
 
 > [!NOTE]
 >
@@ -681,6 +683,82 @@ print(skip_pow(2, 3))
 </details>
 
 This pattern is useful when a migration is only active for some environments or dependency versions.
+
+### 🔒 Strict callable-only deprecation
+
+`@deprecated` is a crossroad: hand it a function and it wraps the callable, hand it a class and it dispatches to `@deprecated_class()`. That convenience is not always what you want. `@deprecated_callable()` is the strict form — it shares every `@deprecated` parameter but raises `TypeError` at **decoration time** when applied to a class, so a mistaken class decoration fails on import rather than silently becoming a proxy.
+
+Reach for it when a codebase should never take the class path implicitly: shared library code, a lint-adjacent internal helper, or any module where the reviewer wants the class case to be an error rather than a dispatch.
+
+<details>
+<summary>Example: strict callable-only decoration</summary>
+
+```python
+from deprecate import deprecated_callable
+
+
+# NEW/FUTURE API — renamed to say what it measures
+def elapsed_seconds(start: float, end: float) -> float:
+    return end - start
+
+
+# DEPRECATED API — `duration` was the original name before the rename
+@deprecated_callable(target=elapsed_seconds, deprecated_in="1.4", remove_in="2.0")
+def duration(start: float, end: float) -> float: ...
+
+
+# calling this function will raise a deprecation warning:
+#   The `duration` was deprecated since v1.4 in favor of `__main__.elapsed_seconds`.
+#   It will be removed in v2.0.
+print(duration(10.0, 12.5))
+```
+
+</details>
+
+<details>
+  <summary>Output: <code>duration(10.0, 12.5)</code></summary>
+
+```
+2.5
+```
+
+</details>
+
+Applied to a class it refuses immediately, naming the decorator you should have used:
+
+<details>
+<summary>Example: a class source is rejected at decoration time</summary>
+
+```python
+from deprecate import deprecated_callable
+
+
+class HttpClient:
+    """The replacement class."""
+
+
+try:
+
+    @deprecated_callable(target=HttpClient, deprecated_in="1.4", remove_in="2.0")
+    class Client:
+        """A class handed to the strict callable-only decorator."""
+
+except TypeError as err:
+    print(type(err).__name__)
+```
+
+</details>
+
+<details>
+  <summary>Output: <code>type(err).__name__</code></summary>
+
+```
+TypeError
+```
+
+</details>
+
+The error names both alternatives — `@deprecated_class()` for the class itself, or `@deprecated` if you did want automatic dispatch. Note that the two forms differ in one default: `@deprecated` defaults `target` to `TargetMode.AUTO` (inferred at decoration time), while `deprecated_callable()` defaults to `TargetMode.NOTIFY` and rejects an explicit `TargetMode.AUTO` with `TypeError`.
 
 ### 🏗 Class deprecation
 
@@ -1254,7 +1332,7 @@ old_utils = deprecated_instance(
     name="old_utils",
     deprecated_in="2.0",
     remove_in="3.0",
-    message="Use `my_package.new_calculator` instead.",
+    message_template="Use `my_package.new_calculator` instead.",
 )
 # my_package.old_utils.add(1, 2)  # warns: FutureWarning
 ```
