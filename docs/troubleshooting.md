@@ -800,7 +800,7 @@ Both surfaces still work independently: `attrs_mapping` redirects attribute acce
 
 ```python
 from dataclasses import dataclass, field
-from deprecate import deprecated_class
+from deprecate import deprecated_class, get_deprecation_config
 
 
 @dataclass
@@ -816,7 +816,7 @@ DepConfig = deprecated_class(
     stream=None,
 )(Config)
 
-meta = DepConfig.__deprecation_config__
+meta = get_deprecation_config(DepConfig)
 print("timeout auto-expanded:", "time_limit" in meta.args_mapping_auto_expanded)
 print("_cache auto-expanded:", "store" in meta.args_mapping_auto_expanded)
 ```
@@ -863,7 +863,7 @@ print(get_deprecation_config(old_func).target is new_func)
 <details>
   <summary>Output: <code>isinstance(...) and get_deprecation_config(...).target</code></summary>
 
-```
+```text
 True
 True
 ```

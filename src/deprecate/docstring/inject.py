@@ -32,7 +32,7 @@ from typing import Literal, Optional, cast
 from deprecate._types import (
     DeprecationConfig,
     TargetMode,
-    _has_deprecation_meta,
+    get_deprecation_config,
 )
 
 #: Default templates for documentation with deprecated callable — RST/Sphinx style
@@ -597,10 +597,10 @@ def _update_docstring_with_deprecation(wrapped_fn: object) -> None:
     """
     if not hasattr(wrapped_fn, "__doc__") or not wrapped_fn.__doc__:
         return
-    if not _has_deprecation_meta(wrapped_fn):
+    dep_info = get_deprecation_config(wrapped_fn)
+    if dep_info is None:
         return
     lines = wrapped_fn.__doc__.splitlines()
-    dep_info = wrapped_fn.__deprecation_config__
 
     if dep_info.args_mapping:
         lines, all_args_found = _inject_args_mapping_section(lines, dep_info)

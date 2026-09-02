@@ -20,14 +20,93 @@ Copyright (C) 2020-2026 Jiri Borovec <...>.
 
 """
 
+import types
 from dataclasses import replace
 from typing import cast
 
 from deprecate import deprecated, void
-from deprecate._types import TargetMode, _DeprecatedCallable
+from deprecate._types import DeprecationConfig, TargetMode, _DeprecatedCallable
+from deprecate.proxy import _DeprecatedProxy, deprecated_class
 
 # Construction-time UserWarning is expected for empty/None args_mapping; it is suppressed via the
 # targeted `filterwarnings` entries in pyproject.toml (scoped by message + `deprecate._types` module).
+
+
+def _legacy_metadata_only(value: int = 1) -> int:
+    """Represent a callable decorated by pyDeprecate before the v0.13 metadata split.
+
+    Examples:
+        A mixed-version application imports this callable from a component that still stores its
+        ``DeprecationConfig`` under ``__deprecated__``. Current consumers must use the public fallback accessor.
+    """
+    return value
+
+
+_legacy_metadata_only.__deprecated__ = DeprecationConfig(  # type: ignore[attr-defined]
+    name="legacy_metadata_only",
+    deprecated_in="0.12",
+    remove_in="1.0",
+    target=TargetMode.NOTIFY,
+)
+
+_legacy_metadata_module = types.ModuleType("legacy_metadata_module")
+_legacy_metadata_module.__deprecated__ = DeprecationConfig(  # type: ignore[attr-defined]
+    name="legacy_metadata_module",
+    deprecated_in="0.12",
+    remove_in="1.0",
+    target=TargetMode.NOTIFY,
+)
+
+
+def make_stacked_legacy_metadata_wrapper() -> _DeprecatedCallable:
+    """Wrap a pre-v0.13 callable with a current argument-remap deprecation.
+
+    Examples:
+        A rolling upgrade imports a warn-only wrapper created by v0.12 and adds a new argument rename under v0.13.
+        The current decorator must resolve the inner legacy metadata before classifying the stack.
+    """
+    wrapper = deprecated(
+        target=TargetMode.ARGS_REMAP,
+        deprecated_in="0.13",
+        remove_in="1.0",
+        args_mapping={"old": "value"},
+    )(_legacy_metadata_only)
+    return cast(_DeprecatedCallable, wrapper)
+
+
+def make_legacy_metadata_proxy() -> _DeprecatedProxy:
+    """Build a proxy carrying only the pre-v0.13 metadata attribute.
+
+    Examples:
+        Audit code encounters a proxy created by an older installed component. Report rendering must obtain the
+        alias name through the public fallback without emitting a warning from the proxy.
+    """
+
+    class _LegacyClass:
+        """Class represented by the simulated legacy proxy."""
+
+    legacy_proxy = _DeprecatedProxy(
+        obj=_LegacyClass,
+        name="LegacyClass",
+        deprecated_in="0.12",
+        remove_in="1.0",
+        stream=None,
+    )
+    config = object.__getattribute__(legacy_proxy, "__deprecation_config__")
+    object.__delattr__(legacy_proxy, "__deprecation_config__")
+    object.__setattr__(legacy_proxy, "__deprecated__", config)
+    return legacy_proxy
+
+
+def make_stacked_legacy_proxy() -> _DeprecatedProxy:
+    """Stack ``deprecated_class`` over a proxy carrying only pre-v0.13 metadata.
+
+    Examples:
+        A library release wraps a class alias that an older installed component already exposed as a deprecated
+        proxy. The outer proxy must preserve the legacy alias name without reading the absent new attribute directly.
+    """
+    legacy_proxy = make_legacy_metadata_proxy()
+    return deprecated_class(deprecated_in="0.13", remove_in="1.0", stream=None)(legacy_proxy)
 
 
 @deprecated(

@@ -47,6 +47,7 @@ from deprecate._types import (
     DeprecationProxy,
     TargetMode,
     _ProxyConfig,
+    get_deprecation_config,
 )
 from deprecate.docstring.inject import _update_docstring_with_deprecation, normalize_docstring_style
 from deprecate.messaging import (
@@ -160,7 +161,9 @@ class _DeprecatedProxy:
             if id(obj) in seen:
                 break
             seen.add(id(obj))
-            dep = object.__getattribute__(obj, "__deprecation_config__")
+            dep = get_deprecation_config(obj)
+            if dep is None:
+                break
             cfg = object.__getattribute__(obj, "_DeprecatedProxy__config")
             target = dep.target
             obj = target if target is not None and not isinstance(target, TargetMode) else cfg.obj
@@ -1681,11 +1684,13 @@ def deprecated_class(
     def decorator(cls: _ClassOrProxy) -> "_DeprecatedProxy":
         # When cls is a _DeprecatedProxy (stacking case), cls.__name__ triggers __getattr__
         # which emits a spurious warning. Retrieve the name safely via the stored metadata.
-        cls_name = (
-            object.__getattribute__(cls, "__deprecation_config__").name
-            if isinstance(cls, _DeprecatedProxy)
-            else cls.__name__
-        )
+        if isinstance(cls, _DeprecatedProxy):
+            cls_config = get_deprecation_config(cls)
+            if cls_config is None:
+                raise TypeError("Cannot stack deprecated_class over a proxy without valid deprecation metadata.")
+            cls_name = cls_config.name
+        else:
+            cls_name = cls.__name__
         if stream is not None and not deprecated_in and not message_template:
             warnings.warn(
                 f"`@deprecated_class` on `{cls_name}` has no `deprecated_in` set."

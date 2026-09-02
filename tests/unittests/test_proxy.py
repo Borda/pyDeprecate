@@ -63,6 +63,7 @@ from tests.collection_deprecate import (
     make_deprecated_instance_skip_if_true_read_only,
     pep702_proxy_stacked,
 )
+from tests.collection_misconfigured import make_stacked_legacy_proxy
 from tests.collection_targets import (
     AsyncManagedResource,
     AutoExpandDC,
@@ -89,7 +90,11 @@ class TestProxyInit:
     """Internal state initialisation for _DeprecatedProxy instances."""
 
     def test_internal_state_stored_correctly(self) -> None:
-        """Constructor stores runtime config in ``__config`` and metadata in ``__deprecation_config__``."""
+        """Store runtime state separately from public audit metadata.
+
+        Proxy construction must keep mutable warning state private while exposing an immutable configuration through
+        the v0.13 metadata contract.
+        """
         obj = {"a": 1}
         proxy = _DeprecatedProxy(obj=obj, name="x", deprecated_in="1.0", remove_in="2.0", num_warns=3, stream=None)
         cfg = object.__getattribute__(proxy, "_DeprecatedProxy__config")
@@ -103,6 +108,17 @@ class TestProxyInit:
         assert meta.deprecated_in == "1.0"
         assert meta.remove_in == "2.0"
         assert meta.target is None
+
+    def test_stacking_reads_legacy_proxy_metadata_through_accessor(self) -> None:
+        """Stack a current class proxy over metadata created with the legacy layout.
+
+        Rolling upgrades may expose a pre-v0.13 proxy as the input to a current ``deprecated_class`` call. The new
+        proxy must preserve its declared name without dereferencing an attribute the inner proxy does not have.
+        """
+        proxy = make_stacked_legacy_proxy()
+
+        meta = object.__getattribute__(proxy, "__deprecation_config__")
+        assert meta.name == "LegacyClass"
         assert meta.args_mapping is None
 
 
@@ -2640,7 +2656,11 @@ class TestProxyCopyPickle:
         assert proxy["limits"]["low"] == 1
 
     def test_copy_preserves_deprecation_metadata(self) -> None:
-        """Audit tools must still discover a copied proxy via its ``__deprecation_config__`` metadata."""
+        """Preserve deprecation metadata when copying a proxy.
+
+        Applications commonly copy configuration-like proxies before mutation; the duplicate must remain visible to
+        audit tooling with the same name and lifecycle versions.
+        """
         proxy = deprecated_instance({"k": 1}, name="cfg", deprecated_in="1.0", remove_in="2.0", stream=None)
         dup = copy.copy(proxy)
         meta = object.__getattribute__(dup, "__deprecation_config__")

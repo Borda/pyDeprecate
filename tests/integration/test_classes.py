@@ -379,7 +379,11 @@ class TestEnumFormEquivalence(_ClassFormBase):
         assert issubclass(NewEnum, proxy)  # type: ignore[arg-type]
 
     def test_deprecated_metadata(self, proxy: _DeprecatedProxy, name: str) -> None:
-        """__deprecation_config__ records correct DeprecationConfig for both forms."""
+        """Record equivalent enum metadata for decorator and wrapper forms.
+
+        During the v0.13 metadata migration, both public construction forms must expose the same configuration so
+        audit tools do not classify otherwise-equivalent deprecated enums differently.
+        """
         dep = object.__getattribute__(proxy, "__deprecation_config__")
         assert isinstance(dep, DeprecationConfig)
         assert dep.deprecated_in == "0.5"
@@ -414,7 +418,11 @@ class TestDataclassFormEquivalence(_ClassFormBase):
         assert instance.total == 0
 
     def test_deprecated_metadata(self, proxy: _DeprecatedProxy, name: str) -> None:
-        """__deprecation_config__ records correct DeprecationConfig for both forms."""
+        """Record equivalent dataclass metadata for decorator and wrapper forms.
+
+        Applications may migrate between the two class APIs without changing their audit expectations, so both
+        forms must preserve the same target, versions, and declared name.
+        """
         dep = object.__getattribute__(proxy, "__deprecation_config__")
         assert isinstance(dep, DeprecationConfig)
         assert dep.deprecated_in == "0.5"

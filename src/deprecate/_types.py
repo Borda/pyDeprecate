@@ -12,10 +12,7 @@ import warnings
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Callable, Generic, Literal, Optional, Protocol, TypeVar, Union, runtime_checkable
-
-if TYPE_CHECKING:
-    from typing_extensions import TypeGuard
+from typing import Any, Callable, Generic, Literal, Optional, Protocol, TypeVar, Union, runtime_checkable
 
 
 class TargetMode(Enum):
@@ -538,9 +535,6 @@ class _HasDeprecationMeta(Protocol):
 
     Module narrowing via :func:`_has_deprecation_meta` is metadata-only and does not imply a callable ``__call__``.
 
-    Used as a TypeGuard target so that a ``hasattr`` guard narrows the type of an arbitrary callable to one whose
-    ``__deprecation_config__`` attribute is typed — eliminating the need for a ``cast`` after the guard.
-
     """
 
     __deprecation_config__: DeprecationConfig
@@ -602,12 +596,12 @@ def get_deprecation_config(obj: Any) -> Optional[DeprecationConfig]:  # noqa: AN
     return legacy_meta if isinstance(legacy_meta, DeprecationConfig) else None
 
 
-def _has_deprecation_meta(obj: Any) -> "TypeGuard[_HasDeprecationMeta]":  # noqa: ANN401
-    """Return ``True`` if *obj* carries typed :class:`~deprecate._types.DeprecationConfig` metadata.
+def _has_deprecation_meta(obj: Any) -> bool:  # noqa: ANN401
+    """Return ``True`` if *obj* carries current or legacy deprecation metadata.
 
-    Using this as a guard narrows the type of *obj* from ``Any`` / ``Callable`` to
-    :class:`~deprecate._types._HasDeprecationMeta`,
-    allowing direct typed access to ``obj.__deprecation_config__`` without a ``cast``.
+    This predicate deliberately does not narrow to :class:`_HasDeprecationMeta`: legacy objects store their
+    configuration in ``__deprecated__`` and lack ``__deprecation_config__``. Consumers must resolve the value with
+    :func:`get_deprecation_config`.
 
     Args:
         obj: Any object to test.

@@ -15,7 +15,9 @@ Three things go wrong with deprecations in practice: a `remove_in` deadline pass
 
     In v0.8, `DeprecationConfig.target` now always stores a `TargetMode` enum member or a `Callable` — never a raw boolean sentinel. Code inspecting this attribute must be updated:
 
-    | Before v0.8                           | v0.8+                                                 |
+    The direct metadata reads below apply only through v0.12; v0.13 code must use `get_deprecation_config(func)` as shown in the next section.
+
+    | Before v0.8                           | v0.8-v0.12                                            |
     | ------------------------------------- | ----------------------------------------------------- |
     | `func.__deprecated__.target is None`  | `func.__deprecated__.target is TargetMode.NOTIFY`     |
     | `func.__deprecated__.target is True`  | `func.__deprecated__.target is TargetMode.ARGS_REMAP` |

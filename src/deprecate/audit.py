@@ -60,7 +60,7 @@ if TYPE_CHECKING:
     from packaging.version import Version
 
 from deprecate._properties import _DeprecatedProperty
-from deprecate._types import DeprecationConfig, TargetMode, _has_deprecation_meta
+from deprecate._types import DeprecationConfig, TargetMode, _has_deprecation_meta, get_deprecation_config
 from deprecate.proxy import _DeprecatedProxy, deprecated_class
 from deprecate.utils import get_func_arguments_types_defaults
 
@@ -463,18 +463,16 @@ def _detect_chain_type(
 ) -> Optional[ChainType]:
     """Return the chain type when target or attrs_mapping forms a deprecation chain, else None."""
     chain_type: Optional[ChainType] = None
-    if callable(target) and _has_deprecation_meta(target):
-        wrp_depr_tgt = target.__deprecation_config__.target
+    target_config = get_deprecation_config(target) if callable(target) else None
+    if target_config is not None:
+        wrp_depr_tgt = target_config.target
         chain_type = ChainType.STACKED if wrp_depr_tgt is TargetMode.ARGS_REMAP else ChainType.TARGET
     elif _is_args_remap:
         wrapped = getattr(func, "__wrapped__", None)
         # ``target`` is always a ``TargetMode`` (or callable/None) after normalization — the legacy
         # ``target is True`` sentinel can no longer reach here, so only ARGS_REMAP marks a stacked chain.
-        if (
-            wrapped is not None
-            and _has_deprecation_meta(wrapped)
-            and wrapped.__deprecation_config__.target is TargetMode.ARGS_REMAP
-        ):
+        wrapped_config = get_deprecation_config(wrapped) if wrapped is not None else None
+        if wrapped_config is not None and wrapped_config.target is TargetMode.ARGS_REMAP:
             chain_type = ChainType.STACKED
     attrs_mapping = dep_info.attrs_mapping
     has_chained_attrs = attrs_mapping is not None and any(
@@ -582,7 +580,9 @@ def validate_deprecation_wrapper(func: Union[Callable, types.ModuleType]) -> Dep
             " with `@deprecated`."
         )
 
-    dep_info = func.__deprecation_config__
+    dep_info = get_deprecation_config(func)
+    if dep_info is None:
+        raise ValueError(f"{getattr(func, '__name__', func)!r} no longer carries valid deprecation metadata.")
     args_mapping = dep_info.args_mapping
     target = dep_info.target
     _is_args_remap = target is TargetMode.ARGS_REMAP
@@ -920,7 +920,9 @@ def _scan_module_meta(mod: Any) -> DeprecationWrapperInfo:  # noqa: ANN401
         to safe defaults (no invalid args, no misconfig).
 
     """
-    dep_info: DeprecationConfig = mod.__deprecation_config__
+    dep_info = get_deprecation_config(mod)
+    if dep_info is None:
+        raise ValueError(f"Module {getattr(mod, '__name__', mod)!r} no longer carries valid deprecation metadata.")
     # Read via __dict__ to avoid triggering the PEP 562 __getattr__ hook.
     # str(mod) must be lazy — eager evaluation calls _module_repr which accesses __spec__ via getattr
     # and may trigger the module's own __getattr__ before __spec__ is in __dict__.
@@ -981,7 +983,7 @@ def _descriptor_underlying_callables(obj: Any) -> tuple[Any, ...]:  # noqa: ANN4
 
 
 def _member_has_deprecation_meta(obj: Any) -> bool:  # noqa: ANN401
-    """Return ``True`` if a class member — peeking through descriptors — carries ``__deprecation_config__`` metadata.
+    """Return whether a class member carries deprecation metadata through its descriptor.
 
     Descriptors store the deprecation metadata on the underlying callable (``classmethod``/``staticmethod``
     ``__func__``, ``property`` accessors, ``cached_property`` ``func``), so a plain :func:`_has_deprecation_meta`
@@ -1121,7 +1123,7 @@ def _scan_module(
 
     # Pre-loop: if the module itself is deprecated (via deprecated_module()), record it first.
     # Use __dict__.get to avoid triggering foreign PEP 562 __getattr__ hooks on third-party modules.
-    if isinstance(mod.__dict__.get("__deprecation_config__"), DeprecationConfig):
+    if get_deprecation_config(mod) is not None:
         results.append(_scan_module_meta(mod))
 
     try:
@@ -1296,11 +1298,10 @@ def _format_report_target(target: Any) -> str:  # noqa: ANN401
     if inspect.ismodule(target):
         return getattr(target, "__name__", str(target))
     if isinstance(target, _DeprecatedProxy):
-        # A chained-proxy target (the New API is itself a deprecated alias). Bypass proxy
-        # ``__getattr__`` interception to read the static metadata directly — ``__deprecation_config__``
-        # is stored in the instance ``__dict__`` via ``object.__setattr__`` in ``_DeprecatedProxy.__init__``,
-        # so ``object.__getattribute__`` retrieves it without triggering forwarding logic.
-        return object.__getattribute__(target, "__deprecation_config__").name
+        # A chained-proxy target may have been created before the v0.13 metadata split. The public
+        # accessor checks both layouts without invoking the proxy's dynamic forwarding path.
+        config = get_deprecation_config(target)
+        return config.name if config is not None else type(target).__name__
     if callable(target):
         target_module = getattr(target, "__module__", "")
         target_name = getattr(target, "__qualname__", getattr(target, "__name__", str(target)))

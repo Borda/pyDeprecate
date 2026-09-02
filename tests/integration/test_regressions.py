@@ -122,7 +122,11 @@ class TestFix3aTargetNoneWithArgsMappingOnClass:
         assert not misconfig_warns
 
     def test_proxy_target_auto_promotes_to_args_remap(self) -> None:
-        """Resulting proxy stores TargetMode.ARGS_REMAP (not NOTIFY) on __deprecation_config__."""
+        """Promote a legacy null target with a mapping to ``ARGS_REMAP``.
+
+        Existing class declarations combined ``target=None`` with ``args_mapping``; migration must preserve their
+        remapping behavior instead of silently reducing the proxy to warn-only mode.
+        """
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             cls = make_class_target_none_with_args_mapping()
@@ -130,7 +134,11 @@ class TestFix3aTargetNoneWithArgsMappingOnClass:
         assert dep.target is TargetMode.ARGS_REMAP
 
     def test_args_mapping_preserved_on_proxy(self) -> None:
-        """args_mapping is preserved (not stripped) so the proxy carries the mapping."""
+        """Preserve ``args_mapping`` on the auto-promoted proxy.
+
+        The proxy contract requires the original rename map at call time and in audit metadata, so normalization
+        cannot discard it while converting the legacy target sentinel.
+        """
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             cls = make_class_target_none_with_args_mapping()

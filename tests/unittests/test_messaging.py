@@ -1,14 +1,18 @@
 """Unit tests for warning templates and emitters (:mod:`deprecate.messaging`)."""
 
+from collections.abc import Callable
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
 
-from deprecate import assert_no_warnings, deprecated
+from deprecate import TargetMode, assert_no_warnings, deprecated
+from deprecate._types import DeprecationConfig
 from deprecate.messaging import (
     _raise_warn,
     _raise_warn_arguments,
     _raise_warn_callable,
+    _render_static_deprecation_message,
     _resolve_message_template_alias,
     _validate_message_template,
 )
@@ -196,6 +200,33 @@ class TestTemplateMgsValidation:
             message_template="`%(source_name)s` -> `%(target_name)s` since v%(deprecated_in)s",
         )(base_sum_kwargs)
         assert callable(wrapper)
+
+    @pytest.mark.parametrize(
+        ("target", "message_template", "expected"),
+        [
+            pytest.param(TargetMode.NOTIFY, "%(target_path)s|%(argument_map)s", "|", id="notify"),
+            pytest.param(base_sum_kwargs, "%(argument_map)s", "", id="callable"),
+            pytest.param(TargetMode.ARGS_REMAP, "%(target_path)s", "", id="args-remap"),
+        ],
+    )
+    def test_every_valid_placeholder_renders_for_each_target_shape(
+        self, target: Callable[..., Any] | TargetMode, message_template: str, expected: str
+    ) -> None:
+        """Render valid placeholders even when the selected target mode cannot populate them.
+
+        Custom templates are validated independently of target mode, so decoration must use empty values for
+        inapplicable placeholders instead of accepting the template and then failing with ``KeyError``.
+        """
+        config = DeprecationConfig(
+            name="old_api",
+            target=target,
+            args_mapping={"old": "new"} if target is TargetMode.ARGS_REMAP else None,
+            deprecated_in="1.0",
+            remove_in="2.0",
+            message_template=message_template,
+        )
+
+        assert _render_static_deprecation_message(config, "old_api", "pkg.old_api") == expected
 
 
 class TestRaiseWarnStacklevel:

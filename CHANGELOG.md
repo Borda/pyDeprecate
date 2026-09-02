@@ -4,7 +4,11 @@
 
 ### Added
 
+- **Public `get_deprecation_config(obj)` metadata accessor.** Reads the v0.13 `__deprecation_config__` object and falls back to the pre-v0.13 `__deprecated__` configuration layout for mixed-version applications. ([#230](https://github.com/Borda/pyDeprecate/pull/230))
+
 ### Changed
+
+- **`__deprecated__` now follows PEP 702 and stores a rendered message string.** pyDeprecate's configuration moved to `__deprecation_config__`; audit and documentation integrations use `get_deprecation_config()` so legacy wrappers remain discoverable during migration. ([#230](https://github.com/Borda/pyDeprecate/pull/230))
 
 ### Deprecated
 

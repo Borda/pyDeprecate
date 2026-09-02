@@ -187,7 +187,10 @@ def _format_deprecation_message(
     (:func:`_render_static_deprecation_message`) so both paths format messages identically.
 
     """
-    msg_args = dict(source_name=source_name, source_path=source_path, **extras)
+    # Templates are validated against the complete public placeholder vocabulary independent of target mode.
+    # Inapplicable values therefore render as empty strings instead of failing after validation.
+    msg_args = dict.fromkeys(_MESSAGE_TEMPLATE_PROBE_ARGS, "")
+    msg_args.update(source_name=source_name, source_path=source_path, **extras)
     return message_template % msg_args
 
 

@@ -21,7 +21,7 @@ from deprecate._types import (
     TargetMode,
     _CallPlan,
     _DeprecatedCallable,
-    _HasDeprecationMeta,
+    get_deprecation_config,
 )
 from deprecate.messaging import (
     _DEFAULT_STACKLEVEL_TO_CALLER,
@@ -215,7 +215,7 @@ def _check_cross_class_method_target(source: Callable, target: Callable) -> None
 
 
 def _warn_stacking_misconfiguration(
-    source: _HasDeprecationMeta, outer_target: Union[TargetMode, Callable], stacklevel: int = 3
+    source: Callable, outer_target: Union[TargetMode, Callable], stacklevel: int = 3
 ) -> None:
     """Emit ``UserWarning`` at decoration time for unsupported stacking combinations.
 
@@ -234,7 +234,10 @@ def _warn_stacking_misconfiguration(
     ``callable`` (inner).
 
     """
-    inner_target = source.__deprecation_config__.target
+    inner_config = get_deprecation_config(source)
+    if inner_config is None:
+        raise TypeError(f"'{source.__name__}' no longer carries valid deprecation metadata.")
+    inner_target = inner_config.target
     name = source.__name__
 
     if callable(outer_target) and callable(inner_target):

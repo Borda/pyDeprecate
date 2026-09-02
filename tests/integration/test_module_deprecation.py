@@ -97,6 +97,28 @@ class TestMode1InPlaceWarn:
         assert len(w) == 1
         assert issubclass(w[0].category, FutureWarning)
 
+    def test_legacy_metadata_layout_warns_and_redirects(self, make_tmp_module: Callable[..., types.ModuleType]) -> None:
+        """Honor module metadata stored only under the pre-v0.13 attribute.
+
+        A rolling process can retain a module wrapper installed by an older pyDeprecate version while current code
+        performs attribute access. The wrapper must still warn and resolve a missing name through its replacement.
+        """
+        mod_name = "_test_legacy_metadata_module_tmp"
+        mod = make_tmp_module(mod_name)
+        target = make_tmp_module(f"{mod_name}_target")
+        target.answer = 42  # type: ignore[attr-defined]
+        deprecated_module(mod_name, target=target, **_DEPRS_CASE_MOD_ARGS)
+        legacy_config = vars(mod).pop("__deprecation_config__")
+        vars(mod)["__deprecated__"] = legacy_config
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            result = mod.answer  # type: ignore[attr-defined]
+
+        assert result == 42
+        assert len(caught) == 1
+        assert issubclass(caught[0].category, FutureWarning)
+
     def test_missing_attr_raises_attribute_error(self) -> None:
         """In-place warn mode re-raises ``AttributeError`` after the warning.
 
@@ -520,6 +542,29 @@ class TestMessageTemplateValidation:
         make_tmp_module(mod_name)
         with pytest.raises(ValueError, match="Invalid message_template"):
             deprecated_module(mod_name, message_template="%(bad_key)s", **_DEPRS_CASE_MOD_ARGS)
+
+    @pytest.mark.parametrize("with_target", [pytest.param(False, id="notify"), pytest.param(True, id="redirect")])
+    def test_valid_cross_mode_placeholders_render(
+        self, make_tmp_module: Callable[..., types.ModuleType], with_target: bool
+    ) -> None:
+        """Render every globally valid placeholder for either module warning shape.
+
+        Module deprecation shares the public custom-template vocabulary with callable and proxy factories. A
+        placeholder that does not apply to the chosen mode must therefore render empty rather than raise ``KeyError``.
+        """
+        mod_name = f"_test_cross_placeholder_{with_target}"
+        mod = make_tmp_module(mod_name)
+        target = make_tmp_module(f"{mod_name}_target") if with_target else None
+
+        deprecated_module(
+            mod_name,
+            target=target,
+            message_template="%(target_path)s|%(argument_map)s",
+            **_DEPRS_CASE_MOD_ARGS,
+        )
+
+        expected_target = target.__name__ if target is not None else ""
+        assert mod.__deprecated__ == f"{expected_target}|"  # type: ignore[attr-defined]
 
 
 class TestSlotsGuard:

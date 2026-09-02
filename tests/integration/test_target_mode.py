@@ -289,7 +289,11 @@ class TestDefaultTarget:
     """Omitting `target` defaults to TargetMode.NOTIFY — warn-only, no forwarding."""
 
     def test_resolves_to_notify(self) -> None:
-        """Omitting target stores TargetMode.NOTIFY in __deprecation_config__.target."""
+        """Store ``TargetMode.NOTIFY`` when callers omit the target.
+
+        The front door infers warn-only behavior for an otherwise unconfigured deprecation, and audit metadata must
+        expose that decision after the v0.13 attribute split.
+        """
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             fn = make_default_target_with_versions()
@@ -376,7 +380,10 @@ class TestLegacySentinels:
                 return x
 
     def test_false_stores_notify_enum_in_deprecated_config(self) -> None:
-        """``target=False`` is normalised to TargetMode.NOTIFY in __deprecation_config__.target."""
+        """Normalize ``target=False`` to ``TargetMode.NOTIFY`` in metadata.
+
+        Legacy callers still need the invalid sentinel's observable normalized result while migrating to the enum.
+        """
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UserWarning)
 
@@ -387,7 +394,10 @@ class TestLegacySentinels:
         assert cast(_DeprecatedCallable, _fn).__deprecation_config__.target is TargetMode.NOTIFY
 
     def test_true_stores_args_remap_enum_in_deprecated_config(self) -> None:
-        """``target=True`` is normalised to TargetMode.ARGS_REMAP in __deprecation_config__.target."""
+        """Normalize ``target=True`` to ``TargetMode.ARGS_REMAP`` in metadata.
+
+        Legacy argument-remap declarations must retain an observable enum result for audit and migration tooling.
+        """
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", FutureWarning)
 
@@ -398,7 +408,11 @@ class TestLegacySentinels:
         assert cast(_DeprecatedCallable, _fn).__deprecation_config__.target is TargetMode.ARGS_REMAP
 
     def test_none_stores_notify_enum_in_deprecated_config(self) -> None:
-        """``target=None`` is normalised to TargetMode.NOTIFY in __deprecation_config__.target."""
+        """Normalize ``target=None`` to ``TargetMode.NOTIFY`` in metadata.
+
+        Mixed-version callers can still pass the legacy null sentinel, so the stored configuration must reveal the
+        same warn-only mode as the modern enum spelling.
+        """
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", FutureWarning)
 
