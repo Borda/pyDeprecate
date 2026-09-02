@@ -1,0 +1,12 @@
+.md-content .md-typeset a {
+  text-decoration: underline;
+  text-underline-offset: 0.12em;
+}
+
+.md-content .highlight .c1 {
+  color: #666;
+}
+
+.md-footer .md-copyright {
+  color: #8a8a8a;
+}
