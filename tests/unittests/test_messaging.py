@@ -1,5 +1,7 @@
 """Unit tests for warning templates and emitters (:mod:`deprecate.messaging`)."""
 
+from __future__ import annotations
+
 from collections.abc import Callable
 from typing import Any
 from unittest.mock import MagicMock
