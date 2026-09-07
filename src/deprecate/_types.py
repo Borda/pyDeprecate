@@ -12,10 +12,7 @@ import warnings
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Callable, Generic, Literal, Optional, Protocol, TypeVar, Union, runtime_checkable
-
-if TYPE_CHECKING:
-    from typing_extensions import TypeGuard
+from typing import Any, Callable, Generic, Literal, Optional, Protocol, TypeVar, Union, runtime_checkable
 
 
 class TargetMode(Enum):
@@ -389,7 +386,7 @@ class TargetMode(Enum):
 
 @dataclass(frozen=True)
 class DeprecationConfig:
-    """Static deprecation metadata attached to deprecated callables as ``__deprecated__``.
+    """Static deprecation metadata attached to deprecated callables as ``__deprecation_config__``.
 
     All fields are always set — both :func:`~deprecate.deprecated`-decorated functions and
     :class:`~deprecate.proxy._DeprecatedProxy` objects use this unified schema.
@@ -513,28 +510,34 @@ class DeprecationConfig:
     def template_mgs(self) -> Optional[str]:
         """Deprecated read alias for :attr:`message_template` (renamed in ``v0.12``; removed in ``v1.0``).
 
-        The stored field is :attr:`message_template`; audit code that still reads ``__deprecated__.template_mgs`` keeps
-        working through this alias.  The old name was a typo (``mgs`` for ``msg``).
+        The stored field is :attr:`message_template`; audit code that still reads
+        ``__deprecation_config__.template_mgs`` keeps working through this alias.  The old name was a typo (``mgs`` for
+        ``msg``).
 
         """
         return self.message_template
 
 
+#: Attribute name holding the frozen :class:`DeprecationConfig` metadata. Introduced in ``v0.13`` to free
+#: ``__deprecated__`` for its PEP 702-conformant role (a plain message string) — see :func:`get_deprecation_config`.
+_DEPRECATION_CONFIG_ATTR = "__deprecation_config__"
+#: Legacy attribute name: pre-``v0.13`` releases stored the :class:`DeprecationConfig` directly on
+#: ``__deprecated__``. Only :func:`get_deprecation_config` still reads it, as a fallback, removed at ``v1.0``.
+_LEGACY_DEPRECATED_ATTR = "__deprecated__"
+
+
 @runtime_checkable
 class _HasDeprecationMeta(Protocol):
-    """Structural type for any callable that carries ``__deprecated__`` metadata.
+    """Structural type for any callable that carries ``__deprecation_config__`` metadata.
 
     Both ``@deprecated``-decorated functions and :class:`~deprecate.proxy._DeprecatedProxy` instances satisfy this
     protocol once the decorator has been applied.
 
     Module narrowing via :func:`_has_deprecation_meta` is metadata-only and does not imply a callable ``__call__``.
 
-    Used as a TypeGuard target so that a ``hasattr`` guard narrows the type of an arbitrary callable to one whose
-    ``__deprecated__`` attribute is typed — eliminating the need for a ``cast`` after the guard.
-
     """
 
-    __deprecated__: DeprecationConfig
+    __deprecation_config__: DeprecationConfig
     __name__: str
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
@@ -542,19 +545,31 @@ class _HasDeprecationMeta(Protocol):
         raise NotImplementedError
 
 
-def _has_deprecation_meta(obj: Any) -> "TypeGuard[_HasDeprecationMeta]":  # noqa: ANN401
-    """Return ``True`` if *obj* carries typed :class:`~deprecate._types.DeprecationConfig` metadata.
+def get_deprecation_config(obj: Any) -> Optional[DeprecationConfig]:  # noqa: ANN401
+    """Return the :class:`~deprecate._types.DeprecationConfig` metadata attached to *obj*, if any.
 
-    Using this as a guard narrows the type of *obj* from ``Any`` / ``Callable`` to
-    :class:`~deprecate._types._HasDeprecationMeta`,
-    allowing direct typed access to ``obj.__deprecated__`` without a ``cast``.
+    This is the supported external read path for a wrapper's deprecation metadata, replacing direct
+    ``obj.__deprecated__`` access: since ``v0.13``, ``__deprecated__`` holds a plain PEP-702-conformant message
+    string, not the config object — see the ``v0.12-to-v0.13`` migration guide.
 
     Args:
-        obj: Any object to test.
+        obj: Any object to inspect — a ``@deprecated``-wrapped function/method, a class or instance proxy from
+            :func:`~deprecate.proxy.deprecated_class` / :func:`~deprecate.proxy.deprecated_instance`, or a module
+            deprecated via :func:`~deprecate.module.deprecated_module`.
 
     Returns:
-        ``True`` if ``__deprecated__`` exists and is a :class:`~deprecate._types.DeprecationConfig`;
-        ``False`` otherwise.
+        The attached :class:`~deprecate._types.DeprecationConfig`, or ``None`` when *obj* carries no pyDeprecate
+        metadata.
+
+    Examples:
+        >>> from deprecate import deprecated, get_deprecation_config
+        >>> def new_func(): pass
+        >>> @deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0")
+        ... def old_func(): pass
+        >>> get_deprecation_config(old_func).target is new_func
+        True
+        >>> get_deprecation_config(new_func) is None
+        True
 
     """
     # ``getattr(..., default)`` only swallows ``AttributeError``; a foreign object encountered during a
@@ -564,15 +579,39 @@ def _has_deprecation_meta(obj: Any) -> "TypeGuard[_HasDeprecationMeta]":  # noqa
     # Module objects: a module deprecated via ``deprecated_module()`` (see ``deprecate.module``) intercepts
     # attribute access by reassigning its ``__class__`` to a ``types.ModuleType`` subclass whose
     # ``__getattribute__`` emits a ``FutureWarning`` — but only for *public* names; underscore-prefixed
-    # names (including ``__deprecated__``) are explicitly exempt, so the ``getattr`` below is warning-free on
-    # a ``deprecated_module`` wrapper. The ``mod.__dict__.get("__deprecated__")`` probing in
-    # ``deprecate.audit`` (``_scan_module`` / ``_scan_module_meta``) is belt-and-braces for *foreign*
-    # third-party modules with arbitrary hooks, not required for our own wrappers.
+    # names (including both attribute names here) are explicitly exempt, so the lookups below are
+    # warning-free on a ``deprecated_module`` wrapper.
     try:
-        meta = getattr(obj, "__deprecated__", None)
+        meta = getattr(obj, _DEPRECATION_CONFIG_ATTR, None)
     except Exception:
-        return False
-    return isinstance(meta, DeprecationConfig)
+        meta = None
+    if isinstance(meta, DeprecationConfig):
+        return meta
+    # Legacy fallback: an object built by a pre-v0.13 pyDeprecate release (or a mixed-version install) still
+    # carries the config on ``__deprecated__`` directly. Remove at v1.0.
+    try:
+        legacy_meta = getattr(obj, _LEGACY_DEPRECATED_ATTR, None)
+    except Exception:
+        return None
+    return legacy_meta if isinstance(legacy_meta, DeprecationConfig) else None
+
+
+def _has_deprecation_meta(obj: Any) -> bool:  # noqa: ANN401
+    """Return ``True`` if *obj* carries current or legacy deprecation metadata.
+
+    This predicate deliberately does not narrow to :class:`_HasDeprecationMeta`: legacy objects store their
+    configuration in ``__deprecated__`` and lack ``__deprecation_config__``. Consumers must resolve the value with
+    :func:`get_deprecation_config`.
+
+    Args:
+        obj: Any object to test.
+
+    Returns:
+        ``True`` if :func:`get_deprecation_config` resolves a :class:`~deprecate._types.DeprecationConfig` for
+        *obj*; ``False`` otherwise.
+
+    """
+    return get_deprecation_config(obj) is not None
 
 
 _T_co = TypeVar("_T_co", covariant=True)
@@ -585,7 +624,8 @@ class DeprecationProxy(Protocol, Generic[_T_co]):
     Documents the public contract that deprecated proxies satisfy:
 
     - ``__wrapped__`` points back to the source object/class for static-analysis tools (Sphinx, mypy, IDEs).
-    - ``__deprecated__`` carries :class:`DeprecationConfig` metadata consumed by audit tools.
+    - ``__deprecation_config__`` carries :class:`DeprecationConfig` metadata consumed by audit tools;
+      ``__deprecated__`` is a PEP-702-conformant message string.
     - Attribute, item, and call access is transparently forwarded to the wrapped source.
 
     The type parameter ``T`` describes the instance type returned by calling the proxy (i.e. the target
@@ -640,7 +680,8 @@ class DeprecationProxy(Protocol, Generic[_T_co]):
     """
 
     __wrapped__: Any
-    __deprecated__: DeprecationConfig
+    __deprecated__: str
+    __deprecation_config__: DeprecationConfig
     __signature__: Any
 
     def __call__(self, *args: Any, **kwargs: Any) -> _T_co:  # noqa: ANN401
@@ -748,13 +789,15 @@ class _DeprecatedCallable(Protocol):
     """Structural type for a ``@deprecated``-decorated callable with mutable runtime state.
 
     This protocol describes the shape of a function or method after the ``@deprecated`` decorator has been applied. It
-    includes both static metadata (``__deprecated__``) and mutable runtime state (``_state``).
+    includes static metadata (``__deprecated__`` message string, ``__deprecation_config__`` config object) and mutable
+    runtime state (``_state``).
 
     Used to type-safely access ``_state`` on decorated callables without casting.
 
     """
 
-    __deprecated__: DeprecationConfig
+    __deprecated__: str
+    __deprecation_config__: DeprecationConfig
     _state: _WrapperState
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401

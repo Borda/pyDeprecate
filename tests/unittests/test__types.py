@@ -14,7 +14,7 @@ class TestTemplateMgsAliasProperty:
     """The read-only ``template_mgs`` property mirrors ``message_template`` for external audit callers.
 
     ``template_mgs`` was a public field on ``DeprecationConfig`` before the ``v0.12`` rename to
-    ``message_template``. External audit code that read ``__deprecated__.template_mgs`` directly must
+    ``message_template``. External audit code that read ``__deprecation_config__.template_mgs`` directly must
     keep working, so the field is kept as a read-only property alias rather than removed outright.
     """
 
@@ -26,7 +26,7 @@ class TestTemplateMgsAliasProperty:
             remove_in="2.0",
             message_template="Custom notice.",
         )(base_sum_kwargs)
-        cfg = cast(_DeprecatedCallable, wrapped).__deprecated__
+        cfg = cast(_DeprecatedCallable, wrapped).__deprecation_config__
         assert cfg.template_mgs is cfg.message_template
 
     def test_assignment_raises_frozen_instance_error(self) -> None:
@@ -41,6 +41,6 @@ class TestTemplateMgsAliasProperty:
             deprecated_in="1.0",
             remove_in="2.0",
         )(base_sum_kwargs)
-        cfg = cast(_DeprecatedCallable, wrapped).__deprecated__
+        cfg = cast(_DeprecatedCallable, wrapped).__deprecation_config__
         with pytest.raises(dataclasses.FrozenInstanceError):
             cfg.template_mgs = "not allowed"  # type: ignore[misc]

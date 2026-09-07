@@ -32,7 +32,7 @@ from typing import Literal, Optional, cast
 from deprecate._types import (
     DeprecationConfig,
     TargetMode,
-    _has_deprecation_meta,
+    get_deprecation_config,
 )
 
 #: Default templates for documentation with deprecated callable — RST/Sphinx style
@@ -534,13 +534,13 @@ def _update_docstring_with_deprecation(wrapped_fn: object) -> None:
 
     Args:
         wrapped_fn: Function whose docstring should be updated. Must have
-            ``__deprecated__`` attribute set with deprecation metadata.
+            ``__deprecation_config__`` attribute set with deprecation metadata.
 
     Returns:
         None. Modifies the function's ``__doc__`` attribute in-place.
 
     Metadata Used:
-        The function's ``__deprecated__`` attribute should be a
+        The function's ``__deprecation_config__`` attribute should be a
         :class:`~deprecate._types.DeprecationConfig` instance with:
         - deprecated_in: Version when deprecated
         - remove_in: Version when will be removed
@@ -554,7 +554,7 @@ def _update_docstring_with_deprecation(wrapped_fn: object) -> None:
         >>> def old_func():
         ...     '''Original docstring.'''
         ...     pass
-        >>> old_func.__deprecated__ = DeprecationConfig(
+        >>> old_func.__deprecation_config__ = DeprecationConfig(
         ...     deprecated_in='1.0',
         ...     remove_in='2.0',
         ...     target=new_func,
@@ -577,7 +577,7 @@ def _update_docstring_with_deprecation(wrapped_fn: object) -> None:
         ...         old_arg: The old argument.
         ...     '''
         ...     return str(x)
-        >>> fn_with_args.__deprecated__ = DeprecationConfig(
+        >>> fn_with_args.__deprecation_config__ = DeprecationConfig(
         ...     deprecated_in='1.0',
         ...     remove_in='2.0',
         ...     target=TargetMode.ARGS_REMAP,
@@ -590,17 +590,17 @@ def _update_docstring_with_deprecation(wrapped_fn: object) -> None:
         False
 
     Note:
-        Does nothing if the function has no docstring or no ``__deprecated__`` attribute.
+        Does nothing if the function has no docstring or no ``__deprecation_config__`` attribute.
         To preserve Google/NumPy parsing, the general notice is inserted before the
         first section header (e.g. ``Args:`` or ``Parameters``) when detected.
 
     """
     if not hasattr(wrapped_fn, "__doc__") or not wrapped_fn.__doc__:
         return
-    if not _has_deprecation_meta(wrapped_fn):
+    dep_info = get_deprecation_config(wrapped_fn)
+    if dep_info is None:
         return
     lines = wrapped_fn.__doc__.splitlines()
-    dep_info = wrapped_fn.__deprecated__
 
     if dep_info.args_mapping:
         lines, all_args_found = _inject_args_mapping_section(lines, dep_info)

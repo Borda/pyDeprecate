@@ -47,6 +47,7 @@ from deprecate._types import (
     DeprecationProxy,
     TargetMode,
     _ProxyConfig,
+    get_deprecation_config,
 )
 from deprecate.docstring.inject import _update_docstring_with_deprecation, normalize_docstring_style
 from deprecate.messaging import (
@@ -54,6 +55,7 @@ from deprecate.messaging import (
     TEMPLATE_WARNING_ARGUMENTS,
     TEMPLATE_WARNING_CALLABLE,
     TEMPLATE_WARNING_NO_TARGET,
+    _render_static_deprecation_message,
     _resolve_message_template_alias,
     _validate_message_template,
     deprecation_warning,
@@ -159,7 +161,9 @@ class _DeprecatedProxy:
             if id(obj) in seen:
                 break
             seen.add(id(obj))
-            dep = object.__getattribute__(obj, "__deprecated__")
+            dep = get_deprecation_config(obj)
+            if dep is None:
+                break
             cfg = object.__getattribute__(obj, "_DeprecatedProxy__config")
             target = dep.target
             obj = target if target is not None and not isinstance(target, TargetMode) else cfg.obj
@@ -334,10 +338,11 @@ class _DeprecatedProxy:
         ``__config`` stores private mutable runtime state in :class:`~deprecate._types._ProxyConfig` (obj, stream,
         num_warns, read_only, args_extra, warned counter).
 
-        ``__deprecated__`` is the public metadata interface consumed by audit tools
+        ``__deprecation_config__`` is the metadata interface consumed by audit tools
         (:func:`~deprecate.audit.validate_deprecation_wrapper`,
         :func:`~deprecate.audit.find_deprecation_wrappers`, etc.)
         as a :class:`~deprecate._types.DeprecationConfig` instance aligned with the ``@deprecated`` schema.
+        ``__deprecated__`` is the PEP-702-conformant rendered message string.
 
         ``_misconfigured_override`` is a private hook used by :func:`~deprecate.deprecated` when it delegates to
         :func:`~deprecate.deprecated_class` for class targets: it lets the caller pre-compute misconfig signals
@@ -416,7 +421,8 @@ class _DeprecatedProxy:
             skip_if=skip_if,
         )
         object.__setattr__(self, "_DeprecatedProxy__config", cfg)
-        # Static deprecation metadata stored as a dunder attribute — readable by audit tools via __deprecated__.
+        # Static deprecation metadata stored as a dunder attribute — readable by audit tools via
+        # __deprecation_config__; __deprecated__ carries the PEP-702-conformant rendered message string.
         dep_meta = DeprecationConfig(
             deprecated_in=deprecated_in,
             remove_in=remove_in,
@@ -433,7 +439,8 @@ class _DeprecatedProxy:
             target_positional_only=_ctor_positional_only,
             target_positional_only_order=_ctor_positional_only_order,
         )
-        object.__setattr__(self, "__deprecated__", dep_meta)
+        object.__setattr__(self, "__deprecation_config__", dep_meta)
+        object.__setattr__(self, "__deprecated__", _render_static_deprecation_message(dep_meta, name, name))
         # Expose the wrapped object's docstring as an instance attribute so that external tools (autodoc,
         # mkdocstrings/griffe) see the source class's documentation rather than _DeprecatedProxy's own class docstring.
         _doc = getattr(obj, "__doc__", None)
@@ -486,11 +493,12 @@ class _DeprecatedProxy:
     def _dep(self) -> DeprecationConfig:
         """Static deprecation metadata (versions, name, target, args_mapping).
 
-        Stored as ``__deprecated__`` (dunder, not name-mangled) — audit tools and external code may read it directly;
-        this property simply provides a typed view of the same object.
+        Stored as ``__deprecation_config__`` (dunder, not name-mangled) — audit tools and external code should read it
+        via :func:`~deprecate.get_deprecation_config` rather than the raw attribute; this property simply provides a
+        typed view of the same object for internal use.
 
         """
-        return cast(DeprecationConfig, object.__getattribute__(self, "__deprecated__"))
+        return cast(DeprecationConfig, object.__getattribute__(self, "__deprecation_config__"))
 
     def _build_attr_warning_msg(
         self,
@@ -897,7 +905,7 @@ class _DeprecatedProxy:
           ``args_extra`` is intentionally ignored (misconfig).
 
         """
-        dep = object.__getattribute__(self, "__deprecated__")
+        dep = object.__getattribute__(self, "__deprecation_config__")
         cfg = object.__getattribute__(self, "_DeprecatedProxy__config")
 
         # skip_if active — deprecation machinery inactive: call the wrapped source as-is, with no warning,
@@ -1009,8 +1017,12 @@ class _DeprecatedProxy:
         new = cls.__new__(cls)
         memo[id(self)] = new
         new_cfg = copy.deepcopy(self._cfg, memo)
+        new_dep = copy.deepcopy(self._dep, memo)
         object.__setattr__(new, "_DeprecatedProxy__config", new_cfg)
-        object.__setattr__(new, "__deprecated__", copy.deepcopy(self._dep, memo))
+        object.__setattr__(new, "__deprecation_config__", new_dep)
+        object.__setattr__(
+            new, "__deprecated__", _render_static_deprecation_message(new_dep, new_dep.name, new_dep.name)
+        )
         doc = object.__getattribute__(self, "__dict__").get("__doc__")
         if doc is not None:
             object.__setattr__(new, "__doc__", doc)
@@ -1251,7 +1263,8 @@ def _reconstruct_proxy(
     """
     proxy = _DeprecatedProxy.__new__(_DeprecatedProxy)
     object.__setattr__(proxy, "_DeprecatedProxy__config", cfg)
-    object.__setattr__(proxy, "__deprecated__", dep)
+    object.__setattr__(proxy, "__deprecation_config__", dep)
+    object.__setattr__(proxy, "__deprecated__", _render_static_deprecation_message(dep, dep.name, dep.name))
     if doc is not None:
         object.__setattr__(proxy, "__doc__", doc)
     proxy._set_ast_breadcrumbs(cfg.obj)
@@ -1671,9 +1684,13 @@ def deprecated_class(
     def decorator(cls: _ClassOrProxy) -> "_DeprecatedProxy":
         # When cls is a _DeprecatedProxy (stacking case), cls.__name__ triggers __getattr__
         # which emits a spurious warning. Retrieve the name safely via the stored metadata.
-        cls_name = (
-            object.__getattribute__(cls, "__deprecated__").name if isinstance(cls, _DeprecatedProxy) else cls.__name__
-        )
+        if isinstance(cls, _DeprecatedProxy):
+            cls_config = get_deprecation_config(cls)
+            if cls_config is None:
+                raise TypeError("Cannot stack deprecated_class over a proxy without valid deprecation metadata.")
+            cls_name = cls_config.name
+        else:
+            cls_name = cls.__name__
         if stream is not None and not deprecated_in and not message_template:
             warnings.warn(
                 f"`@deprecated_class` on `{cls_name}` has no `deprecated_in` set."
@@ -1703,7 +1720,9 @@ def deprecated_class(
         if update_docstring:
             # Use a SimpleNamespace shim so _update_docstring_with_deprecation can set __doc__ normally; then store
             # the result on the proxy via object.__setattr__ (bypassing the proxy's forwarding __setattr__).
-            shim = types.SimpleNamespace(__doc__=object.__getattribute__(proxy, "__doc__"), __deprecated__=proxy._dep)
+            shim = types.SimpleNamespace(
+                __doc__=object.__getattribute__(proxy, "__doc__"), __deprecation_config__=proxy._dep
+            )
             _update_docstring_with_deprecation(shim)
             object.__setattr__(proxy, "__doc__", shim.__doc__)
         return proxy

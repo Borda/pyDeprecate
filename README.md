@@ -1460,7 +1460,7 @@ The `DeprecationWrapperInfo` dataclass contains:
 
 - `module`: Module name where the function is defined (empty for direct validation)
 - `function`: Function name
-- `deprecated_info`: The `__deprecated__` attribute dict from the decorator
+- `deprecated_info`: The `DeprecationConfig` from the decorator's `__deprecation_config__` attribute (read it via `get_deprecation_config(obj)` rather than the raw attribute — `__deprecated__` itself is a plain PEP 702-conformant message string, not a dict)
 - `invalid_args`: List of args_mapping keys that don't exist in the function signature
 - `empty_args_mapping`: True if args_mapping is None or empty (no argument remapping)
 - `identity_args_mapping`: List of args where key equals value (e.g., `{'arg': 'arg'}` - no effect)
@@ -1471,7 +1471,7 @@ The `DeprecationWrapperInfo` dataclass contains:
 <details>
 <summary><b>Validating a Single Function</b></summary>
 
-The `validate_deprecation_wrapper()` utility extracts the configuration from the function's `__deprecated__` attribute and returns a `DeprecationWrapperInfo` dataclass that helps you identify configurations that would make your deprecation wrapper have zero impact:
+The `validate_deprecation_wrapper()` utility extracts the configuration from the function's `__deprecation_config__` attribute and returns a `DeprecationWrapperInfo` dataclass that helps you identify configurations that would make your deprecation wrapper have zero impact:
 
 ```python
 from deprecate import DeprecationWrapperInfo, TargetMode, deprecated, validate_deprecation_wrapper

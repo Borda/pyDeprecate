@@ -44,7 +44,13 @@ from deprecate._types import (
     _WrapperState,
 )
 from deprecate.docstring.inject import _update_docstring_with_deprecation, normalize_docstring_style
-from deprecate.messaging import _resolve_message_template_alias, _validate_message_template, deprecation_warning
+from deprecate.messaging import (
+    _render_static_deprecation_message,
+    _resolve_message_template_alias,
+    _source_display_name,
+    _validate_message_template,
+    deprecation_warning,
+)
 from deprecate.utils import _get_signature, _unwrap_descriptor_target
 
 # ContextVar storing the active-wrapper id-set for the current async task or sync call stack.
@@ -199,7 +205,7 @@ def deprecated_callable(  # noqa: C901
 
     This is the canonical callable-only implementation.  It behaves like :func:`deprecated` for functions,
     methods, lambdas, and descriptors (``classmethod`` / ``staticmethod`` / ``property``): same call
-    forwarding, argument mapping, warning control, and ``__deprecated__`` metadata.  It differs in one way:
+    forwarding, argument mapping, warning control, and ``__deprecation_config__`` metadata.  It differs in one way:
     applying it to a **class** raises :class:`TypeError` at decoration time instead of delegating to
     :func:`~deprecate.proxy.deprecated_class`.  :func:`deprecated` is the friendly front door that dispatches
     classes for you and routes callables here; reach for ``deprecated_callable`` at a call site that must
@@ -474,6 +480,12 @@ def deprecated_callable(  # noqa: C901
             target_accepts_var_keyword=_target_accepts_var_keyword,
         )
         _dep_cfg = dep_meta
+        # Rendered once and reused by both the sync and async wrapper branches below — the PEP-702-conformant
+        # ``__deprecated__`` message string, computed statically at decoration time from `dep_meta` alone.
+        _source_name = _source_display_name(source)
+        _static_message = _render_static_deprecation_message(
+            dep_meta, _source_name, f"{source.__module__}.{_source_name}"
+        )
 
         #
         # Known false-negatives of ``inspect.iscoroutinefunction`` — these sources silently receive the sync
@@ -534,7 +546,8 @@ def deprecated_callable(  # noqa: C901
                             _cycle_detection.reset(_token_async)
 
             async_wrapped_fn_typed = cast(_DeprecatedCallable, async_wrapped_fn)
-            async_wrapped_fn_typed.__deprecated__ = dep_meta
+            async_wrapped_fn_typed.__deprecation_config__ = dep_meta
+            async_wrapped_fn_typed.__deprecated__ = _static_message
             async_wrapped_fn_typed._state = _WrapperState()
 
             if update_docstring:
@@ -596,7 +609,8 @@ def deprecated_callable(  # noqa: C901
                         _cycle_detection.reset(_token)
 
         wrapped_fn_typed = cast(_DeprecatedCallable, wrapped_fn)
-        wrapped_fn_typed.__deprecated__ = dep_meta
+        wrapped_fn_typed.__deprecation_config__ = dep_meta
+        wrapped_fn_typed.__deprecated__ = _static_message
         wrapped_fn_typed._state = _WrapperState()
 
         if update_docstring:

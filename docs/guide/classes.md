@@ -527,7 +527,7 @@ True
 
 !!! note "Audit visibility"
 
-    `find_deprecation_wrappers` discovers the proxy via its class-level `__deprecated__`. Individual `attrs_mapping` entries are data inside the single proxy config and are not emitted as separate `DeprecationWrapperInfo` records. All entries share the same `deprecated_in`/`remove_in` lifecycle.
+    `find_deprecation_wrappers` discovers the proxy via its class-level `__deprecation_config__`. Individual `attrs_mapping` entries are data inside the single proxy config and are not emitted as separate `DeprecationWrapperInfo` records. All entries share the same `deprecated_in`/`remove_in` lifecycle.
 
 ### Explicit `TargetMode.ATTRS_REMAP` form
 

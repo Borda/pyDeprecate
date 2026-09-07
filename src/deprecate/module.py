@@ -4,7 +4,7 @@ Call :func:`deprecated_module` once at module level to mark an entire module dep
 changes the module's ``__class__`` to :class:`_DeprecatedModuleWrapper` so that every public attribute
 access on the module emits a :class:`FutureWarning` — including real attributes already in ``__dict__``.
 PEP 562 ``__getattr__`` only sees missing names, so the module subclass is required to catch existing
-attributes too. It also attaches ``__deprecated__`` metadata so that
+attributes too. It also attaches ``__deprecation_config__`` metadata so that
 :func:`~deprecate.audit.find_deprecation_wrappers` can discover it like any other deprecated wrapper.
 
 Three deprecation modes are supported:
@@ -25,8 +25,8 @@ import types
 import warnings
 from typing import Any, Callable, Optional
 
-from deprecate._types import DeprecationConfig, TargetMode
-from deprecate.messaging import _validate_message_template
+from deprecate._types import DeprecationConfig, TargetMode, get_deprecation_config
+from deprecate.messaging import _format_deprecation_message, _validate_message_template
 
 #: Thread-local set of ``(module_name, attr_name)`` pairs currently being resolved through a redirect
 #: ``target``. Guards against cyclic redirects (e.g. ``A`` redirects to ``B`` and ``B`` back to ``A``):
@@ -67,7 +67,16 @@ def _build_module_warn_msg(
         "target_name": target_name or "",
     }
     if message_template:
-        return message_template % args
+        return _format_deprecation_message(
+            message_template,
+            module_name,
+            module_name,
+            deprecated_in=deprecated_in,
+            remove_in=remove_in,
+            target_name=target_name or "",
+            target_path=target_name or "",
+            argument_map="",
+        )
     if target is not None and target_name:
         return _TEMPLATE_MODULE_REDIRECT % args
     return _TEMPLATE_MODULE_NO_TARGET % args
@@ -201,25 +210,23 @@ class _DeprecatedModuleWrapper(types.ModuleType):
 
     def __getattribute__(self, name: str) -> Any:  # noqa: ANN401
         d = object.__getattribute__(self, "__dict__")
+        config = get_deprecation_config(self) if not name.startswith("_") else None
 
         # Emit warning for every non-private attribute access (real or missing).
-        if not name.startswith("_"):
-            config = d.get("__deprecated__")
-            if config is not None:
-                _emit_module_warning(config, d.get("__deprecated_stream__"))
+        if config is not None:
+            _emit_module_warning(config, d.get("__deprecated_stream__"))
 
-                # attrs_mapping takes precedence for listed names — BEFORE the __dict__ fast path
-                # below. A rename/removal marker must win even when the old body still lives in
-                # __dict__ (the normal transition state), otherwise `{"old": "new"}` would silently
-                # return the stale local and `{"old": None}` would silently return the real attr
-                # instead of raising. This block is deliberately gated inside `not name.startswith("_")`:
-                # every dunder starts with `_`, so `__class__`/`__spec__`/etc. can never be diverted
-                # here, and only names actually in the mapping are rerouted — unmapped real attrs
-                # still fall through to the fast path below and return their real value.
-                attrs_mapping = config.attrs_mapping
-                if attrs_mapping is not None and name in attrs_mapping:
-                    target = config.target if isinstance(config.target, types.ModuleType) else None
-                    return _resolve_mapped(name, attrs_mapping[name], target, d, config.name)
+            # attrs_mapping takes precedence for listed names — BEFORE the __dict__ fast path
+            # below. A rename/removal marker must win even when the old body still lives in
+            # __dict__ (the normal transition state), otherwise `{"old": "new"}` would silently
+            # return the stale local and `{"old": None}` would silently return the real attr
+            # instead of raising. The metadata lookup above returns ``None`` for private names, so
+            # every dunder remains outside this routing path. Only names actually in the mapping
+            # are rerouted; unmapped real attrs still fall through to the fast path below.
+            attrs_mapping = config.attrs_mapping
+            if attrs_mapping is not None and name in attrs_mapping:
+                target = config.target if isinstance(config.target, types.ModuleType) else None
+                return _resolve_mapped(name, attrs_mapping[name], target, d, config.name)
 
         # Fast path: attribute present in __dict__ (real, unmapped attribute).
         if name in d:
@@ -232,7 +239,7 @@ class _DeprecatedModuleWrapper(types.ModuleType):
 
         # Public attribute missing from __dict__: apply redirect / raise logic.
         # Warning already fired above; no second warning needed here.
-        return _resolve_missing_attr(name, d, d.get("__deprecated__"))
+        return _resolve_missing_attr(name, d, config)
 
 
 def _resolve_module_name(name: Optional[str], caller_frame: types.FrameType) -> str:
@@ -285,7 +292,7 @@ def deprecated_module(
     Call this function once at module level (typically at the bottom of an ``old_module.py``). It changes
     the module's ``__class__`` to :class:`_DeprecatedModuleWrapper` so that every public attribute access
     emits a :class:`FutureWarning` — including real attributes already in ``__dict__``. It also attaches
-    ``__deprecated__`` metadata to the module so that :func:`~deprecate.audit.find_deprecation_wrappers`
+    ``__deprecation_config__`` metadata to the module so that :func:`~deprecate.audit.find_deprecation_wrappers`
     can discover it.
 
     Note:
@@ -404,7 +411,7 @@ def deprecated_module(
     # reconfiguration that would otherwise vanish without trace — emit a UserWarning and keep the
     # original config rather than silently dropping the second call. The `stream` callable is
     # excluded from the comparison (see _config_identity).
-    existing_config = vars(mod).get("__deprecated__")
+    existing_config = get_deprecation_config(mod)
     if isinstance(existing_config, DeprecationConfig):
         if _config_identity(existing_config) != _config_identity(new_config):
             warnings.warn(
@@ -433,10 +440,10 @@ def deprecated_module(
 
     # Change __class__ FIRST so the whole install is atomic. This is the only step that can fail
     # (e.g. `TypeError: __class__ assignment` for a module type declaring __slots__ — see Raises).
-    # Doing it before attaching any `__deprecated__`/`__deprecated_stream__`/`__deprecated_existing_getattr__`
-    # metadata guarantees that a failure leaves the module completely unmodified: no half-deprecated
-    # state, and — critically — no stale `__deprecated__` for the idempotency guard to mistake for a
-    # completed install and silently short-circuit a retry on.
+    # Doing it before attaching any `__deprecation_config__`/`__deprecated__`/`__deprecated_stream__`/
+    # `__deprecated_existing_getattr__` metadata guarantees that a failure leaves the module completely
+    # unmodified: no half-deprecated state, and — critically — no stale `__deprecation_config__` for the
+    # idempotency guard to mistake for a completed install and silently short-circuit a retry on.
     # __class__ reassignment is valid when the new class is a subclass with the same memory layout;
     # it enables __getattribute__ interception of ALL public attribute accesses, including real
     # attributes already in __dict__ that PEP 562 __getattr__ cannot reach.
@@ -444,7 +451,7 @@ def deprecated_module(
 
     # Class swap succeeded: attach metadata. Underscore-prefixed names never trigger the wrapper's
     # warning (see _DeprecatedModuleWrapper.__getattribute__), so ordering here is warning-free and
-    # static scanners (e.g. find_deprecation_wrappers) read __deprecated__ cleanly.
+    # static scanners (e.g. find_deprecation_wrappers) read __deprecation_config__ cleanly.
     vars(mod)["__deprecated_stream__"] = stream
     if existing_getattr is not None:
         warnings.warn(
@@ -453,4 +460,8 @@ def deprecated_module(
             stacklevel=2,
         )
         vars(mod)["__deprecated_existing_getattr__"] = existing_getattr
-    mod.__deprecated__ = new_config  # type: ignore[attr-defined]
+    mod.__deprecation_config__ = new_config  # type: ignore[attr-defined]
+    # PEP-702-conformant string: modules aren't covered by PEP 702, but ``__deprecated__`` mirrors the
+    # convention for consistency with function/class/proxy wrappers. `warn_msg` is already the fully
+    # rendered text (also mirrored into `new_config.message_template`, see its docstring).
+    mod.__deprecated__ = warn_msg  # type: ignore[attr-defined]

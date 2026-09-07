@@ -330,7 +330,7 @@ class TestCrossClassMethodGuard:
 
         # Guard returned silently: decoration completed and attached deprecation metadata rather than raising.
         # (The synthetic ``replacement`` fixture rejects the forwarded ``self``, so only decoration is asserted here.)
-        assert hasattr(RealOwner.old_method, "__deprecated__")
+        assert hasattr(RealOwner.old_method, "__deprecation_config__")
 
     def test_decorator_rewriting_source_qualname_same_class_no_warning(self) -> None:
         """Frame inspection resolves the FP when a decorator corrupts source qualname on a same-class forward.
@@ -1131,7 +1131,7 @@ class TestTargetFactsPrecompute:
         These facts previously came from an uncached ``inspect.getfullargspec`` on every forwarded call;
         caching them on the frozen config removes that per-call cost.
         """
-        cfg = cast(_DeprecatedCallable, fn_shared_default).__deprecated__
+        cfg = cast(_DeprecatedCallable, fn_shared_default).__deprecation_config__
         assert cfg.target_all_param_names == frozenset({"x", "level"})
         assert cfg.target_accepts_var_positional is False
         assert cfg.target_accepts_var_keyword is False
@@ -1155,7 +1155,7 @@ class TestTargetFactsPrecompute:
 
     def test_repr_excludes_cache_fields(self) -> None:
         """The precomputed cache fields stay out of ``repr`` so audit output and doc examples remain stable."""
-        text = repr(cast(_DeprecatedCallable, fn_shared_default).__deprecated__)
+        text = repr(cast(_DeprecatedCallable, fn_shared_default).__deprecation_config__)
         assert "target_all_param_names" not in text
         assert "target_accepts_var_keyword" not in text
 
@@ -1263,7 +1263,7 @@ class TestClassBodyQualnameWalk:
 def _make_wrapper_stub(source: Callable[..., Any], dep_cfg: DeprecationConfig) -> _DeprecatedCallable:
     """Return a minimal callable shaped like a ``@deprecated`` wrapper for unit testing.
 
-    The real wrapper carries mutable ``_state`` and frozen ``__deprecated__`` attributes that
+    The real wrapper carries mutable ``_state`` and frozen ``__deprecation_config__`` attributes that
     :func:`_build_call_plan` reads via :class:`~deprecate._types._DeprecatedCallable`.  Wrapping the
     bare ``source`` here suffices because the helper never invokes ``wrapper_fn`` itself — it only
     reads ``wrapper_fn._state``.
@@ -1274,7 +1274,7 @@ def _make_wrapper_stub(source: Callable[..., Any], dep_cfg: DeprecationConfig) -
         return source(*args, **kwargs)
 
     _stub._state = _WrapperState()  # type: ignore[attr-defined]
-    _stub.__deprecated__ = dep_cfg  # type: ignore[attr-defined]
+    _stub.__deprecation_config__ = dep_cfg  # type: ignore[attr-defined]
     return _stub  # type: ignore[return-value]
 
 

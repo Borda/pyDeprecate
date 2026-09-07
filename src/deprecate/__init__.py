@@ -29,6 +29,9 @@ Core Components:
       other deprecated wrappers
     - :class:`~deprecate.audit.DeprecationWrapperInfo`: Structured result returned by the audit functions
     - :class:`~deprecate.audit.ChainType`: Enum describing the kind of deprecation chain detected
+    - :func:`~deprecate._types.get_deprecation_config`: Read a wrapper's :class:`~deprecate._types.DeprecationConfig`
+      metadata — the supported external read path since ``__deprecated__`` became a plain PEP 702-conformant
+      message string in ``v0.13``
 
 **Proxy** (:mod:`deprecate.proxy`):
     - :func:`~deprecate.proxy.deprecated_instance`: Wrap any object with deprecation warnings
@@ -80,7 +83,7 @@ from deprecate.__about__ import *  # noqa: F403
 from deprecate._properties import (
     _StrictProperty as property,  # noqa: F401 # intentional: explicit-import only; excluded from __all__ to prevent star-import from silently enabling strict mode
 )
-from deprecate._types import DeprecationProxy, TargetMode
+from deprecate._types import DeprecationProxy, TargetMode, get_deprecation_config
 from deprecate.audit import (
     ChainType,
     DeprecatedCallableInfo,  # noqa: F401 # backward-compat alias for DeprecationWrapperInfo
@@ -121,6 +124,7 @@ __all__ = [
     "deprecated_module",
     "find_deprecation_wrappers",
     "generate_deprecation_table",
+    "get_deprecation_config",
     "validate_deprecation_chains",
     "validate_deprecation_expiry",
     "validate_deprecation_wrapper",

@@ -256,7 +256,7 @@ class TestUpdateDocstringIdempotent:
         config = DeprecationConfig(
             deprecated_in="1.0", remove_in="2.0", target=TargetMode.ARGS_REMAP, args_mapping={"old": None}
         )
-        cast(_DeprecatedCallable, my_fn).__deprecated__ = config
+        cast(_DeprecatedCallable, my_fn).__deprecation_config__ = config
         _update_docstring_with_deprecation(my_fn)
         _update_docstring_with_deprecation(my_fn)
         assert my_fn.__doc__ is not None
@@ -277,7 +277,7 @@ class TestUpdateDocstringIdempotent:
         config = DeprecationConfig(
             deprecated_in="1.0", remove_in="2.0", target=TargetMode.ARGS_REMAP, args_mapping={"old": None}
         )
-        cast(_DeprecatedCallable, my_fn).__deprecated__ = config
+        cast(_DeprecatedCallable, my_fn).__deprecation_config__ = config
         _update_docstring_with_deprecation(my_fn)
         _update_docstring_with_deprecation(my_fn)
         assert my_fn.__doc__ is not None
@@ -350,9 +350,9 @@ class TestRuntimeDocstrings:
         assert patched_init != "Initialize the old class."
 
     def test_replace_docstring_leaves_non_deprecated_object_untouched(self) -> None:
-        """A callable without ``__deprecated__`` keeps its statically-parsed Griffe docstring.
+        """A callable without ``__deprecation_config__`` keeps its statically-parsed Griffe docstring.
 
-        ``new_function`` is the plain replacement target — it has no ``__deprecated__`` attribute, so
+        ``new_function`` is the plain replacement target — it has no ``__deprecation_config__`` attribute, so
         ``_replace_docstring`` must return early and leave the original source docstring intact.
 
         """

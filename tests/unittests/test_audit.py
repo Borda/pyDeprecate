@@ -13,7 +13,13 @@ import pytest
 
 import tests.collection_deprecate as col
 import tests.collection_misconfigured as clean_module
-from deprecate import TargetMode, deprecated, validate_deprecation_expiry, validate_mapping_compatibility
+from deprecate import (
+    TargetMode,
+    deprecated,
+    get_deprecation_config,
+    validate_deprecation_expiry,
+    validate_mapping_compatibility,
+)
 from deprecate._types import DeprecationConfig, _has_deprecation_meta
 from deprecate.audit import (
     ChainType,
@@ -121,7 +127,11 @@ class TestHasDeprecationMeta:
         ],
     )
     def test_returns_true_for_deprecated_decorated_callable(self, target_val: Union[TargetMode, bool]) -> None:
-        """@deprecated-decorated callables carry __deprecated__, so the guard returns True."""
+        """Return true for both current target representations after the metadata split.
+
+        Applications migrating from the legacy boolean target spelling must receive the same metadata-discovery
+        result as applications already using ``TargetMode``.
+        """
 
         @deprecated(deprecated_in="1.0", remove_in="2.0", target=target_val)
         def fn() -> None:
@@ -129,8 +139,43 @@ class TestHasDeprecationMeta:
 
         assert _has_deprecation_meta(fn) is True
 
+    def test_legacy_callable_is_validated_through_public_fallback(self) -> None:
+        """Validate a callable carrying only the pre-v0.13 metadata attribute.
+
+        Mixed-version applications can expose wrappers created by an older pyDeprecate installation. Audit must
+        consume their ``DeprecationConfig`` through the supported fallback instead of dereferencing the new attribute.
+        """
+        info = validate_deprecation_wrapper(clean_module._legacy_metadata_only)
+
+        assert info.function == "legacy_metadata_only"
+        assert info.deprecated_info.target is TargetMode.NOTIFY
+
+    def test_legacy_module_is_discovered_through_public_fallback(self) -> None:
+        """Discover module metadata created before the v0.13 attribute split.
+
+        A mixed-version audit can encounter a module that stores its config only in ``__deprecated__``. The module
+        must remain reportable without triggering an ``AttributeError`` for ``__deprecation_config__``.
+        """
+        results = find_deprecation_wrappers(clean_module._legacy_metadata_module)
+
+        assert len(results) == 1
+        assert results[0].module == "legacy_metadata_module"
+        assert results[0].api_type == "module"
+
+    def test_current_wrapper_can_stack_over_legacy_metadata(self) -> None:
+        """Stack a current argument rename over a pre-v0.13 warn-only wrapper.
+
+        A rolling upgrade can decorate an older wrapper again before every package has moved its metadata. Stacking
+        must inspect the legacy config through the accessor and retain the current outer configuration.
+        """
+        wrapper = clean_module.make_stacked_legacy_metadata_wrapper()
+
+        config = get_deprecation_config(wrapper)
+        assert config is not None
+        assert config.target is TargetMode.ARGS_REMAP
+
     def test_returns_false_for_plain_callable(self) -> None:
-        """Undecorated callables have no __deprecated__, so the guard returns False."""
+        """Undecorated callables have no __deprecation_config__, so the guard returns False."""
 
         def plain() -> None:
             pass
@@ -139,13 +184,13 @@ class TestHasDeprecationMeta:
 
     @pytest.mark.parametrize("obj", [pytest.param("string", id="str"), pytest.param(42, id="int")])
     def test_returns_false_for_non_callable(self, obj: object) -> None:
-        """Non-callables without __deprecated__ return False."""
+        """Non-callables without __deprecation_config__ return False."""
         assert _has_deprecation_meta(obj) is False
 
     def test_meta_is_deprecation_info_instance(self) -> None:
-        """The __deprecated__ attribute on a proxy is a typed DeprecationConfig dataclass."""
+        """The __deprecation_config__ attribute on a proxy is a typed DeprecationConfig dataclass."""
         proxy = _DeprecatedProxy(obj={}, name="cfg", deprecated_in="1.0", remove_in="2.0", stream=None)
-        assert isinstance(object.__getattribute__(proxy, "__deprecated__"), DeprecationConfig)
+        assert isinstance(object.__getattribute__(proxy, "__deprecation_config__"), DeprecationConfig)
 
 
 @_requires_packaging
@@ -523,7 +568,7 @@ class TestFormatReportProxyTarget:
         final_cls = type("FinalApi", (), {})
         mid = deprecated_class(target=final_cls, deprecated_in="1.0", remove_in="2.0")(type("MidApi", (), {}))
         old = deprecated_class(target=mid, deprecated_in="1.0", remove_in="2.0")(type("OldApi", (), {}))
-        target = object.__getattribute__(old, "__deprecated__").target
+        target = object.__getattribute__(old, "__deprecation_config__").target
 
         with warnings.catch_warnings():
             warnings.simplefilter("error")  # any warning emitted during formatting fails the test
@@ -532,6 +577,22 @@ class TestFormatReportProxyTarget:
         mid_cfg = object.__getattribute__(mid, "_DeprecatedProxy__config")
         assert formatted == "MidApi"
         assert mid_cfg.warned == 0
+
+    def test_legacy_proxy_target_formatted_through_public_fallback(self) -> None:
+        """Format a proxy target that carries only the pre-v0.13 metadata attribute.
+
+        Mixed-version reports can contain a chained proxy created by an older pyDeprecate installation. Rendering
+        must preserve its declared alias name without directly reading the absent new attribute or consuming a warning.
+        """
+        target = clean_module.make_legacy_metadata_proxy()
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            formatted = _format_report_target(target)
+
+        proxy_config = object.__getattribute__(target, "_DeprecatedProxy__config")
+        assert formatted == "LegacyClass"
+        assert proxy_config.warned == 0
 
 
 class TestDeprecationWrapperInfoEmptyVersions:
@@ -1230,7 +1291,7 @@ class TestNormalizeVersionStringLocalSegment:
 
 
 class TestScanClassPrivateDeprecated:
-    """Deprecated private/dunder members carry ``__deprecated__`` and must be surfaced so they can expire."""
+    """Deprecated private/dunder members carry ``__deprecation_config__`` and must be surfaced so they can expire."""
 
     def test_member_meta_peeks_through_descriptor(self) -> None:
         """The helper detects deprecation metadata stored on a descriptor's underlying callable."""
@@ -1240,7 +1301,7 @@ class TestScanClassPrivateDeprecated:
         """The helper detects deprecation metadata stored on a classmethod's underlying ``__func__``.
 
         ``classmethod`` objects store the wrapped function in ``__func__``; ``_member_has_deprecation_meta``
-        must unwrap it to find ``__deprecated__`` rather than inspecting the ``classmethod`` itself.
+        must unwrap it to find ``__deprecation_config__`` rather than inspecting the ``classmethod`` itself.
         """
         assert _member_has_deprecation_meta(_AudPrivateMembers.__dict__["_cls_legacy"]) is True
 
