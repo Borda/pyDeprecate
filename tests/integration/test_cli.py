@@ -39,6 +39,22 @@ def old_fn(old: int) -> int:
 """
 
 
+# Package whose wrapper is deprecated and removed in the very same release — trips the ``min-grace`` rule
+# alone (``1.0`` is a major release, so the removal-cadence rule stays satisfied).
+_MYPKG_INIT_AGGRESSIVE = """\
+from deprecate import deprecated
+
+
+def new_fn(x: int) -> int:
+    return x
+
+
+@deprecated(target=new_fn, deprecated_in="1.0", remove_in="1.0", args_mapping={"old": "x"})
+def old_fn(old: int) -> int:
+    pass
+"""
+
+
 def _cli_env(**extra: str) -> dict[str, str]:
     """Build env dict with PYTHONPATH pointing at src/ so subprocess can find deprecate."""
     existing_pythonpath = os.environ.get("PYTHONPATH")
@@ -249,14 +265,80 @@ class TestCliSubcommands:
         assert "Skipping nested Python files" in result.stderr
 
     def test_help_lists_subcommands(self) -> None:
-        """'pydeprecate --help' output includes the five subcommand names."""
+        """'pydeprecate --help' output includes the six subcommand names."""
         result = subprocess.run(
             [sys.executable, "-m", "deprecate", "--help"], capture_output=True, text=True, env=_cli_env()
         )
         assert result.returncode == 0
         combined = result.stdout + result.stderr
-        for name in ("check", "expiry", "chains", "all", "status"):
+        for name in ("check", "expiry", "policy", "chains", "all", "status"):
             assert name in combined, f"subcommand '{name}' missing from --help output"
+
+    @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
+    def test_policy_subcommand_clean_package(self, tmp_path: Path) -> None:
+        """'pydeprecate policy <path>' exits 0 for a package whose wrapper respects the default policy.
+
+        The fixture package deprecates in `1.0` with a forwarding target and schedules removal at the `9.0`
+        major — the disciplined shape the default rules are written to wave through without any flags.
+        """
+        pkg = _make_pkg(tmp_path)
+        result = subprocess.run(
+            [sys.executable, "-m", "deprecate", "policy", str(pkg), "--version", "1.0"],
+            capture_output=True,
+            text=True,
+            env=_cli_env(),
+            cwd=tmp_path,
+        )
+        assert result.returncode == 0
+        assert "No deprecation policy violations" in result.stdout
+
+    @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
+    def test_policy_subcommand_reports_violation(self, tmp_path: Path) -> None:
+        """'pydeprecate policy <path>' exits 1 and names the broken rule for an aggressive removal schedule.
+
+        The package deprecates and removes inside the same `1.x` line, which is the schedule a reviewer is
+        meant to catch before release: callers get no version they can upgrade through.
+        """
+        pkg = tmp_path / "aggressivepkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text(_MYPKG_INIT_AGGRESSIVE)
+        result = subprocess.run(
+            [sys.executable, "-m", "deprecate", "policy", str(pkg), "--version", "1.0"],
+            capture_output=True,
+            text=True,
+            env=_cli_env(),
+            cwd=tmp_path,
+        )
+        assert result.returncode == 1
+        assert "min-grace" in result.stdout
+
+    @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
+    def test_policy_subcommand_rule_can_be_disabled(self, tmp_path: Path) -> None:
+        """'--min-grace=None' drops the grace-window rule so a same-line removal passes the gate.
+
+        A project that ships removals inside a release line still wants the remaining rules; without a working
+        opt-out flag the whole subcommand would be unusable for it.
+        """
+        pkg = tmp_path / "aggressivepkg2"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text(_MYPKG_INIT_AGGRESSIVE)
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "deprecate",
+                "policy",
+                str(pkg),
+                "--version",
+                "1.0",
+                "--min-grace=None",
+            ],
+            capture_output=True,
+            text=True,
+            env=_cli_env(),
+            cwd=tmp_path,
+        )
+        assert result.returncode == 0
 
     def test_subcommand_help(self) -> None:
         """'pydeprecate expiry --help' shows expiry-specific options."""

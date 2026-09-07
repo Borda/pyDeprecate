@@ -23,6 +23,7 @@
 | Default for an omitted `target` (prefer passing an explicit mode) | `TargetMode.AUTO` — front-door fallback that resolves an omitted `target` (non-empty `args_mapping` → `ARGS_REMAP`, else warn-only (empty `{}` counts as none)); never write it yourself; rejected (`TypeError`) by `deprecated_callable`/`deprecated_class` |
 | Annotate a proxy returned by `deprecated_class` / `deprecated_instance` | `DeprecationProxy` |
 | Validate expired deprecations | `validate_deprecation_expiry` |
+| Lint how deprecations were scheduled | `validate_deprecation_policy` |
 | Validate wrapper chains | `validate_deprecation_chains` |
 | Detect POSITIONAL_ONLY-remap incompatibilities | `validate_mapping_compatibility` |
 | Discover wrappers | `find_deprecation_wrappers` |
@@ -170,22 +171,26 @@ deprecated_module(
 ### CI audit
 
 ```python
-from deprecate import validate_deprecation_chains, validate_deprecation_expiry
+from deprecate import validate_deprecation_chains, validate_deprecation_expiry, validate_deprecation_policy
 
 
 # pass an importable module name (dotted path), not a directory path like "src"
 validate_deprecation_chains("my_package")
 validate_deprecation_expiry("my_package", current_version="2.0")
+validate_deprecation_policy("my_package", current_version="2.0")
 ```
 
 `validate_deprecation_expiry` includes class members by default (`include_members=True`); recursive scans warn-and-skip submodules that fail to import (`UserWarning: audit: skipped <module>: <exc>`) instead of aborting.
+
+`validate_deprecation_policy` asks whether a deprecation was *scheduled* responsibly, not whether it was removed on time. Four rules, each disabled with `None`/`False`: `min_grace="1 minor"` (distance between `deprecated_in` and `remove_in`), `remove_only_at="major"` (release level a removal may land on — the default assumes a project past `1.0`; on a `0.x` line use `remove_only_at="minor"`, not `None`), `message_required=True` (the wrapper must name a replacement), `deprecated_in_not_future=True` (`deprecated_in` must not be ahead of `current_version`). Each message is prefixed with its rule slug — `[min-grace]`, `[remove-only-at]`, `[message-required]`, `[deprecated-in-not-future]`. Wrappers missing `deprecated_in`/`remove_in` are skipped, not flagged; an unparsable version emits a `UserWarning` per skip. Needs `packaging` (`pip install 'pyDeprecate[audit]'`).
 
 Two more audit helpers: `validate_mapping_compatibility("my_package")` flags `deprecated_class` wrappers whose `args_mapping` remaps to POSITIONAL_ONLY constructor params (a silent `setattr` fallback), and `generate_deprecation_table("my_package", style="matrix")` renders a docs-friendly markdown summary of every wrapper's lifecycle.
 
 The CLI accepts directory paths and resolves them to packages:
 
 ```bash
-pydeprecate all src/
+pydeprecate all src/      # check + expiry + policy + chains; policy is ADVISORY here
+pydeprecate policy src/   # the gate that actually fails on a policy violation
 ```
 
 ## Anti-Patterns

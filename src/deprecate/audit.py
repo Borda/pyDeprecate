@@ -16,6 +16,12 @@ codebase. All are designed to be called from pytest or a CI script against an im
     Detect wrappers whose ``remove_in`` version has been reached or passed, preventing zombie code from shipping past
     its scheduled removal deadline.
 
+**Policy lint** (:func:`~deprecate.audit.validate_deprecation_policy`):
+    Detect wrappers that were *scheduled* irresponsibly rather than merely left too long — a removal deadline
+    that leaves callers no grace window, a removal scheduled outside the project's release cadence, a warning
+    that never names a replacement, or a ``deprecated_in`` ahead of the released version. Each rule reports
+    under its own :class:`~deprecate.audit.PolicyRule` slug and can be disabled independently.
+
 **Chain detection** (:func:`~deprecate.audit.validate_deprecation_chains`):
     Detect wrappers whose ``target`` is itself a deprecated callable, forming a chain that users traverse
     unnecessarily. Two chain kinds are reported via :class:`~deprecate.audit.ChainType`: ``TARGET`` (forwarding chain)
@@ -28,8 +34,8 @@ Results are returned as :class:`~deprecate.audit.DeprecationWrapperInfo` datacla
 identification info and structured validation results for programmatic processing.
 
 !!! note
-    :func:`~deprecate.audit.validate_deprecation_expiry` requires the ``packaging`` library for PEP 440
-    version comparison. Install with: ``pip install pyDeprecate[audit]``
+    :func:`~deprecate.audit.validate_deprecation_expiry` and :func:`~deprecate.audit.validate_deprecation_policy`
+    require the ``packaging`` library for PEP 440 version comparison. Install with: ``pip install pyDeprecate[audit]``
 
 Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 
@@ -884,6 +890,429 @@ def validate_deprecation_expiry(
 
     return _check_expiry_for_callables(
         find_deprecation_wrappers(module, recursive=recursive, include_members=include_members), current_version
+    )
+
+
+class PolicyRule(str, enum.Enum):
+    """Governance rule checked by :func:`~deprecate.audit.validate_deprecation_policy`.
+
+    Each member's value is the slug that prefixes the rule's violation messages, so a CI log can be grouped or
+    filtered by rule without re-stating the rule names as bare strings at every call site.
+
+    Examples:
+        >>> PolicyRule.MIN_GRACE.value
+        'min-grace'
+
+    """
+
+    MIN_GRACE = "min-grace"
+    REMOVE_ONLY_AT = "remove-only-at"
+    MESSAGE_REQUIRED = "message-required"
+    DEPRECATED_IN_NOT_FUTURE = "deprecated-in-not-future"
+
+
+class VersionBump(str, enum.Enum):
+    """Version component addressed by the grace-window and removal-cadence policy rules.
+
+    Used as the unit in a ``min_grace`` window (e.g. ``"1 minor"``) and as the release level a ``remove_only_at``
+    policy permits removals at (e.g. ``"major"``).
+
+    Examples:
+        >>> VersionBump("minor") is VersionBump.MINOR
+        True
+
+    """
+
+    MAJOR = "major"
+    MINOR = "minor"
+    PATCH = "patch"
+
+
+#: Accepted ``min_grace`` spelling — a count followed by a :class:`~deprecate.audit.VersionBump` unit,
+#: singular or plural (``"1 minor"``, ``"2 minors"``, ``"1major"``).
+_GRACE_WINDOW_PATTERN = re.compile(r"^\s*(?P<count>\d+)\s*(?P<unit>major|minor|patch)s?\s*$", re.IGNORECASE)
+
+
+@dataclass(frozen=True)
+class _PolicySpec:
+    """Parsed, validated policy configuration shared by every wrapper in one policy scan.
+
+    Attributes:
+        grace: ``(count, unit)`` minimum distance required between ``deprecated_in`` and ``remove_in``,
+            or ``None`` when the rule is disabled.
+        removal_cadence: Release level that removals are restricted to, or ``None`` when the rule is disabled.
+        message_required: Whether every wrapper must offer migration guidance.
+        deprecated_in_not_future: Whether ``deprecated_in`` must not be ahead of the current version.
+
+    """
+
+    grace: Optional[tuple[int, VersionBump]]
+    removal_cadence: Optional[VersionBump]
+    message_required: bool
+    deprecated_in_not_future: bool
+
+
+def _parse_grace_window(min_grace: str) -> tuple[int, VersionBump]:
+    """Parse a ``min_grace`` specification such as ``"1 minor"`` into its count and unit.
+
+    Args:
+        min_grace: Grace-window specification — a non-negative integer followed by ``major``, ``minor``,
+            or ``patch`` (singular or plural).
+
+    Returns:
+        Tuple of the required count and the :class:`~deprecate.audit.VersionBump` unit it is counted in.
+
+    Raises:
+        ValueError: If the specification does not match the accepted format.
+
+    Examples:
+        >>> _parse_grace_window("1 minor")
+        (1, <VersionBump.MINOR: 'minor'>)
+        >>> _parse_grace_window("2 majors")
+        (2, <VersionBump.MAJOR: 'major'>)
+
+    """
+    match = _GRACE_WINDOW_PATTERN.match(min_grace)
+    if not match:
+        units = ", ".join(f"`{unit.value}`" for unit in VersionBump)
+        raise ValueError(
+            f"Invalid `min_grace` specification `{min_grace}`; expected a count followed by one of {units}"
+            " — for example `1 minor`."
+        )
+    return int(match.group("count")), VersionBump(match.group("unit").lower())
+
+
+def _build_policy_spec(
+    min_grace: Optional[str],
+    remove_only_at: Optional[Union[str, VersionBump]],
+    message_required: bool,
+    deprecated_in_not_future: bool,
+) -> _PolicySpec:
+    """Validate the raw policy arguments once, before any wrapper is scanned.
+
+    Args:
+        min_grace: Grace-window specification (e.g. ``"1 minor"``), or ``None`` to disable the rule.
+        remove_only_at: Release level removals are restricted to, or ``None`` to disable the rule.
+        message_required: Whether every wrapper must offer migration guidance.
+        deprecated_in_not_future: Whether ``deprecated_in`` must not be ahead of the current version.
+
+    Returns:
+        The parsed :class:`_PolicySpec`.
+
+    Raises:
+        ValueError: If ``min_grace`` or ``remove_only_at`` is not a recognised specification.
+
+    """
+    grace = _parse_grace_window(min_grace) if min_grace is not None else None
+    if remove_only_at is None:
+        cadence = None
+    else:
+        try:
+            cadence = VersionBump(str(getattr(remove_only_at, "value", remove_only_at)).lower())
+        except ValueError as err:
+            levels = ", ".join(f"`{unit.value}`" for unit in VersionBump)
+            raise ValueError(f"Invalid `remove_only_at` level `{remove_only_at}`; expected one of {levels}.") from err
+    return _PolicySpec(
+        grace=grace,
+        removal_cadence=cadence,
+        message_required=message_required,
+        deprecated_in_not_future=deprecated_in_not_future,
+    )
+
+
+def _parse_policy_version(raw: Optional[str], info: DeprecationWrapperInfo, field_name: str) -> Optional["Version"]:
+    """Parse one of a wrapper's version fields, warning instead of raising on a typo.
+
+    A single unparsable version string must not abort a batch policy scan (mirroring the expiry gate's
+    behaviour), but silently skipping it would make the wrapper permanently un-lintable — so each skip warns.
+
+    Args:
+        raw: Raw version string from the wrapper metadata; ``None`` or empty means the field is unset.
+        info: Wrapper whose version is being parsed, used for the warning text.
+        field_name: Metadata field name (``deprecated_in`` or ``remove_in``) named in the warning.
+
+    Returns:
+        The parsed version, or ``None`` when the field is unset or unparsable.
+
+    """
+    if not raw:
+        return None
+    try:
+        return _parse_version(raw)
+    except ValueError:
+        warnings.warn(
+            f"{_format_subject(info)} has an unparsable `{field_name}` version `{raw}`; "
+            "the policy rules depending on it are skipped until the version string is fixed.",
+            stacklevel=2,
+        )
+        return None
+
+
+def _satisfies_grace_window(deprecated_ver: "Version", remove_ver: "Version", count: int, unit: VersionBump) -> bool:
+    """Return whether ``remove_ver`` is at least ``count`` ``unit`` bumps beyond ``deprecated_ver``.
+
+    A coarser bump always clears a finer-grained window: a wrapper deprecated in ``1.2`` and removed in ``2.0``
+    satisfies ``"1 minor"`` even though its minor number went *down*, because the major release is the bigger step.
+    A PEP 440 epoch change is the coarsest bump of all — ``1!1.0`` sorts above every epoch-``0`` version regardless
+    of its release numbers, so the epoch is compared first and settles the answer whenever the two differ.
+
+    Args:
+        deprecated_ver: Version the wrapper was deprecated in.
+        remove_ver: Version the wrapper is scheduled for removal in.
+        count: Minimum number of bumps required.
+        unit: Version component the bumps are counted in.
+
+    Returns:
+        True when the scheduled removal respects the grace window.
+
+    """
+    if deprecated_ver.epoch != remove_ver.epoch:
+        # Comparing release numbers across epochs is meaningless (``2.0`` is *older* than ``1!1.0``); the epoch
+        # bump itself is a bigger step than any window expressed in majors, so it clears every unit.
+        return remove_ver.epoch > deprecated_ver.epoch
+    old = (deprecated_ver.major, deprecated_ver.minor, deprecated_ver.micro)
+    new = (remove_ver.major, remove_ver.minor, remove_ver.micro)
+    if unit is VersionBump.MAJOR:
+        return new[0] - old[0] >= count
+    if unit is VersionBump.MINOR:
+        if new[0] != old[0]:
+            return new[0] > old[0]
+        return new[1] - old[1] >= count
+    if new[:2] != old[:2]:
+        return new[:2] > old[:2]
+    return new[2] - old[2] >= count
+
+
+def _satisfies_removal_cadence(remove_ver: "Version", cadence: VersionBump) -> bool:
+    """Return whether a scheduled removal version lands on the release level the policy allows.
+
+    A ``major`` cadence permits only ``X.0.0``-shaped removals, a ``minor`` cadence permits any ``X.Y.0``, and a
+    ``patch`` cadence permits every release (the rule is then satisfied by construction). Only the release numbers
+    are read, so a pre-release or post-release of a permitted version (``2.0rc1``, ``2.0.post1``) is permitted too
+    — it is the same release line — and the PEP 440 epoch, which never changes a version's release shape, is
+    ignored.
+
+    Args:
+        remove_ver: Version the wrapper is scheduled for removal in.
+        cadence: Release level removals are restricted to.
+
+    Returns:
+        True when the removal version respects the cadence.
+
+    """
+    if cadence is VersionBump.MAJOR:
+        return remove_ver.minor == 0 and remove_ver.micro == 0
+    if cadence is VersionBump.MINOR:
+        return remove_ver.micro == 0
+    return True
+
+
+def _has_migration_guidance(info: DeprecationWrapperInfo) -> bool:
+    """Return whether a wrapper tells callers what to migrate *to*.
+
+    Guidance is any of: a forwarding target (callable or replacement module), an ``args_mapping`` or
+    ``attrs_mapping`` naming the replacement names, or a custom ``message_template`` spelling the migration out.
+
+    A remap mode counts only when its mapping actually names something: ``TargetMode.ARGS_REMAP`` with an empty
+    ``args_mapping`` (or ``ATTRS_REMAP`` with no mapping at all) renames nothing, so it tells callers no more than
+    a bare warning does — the wrapper-configuration audit flags it as a no-op, and this rule must not read it as
+    guidance either.
+
+    Deprecated modules are judged on their target and mappings alone: :func:`~deprecate.module.deprecated_module`
+    stores the already-rendered warning text in ``message_template``, so that field is always set for a module and
+    would make the rule inert there.
+
+    Args:
+        info: Wrapper to inspect.
+
+    Returns:
+        True when the wrapper offers migration guidance.
+
+    """
+    config = info.deprecated_info
+    target = config.target
+    has_mapping = bool(config.args_mapping or config.attrs_mapping)
+    if target in (TargetMode.ARGS_REMAP, TargetMode.ATTRS_REMAP):
+        return has_mapping
+    if target is not None and target is not TargetMode.NOTIFY:
+        return True
+    if has_mapping:
+        return True
+    return config.message_template is not None and info.api_type != "module"
+
+
+def _policy_violations_for_wrapper(
+    info: DeprecationWrapperInfo, current_ver: Optional["Version"], spec: _PolicySpec
+) -> list[str]:
+    """Collect every policy violation of a single wrapper.
+
+    Args:
+        info: Wrapper to check.
+        current_ver: Parsed current package version, or ``None`` when it could not be resolved (which only
+            disables the ``deprecated-in-not-future`` rule; the version-distance rules do not need it).
+        spec: Parsed policy configuration.
+
+    Returns:
+        List of violation messages, each prefixed with its :class:`~deprecate.audit.PolicyRule` slug.
+
+    """
+    config = info.deprecated_info
+    deprecated_ver = _parse_policy_version(config.deprecated_in, info, "deprecated_in")
+    remove_ver = _parse_policy_version(config.remove_in, info, "remove_in")
+    violations = []
+
+    if spec.grace is not None and deprecated_ver is not None and remove_ver is not None:
+        count, unit = spec.grace
+        if not _satisfies_grace_window(deprecated_ver, remove_ver, count, unit):
+            violations.append(
+                f"[{PolicyRule.MIN_GRACE.value}] {_format_subject(info)} is deprecated in `{config.deprecated_in}`"
+                f" and already scheduled for removal in `{config.remove_in}`;"
+                f" the policy requires a grace window of at least {count} {unit.value}."
+            )
+
+    cadence = spec.removal_cadence
+    if cadence is not None and remove_ver is not None and not _satisfies_removal_cadence(remove_ver, cadence):
+        violations.append(
+            f"[{PolicyRule.REMOVE_ONLY_AT.value}] {_format_subject(info)} schedules removal in"
+            f" `{config.remove_in}`; the policy allows removals only at a {cadence.value} release."
+        )
+
+    if spec.message_required and not _has_migration_guidance(info):
+        violations.append(
+            f"[{PolicyRule.MESSAGE_REQUIRED.value}] {_format_subject(info)} warns without naming a replacement;"
+            " configure a `target`, an `args_mapping`/`attrs_mapping`, or a custom `message_template`"
+            " so callers learn what to migrate to."
+        )
+
+    declared_ahead = deprecated_ver is not None and current_ver is not None and deprecated_ver > current_ver
+    if spec.deprecated_in_not_future and declared_ahead:
+        violations.append(
+            f"[{PolicyRule.DEPRECATED_IN_NOT_FUTURE.value}] {_format_subject(info)} declares"
+            f" `deprecated_in` `{config.deprecated_in}`, which is ahead of the current version"
+            f" `{current_ver}`; the warning already fires, so the recorded version is wrong."
+        )
+
+    return violations
+
+
+def _check_policy_for_callables(
+    results: list[DeprecationWrapperInfo], current_version: Optional[str], spec: _PolicySpec
+) -> list[str]:
+    """Apply the policy rules to pre-scanned wrapper results.
+
+    Shared implementation used by :func:`validate_deprecation_policy` and the CLI's single-scan path, keeping
+    the violation-message format in one place.
+
+    Args:
+        results: Pre-scanned wrapper info list.
+        current_version: Current package version string (PEP 440), or ``None`` when unresolved — only the
+            ``deprecated-in-not-future`` rule needs it.
+        spec: Parsed policy configuration.
+
+    Returns:
+        List of violation messages across all wrappers.
+
+    Raises:
+        ImportError: If the ``packaging`` library is not installed.
+        ValueError: If ``current_version`` is given but not parseable.
+
+    """
+    current_ver = None
+    if current_version is not None:
+        try:
+            current_ver = _parse_version(current_version)
+        except ValueError as err:
+            raise ValueError(f"Invalid current_version '{current_version}': {err}") from err
+    violations = []
+    for info in results:
+        violations.extend(_policy_violations_for_wrapper(info, current_ver, spec))
+    return violations
+
+
+def validate_deprecation_policy(
+    module: Union[Any, str],  # noqa: ANN401
+    current_version: Optional[str] = None,
+    recursive: bool = True,
+    include_members: bool = True,
+    *,
+    min_grace: Optional[str] = "1 minor",
+    remove_only_at: Optional[Union[str, VersionBump]] = "major",
+    message_required: bool = True,
+    deprecated_in_not_future: bool = True,
+) -> list[str]:
+    """Check every deprecated wrapper in a module/package against deprecation-governance rules.
+
+    Where :func:`~deprecate.audit.validate_deprecation_expiry` answers *"was this removed on time?"*, this gate
+    answers *"was this scheduled responsibly in the first place?"* — catching a too-aggressive removal deadline,
+    a removal scheduled at a patch release, a warning that never names a replacement, or a ``deprecated_in`` that
+    is ahead of the released version, all at review time instead of in a downstream issue.
+
+    Four rules are checked, each independently disable-able (``None``/``False``):
+
+    - ``min_grace`` — minimum distance between ``deprecated_in`` and ``remove_in`` (default ``"1 minor"``).
+    - ``remove_only_at`` — release level removals are allowed at (default ``"major"``).
+    - ``message_required`` — every wrapper must name a replacement (target, mapping, or custom template).
+    - ``deprecated_in_not_future`` — ``deprecated_in`` must not be ahead of *current_version*.
+
+    Args:
+        module: A Python module or package to scan — an imported module object or a string module path.
+        current_version: Current version of your package (e.g. ``"2.0.0"``). Auto-detected from the package
+            name when omitted; needed only by the ``deprecated-in-not-future`` rule.
+        recursive: If True (default), recursively scan submodules.
+        include_members: If True (default), also scan deprecated class members, matching the discovery default
+            of :func:`~deprecate.audit.find_deprecation_wrappers`.
+        min_grace: Minimum grace window as ``"<count> <major|minor|patch>"``, or ``None`` to skip the rule.
+        remove_only_at: Release level removals are restricted to (``"major"``, ``"minor"``, ``"patch"``, or a
+            :class:`~deprecate.audit.VersionBump`), or ``None`` to skip the rule.
+        message_required: Require migration guidance on every wrapper.
+        deprecated_in_not_future: Require ``deprecated_in`` to be at or behind *current_version*.
+
+    Returns:
+        List of violation messages, each prefixed with its :class:`~deprecate.audit.PolicyRule` slug.
+        Empty list when every wrapper satisfies the enabled rules.
+
+    Raises:
+        ImportError: If the ``packaging`` library is not installed (``pip install pyDeprecate[audit]``).
+        ValueError: If a policy argument or *current_version* is not a valid specification.
+
+    Examples:
+        >>> from deprecate import validate_deprecation_policy
+        >>> violations = validate_deprecation_policy("tests.collection_policy", "2.0", recursive=False)
+        >>> [v for v in violations if "no_grace_window" in v]  # doctest: +ELLIPSIS
+        ['[min-grace] Callable `tests.collection_policy.no_grace_window` is deprecated in `2.0` and ...']
+
+        >>> # Rules are opt-out: keep the grace window, drop the removal-cadence policy
+        >>> violations = validate_deprecation_policy(
+        ...     "tests.collection_policy", "2.0", recursive=False, remove_only_at=None
+        ... )
+        >>> any("remove-only-at" in v for v in violations)
+        False
+
+    !!! note
+        - The ``remove_only_at="major"`` default suits a project past ``1.0``; on a ``0.x`` line the minor is the
+          breaking cadence, so pass ``remove_only_at="minor"`` there instead of switching the rule off.
+        - Wrappers missing ``deprecated_in`` or ``remove_in`` are not violations here — the version-distance
+          rules simply skip them (a deprecation without a scheduled removal is a valid, common choice).
+        - An unparsable version string emits a ``UserWarning`` per skip rather than aborting the scan.
+        - Intended for the same CI slot as the expiry gate; the CLI exposes it as ``pydeprecate policy``.
+
+    """
+    spec = _build_policy_spec(min_grace, remove_only_at, message_required, deprecated_in_not_future)
+
+    module_name = module if isinstance(module, str) else getattr(module, "__name__", None)
+    if current_version is None and module_name:
+        # A missing version only disables the ``deprecated-in-not-future`` rule, so an undetectable
+        # version is not fatal here (unlike the expiry gate, which cannot run without one).
+        with suppress(ImportError):
+            current_version = _get_package_version(module_name.split(".")[0])
+
+    if isinstance(module, str):
+        module = importlib.import_module(module)
+
+    return _check_policy_for_callables(
+        find_deprecation_wrappers(module, recursive=recursive, include_members=include_members),
+        current_version,
+        spec,
     )
 
 

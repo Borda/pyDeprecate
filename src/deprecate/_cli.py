@@ -8,8 +8,9 @@ Provides two entry points for scanning Python code for misconfigured ``@deprecat
 Subcommands:
     check   — Validate wrapper configuration and flag misconfigured, chain-forming, or positional-only-arg wrappers.
     expiry  — Check for deprecated wrappers that have passed their scheduled ``remove_in`` deadline.
+    policy  — Check wrappers against deprecation-governance rules (grace window, removal cadence, guidance).
     chains  — Detect deprecated wrappers whose ``target`` is itself a deprecated callable.
-    all     — Run all three checks in a single scan pass.
+    all     — Run all four checks in a single scan pass.
     status  — Render a markdown deprecation table to stdout (and optionally save it to a file).
 
 """
@@ -33,7 +34,10 @@ from deprecate._pkg import (
 from deprecate.audit import (
     DeprecationWrapperInfo,
     TableStyle,
+    VersionBump,
+    _build_policy_spec,
     _check_expiry_for_callables,
+    _check_policy_for_callables,
     find_deprecation_wrappers,
     generate_deprecation_table,
     validate_deprecation_chains,
@@ -141,14 +145,19 @@ class _Reporter:
     _err: Any = None
     _rich_box: Any = None
     _RichTable: Any = None
+    _RichText: Any = None
 
     try:
         from rich import box as _rich_box_import
         from rich.console import Console as _RichConsole
         from rich.table import Table as _RichTable_import
+        from rich.text import Text as _RichText_import
 
         _rich_box = _rich_box_import
         _RichTable = _RichTable_import
+        # Rich parses square brackets in a cell as style markup, which would swallow the ``[rule-slug]``
+        # prefix of a policy violation; wrapping the message in ``Text`` renders it literally.
+        _RichText = _RichText_import
         _out = _RichConsole()
         _err = _RichConsole(stderr=True)
     except ImportError:  # pragma: no cover
@@ -266,6 +275,22 @@ class _Reporter:
         else:
             _print("\n[ERROR] Found expired deprecated wrappers:")
             for msg in expired:
+                _print(f"\t- {msg}")
+
+    @staticmethod
+    def policy(violations: list[str]) -> None:
+        """Report wrappers that break one of the deprecation-governance policy rules."""
+        if _Reporter._HAS_RICH:
+            table = _Reporter._RichTable(
+                title="Deprecation Policy Violations", box=_Reporter._rich_box.ROUNDED, title_style="bold red"
+            )
+            table.add_column("Message", style="red")
+            for msg in violations:
+                table.add_row(_Reporter._RichText(msg))
+            _Reporter._console().print(table)
+        else:
+            _print("\n[ERROR] Found deprecation policy violations:")
+            for msg in violations:
                 _print(f"\t- {msg}")
 
     @staticmethod
@@ -501,6 +526,83 @@ def cmd_expiry(
     return 0 if exit_zero else 1
 
 
+def cmd_policy(
+    path: str = ".",
+    version: Optional[str] = None,
+    recursive: bool = True,
+    exit_zero: bool = False,
+    min_grace: Optional[str] = "1 minor",
+    remove_only_at: Optional[str] = VersionBump.MAJOR.value,
+    message_required: bool = True,
+    deprecated_in_not_future: bool = True,
+    *,
+    _wrappers: Optional[list[DeprecationWrapperInfo]] = None,
+) -> int:
+    """Check deprecated wrappers against deprecation-governance policy rules.
+
+    Where ``expiry`` asks whether a wrapper was removed on time, ``policy`` asks whether it was scheduled
+    responsibly: a removal deadline that leaves callers no grace window, a removal scheduled at a patch
+    release, a warning that never names a replacement, or a ``deprecated_in`` ahead of the released version.
+
+    Requires the ``packaging`` library: ``pip install 'pyDeprecate[audit]'``.
+    A missing ``packaging`` library is treated as advisory (returns 0 with a warning).
+
+    Args:
+        path: Path to the module, package directory, or importable module name to scan.
+        version: Current package version (e.g. ``"2.0.0"``), auto-detected when omitted. Only the
+            ``deprecated-in-not-future`` rule needs it; the other rules run without a resolved version.
+        recursive: Scan submodules recursively (default True). Pass ``--norecursive`` to scan top-level only.
+        exit_zero: Always exit 0 even if violations are found.
+            Useful for advisory CI steps that should report but never block.
+        min_grace: Minimum distance between ``deprecated_in`` and ``remove_in`` as ``"<count> <unit>"``
+            (default ``"1 minor"``); pass ``--min-grace=None`` to skip the rule.
+        remove_only_at: Release level removals are allowed at — ``major`` (default), ``minor``, or ``patch``;
+            pass ``--remove-only-at=None`` to skip the rule.
+        message_required: Require every wrapper to name a replacement (default True).
+        deprecated_in_not_future: Require ``deprecated_in`` to be at or behind *version* (default True).
+        _wrappers: Pre-scanned wrapper list. When provided, skips the scan step. Underscore prefix hides this
+            parameter from the Fire CLI (internal use by ``cmd_all`` only).
+
+    Returns:
+        0 on success or when the ``packaging`` library is unavailable; 1 when violations are found and
+        ``exit_zero`` is False.
+
+    """
+    # Fire auto-converts numeric-looking strings (e.g. "1.0" → float); normalise to str.
+    if version is not None:
+        version = str(version)
+    if min_grace is not None:
+        min_grace = str(min_grace)
+    try:
+        spec = _build_policy_spec(min_grace, remove_only_at, message_required, deprecated_in_not_future)
+    except ValueError as err:
+        _print(str(err), stderr=True)
+        return 2
+
+    resolved_version = version if version is not None else _auto_detect_version(_safe_module_name(path), path=path)
+    if _wrappers is None:
+        _print_scan_header(path, resolved_version, user_provided=version is not None)
+        with _managed_sys_path(path):
+            _wrappers = _scan_path(path, recursive=recursive)
+    try:
+        violations = _check_policy_for_callables(_wrappers, resolved_version, spec)
+    except ImportError as exc:
+        if not _is_missing_packaging_import_error(exc):
+            raise
+        _print(
+            "The 'policy' subcommand requires the 'packaging' library.\n"
+            "Install it with: `pip install 'pyDeprecate[audit]'`",
+            stderr=True,
+        )
+        return 0
+    if not violations:
+        _print("No deprecation policy violations found.")
+        return 0
+    _Reporter.policy(violations)
+    _print(f"\n{len(violations)} policy violation(s) found.")
+    return 0 if exit_zero else 1
+
+
 def cmd_chains(
     path: str = ".",
     recursive: bool = True,
@@ -545,12 +647,14 @@ def cmd_all(
     recursive: bool = True,
     exit_zero: bool = False,
 ) -> int:
-    """Run all three checks then append a deprecation table.
+    """Run all four checks then append a deprecation table.
 
     Performs a single scan pass and distributes the wrappers to ``cmd_check``,
-    ``cmd_expiry``, and ``cmd_chains`` so the filesystem is only traversed once.
-    After all three checks complete, ``cmd_status`` is always called to append a
-    compact markdown deprecation table to the output.
+    ``cmd_expiry``, ``cmd_policy``, and ``cmd_chains`` so the filesystem is only traversed once.
+    After all four checks complete, ``cmd_status`` is always called to append a
+    compact markdown deprecation table to the output. The policy check runs in advisory mode here — its
+    violations are printed but never change the aggregate exit code, because its defaults encode a project
+    convention; run ``pydeprecate policy`` directly to gate on them.
     Version is auto-detected from installed package metadata when not provided.
     A missing ``packaging`` library skips the expiry check with a warning and does not
     count as a hard error.
@@ -564,7 +668,8 @@ def cmd_all(
             Useful for advisory CI steps that should report but never block.
 
     Returns:
-        0 when all checks pass or ``exit_zero`` is True; 1 when any hard error is found.
+        0 when the check, expiry, and chain gates pass or ``exit_zero`` is True; 1 when any of them finds a hard
+        error. Policy violations are advisory here and never contribute to this code.
         The deprecation table is always appended regardless of pass/fail outcome.
 
     """
@@ -582,6 +687,10 @@ def cmd_all(
     # the user-facing --exit-zero is applied to the aggregate below.
     check_code = cmd_check(path, recursive=recursive, exit_zero=False, _wrappers=wrappers)
     expiry_code = cmd_expiry(path, version=resolved_version, recursive=recursive, exit_zero=False, _wrappers=wrappers)
+    # Advisory inside ``all``: the policy defaults encode a project convention (major-only removals, a one-minor
+    # grace window) that not every repo shares, so ``all`` reports violations but never fails on them — gate on
+    # them with the dedicated ``policy`` subcommand, whose exit code is truthful.
+    cmd_policy(path, version=resolved_version, recursive=recursive, exit_zero=True, _wrappers=wrappers)
     chains_code = cmd_chains(path, recursive=recursive, exit_zero=False, _wrappers=wrappers)
 
     # The status table is a display artifact appended after the three gates. Render it defensively:
@@ -703,7 +812,7 @@ def cli() -> None:
     exception type and message (the type prefix guarantees a non-blank stderr line even when the exception
     carries no message). SystemExit (Fire's ``--help`` and error exits) passes through unchanged.
 
-    A path whose name collides with a subcommand (``check``, ``expiry``, ``chains``, ``all``, ``status``) is
+    A path whose name collides with a subcommand (``check``, ``expiry``, ``policy``, ``chains``, ``all``, ``status``) is
     treated as that subcommand by the implicit-``check`` shim. Scan such a path explicitly, e.g.
     ``pydeprecate check ./check``, so the leading token is the subcommand and the path is its argument.
 
@@ -714,7 +823,7 @@ def cli() -> None:
     except ImportError:
         sys.exit("The 'pydeprecate' CLI requires the 'fire' package.\nInstall it with: pip install 'pyDeprecate[cli]'")
 
-    subcommands = {"check", "expiry", "chains", "all", "status"}
+    subcommands = {"check", "expiry", "policy", "chains", "all", "status"}
     argv = sys.argv[1:]
     if argv and argv[0] not in subcommands and argv[0] not in {"-h", "--help"}:
         argv = ["check", *argv]
@@ -741,6 +850,7 @@ def cli() -> None:
             {
                 "check": _capture(cmd_check),
                 "expiry": _capture(cmd_expiry),
+                "policy": _capture(cmd_policy),
                 "chains": _capture(cmd_chains),
                 "all": _capture(cmd_all),
                 "status": _capture(cmd_status),
