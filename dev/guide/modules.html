@@ -95,7 +95,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-07-18",
-  "dateModified": "2026-07-23"
+  "dateModified": "2026-09-07"
 }
 </script>
 
@@ -1386,7 +1386,7 @@
 <h1 id="modules">Modules<a class="headerlink" href="#modules" title="Permanent link">🔗</a></h1>
 <p><code>deprecated_module()</code> marks an entire Python module as deprecated by replacing its <code>__class__</code> with an intercepting wrapper, so every public attribute access on the old module name emits a <code>FutureWarning</code>. Three patterns are supported: warn in place without moving any code (Mode 1), redirect all attribute access to a replacement module (Mode 2), and expose a deprecated module name as a package attribute (Mode 3). For deprecating individual functions see <a href="functions.html">Functions</a>; for classes see <a href="classes.html">Classes</a>.</p>
 <h2 id="when-to-use-deprecated_module">When to use <code>deprecated_module()</code><a class="headerlink" href="#when-to-use-deprecated_module" title="Permanent link">🔗</a></h2>
-<p>Reach for <code>deprecated_module()</code> when a module is being replaced or renamed and you want every attribute access on the old name to warn callers automatically. Place the call at the bottom of the file being deprecated: it reassigns the module's <code>__class__</code> to an intercepting wrapper, attaches <code>__deprecated__</code> metadata so that <a href="audit.html"><code>find_deprecation_wrappers()</code></a> can discover it, and emits a <code>FutureWarning</code> on every public attribute access.</p>
+<p>Reach for <code>deprecated_module()</code> when a module is being replaced or renamed and you want every attribute access on the old name to warn callers automatically. Place the call at the bottom of the file being deprecated: it reassigns the module's <code>__class__</code> to an intercepting wrapper, attaches <code>__deprecation_config__</code> metadata so that <a href="audit.html"><code>find_deprecation_wrappers()</code></a> can discover it, and emits a <code>FutureWarning</code> on every public attribute access.</p>
 <h2 id="mode-1-in-place-warn">Mode 1 — in-place warn<a class="headerlink" href="#mode-1-in-place-warn" title="Permanent link">🔗</a></h2>
 <p>Use this when you want to keep the module in place and warn on every attribute access. Call <code>deprecated_module(__name__, ...)</code> at the bottom of <code>old_calculator.py</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># phmdoctest:skip — old_calculator.py in-place warn template</span>
@@ -1478,7 +1478,7 @@
 <h2 id="star-imports-also-warn">Star imports also warn<a class="headerlink" href="#star-imports-also-warn" title="Permanent link">🔗</a></h2>
 <p>Star imports (<code>from old_calculator import *</code>) still trigger the deprecation warning. CPython's <code>IMPORT_STAR</code> bytecode calls <code>getattr(module, name)</code> for each public name being pulled in, and that call routes through the same <code>__getattribute__</code> interception installed by <code>deprecated_module()</code> — so a <code>FutureWarning</code> fires once per pulled-in public name, exactly as it would for <code>old_calculator.add(1, 2)</code>. This closes a gap that a PEP 562 module-level <code>__getattr__</code> hook would otherwise leave open, since <code>__getattr__</code> only fires for missing names and star imports never trigger it.</p>
 <h2 id="audit-integration">Audit integration<a class="headerlink" href="#audit-integration" title="Permanent link">🔗</a></h2>
-<p><code>find_deprecation_wrappers()</code> discovers modules marked with <code>deprecated_module()</code> the same way it discovers function and class wrappers — by reading the <code>__deprecated__</code> attribute attached to the module object:</p>
+<p><code>find_deprecation_wrappers()</code> discovers modules marked with <code>deprecated_module()</code> the same way it discovers function and class wrappers — by reading the <code>__deprecation_config__</code> attribute attached to the module object:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># phmdoctest:skip — CI template: replace my_package with your actual package</span>
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">my_package</span>
 <a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">find_deprecation_wrappers</span>
@@ -1518,7 +1518,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="July 23, 2026 15:23:12 UTC">2026-07-23</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="September 7, 2026 12:07:51 UTC">2026-09-07</span>
   </span>
 
     

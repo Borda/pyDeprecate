@@ -95,7 +95,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-06-15",
-  "dateModified": "2026-06-23"
+  "dateModified": "2026-09-07"
 }
 </script>
 
@@ -1457,7 +1457,7 @@
 </code></pre></div>
 <div class="admonition note">
 <p class="admonition-title">Audit discoverability with explicit construction</p>
-<p><code>find_deprecation_wrappers</code> discovers explicit-construction properties via the accessor that carries <code>__deprecated__</code> metadata. For setter-only properties (<code>property(None, fset)</code>), it discovers via <code>fset</code>; if <code>fget</code> is plain (not deprecated), it falls through to <code>fset</code> or <code>fdel</code>.</p>
+<p><code>find_deprecation_wrappers</code> discovers explicit-construction properties via the accessor that carries <code>__deprecation_config__</code> metadata. For setter-only properties (<code>property(None, fset)</code>), it discovers via <code>fset</code>; if <code>fget</code> is plain (not deprecated), it falls through to <code>fset</code> or <code>fdel</code>.</p>
 </div>
 <h3 id="strict-mode-from-deprecate-import-property">Strict mode: <code>from deprecate import property</code><a class="headerlink" href="#strict-mode-from-deprecate-import-property" title="Permanent link">🔗</a></h3>
 <p>The inner order <code>@property @deprecated</code> wraps only <code>fget</code>. If you later add a setter or deleter with <code>@value.setter</code> / <code>@value.deleter</code>, those accessors are rebuilt from the plain <code>property</code> base and are <strong>silently unprotected</strong> — writes and deletes never warn. This is easy to introduce by habit, because the standard library puts <code>@property</code> outermost.</p>
@@ -1603,7 +1603,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="June 23, 2026 20:23:46 UTC">2026-06-23</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="September 7, 2026 12:07:51 UTC">2026-09-07</span>
   </span>
 
     

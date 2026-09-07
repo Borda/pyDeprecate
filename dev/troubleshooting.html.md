@@ -800,7 +800,7 @@ Both surfaces still work independently: `attrs_mapping` redirects attribute acce
 
 ```python
 from dataclasses import dataclass, field
-from deprecate import deprecated_class
+from deprecate import deprecated_class, get_deprecation_config
 
 
 @dataclass
@@ -816,7 +816,7 @@ DepConfig = deprecated_class(
     stream=None,
 )(Config)
 
-meta = DepConfig.__deprecated__
+meta = get_deprecation_config(DepConfig)
 print("timeout auto-expanded:", "time_limit" in meta.args_mapping_auto_expanded)
 print("_cache auto-expanded:", "store" in meta.args_mapping_auto_expanded)
 ```
@@ -832,6 +832,45 @@ _cache auto-expanded: False
 </details>
 
 `store` is excluded from `args_mapping` — calling `DepConfig(store={})` would raise `TypeError`. Use `attrs_mapping` for attribute access and leave the `init=False` field out of constructor calls.
+
+______________________________________________________________________
+
+## `AttributeError: 'str' object has no attribute 'target'` after upgrading to v0.13
+
+**Q:** Code that used to read `wrapper.__deprecated__.target` (or `.deprecated_in`, or checked `isinstance(wrapper.__deprecated__, DeprecationConfig)`) now raises `AttributeError: 'str' object has no attribute ...`. What changed?
+
+**A:** Since v0.13, `__deprecated__` holds a plain PEP 702-conformant message string — the same convention the standard library's `warnings.deprecated` / `typing_extensions.deprecated` use — instead of the internal `DeprecationConfig` object. This fixes a collision: before v0.13, PEP-702-aware tooling (IDE hover, `pyright`, `mypy`) reading pyDeprecate's `__deprecated__` got a `DeprecationConfig` repr where a message string belongs.
+
+The config object moved to `__deprecation_config__`. Read it through the public `get_deprecation_config(obj)` helper rather than either attribute name directly — it also transparently falls back to a legacy `__deprecated__`-as-config layout for objects built by a pre-v0.13 pyDeprecate release, so code migrated this way keeps working across mixed-version installs.
+
+```python
+from deprecate import deprecated, get_deprecation_config
+
+
+def new_func(x: int) -> int:
+    return x * 2
+
+
+@deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0")
+def old_func(x: int) -> int:  # warns: nothing — decoration only, no call yet
+    pass
+
+
+print(isinstance(old_func.__deprecated__, str))
+print(get_deprecation_config(old_func).target is new_func)
+```
+
+<details>
+  <summary>Output: <code>isinstance(...) and get_deprecation_config(...).target</code></summary>
+
+```text
+True
+True
+```
+
+</details>
+
+Affects every wrapper kind — functions, methods, class proxies (`deprecated_class`), instance proxies (`deprecated_instance`), and modules (`deprecated_module`). See the [v0.12-to-v0.13 migration guide](guide/migration.md) for the full list of affected reads.
 
 ______________________________________________________________________
 

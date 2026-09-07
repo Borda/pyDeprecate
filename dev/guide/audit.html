@@ -95,7 +95,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-04-21",
-  "dateModified": "2026-07-23"
+  "dateModified": "2026-09-07"
 }
 </script>
 
@@ -1716,11 +1716,12 @@
 <div class="admonition warning">
 <p class="admonition-title">Breaking change in v0.8: <code>__deprecated__.target</code> type changed</p>
 <p>In v0.8, <code>DeprecationConfig.target</code> now always stores a <code>TargetMode</code> enum member or a <code>Callable</code> — never a raw boolean sentinel. Code inspecting this attribute must be updated:</p>
+<p>The direct metadata reads below apply only through v0.12; v0.13 code must use <code>get_deprecation_config(func)</code> as shown in the next section.</p>
 <table>
 <thead>
 <tr>
 <th>Before v0.8</th>
-<th>v0.8+</th>
+<th>v0.8-v0.12</th>
 </tr>
 </thead>
 <tbody>
@@ -1739,13 +1740,40 @@
 </tbody>
 </table>
 </div>
+<div class="admonition warning">
+<p class="admonition-title">Breaking change in v0.13: <code>__deprecated__</code> is now a plain message string</p>
+<p>Since v0.13, <code>__deprecated__</code> holds a PEP 702-conformant message string, not the <code>DeprecationConfig</code> object — this lets PEP-702-aware tooling (IDE hover, <code>pyright</code>, <code>mypy</code>) read it correctly. The config object moved to <code>__deprecation_config__</code>; read it via the public <code>get_deprecation_config(obj)</code> helper rather than either attribute directly:</p>
+<table>
+<thead>
+<tr>
+<th>Before v0.13</th>
+<th>v0.13+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>func.__deprecated__.target</code></td>
+<td><code>get_deprecation_config(func).target</code></td>
+</tr>
+<tr>
+<td><code>func.__deprecated__.deprecated_in</code></td>
+<td><code>get_deprecation_config(func).deprecated_in</code></td>
+</tr>
+<tr>
+<td><code>isinstance(func.__deprecated__, DeprecationConfig)</code></td>
+<td><code>get_deprecation_config(func) is not None</code></td>
+</tr>
+</tbody>
+</table>
+<p>Every wrapper kind is affected — functions, methods, class proxies, instance proxies, and modules. See the <a href="migration.html">v0.12-to-v0.13 migration guide</a> for the full list.</p>
+</div>
 <h2 id="validating-wrapper-configuration">Validating Wrapper Configuration<a class="headerlink" href="#validating-wrapper-configuration" title="Permanent link">🔗</a></h2>
 <p>Use these utilities to verify that a deprecated wrapper is correctly configured: that <code>args_mapping</code> keys exist in the function signature, that the mapping has a real effect, and that the target does not point back to the same function. <code>validate_deprecation_wrapper()</code> inspects a single function; <code>find_deprecation_wrappers()</code> scans an entire package.</p>
 <p><code>DeprecationWrapperInfo</code> is the dataclass returned by both. Its fields:</p>
 <ul>
 <li><code>module</code> — module name where the function is defined (empty for direct validation)</li>
 <li><code>function</code> — function name</li>
-<li><code>deprecated_info</code> — the <code>__deprecated__</code> attribute as a <code>DeprecationConfig</code> dataclass from the decorator</li>
+<li><code>deprecated_info</code> — the <code>__deprecation_config__</code> attribute as a <code>DeprecationConfig</code> dataclass from the decorator</li>
 <li><code>invalid_args</code> — list of <code>args_mapping</code> keys that do not exist in the function signature</li>
 <li><code>empty_args_mapping</code> — <code>True</code> if <code>args_mapping</code> is <code>None</code> or empty</li>
 <li><code>identity_args_mapping</code> — list of args where key equals value (e.g. <code>{"arg": "arg"}</code> — no effect)</li>
@@ -1758,7 +1786,7 @@
 <li><code>api_type</code> — inferred API kind for report generation (e.g. <code>callable</code>, <code>args</code>, <code>class</code>, <code>dataclass attributes</code>, <code>class method</code>); excluded from <code>repr()</code> to keep snapshot tests stable</li>
 </ul>
 <h3 id="validating-a-single-function">Validating a single function<a class="headerlink" href="#validating-a-single-function" title="Permanent link">🔗</a></h3>
-<p><code>validate_deprecation_wrapper()</code> extracts the configuration from the function's <code>__deprecated__</code> attribute and returns a <code>DeprecationWrapperInfo</code> dataclass. Use it in development or in a targeted pytest assertion to confirm a specific wrapper is sound before shipping.</p>
+<p><code>validate_deprecation_wrapper()</code> extracts the configuration from the function's <code>__deprecation_config__</code> attribute and returns a <code>DeprecationWrapperInfo</code> dataclass. Use it in development or in a targeted pytest assertion to confirm a specific wrapper is sound before shipping.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">TargetMode</span><span class="p">,</span> <span class="n">validate_deprecation_wrapper</span><span class="p">,</span> <span class="n">deprecated</span><span class="p">,</span> <span class="n">DeprecationWrapperInfo</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
@@ -2584,7 +2612,7 @@
 </tbody>
 </table>
 </blockquote>
-<p>The table derives all data from <code>__deprecated__</code> decorator metadata so it stays in sync with the code automatically. Install the <code>audit</code> extra (<code>pip install pyDeprecate[audit]</code>) to enable lifecycle status evaluation.</p>
+<p>The table derives all data from <code>__deprecation_config__</code> decorator metadata so it stays in sync with the code automatically. Install the <code>audit</code> extra (<code>pip install pyDeprecate[audit]</code>) to enable lifecycle status evaluation.</p>
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">🔗</a></h2>
 <ul>
 <li><a href="use-cases.html">Use Cases</a> — deprecation patterns and scenarios that audit tools validate against</li>
@@ -2615,7 +2643,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="July 23, 2026 15:23:12 UTC">2026-07-23</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="September 7, 2026 12:07:51 UTC">2026-09-07</span>
   </span>
 
     
