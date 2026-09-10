@@ -1610,6 +1610,11 @@ class TestHasMigrationGuidance:
                 id="custom-message-spells-it-out",
             ),
             pytest.param(
+                DeprecationConfig(target=TargetMode.NOTIFY, message_template=""),
+                False,
+                id="empty-message-template-selects-the-built-in-text",
+            ),
+            pytest.param(
                 DeprecationConfig(target=TargetMode.ARGS_REMAP, args_mapping={}),
                 False,
                 id="remap-mode-with-empty-mapping-renames-nothing",

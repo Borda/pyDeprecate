@@ -1189,6 +1189,12 @@ def _has_migration_guidance(info: DeprecationWrapperInfo) -> bool:
     Guidance is any of: a forwarding target (callable or replacement module), an ``args_mapping`` or
     ``attrs_mapping`` naming the replacement names, or a custom ``message_template`` spelling the migration out.
 
+    The template has to be non-empty to count. ``message_template=""`` is not a message: every emitter renders
+    ``config.message_template or TEMPLATE_WARNING_*`` (see :mod:`~deprecate.messaging`), so an empty string is
+    the runtime opt-in for the *built-in* warning text and names no replacement whatsoever. Reading it as
+    guidance would let a wrapper opt out of this rule with a value that changes nothing a caller sees. This is
+    an audit-side judgement only — the runtime contract that ``""`` selects the built-in message is unchanged.
+
     A remap mode counts only when its mapping actually names something: ``TargetMode.ARGS_REMAP`` with an empty
     ``args_mapping`` (or ``ATTRS_REMAP`` with no mapping at all) renames nothing, so it tells callers no more than
     a bare warning does — the wrapper-configuration audit flags it as a no-op, and this rule must not read it as
@@ -1214,7 +1220,7 @@ def _has_migration_guidance(info: DeprecationWrapperInfo) -> bool:
         return True
     if has_mapping:
         return True
-    return config.message_template is not None and info.api_type != "module"
+    return bool(config.message_template) and info.api_type != "module"
 
 
 def _policy_violations_for_wrapper(
