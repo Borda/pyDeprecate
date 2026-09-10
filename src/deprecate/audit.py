@@ -1056,6 +1056,14 @@ def _satisfies_grace_window(deprecated_ver: "Version", remove_ver: "Version", co
     A PEP 440 epoch change is the coarsest bump of all — ``1!1.0`` sorts above every epoch-``0`` version regardless
     of its release numbers, so the epoch is compared first and settles the answer whenever the two differ.
 
+    **The shortcut does not multiply by** ``count``. A coarser bump clears the window whatever the count asks for:
+    ``"3 minors"`` is satisfied by the single major bump ``1.2`` → ``2.0`` exactly as ``"1 minor"`` is, and any
+    change to the major or minor number clears a window counted in patches. Converting across components has no
+    defensible answer — how many minors is one major worth depends on a release cadence this library cannot see —
+    so the coarser step is accepted as sufficient. ``count`` therefore constrains distance only *within* its own
+    component; a project that needs "three minor releases of warning, and a major does not substitute" has to
+    assert that outside this rule.
+
     Args:
         deprecated_ver: Version the wrapper was deprecated in.
         remove_ver: Version the wrapper is scheduled for removal in.
@@ -1075,9 +1083,13 @@ def _satisfies_grace_window(deprecated_ver: "Version", remove_ver: "Version", co
     if unit is VersionBump.MAJOR:
         return new[0] - old[0] >= count
     if unit is VersionBump.MINOR:
+        # Coarser-bump shortcut: a later major clears a minor-counted window outright, whatever ``count`` is —
+        # the minor number restarts at the major boundary, so subtracting the two is meaningless.
         if new[0] != old[0]:
             return new[0] > old[0]
         return new[1] - old[1] >= count
+    # Same shortcut one level down: any later major *or* minor clears a patch-counted window, again without
+    # multiplying by ``count`` — the micro number restarts at every minor.
     if new[:2] != old[:2]:
         return new[:2] > old[:2]
     return new[2] - old[2] >= count
@@ -1235,6 +1247,8 @@ def validate_deprecation_policy(
     recursive: bool = True,
     include_members: bool = True,
     *,
+    # The CLI mirrors this window as `--min-grace` (`_cli.py`, `cmd_policy`); its help text should carry the
+    # same coarser-bump caveat documented under `min_grace` below, which it currently omits.
     min_grace: Optional[str] = "1 minor",
     remove_only_at: Optional[Union[str, VersionBump]] = "major",
     message_required: bool = True,
@@ -1267,6 +1281,9 @@ def validate_deprecation_policy(
         include_members: If True (default), also scan deprecated class members, matching the discovery default
             of :func:`~deprecate.audit.find_deprecation_wrappers`.
         min_grace: Minimum grace window as ``"<count> <major|minor|patch>"``, or ``None`` to skip the rule.
+            A bump of a coarser component always satisfies the window regardless of *count*: ``"3 minors"`` is
+            cleared by a single major bump (``1.2`` → ``2.0``), just as ``"1 minor"`` is, and any major/minor
+            change clears a patch-counted window. The count restricts distance only within its own component.
         remove_only_at: Release level removals are restricted to (``"major"``, ``"minor"``, ``"patch"``, or a
             :class:`~deprecate.audit.VersionBump`), or ``None`` to skip the rule.
         message_required: Require migration guidance on every wrapper.
