@@ -1453,6 +1453,7 @@ class TestParseGraceWindow:
         [
             pytest.param("1 minor", (1, VersionBump.MINOR), id="singular-unit"),
             pytest.param("2 majors", (2, VersionBump.MAJOR), id="plural-unit"),
+            pytest.param("1 patches", (1, VersionBump.PATCH), id="english-plural-of-patch"),
             pytest.param("  3patch ", (3, VersionBump.PATCH), id="no-space-and-padding"),
             pytest.param("1 MINOR", (1, VersionBump.MINOR), id="upper-case-unit"),
             pytest.param("0 minor", (0, VersionBump.MINOR), id="zero-count-disables-distance"),
@@ -1462,7 +1463,9 @@ class TestParseGraceWindow:
         """Every documented spelling of a grace window parses to its count and unit.
 
         A policy is configured from a CLI flag or a keyword argument typed by hand, so the accepted spellings
-        have to cover the plural, the missing space, and the shouted unit a real invocation produces.
+        have to cover the plural, the missing space, and the shouted unit a real invocation produces. That
+        includes the English plural of *patch*: someone writing ``"3 patches"`` in a CI config means the same
+        window as ``"3 patch"``, and rejecting it sends them hunting through the source for the spelling.
         """
         assert _parse_grace_window(spec) == expected
 

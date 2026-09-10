@@ -929,8 +929,12 @@ class VersionBump(str, enum.Enum):
 
 
 #: Accepted ``min_grace`` spelling — a count followed by a :class:`~deprecate.audit.VersionBump` unit,
-#: singular or plural (``"1 minor"``, ``"2 minors"``, ``"1major"``).
-_GRACE_WINDOW_PATTERN = re.compile(r"^\s*(?P<count>\d+)\s*(?P<unit>major|minor|patch)s?\s*$", re.IGNORECASE)
+#: singular or plural (``"1 minor"``, ``"2 minors"``, ``"1major"``).  The plural suffix is ``(?:e?s)?`` rather
+#: than ``s?`` so the English plural of *patch* — ``"3 patches"``, the spelling anyone writes by hand — parses
+#: too.  ``unit`` still captures the bare singular word, which is what :class:`~deprecate.audit.VersionBump`
+#: is constructed from; the suffix group is non-capturing and deliberately permissive, since the point is to
+#: accept what a human typed, not to police plural forms.
+_GRACE_WINDOW_PATTERN = re.compile(r"^\s*(?P<count>\d+)\s*(?P<unit>major|minor|patch)(?:e?s)?\s*$", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -957,7 +961,7 @@ def _parse_grace_window(min_grace: str) -> tuple[int, VersionBump]:
 
     Args:
         min_grace: Grace-window specification — a non-negative integer followed by ``major``, ``minor``,
-            or ``patch`` (singular or plural).
+            or ``patch``, singular or plural (``"2 minors"``, ``"3 patches"``).
 
     Returns:
         Tuple of the required count and the :class:`~deprecate.audit.VersionBump` unit it is counted in.
@@ -970,6 +974,8 @@ def _parse_grace_window(min_grace: str) -> tuple[int, VersionBump]:
         (1, <VersionBump.MINOR: 'minor'>)
         >>> _parse_grace_window("2 majors")
         (2, <VersionBump.MAJOR: 'major'>)
+        >>> _parse_grace_window("3 patches")
+        (3, <VersionBump.PATCH: 'patch'>)
 
     """
     match = _GRACE_WINDOW_PATTERN.match(min_grace)
