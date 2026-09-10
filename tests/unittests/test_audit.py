@@ -1565,6 +1565,9 @@ class TestSatisfiesRemovalCadence:
             pytest.param("2.1.3", VersionBump.PATCH, True, id="patch-cadence-allows-everything"),
             pytest.param("2.0rc1", VersionBump.MAJOR, True, id="pre-release-of-a-major"),
             pytest.param("1!2.0", VersionBump.MAJOR, True, id="epoch-does-not-change-release-shape"),
+            pytest.param("2", VersionBump.MAJOR, True, id="bare-major-without-minor-or-patch"),
+            pytest.param("2.0.0.1", VersionBump.MAJOR, False, id="fourth-component-under-major-cadence"),
+            pytest.param("2.1.0.1", VersionBump.MINOR, False, id="fourth-component-under-minor-cadence"),
         ],
     )
     @_requires_packaging
@@ -1573,6 +1576,8 @@ class TestSatisfiesRemovalCadence:
 
         A team that promises "breaking changes only in majors" needs ``2.0.1`` rejected even though it is far
         past the deprecation; the rule reads the version shape, which is exactly the promise callers rely on.
+        PEP 440 allows more than three release components, and a project on a four-part scheme ships ``2.0.0.1``
+        as a follow-up release — reading only ``minor``/``micro`` would wave it through as a clean major.
         """
         assert _satisfies_removal_cadence(_parse_version(remove_in), cadence) is expected
 

@@ -1104,6 +1104,12 @@ def _satisfies_removal_cadence(remove_ver: "Version", cadence: VersionBump) -> b
     — it is the same release line — and the PEP 440 epoch, which never changes a version's release shape, is
     ignored.
 
+    *Every* release component past the permitted level has to be zero, not just the two that
+    :attr:`~packaging.version.Version.minor` and :attr:`~packaging.version.Version.micro` expose: PEP 440 allows
+    arbitrarily many, and a four-component ``2.0.0.1`` is as much a follow-up release as ``2.0.1`` is. Reading the
+    ``release`` tuple keeps short versions working as well — ``Version("2").release`` is ``(2,)``, whose slice past
+    the major is empty and vacuously all-zero, which is the right answer for a bare major.
+
     Args:
         remove_ver: Version the wrapper is scheduled for removal in.
         cadence: Release level removals are restricted to.
@@ -1113,9 +1119,9 @@ def _satisfies_removal_cadence(remove_ver: "Version", cadence: VersionBump) -> b
 
     """
     if cadence is VersionBump.MAJOR:
-        return remove_ver.minor == 0 and remove_ver.micro == 0
+        return all(part == 0 for part in remove_ver.release[1:])
     if cadence is VersionBump.MINOR:
-        return remove_ver.micro == 0
+        return all(part == 0 for part in remove_ver.release[2:])
     return True
 
 
