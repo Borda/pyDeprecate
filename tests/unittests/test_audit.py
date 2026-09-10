@@ -1656,12 +1656,27 @@ class TestValidateDeprecationPolicy:
         """Every governance rule fires on the wrapper that breaks it, and reports it under its own slug.
 
         This is the reviewer-facing contract: a PR that schedules a removal one patch after the deprecation, or
-        warns without naming a replacement, has to come back with a message naming *which* policy it broke.
+        warns without naming a replacement, has to come back with a message naming *which* policy it broke. The
+        sweep runs with every rule switched on, including the opt-in future-dating one, so each fixture is judged
+        by the rule it was written for.
         """
-        violations = validate_deprecation_policy("tests.collection_policy", "2.0", recursive=False)
+        violations = validate_deprecation_policy(
+            "tests.collection_policy", "2.0", recursive=False, deprecated_in_not_future=True
+        )
         matching = [v for v in violations if wrapper_name in v]
         assert len(matching) == 1
         assert matching[0].startswith(f"[{rule.value}]")
+
+    @_requires_packaging
+    def test_future_dating_rule_is_off_by_default(self) -> None:
+        """A ``deprecated_in`` ahead of the released version is not reported unless the rule is asked for.
+
+        Stamping a wrapper with the release it will ship in is the ordinary development workflow — the version is
+        ahead of the published one until that release is cut — so a default-on rule would flag routine PRs and
+        train the team to ignore the gate.
+        """
+        violations = validate_deprecation_policy("tests.collection_policy", "2.0", recursive=False)
+        assert not [v for v in violations if PolicyRule.DEPRECATED_IN_NOT_FUTURE.value in v]
 
     @_requires_packaging
     def test_compliant_wrapper_is_not_reported(self) -> None:

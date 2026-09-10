@@ -1238,7 +1238,11 @@ def validate_deprecation_policy(
     min_grace: Optional[str] = "1 minor",
     remove_only_at: Optional[Union[str, VersionBump]] = "major",
     message_required: bool = True,
-    deprecated_in_not_future: bool = True,
+    # Opt-in: declaring `deprecated_in` as the *upcoming* release is idiomatic — a wrapper added during
+    # development carries the version it will ship in, which is ahead of the released one until the release
+    # lands.  Defaulting this on would flag that normal workflow on every scan.
+    # Keep in sync with the mirrored CLI default in `_cli.py` (`cmd_policy`, `deprecated_in_not_future`).
+    deprecated_in_not_future: bool = False,
 ) -> list[str]:
     """Check every deprecated wrapper in a module/package against deprecation-governance rules.
 
@@ -1247,12 +1251,13 @@ def validate_deprecation_policy(
     a removal scheduled at a patch release, a warning that never names a replacement, or a ``deprecated_in`` that
     is ahead of the released version, all at review time instead of in a downstream issue.
 
-    Four rules are checked, each independently disable-able (``None``/``False``):
+    Four rules are checked, each independently switchable (``None``/``False`` disables, ``True`` enables):
 
     - ``min_grace`` — minimum distance between ``deprecated_in`` and ``remove_in`` (default ``"1 minor"``).
     - ``remove_only_at`` — release level removals are allowed at (default ``"major"``).
     - ``message_required`` — every wrapper must name a replacement (target, mapping, or custom template).
-    - ``deprecated_in_not_future`` — ``deprecated_in`` must not be ahead of *current_version*.
+    - ``deprecated_in_not_future`` — ``deprecated_in`` must not be ahead of *current_version* (**opt-in**,
+      default ``False``).
 
     Args:
         module: A Python module or package to scan — an imported module object or a string module path.
@@ -1265,7 +1270,11 @@ def validate_deprecation_policy(
         remove_only_at: Release level removals are restricted to (``"major"``, ``"minor"``, ``"patch"``, or a
             :class:`~deprecate.audit.VersionBump`), or ``None`` to skip the rule.
         message_required: Require migration guidance on every wrapper.
-        deprecated_in_not_future: Require ``deprecated_in`` to be at or behind *current_version*.
+        deprecated_in_not_future: Require ``deprecated_in`` to be at or behind *current_version*. Opt-in
+            (default False): a wrapper landed during development legitimately records the release it will
+            ship in, which stays ahead of the released version until that release is cut, so enabling this
+            by default would flag the ordinary "deprecate now, release later" workflow. Turn it on for a
+            project that stamps ``deprecated_in`` only with already-published versions.
 
     Returns:
         List of violation messages, each prefixed with its :class:`~deprecate.audit.PolicyRule` slug.
@@ -1287,6 +1296,15 @@ def validate_deprecation_policy(
         ... )
         >>> any("remove-only-at" in v for v in violations)
         False
+
+        >>> # The future-dating rule is the one opt-in rule — off unless asked for
+        >>> any("deprecated-in-not-future" in v for v in violations)
+        False
+        >>> violations = validate_deprecation_policy(
+        ...     "tests.collection_policy", "2.0", recursive=False, deprecated_in_not_future=True
+        ... )
+        >>> any("deprecated-in-not-future" in v for v in violations)
+        True
 
     !!! note
         - The ``remove_only_at="major"`` default suits a project past ``1.0``; on a ``0.x`` line the minor is the
