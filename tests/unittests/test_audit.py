@@ -1735,6 +1735,34 @@ class TestValidateDeprecationPolicy:
         with pytest.warns(UserWarning, match="unparsable `remove_in`"):
             assert _check_policy_for_callables([info], "2.0", spec) == []
 
+    @pytest.mark.parametrize(
+        ("deprecated_in", "remove_in"),
+        [
+            pytest.param("1.0", "1!1.0", id="epoch-raised"),
+            pytest.param("1!1.0", "2.0", id="epoch-dropped"),
+        ],
+    )
+    @_requires_packaging
+    def test_epoch_change_warns_and_skips_the_grace_window(self, deprecated_in: str, remove_in: str) -> None:
+        """A removal that crosses a PEP 440 epoch is reported as unmeasurable instead of quietly passing.
+
+        An epoch bump is how a project restarts its numbering after changing versioning schemes, and release
+        numbers either side of one are not comparable — ``2.0`` is *older* than ``1!1.0``. Letting the epoch
+        clear the window silently would stamp a wrapper that gave callers no warning cycle at all as
+        policy-clean, so the skip has to be visible to whoever reads the CI log.
+        """
+        info = DeprecationWrapperInfo(
+            module="pkg",
+            function="epoch_switch",
+            deprecated_info=DeprecationConfig(deprecated_in=deprecated_in, remove_in=remove_in, target=str),
+        )
+        spec = _build_policy_spec("1 minor", None, False, False)
+
+        with pytest.warns(UserWarning, match="epoch"):
+            violations = _check_policy_for_callables([info], "2.0", spec)
+
+        assert not [v for v in violations if PolicyRule.MIN_GRACE.value in v]
+
     @_requires_packaging
     def test_unresolved_current_version_keeps_version_distance_rules(self) -> None:
         """Without a current version the future-dating rule is skipped while the other rules still run.

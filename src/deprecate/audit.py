@@ -1054,7 +1054,9 @@ def _satisfies_grace_window(deprecated_ver: "Version", remove_ver: "Version", co
     A coarser bump always clears a finer-grained window: a wrapper deprecated in ``1.2`` and removed in ``2.0``
     satisfies ``"1 minor"`` even though its minor number went *down*, because the major release is the bigger step.
     A PEP 440 epoch change is the coarsest bump of all — ``1!1.0`` sorts above every epoch-``0`` version regardless
-    of its release numbers, so the epoch is compared first and settles the answer whenever the two differ.
+    of its release numbers, so the epoch is compared first and settles the answer whenever the two differ. That
+    ordering keeps this predicate total for any pair of versions; the policy path does not rely on it, because
+    :func:`_grace_window_violation` warns and skips the wrapper before an epoch change ever reaches here.
 
     **The shortcut does not multiply by** ``count``. A coarser bump clears the window whatever the count asks for:
     ``"3 minors"`` is satisfied by the single major bump ``1.2`` → ``2.0`` exactly as ``"1 minor"`` is, and any
@@ -1093,6 +1095,56 @@ def _satisfies_grace_window(deprecated_ver: "Version", remove_ver: "Version", co
     if new[:2] != old[:2]:
         return new[:2] > old[:2]
     return new[2] - old[2] >= count
+
+
+def _grace_window_violation(
+    info: DeprecationWrapperInfo,
+    deprecated_ver: "Version",
+    remove_ver: "Version",
+    count: int,
+    unit: VersionBump,
+) -> Optional[str]:
+    """Return the ``min-grace`` violation message for one wrapper, or ``None`` when it passes or is skipped.
+
+    Kept separate from :func:`_satisfies_grace_window` so the arithmetic stays a pure predicate while the one
+    case that cannot be measured — a PEP 440 epoch change between the two versions — is surfaced to the user
+    instead of being settled by the predicate's ordering rule.
+
+    Release numbers are only comparable inside one epoch: ``2.0`` is *older* than ``1!1.0``, and the distance
+    between them is not expressible in majors, minors, or patches at all. An epoch bump would otherwise clear
+    every grace window silently, so a wrapper that in fact gave callers no warning cycle at all would read as
+    policy-clean. The check therefore warns and reports the rule as skipped for that wrapper, the same treatment
+    an unparsable version string gets in :func:`_parse_policy_version`. This also means an epoch that moves
+    *backwards* is now skipped rather than reported as a too-short window — an inverted epoch is a versioning
+    mistake of its own, not a grace-window measurement.
+
+    Args:
+        info: Wrapper being checked; named in the violation message and in the skip warning.
+        deprecated_ver: Parsed version the wrapper was deprecated in.
+        remove_ver: Parsed version the wrapper is scheduled for removal in.
+        count: Minimum number of bumps the policy requires.
+        unit: Version component the bumps are counted in.
+
+    Returns:
+        The violation message, or ``None`` when the window is satisfied or the check was skipped.
+
+    """
+    config = info.deprecated_info
+    if deprecated_ver.epoch != remove_ver.epoch:
+        warnings.warn(
+            f"{_format_subject(info)} spans a PEP 440 epoch change between `deprecated_in`"
+            f" `{config.deprecated_in}` and `remove_in` `{config.remove_in}`; version distance is not"
+            " comparable across epochs, so the `min-grace` check is skipped for it.",
+            stacklevel=2,
+        )
+        return None
+    if _satisfies_grace_window(deprecated_ver, remove_ver, count, unit):
+        return None
+    return (
+        f"[{PolicyRule.MIN_GRACE.value}] {_format_subject(info)} is deprecated in `{config.deprecated_in}`"
+        f" and already scheduled for removal in `{config.remove_in}`;"
+        f" the policy requires a grace window of at least {count} {unit.value}."
+    )
 
 
 def _satisfies_removal_cadence(remove_ver: "Version", cadence: VersionBump) -> bool:
@@ -1180,13 +1232,9 @@ def _policy_violations_for_wrapper(
     violations = []
 
     if spec.grace is not None and deprecated_ver is not None and remove_ver is not None:
-        count, unit = spec.grace
-        if not _satisfies_grace_window(deprecated_ver, remove_ver, count, unit):
-            violations.append(
-                f"[{PolicyRule.MIN_GRACE.value}] {_format_subject(info)} is deprecated in `{config.deprecated_in}`"
-                f" and already scheduled for removal in `{config.remove_in}`;"
-                f" the policy requires a grace window of at least {count} {unit.value}."
-            )
+        grace_violation = _grace_window_violation(info, deprecated_ver, remove_ver, *spec.grace)
+        if grace_violation is not None:
+            violations.append(grace_violation)
 
     cadence = spec.removal_cadence
     if cadence is not None and remove_ver is not None and not _satisfies_removal_cadence(remove_ver, cadence):
