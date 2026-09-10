@@ -1233,8 +1233,14 @@ def _policy_violations_for_wrapper(
 
     """
     config = info.deprecated_info
-    deprecated_ver = _parse_policy_version(config.deprecated_in, info, "deprecated_in")
-    remove_ver = _parse_policy_version(config.remove_in, info, "remove_in")
+    # Parse a version field only when a rule that reads it is switched on. With every consumer disabled the
+    # parse is pure cost — and, on an install without ``packaging``, an ImportError raised for a rule the
+    # caller never asked to run. Keeping the parse lazy is what lets a ``message_required``-only policy work
+    # with no version machinery at all, while a version-dependent rule still surfaces the install hint.
+    needs_deprecated = spec.grace is not None or spec.deprecated_in_not_future
+    needs_remove = spec.grace is not None or spec.removal_cadence is not None
+    deprecated_ver = _parse_policy_version(config.deprecated_in, info, "deprecated_in") if needs_deprecated else None
+    remove_ver = _parse_policy_version(config.remove_in, info, "remove_in") if needs_remove else None
     violations = []
 
     if spec.grace is not None and deprecated_ver is not None and remove_ver is not None:
@@ -1268,29 +1274,41 @@ def _policy_violations_for_wrapper(
 
 
 def _check_policy_for_callables(
-    results: list[DeprecationWrapperInfo], current_version: Optional[str], spec: _PolicySpec
+    results: list[DeprecationWrapperInfo],
+    current_version: Optional[str],
+    spec: _PolicySpec,
+    *,
+    version_explicit: bool = False,
 ) -> list[str]:
     """Apply the policy rules to pre-scanned wrapper results.
 
     Shared implementation used by :func:`validate_deprecation_policy` and the CLI's single-scan path, keeping
     the violation-message format in one place.
 
+    Version parsing is lazy: a version string is only turned into a :class:`~packaging.version.Version` when
+    an enabled rule reads it. A policy that runs ``message_required`` alone therefore needs no ``packaging``
+    install at all, while any version-dependent rule still raises the usual install hint.
+
     Args:
         results: Pre-scanned wrapper info list.
         current_version: Current package version string (PEP 440), or ``None`` when unresolved — only the
-            ``deprecated-in-not-future`` rule needs it.
+            ``deprecated-in-not-future`` rule reads it.
         spec: Parsed policy configuration.
+        version_explicit: Whether *current_version* came from the caller rather than from auto-detection.
+            A caller-supplied version is a boundary input and is validated even when no enabled rule reads
+            it; an auto-detected one is parsed only when the ``deprecated-in-not-future`` rule needs it, so
+            an unparsable version stamped on an installed package cannot break an unrelated policy run.
 
     Returns:
         List of violation messages across all wrappers.
 
     Raises:
-        ImportError: If the ``packaging`` library is not installed.
-        ValueError: If ``current_version`` is given but not parseable.
+        ImportError: If a rule needs a parsed version and the ``packaging`` library is not installed.
+        ValueError: If *current_version* is parsed (see *version_explicit*) and is not valid PEP 440.
 
     """
     current_ver = None
-    if current_version is not None:
+    if current_version is not None and (version_explicit or spec.deprecated_in_not_future):
         try:
             current_ver = _parse_version(current_version)
         except ValueError as err:
@@ -1358,8 +1376,12 @@ def validate_deprecation_policy(
         Empty list when every wrapper satisfies the enabled rules.
 
     Raises:
-        ImportError: If the ``packaging`` library is not installed (``pip install pyDeprecate[audit]``).
-        ValueError: If a policy argument or *current_version* is not a valid specification.
+        ImportError: If a rule that compares versions (``min_grace``, ``remove_only_at``,
+            ``deprecated_in_not_future``) is enabled and the ``packaging`` library is not installed
+            (``pip install pyDeprecate[audit]``). A policy reduced to ``message_required`` alone parses no
+            version and runs without it.
+        ValueError: If a policy argument is not a valid specification, or *current_version* was passed
+            explicitly and is not valid PEP 440.
 
     Examples:
         >>> from deprecate import validate_deprecation_policy
@@ -1396,6 +1418,10 @@ def validate_deprecation_policy(
     """
     spec = _build_policy_spec(min_grace, remove_only_at, message_required, deprecated_in_not_future)
 
+    # Record who supplied the version *before* auto-detection overwrites the answer: a version the caller
+    # typed is validated unconditionally, an auto-detected one only when a rule actually reads it.
+    version_explicit = current_version is not None
+
     module_name = module if isinstance(module, str) else getattr(module, "__name__", None)
     if current_version is None and module_name:
         # A missing version only disables the ``deprecated-in-not-future`` rule, so an undetectable
@@ -1410,6 +1436,7 @@ def validate_deprecation_policy(
         find_deprecation_wrappers(module, recursive=recursive, include_members=include_members),
         current_version,
         spec,
+        version_explicit=version_explicit,
     )
 
 

@@ -7,7 +7,7 @@ import importlib.util
 import types
 import warnings
 from functools import cached_property
-from typing import Union
+from typing import NoReturn, Union
 
 import pytest
 
@@ -1793,3 +1793,75 @@ class TestValidateDeprecationPolicy:
         spec = _build_policy_spec(None, None, False, True)
         with pytest.raises(ValueError, match="Invalid current_version"):
             _check_policy_for_callables([], "not.a.version!!", spec)
+
+
+def _reject_version_parse(_version_string: str) -> NoReturn:
+    """Stand in for ``_parse_version`` on an install that lacks the optional ``packaging`` library."""
+    raise ImportError(
+        "Version comparison requires the 'packaging' library. Install with: pip install pyDeprecate[audit]"
+    )
+
+
+class TestPolicyVersionParsingIsLazy:
+    """A version string is only parsed when a switched-on rule actually reads it."""
+
+    def test_guidance_only_policy_needs_no_version_machinery(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A ``message_required``-only policy reports its violations without the ``packaging`` library.
+
+        A team installs the package without the ``[audit]`` extra and gates CI on one promise — every
+        deprecation names a replacement. No version comparison is enabled, so demanding ``packaging`` there
+        would turn a check that needs no version arithmetic into an install error.
+        """
+        monkeypatch.setattr("deprecate.audit._parse_version", _reject_version_parse)
+        info = DeprecationWrapperInfo(
+            module="pkg",
+            function="warns_without_replacement",
+            deprecated_info=DeprecationConfig(deprecated_in="1.0", remove_in="2.0", target=TargetMode.NOTIFY),
+        )
+        spec = _build_policy_spec(None, None, True, False)
+
+        violations = _check_policy_for_callables([info], "2.0", spec)
+
+        assert [v for v in violations if PolicyRule.MESSAGE_REQUIRED.value in v]
+
+    def test_version_rule_still_reports_missing_packaging(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """With a version-comparison rule switched on, a missing ``packaging`` still surfaces the install hint.
+
+        The same CI job turns the grace window back on. That rule cannot be evaluated without version
+        arithmetic, so skipping it silently would report a green gate that checked nothing — the ImportError,
+        which the CLI renders as an install hint, is the honest answer.
+        """
+        monkeypatch.setattr("deprecate.audit._parse_version", _reject_version_parse)
+        info = DeprecationWrapperInfo(
+            module="pkg",
+            function="no_grace_window",
+            deprecated_info=DeprecationConfig(deprecated_in="2.0", remove_in="2.0", target=str),
+        )
+        spec = _build_policy_spec("1 minor", None, False, False)
+
+        with pytest.raises(ImportError, match="packaging"):
+            _check_policy_for_callables([info], "2.0", spec)
+
+    @_requires_packaging
+    def test_caller_supplied_version_is_validated_with_version_rules_off(self) -> None:
+        """A malformed version the caller passed in is rejected even when no enabled rule would read it.
+
+        The value normally arrives from a CI variable, so a typo has to fail at the call site; letting it
+        through would leave the pipeline believing it validated a version that was never looked at, until
+        someone enables the future-dating rule months later and the error surfaces in an unrelated PR.
+        """
+        spec = _build_policy_spec(None, None, True, False)
+
+        with pytest.raises(ValueError, match="Invalid current_version"):
+            _check_policy_for_callables([], "not.a.version!!", spec, version_explicit=True)
+
+    def test_auto_detected_version_is_left_alone_when_no_rule_reads_it(self) -> None:
+        """An unparsable *installed* version does not break a policy run that never consults it.
+
+        A package built from a checkout can advertise a non-PEP-440 version (a ``git describe`` string, for
+        one). Nobody asked for that version — it was auto-detected — so with every version rule off the
+        guidance rules must still run instead of the gate dying on a value it does not need.
+        """
+        spec = _build_policy_spec(None, None, True, False)
+
+        assert _check_policy_for_callables([], "not.a.version!!", spec) == []
