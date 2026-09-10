@@ -39,6 +39,7 @@ from deprecate.audit import (
     _build_policy_spec,
     _check_expiry_for_callables,
     _check_policy_for_callables,
+    _parse_version,
     find_deprecation_wrappers,
     generate_deprecation_table,
     validate_deprecation_chains,
@@ -406,6 +407,37 @@ def _is_missing_packaging_import_error(error: ImportError) -> bool:
     return "No module named 'packaging'" in str(error)
 
 
+def _validate_user_version(version: Optional[str]) -> Optional[int]:
+    """Reject a malformed user-supplied ``--version`` before any subcommand does real scan work.
+
+    Applies only to a value the user actually typed — ``expiry``, ``policy``, and ``all`` previously
+    let a bad ``--version`` fall through to whichever internal call happened to parse it first, exiting
+    1 (via the top-level exception handler) in some subcommands and 2 (a validated-argument error, like
+    a bad ``--min-grace``) in others. Validating it once, up front, in all three makes a malformed
+    ``--version`` exit 2 everywhere. An *auto-detected* version that happens to be malformed is not a
+    usage error and is untouched — it keeps its existing advisory/exception handling deeper in the scan.
+
+    Args:
+        version: The raw ``--version`` string the user supplied, or ``None`` when omitted (auto-detect).
+
+    Returns:
+        ``2`` when *version* is given but fails PEP 440 parsing; ``None`` when it is valid, omitted, or
+        when the ``packaging`` library is unavailable (each subcommand's own advisory ImportError
+        fallback already handles that case).
+
+    """
+    if version is None:
+        return None
+    try:
+        _parse_version(version)
+    except ImportError:
+        return None
+    except ValueError as err:
+        _print(f"Invalid `--version` {version!r}: {err}", stderr=True)
+        return 2
+    return None
+
+
 def _skipped_policy_rules(spec: "_PolicySpec") -> list[str]:
     """Return the CLI-facing slugs of the version-dependent policy rules *spec* has enabled.
 
@@ -551,12 +583,16 @@ def cmd_expiry(
 
     Returns:
         0 on success or when the ``packaging`` library is unavailable; 1 when expired
-        wrappers are found and ``exit_zero`` is False.
+        wrappers are found and ``exit_zero`` is False; 2 when a user-supplied ``--version``
+        is not a valid PEP 440 version string.
 
     """
     # Fire auto-converts numeric-looking strings (e.g. "1.0" → float); normalise to str.
     if version is not None:
         version = str(version)
+        err_code = _validate_user_version(version)
+        if err_code is not None:
+            return err_code
     if _wrappers is None:
         # Standalone path: full scan + version auto-detect inside _do_expiry.
         resolved_version = version if version is not None else _auto_detect_version(_safe_module_name(path), path=path)
@@ -639,12 +675,16 @@ def cmd_policy(
     Returns:
         0 on success, or when every enabled rule needing ``packaging`` is skipped due to it being
         unavailable and no packaging-free rule finds a violation; 1 when violations are found (including
-        from a still-running ``message_required`` check) and ``exit_zero`` is False.
+        from a still-running ``message_required`` check) and ``exit_zero`` is False; 2 when a
+        user-supplied ``--version`` is not a valid PEP 440 version string.
 
     """
     # Fire auto-converts numeric-looking strings (e.g. "1.0" → float); normalise to str.
     if version is not None:
         version = str(version)
+        err_code = _validate_user_version(version)
+        if err_code is not None:
+            return err_code
     if min_grace is not None:
         min_grace = str(min_grace)
     try:
@@ -741,12 +781,16 @@ def cmd_all(
 
     Returns:
         0 when the check, expiry, and chain gates pass or ``exit_zero`` is True; 1 when any of them finds a hard
-        error. Policy violations are advisory here and never contribute to this code.
+        error; 2 when a user-supplied ``--version`` is not a valid PEP 440 version string.
+        Policy violations are advisory here and never contribute to this code.
         The deprecation table is always appended regardless of pass/fail outcome.
 
     """
     if version is not None:
         version = str(version)
+        err_code = _validate_user_version(version)
+        if err_code is not None:
+            return err_code
     version_path = path if Path(path).exists() else None
     resolved_version = (
         version if version is not None else _auto_detect_version(_safe_module_name(path), path=version_path)
