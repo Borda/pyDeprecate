@@ -1382,7 +1382,9 @@ def validate_deprecation_policy(
           breaking cadence, so pass ``remove_only_at="minor"`` there instead of switching the rule off.
         - Wrappers missing ``deprecated_in`` or ``remove_in`` are not violations here — the version-distance
           rules simply skip them (a deprecation without a scheduled removal is a valid, common choice).
-        - An unparsable version string emits a ``UserWarning`` per skip rather than aborting the scan.
+        - An unparsable version string emits a ``UserWarning`` per skip rather than aborting the scan; a grace
+          window whose two versions sit in different PEP 440 epochs is skipped and warned about the same way,
+          since release numbers are not comparable across an epoch change.
         - Intended for the same CI slot as the expiry gate; the CLI exposes it as ``pydeprecate policy``.
 
     """
