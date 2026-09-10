@@ -50,7 +50,7 @@ pydeprecate status tests --version 1.2
 
     !!! note "Chain handling differs in `all`"
 
-        `check` treats chains as advisory warnings (exit 0). `all` treats chains as hard errors (exit 1), because `all` ≡ `check + expiry + chains` and `chains` exits 1 on any chain found.
+        `check` treats chains as advisory warnings (exit 0). `all` treats chains as hard errors (exit 1), because `all` ≡ `check + expiry + policy + chains` and `chains` exits 1 on any chain found — `policy` remains advisory even inside `all`.
 
 === "expiry"
 
@@ -109,7 +109,7 @@ pydeprecate status tests --version 1.2
     pydeprecate all path/to/your/package
     ```
 
-    Exit 1 if any hard error is found: invalid argument mappings, deprecated-to-deprecated chains, or expired wrappers. **Policy violations are advisory here** — they are printed but never contribute to the exit code, because the policy defaults encode a project convention that not every repository shares; run `pydeprecate policy` as its own CI step to gate on them. If `packaging` is not installed, expiry is skipped with a warning and does not cause exit `1`. The deprecation table is always appended regardless of pass/fail outcome.
+    Exit 1 if any hard error is found: invalid argument mappings, deprecated-to-deprecated chains, or expired wrappers. **Policy violations are advisory here** — they are printed but never contribute to the exit code, because the policy defaults encode a project convention that not every repository shares; run `pydeprecate policy` as its own CI step to gate on them. If `packaging` is not installed, both `expiry` and `policy` are skipped with a warning and do not cause exit `1`. The deprecation table is always appended regardless of pass/fail outcome.
 
 === "status"
 
