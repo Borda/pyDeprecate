@@ -92,13 +92,13 @@ For CI audit features that compare version strings:
 pip install 'pyDeprecate[audit]'
 ```
 
-!!! tip "The `[audit]` extra is only needed for `validate_deprecation_expiry`"
+!!! tip "The `[audit]` extra is only needed for `validate_deprecation_expiry` and `validate_deprecation_policy`"
 
     The base install gives you `@deprecated`, `@deprecated_class`, `deprecated_instance`, and all other audit functions. Only `validate_deprecation_expiry()` and `validate_deprecation_policy()` need the extra because they pull in `packaging` for PEP 440 version comparison.
 
 !!! tip "Use `[audit,cli]` for command-line audit workflows"
 
-    The `pydeprecate` command itself lives in the `[cli]` extra, but `pydeprecate expiry` and the expiry phase of `pydeprecate all` also need `[audit]`. Start with `pip install 'pyDeprecate[audit,cli]'` unless you only need Python API calls.
+    The `pydeprecate` command itself lives in the `[cli]` extra, but `pydeprecate expiry`, `pydeprecate policy`, and the expiry/policy phases of `pydeprecate all` also need `[audit]`. Start with `pip install 'pyDeprecate[audit,cli]'` unless you only need Python API calls.
 
 ## Comparison with other tools
 

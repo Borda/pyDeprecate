@@ -13,7 +13,7 @@ The `pydeprecate` CLI lets you run all four [audit checks](audit.md) — wrapper
 pip install 'pyDeprecate[audit,cli]'
 ```
 
-Start with `[audit,cli]` unless you are certain you will never use `expiry` or `all`. The `[audit]` extra pulls in `packaging`, which `expiry` and the expiry phase of `all` require.
+Start with `[audit,cli]` unless you are certain you will never use `expiry`, `policy`, or `all`. The `[audit]` extra pulls in `packaging`, which `expiry` always requires, and which `policy` (and the policy phase of `all`) needs only when a wrapper's `deprecated_in`/`remove_in` is actually compared against a version — a policy scan with no version fields set never imports it.
 
 ## Quick start
 
