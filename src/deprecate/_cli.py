@@ -21,7 +21,7 @@ import importlib.util
 import sys
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from deprecate._pkg import (
     _auto_detect_version,
@@ -33,6 +33,7 @@ from deprecate._pkg import (
 )
 from deprecate.audit import (
     DeprecationWrapperInfo,
+    PolicyRule,
     TableStyle,
     VersionBump,
     _build_policy_spec,
@@ -43,6 +44,9 @@ from deprecate.audit import (
     validate_deprecation_chains,
     validate_deprecation_expiry,
 )
+
+if TYPE_CHECKING:
+    from deprecate.audit import _PolicySpec
 
 
 def _is_package_available(name: str) -> bool:
@@ -395,6 +399,64 @@ def _is_missing_packaging_import_error(error: ImportError) -> bool:
     return "No module named 'packaging'" in str(error)
 
 
+def _skipped_policy_rules(spec: "_PolicySpec") -> list[str]:
+    """Return the CLI-facing slugs of the version-dependent policy rules *spec* has enabled.
+
+    These are exactly the rules that cannot run without the ``packaging`` library — used to name them in the advisory
+    printed when ``packaging`` turns out to be unavailable.
+
+    """
+    return [
+        rule.value
+        for enabled, rule in (
+            (spec.grace is not None, PolicyRule.MIN_GRACE),
+            (spec.removal_cadence is not None, PolicyRule.REMOVE_ONLY_AT),
+            (spec.deprecated_in_not_future, PolicyRule.DEPRECATED_IN_NOT_FUTURE),
+        )
+        if enabled
+    ]
+
+
+def _policy_violations_without_packaging(
+    wrappers: list[DeprecationWrapperInfo], spec: "_PolicySpec"
+) -> Optional[list[str]]:
+    """Handle a missing-``packaging`` failure from :func:`_check_policy_for_callables`.
+
+    Prints an advisory naming exactly the version-dependent rule(s) *spec* had enabled (``min_grace``,
+    ``remove_only_at``, ``deprecated_in_not_future``) — these are skipped. ``message_required`` needs no
+    version parsing, so when it is enabled it is re-run standalone and its violations still gate the exit
+    code; only the fully-disabled or still-blocked cases fall through to an advisory no-op.
+
+    Args:
+        wrappers: Pre-scanned wrapper list to re-check for ``message_required`` alone.
+        spec: The originally requested (unsatisfiable) policy configuration.
+
+    Returns:
+        The ``message_required``-only violations list, or ``None`` when there is nothing left to check
+        (``message_required`` disabled, or the audit engine still needs ``packaging`` even for it).
+
+    """
+    skipped_rules = _skipped_policy_rules(spec)
+    _print(
+        f"The `packaging` library is required for the {', '.join(f'`{r}`' for r in skipped_rules)} policy "
+        "rule(s); skipping them.\nInstall it with: `pip install 'pyDeprecate[audit]'`",
+        stderr=True,
+    )
+    if not spec.message_required:
+        return None
+    # `message_required` needs no version parsing at all — rerun with the version-dependent rules
+    # disabled and no current_version (avoids re-triggering the same ImportError).
+    message_only_spec = _build_policy_spec(None, None, True, False)
+    try:
+        return _check_policy_for_callables(wrappers, None, message_only_spec)
+    except ImportError as inner_exc:
+        if not _is_missing_packaging_import_error(inner_exc):
+            raise
+        # `audit`'s policy engine still needs `packaging` even for a message-required-only scan —
+        # degrade to a fully advisory no-op rather than crashing.
+        return None
+
+
 # ---------------------------------------------------------------------------
 # Subcommand functions
 # ---------------------------------------------------------------------------
@@ -544,8 +606,12 @@ def cmd_policy(
     responsibly: a removal deadline that leaves callers no grace window, a removal scheduled at a patch
     release, a warning that never names a replacement, or a ``deprecated_in`` ahead of the released version.
 
-    Requires the ``packaging`` library: ``pip install 'pyDeprecate[audit]'``.
-    A missing ``packaging`` library is treated as advisory (returns 0 with a warning).
+    The ``min-grace``, ``remove-only-at``, and ``deprecated-in-not-future`` rules need the ``packaging``
+    library (``pip install 'pyDeprecate[audit]'``) for version comparison; ``message-required`` does not.
+    When ``packaging`` is unavailable, only the enabled version-dependent rule(s) are skipped (advisory
+    warning naming which ones); ``message_required`` still runs and gates the exit code normally. The gate
+    only fully no-ops (return 0 with a warning) when a skipped version-dependent rule was requested and
+    ``message_required`` is also disabled.
 
     Args:
         path: Path to the module, package directory, or importable module name to scan.
@@ -564,8 +630,9 @@ def cmd_policy(
             parameter from the Fire CLI (internal use by ``cmd_all`` only).
 
     Returns:
-        0 on success or when the ``packaging`` library is unavailable; 1 when violations are found and
-        ``exit_zero`` is False.
+        0 on success, or when every enabled rule needing ``packaging`` is skipped due to it being
+        unavailable and no packaging-free rule finds a violation; 1 when violations are found (including
+        from a still-running ``message_required`` check) and ``exit_zero`` is False.
 
     """
     # Fire auto-converts numeric-looking strings (e.g. "1.0" → float); normalise to str.
@@ -589,12 +656,10 @@ def cmd_policy(
     except ImportError as exc:
         if not _is_missing_packaging_import_error(exc):
             raise
-        _print(
-            "The 'policy' subcommand requires the 'packaging' library.\n"
-            "Install it with: `pip install 'pyDeprecate[audit]'`",
-            stderr=True,
-        )
-        return 0
+        fallback = _policy_violations_without_packaging(_wrappers, spec)
+        if fallback is None:
+            return 0
+        violations = fallback
     if not violations:
         _print("No deprecation policy violations found.")
         return 0
