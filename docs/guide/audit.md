@@ -391,12 +391,12 @@ pip install 'pyDeprecate[audit]'
 
 ### The four rules
 
-| Rule slug                  | What it checks                                         | Default                         | Disable with                     |
-| -------------------------- | ------------------------------------------------------ | ------------------------------- | -------------------------------- |
-| `min-grace`                | Distance between `deprecated_in` and `remove_in`       | `min_grace="1 minor"`           | `min_grace=None`                 |
-| `remove-only-at`           | Release level the `remove_in` version lands on         | `remove_only_at="major"`        | `remove_only_at=None`            |
-| `message-required`         | The wrapper names a replacement callers can migrate to | `message_required=True`         | `message_required=False`         |
-| `deprecated-in-not-future` | `deprecated_in` is not ahead of `current_version`      | `deprecated_in_not_future=True` | `deprecated_in_not_future=False` |
+| Rule slug                  | What it checks                                                                     | Default                         | Disable with                     |
+| -------------------------- | ---------------------------------------------------------------------------------- | ------------------------------- | -------------------------------- |
+| `min-grace`                | Distance between `deprecated_in` and `remove_in`                                   | `min_grace="1 minor"`           | `min_grace=None`                 |
+| `remove-only-at`           | Release level the `remove_in` version lands on                                     | `remove_only_at="major"`        | `remove_only_at=None`            |
+| `message-required`         | The wrapper provides migration guidance (a target, a mapping, or a custom message) | `message_required=True`         | `message_required=False`         |
+| `deprecated-in-not-future` | `deprecated_in` is not ahead of `current_version`                                  | `deprecated_in_not_future=True` | `deprecated_in_not_future=False` |
 
 Every violation message is prefixed with its rule slug in square brackets — `[min-grace]`, `[remove-only-at]`, `[message-required]`, `[deprecated-in-not-future]` — so a CI log can be grouped or filtered per rule without re-parsing the prose.
 
