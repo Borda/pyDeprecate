@@ -266,36 +266,43 @@ class _Reporter:
         )
 
     @staticmethod
-    def expiry(expired: list[str]) -> None:
-        """Report deprecated wrappers that have passed their ``remove_in`` deadline."""
+    def _render_message_table(title: str, plain_prefix: str, messages: list[str]) -> None:
+        """Render a single-column Message table shared by the expiry and policy reports.
+
+        Every message is wrapped in :class:`rich.text.Text` so a ``[rule-slug]``-style prefix (used by
+        policy violation messages) is rendered literally instead of being parsed as Rich markup — this
+        also closes that gap for plain expiry messages, which previously passed raw strings.
+
+        Args:
+            title: Rich table title.
+            plain_prefix: Header line printed above the list in the no-Rich fallback.
+            messages: Message strings to render, one per row/line.
+
+        """
         if _Reporter._HAS_RICH:
-            table = _Reporter._RichTable(
-                title="Expired Deprecated Wrappers", box=_Reporter._rich_box.ROUNDED, title_style="bold red"
-            )
+            table = _Reporter._RichTable(title=title, box=_Reporter._rich_box.ROUNDED, title_style="bold red")
             table.add_column("Message", style="red")
-            for msg in expired:
-                table.add_row(msg)
+            for msg in messages:
+                table.add_row(_Reporter._RichText(msg))
             _Reporter._console().print(table)
         else:
-            _print("\n[ERROR] Found expired deprecated wrappers:")
-            for msg in expired:
+            _print(f"\n{plain_prefix}")
+            for msg in messages:
                 _print(f"\t- {msg}")
+
+    @staticmethod
+    def expiry(expired: list[str]) -> None:
+        """Report deprecated wrappers that have passed their ``remove_in`` deadline."""
+        _Reporter._render_message_table(
+            "Expired Deprecated Wrappers", "[ERROR] Found expired deprecated wrappers:", expired
+        )
 
     @staticmethod
     def policy(violations: list[str]) -> None:
         """Report wrappers that break one of the deprecation-governance policy rules."""
-        if _Reporter._HAS_RICH:
-            table = _Reporter._RichTable(
-                title="Deprecation Policy Violations", box=_Reporter._rich_box.ROUNDED, title_style="bold red"
-            )
-            table.add_column("Message", style="red")
-            for msg in violations:
-                table.add_row(_Reporter._RichText(msg))
-            _Reporter._console().print(table)
-        else:
-            _print("\n[ERROR] Found deprecation policy violations:")
-            for msg in violations:
-                _print(f"\t- {msg}")
+        _Reporter._render_message_table(
+            "Deprecation Policy Violations", "[ERROR] Found deprecation policy violations:", violations
+        )
 
     @staticmethod
     def positional_only_args(items: list[DeprecationWrapperInfo]) -> None:
