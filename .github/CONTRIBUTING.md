@@ -343,7 +343,7 @@ pyDeprecate/
 │   ├── __about__.py            # Version and metadata
 │   ├── __init__.py             # Public API exports
 │   ├── __main__.py             # python -m deprecate entry point
-│   ├── _cli.py                 # CLI subcommands: check, expiry, chains, all, status
+│   ├── _cli.py                 # CLI subcommands: check, expiry, policy, chains, all, status
 │   ├── _pkg.py                 # Version and path resolution helpers
 │   ├── _types.py               # Shared type definitions: DeprecationConfig, _ProxyConfig
 │   ├── deprecation.py          # Front door: deprecated() dispatcher (functions/methods -> routine, classes -> proxy)
