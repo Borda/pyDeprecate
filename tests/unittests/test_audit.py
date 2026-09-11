@@ -1723,6 +1723,27 @@ class TestValidateDeprecationPolicy:
         assert not [v for v in violations if "compliant_forward" in v]
 
     @_requires_packaging
+    def test_all_rules_disabled_reports_nothing_for_a_maximally_violating_wrapper(self) -> None:
+        """Disabling every governance rule silences a wrapper that would otherwise trip all four at once.
+
+        A wrapper deprecated at `9.0` and removed one patch later (`9.0.1`), warning without naming a
+        replacement, and declaring a `deprecated_in` far ahead of the current `2.0` release breaks
+        `min-grace`, `remove-only-at`, `message-required`, and `deprecated-in-not-future` simultaneously —
+        the worst case for the gate. If disabling all four flags did not also disable the check for this
+        wrapper, a project could never fully opt out of the policy gate on a single incorrigible case.
+        """
+        info = DeprecationWrapperInfo(
+            module="pkg",
+            function="everything_wrong",
+            deprecated_info=DeprecationConfig(deprecated_in="9.0", remove_in="9.0.1", target=TargetMode.NOTIFY),
+        )
+        enabled_spec = _build_policy_spec("1 minor", "major", True, True)
+        assert len(_check_policy_for_callables([info], "2.0", enabled_spec)) == 4
+
+        disabled_spec = _build_policy_spec(None, None, False, False)
+        assert _check_policy_for_callables([info], "2.0", disabled_spec) == []
+
+    @_requires_packaging
     def test_disabled_rule_stops_reporting(self) -> None:
         """Setting a rule to ``None`` removes its violations without affecting the other rules.
 
