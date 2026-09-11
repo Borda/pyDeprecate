@@ -2011,7 +2011,7 @@ ______________________________________________________________________
 
 **Q:** `pydeprecate all src/mypackage` prints a *Deprecation Policy Violations* table, but the command exits `0` and my CI step passes. Is the exit code wrong?
 
-**A:** No — that is deliberate. The policy defaults (`min_grace="1 minor"`, `remove_only_at="major"`, `message_required=True`, `deprecated_in_not_future=True`) encode *a* release convention, not a universal rule, so `all` runs the policy check in **advisory** mode: violations are printed for visibility but never contribute to `all`'s exit code. Only invalid argument mappings, deprecated-to-deprecated chains, and expired wrappers make `all` exit `1`.
+**A:** No — that is deliberate. The policy defaults (`min_grace="1 minor"`, `remove_only_at="major"`, `message_required=True`, `deprecated_in_not_future=False`) encode *a* release convention, not a universal rule, so `all` runs the policy check in **advisory** mode: violations are printed for visibility but never contribute to `all`'s exit code. Only invalid argument mappings, deprecated-to-deprecated chains, and expired wrappers make `all` exit `1`.
 
 To make the build fail on a policy violation, give `pydeprecate policy` its own CI step — its exit code is truthful (`0` clean, `1` violations, `2` a malformed rule argument):
 
@@ -2031,7 +2031,7 @@ ______________________________________________________________________
 
 **Q:** My project removes deprecated code at minor releases, not major ones, so `pydeprecate policy` flags every wrapper with `[remove-only-at]`. I do not want to abandon the other three rules to silence it.
 
-**A:** Each of the four rules is independently disabled — pass `None` for the two that take a value (`min_grace`, `remove_only_at`) or `False` for the two booleans (`message_required`, `deprecated_in_not_future`). Nothing is all-or-nothing.
+**A:** Each of the four rules is independently controlled — pass `None` for the two that take a value (`min_grace`, `remove_only_at`) or `False` to disable `message_required`. `deprecated_in_not_future` is opt-in (default `False`); pass `True` to enable it. Nothing is all-or-nothing.
 
 Before reaching for `None`, check whether **retargeting** the rule is what you actually want. The `remove_only_at="major"` default suits a project past `1.0`; on a `0.x` line the minor **is** the breaking cadence, so a `0.x` project should pass `remove_only_at="minor"` rather than switching the rule off — you keep the gate, pointed at the release level your project really breaks on. Disabling it means nothing checks your removal cadence at all.
 
@@ -2056,8 +2056,8 @@ print(f"Found {len(violations)} violations")
 <details><summary>Output: <code>f"Found {len(violations)} violations"</code></summary>
 
 ```
-Found 5 violations
 Found 4 violations
+Found 3 violations
 ```
 
 </details>

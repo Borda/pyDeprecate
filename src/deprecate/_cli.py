@@ -639,7 +639,7 @@ def cmd_policy(
     min_grace: Optional[str] = "1 minor",
     remove_only_at: Optional[str] = VersionBump.MAJOR.value,
     message_required: bool = True,
-    deprecated_in_not_future: bool = True,
+    deprecated_in_not_future: bool = False,
     *,
     _wrappers: Optional[list[DeprecationWrapperInfo]] = None,
 ) -> int:
@@ -668,7 +668,9 @@ def cmd_policy(
         remove_only_at: Release level removals are allowed at — ``major`` (default), ``minor``, or ``patch``;
             pass ``--remove-only-at=None`` to skip the rule.
         message_required: Require every wrapper to name a replacement (default True).
-        deprecated_in_not_future: Require ``deprecated_in`` to be at or behind *version* (default True).
+        deprecated_in_not_future: Require ``deprecated_in`` to be at or behind *version* (opt-in, default
+            False — a correctly-labelled ``deprecated_in`` names the version the wrapper ships in, which is
+            ahead of the working-tree version at development time).
         _wrappers: Pre-scanned wrapper list. When provided, skips the scan step. Underscore prefix hides this
             parameter from the Fire CLI (internal use by ``cmd_all`` only).
 

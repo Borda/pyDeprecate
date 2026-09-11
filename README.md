@@ -1852,12 +1852,12 @@ def enforce_deprecation_deadlines():
 
 Four rules run by default, and each one can be switched off independently:
 
-| Rule slug                  | What it checks                                         | Default                         | Disable with                     |
-| -------------------------- | ------------------------------------------------------ | ------------------------------- | -------------------------------- |
-| `min-grace`                | Distance between `deprecated_in` and `remove_in`       | `min_grace="1 minor"`           | `min_grace=None`                 |
-| `remove-only-at`           | Release level the `remove_in` version lands on         | `remove_only_at="major"`        | `remove_only_at=None`            |
-| `message-required`         | The wrapper names a replacement callers can migrate to | `message_required=True`         | `message_required=False`         |
-| `deprecated-in-not-future` | `deprecated_in` is not ahead of `current_version`      | `deprecated_in_not_future=True` | `deprecated_in_not_future=False` |
+| Rule slug                  | What it checks                                         | Default                          | Disable with                                |
+| -------------------------- | ------------------------------------------------------ | -------------------------------- | ------------------------------------------- |
+| `min-grace`                | Distance between `deprecated_in` and `remove_in`       | `min_grace="1 minor"`            | `min_grace=None`                            |
+| `remove-only-at`           | Release level the `remove_in` version lands on         | `remove_only_at="major"`         | `remove_only_at=None`                       |
+| `message-required`         | The wrapper names a replacement callers can migrate to | `message_required=True`          | `message_required=False`                    |
+| `deprecated-in-not-future` | `deprecated_in` is not ahead of `current_version`      | `deprecated_in_not_future=False` | opt in with `deprecated_in_not_future=True` |
 
 Every violation message is prefixed with its rule slug in square brackets, so a CI log can be grouped or filtered per rule. Like the expiry gate this one compares PEP 440 versions, so it needs `pip install 'pyDeprecate[audit]'`.
 
@@ -1891,14 +1891,13 @@ print(f"Found {len(violations)} violations")
   <summary>Output: <code>f"Found {len(violations)} violations"</code></summary>
 
 ```
-Found 5 violations
-[deprecated-in-not-future]
+Found 4 violations
 [message-required]
 [message-required]
 [min-grace]
 [remove-only-at]
-Found 4 violations
-Found 8 violations
+Found 3 violations
+Found 7 violations
 ```
 
 </details>

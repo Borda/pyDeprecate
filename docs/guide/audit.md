@@ -391,12 +391,12 @@ pip install 'pyDeprecate[audit]'
 
 ### The four rules
 
-| Rule slug                  | What it checks                                                                     | Default                         | Disable with                     |
-| -------------------------- | ---------------------------------------------------------------------------------- | ------------------------------- | -------------------------------- |
-| `min-grace`                | Distance between `deprecated_in` and `remove_in`                                   | `min_grace="1 minor"`           | `min_grace=None`                 |
-| `remove-only-at`           | Release level the `remove_in` version lands on                                     | `remove_only_at="major"`        | `remove_only_at=None`            |
-| `message-required`         | The wrapper provides migration guidance (a target, a mapping, or a custom message) | `message_required=True`         | `message_required=False`         |
-| `deprecated-in-not-future` | `deprecated_in` is not ahead of `current_version`                                  | `deprecated_in_not_future=True` | `deprecated_in_not_future=False` |
+| Rule slug                  | What it checks                                                                     | Default                          | Disable with                                |
+| -------------------------- | ---------------------------------------------------------------------------------- | -------------------------------- | ------------------------------------------- |
+| `min-grace`                | Distance between `deprecated_in` and `remove_in`                                   | `min_grace="1 minor"`            | `min_grace=None`                            |
+| `remove-only-at`           | Release level the `remove_in` version lands on                                     | `remove_only_at="major"`         | `remove_only_at=None`                       |
+| `message-required`         | The wrapper provides migration guidance (a target, a mapping, or a custom message) | `message_required=True`          | `message_required=False`                    |
+| `deprecated-in-not-future` | `deprecated_in` is not ahead of `current_version`                                  | `deprecated_in_not_future=False` | opt in with `deprecated_in_not_future=True` |
 
 Every violation message is prefixed with its rule slug in square brackets — `[min-grace]`, `[remove-only-at]`, `[message-required]`, `[deprecated-in-not-future]` — so a CI log can be grouped or filtered per rule without re-parsing the prose.
 
@@ -405,7 +405,7 @@ Rule details worth knowing before you tune the defaults:
 - **`min_grace`** is spelled `"<count> <unit>"` where the unit is `major`, `minor`, or `patch`, singular or plural — `"1 minor"`, `"2 minors"`, `"1major"` all parse. A coarser bump always clears a finer-grained window: a callable deprecated in `1.2` and removed in `2.0` satisfies `"1 minor"` even though its minor number went *down*, because the major release is the bigger step. An unrecognised spelling raises `ValueError`.
 - **`remove_only_at="major"`** permits only `X.0.0`-shaped removal versions; `"minor"` permits any `X.Y.0`; `"patch"` permits every release, so the rule is then satisfied by construction. The `"major"` default suits a project past `1.0`; on a `0.x` line the minor **is** the breaking cadence, so pass `remove_only_at="minor"` there instead of switching the rule off.
 - **`message_required`** counts a forwarding `target`, an `args_mapping`, an `attrs_mapping`, or a custom `message_template` as guidance. A deprecated *module* is judged on its target and mappings alone, because `deprecated_module()` always stores rendered text in `message_template` and the rule would be inert there.
-- **`deprecated_in_not_future`** is the only rule that needs `current_version`. When the version cannot be resolved the rule is skipped and the other three still run.
+- **`deprecated_in_not_future`** is the only rule that needs `current_version`, and it is opt-in — a correctly-labelled `deprecated_in` names the version the wrapper *ships in*, which is by definition ahead of the working-tree version at development time. Pass `deprecated_in_not_future=True` only if your project always records `deprecated_in` as an already-released version. When the version cannot be resolved the rule is skipped and the other three still run.
 
 ### Scanning a package
 
@@ -432,13 +432,12 @@ print(f"Found {len(violations)} violations")
   <summary>Output: <code>f"Found {len(violations)} violations"</code></summary>
 
 ```
-Found 5 violations
-[deprecated-in-not-future]
+Found 4 violations
 [message-required]
 [message-required]
 [min-grace]
 [remove-only-at]
-Found 4 violations
+Found 3 violations
 ```
 
 </details>
