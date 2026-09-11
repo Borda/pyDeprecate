@@ -37,9 +37,10 @@ def compliant_forward(a: int = 0, b: int = 3) -> int:
         ``2.0`` — one major release of runway, a forwarding ``target``, and a ``deprecated_in`` that
         has already shipped. ``validate_deprecation_policy()`` reports no violation for this wrapper
         under the default policy (``min_grace="1 minor"``, ``remove_only_at="major"``,
-        ``message_required=True``, ``deprecated_in_not_future=True``): the major bump clears the
-        one-minor grace window, the removal lands on a major boundary, the ``target`` counts as
-        migration guidance, and ``1.0`` is not ahead of the caller's current version.
+        ``message_required=True``): the major bump clears the one-minor grace window, the removal
+        lands on a major boundary, and the ``target`` counts as migration guidance. It also passes
+        the opt-in ``deprecated_in_not_future=True`` rule, since ``1.0`` is not ahead of the caller's
+        current version.
 
     """
     return void(a, b)
