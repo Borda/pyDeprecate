@@ -137,12 +137,12 @@ pydeprecate status tests --version 1.2
 
 These four are specific to `policy` — one flag per rule, each switched off with `None` (grace window, removal cadence) or `False` (the two boolean rules).
 
-| Flag                                | Default     | Rule slug                  | Effect                                                                                          |
-| ----------------------------------- | ----------- | -------------------------- | ----------------------------------------------------------------------------------------------- |
-| `--min-grace="<count> <unit>"`      | `"1 minor"` | `min-grace`                | Minimum distance between `deprecated_in` and `remove_in`; unit is `major`, `minor`, or `patch`. |
-| `--remove-only-at=<level>`          | `major`     | `remove-only-at`           | Release level a `remove_in` version is allowed to land on — `major`, `minor`, or `patch`.       |
-| `--message-required=<bool>`         | `True`      | `message-required`         | Require every wrapper to name a replacement (a `target`, a mapping, or a `message_template`).   |
-| `--deprecated-in-not-future=<bool>` | `False`     | `deprecated-in-not-future` | Require `deprecated_in` to be at or behind `--version` (opt-in).                                |
+| Flag                                | Default     | Rule slug                  | Effect                                                                                                                                                                                                                          |
+| ----------------------------------- | ----------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--min-grace="<count> <unit>"`      | `"1 minor"` | `min-grace`                | Minimum distance between `deprecated_in` and `remove_in`; unit is `major`, `minor`, or `patch`. A bump of a coarser component always satisfies the window regardless of count — `"3 minors"` is cleared by a single major bump. |
+| `--remove-only-at=<level>`          | `major`     | `remove-only-at`           | Release level a `remove_in` version is allowed to land on — `major`, `minor`, or `patch`.                                                                                                                                       |
+| `--message-required=<bool>`         | `True`      | `message-required`         | Require every wrapper to name a replacement (a `target`, a mapping, or a `message_template`).                                                                                                                                   |
+| `--deprecated-in-not-future=<bool>` | `False`     | `deprecated-in-not-future` | Require `deprecated_in` to be at or behind `--version` (opt-in).                                                                                                                                                                |
 
 The `--remove-only-at=major` default suits a project past `1.0`. On a `0.x` line the minor **is** the breaking cadence, so pass `--remove-only-at=minor` there rather than switching the rule off — you keep the gate, you just point it at the release level your project actually breaks on.
 

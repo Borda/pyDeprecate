@@ -34,8 +34,10 @@ Results are returned as :class:`~deprecate.audit.DeprecationWrapperInfo` datacla
 identification info and structured validation results for programmatic processing.
 
 !!! note
-    :func:`~deprecate.audit.validate_deprecation_expiry` and :func:`~deprecate.audit.validate_deprecation_policy`
-    require the ``packaging`` library for PEP 440 version comparison. Install with: ``pip install pyDeprecate[audit]``
+    :func:`~deprecate.audit.validate_deprecation_expiry` requires the ``packaging`` library for PEP 440 version
+    comparison. :func:`~deprecate.audit.validate_deprecation_policy` requires it only for its version-dependent
+    rules (``min_grace``, ``remove_only_at``, ``deprecated_in_not_future``) — ``message_required`` runs without it.
+    Install with: ``pip install pyDeprecate[audit]``
 
 Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 
@@ -1387,8 +1389,6 @@ def validate_deprecation_policy(
     recursive: bool = True,
     include_members: bool = True,
     *,
-    # The CLI mirrors this window as `--min-grace` (`_cli.py`, `cmd_policy`); its help text should carry the
-    # same coarser-bump caveat documented under `min_grace` below, which it currently omits.
     min_grace: Optional[str] = "1 minor",
     remove_only_at: Optional[Union[str, VersionBump]] = "major",
     message_required: bool = True,

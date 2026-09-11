@@ -709,7 +709,9 @@ def cmd_policy(
         exit_zero: Always exit 0 even if violations are found.
             Useful for advisory CI steps that should report but never block.
         min_grace: Minimum distance between ``deprecated_in`` and ``remove_in`` as ``"<count> <unit>"``
-            (default ``"1 minor"``); pass ``--min-grace=None`` to skip the rule.
+            (default ``"1 minor"``); pass ``--min-grace=None`` to skip the rule. A bump of a coarser
+            component always satisfies the window regardless of *count*: ``"3 minors"`` is cleared by a
+            single major bump (``1.2`` → ``2.0``), just as ``"1 minor"`` is.
         remove_only_at: Release level removals are allowed at — ``major`` (default), ``minor``, or ``patch``;
             pass ``--remove-only-at=None`` to skip the rule.
         message_required: Require every wrapper to name a replacement (default True).
