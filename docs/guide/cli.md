@@ -68,7 +68,7 @@ pydeprecate status tests --version 1.2
 
 === "policy"
 
-    Checks whether each deprecation was *scheduled* responsibly, using [`validate_deprecation_policy()`](audit.md#enforcing-a-deprecation-policy). Four rules exist — `min-grace`, `remove-only-at`, `message-required`, and `deprecated-in-not-future`; the first three run by default, and the last is opt-in — and every violation message is prefixed with the slug of the rule it broke. Requires the `[audit]` extra (included in `[audit,cli]`).
+    Checks whether each deprecation was *scheduled* responsibly, using [`validate_deprecation_policy()`](audit.md#enforcing-a-deprecation-policy). Four rules exist — `min-grace`, `remove-only-at`, `message-required`, and `deprecated-in-not-future`; the first three run by default, and the last is opt-in — and every violation message is prefixed with the slug of the rule it broke. The version-aware rules require the `[audit]` extra (included in `[audit,cli]`); `message-required` works without it.
 
     ```bash
     # default policy: one-minor grace window, major-only removals, guidance required
@@ -81,7 +81,7 @@ pydeprecate status tests --version 1.2
     pydeprecate policy path/to/your/package --min-grace=None --message-required=False
     ```
 
-    Exit 1 if any violation is found, exit 2 if `--min-grace` or `--remove-only-at` is malformed, exit 0 when clean or when `packaging` is not installed (skipped with a warning). Only the `deprecated-in-not-future` rule needs `--version`; the others run without a resolved version.
+    Exit 1 if any enabled rule finds a violation, exit 2 if `--min-grace` or `--remove-only-at` is malformed (or if `--version` is malformed while `packaging` is available), and exit 0 when clean. If `packaging` is not installed, the version-aware rules — including `--version` validation — are skipped with a warning, but `message-required` still runs and can return exit 1. Only the `deprecated-in-not-future` rule needs `--version`; the others run without a resolved version.
 
     !!! warning "`all` reports policy violations but never fails on them"
 
@@ -99,7 +99,7 @@ pydeprecate status tests --version 1.2
 
 === "all"
 
-    Single scan pass running all four checks ([`find_deprecation_wrappers()`](audit.md#validating-wrapper-configuration), [`validate_deprecation_expiry()`](audit.md#enforcing-removal-deadlines), [`validate_deprecation_policy()`](audit.md#enforcing-a-deprecation-policy), [`validate_deprecation_chains()`](audit.md#detecting-deprecation-chains)), then appends a compact markdown deprecation table. If `packaging` is not installed, the expiry and policy checks are skipped with a warning and the other checks still run.
+    Single scan pass running all four checks ([`find_deprecation_wrappers()`](audit.md#validating-wrapper-configuration), [`validate_deprecation_expiry()`](audit.md#enforcing-removal-deadlines), [`validate_deprecation_policy()`](audit.md#enforcing-a-deprecation-policy), [`validate_deprecation_chains()`](audit.md#detecting-deprecation-chains)), then appends a compact markdown deprecation table. If `packaging` is not installed, expiry and policy's version-aware rules are skipped with a warning; `message-required` still runs, and the other checks continue.
 
     ```bash
     # explicit version
@@ -109,7 +109,7 @@ pydeprecate status tests --version 1.2
     pydeprecate all path/to/your/package
     ```
 
-    Exit 1 if any hard error is found: invalid argument mappings, deprecated-to-deprecated chains, or expired wrappers. **Policy violations are advisory here** — they are printed but never contribute to the exit code, because the policy defaults encode a project convention that not every repository shares; run `pydeprecate policy` as its own CI step to gate on them. If `packaging` is not installed, both `expiry` and `policy` are skipped with a warning and do not cause exit `1`. The deprecation table is always appended regardless of pass/fail outcome.
+    Exit 1 if any hard error is found: invalid argument mappings, deprecated-to-deprecated chains, or expired wrappers. **Policy violations are advisory here** — they are printed but never contribute to the exit code, because the policy defaults encode a project convention that not every repository shares; run `pydeprecate policy` as its own CI step to gate on them. If `packaging` is not installed, expiry is skipped and policy runs its packaging-free `message-required` rule in advisory mode, so neither affects `all`'s exit `1`; a malformed explicit `--version` is also advisory. With `packaging` available, an invalid explicit `--version` exits `2`. The deprecation table is always appended regardless of pass/fail outcome.
 
 === "status"
 
@@ -152,14 +152,14 @@ A malformed `--min-grace` or `--remove-only-at` value is rejected before the sca
 
 ## Exit codes
 
-| Subcommand | Exit `0`                                                                 | Exit `1`                                                              | Exit `2`                                            |
-| ---------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------- | --------------------------------------------------- |
-| `check`    | Clean or advisory warnings only (chains / identity / no-effect)          | Invalid argument mappings found                                       | —                                                   |
-| `expiry`   | No expired wrappers; or `packaging` not installed (skipped with warning) | Expired wrappers found (and `--exit-zero` not set)                    | —                                                   |
-| `policy`   | No violations; or `packaging` not installed (skipped with warning)       | Policy violations found (and `--exit-zero` not set)                   | Malformed `--min-grace` or `--remove-only-at` value |
-| `chains`   | No chains                                                                | Deprecated-to-deprecated chains found                                 | —                                                   |
-| `all`      | All checks clean, or only policy violations (table always appended)      | Any hard error above (`packaging` missing → skips expiry, no failure) | —                                                   |
-| `status`   | Always — status table is not a pass/fail gate                            | —                                                                     | —                                                   |
+| Subcommand | Exit `0`                                                                 | Exit `1`                                                              | Exit `2`                                                                                   |
+| ---------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `check`    | Clean or advisory warnings only (chains / identity / no-effect)          | Invalid argument mappings found                                       | —                                                                                          |
+| `expiry`   | No expired wrappers; or `packaging` not installed (skipped with warning) | Expired wrappers found (and `--exit-zero` not set)                    | Malformed `--version` when `packaging` is available                                        |
+| `policy`   | No violations; or only skipped version-aware rules                       | Policy violations found (and `--exit-zero` not set)                   | Malformed `--min-grace` / `--remove-only-at`, or `--version` when `packaging` is available |
+| `chains`   | No chains                                                                | Deprecated-to-deprecated chains found                                 | —                                                                                          |
+| `all`      | All checks clean, or only policy violations (table always appended)      | Any hard error above (`packaging` missing → skips expiry, no failure) | Malformed `--version` when `packaging` is available                                        |
+| `status`   | Always — status table is not a pass/fail gate                            | —                                                                     | —                                                                                          |
 
 Policy violations are the one finding `all` reports without acting on: they never move `all` from `0` to `1`. Give `policy` its own CI step when you want the build to fail on them.
 

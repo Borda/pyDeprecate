@@ -255,6 +255,15 @@ class TestCmdExpiry:
         mock_expiry.return_value = [_EXPIRED_MSG]
         assert cmd_expiry(path="some_module", version="2.0", exit_zero=True) == 0
 
+    def test_invalid_version_exits_two(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """A malformed explicit version is a usage error before the expiry scan starts.
+
+        CI must distinguish an invalid gate configuration from an expired wrapper. The command therefore returns
+        exit 2 and explains the rejected ``--version`` without importing or scanning the requested package.
+        """
+        assert cmd_expiry(path="some_module", version="not-a-version") == 2
+        assert "Invalid `--version`" in capsys.readouterr().err
+
     @patch("deprecate._cli.validate_deprecation_expiry")
     def test_packaging_missing_exits_zero(self, mock_expiry: MagicMock, capsys: pytest.CaptureFixture[str]) -> None:
         """ImportError from missing packaging library → install hint on stderr + returns 0 (advisory)."""
@@ -433,6 +442,15 @@ class TestCmdAll:
         """Invalid args in check phase → exit 1."""
         mock_find.return_value = [_INVALID_ARGS]
         assert cmd_all(path="some_module", version="1.0") == 1
+
+    def test_invalid_version_exits_two(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """A malformed explicit version stops the aggregate command before its shared scan.
+
+        ``all`` shares one wrapper scan across its checks, so it must reject an unusable version before touching
+        the target. Exit 2 keeps that CLI usage error distinct from the checks' exit-1 findings.
+        """
+        assert cmd_all(path="some_module", version="not-a-version") == 2
+        assert "Invalid `--version`" in capsys.readouterr().err
 
     @patch("deprecate._cli._check_expiry_for_callables")
     @patch("deprecate._cli.find_deprecation_wrappers")
@@ -1264,6 +1282,15 @@ class TestCmdPolicy:
         assert cmd_policy(path="some_module", version="1.0", min_grace="one minor", _wrappers=[]) == 2
         assert "min_grace" in capsys.readouterr().err
 
+    def test_invalid_version_exits_two(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """A malformed explicit version is reported as a usage error before policy configuration is evaluated.
+
+        A misspelled release version must not look like a clean policy result or a policy violation. The CLI
+        returns exit 2 so CI can identify the command configuration as the problem.
+        """
+        assert cmd_policy(path="some_module", version="not-a-version", _wrappers=[]) == 2
+        assert "Invalid `--version`" in capsys.readouterr().err
+
     @patch("deprecate._cli._check_policy_for_callables")
     def test_packaging_missing_exits_zero(self, mock_policy: MagicMock, capsys: pytest.CaptureFixture[str]) -> None:
         """A missing ``packaging`` library prints the install hint and stays advisory (exit 0).
@@ -1274,6 +1301,25 @@ class TestCmdPolicy:
         mock_policy.side_effect = ImportError("No module named 'packaging'", name="packaging")
         assert cmd_policy(path="some_module", version="1.0", _wrappers=[]) == 0
         assert "pyDeprecate[audit]" in capsys.readouterr().err
+
+    @patch("deprecate._cli._check_policy_for_callables")
+    def test_packaging_missing_keeps_message_required_blocking(
+        self, mock_policy: MagicMock, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A missing optional dependency skips version rules but not missing migration guidance.
+
+        A base-install CI job may lack ``packaging`` while still using the packaging-free message rule. Its
+        warning must name the skipped version rules, then fail with exit 1 when a wrapper omits a replacement.
+        """
+        mock_policy.side_effect = [
+            ImportError("No module named 'packaging'", name="packaging"),
+            ["[message-required] Callable `mod.warn_only_fn` warns without naming a replacement"],
+        ]
+
+        assert cmd_policy(path="some_module", version="1.0", _wrappers=[_POLICY_VIOLATION]) == 1
+        captured = capsys.readouterr()
+        assert "message-required" in captured.out
+        assert "min-grace" in captured.err
 
     @patch("deprecate._cli._check_policy_for_callables")
     def test_unrelated_import_error_propagates(self, mock_policy: MagicMock) -> None:
