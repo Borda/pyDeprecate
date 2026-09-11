@@ -1826,6 +1826,25 @@ class TestValidateDeprecationPolicy:
         assert [v for v in violations if PolicyRule.MIN_GRACE.value in v]
 
     @_requires_packaging
+    def test_same_epoch_backward_removal_reports_min_grace_violation(self) -> None:
+        """A backwards patch release fails even when its minor-component delta is zero.
+
+        A repository can accidentally schedule removal in ``1.0.0`` after declaring the deprecation in
+        ``1.0.1``. A zero-minor window must not mask that impossible schedule merely because both versions
+        share the same minor component.
+        """
+        info = DeprecationWrapperInfo(
+            module="pkg",
+            function="backwards_patch",
+            deprecated_info=DeprecationConfig(deprecated_in="1.0.1", remove_in="1.0.0", target=str),
+        )
+        spec = _build_policy_spec("0 minor", None, False, False)
+
+        violations = _check_policy_for_callables([info], "2.0", spec)
+
+        assert [v for v in violations if PolicyRule.MIN_GRACE.value in v]
+
+    @_requires_packaging
     def test_unresolved_current_version_keeps_version_distance_rules(self) -> None:
         """Without a current version the future-dating rule is skipped while the other rules still run.
 
@@ -1900,6 +1919,24 @@ class TestPolicyVersionParsingIsLazy:
 
         with pytest.raises(ImportError, match="packaging"):
             _check_policy_for_callables([info], "2.0", spec)
+
+    def test_future_rule_without_current_version_needs_no_version_machinery(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A future-only policy skips parsing when no current package version can be resolved.
+
+        The comparison is impossible without a current version, so a checkout that has not been installed must
+        not require the optional ``packaging`` dependency merely to discover that the rule cannot run.
+        """
+        monkeypatch.setattr("deprecate.audit._parse_version", _reject_version_parse)
+        info = DeprecationWrapperInfo(
+            module="pkg",
+            function="future_only",
+            deprecated_info=DeprecationConfig(deprecated_in="not.a.version!!", target=str),
+        )
+        spec = _build_policy_spec(None, None, False, True)
+
+        assert _check_policy_for_callables([info], None, spec) == []
 
     def test_genuinely_missing_packaging_import_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """A real install without ``packaging`` fails the same way the hand-constructed-``ImportError`` tests assume.

@@ -1161,9 +1161,9 @@ def _grace_window_violation(
     between them is not expressible in majors, minors, or patches at all. A forward epoch bump would otherwise
     clear every grace window silently, so a wrapper that in fact gave callers no warning cycle at all would read
     as policy-clean; that case warns and reports the rule as skipped, the same treatment an unparsable version
-    string gets in :func:`_parse_policy_version`. An epoch that moves *backwards* — ``remove_in`` sorting at or
-    before ``deprecated_in`` — is not a measurement gap: it is reported directly as a ``min-grace`` violation,
-    since no epoch-crossing is required to see that no grace window was given at all.
+    string gets in :func:`_parse_policy_version`. A removal version that sorts at or before
+    ``deprecated_in`` is not a measurement gap: it is reported directly as a ``min-grace`` violation, since no
+    version-distance calculation is needed to see that no grace window was given at all.
 
     Args:
         info: Wrapper being checked; named in the violation message and in the skip warning.
@@ -1177,14 +1177,13 @@ def _grace_window_violation(
 
     """
     config = info.deprecated_info
+    if remove_ver <= deprecated_ver:
+        return (
+            f"[{PolicyRule.MIN_GRACE.value}] {_format_subject(info)} is deprecated in `{config.deprecated_in}`"
+            f" and already scheduled for removal in `{config.remove_in}`;"
+            f" the policy requires a grace window of at least {_format_bump_count(count, unit)}."
+        )
     if deprecated_ver.epoch != remove_ver.epoch:
-        if remove_ver <= deprecated_ver:
-            return (
-                f"[{PolicyRule.MIN_GRACE.value}] {_format_subject(info)} is deprecated in `{config.deprecated_in}`"
-                f" and scheduled for removal in `{config.remove_in}`, which sorts at or before it across the"
-                f" PEP 440 epoch change; the policy requires a grace window of at least"
-                f" {_format_bump_count(count, unit)}."
-            )
         warnings.warn(
             f"{_format_subject(info)} spans a PEP 440 epoch change between `deprecated_in`"
             f" `{config.deprecated_in}` and `remove_in` `{config.remove_in}`; version distance is not"
@@ -1291,7 +1290,7 @@ def _policy_violations_for_wrapper(
     # parse is pure cost — and, on an install without ``packaging``, an ImportError raised for a rule the
     # caller never asked to run. Keeping the parse lazy is what lets a ``message_required``-only policy work
     # with no version machinery at all, while a version-dependent rule still surfaces the install hint.
-    needs_deprecated = spec.grace is not None or spec.deprecated_in_not_future
+    needs_deprecated = spec.grace is not None or (spec.deprecated_in_not_future and current_ver is not None)
     needs_remove = spec.grace is not None or spec.removal_cadence is not None
     deprecated_ver = _parse_policy_version(config.deprecated_in, info, "deprecated_in") if needs_deprecated else None
     remove_ver = _parse_policy_version(config.remove_in, info, "remove_in") if needs_remove else None
