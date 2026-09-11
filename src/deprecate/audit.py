@@ -1359,15 +1359,18 @@ def _check_policy_for_callables(
             ``deprecated-in-not-future`` rule reads it.
         spec: Parsed policy configuration.
         version_explicit: Whether *current_version* came from the caller rather than from auto-detection.
-            A caller-supplied version is a boundary input and is validated even when no enabled rule reads
-            it; an auto-detected one is parsed only when the ``deprecated-in-not-future`` rule needs it, so
-            an unparsable version stamped on an installed package cannot break an unrelated policy run.
+            A caller-supplied version is a boundary input and is format-validated even when no enabled rule
+            reads it — but only when ``packaging`` is actually installed; an auto-detected one is parsed
+            only when the ``deprecated-in-not-future`` rule needs it, so an unparsable version stamped on an
+            installed package cannot break an unrelated policy run.
 
     Returns:
         List of violation messages across all wrappers.
 
     Raises:
-        ImportError: If a rule needs a parsed version and the ``packaging`` library is not installed.
+        ImportError: If the ``deprecated-in-not-future`` rule is enabled and the ``packaging`` library is
+            not installed. A policy reduced to ``message_required`` alone parses no version and runs
+            without it, regardless of whether *current_version* was supplied explicitly.
         ValueError: If *current_version* is parsed (see *version_explicit*) and is not valid PEP 440.
 
     """
@@ -1377,6 +1380,10 @@ def _check_policy_for_callables(
             current_ver = _parse_version(current_version)
         except ValueError as err:
             raise ValueError(f"Invalid current_version '{current_version}': {err}") from err
+        except ImportError:
+            if spec.deprecated_in_not_future:
+                raise
+            # Boundary-only validation with no rule to consume it — `packaging` stays optional.
     violations = []
     for info in results:
         violations.extend(_policy_violations_for_wrapper(info, current_ver, spec))

@@ -1914,7 +1914,10 @@ class TestPolicyVersionParsingIsLazy:
 
         A team installs the package without the ``[audit]`` extra and gates CI on one promise — every
         deprecation names a replacement. No version comparison is enabled, so demanding ``packaging`` there
-        would turn a check that needs no version arithmetic into an install error.
+        would turn a check that needs no version arithmetic into an install error. ``version_explicit=True``
+        is required here: that is the state ``validate_deprecation_policy(module, current_version=...)``
+        passes for every explicit caller, which is the library's own documented calling convention — a test
+        that leaves it at the ``False`` default never exercises the code path the real bug lived in.
         """
         monkeypatch.setattr("deprecate.audit._parse_version", _reject_version_parse)
         info = DeprecationWrapperInfo(
@@ -1924,7 +1927,7 @@ class TestPolicyVersionParsingIsLazy:
         )
         spec = _build_policy_spec(None, None, True, False)
 
-        violations = _check_policy_for_callables([info], "2.0", spec)
+        violations = _check_policy_for_callables([info], "2.0", spec, version_explicit=True)
 
         assert [v for v in violations if PolicyRule.MESSAGE_REQUIRED.value in v]
 
