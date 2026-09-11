@@ -4,6 +4,7 @@
 
 ### Added
 
+- **Deprecation policy governance lint — `validate_deprecation_policy()` and `pydeprecate policy`.** Checks whether each deprecation was scheduled responsibly against four independently disable-able rules: `min_grace` (grace-period length), `remove_only_at` (which release level removals land on), `message_required` (warning must name a replacement), and `deprecated_in_not_future`. Exports `validate_deprecation_policy`, `PolicyRule`, and `VersionBump`. The `pydeprecate policy` CLI subcommand exits `1` on violations, `2` on a malformed `--min-grace`/`--remove-only-at`, and `0` with an install hint when the `[audit]` extra (`packaging`) is absent. `pydeprecate all` runs the check in advisory-only mode — violations are printed but never change `all`'s exit status. ([#231](https://github.com/Borda/pyDeprecate/pull/231))
 - **Public `get_deprecation_config(obj)` metadata accessor.** Reads the v0.13 `__deprecation_config__` object and falls back to the pre-v0.13 `__deprecated__` configuration layout for mixed-version applications. ([#230](https://github.com/Borda/pyDeprecate/pull/230))
 
 ### Changed
