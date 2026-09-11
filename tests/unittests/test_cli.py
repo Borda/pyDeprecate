@@ -45,6 +45,12 @@ _POLICY_VIOLATION = DeprecationWrapperInfo(
     function="warn_only_fn",
     deprecated_info=DeprecationConfig(deprecated_in="1.0", target=TargetMode.NOTIFY),
 )
+# Forwarding wrapper with no scheduled removal — clean under every default policy rule.
+_POLICY_CLEAN = DeprecationWrapperInfo(
+    module="mod",
+    function="forwarding_fn",
+    deprecated_info=DeprecationConfig(deprecated_in="1.0", target=str),
+)
 _EXPIRED_MSG = (
     "Callable `fn` was scheduled for removal in version 1.0"
     " but still exists in version 2.0. Please delete this deprecated code."
@@ -264,6 +270,28 @@ class TestCmdExpiry:
         assert cmd_expiry(path="some_module", version="not-a-version") == 2
         assert "Invalid `--version`" in capsys.readouterr().err
 
+    @patch("deprecate._cli._check_expiry_for_callables")
+    def test_auto_detected_unparsable_version_skips_check(
+        self, mock_expiry: MagicMock, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """An auto-detected version that is not PEP 440 skips the check rather than aborting the run.
+
+        ``all`` resolves one version for its whole run and forwards it here, so a project stamped with
+        something like a ``2024.06-nightly`` build number fails the parse deep inside the check. That is a
+        fact about the scanned package, not a flag the user typed: blaming ``--version`` would mislead and
+        letting the parse error escape would take the other checks' results down with it, so the gate
+        degrades to an advisory skip naming the version it could not read.
+        """
+        mock_expiry.side_effect = ValueError("Invalid version: '2024.06-nightly'")
+        result = cmd_expiry(
+            path="some_module",
+            version="2024.06-nightly",
+            _wrappers=[DeprecationWrapperInfo(module="mod", function="fn")],
+            _version_explicit=False,
+        )
+        assert result == 0
+        assert "2024.06-nightly" in capsys.readouterr().err
+
     @patch("deprecate._cli.validate_deprecation_expiry")
     def test_packaging_missing_exits_zero(self, mock_expiry: MagicMock, capsys: pytest.CaptureFixture[str]) -> None:
         """ImportError from missing packaging library → install hint on stderr + returns 0 (advisory)."""
@@ -451,6 +479,26 @@ class TestCmdAll:
         """
         assert cmd_all(path="some_module", version="not-a-version") == 2
         assert "Invalid `--version`" in capsys.readouterr().err
+
+    @patch("deprecate._cli.find_deprecation_wrappers")
+    def test_unparsable_auto_detected_version_is_not_a_flag_error(
+        self, mock_find: MagicMock, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A malformed *auto-detected* version degrades the checks instead of failing as a usage error.
+
+        A project whose version metadata is not PEP 440 — a nightly stamped ``2024.06-nightly`` — is scanned
+        with no ``--version`` at all. ``all`` resolves that version once and hands it to its subcommands, so
+        without the provenance travelling with it they each re-validate it as a flag the user never typed:
+        the policy check exits early reporting an invalid ``--version`` and the status table never renders.
+        """
+        mock_find.return_value = [_POLICY_CLEAN]
+        with patch("deprecate._cli._auto_detect_version", return_value="2024.06-nightly"):
+            result = cmd_all(path="some_module")
+        captured = capsys.readouterr()
+        assert result == 0
+        assert "Invalid `--version`" not in captured.err
+        assert "Could not render the deprecation table" not in captured.err
+        assert "No deprecation policy violations found." in captured.out
 
     @patch("deprecate._cli._check_expiry_for_callables")
     @patch("deprecate._cli.find_deprecation_wrappers")

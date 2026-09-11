@@ -1247,6 +1247,13 @@ def _has_migration_guidance(info: DeprecationWrapperInfo) -> bool:
     a bare warning does — the wrapper-configuration audit flags it as a no-op, and this rule must not read it as
     guidance either.
 
+    The same reading excludes a mapping configured alongside an explicit ``TargetMode.NOTIFY``: that combination is
+    contradictory, so the decorator warns about it and drops the mapping (see
+    :meth:`~deprecate._types.TargetMode._validate`) — nothing is renamed at call time and the emitted warning names
+    no replacement, which leaves a custom ``message_template`` as ``NOTIFY``'s only way to guide a caller. An
+    *unset* target keeps its mapping: only an explicitly chosen ``NOTIFY`` is barred from auto-resolving to a remap
+    mode, so a mapping stored against ``target=None`` is still applied.
+
     Deprecated modules are judged on their target and mappings alone: :func:`~deprecate.module.deprecated_module`
     stores the already-rendered warning text in ``message_template``, so that field is always set for a module and
     would make the rule inert there.
@@ -1261,13 +1268,15 @@ def _has_migration_guidance(info: DeprecationWrapperInfo) -> bool:
     config = info.deprecated_info
     target = config.target
     has_mapping = bool(config.args_mapping or config.attrs_mapping)
+    # A deprecated module stores its already-rendered warning here, so that text is not a custom message.
+    has_message = bool(config.message_template) and info.api_type != "module"
+    if target is TargetMode.NOTIFY:
+        return has_message
     if target in (TargetMode.ARGS_REMAP, TargetMode.ATTRS_REMAP):
         return has_mapping
-    if target is not None and target is not TargetMode.NOTIFY:
+    if target is not None:
         return True
-    if has_mapping:
-        return True
-    return bool(config.message_template) and info.api_type != "module"
+    return has_mapping or has_message
 
 
 def _policy_violations_for_wrapper(
@@ -1863,8 +1872,15 @@ def _resolve_table_version(
     module: Union[Any, str],  # noqa: ANN401
     *,
     current_version: Optional[str],
+    version_explicit: bool = True,
 ) -> tuple[Optional[str], Optional["Version"]]:
-    """Resolve report version string and optional parsed version object."""
+    """Resolve report version string and optional parsed version object.
+
+    An unparsable version is fatal only when the caller typed it: *version_explicit* ``False`` marks a
+    *current_version* the caller auto-detected on this function's behalf, which degrades to an unparsed
+    version string exactly like the auto-detection performed here does.
+
+    """
     module_name = module if isinstance(module, str) else getattr(module, "__name__", None)
     resolved_version = current_version
 
@@ -1880,7 +1896,7 @@ def _resolve_table_version(
     except ImportError:
         return resolved_version, None
     except ValueError as err:
-        if current_version is not None:
+        if current_version is not None and version_explicit:
             raise ValueError(f"Invalid current_version '{current_version}': {err}") from err
         return resolved_version, None
 
@@ -2052,6 +2068,7 @@ def generate_deprecation_table(
     include_members: bool = True,
     *,
     _wrappers: Optional[list["DeprecationWrapperInfo"]] = None,
+    _version_explicit: bool = True,
 ) -> str:
     """Generate a markdown table summarizing deprecated wrappers.
 
@@ -2070,6 +2087,11 @@ def generate_deprecation_table(
             - ``"matrix"``: ``Original API | API Type | New API | <all versions...>``, with markers
               ``D`` (deprecated) and ``R`` (remove) in version columns.
         include_members: If True (default), include deprecated class members (methods, constructors).
+        _version_explicit: Whether ``current_version`` was typed by the caller rather than auto-detected
+            on its behalf. A caller that resolves the version itself (the CLI's single-scan path) passes
+            ``False`` so an unparsable one degrades to an unparsed version string — the same fallback this
+            function applies to a version it auto-detects — instead of raising. Underscore prefix marks it
+            internal; it is not part of the public signature.
 
     Returns:
         Markdown string containing a formatted table. When a version is
@@ -2080,8 +2102,8 @@ def generate_deprecation_table(
 
     Raises:
         ValueError: If ``style`` is not ``"compact"`` or ``"matrix"``, or if
-            ``current_version`` is supplied but is not a valid PEP 440 version
-            string and ``packaging`` is installed.
+            ``current_version`` is supplied explicitly but is not a valid PEP 440
+            version string and ``packaging`` is installed.
 
     Example:
         >>> from tests import collection_deprecate as pkg
@@ -2097,7 +2119,9 @@ def generate_deprecation_table(
             f"Invalid style {style!r}. Expected one of: {', '.join(s.value for s in TableStyle)}."
         ) from err
 
-    resolved_version, parsed_version = _resolve_table_version(module, current_version=current_version)
+    resolved_version, parsed_version = _resolve_table_version(
+        module, current_version=current_version, version_explicit=_version_explicit
+    )
     if _wrappers is None:
         _wrappers = find_deprecation_wrappers(module, recursive=recursive, include_members=include_members)
     wrappers = sorted(

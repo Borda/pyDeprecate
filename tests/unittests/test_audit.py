@@ -1625,13 +1625,39 @@ class TestHasMigrationGuidance:
                 False,
                 id="attrs-remap-mode-without-mapping",
             ),
+            pytest.param(
+                DeprecationConfig(target=TargetMode.NOTIFY, args_mapping={"old": "new"}),
+                False,
+                id="notify-ignores-its-args-mapping",
+            ),
+            pytest.param(
+                DeprecationConfig(target=TargetMode.NOTIFY, attrs_mapping={"old": "new"}),
+                False,
+                id="notify-ignores-its-attrs-mapping",
+            ),
+            pytest.param(
+                DeprecationConfig(
+                    target=TargetMode.NOTIFY,
+                    args_mapping={"old": "new"},
+                    message_template="use `new_api` instead",
+                ),
+                True,
+                id="notify-with-a-message-guides-despite-the-ignored-mapping",
+            ),
+            pytest.param(
+                DeprecationConfig(target=None, args_mapping={"old": "new"}),
+                True,
+                id="unset-target-still-applies-its-mapping",
+            ),
         ],
     )
     def test_guidance_sources(self, config: DeprecationConfig, expected: bool) -> None:
-        """Any of a target, a mapping, or a custom message counts as telling callers where to go.
+        """Any of a target, a live mapping, or a custom message counts as telling callers where to go.
 
         The rule exists to catch the dead-end warning ("this is deprecated", full stop); a wrapper that renames
-        arguments or carries a hand-written migration sentence is not a dead end even without a target.
+        arguments or carries a hand-written migration sentence is not a dead end even without a target. A mapping
+        counts only where it survives to call time: an empty one renames nothing, and one paired with an explicit
+        ``TargetMode.NOTIFY`` is discarded at decoration time, so both leave callers the same dead end.
         """
         info = DeprecationWrapperInfo(module="pkg", function="old_api", deprecated_info=config)
         assert _has_migration_guidance(info) is expected
