@@ -436,12 +436,12 @@ Tests live in `tests/` and follow a **three-layer separation**:
 
 > [!NOTE]
 >
-> **Some docs examples use collection modules as fixtures and report hardcoded counts.** `docs/guide/audit.md` embeds expected output from scanning `tests.collection_misconfigured` with hardcoded numbers (wrappers scanned, empty mappings, etc.). When you add or remove entries from any `collection_*.py` module:
+> **Several docs examples import a `tests/collection_*.py` fixture module and print hardcoded counts from it** (currently: `README.md`, `docs/guide/audit.md`, `docs/troubleshooting.md`). When you add or remove entries from any `collection_*.py` module:
 >
-> - Update the expected counts in the relevant `docs/guide/*.md` code block output.
-> - Regenerate the corresponding test file: `phmdoctest docs/guide/audit.md -s "phmdoctest:skip" --outfile tests/docs/test_guide_audit.py`
+> - Update every doc example's expected-count code block that scans the changed module — check `README.md`, every `docs/guide/*.md` page, and `docs/troubleshooting.md`, not just one of them.
+> - Regenerate the affected test files: `make docs-tests`
 >
-> Failing to do this causes `tests/docs/test_guide_audit.py` to fail in CI.
+> Failing to do this causes the corresponding generated test file(s) under `tests/docs/` or `tests/integration/test_readme.py` to fail in CI. Enumerating specific files here goes stale as soon as a new doc example is added — grep for the fixture module's import if in doubt.
 
 **`unittests/`** — Tests import private symbols directly (e.g. `_raise_warn`, `_parse_version`) and use mocking/monkeypatching to stay isolated from external state. Each file mirrors a source module (`deprecation.py`, `docstring/inject.py`, `audit.py`, `utils.py`).
 
