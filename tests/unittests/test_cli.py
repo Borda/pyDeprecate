@@ -592,14 +592,29 @@ class TestReportExpiry:
 class TestReportPolicy:
     """Tests for _Reporter.policy() directly, isolated from cmd_policy's scan logic."""
 
-    @pytest.mark.parametrize("has_rich", [True, False], ids=["rich", "plain"])
+    @pytest.mark.parametrize(
+        "has_rich",
+        [
+            pytest.param(
+                True,
+                id="rich",
+                marks=pytest.mark.skipif(
+                    _Reporter._RichTable is None, reason="rich not installed — forced has_rich=True is unsupported"
+                ),
+            ),
+            pytest.param(False, id="plain"),
+        ],
+    )
     def test_rule_slug_prefix_survives_output(self, capsys: pytest.CaptureFixture[str], has_rich: bool) -> None:
         """The `[rule-slug]`-style prefix renders literally in both the rich and plain-text reporters.
 
         Rich parses square brackets in a cell as style markup, which would swallow a `[min-grace]` prefix
         silently. Calling `_Reporter.policy()` directly (rather than through `cmd_policy()`) isolates the
         reporter's own escaping behavior from the surrounding scan, so a regression here cannot hide behind
-        mocked scan data used elsewhere in the test file.
+        mocked scan data used elsewhere in the test file. The forced ``has_rich=True`` case needs the real
+        ``rich`` package on the interpreter — forcing ``_HAS_RICH`` alone leaves ``_RichTable``/``_rich_box``
+        unset when ``rich`` was never importable, so that case is skipped in a local checkout without the
+        ``cli`` extra.
         """
         message = "[min-grace] Callable `pkg.old_fn` is deprecated in `1.0` and already scheduled for removal in `1.0`."
         with patch("deprecate._cli._Reporter._HAS_RICH", has_rich):

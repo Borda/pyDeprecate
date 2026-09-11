@@ -1154,16 +1154,16 @@ def _grace_window_violation(
     """Return the ``min-grace`` violation message for one wrapper, or ``None`` when it passes or is skipped.
 
     Kept separate from :func:`_satisfies_grace_window` so the arithmetic stays a pure predicate while the one
-    case that cannot be measured — a PEP 440 epoch change between the two versions — is surfaced to the user
-    instead of being settled by the predicate's ordering rule.
+    case that cannot be measured — a *forward* PEP 440 epoch change between the two versions — is surfaced to
+    the user instead of being settled by the predicate's ordering rule.
 
     Release numbers are only comparable inside one epoch: ``2.0`` is *older* than ``1!1.0``, and the distance
-    between them is not expressible in majors, minors, or patches at all. An epoch bump would otherwise clear
-    every grace window silently, so a wrapper that in fact gave callers no warning cycle at all would read as
-    policy-clean. The check therefore warns and reports the rule as skipped for that wrapper, the same treatment
-    an unparsable version string gets in :func:`_parse_policy_version`. This also means an epoch that moves
-    *backwards* is now skipped rather than reported as a too-short window — an inverted epoch is a versioning
-    mistake of its own, not a grace-window measurement.
+    between them is not expressible in majors, minors, or patches at all. A forward epoch bump would otherwise
+    clear every grace window silently, so a wrapper that in fact gave callers no warning cycle at all would read
+    as policy-clean; that case warns and reports the rule as skipped, the same treatment an unparsable version
+    string gets in :func:`_parse_policy_version`. An epoch that moves *backwards* — ``remove_in`` sorting at or
+    before ``deprecated_in`` — is not a measurement gap: it is reported directly as a ``min-grace`` violation,
+    since no epoch-crossing is required to see that no grace window was given at all.
 
     Args:
         info: Wrapper being checked; named in the violation message and in the skip warning.
@@ -1178,6 +1178,13 @@ def _grace_window_violation(
     """
     config = info.deprecated_info
     if deprecated_ver.epoch != remove_ver.epoch:
+        if remove_ver <= deprecated_ver:
+            return (
+                f"[{PolicyRule.MIN_GRACE.value}] {_format_subject(info)} is deprecated in `{config.deprecated_in}`"
+                f" and scheduled for removal in `{config.remove_in}`, which sorts at or before it across the"
+                f" PEP 440 epoch change; the policy requires a grace window of at least"
+                f" {_format_bump_count(count, unit)}."
+            )
         warnings.warn(
             f"{_format_subject(info)} spans a PEP 440 epoch change between `deprecated_in`"
             f" `{config.deprecated_in}` and `remove_in` `{config.remove_in}`; version distance is not"

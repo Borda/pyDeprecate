@@ -1785,16 +1785,9 @@ class TestValidateDeprecationPolicy:
         with pytest.warns(UserWarning, match="unparsable `remove_in`"):
             assert _check_policy_for_callables([info], "2.0", spec) == []
 
-    @pytest.mark.parametrize(
-        ("deprecated_in", "remove_in"),
-        [
-            pytest.param("1.0", "1!1.0", id="epoch-raised"),
-            pytest.param("1!1.0", "2.0", id="epoch-dropped"),
-        ],
-    )
     @_requires_packaging
-    def test_epoch_change_warns_and_skips_the_grace_window(self, deprecated_in: str, remove_in: str) -> None:
-        """A removal that crosses a PEP 440 epoch is reported as unmeasurable instead of quietly passing.
+    def test_forward_epoch_change_warns_and_skips_the_grace_window(self) -> None:
+        """A removal that crosses a PEP 440 epoch forward is reported as unmeasurable instead of quietly passing.
 
         An epoch bump is how a project restarts its numbering after changing versioning schemes, and release
         numbers either side of one are not comparable — ``2.0`` is *older* than ``1!1.0``. Letting the epoch
@@ -1804,7 +1797,7 @@ class TestValidateDeprecationPolicy:
         info = DeprecationWrapperInfo(
             module="pkg",
             function="epoch_switch",
-            deprecated_info=DeprecationConfig(deprecated_in=deprecated_in, remove_in=remove_in, target=str),
+            deprecated_info=DeprecationConfig(deprecated_in="1.0", remove_in="1!1.0", target=str),
         )
         spec = _build_policy_spec("1 minor", None, False, False)
 
@@ -1812,6 +1805,25 @@ class TestValidateDeprecationPolicy:
             violations = _check_policy_for_callables([info], "2.0", spec)
 
         assert not [v for v in violations if PolicyRule.MIN_GRACE.value in v]
+
+    @_requires_packaging
+    def test_backward_epoch_change_reports_min_grace_violation(self) -> None:
+        """A removal that sorts at or before its deprecation across an epoch drop is flagged, not skipped.
+
+        ``remove_in="2.0"`` sorts *before* ``deprecated_in="1!1.0"`` once the epoch is taken into account, so
+        no grace window at all was given. Treating this the same as an unmeasurable forward epoch bump would let
+        a removal scheduled for the same release — or an earlier one — pass the ``min-grace`` gate silently.
+        """
+        info = DeprecationWrapperInfo(
+            module="pkg",
+            function="epoch_switch",
+            deprecated_info=DeprecationConfig(deprecated_in="1!1.0", remove_in="2.0", target=str),
+        )
+        spec = _build_policy_spec("1 minor", None, False, False)
+
+        violations = _check_policy_for_callables([info], "2.0", spec)
+
+        assert [v for v in violations if PolicyRule.MIN_GRACE.value in v]
 
     @_requires_packaging
     def test_unresolved_current_version_keeps_version_distance_rules(self) -> None:

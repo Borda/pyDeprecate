@@ -1851,7 +1851,7 @@ def enforce_deprecation_deadlines():
 
 `validate_deprecation_expiry()` asks whether deprecated code was removed on time. `validate_deprecation_policy()` asks the earlier question — whether it was *scheduled* responsibly in the first place: a removal deadline that gives callers no upgrade window, a removal booked for a patch release, a warning that never names a replacement, or a `deprecated_in` version that has not shipped yet.
 
-Four rules run by default, and each one can be switched off independently:
+Four rules exist and each can be switched off independently; three run by default — `deprecated-in-not-future` is opt-in:
 
 | Rule slug                  | What it checks                                         | Default                          | Disable with                                |
 | -------------------------- | ------------------------------------------------------ | -------------------------------- | ------------------------------------------- |

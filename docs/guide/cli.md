@@ -68,7 +68,7 @@ pydeprecate status tests --version 1.2
 
 === "policy"
 
-    Checks whether each deprecation was *scheduled* responsibly, using [`validate_deprecation_policy()`](audit.md#enforcing-a-deprecation-policy). Four rules run by default — `min-grace`, `remove-only-at`, `message-required`, and `deprecated-in-not-future` — and every violation message is prefixed with the slug of the rule it broke. Requires the `[audit]` extra (included in `[audit,cli]`).
+    Checks whether each deprecation was *scheduled* responsibly, using [`validate_deprecation_policy()`](audit.md#enforcing-a-deprecation-policy). Four rules exist — `min-grace`, `remove-only-at`, `message-required`, and `deprecated-in-not-future`; the first three run by default, and the last is opt-in — and every violation message is prefixed with the slug of the rule it broke. Requires the `[audit]` extra (included in `[audit,cli]`).
 
     ```bash
     # default policy: one-minor grace window, major-only removals, guidance required

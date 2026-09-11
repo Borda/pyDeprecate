@@ -1,5 +1,7 @@
 """Integration tests for the CLI — real subprocess invocations only."""
 
+from __future__ import annotations
+
 import importlib.util
 import os
 import subprocess
