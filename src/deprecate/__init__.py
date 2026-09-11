@@ -25,6 +25,8 @@ Core Components:
     - :func:`~deprecate.audit.find_deprecation_wrappers`: Scan a package for all deprecated wrappers
     - :func:`~deprecate.audit.generate_deprecation_table`: Build compact or matrix markdown deprecation tables
     - :func:`~deprecate.audit.validate_deprecation_expiry`: Detect wrappers that outlived their ``remove_in`` deadline
+    - :func:`~deprecate.audit.validate_deprecation_policy`: Check wrappers against deprecation-governance rules
+      (grace window, removal cadence, migration guidance)
     - :func:`~deprecate.audit.validate_deprecation_chains`: Detect deprecated wrappers chaining to
       other deprecated wrappers
     - :class:`~deprecate.audit.DeprecationWrapperInfo`: Structured result returned by the audit functions
@@ -89,13 +91,16 @@ from deprecate.audit import (
     DeprecatedCallableInfo,  # noqa: F401 # backward-compat alias for DeprecationWrapperInfo
     DeprecationStatus,
     DeprecationWrapperInfo,
+    PolicyRule,
     TableStyle,
+    VersionBump,
     find_deprecated_callables,  # noqa: F401 # deprecated since 0.6, use find_deprecation_wrappers
     find_deprecation_wrappers,
     generate_deprecation_table,
     validate_deprecated_callable,  # noqa: F401 # deprecated since 0.6, use validate_deprecation_wrapper
     validate_deprecation_chains,
     validate_deprecation_expiry,
+    validate_deprecation_policy,
     validate_deprecation_wrapper,
     validate_mapping_compatibility,
 )
@@ -114,8 +119,10 @@ __all__ = [
     "DeprecationProxy",
     "DeprecationStatus",
     "DeprecationWrapperInfo",
+    "PolicyRule",
     "TableStyle",
     "TargetMode",
+    "VersionBump",
     "assert_no_warnings",
     "deprecated",
     "deprecated_callable",
@@ -127,6 +134,7 @@ __all__ = [
     "get_deprecation_config",
     "validate_deprecation_chains",
     "validate_deprecation_expiry",
+    "validate_deprecation_policy",
     "validate_deprecation_wrapper",
     "validate_mapping_compatibility",
     "void",

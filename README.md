@@ -42,7 +42,8 @@ ______________________________________________________________________
 - [🔍 Audit](#audit)
   - [Validating Wrapper Configuration](#validating-wrapper-configuration)
   - [Generating Deprecation Tables](#generating-deprecation-tables)
-  - [Enforcing Deprecation Removal Deadlines](#enforcing-deprecation-removal-deadlines)
+  - [Enforcing Deprecation Removal Deadlines](#-enforcing-deprecation-removal-deadlines)
+  - [Enforcing a Deprecation Policy](#-enforcing-a-deprecation-policy)
   - [Detecting Deprecation Chains](#detecting-deprecation-chains)
 - [🧪 Testing Deprecated Code](#testing-deprecated-code)
 - [🔧 Troubleshooting](#troubleshooting)
@@ -92,11 +93,11 @@ Requires **Python 3.9 or later**.
 
 Choose the install that matches the workflow you need:
 
-| Workflow                     | Command                                | Includes                                                                                                      |
-| ---------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| Runtime deprecation wrappers | `pip install pyDeprecate`              | `@deprecated`, `@deprecated_class`, `deprecated_instance`, docstring helpers, and most audit metadata helpers |
-| CI deadline checks           | `pip install 'pyDeprecate[audit]'`     | Adds `packaging` for PEP 440 version comparison in `validate_deprecation_expiry()`                            |
-| Command-line audit workflows | `pip install 'pyDeprecate[audit,cli]'` | Adds CLI dependencies (`fire`, `rich`) plus expiry support for `pydeprecate expiry` and `pydeprecate all`     |
+| Workflow                     | Command                                | Includes                                                                                                                          |
+| ---------------------------- | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Runtime deprecation wrappers | `pip install pyDeprecate`              | `@deprecated`, `@deprecated_class`, `deprecated_instance`, docstring helpers, and most audit metadata helpers                     |
+| CI deadline checks           | `pip install 'pyDeprecate[audit]'`     | Adds `packaging` for PEP 440 version comparison in `validate_deprecation_expiry()` and `validate_deprecation_policy()`            |
+| Command-line audit workflows | `pip install 'pyDeprecate[audit,cli]'` | Adds CLI dependencies (`fire`, `rich`) plus version support for `pydeprecate expiry`, `pydeprecate policy`, and `pydeprecate all` |
 
 Base installation from PyPI:
 
@@ -1446,7 +1447,7 @@ print(add_v1(2, 3))
 
 ## 🔍 Audit
 
-Deprecations are only as good as the hygiene around them. The `deprecate.audit` module provides utilities for verifying that deprecated wrappers are correctly configured, that removal deadlines are actually enforced, and that chains of deprecated-to-deprecated calls don't silently pile up. These tools are designed to run in CI pipelines and test suites, catching problems before they reach users.
+Deprecations are only as good as the hygiene around them. The `deprecate.audit` module provides utilities for verifying that deprecated wrappers are correctly configured, that removal deadlines are actually enforced, that every deprecation was scheduled the way your release policy promises, and that chains of deprecated-to-deprecated calls don't silently pile up. These tools are designed to run in CI pipelines and test suites, catching problems before they reach users.
 
 > [!NOTE]
 >
@@ -1641,7 +1642,7 @@ The CLI requires the `cli` extra (includes `fire` and `rich`). Install it with:
 pip install 'pyDeprecate[audit,cli]'
 ```
 
-The CLI has five subcommands.
+The CLI has six subcommands.
 
 ```bash
 # check — wrapper config + deprecated-to-deprecated chains (default)
@@ -1653,10 +1654,16 @@ pydeprecate path/to/your/package          # equivalent shorthand
 pydeprecate expiry path/to/your/package --version 2.0.0
 pydeprecate expiry path/to/your/package   # auto-detects version from the package
 
+# policy — deprecations scheduled against your governance rules
+# requires: pip install 'pyDeprecate[audit]'
+pydeprecate policy path/to/your/package --version 2.0.0
+pydeprecate policy path/to/your/package --min-grace="2 minors" --remove-only-at=minor
+
 # chains — deprecated-to-deprecated forwarding chains only
 pydeprecate chains path/to/your/package
 
-# all — single scan running check + expiry + chains, then appends a deprecation table
+# all — single scan running check + expiry + policy + chains, then appends a deprecation table
+# policy violations are printed here but never change the exit code — gate on them with `policy`
 pydeprecate all path/to/your/package --version 2.0.0
 
 # status — print a markdown deprecation status table (standalone, no checks)
@@ -1665,7 +1672,7 @@ pydeprecate status path/to/your/package --style matrix
 pydeprecate status path/to/your/package --version 2.0.0 --output DEPRECATIONS.md
 ```
 
-**Common flags** (all subcommands): `--norecursive` scans the top-level module only. `check`, `expiry`, `chains`, and `all` also accept `--exit-zero` to always exit `0` even when issues are found. `expiry`, `all`, and `status` also accept `--version VERSION` to set the current version explicitly. `status` additionally accepts `--style compact|matrix` (default `compact`) and `--output FILE` to also save the markdown to that file.
+**Common flags** (all subcommands): `--norecursive` scans the top-level module only. `check`, `expiry`, `policy`, `chains`, and `all` also accept `--exit-zero` to always exit `0` even when issues are found. `expiry`, `policy`, `all`, and `status` also accept `--version VERSION` to set the current version explicitly. `policy` additionally accepts one flag per rule — `--min-grace`, `--remove-only-at`, `--message-required`, `--deprecated-in-not-future` — and exits `2` when one of them is malformed. `status` additionally accepts `--style compact|matrix` (default `compact`) and `--output FILE` to also save the markdown to that file.
 
 **Quick demo** using pyDeprecate's own test fixtures (no package setup needed):
 
@@ -1693,6 +1700,7 @@ $ pydeprecate chains src/mypackage
 $ pydeprecate all src/mypackage
 ✓ check:  12 wrappers validated, 0 misconfigured
 ⚠ expiry: 2 wrappers past remove_in deadline
+⚠ policy: 1 violation (advisory here — run `pydeprecate policy` to gate on it)
 ✓ chains: no deprecated→deprecated chains detected
 ```
 
@@ -1838,6 +1846,73 @@ def enforce_deprecation_deadlines():
 > - Callables with an unparsable `remove_in` version string emit a `UserWarning` naming the callable; the scan continues for the rest
 > - PEP 440 versioning is used for comparison (e.g., "2.0.0" > "1.9.5")
 > - Pre-release versions are handled correctly (e.g., "1.5.0a1" < "1.5.0")
+
+### 📏 Enforcing a Deprecation Policy
+
+`validate_deprecation_expiry()` asks whether deprecated code was removed on time. `validate_deprecation_policy()` asks the earlier question — whether it was *scheduled* responsibly in the first place: a removal deadline that gives callers no upgrade window, a removal booked for a patch release, a warning that never names a replacement, or a `deprecated_in` version that has not shipped yet.
+
+Four rules exist and each can be switched off independently; three run by default — `deprecated-in-not-future` is opt-in:
+
+| Rule slug                  | What it checks                                         | Default                          | Disable with                                |
+| -------------------------- | ------------------------------------------------------ | -------------------------------- | ------------------------------------------- |
+| `min-grace`                | Distance between `deprecated_in` and `remove_in`       | `min_grace="1 minor"`            | `min_grace=None`                            |
+| `remove-only-at`           | Release level the `remove_in` version lands on         | `remove_only_at="major"`         | `remove_only_at=None`                       |
+| `message-required`         | The wrapper names a replacement callers can migrate to | `message_required=True`          | `message_required=False`                    |
+| `deprecated-in-not-future` | `deprecated_in` is not ahead of `current_version`      | `deprecated_in_not_future=False` | opt in with `deprecated_in_not_future=True` |
+
+Every violation message is prefixed with its rule slug in square brackets, so a CI log can be grouped or filtered per rule. Like the expiry gate this one compares PEP 440 versions, so it needs `pip install 'pyDeprecate[audit]'`.
+
+<details>
+<summary>Example: linting a package against a deprecation policy</summary>
+
+```python
+from deprecate import validate_deprecation_policy
+
+# For testing purposes, we use the test module; normally you would import your own package
+from tests import collection_policy as my_package
+
+# Default policy: one-minor grace window, major-only removals, every warning names a replacement
+violations = validate_deprecation_policy(my_package, "2.0", recursive=False)
+print(f"Found {len(violations)} violations")
+
+# Each message starts with the slug of the rule it broke
+for msg in sorted(violations):
+    print(msg.split("]")[0] + "]")
+
+# Rules are opt-out — drop the removal-cadence rule, keep the other three
+violations = validate_deprecation_policy(my_package, "2.0", recursive=False, remove_only_at=None)
+print(f"Found {len(violations)} violations")
+
+# Or tighten one: demand two major releases between announcement and removal
+violations = validate_deprecation_policy(my_package, "2.0", recursive=False, min_grace="2 majors")
+print(f"Found {len(violations)} violations")
+```
+
+<details>
+  <summary>Output: <code>f"Found {len(violations)} violations"</code></summary>
+
+```
+Found 4 violations
+[message-required]
+[message-required]
+[min-grace]
+[remove-only-at]
+Found 3 violations
+Found 7 violations
+```
+
+</details>
+
+</details>
+
+> [!TIP]
+>
+> - Wrappers missing `deprecated_in` or `remove_in` are **not** violations — the version-distance rules skip them, since a deprecation without a scheduled removal is a valid choice
+> - An unparsable version string emits a `UserWarning` naming the wrapper and the offending field, then the scan continues for the rest
+> - `min_grace` is spelled `"<count> <unit>"` with `major`, `minor`, or `patch` — singular or plural; a coarser bump always clears a finer window, so `1.2` → `2.0` satisfies `"1 minor"`
+> - The `remove_only_at="major"` default suits a project past `1.0`; on a `0.x` line the minor **is** the breaking cadence, so pass `remove_only_at="minor"` there instead of switching the rule off
+> - Only `deprecated_in_not_future` needs `current_version`; when the version cannot be resolved that rule is skipped and the other three still run
+> - `pydeprecate all` prints policy violations but never fails on them — run `pydeprecate policy` as its own CI step to gate on them
 
 ### 🔗 Detecting Deprecation Chains
 

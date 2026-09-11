@@ -407,6 +407,22 @@
         },
         {
           "@type": "Question",
+          "name": "Why does pydeprecate all report policy violations but still exit 0?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "That is deliberate. The deprecation-policy defaults (min_grace='1 minor', remove_only_at='major', message_required=True, deprecated_in_not_future=False) encode a release convention rather than a universal rule, so pydeprecate all runs the policy check in advisory mode: violations are printed for visibility but never contribute to the exit code of all. Only invalid argument mappings, deprecated-to-deprecated chains, and expired wrappers make all exit 1. To fail a build on a policy violation, give pydeprecate policy its own CI step — its exit code is truthful (0 clean, 1 violations found, 2 a malformed rule argument). Spell the rule flags out in that step even where they match the defaults, so the command records what your project promises and a future change to pyDeprecate's defaults cannot quietly change what your CI enforces."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How do I switch off a deprecation-policy rule my project does not follow?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Each of the four rules checked by validate_deprecation_policy is independently controlled — pass None for the two that take a value (min_grace, remove_only_at) or False to disable message_required. deprecated_in_not_future is opt-in (default False); pass True to enable it. Nothing is all-or-nothing. Before reaching for None, check whether retargeting the rule is what you want: the remove_only_at='major' default suits a project past 1.0, but on a 0.x line the minor is the breaking cadence, so a 0.x project should pass remove_only_at='minor' rather than switching the rule off — you keep the gate, pointed at the release level your project really breaks on. Disabling it means nothing checks your removal cadence at all. The CLI mirrors this with one flag per rule: --min-grace, --remove-only-at, --message-required, --deprecated-in-not-future. A value the parser does not recognise is rejected before the scan starts and exits 2 with a message naming the accepted spellings, so a typo can never silently disable a rule you meant to keep."
+          }
+        },
+        {
+          "@type": "Question",
           "name": "What does the UserWarning 'audit: skipped <module>' mean during a recursive scan?",
           "acceptedAnswer": {
             "@type": "Answer",

@@ -2007,6 +2007,65 @@ Prefer fixing the newly surfaced entries over passing `include_members=False` �
 
 ______________________________________________________________________
 
+## Why does `pydeprecate all` report policy violations but still exit 0?
+
+**Q:** `pydeprecate all src/mypackage` prints a *Deprecation Policy Violations* table, but the command exits `0` and my CI step passes. Is the exit code wrong?
+
+**A:** No — that is deliberate. The policy defaults (`min_grace="1 minor"`, `remove_only_at="major"`, `message_required=True`, `deprecated_in_not_future=False`) encode *a* release convention, not a universal rule, so `all` runs the policy check in **advisory** mode: violations are printed for visibility but never contribute to `all`'s exit code. Only invalid argument mappings, deprecated-to-deprecated chains, and expired wrappers make `all` exit `1`.
+
+To make the build fail on a policy violation, give `pydeprecate policy` its own CI step — its exit code is truthful (`0` clean, `1` violations, `2` a malformed rule argument):
+
+```bash
+# reports policy violations, but the exit code ignores them
+pydeprecate all src/mypackage
+
+# this is the step that fails the build
+pydeprecate policy src/mypackage --min-grace="1 minor" --remove-only-at=major
+```
+
+Spell the rule flags out in that step even where they match the defaults: the command then records what your project promises, and a future change to pyDeprecate's defaults cannot quietly change what your CI enforces.
+
+______________________________________________________________________
+
+## How do I switch off a policy rule my project does not follow?
+
+**Q:** My project removes deprecated code at minor releases, not major ones, so `pydeprecate policy` flags every wrapper with `[remove-only-at]`. I do not want to abandon the other three rules to silence it.
+
+**A:** Each of the four rules is independently controlled — pass `None` for the two that take a value (`min_grace`, `remove_only_at`) or `False` to disable `message_required`. `deprecated_in_not_future` is opt-in (default `False`); pass `True` to enable it. Nothing is all-or-nothing.
+
+Before reaching for `None`, check whether **retargeting** the rule is what you actually want. The `remove_only_at="major"` default suits a project past `1.0`; on a `0.x` line the minor **is** the breaking cadence, so a `0.x` project should pass `remove_only_at="minor"` rather than switching the rule off — you keep the gate, pointed at the release level your project really breaks on. Disabling it means nothing checks your removal cadence at all.
+
+Here is the difference between the two:
+
+```python
+from deprecate import validate_deprecation_policy
+
+# For testing purposes, we use the test module; normally you would import your own package
+from tests import collection_policy as my_package
+
+# Relax the cadence: removals at any X.Y.0 release are fine.
+# The fixture still trips it — its removal is booked for `2.0.1`, a patch release.
+violations = validate_deprecation_policy(my_package, "2.0", recursive=False, remove_only_at="minor")
+print(f"Found {len(violations)} violations")
+
+# Or drop the rule entirely and keep the other three
+violations = validate_deprecation_policy(my_package, "2.0", recursive=False, remove_only_at=None)
+print(f"Found {len(violations)} violations")
+```
+
+<details><summary>Output: <code>f"Found {len(violations)} violations"</code></summary>
+
+```
+Found 4 violations
+Found 3 violations
+```
+
+</details>
+
+The CLI mirrors this one flag per rule — `--remove-only-at=minor`, `--remove-only-at=None`, `--min-grace=None`, `--message-required=False`, `--deprecated-in-not-future=False`. A value the parser does not recognise is rejected before the scan starts and exits `2` with a message naming the accepted spellings, so a typo can never silently disable a rule you meant to keep.
+
+______________________________________________________________________
+
 ## UserWarning: `audit: skipped <module>` during a recursive scan
 
 **Q:** A recursive audit scan (`find_deprecation_wrappers`, `validate_deprecation_expiry`, `pydeprecate check` / `all`) emits `UserWarning: audit: skipped <module>: <exception>`. What does it mean?

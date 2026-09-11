@@ -11,7 +11,7 @@ pyDeprecate is a Python deprecation decorator library for API migration. It prov
 - CLI: `pydeprecate` (requires the `[cli]` extra — base install does not include CLI dependencies)
 - Runtime dependencies: none
 - Optional audit extra: `pip install 'pyDeprecate[audit]'`
-- Optional CLI audit extra: `pip install 'pyDeprecate[audit,cli]'` for `pydeprecate expiry` and `pydeprecate all`
+- Optional CLI audit extra: `pip install 'pyDeprecate[audit,cli]'` for `pydeprecate expiry`, `pydeprecate policy`, and `pydeprecate all`
 
 ## Critical Mental Model
 
@@ -262,8 +262,25 @@ validate_deprecation_expiry("my_package", current_version="2.0")
 CLI equivalent (the CLI accepts directory paths and resolves them to packages):
 
 ```bash
-pydeprecate all src/   # runs check + expiry + chains, then appends a deprecation table
+pydeprecate all src/   # runs check + expiry + policy + chains, then appends a deprecation table
 pydeprecate status src/   # standalone deprecation table only (no checks)
+```
+
+### Enforce a deprecation policy in CI
+
+```python
+from deprecate import validate_deprecation_policy
+
+
+# rules: min_grace="1 minor", remove_only_at="major", message_required=True,
+#        deprecated_in_not_future=False (opt-in) — pass None/False to disable any of the other three
+violations = validate_deprecation_policy("my_package", current_version="2.0")
+```
+
+CLI equivalent — must be its own step, because `pydeprecate all` runs this check in advisory mode only:
+
+```bash
+pydeprecate policy src/ --min-grace="1 minor" --remove-only-at=major
 ```
 
 ## Decision Table
@@ -280,6 +297,7 @@ pydeprecate status src/   # standalone deprecation table only (no checks)
 | Constant/object alias | `deprecated_instance(obj, ...)` |
 | Deprecate entire module | `deprecated_module(deprecated_in=..., remove_in=...)` — `module_name` optional; auto-detected from caller `__name__`; Mode 2 (with `target=new_module`) for redirect |
 | CI expiry check | `validate_deprecation_expiry(...)` or `pydeprecate all src/` |
+| CI deprecation-policy check | `validate_deprecation_policy(...)` or `pydeprecate policy src/` — `pydeprecate all` reports violations but never fails on them |
 | CI positional-only compat check | `validate_mapping_compatibility(module)` |
 | Docs table | `generate_deprecation_table(pkg, style="compact")` or `style="matrix"` |
 | Deprecation table (CLI) | `pydeprecate status src/` — standalone table, no checks |
@@ -292,7 +310,7 @@ pydeprecate status src/   # standalone deprecation table only (no checks)
 3a. Deprecating only some attributes (rename or misspelling)? Use `deprecated_class(attrs_mapping={"old": "new"}, ...)` — auto-resolves to `TargetMode.ATTRS_REMAP`. For explicit/self-documenting form, pass `target=TargetMode.ATTRS_REMAP` together with `attrs_mapping`.
 4. Are you keeping an object alias? Use `deprecated_instance(obj, ...)`.
 5. Do you only need a warning? Use `TargetMode.NOTIFY` (pass it explicitly).
-6. Do you need removal governance? Add audit checks in CI.
+6. Do you need removal governance? Add audit checks in CI — `validate_deprecation_expiry` / `pydeprecate expiry` for missed removal deadlines, `validate_deprecation_policy` / `pydeprecate policy` for deprecations scheduled against the project's release rules.
 7. Are you deprecating an entire module? Use `deprecated_module(deprecated_in=..., remove_in=...)` (auto-detects `__name__` from caller frame); add `target=new_module` for redirect mode (Mode 2).
 
 ## Agent Notes
@@ -307,6 +325,8 @@ pydeprecate status src/   # standalone deprecation table only (no checks)
 - **`validate_deprecation_expiry` covers class members by default**: `include_members=True` is now the default, matching `find_deprecation_wrappers` and `generate_deprecation_table` — expiry gates may report more expired wrappers after upgrading; pass `include_members=False` to restore the old module-level-only scope.
 - **Recursive audit scans warn-and-skip failing submodules**: any exception raised while importing a submodule (not just `ImportError`) emits a `UserWarning` of the form `audit: skipped <module>: <exc>` and the scan continues — one broken submodule no longer aborts the whole audit/CI gate.
 - **`find_deprecation_wrappers(recursive=False)` includes re-exported wrappers**: when scanning a package with `recursive=False`, wrappers defined in submodules but re-exported through `__init__.py` are now correctly reported. Previously the attribution filter (`__module__ != mod_name`) dropped re-exported symbols because the defining submodule was never visited in a non-recursive scan. The fix applies `attribute_to_defining_module=False` for non-recursive package scans (guarded by `_same_top_package()`) — re-exports appear attributed to the `__init__` module, not the submodule.
+- **`validate_deprecation_policy(module, current_version=None, recursive=True, include_members=True, *, min_grace="1 minor", remove_only_at="major", message_required=True, deprecated_in_not_future=False) -> list[str]`** lints *how* deprecations were scheduled, where `validate_deprecation_expiry` lints whether they were removed on time. Four rules; `min_grace`/`remove_only_at` disabled by passing `None`, `message_required` disabled by passing `False`, `deprecated_in_not_future` is opt-in (pass `True` to enable it) — every returned message is prefixed with the rule's slug — `[min-grace]`, `[remove-only-at]`, `[message-required]`, `[deprecated-in-not-future]`. `min_grace` is `"<count> <major|minor|patch>"` (singular or plural, e.g. `"1 minor"`, `"2 majors"`); a coarser bump clears a finer window, so `old_func` deprecated in `1.2` and removed in `2.0` satisfies `"1 minor"`. `remove_only_at="major"` permits only `X.0.0` removal versions, `"minor"` any `X.Y.0`, `"patch"` every release; the `"major"` default assumes a project past `1.0` — for a `0.x` project generate `remove_only_at="minor"` (the minor is the breaking cadence there), never `remove_only_at=None`. `message_required` is satisfied by a `target`, a non-empty `args_mapping`/`attrs_mapping`, or a custom `message_template` — an empty mapping (`{}`) renames nothing and does not count (a deprecated *module* is judged on target and mappings alone, because `deprecated_module` always sets `message_template`). `deprecated_in_not_future` is opt-in because a correctly-labelled `deprecated_in` names the version the wrapper *ships in*, ahead of the working-tree version at development time; enable it only if your project always records `deprecated_in` as an already-released version. Only `deprecated_in_not_future` needs `current_version`; an unresolvable version disables that rule alone. Wrappers missing `deprecated_in`/`remove_in` are **skipped, not flagged**, by the version-distance rules; an unparsable version string emits one `UserWarning` per skip and the scan continues. Requires `packaging` (`pip install 'pyDeprecate[audit]'`); a malformed `min_grace`/`remove_only_at` raises `ValueError`.
+- **`pydeprecate policy` is the gate; `pydeprecate all` is not**: `all` runs the policy check in **advisory** mode — violations are printed but never change `all`'s exit code, because the policy defaults encode a project convention rather than a universal rule. Generated CI configs that must fail on policy violations need a separate `pydeprecate policy <path>` step. Flags: `--version`, `--norecursive`, `--exit-zero`, plus one per rule (`--min-grace="1 minor"`, `--remove-only-at=major`, `--message-required=False`, `--deprecated-in-not-future=True` to opt in; `--min-grace=None` / `--remove-only-at=None` disable those two). The version-aware policy rules need `packaging`; when it is missing they are skipped with a warning, while the packaging-free `message-required` rule still runs and can return `1`. Exit codes: `0` clean or only skipped version-aware rules, `1` violations found, `2` malformed `--min-grace` / `--remove-only-at`, or malformed `--version` when `packaging` is available.
 - **`pydeprecate expiry` propagates broken-import errors from the user's package**: when `validate_deprecation_expiry` imports the scanned module and the module raises an `ImportError` with `exc.name` set (Python's import system sets this automatically when an `import` statement fails), the CLI re-raises and exits non-zero with the real error message — instead of swallowing it with a misleading "Could not determine the current package version" advisory. Only version-detection failures (manually raised `ImportError` with no `name` attribute) are still converted to an advisory warning.
 - `@deprecated` works with `@classmethod`, `@staticmethod`, `@property`, and `@cached_property` in either decorator order — `@classmethod @deprecated` and `@deprecated @classmethod` both produce `classmethod(deprecated_wrapper)`; `@staticmethod @deprecated` and `@deprecated @staticmethod` both produce `staticmethod(deprecated_wrapper)`. Both fire `FutureWarning` at call time. Cross-class forwarding is allowed when the **source** is a `@staticmethod` — a `staticmethod` receives no `self`, so the cross-class guard is skipped for static sources.
 - `@property` with `@deprecated`: when `@deprecated` is on the **outside** (`@deprecated @property` order or explicit `deprecated(...)(property(...))`), all three accessors are wrapped — `fget`, `fset`, and `fdel` each fire `FutureWarning` when accessed, assigned, or deleted. Warning fires on attribute access (`obj.prop` triggers it, not `obj.prop()`). When `@deprecated` is on the **inside** (`@property @deprecated`), only `fget` is wrapped — warning fires on read but not on write or delete. For setter/deleter wrapping use the outer order: `@deprecated @property` then chain `@value.setter` / `@value.deleter` (re-wrapped via `_DeprecatedProperty`), or explicit `property(fget, fset[, fdel])` construction. **Inner-order detection**: `find_deprecation_wrappers` sets `inner_order_property=True` on the `DeprecationWrapperInfo` for inner-order properties (plain `property` with a `@deprecated`-wrapped `fget`); filter on this field in CI to reject the pattern. **Strict-mode import**: `from deprecate import property` replaces the builtin with `_StrictProperty`, which raises `TypeError` at class-body evaluation time when handed a getter that already carries `__deprecation_config__` metadata — turns the silent footgun into a loud, immediate failure. Note: `type(x) == property` returns `False` on a decorated property; `isinstance(x, property)` is preserved. Audit: `find_deprecation_wrappers` scans the first accessor that carries `__deprecation_config__` metadata (`fget` → `fset` → `fdel`); setter-only properties (`fget=None`) are discovered via `fset`. `target=<callable>` and `target=TargetMode.ARGS_REMAP` / `True` both raise `TypeError` when decorating a property — property deprecation is warn-only; to redirect, delegate manually in the accessor body (e.g. `return self.new_prop`). Dataclass field alias: add a deprecated `@property` with the old name delegating to the new field; do NOT reuse an existing dataclass field name (the `@dataclass`-generated `__init__` assigns `self.field = value` which conflicts with a property descriptor of the same name).

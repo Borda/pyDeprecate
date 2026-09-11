@@ -26,6 +26,8 @@ Auto-generated from source docstrings. For usage examples see the [User Guide](g
 
 ::: deprecate.audit.validate_deprecation_expiry
 
+::: deprecate.audit.validate_deprecation_policy
+
 ::: deprecate.audit.validate_deprecation_chains
 
 ::: deprecate.audit.validate_mapping_compatibility
@@ -35,6 +37,10 @@ Auto-generated from source docstrings. For usage examples see the [User Guide](g
 ::: deprecate.audit.DeprecationWrapperInfo
 
 ::: deprecate.audit.ChainType
+
+::: deprecate.audit.PolicyRule
+
+::: deprecate.audit.VersionBump
 
 ::: deprecate.audit.DeprecationStatus
 

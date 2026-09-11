@@ -63,7 +63,7 @@ Calling `addition(1, 2)` now emits a `FutureWarning` and transparently forwards 
 - **Custom streams** — route warnings to `logging`, standard `warnings`, or any callable via the `stream` parameter; `stream=None` silences output while forwarding still occurs.
 - **Custom message templates** — `message_template` overrides the default message with `%`-style placeholders (`source_name`, `target_path`, `deprecated_in`, `remove_in`, `argument_map`).
 - **Conditional skip** — `skip_if=callable` suppresses the deprecation machinery when a runtime condition is met (e.g. caller has migrated to a newer dependency); available on decorators and proxies alike.
-- **CI audit tools** — [`validate_deprecation_expiry()`](guide/audit.md#enforcing-removal-deadlines) catches zombie code past its deadline, [`validate_deprecation_chains()`](guide/audit.md#detecting-deprecation-chains) detects double-deprecation chains, and [`find_deprecation_wrappers()`](guide/audit.md#validating-wrapper-configuration) surfaces misconfigured `args_mapping` keys before they silently do nothing.
+- **CI audit tools** — [`validate_deprecation_expiry()`](guide/audit.md#enforcing-removal-deadlines) catches zombie code past its deadline, [`validate_deprecation_policy()`](guide/audit.md#enforcing-a-deprecation-policy) catches deprecations scheduled against your release policy, [`validate_deprecation_chains()`](guide/audit.md#detecting-deprecation-chains) detects double-deprecation chains, and [`find_deprecation_wrappers()`](guide/audit.md#validating-wrapper-configuration) surfaces misconfigured `args_mapping` keys before they silently do nothing.
 - **Static type-checker signals** — native PEP 702 static diagnostics come from `warnings.deprecated`. For projects that need both static-checker hints and runtime call-forwarding, `warnings.deprecated` (for the static signal) and pyDeprecate's `@deprecated` (for forwarding) can be applied separately to the same function.
 - **CLI** — `pydeprecate check src/` / `pydeprecate all src/` runs all audit checks from the command line. See [CLI Reference](guide/cli.md).
 - **Testing helpers** — `assert_no_warnings()` context manager asserts no warnings of a given type escape a block; `no_warning_call` retained as legacy alias.
@@ -76,11 +76,11 @@ Calling `addition(1, 2)` now emits a `FutureWarning` and transparently forwards 
 
 Choose the install that matches the workflow you need:
 
-| Workflow                     | Command                                | Includes                                                                                                      |
-| ---------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| Runtime deprecation wrappers | `pip install pyDeprecate`              | `@deprecated`, `@deprecated_class`, `deprecated_instance`, docstring helpers, and most audit metadata helpers |
-| CI deadline checks           | `pip install 'pyDeprecate[audit]'`     | Adds `packaging` for PEP 440 version comparison in `validate_deprecation_expiry()`                            |
-| Command-line audit workflows | `pip install 'pyDeprecate[audit,cli]'` | Adds CLI dependencies (`fire`, `rich`) plus expiry support for `pydeprecate expiry` and `pydeprecate all`     |
+| Workflow                     | Command                                | Includes                                                                                                                          |
+| ---------------------------- | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Runtime deprecation wrappers | `pip install pyDeprecate`              | `@deprecated`, `@deprecated_class`, `deprecated_instance`, docstring helpers, and most audit metadata helpers                     |
+| CI deadline checks           | `pip install 'pyDeprecate[audit]'`     | Adds `packaging` for PEP 440 version comparison in `validate_deprecation_expiry()` and `validate_deprecation_policy()`            |
+| Command-line audit workflows | `pip install 'pyDeprecate[audit,cli]'` | Adds CLI dependencies (`fire`, `rich`) plus version support for `pydeprecate expiry`, `pydeprecate policy`, and `pydeprecate all` |
 
 ```bash
 pip install pyDeprecate
@@ -92,13 +92,13 @@ For CI audit features that compare version strings:
 pip install 'pyDeprecate[audit]'
 ```
 
-!!! tip "The `[audit]` extra is only needed for `validate_deprecation_expiry`"
+!!! tip "The `[audit]` extra is only needed for `validate_deprecation_expiry` and `validate_deprecation_policy`"
 
-    The base install gives you `@deprecated`, `@deprecated_class`, `deprecated_instance`, and all other audit functions. Only `validate_deprecation_expiry()` needs the extra because it pulls in `packaging` for PEP 440 version comparison.
+    The base install gives you `@deprecated`, `@deprecated_class`, `deprecated_instance`, and all other audit functions. Only `validate_deprecation_expiry()` and `validate_deprecation_policy()` need the extra because they pull in `packaging` for PEP 440 version comparison.
 
 !!! tip "Use `[audit,cli]` for command-line audit workflows"
 
-    The `pydeprecate` command itself lives in the `[cli]` extra, but `pydeprecate expiry` and the expiry phase of `pydeprecate all` also need `[audit]`. Start with `pip install 'pyDeprecate[audit,cli]'` unless you only need Python API calls.
+    The `pydeprecate` command itself lives in the `[cli]` extra, but `pydeprecate expiry`, `pydeprecate policy`, and the expiry/policy phases of `pydeprecate all` also need `[audit]`. Start with `pip install 'pyDeprecate[audit,cli]'` unless you only need Python API calls.
 
 ## Comparison with other tools
 

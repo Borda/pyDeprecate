@@ -19,6 +19,7 @@ from deprecate._cli import (
     cmd_chains,
     cmd_check,
     cmd_expiry,
+    cmd_policy,
     cmd_status,
 )
 from deprecate._pkg import (
@@ -28,7 +29,7 @@ from deprecate._pkg import (
     _version_from_dynamic,
     _version_from_toml,
 )
-from deprecate._types import DeprecationConfig
+from deprecate._types import DeprecationConfig, TargetMode
 from deprecate.audit import ChainType, DeprecationWrapperInfo, _check_expiry_for_callables
 
 # ---------------------------------------------------------------------------
@@ -38,6 +39,18 @@ from deprecate.audit import ChainType, DeprecationWrapperInfo, _check_expiry_for
 _TARGET_CHAIN = DeprecationWrapperInfo(module="mod", function="fn", chain_type=ChainType.TARGET)
 _STACKED_CHAIN = DeprecationWrapperInfo(module="mod", function="fn2", chain_type=ChainType.STACKED)
 _INVALID_ARGS = DeprecationWrapperInfo(module="mod", function="fn", invalid_args=["bad"])
+# Warn-only wrapper with no replacement named — trips the ``message-required`` policy rule.
+_POLICY_VIOLATION = DeprecationWrapperInfo(
+    module="mod",
+    function="warn_only_fn",
+    deprecated_info=DeprecationConfig(deprecated_in="1.0", target=TargetMode.NOTIFY),
+)
+# Forwarding wrapper with no scheduled removal — clean under every default policy rule.
+_POLICY_CLEAN = DeprecationWrapperInfo(
+    module="mod",
+    function="forwarding_fn",
+    deprecated_info=DeprecationConfig(deprecated_in="1.0", target=str),
+)
 _EXPIRED_MSG = (
     "Callable `fn` was scheduled for removal in version 1.0"
     " but still exists in version 2.0. Please delete this deprecated code."
@@ -248,6 +261,37 @@ class TestCmdExpiry:
         mock_expiry.return_value = [_EXPIRED_MSG]
         assert cmd_expiry(path="some_module", version="2.0", exit_zero=True) == 0
 
+    def test_invalid_version_exits_two(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """A malformed explicit version is a usage error before the expiry scan starts.
+
+        CI must distinguish an invalid gate configuration from an expired wrapper. The command therefore returns
+        exit 2 and explains the rejected ``--version`` without importing or scanning the requested package.
+        """
+        assert cmd_expiry(path="some_module", version="not-a-version") == 2
+        assert "Invalid `--version`" in capsys.readouterr().err
+
+    @patch("deprecate._cli._check_expiry_for_callables")
+    def test_auto_detected_unparsable_version_skips_check(
+        self, mock_expiry: MagicMock, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """An auto-detected version that is not PEP 440 skips the check rather than aborting the run.
+
+        ``all`` resolves one version for its whole run and forwards it here, so a project stamped with
+        something like a ``2024.06-nightly`` build number fails the parse deep inside the check. That is a
+        fact about the scanned package, not a flag the user typed: blaming ``--version`` would mislead and
+        letting the parse error escape would take the other checks' results down with it, so the gate
+        degrades to an advisory skip naming the version it could not read.
+        """
+        mock_expiry.side_effect = ValueError("Invalid version: '2024.06-nightly'")
+        result = cmd_expiry(
+            path="some_module",
+            version="2024.06-nightly",
+            _wrappers=[DeprecationWrapperInfo(module="mod", function="fn")],
+            _version_explicit=False,
+        )
+        assert result == 0
+        assert "2024.06-nightly" in capsys.readouterr().err
+
     @patch("deprecate._cli.validate_deprecation_expiry")
     def test_packaging_missing_exits_zero(self, mock_expiry: MagicMock, capsys: pytest.CaptureFixture[str]) -> None:
         """ImportError from missing packaging library → install hint on stderr + returns 0 (advisory)."""
@@ -427,6 +471,35 @@ class TestCmdAll:
         mock_find.return_value = [_INVALID_ARGS]
         assert cmd_all(path="some_module", version="1.0") == 1
 
+    def test_invalid_version_exits_two(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """A malformed explicit version stops the aggregate command before its shared scan.
+
+        ``all`` shares one wrapper scan across its checks, so it must reject an unusable version before touching
+        the target. Exit 2 keeps that CLI usage error distinct from the checks' exit-1 findings.
+        """
+        assert cmd_all(path="some_module", version="not-a-version") == 2
+        assert "Invalid `--version`" in capsys.readouterr().err
+
+    @patch("deprecate._cli.find_deprecation_wrappers")
+    def test_unparsable_auto_detected_version_is_not_a_flag_error(
+        self, mock_find: MagicMock, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A malformed *auto-detected* version degrades the checks instead of failing as a usage error.
+
+        A project whose version metadata is not PEP 440 — a nightly stamped ``2024.06-nightly`` — is scanned
+        with no ``--version`` at all. ``all`` resolves that version once and hands it to its subcommands, so
+        without the provenance travelling with it they each re-validate it as a flag the user never typed:
+        the policy check exits early reporting an invalid ``--version`` and the status table never renders.
+        """
+        mock_find.return_value = [_POLICY_CLEAN]
+        with patch("deprecate._cli._auto_detect_version", return_value="2024.06-nightly"):
+            result = cmd_all(path="some_module")
+        captured = capsys.readouterr()
+        assert result == 0
+        assert "Invalid `--version`" not in captured.err
+        assert "Could not render the deprecation table" not in captured.err
+        assert "No deprecation policy violations found." in captured.out
+
     @patch("deprecate._cli._check_expiry_for_callables")
     @patch("deprecate._cli.find_deprecation_wrappers")
     def test_expired_exits_one(self, mock_find: MagicMock, mock_expiry: MagicMock) -> None:
@@ -488,6 +561,18 @@ class TestCmdAll:
         cmd_all(path="some_module", version="1.0")
         assert mock_find.call_count == 1
         mock_chains.assert_not_called()
+
+    @patch("deprecate._cli._check_expiry_for_callables", return_value=[])
+    @patch("deprecate._cli.find_deprecation_wrappers")
+    def test_policy_violations_stay_advisory(self, mock_find: MagicMock, mock_expiry: MagicMock) -> None:
+        """A policy violation is reported by ``all`` but never changes its exit code.
+
+        The policy defaults encode one project's release convention (major-only removals, a one-minor grace
+        window); folding them into ``all``'s exit code would break the CI of every repo that upgrades and does
+        not share that convention, so the dedicated ``policy`` subcommand is the only gate.
+        """
+        mock_find.return_value = [_POLICY_VIOLATION]
+        assert cmd_all(path="some_module", version="2.0") == 0
 
     @patch("deprecate._cli.cmd_status", side_effect=RuntimeError("table rendering failed"))
     @patch("deprecate._cli._check_expiry_for_callables", return_value=[])
@@ -568,6 +653,40 @@ class TestReportExpiry:
 # ---------------------------------------------------------------------------
 # report_issues chain parametrize extension
 # ---------------------------------------------------------------------------
+
+
+class TestReportPolicy:
+    """Tests for _Reporter.policy() directly, isolated from cmd_policy's scan logic."""
+
+    @pytest.mark.parametrize(
+        "has_rich",
+        [
+            pytest.param(
+                True,
+                id="rich",
+                marks=pytest.mark.skipif(
+                    _Reporter._RichTable is None, reason="rich not installed — forced has_rich=True is unsupported"
+                ),
+            ),
+            pytest.param(False, id="plain"),
+        ],
+    )
+    def test_rule_slug_prefix_survives_output(self, capsys: pytest.CaptureFixture[str], has_rich: bool) -> None:
+        """The `[rule-slug]`-style prefix renders literally in both the rich and plain-text reporters.
+
+        Rich parses square brackets in a cell as style markup, which would swallow a `[min-grace]` prefix
+        silently. Calling `_Reporter.policy()` directly (rather than through `cmd_policy()`) isolates the
+        reporter's own escaping behavior from the surrounding scan, so a regression here cannot hide behind
+        mocked scan data used elsewhere in the test file. The forced ``has_rich=True`` case needs the real
+        ``rich`` package on the interpreter — forcing ``_HAS_RICH`` alone leaves ``_RichTable``/``_rich_box``
+        unset when ``rich`` was never importable, so that case is skipped in a local checkout without the
+        ``cli`` extra.
+        """
+        message = "[min-grace] Callable `pkg.old_fn` is deprecated in `1.0` and already scheduled for removal in `1.0`."
+        with patch("deprecate._cli._Reporter._HAS_RICH", has_rich):
+            _Reporter.policy([message])
+        captured = capsys.readouterr()
+        assert "[min-grace]" in captured.out
 
 
 class TestReportIssues:
@@ -1173,3 +1292,130 @@ class TestCliEmptyExceptionMessage:
         with pytest.raises(SystemExit) as exc_info:
             cli()
         assert "_SilentError" in str(exc_info.value.code)
+
+
+class TestCmdPolicy:
+    """Tests for cmd_policy() subcommand."""
+
+    def test_no_violations_exits_zero(self) -> None:
+        """A package whose wrappers all satisfy the policy exits 0.
+
+        This is the steady state a team lives in after adopting the gate: the run has to stay quiet and green,
+        or the check gets removed from CI within a release.
+        """
+        assert cmd_policy(path="some_module", version="1.0", _wrappers=[]) == 0
+
+    def test_violations_exit_one(self) -> None:
+        """A wrapper breaking a rule fails the gate so the PR that introduced it cannot merge.
+
+        The message-required rule is the one a hurried deprecation trips most often — a warning shipped without
+        a replacement named, which reads as complete until a caller asks what to migrate to.
+        """
+        assert cmd_policy(path="some_module", version="1.0", _wrappers=[_POLICY_VIOLATION]) == 1
+
+    def test_exit_zero_downgrades_violations(self) -> None:
+        """``exit_zero=True`` reports the violations but never blocks the pipeline.
+
+        Teams adopting the gate on an existing codebase run it advisory-first to see the backlog before making
+        it blocking; without this the first run would fail every branch at once.
+        """
+        assert cmd_policy(path="some_module", version="1.0", exit_zero=True, _wrappers=[_POLICY_VIOLATION]) == 0
+
+    def test_invalid_grace_specification_exits_two(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """A malformed ``--min-grace`` reports the accepted format and exits 2 without scanning.
+
+        Exit 2 (usage error) separates "you configured the gate wrong" from exit 1 ("your code broke the
+        policy") — a typo must never be reported as a clean policy run.
+        """
+        assert cmd_policy(path="some_module", version="1.0", min_grace="one minor", _wrappers=[]) == 2
+        assert "min_grace" in capsys.readouterr().err
+
+    def test_invalid_version_exits_two(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """A malformed explicit version is reported as a usage error before policy configuration is evaluated.
+
+        A misspelled release version must not look like a clean policy result or a policy violation. The CLI
+        returns exit 2 so CI can identify the command configuration as the problem.
+        """
+        assert cmd_policy(path="some_module", version="not-a-version", _wrappers=[]) == 2
+        assert "Invalid `--version`" in capsys.readouterr().err
+
+    @patch("deprecate._cli._check_policy_for_callables")
+    def test_packaging_missing_exits_zero(self, mock_policy: MagicMock, capsys: pytest.CaptureFixture[str]) -> None:
+        """A missing ``packaging`` library prints the install hint and stays advisory (exit 0).
+
+        The version comparison needs the optional ``audit`` extra; a CI job that installed only the base package
+        should be told what to add rather than failing on a check it never ran.
+        """
+        mock_policy.side_effect = ImportError("No module named 'packaging'", name="packaging")
+        assert cmd_policy(path="some_module", version="1.0", _wrappers=[]) == 0
+        assert "pyDeprecate[audit]" in capsys.readouterr().err
+
+    @patch("deprecate._cli._check_policy_for_callables")
+    def test_packaging_missing_keeps_message_required_blocking(
+        self, mock_policy: MagicMock, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A missing optional dependency skips version rules but not missing migration guidance.
+
+        A base-install CI job may lack ``packaging`` while still using the packaging-free message rule. Its
+        warning must name the skipped version rules, then fail with exit 1 when a wrapper omits a replacement.
+        """
+        mock_policy.side_effect = [
+            ImportError("No module named 'packaging'", name="packaging"),
+            ["[message-required] Callable `mod.warn_only_fn` warns without naming a replacement"],
+        ]
+
+        assert cmd_policy(path="some_module", version="1.0", _wrappers=[_POLICY_VIOLATION]) == 1
+        captured = capsys.readouterr()
+        assert "message-required" in captured.out
+        assert "min-grace" in captured.err
+
+    @patch("deprecate._cli._check_policy_for_callables")
+    def test_unrelated_import_error_propagates(self, mock_policy: MagicMock) -> None:
+        """An ImportError from the scanned package itself is not swallowed as a missing-``packaging`` case.
+
+        Reporting a broken user import as "install the audit extra" would send the reader to fix the wrong
+        thing entirely, so only genuine ``packaging`` failures are converted to the advisory path.
+        """
+        mock_policy.side_effect = ImportError("No module named 'user_dep'", name="user_dep")
+        with pytest.raises(ImportError, match="user_dep"):
+            cmd_policy(path="some_module", version="1.0", _wrappers=[])
+
+    def test_violations_reported_plain(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """Violation messages, including the rule slug, appear in the plain-text (no-rich) output.
+
+        The bracketed slug is what a CI log grep filters on; a renderer that dropped it would leave the log
+        readable but unfilterable, which is how the rich renderer behaved before the escape was added.
+        """
+        with patch("deprecate._cli._Reporter._HAS_RICH", False):
+            cmd_policy(path="some_module", version="1.0", _wrappers=[_POLICY_VIOLATION])
+        captured = capsys.readouterr()
+        assert "policy violations" in captured.out.lower()
+        assert "[message-required]" in captured.out
+
+    def test_rule_slug_survives_rich_rendering(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """The ``[rule-slug]`` prefix survives the rich table renderer instead of being read as style markup.
+
+        Rich parses square brackets in a cell as a style tag, so an unescaped message silently lost its rule
+        name — the violation still printed, but no reader or grep could tell which policy it broke.
+        """
+        if not _Reporter._HAS_RICH:
+            pytest.skip("rich is not installed")
+        cmd_policy(path="some_module", version="1.0", _wrappers=[_POLICY_VIOLATION])
+        assert "message-required" in capsys.readouterr().out
+
+    def test_disabled_rules_pass_through(self) -> None:
+        """Disabling every rule leaves nothing to report, even for a wrapper that breaks all of them.
+
+        The flags are the escape hatch for a project whose conventions differ; if a disabled rule still fired,
+        the gate could not be adopted incrementally.
+        """
+        result = cmd_policy(
+            path="some_module",
+            version="1.0",
+            min_grace=None,
+            remove_only_at=None,
+            message_required=False,
+            deprecated_in_not_future=False,
+            _wrappers=[_POLICY_VIOLATION],
+        )
+        assert result == 0
