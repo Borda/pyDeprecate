@@ -272,6 +272,25 @@ class TestCliSubcommands:
         )
         assert result.returncode == 0
 
+    def test_policy_subcommand_invalid_remove_only_at_exits_two(self, tmp_path: Path) -> None:
+        """'--remove-only-at=bogus' exits 2 and names the accepted spellings instead of scanning anything.
+
+        A typo'd removal-cadence level must be caught by `_build_policy_spec()`'s upfront validation before
+        any package scanning starts, so the user gets a usage error (exit 2) naming `major`/`minor`/`patch`
+        rather than a scan failure, a stack trace, or a silently-ignored flag.
+        """
+        pkg = _make_pkg(tmp_path)
+        result = _run_cli(
+            ["policy", str(pkg), "--remove-only-at=bogus"],
+            env=_cli_env(),
+            cwd=tmp_path,
+        )
+        assert result.returncode == 2
+        combined = result.stdout + result.stderr
+        assert "major" in combined
+        assert "minor" in combined
+        assert "patch" in combined
+
     def test_subcommand_help(self) -> None:
         """'pydeprecate expiry --help' shows expiry-specific options."""
         result = _run_cli(["expiry", "--help"], env=_cli_env())
