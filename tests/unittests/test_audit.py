@@ -1680,6 +1680,26 @@ class TestValidateDeprecationPolicy:
         assert len(matching) == 1
         assert matching[0].startswith(f"[{rule.value}]")
 
+    @pytest.mark.parametrize(
+        ("min_grace", "expected_window"),
+        [
+            pytest.param("1 minor", "at least 1 minor.", id="singular-window"),
+            pytest.param("2 majors", "at least 2 majors.", id="plural-window"),
+        ],
+    )
+    @_requires_packaging
+    def test_violation_message_echoes_configured_window(self, min_grace: str, expected_window: str) -> None:
+        """The reported grace window reads back in the plural form the count calls for.
+
+        A maintainer who configured ``min_grace="2 majors"`` reads the CI log to learn what the gate expected;
+        a message saying "at least 2 major" looks like a different, one-major setting and sends them auditing
+        the configuration instead of the release schedule. A one-unit window still has to read as the singular.
+        """
+        violations = validate_deprecation_policy("tests.collection_policy", "2.0", recursive=False, min_grace=min_grace)
+        matching = [v for v in violations if "no_grace_window" in v]
+        assert len(matching) == 1
+        assert matching[0].endswith(expected_window)
+
     @_requires_packaging
     def test_future_dating_rule_is_off_by_default(self) -> None:
         """A ``deprecated_in`` ahead of the released version is not reported unless the rule is asked for.

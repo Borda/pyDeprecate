@@ -988,6 +988,47 @@ def _parse_grace_window(min_grace: str) -> tuple[int, VersionBump]:
     return int(match.group("count")), VersionBump(match.group("unit").lower())
 
 
+#: English plural suffix per :class:`~deprecate.audit.VersionBump` unit, used when a parsed grace window is
+#: rendered back into prose.  Only *patch* is irregular (``patches``); spelling the suffix out per member keeps
+#: that exception in one table instead of a branch at the call site, and makes a future unit's plural a data
+#: change rather than a code change.
+_BUMP_PLURAL_SUFFIX: dict[VersionBump, str] = {
+    VersionBump.MAJOR: "s",
+    VersionBump.MINOR: "s",
+    VersionBump.PATCH: "es",
+}
+
+
+def _format_bump_count(count: int, unit: VersionBump) -> str:
+    """Render a bump count and its unit as English prose, pluralising the unit when the count is not one.
+
+    A :class:`~deprecate.audit.VersionBump` value is the bare singular word (``major``), so interpolating it
+    straight into a message reads *at least 2 major*. Only a count of exactly one takes the singular: zero is a
+    legitimate window — ``"0 minors"`` parses, and a ``remove_in`` that moves *backwards* inside one release line
+    still violates it — and reads as a plural in English, the same as any other count.
+
+    Args:
+        count: Number of bumps, as parsed from a ``min_grace`` specification.
+        unit: Version component the bumps are counted in.
+
+    Returns:
+        The count and unit as a phrase, for example ``"1 minor"`` or ``"2 majors"``.
+
+    Examples:
+        >>> _format_bump_count(1, VersionBump.MINOR)
+        '1 minor'
+        >>> _format_bump_count(2, VersionBump.MAJOR)
+        '2 majors'
+        >>> _format_bump_count(3, VersionBump.PATCH)
+        '3 patches'
+        >>> _format_bump_count(0, VersionBump.MINOR)
+        '0 minors'
+
+    """
+    suffix = "" if count == 1 else _BUMP_PLURAL_SUFFIX[unit]
+    return f"{count} {unit.value}{suffix}"
+
+
 def _build_policy_spec(
     min_grace: Optional[str],
     remove_only_at: Optional[Union[str, VersionBump]],
@@ -1149,7 +1190,7 @@ def _grace_window_violation(
     return (
         f"[{PolicyRule.MIN_GRACE.value}] {_format_subject(info)} is deprecated in `{config.deprecated_in}`"
         f" and already scheduled for removal in `{config.remove_in}`;"
-        f" the policy requires a grace window of at least {count} {unit.value}."
+        f" the policy requires a grace window of at least {_format_bump_count(count, unit)}."
     )
 
 
