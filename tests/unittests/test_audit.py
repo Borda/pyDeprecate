@@ -4,6 +4,7 @@ import dataclasses
 import importlib
 import importlib.metadata
 import importlib.util
+import sys
 import types
 import warnings
 from functools import cached_property
@@ -1857,6 +1858,28 @@ class TestPolicyVersionParsingIsLazy:
         which the CLI renders as an install hint, is the honest answer.
         """
         monkeypatch.setattr("deprecate.audit._parse_version", _reject_version_parse)
+        info = DeprecationWrapperInfo(
+            module="pkg",
+            function="no_grace_window",
+            deprecated_info=DeprecationConfig(deprecated_in="2.0", remove_in="2.0", target=str),
+        )
+        spec = _build_policy_spec("1 minor", None, False, False)
+
+        with pytest.raises(ImportError, match="packaging"):
+            _check_policy_for_callables([info], "2.0", spec)
+
+    def test_genuinely_missing_packaging_import_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A real install without ``packaging`` fails the same way the hand-constructed-``ImportError`` tests assume.
+
+        The other tests in this class fake the failure with ``monkeypatch.setattr(_parse_version, ...)``, which
+        proves the *caller* handles an ``ImportError`` correctly but never exercises ``_parse_version``'s own
+        ``except ImportError`` branch. Blocking both ``packaging`` and the already-imported ``packaging.version``
+        submodule in ``sys.modules`` (the parent alone is insufficient once the submodule is cached from an
+        earlier test) forces `from packaging.version import ...` to genuinely fail, so this test exercises the
+        real import-failure path instead of a stand-in for it.
+        """
+        monkeypatch.setitem(sys.modules, "packaging", None)
+        monkeypatch.setitem(sys.modules, "packaging.version", None)
         info = DeprecationWrapperInfo(
             module="pkg",
             function="no_grace_window",
