@@ -55,6 +55,11 @@ def test_catalog_resolves_shared_skills(host: str) -> None:
         )
         assert body.strip()
     assert not {"hooks", "mcpServers", "apps"} & manifest.keys()
+    top_level = {child.name for child in _PLUGIN.iterdir()}
+    assert top_level == {"skills", ".claude-plugin", ".codex-plugin"}, (
+        f"plugins/pydeprecate must not carry extra top-level entries on disk (e.g. hooks/, commands/, "
+        f"agents/, .mcp.json); found {top_level}"
+    )
 
 
 def test_host_versions_agree() -> None:
