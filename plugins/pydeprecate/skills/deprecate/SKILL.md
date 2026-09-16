@@ -33,7 +33,7 @@ Conclude with prioritized opportunities and required dependency/version decision
 | Rename/drop arguments on a surviving API | `TargetMode.ARGS_REMAP`, `args_mapping={"old": "new"}` or `{"old": None}` | Keep new implementation                  |
 | Class rename                             | `deprecated_class(target=Replacement, ...)`                               | Preserve constructor compatibility       |
 | Object alias                             | `deprecated_instance(...)`                                                | Inspect proxy behavior needed by callers |
-| Attribute-only migration                 | `deprecated_class(attrs_mapping=..., ...)`                                | Preserve unaffected class behavior       |
+| Attribute-only migration                 | `deprecated_class(target=TargetMode.ATTRS_REMAP, attrs_mapping=..., ...)` | Preserve unaffected class behavior       |
 
 Use explicit modes, never legacy `target=True` / `target=None` sentinels. Attribute mappings belong on `deprecated_class`, not `deprecated`. Keep old calling conventions, including positional arguments, defaults and keyword conflicts; a rename must not silently change binding.
 
