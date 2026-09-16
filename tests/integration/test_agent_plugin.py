@@ -1,13 +1,24 @@
 """Check that both agent hosts receive the same self-contained plugin skills."""
 
+import importlib.util
+import inspect
 import json
+import os
+import re
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
 import pytest
 
+import deprecate
+from deprecate import TargetMode, deprecated, deprecated_class, deprecated_instance, validate_deprecation_expiry
+from tests import collection_deprecate
+
 _ROOT = Path(__file__).resolve().parents[2]
 _PLUGIN = _ROOT / "plugins" / "pydeprecate"
+_PACKAGING_AVAILABLE = importlib.util.find_spec("packaging") is not None
 
 
 def _load_manifest(host: str) -> dict[str, Any]:
@@ -81,3 +92,98 @@ def test_host_versions_agree() -> None:
         assert codex_entry["description"] == manifests["codex"]["description"]
     if "description" in claude_entry:
         assert claude_entry["description"] == manifests["claude"]["description"]
+
+
+def test_skill_docs_reference_real_api() -> None:
+    """Guard against stale API references in the agent-facing SKILL.md docs.
+
+    This repository has renamed public API twice in its last five commits
+    (``Deprecated`` -> ``DeprecationProxy``, the ``__deprecated__`` split).
+    Both SKILL.md files hardcode ~14 ``deprecate.*`` identifiers as instructions
+    for an AI agent to follow; a future rename could silently break those
+    instructions while this plugin's own test suite stays green, since nothing
+    ties the skill prose back to the installed package today.
+    """
+    accepted_kwargs: set[str] = set()
+    for fn in (deprecated, deprecated_class, deprecated_instance):
+        accepted_kwargs |= set(inspect.signature(fn).parameters)
+    module_exports = set(deprecate.__all__)
+    enum_members = set(TargetMode.__members__)
+
+    # Prose words and stdlib/foreign names the skill bodies also backtick — not deprecate.* API surface.
+    skip_tokens = {
+        "DeprecationWarning",
+        "FutureWarning",
+        "convert",
+        "keep",
+        "warnings.warn",
+        "pyDeprecate",
+        "deprecate",
+        "deprecate.__version__",
+    }
+
+    skill_paths = [_PLUGIN / "skills" / "deprecate" / "SKILL.md", _PLUGIN / "skills" / "remove" / "SKILL.md"]
+    unresolved = [
+        f"{skill_path.name}:{token}"
+        for skill_path in skill_paths
+        for token in re.findall(r"`([A-Za-z_][A-Za-z0-9_.]*)`", skill_path.read_text())
+        if token not in skip_tokens
+        and token.rsplit(".", 1)[-1] not in module_exports
+        and token.rsplit(".", 1)[-1] not in enum_members
+        and token.rsplit(".", 1)[-1] not in accepted_kwargs
+    ]
+
+    assert not unresolved, f"SKILL.md references identifiers not found in the installed API: {unresolved}"
+
+
+@pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
+def test_cli_expiry_preserves_multi_digit_minor_version(tmp_path: Path) -> None:
+    """A quoted-literal ``--version`` value must not be coerced to float by CLI parsing.
+
+    skills/remove/SKILL.md warns that CLI argument parsing can coerce "0.10" to
+    0.1 and that "shell quoting alone does not guarantee preservation" —
+    confirmed: Fire infers a bare ``--version 0.10`` as the float 0.1 before it
+    ever reaches this package's own ``str(version)`` normalization. Passing the
+    value as an embedded string literal (``'"0.10"'``) is the escape the skill
+    alludes to; this exercises the actual ``python -m deprecate expiry`` entry
+    point to confirm that escaped form reaches ``validate_deprecation_expiry``
+    with "0.10" intact and yields the same expired verdict as the Python API.
+    """
+    pkg = tmp_path / "mypkg"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text(
+        "from deprecate import deprecated\n\n\n"
+        "def new_fn(x: int) -> int:\n    return x\n\n\n"
+        '@deprecated(target=new_fn, deprecated_in="0.1", remove_in="0.2")\n'
+        "def old_fn(x: int) -> int:\n    pass\n"
+    )
+    src_dir = str(_ROOT / "src")
+    existing_pythonpath = os.environ.get("PYTHONPATH")
+    pythonpath = f"{src_dir}{os.pathsep}{existing_pythonpath}" if existing_pythonpath else src_dir
+    env = {**os.environ, "PYTHONPATH": pythonpath}
+
+    result = subprocess.run(
+        [sys.executable, "-m", "deprecate", "expiry", str(pkg), "--version", '"0.10"'],
+        capture_output=True,
+        text=True,
+        env=env,
+        cwd=tmp_path,
+    )
+
+    assert result.returncode == 1, result.stdout + result.stderr
+
+
+@pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
+@pytest.mark.parametrize(
+    "current_version",
+    [pytest.param("not-a-version", id="non-numeric"), pytest.param("", id="empty-string")],
+)
+def test_validate_expiry_rejects_malformed_version(current_version: str) -> None:
+    """A malformed ``current_version`` fails fast instead of silently misjudging expiry.
+
+    The removal skill instructs an agent to pass an arbitrary target-release
+    string straight into ``validate_deprecation_expiry``; garbage input must
+    raise clearly, not be silently treated as "not expired" or fail elsewhere.
+    """
+    with pytest.raises(ValueError, match="Invalid current_version"):
+        validate_deprecation_expiry(collection_deprecate, current_version=current_version, recursive=False)
