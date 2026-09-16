@@ -60,12 +60,25 @@ def test_catalog_resolves_shared_skills(host: str) -> None:
 def test_host_versions_agree() -> None:
     """Keep host releases aligned so installation cannot select divergent instructions.
 
-    A maintainer updates one host manifest before publishing a plugin release.
-    Both hosts must retain identical release metadata so users receive the same plugin.
+    A maintainer updates one host manifest before publishing a plugin release. Both hosts must
+    retain identical release metadata so users receive the same plugin, and each host's catalog
+    entry (when it carries its own ``description`` key) must quote the same canonical description
+    as that host's plugin manifest — otherwise browsing the catalog shows different text than
+    installing the plugin.
     """
-    manifests = [_load_manifest(host) for host in ("codex", "claude")]
-    assert manifests[0]["version"] == manifests[1]["version"]
-    assert manifests[0]["description"] == manifests[1]["description"]
+    manifests = {host: _load_manifest(host) for host in ("codex", "claude")}
+    shared_keys = ("name", "version", "description", "author", "homepage", "repository", "license", "skills")
+    assert {key: manifests["codex"][key] for key in shared_keys} == {
+        key: manifests["claude"][key] for key in shared_keys
+    }
+
+    codex_entry = json.loads((_ROOT / ".agents" / "plugins" / "marketplace.json").read_text())["plugins"][0]
+    claude_entry = json.loads((_ROOT / ".claude-plugin" / "marketplace.json").read_text())["plugins"][0]
+    # Codex's catalog entry has no "description" key today — guard rather than assume its presence.
+    if "description" in codex_entry:
+        assert codex_entry["description"] == manifests["codex"]["description"]
+    if "description" in claude_entry:
+        assert claude_entry["description"] == manifests["claude"]["description"]
 
 
 @pytest.mark.parametrize(
