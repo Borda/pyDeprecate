@@ -6,9 +6,6 @@ from typing import Any
 
 import pytest
 
-from deprecate import validate_deprecation_expiry
-from tests import collection_deprecate
-
 _ROOT = Path(__file__).resolve().parents[2]
 _PLUGIN = _ROOT / "plugins" / "pydeprecate"
 
@@ -84,26 +81,3 @@ def test_host_versions_agree() -> None:
         assert codex_entry["description"] == manifests["codex"]["description"]
     if "description" in claude_entry:
         assert claude_entry["description"] == manifests["claude"]["description"]
-
-
-@pytest.mark.parametrize(
-    ("target_release", "expired"),
-    [
-        pytest.param("0.1", False, id="before"),
-        pytest.param("0.2rc1", False, id="prerelease"),
-        pytest.param("0.2", True, id="boundary"),
-        pytest.param("0.10", True, id="multi-digit-minor"),
-    ],
-)
-def test_removal_audit_preserves_release_string(target_release: str, expired: bool) -> None:
-    """Verify the removal skill's recommended audit path preserves release ordering.
-
-    A maintainer prepares a release after a class's 0.2 removal deadline. The
-    exact string must reach the audit: treating 0.10 as a float would miss it.
-    """
-    messages = validate_deprecation_expiry(collection_deprecate, current_version=target_release, recursive=False)
-    expected = (
-        "Callable `tests.collection_deprecate.DeprecatedEnum` was scheduled for removal in version 0.2 "
-        f"but still exists in version {target_release}. Please delete this deprecated code."
-    )
-    assert (expected in messages) is expired

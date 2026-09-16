@@ -963,6 +963,29 @@ class TestCheckModuleDeprecationExpiry:
         for msg in expired:
             assert "Callable" in msg or "scheduled" in msg
 
+    @pytest.mark.parametrize(
+        ("target_release", "expired"),
+        [
+            pytest.param("0.1", False, id="before"),
+            pytest.param("0.2rc1", False, id="prerelease"),
+            pytest.param("0.2", True, id="boundary"),
+            pytest.param("0.10", True, id="multi-digit-minor"),
+        ],
+    )
+    def test_preserves_multi_digit_minor_release_string(self, target_release: str, expired: bool) -> None:
+        """PEP 440 ordering treats "0.10" as newer than "0.2", not as float 0.10 == 0.1.
+
+        A maintainer prepares a release after ``DeprecatedEnum``'s 0.2 removal deadline. The exact
+        string must reach the audit unchanged: comparing "0.10" as a float would read it as 0.1 and
+        miss the removal deadline that PEP 440 ordering correctly detects.
+        """
+        messages = validate_deprecation_expiry(proxy_module, current_version=target_release, recursive=False)
+        expected = (
+            "Callable `tests.collection_deprecate.DeprecatedEnum` was scheduled for removal in version 0.2 "
+            f"but still exists in version {target_release}. Please delete this deprecated code."
+        )
+        assert (expected in messages) is expired
+
 
 class TestBackwardCompatShims:
     """Coverage for the three v0.6-era public aliases preserved in :mod:`deprecate.audit`.
