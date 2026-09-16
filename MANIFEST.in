@@ -26,3 +26,8 @@ prune temp*
 prune test*
 prune docs*
 prune examples*
+
+# Agent plugins are distributed from the repository, separately from Python artifacts.
+prune plugins
+prune .agents
+prune .claude-plugin

@@ -1,0 +1,12 @@
+{
+  "name": "pydeprecate",
+  "version": "0.1.0",
+  "description": "Suggest supported pyDeprecate conversions, add API deprecations, and remove compatibility due by a release version.",
+  "author": {
+    "name": "Jiri Borovec"
+  },
+  "homepage": "https://borda.github.io/pyDeprecate/",
+  "repository": "https://github.com/Borda/pyDeprecate",
+  "license": "Apache-2.0",
+  "skills": "./skills/"
+}

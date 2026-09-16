@@ -1,0 +1,29 @@
+{
+  "name": "pydeprecate",
+  "version": "0.1.0",
+  "description": "Suggest supported pyDeprecate conversions, add API deprecations, and remove compatibility due by a release version.",
+  "author": {
+    "name": "Jiri Borovec"
+  },
+  "homepage": "https://borda.github.io/pyDeprecate/",
+  "repository": "https://github.com/Borda/pyDeprecate",
+  "license": "Apache-2.0",
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "pyDeprecate",
+    "shortDescription": "Deprecate APIs and retire expired compatibility",
+    "longDescription": "Suggest supported pyDeprecate conversions, add API deprecations, and remove compatibility due by a release version.",
+    "developerName": "Jiri Borovec",
+    "category": "Productivity",
+    "capabilities": [
+      "Assess existing deprecations",
+      "Add deprecations",
+      "Remove expired compatibility"
+    ],
+    "defaultPrompt": [
+      "Scan my project and suggest supported pyDeprecate conversions.",
+      "Deprecate a Python API with a replacement and removal version.",
+      "Preview deprecations due for removal in my next release."
+    ]
+  }
+}
