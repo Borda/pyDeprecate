@@ -15,20 +15,20 @@ Retire only compatibility due in the requested release. An expired record identi
 4. Runtime discovery imports modules and executes module-level code. Use the project's normal test environment; do not import an unknown package if its side effects cannot be contained. Cross-check source decorators/factories, private/conditional definitions, re-exports and stacked layers. Record failed/skipped imports and unresolved static candidates. Manual warnings and other deprecation libraries require separate analysis, never silent inclusion.
 5. Select `remove_in <= target_release` with PEP 440 ordering, using installed audit support (`pyDeprecate[audit]`), never lexical or float comparisons. Include exact-boundary deadlines; preserve future deadlines. A prerelease such as `2.0rc1` precedes `2.0`; use a final version only if the user actually requests final-release preparation. Missing/invalid deadlines remain unresolved; do not guess or rewrite them.
 
-Summarize each candidate: source location, symbol/layer, mode, deadline, replacement, affected callers/exports, intended edit. Apply an explicit removal request within its existing authorization; obey repository approval requirements. Ask only for unresolved decisions that change the public contract. Do not turn a preview into a cleanup.
+Summarize each candidate before any edit: source location, symbol/layer, mode, deadline, replacement, affected callers/exports, intended edit. Apply an explicit removal request within its existing authorization; obey repository approval requirements. Present that inventory and stop before the first edit; proceed only after the user confirms the candidate list. Beyond that confirmation, ask only for unresolved decisions that change the public contract. Do not turn a preview into a cleanup.
 
 ## Edit according to what expires
 
-| Due compatibility                                   | Required edit                                                                                              |
-| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| Obsolete forwarding function/class/object alias     | Remove old entry point and obsolete exports; preserve replacement                                          |
-| `ARGS_REMAP` on a surviving function or constructor | Remove due mapping/decorator and obsolete parameter/fallback; retain live callable and new signature       |
-| `ATTRS_REMAP` on a surviving class                  | Remove due alias/mapping; preserve class, new attributes and unrelated proxy behavior                      |
-| Stacked wrappers with different deadlines           | Remove only due layer; retain later layers and valid decorator order                                       |
-| Warn-only function, property or class               | Determine whether symbol is retired; migrate owned callers before removing it                              |
-| Deprecated module                                   | Preserve needed implementation in replacement; remove obsolete module/export/import path only within scope |
+| Due compatibility                                   | Required edit                                                                                                                  |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Obsolete forwarding function/class/object alias     | Remove old entry point and obsolete exports; preserve replacement                                                              |
+| `ARGS_REMAP` on a surviving function or constructor | Remove due mapping/decorator and obsolete parameter/fallback; retain live callable and new signature                           |
+| `ATTRS_REMAP` on a surviving class                  | Remove due alias/mapping; preserve class, new attributes and unrelated proxy behavior                                          |
+| Stacked wrappers with different deadlines           | Remove only due layer; retain later layers and valid decorator order                                                           |
+| Warn-only function, property or class               | Determine whether symbol is retired; migrate owned callers — those inside the step 1 package/source scope — before removing it |
+| Deprecated module                                   | Preserve needed implementation in replacement; remove obsolete module/export/import path only within scope                     |
 
-Trace replacement chains before deleting a target still used by a retained wrapper. Preserve remaining mappings, `args_extra`, `skip_if` and proxy behavior unless their migration is explicitly due. Do not replace an old wrapper with a permanent silent alias when the old entry point is meant to disappear. Updating local callers does not establish compatibility for unknown downstream users.
+Trace replacement chains before deleting a target still used by a retained wrapper. Preserve remaining mappings, `args_extra`, `skip_if` and proxy behavior unless their migration is explicitly due. Do not replace an old wrapper with a permanent silent alias when the old entry point is meant to disappear. Updating local callers does not establish compatibility for unknown downstream users. Callers outside the step 1 scope — sibling packages, vendored trees, other repositories — need their own request.
 
 Update active docs, imports, exports and tests. Preserve historical changelog entries. Do not delete useful tests merely to make the suite pass; replace old compatibility assertions with retirement/new-API assertions where appropriate.
 
