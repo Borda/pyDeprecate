@@ -12,7 +12,10 @@ _ROOT = Path(__file__).resolve().parents[2]
 _PLUGIN = _ROOT / "plugins" / "pydeprecate"
 
 
-@pytest.mark.parametrize("host", ["codex", "claude"], ids=["codex", "claude"])
+@pytest.mark.parametrize(
+    "host",
+    [pytest.param("codex", id="codex"), pytest.param("claude", id="claude")],
+)
 def test_catalog_resolves_shared_skills(host: str) -> None:
     """Resolve each host's catalog exactly as a repository installation would.
 
@@ -56,8 +59,12 @@ def test_host_versions_agree() -> None:
 
 @pytest.mark.parametrize(
     ("target_release", "expired"),
-    [("0.1", False), ("0.2rc1", False), ("0.2", True), ("0.10", True)],
-    ids=["before", "prerelease", "boundary", "multi-digit-minor"],
+    [
+        pytest.param("0.1", False, id="before"),
+        pytest.param("0.2rc1", False, id="prerelease"),
+        pytest.param("0.2", True, id="boundary"),
+        pytest.param("0.10", True, id="multi-digit-minor"),
+    ],
 )
 def test_removal_audit_preserves_release_string(target_release: str, expired: bool) -> None:
     """Verify the removal skill's recommended audit path preserves release ordering.
