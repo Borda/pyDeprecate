@@ -85,6 +85,13 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 - **Unification pattern**: when 3+ call sites share the same `(deprecated_in, remove_in[, num_warns])` combo, extract to `_DEPRS_CASE_<SLUG>_ARGS: dict[str, Any]` and splat with `**`. Hoist `_class_deprecation_*` shared instances to the top constants block. See [Unification pattern](.github/CONTRIBUTING.md#unification-pattern--shared-version-kwargs-and-hoisted-instances) for full rules.
 - See [Test Organization](.github/CONTRIBUTING.md#test-organization) for details
 
+### Coding-Agent Plugin (`plugins/pydeprecate/`)
+
+- **Three-way sync**: `src/deprecate/` (code) ↔ `README.md`/`docs/llms.txt`/`docs/guide/*.md` (docs) ↔ `plugins/pydeprecate/skills/*/SKILL.md` (plugin). A public API change updates all three; a SKILL.md referencing an identifier not in the installed API is a bug (guarded by `test_skill_docs_reference_real_api` in `tests/integration/test_agent_plugin.py`).
+- **Docs and this file outrank plugin guidance** — `docs/llms.txt` and `AGENTS.md` are the authoritative contract; `plugins/pydeprecate/skills/*/SKILL.md` is a cached, separately-installed copy that can lag the actual installed package version. On any conflict, trust docs/`AGENTS.md` and fix the SKILL.md, never the reverse.
+- **No extra blank-line spacing in `plugins/**/*.md`** — single blank line between blocks, no blank line between list items in a tight list (see existing SKILL.md files for the pattern).
+- **Version policy**: plugin `version` (in both `.claude-plugin/plugin.json` and `.codex-plugin/plugin.json`) bumps on its own cadence — skill content changed — independent of the package's `__version__`. Each manifest also declares `compatible_package_version` (PEP 440 specifier, e.g. `">=0.12.0"`): the package version range the current skill content is verified against — the floor is the lowest release where every identifier the SKILL.md files reference actually exists under that name (check `CHANGELOG.md`, not guesswork). Bump `compatible_package_version` (not `version`) whenever a skill starts relying on new, changed, or removed public API. Never collapse the two fields into one shared number — enforced by `test_plugin_declares_compatible_package_version` in `tests/integration/test_agent_plugin.py`.
+
 ### Documentation Site
 
 - **README ≠ docs/index.md** — README is the PyPI page (do not copy it to docs); `docs/index.md` is a curated overview
@@ -106,6 +113,8 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 - Use `with warnings.catch_warnings(...)` in any `.md` documentation example in any form — neither `simplefilter("always")` for capturing nor `simplefilter("ignore", ...)` for suppressing; annotate the call with `# warns: FutureWarning` or `# warns: UserWarning` instead; output blocks show only return values
 - Use bare `assert` statements in `.md` documentation examples outside of `def test_...` bodies (e.g. `assert pt.x == 1.0`, `assert isinstance(obj, MyClass)`) — use `print()` instead and follow with a `<details><summary>Output: <code>expression</code></summary>` block showing expected output. **Exception:** bare `assert` inside `def test_...` function bodies shown as pytest integration examples is allowed and idiomatic
 - Import a fictional package name in runnable `.md` examples — executable examples must import from actual test collection modules (`from tests import collection_deprecate`, `collection_misconfigured`, or `collection_chains`). For CI-template snippets that intentionally show a placeholder import, add `# phmdoctest:skip — CI template: replace my_package with your actual package` as the first line so phmdoctest skips execution
+- Let `plugins/pydeprecate/skills/*/SKILL.md` contradict `docs/llms.txt` or this file — those are authoritative; the installed plugin and the installed package can drift independently
+- Add extra blank-line spacing inside `plugins/**/*.md`
 - Skip test coverage for new features or bug fixes
 - Implement features without maintainer approval
 - Start work without first reading config files and guidelines

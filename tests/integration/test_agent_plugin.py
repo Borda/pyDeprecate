@@ -20,6 +20,11 @@ _ROOT = Path(__file__).resolve().parents[2]
 _PLUGIN = _ROOT / "plugins" / "pydeprecate"
 _PACKAGING_AVAILABLE = importlib.util.find_spec("packaging") is not None
 
+try:
+    from packaging.specifiers import SpecifierSet
+except ImportError:  # pragma: no cover - guarded by _PACKAGING_AVAILABLE skipif below
+    SpecifierSet = None  # type: ignore[assignment,misc]
+
 
 def _load_manifest(host: str) -> dict[str, Any]:
     """Load the plugin manifest for an agent host."""
@@ -80,7 +85,17 @@ def test_host_versions_agree() -> None:
     installing the plugin.
     """
     manifests = {host: _load_manifest(host) for host in ("codex", "claude")}
-    shared_keys = ("name", "version", "description", "author", "homepage", "repository", "license", "skills")
+    shared_keys = (
+        "name",
+        "version",
+        "description",
+        "author",
+        "homepage",
+        "repository",
+        "license",
+        "skills",
+        "compatible_package_version",
+    )
     assert {key: manifests["codex"][key] for key in shared_keys} == {
         key: manifests["claude"][key] for key in shared_keys
     }
@@ -92,6 +107,27 @@ def test_host_versions_agree() -> None:
         assert codex_entry["description"] == manifests["codex"]["description"]
     if "description" in claude_entry:
         assert claude_entry["description"] == manifests["claude"]["description"]
+
+
+@pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
+@pytest.mark.parametrize(
+    "host",
+    [pytest.param("codex", id="codex"), pytest.param("claude", id="claude")],
+)
+def test_plugin_declares_compatible_package_version(host: str) -> None:
+    """Catch a plugin release drifting out of range of the installed package.
+
+    A maintainer changes public API without updating the plugin's declared compatibility
+    floor. Both hosts pin a ``compatible_package_version`` specifier, kept independent of
+    the plugin's own ``version``, so an agent installing this plugin against an incompatible
+    package gets a clear signal instead of SKILL.md instructions that reference behavior the
+    loaded package doesn't have. ``prereleases=True`` is required here: this repo's own
+    installed version is a ``.dev`` build, and a bare floor like ``>=0.12.0`` excludes
+    prereleases by default under PEP 440.
+    """
+    manifest = _load_manifest(host)
+    spec = SpecifierSet(manifest["compatible_package_version"])  # type: ignore[misc]
+    assert spec.contains(deprecate.__version__, prereleases=True)
 
 
 def test_skill_docs_reference_real_api() -> None:
