@@ -16,7 +16,8 @@ pyDeprecate is a Python deprecation decorator library for API migration. It prov
 ## Coding-Agent Plugin
 
 - This repository also contains an unreleased, separate `pydeprecate` plugin for Codex and Claude Code. `pip` installs the library only; it does not install agent skills.
-- Install from a local checkout at the repository root: Codex `codex plugin marketplace add .` then `codex plugin add pydeprecate@pydeprecate`; Claude Code `claude plugin marketplace add .` then `claude plugin install pydeprecate@pydeprecate`.
+- Install from GitHub once the plugin manifests and catalogs are published to the repository's default branch: Codex `codex plugin marketplace add Borda/pyDeprecate` then `codex plugin add pydeprecate@pydeprecate`; Claude Code `claude plugin marketplace add Borda/pyDeprecate` then `claude plugin install pydeprecate@pydeprecate`.
+- For local development or unpublished changes, use `.` instead of `Borda/pyDeprecate` in the marketplace-add command, running from the repository root. The plugin-install command stays the same.
 - Invoke `$pydeprecate:deprecate` / `$pydeprecate:remove` in Codex or `/pydeprecate:deprecate` / `/pydeprecate:remove` in Claude Code. Implementing a deprecation requires package/module scope plus `deprecated_in` and `remove_in`; `remove` requests require scope plus target release only. Example requests: `Deprecate old_func in package.module, deprecated_in=1.4, remove_in=2.0.` and `Remove compatibility due by target release 2.0 from package.module.`
 - Preview is read-only. Removal requires an explicit release deadline with `remove_in <= target release`, preserves surviving functions/classes for argument/attribute compatibility, and reports incomplete scans as unresolved.
 - Use the consumer environment's existing `pyDeprecate`; Python audits need `[audit]`, while CLI audits need `[audit,cli]`. The plugin adds no server, hook, runtime dependency, or pip dependency.

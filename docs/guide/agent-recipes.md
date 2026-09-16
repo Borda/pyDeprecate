@@ -8,23 +8,25 @@ This page is for coding assistants that need to add a correct deprecation cycle 
 
 ## Install the coding-agent plugin
 
-The repository contains an unreleased `pydeprecate` plugin with the same skills for Codex and Claude Code. It is separate from the `pyDeprecate` library, and `pip` does not install agent skills. From the repository root, install the local checkout with the host that you use:
+The repository contains an unreleased `pydeprecate` plugin with the same skills for Codex and Claude Code. It is separate from the `pyDeprecate` library, and `pip` does not install agent skills. Install from GitHub once the plugin manifests and catalogs are published to the repository's default branch:
 
 ```bash
 # Codex
-codex plugin marketplace add .
+codex plugin marketplace add Borda/pyDeprecate
 codex plugin add pydeprecate@pydeprecate
 
 # Claude Code
-claude plugin marketplace add .
+claude plugin marketplace add Borda/pyDeprecate
 claude plugin install pydeprecate@pydeprecate
 ```
+
+For local development or unpublished changes, run these commands from the repository root with `.` instead of `Borda/pyDeprecate` in the marketplace-add command. The plugin-install command stays the same.
 
 The plugin provides `$pydeprecate:deprecate` and `$pydeprecate:remove` in Codex, and `/pydeprecate:deprecate` and `/pydeprecate:remove` in Claude Code. Implementing a deprecation requires package or module scope plus `deprecated_in` and `remove_in`; a `remove` request requires scope plus the target release only. Example requests: “Deprecate `parse_config` in `acme.parsers`, deprecated_in=1.4, remove_in=2.0.” and “Remove compatibility due by target release 2.0 from `acme.parsers`.”
 
 Preview remains read-only. A removal plan requires an explicit release deadline with `remove_in <= target release`, keeps surviving functions or classes available for argument/attribute compatibility, and leaves incomplete scans unresolved. Use the consumer environment's existing `pyDeprecate`; Python audits need `[audit]`, while CLI audits need `[audit,cli]`.
 
-The local source remains under `plugins/pydeprecate/` until publication: `.codex-plugin/plugin.json`, `.claude-plugin/plugin.json`, `skills/deprecate/SKILL.md`, and `skills/remove/SKILL.md`.
+The plugin source lives under `plugins/pydeprecate/`: `.codex-plugin/plugin.json`, `.claude-plugin/plugin.json`, `skills/deprecate/SKILL.md`, and `skills/remove/SKILL.md`.
 
 For adoption scans, ask: “Scan `src/acme` for deprecation decorators, warnings, aliases, and shims; suggest supported pyDeprecate conversions without editing.” The scan verifies installed or explicitly identified release support and returns `convert`, `keep`, or `needs decision`. It does not force dependencies or convert operational warnings, and PEP 702 static-checker behavior is not equivalent merely because runtime metadata looks similar.
 
