@@ -21,7 +21,13 @@ ______________________________________________________________________
 - [📖 Overview](#overview)
 - [✨ Features](#features)
 - [💾 Installation](#installation)
+
+<!-- following section will be skipped from PyPI description -->
+
 - [🤖 Coding-agent plugin](#coding-agent-plugin)
+
+<!-- end skipping PyPI description -->
+
 - [🚀 Quick Start](#quick-start)
 - [🗺 API at a Glance](#api-at-a-glance)
 - [📊 Comparison with Other Tools](#comparison-with-other-tools)

@@ -170,7 +170,10 @@ def test_cli_expiry_preserves_multi_digit_minor_version(tmp_path: Path) -> None:
         cwd=tmp_path,
     )
 
+    # returncode alone doesn't discriminate this from an unrelated malformed-version ValueError
+    # (both exit 1) — pin the actual expiry message so a regression can't hide behind a coincident exit code.
     assert result.returncode == 1, result.stdout + result.stderr
+    assert "expired wrapper" in result.stdout, result.stdout + result.stderr
 
 
 @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
