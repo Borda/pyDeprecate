@@ -359,11 +359,13 @@ pyDeprecate/
 │       ├── inject.py           # Runtime injection helpers: TEMPLATE_DOC_*, _update_docstring_*()
 │       ├── griffe_ext.py       # Griffe extension for mkdocstrings / MkDocs (beta)
 │       └── sphinx_ext.py       # Sphinx autodoc extension (beta)
+├── .agents/plugins/marketplace.json       # Codex local marketplace catalog
+├── .claude-plugin/marketplace.json        # Claude Code local marketplace catalog
 ├── plugins/
-│   └── pydeprecate/             # Unreleased dual-host Codex/Claude Code plugin
-│       ├── .codex-plugin/plugin.json   # Codex plugin manifest
-│       ├── .claude-plugin/plugin.json  # Claude Code plugin manifest
-│       └── skills/              # Shared deprecate and remove skills
+│   └── pydeprecate/                       # Unreleased dual-host Codex/Claude Code plugin
+│       ├── .codex-plugin/plugin.json      # Codex plugin manifest
+│       ├── .claude-plugin/plugin.json     # Claude Code plugin manifest
+│       └── skills/                        # Shared deprecate and remove skills
 ├── docs/
 │   └── guide/
 │       ├── migration.md        # Source-version upgrade paths assembled from compatibility deltas
