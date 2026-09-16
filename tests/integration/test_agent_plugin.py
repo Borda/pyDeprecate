@@ -44,7 +44,11 @@ def test_catalog_resolves_shared_skills(host: str) -> None:
 
 
 def test_host_versions_agree() -> None:
-    """Keep host releases aligned so installation cannot select divergent instructions."""
+    """Keep host releases aligned so installation cannot select divergent instructions.
+
+    A maintainer updates one host manifest before publishing a plugin release.
+    Both hosts must retain identical release metadata so users receive the same plugin.
+    """
     manifests = [json.loads((_PLUGIN / f".{host}-plugin/plugin.json").read_text()) for host in ("codex", "claude")]
     assert manifests[0]["version"] == manifests[1]["version"]
     assert manifests[0]["description"] == manifests[1]["description"]
