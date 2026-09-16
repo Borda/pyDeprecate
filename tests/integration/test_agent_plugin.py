@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -10,6 +11,11 @@ from tests import collection_deprecate
 
 _ROOT = Path(__file__).resolve().parents[2]
 _PLUGIN = _ROOT / "plugins" / "pydeprecate"
+
+
+def _load_manifest(host: str) -> dict[str, Any]:
+    """Load the plugin manifest for an agent host."""
+    return json.loads((_PLUGIN / f".{host}-plugin/plugin.json").read_text())
 
 
 @pytest.mark.parametrize(
@@ -28,7 +34,7 @@ def test_catalog_resolves_shared_skills(host: str) -> None:
     (entry,) = catalog["plugins"]
     source = entry["source"]["path"] if host == "codex" else entry["source"]
     assert (_ROOT / source).resolve() == _PLUGIN
-    manifest = json.loads((_PLUGIN / f".{host}-plugin/plugin.json").read_text())
+    manifest = _load_manifest(host)
     assert manifest["name"] == entry["name"] == "pydeprecate"
     skills = (_PLUGIN / manifest["skills"]).resolve()
     assert skills == _PLUGIN / "skills"
@@ -37,11 +43,16 @@ def test_catalog_resolves_shared_skills(host: str) -> None:
         "remove",
     }
     for name in ("deprecate", "remove"):
-        content = (skills / name / "SKILL.md").read_text()
+        skill_path = skills / name / "SKILL.md"
+        content = skill_path.read_text()
+        assert content.startswith("---"), f"{skill_path} must start with YAML frontmatter"
         marker, metadata, body = content.split("---", 2)
         assert not marker
         assert f"name: {name}" in metadata.splitlines()
-        assert any(line.startswith("description: ") and line[13:].strip() for line in metadata.splitlines())
+        assert any(
+            line.startswith("description: ") and line.removeprefix("description: ").strip()
+            for line in metadata.splitlines()
+        )
         assert body.strip()
     assert not {"hooks", "mcpServers", "apps"} & manifest.keys()
 
@@ -52,7 +63,7 @@ def test_host_versions_agree() -> None:
     A maintainer updates one host manifest before publishing a plugin release.
     Both hosts must retain identical release metadata so users receive the same plugin.
     """
-    manifests = [json.loads((_PLUGIN / f".{host}-plugin/plugin.json").read_text()) for host in ("codex", "claude")]
+    manifests = [_load_manifest(host) for host in ("codex", "claude")]
     assert manifests[0]["version"] == manifests[1]["version"]
     assert manifests[0]["description"] == manifests[1]["description"]
 
