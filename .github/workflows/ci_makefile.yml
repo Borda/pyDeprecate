@@ -32,13 +32,16 @@ jobs:
           - target: docs-build
             fetch_depth: 0 # git-revision-date plugin requires full history
           - target: docs-tests
+            fetch_depth: 1
             test_dir: tests/docs/
 
     steps:
       - name: 🔀 Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
-          fetch-depth: ${{ matrix.fetch_depth == null && 1 || matrix.fetch_depth }}
+          # explicit per-entry value: `matrix.fetch_depth == null` is true for 0 (null coerces to 0), so a
+          # null-guard expression silently turned the docs-build depth of 0 into 1
+          fetch-depth: ${{ matrix.fetch_depth }}
 
       - name: 🐍 Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
