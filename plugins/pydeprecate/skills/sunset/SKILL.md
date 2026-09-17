@@ -1,9 +1,9 @@
 ---
-name: deprecate
+name: sunset
 description: Scan a Python project for existing deprecation patterns and suggest supported pyDeprecate conversions, or implement requested API deprecations with explicit versions. Not for removing expired compatibility or merely upgrading dependencies.
 ---
 
-# Deprecate a Python API
+# Sunset a Python API
 
 Verified against pyDeprecate `>=0.10` (the three most recent minor releases plus the development line); check `deprecate.__version__` first — identifiers newer than the floor carry a since-note, and older releases lack them.
 

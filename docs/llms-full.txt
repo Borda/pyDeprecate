@@ -11,7 +11,7 @@
 
 ## Coding-Agent Plugin
 
-The repository includes a separate `pydeprecate` coding-agent plugin in `plugins/pydeprecate/`, available from the repository's default branch (early, pre-1.0), with separate Claude Code and Codex manifests and shared `deprecate` and `prune` skills. It helps assess existing deprecation patterns, implement versioned API deprecations, and retire compatibility due by an explicit target release; previews are read-only. `pip install pyDeprecate` installs the library only, not the plugin. See `llms.txt` for installation and invocation instructions.
+The repository includes a separate `pydeprecate` coding-agent plugin in `plugins/pydeprecate/`, available from the repository's default branch (early, pre-1.0), with separate Claude Code and Codex manifests and shared `sunset` and `prune` skills. It helps assess existing deprecation patterns, implement versioned API deprecations, and retire compatibility due by an explicit target release; previews are read-only. `pip install pyDeprecate` installs the library only, not the plugin. See `llms.txt` for installation and invocation instructions.
 
 ## Public API Map
 

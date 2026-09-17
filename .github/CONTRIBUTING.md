@@ -365,7 +365,7 @@ pyDeprecate/
 │   └── pydeprecate/                       # Dual-host Codex/Claude Code plugin, early pre-1.0
 │       ├── .codex-plugin/plugin.json      # Codex plugin manifest
 │       ├── .claude-plugin/plugin.json     # Claude Code plugin manifest
-│       └── skills/                        # Shared deprecate and prune skills
+│       └── skills/                        # Shared sunset and prune skills
 ├── docs/
 │   └── guide/
 │       ├── migration.md        # Source-version upgrade paths assembled from compatibility deltas

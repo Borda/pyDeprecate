@@ -5,7 +5,7 @@
 ### Added
 
 - **Public `get_deprecation_config(obj)` metadata accessor.** Reads the v0.13 `__deprecation_config__` object and falls back to the pre-v0.13 `__deprecated__` configuration layout for mixed-version applications. ([#230](https://github.com/Borda/pyDeprecate/pull/230))
-- **`pydeprecate` coding-agent plugin for Codex and Claude Code.** Ships shared `deprecate` and `prune` skills under `plugins/pydeprecate/`, with dual-host manifests and marketplace catalogs (`.claude-plugin/`, `.codex-plugin/`), separate from the `pyDeprecate` pip package. ([#232](https://github.com/Borda/pyDeprecate/pull/232))
+- **`pydeprecate` coding-agent plugin for Codex and Claude Code.** Ships shared `sunset` and `prune` skills under `plugins/pydeprecate/`, with dual-host manifests and marketplace catalogs (`.claude-plugin/`, `.codex-plugin/`), separate from the `pyDeprecate` pip package. ([#232](https://github.com/Borda/pyDeprecate/pull/232))
 
 ### Changed
 
