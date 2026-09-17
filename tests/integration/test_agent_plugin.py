@@ -30,8 +30,13 @@ _PACKAGING_AVAILABLE = importlib.util.find_spec("packaging") is not None
 
 try:
     from packaging.specifiers import SpecifierSet
+    from packaging.version import Version
 except ImportError:  # pragma: no cover - guarded by _PACKAGING_AVAILABLE skipif below
     SpecifierSet = None  # type: ignore[assignment,misc]
+    Version = None  # type: ignore[assignment,misc]
+
+#: Floating support window: the manifest floor may trail the installed minor by at most this many minors.
+_SUPPORT_WINDOW_MINORS = 3
 
 
 def _load_manifest(host: str) -> dict[str, Any]:
@@ -141,7 +146,10 @@ def test_plugin_declares_compatible_package_version(host: str) -> None:
     here: this repo's own installed version is a ``.dev`` build, and a bare floor like
     ``>=0.12.0`` excludes prereleases by default under PEP 440. An empty string is also
     guarded against explicitly: ``SpecifierSet("")`` matches every version, so a manifest
-    that silently lost its floor would still pass a bare ``.contains()`` check.
+    that silently lost its floor would still pass a bare ``.contains()`` check. The floor is a
+    floating window — at most ``_SUPPORT_WINDOW_MINORS`` minors behind the installed version —
+    so a maintainer who forgets to bump it at a minor release, or bumps it past the window,
+    gets told here rather than by a confused agent on an older release.
     """
     manifest = _load_manifest(host)
     raw_spec = manifest["compatible_package_version"]
@@ -150,12 +158,21 @@ def test_plugin_declares_compatible_package_version(host: str) -> None:
     assert spec.contains(_deprecate_version, prereleases=True)
     assert not spec.contains("0.0.0", prereleases=True), f"{raw_spec!r} does not actually bound the floor"
     assert not spec.contains("0.1.0", prereleases=True), f"{raw_spec!r} does not actually bound the floor"
+    floors = [Version(item.version) for item in spec if item.operator in (">=", "==", "~=")]  # type: ignore[misc]
+    assert len(floors) == 1, f"{raw_spec!r} must declare exactly one lower bound"
+    installed = Version(_deprecate_version)  # type: ignore[misc]
+    oldest_supported = installed.minor - _SUPPORT_WINDOW_MINORS
+    assert (floors[0].major, floors[0].minor) >= (installed.major, oldest_supported), (
+        f"{raw_spec!r} trails the installed {installed} by more than {_SUPPORT_WINDOW_MINORS} minors — bump the floor"
+    )
 
 
 _SKILL_PATHS = (_PLUGIN / "skills" / "deprecate" / "SKILL.md", _PLUGIN / "skills" / "remove" / "SKILL.md")
-# Prose words and stdlib/foreign names the skill bodies also backtick — not deprecate.* API surface.
+# Prose words, stdlib/foreign names, and the wrapper attribute `__deprecated__` the skill bodies also backtick —
+# none of them is a deprecate.* module export.
 _SKILL_SKIP_TOKENS = frozenset(
     {
+        "__deprecated__",
         "DeprecationWarning",
         "FutureWarning",
         "convert",
