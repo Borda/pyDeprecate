@@ -128,9 +128,9 @@ pip install https://github.com/Borda/pyDeprecate/archive/main.zip
 
 ## 🤖 Coding-agent plugin
 
-This repository includes an unreleased `pydeprecate` plugin for Codex and Claude Code. It is a separate artifact from the `pyDeprecate` library and is not installed by `pip`.
+This repository includes a `pydeprecate` plugin for Codex and Claude Code, available from the repository's default branch (early, pre-1.0). It is a separate artifact from the `pyDeprecate` library and is not installed by `pip`.
 
-Install it from GitHub once the plugin manifests and catalogs are published to the repository's default branch:
+Install it from GitHub:
 
 ```bash
 # Codex
@@ -144,13 +144,7 @@ claude plugin install pydeprecate@pydeprecate
 
 For local development or unpublished changes, run these commands from the repository root with `.` instead of `Borda/pyDeprecate` in the marketplace-add command. The plugin-install command stays the same.
 
-Use `$pydeprecate:deprecate` and `$pydeprecate:remove` in Codex, or `/pydeprecate:deprecate` and `/pydeprecate:remove` in Claude Code. Implementing a deprecation requires the package or module scope plus `deprecated_in` and `remove_in`; a `remove` request provides the scope and target release only. For example: “Deprecate `parse_config` in `acme.parsers`, deprecated_in=1.4, remove_in=2.0.” or “Remove compatibility due by target release 2.0 from `acme.parsers`.”
-
-Preview is read-only; removal requires `remove_in <= target version`, preserves surviving functions or classes for argument/attribute compatibility, and reports incomplete scans as unresolved. The plugin adds no servers, hooks, runtime dependencies, or pip-installable skills. Use the consumer environment's existing `pyDeprecate` install: Python audits need `[audit]`, while CLI audits need `[audit,cli]`.
-
-For adoption, ask: “Scan `src/acme` for deprecation decorators, warnings, aliases, and shims; suggest supported pyDeprecate conversions without editing.” The scan stays read-only, verifies release support, and reports `convert`, `keep`, or `needs decision`; it does not force conversion of operational warnings or PEP 702 static-checker behavior.
-
-See the [coding-agent recipes](https://borda.github.io/pyDeprecate/stable/guide/agent-recipes.html) for the host commands and workflow boundaries.
+Use `$pydeprecate:deprecate` / `$pydeprecate:remove` in Codex, or `/pydeprecate:deprecate` / `/pydeprecate:remove` in Claude Code, to implement or retire a deprecation — see the [coding-agent recipes](https://borda.github.io/pyDeprecate/stable/guide/agent-recipes.html) for invocation examples, host commands, and workflow boundaries.
 
 <!-- end skipping PyPI description -->
 

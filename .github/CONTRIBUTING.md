@@ -362,7 +362,7 @@ pyDeprecate/
 ├── .agents/plugins/marketplace.json       # Codex local marketplace catalog
 ├── .claude-plugin/marketplace.json        # Claude Code local marketplace catalog
 ├── plugins/
-│   └── pydeprecate/                       # Unreleased dual-host Codex/Claude Code plugin
+│   └── pydeprecate/                       # Dual-host Codex/Claude Code plugin, early pre-1.0
 │       ├── .codex-plugin/plugin.json      # Codex plugin manifest
 │       ├── .claude-plugin/plugin.json     # Claude Code plugin manifest
 │       └── skills/                        # Shared deprecate and remove skills
@@ -677,6 +677,13 @@ class TestMyFeature:
 >
 > Test classes are most beneficial when you have multiple tests or need fixtures. For single standalone tests, a simple test function is sufficient.
 
+### Coding-Agent Plugin (`plugins/pydeprecate/`)
+
+- **Three-way sync**: `src/deprecate/` (code) ↔ `README.md`/`docs/llms.txt`/`docs/guide/*.md` (docs) ↔ `plugins/pydeprecate/skills/*/SKILL.md` (plugin). A public API change updates all three; a `SKILL.md` referencing an identifier not in the installed API is a bug (guarded by `test_skill_docs_reference_real_api` in `tests/integration/test_agent_plugin.py`).
+- **Docs and `AGENTS.md` outrank plugin guidance** — `docs/llms.txt` and `AGENTS.md` are the authoritative contract; `plugins/pydeprecate/skills/*/SKILL.md` is a cached, separately-installed copy that can lag the actual installed package version. On any conflict, trust docs/`AGENTS.md` and fix the `SKILL.md`, never the reverse.
+- **No extra blank-line spacing in `plugins/**/*.md`** — single blank line between blocks, no blank line between list items in a tight list (see existing `SKILL.md` files for the pattern).
+- **Version policy**: plugin `version` (in both `.claude-plugin/plugin.json` and `.codex-plugin/plugin.json`) bumps on its own cadence — skill content changed — independent of the package's `__version__`. Each manifest also declares `compatible_package_version` (PEP 440 specifier, e.g. `">=0.12.0"`): the package version range the current skill content is verified against — the floor is the lowest release where every identifier the `SKILL.md` files reference actually exists under that name (check `CHANGELOG.md`, not guesswork). Bump `compatible_package_version` (not `version`) whenever a skill starts relying on new, changed, or removed public API. Never collapse the two fields into one shared number — enforced by `test_plugin_declares_compatible_package_version` in `tests/integration/test_agent_plugin.py`.
+
 ### Common Patterns
 
 <details>
@@ -797,7 +804,7 @@ Two audiences read the docs examples — name accordingly.
 
 **Human-facing docs** (`docs/guide/*.md`, `README.md`, `docs/index.md`) — domain-realistic, story-telling names (e.g. `score` → `score_predictions`, `detect` → `detect_objects`). Readers understand *why* the rename happened. Never use generic placeholders like `old_func` / `new_func`.
 
-**AI-facing docs only** (`docs/llms.txt`, `docs/llms-full.txt`) — generic placeholder names (`old_func`/`new_func`, `old_arg`/`new_arg`). Must not appear in `docs/guide/`, `README.md`, or `docs/index.md`.
+**AI-facing docs only** (`docs/llms.txt`, `docs/llms-full.txt`, `plugins/pydeprecate/skills/*/SKILL.md`) — generic placeholder names (`old_func`/`new_func`, `old_arg`/`new_arg`). Must not appear in `docs/guide/`, `README.md`, or `docs/index.md`. `SKILL.md` prose task examples (e.g. "Deprecate `old_func` in `package.module`, deprecated_in=1.4, remove_in=2.0.") are fine as-is — the generic-name rule applies to code identifiers, not to natural-language request examples.
 
 **Orientation comments** — every paired example (new API + deprecated wrapper) opens with:
 

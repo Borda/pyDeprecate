@@ -8,7 +8,7 @@ This page is for coding assistants that need to add a correct deprecation cycle 
 
 ## Install the coding-agent plugin
 
-The repository contains an unreleased `pydeprecate` plugin with the same skills for Codex and Claude Code. It is separate from the `pyDeprecate` library, and `pip` does not install agent skills. Install from GitHub once the plugin manifests and catalogs are published to the repository's default branch:
+The repository contains a `pydeprecate` plugin with the same skills for Codex and Claude Code, available from the repository's default branch (early, pre-1.0). It is separate from the `pyDeprecate` library, and `pip` does not install agent skills. Install from GitHub:
 
 ```bash
 # Codex
