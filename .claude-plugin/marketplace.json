@@ -7,7 +7,7 @@
   "plugins": [
     {
       "name": "pydeprecate",
-      "description": "Suggest supported pyDeprecate conversions, add API deprecations, and remove compatibility due by a release version.",
+      "description": "Suggest supported pyDeprecate conversions, add API deprecations, and prune compatibility due by a release version.",
       "source": "./plugins/pydeprecate"
     }
   ]

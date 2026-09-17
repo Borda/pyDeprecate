@@ -1,9 +1,9 @@
 ---
-name: remove
-description: Remove pyDeprecate compatibility due by a user-supplied Python package release version, or preview that cleanup. Use for scheduled deprecation retirement; not arbitrary file deletion, dependency removal, or adding deprecations.
+name: prune
+description: Prune pyDeprecate compatibility due by a user-supplied Python package release version, or preview that cleanup. Use for scheduled deprecation retirement; not arbitrary file deletion, dependency removal, or adding deprecations.
 ---
 
-# Remove scheduled deprecations
+# Prune scheduled deprecations
 
 Verified against pyDeprecate `>=0.10` (the three most recent minor releases plus the development line); check `deprecate.__version__` first — identifiers newer than the floor carry a since-note, and older releases lack them.
 

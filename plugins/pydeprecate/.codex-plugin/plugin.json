@@ -2,7 +2,7 @@
   "name": "pydeprecate",
   "version": "0.1.0",
   "compatible_package_version": ">=0.10",
-  "description": "Suggest supported pyDeprecate conversions, add API deprecations, and remove compatibility due by a release version.",
+  "description": "Suggest supported pyDeprecate conversions, add API deprecations, and prune compatibility due by a release version.",
   "author": {
     "name": "Jiri Borovec"
   },
@@ -13,13 +13,13 @@
   "interface": {
     "displayName": "pyDeprecate",
     "shortDescription": "Deprecate APIs and retire expired compatibility",
-    "longDescription": "Suggest supported pyDeprecate conversions, add API deprecations, and remove compatibility due by a release version.",
+    "longDescription": "Suggest supported pyDeprecate conversions, add API deprecations, and prune compatibility due by a release version.",
     "developerName": "Jiri Borovec",
     "category": "Productivity",
     "capabilities": [
       "Assess existing deprecations",
       "Add deprecations",
-      "Remove expired compatibility"
+      "Prune expired compatibility"
     ],
     "defaultPrompt": [
       "Scan my project and suggest supported pyDeprecate conversions.",

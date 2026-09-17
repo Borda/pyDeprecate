@@ -66,9 +66,9 @@ def test_catalog_resolves_shared_skills(host: str) -> None:
     assert skills == _PLUGIN / "skills"
     assert {path.name for path in skills.iterdir() if path.is_dir() and not path.name.startswith(".")} == {
         "deprecate",
-        "remove",
+        "prune",
     }
-    for name in ("deprecate", "remove"):
+    for name in ("deprecate", "prune"):
         skill_path = skills / name / "SKILL.md"
         content = skill_path.read_text(encoding="utf-8")
         assert content.startswith("---"), f"{skill_path} must start with YAML frontmatter"
@@ -167,7 +167,7 @@ def test_plugin_declares_compatible_package_version(host: str) -> None:
     )
 
 
-_SKILL_PATHS = (_PLUGIN / "skills" / "deprecate" / "SKILL.md", _PLUGIN / "skills" / "remove" / "SKILL.md")
+_SKILL_PATHS = (_PLUGIN / "skills" / "deprecate" / "SKILL.md", _PLUGIN / "skills" / "prune" / "SKILL.md")
 # Prose words, stdlib/foreign names, and the wrapper attribute `__deprecated__` the skill bodies also backtick —
 # none of them is a deprecate.* module export.
 _SKILL_SKIP_TOKENS = frozenset(
