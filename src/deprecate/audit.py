@@ -899,7 +899,26 @@ class PolicyRule(str, enum.Enum):
     """Governance rule checked by :func:`~deprecate.audit.validate_deprecation_policy`.
 
     Each member's value is the slug that prefixes the rule's violation messages, so a CI log can be grouped or
-    filtered by rule without re-stating the rule names as bare strings at every call site.
+    filtered by rule. Every rule is switched by its own keyword argument, mirrored by a ``pydeprecate policy``
+    flag of the same name.
+
+    Attributes:
+        MIN_GRACE: ``remove_in`` must sit at least ``min_grace`` beyond ``deprecated_in`` -- a version-shaped
+            delta: ``"0.1"`` one minor (default), ``"1"`` one major, ``"0.0.2"`` two patches; ``None`` disables.
+            A coarser bump clears a finer window (``1.2`` -> ``2.0`` satisfies ``"0.3"``); a ``remove_in`` at or
+            before ``deprecated_in`` always fails. Versions spanning a PEP 440 epoch, or that do not parse, are
+            skipped with a :class:`UserWarning`.
+        REMOVE_ONLY_AT: ``remove_in`` must land on the release level ``remove_only_at`` names -- ``"major"``
+            (default) permits only ``X.0.0``, ``"minor"`` any ``X.Y.0``, ``"patch"`` every release; ``None``
+            disables. A ``0.x`` project retargets to ``"minor"`` (its breaking cadence) rather than switching off.
+        MESSAGE_REQUIRED: the wrapper must name what to migrate *to* -- a ``target``, a non-empty
+            ``args_mapping``/``attrs_mapping``, or a non-empty custom ``message_template``; ``message_required=False``
+            disables. An explicit :attr:`~deprecate.TargetMode.NOTIFY` counts only the template; a deprecated module
+            only target and mappings. The one rule that runs without ``packaging``.
+        DEPRECATED_IN_NOT_FUTURE: ``deprecated_in`` must not be ahead of ``current_version``. **Opt-in**
+            (``deprecated_in_not_future=True``): stamping a wrapper with the release it *will* ship in is the
+            normal workflow, so enable only where ``deprecated_in`` always records a published version. The only
+            rule reading ``current_version``; unresolvable version skips this rule alone.
 
     Examples:
         >>> PolicyRule.MIN_GRACE.value
