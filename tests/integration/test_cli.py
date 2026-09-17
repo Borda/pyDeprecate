@@ -5,6 +5,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import Optional
 
 import pytest
 
@@ -38,6 +39,21 @@ def old_fn(old: int) -> int:
     pass
 """
 
+# Package whose remove_in="0.2" discriminates the PEP 440 string "0.10" from the float 0.1 that Fire's
+# CLI parsing coerces an unquoted --version 0.10 into (0.1 < 0.2, so it would wrongly read as not expired).
+_MYPKG_INIT_MULTI_DIGIT_MINOR = """\
+from deprecate import deprecated
+
+
+def new_fn(x: int) -> int:
+    return x
+
+
+@deprecated(target=new_fn, deprecated_in="0.1", remove_in="0.2")
+def old_fn(x: int) -> int:
+    pass
+"""
+
 
 def _cli_env(**extra: str) -> dict[str, str]:
     """Build env dict with PYTHONPATH pointing at src/ so subprocess can find deprecate."""
@@ -46,12 +62,33 @@ def _cli_env(**extra: str) -> dict[str, str]:
     return {**os.environ, "PYTHONPATH": pythonpath, **extra}
 
 
-def _make_pkg(tmp_path: Path, name: str = "mypkg") -> Path:
+def _make_pkg(tmp_path: Path, name: str = "mypkg", content: str = _MYPKG_INIT) -> Path:
     """Create a minimal importable package with one deprecated wrapper."""
     pkg = tmp_path / name
     pkg.mkdir()
-    (pkg / "__init__.py").write_text(_MYPKG_INIT)
+    (pkg / "__init__.py").write_text(content)
     return pkg
+
+
+def _run_cli(
+    *args: str, env: Optional[dict[str, str]] = None, cwd: Optional[Path] = None
+) -> subprocess.CompletedProcess[str]:
+    """Run 'python -m deprecate <args>' as a real subprocess, always decoding output as UTF-8.
+
+    Without an explicit ``encoding``, ``text=True`` falls back to the platform's default locale
+    encoding (``cp1252`` on Windows), which cannot decode the UTF-8 bytes this CLI always writes
+    (``_ensure_utf8_streams`` reconfigures its own stdout/stderr to UTF-8 regardless of console
+    codepage) — corrupting ``result.stdout``/``result.stderr`` or raising ``UnicodeDecodeError``
+    inside the subprocess pipe-reader thread before ``subprocess.run`` ever returns.
+    """
+    return subprocess.run(
+        [sys.executable, "-m", "deprecate", *args],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        env=env if env is not None else _cli_env(),
+        cwd=cwd,
+    )
 
 
 class TestCliInvocation:
@@ -59,27 +96,20 @@ class TestCliInvocation:
 
     def test_no_args_shows_help(self) -> None:
         """CLI with no arguments prints help and exits 0 (Fire shows component help)."""
-        result = subprocess.run([sys.executable, "-m", "deprecate"], capture_output=True, text=True, env=_cli_env())
+        result = _run_cli()
         assert result.returncode == 0
         assert "check" in (result.stdout + result.stderr).lower()
 
     def test_help(self) -> None:
         """CLI --help exits 0 and lists subcommands."""
-        result = subprocess.run(
-            [sys.executable, "-m", "deprecate", "--help"], capture_output=True, text=True, env=_cli_env()
-        )
+        result = _run_cli("--help")
         assert result.returncode == 0
         combined = result.stdout + result.stderr
         assert "check" in combined.lower()
 
     def test_nonexistent_module(self) -> None:
         """CLI with a module that doesn't exist exits non-zero."""
-        result = subprocess.run(
-            [sys.executable, "-m", "deprecate", "check", "nonexistent_module_xyz"],
-            capture_output=True,
-            text=True,
-            env=_cli_env(COLUMNS="200"),
-        )
+        result = _run_cli("check", "nonexistent_module_xyz", env=_cli_env(COLUMNS="200"))
         assert result.returncode != 0
 
 
@@ -89,13 +119,7 @@ class TestCliSubcommands:
     def test_check_subcommand_explicit(self, tmp_path: Path) -> None:
         """'pydeprecate check <path>' scans and exits 0 for a clean package."""
         pkg = _make_pkg(tmp_path)
-        result = subprocess.run(
-            [sys.executable, "-m", "deprecate", "check", str(pkg)],
-            capture_output=True,
-            text=True,
-            env=_cli_env(),
-            cwd=tmp_path,
-        )
+        result = _run_cli("check", str(pkg), cwd=tmp_path)
         assert result.returncode == 0
         assert "Scanning:" in result.stdout
 
@@ -103,13 +127,7 @@ class TestCliSubcommands:
     def test_expiry_subcommand_no_expired(self, tmp_path: Path) -> None:
         """'pydeprecate expiry <path> --version 1.0' exits 0 when nothing is expired."""
         pkg = _make_pkg(tmp_path)
-        result = subprocess.run(
-            [sys.executable, "-m", "deprecate", "expiry", str(pkg), "--version", "1.0"],
-            capture_output=True,
-            text=True,
-            env=_cli_env(),
-            cwd=tmp_path,
-        )
+        result = _run_cli("expiry", str(pkg), "--version", "1.0", cwd=tmp_path)
         assert result.returncode == 0
         assert "No expired" in result.stdout
 
@@ -117,25 +135,40 @@ class TestCliSubcommands:
     def test_expiry_subcommand_expired(self, tmp_path: Path) -> None:
         """'pydeprecate expiry <path> --version 9.0' exits 1 when wrapper is past remove_in."""
         pkg = _make_pkg(tmp_path)
-        result = subprocess.run(
-            [sys.executable, "-m", "deprecate", "expiry", str(pkg), "--version", "9.0"],
-            capture_output=True,
-            text=True,
-            env=_cli_env(),
-            cwd=tmp_path,
-        )
+        result = _run_cli("expiry", str(pkg), "--version", "9.0", cwd=tmp_path)
         assert result.returncode == 1
+
+    @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
+    @pytest.mark.parametrize(
+        ("version_arg", "returncode", "expected_text"),
+        [
+            pytest.param("0.10", 0, "No expired", id="unquoted-coerced-to-float"),
+            pytest.param('"0.10"', 1, "expired wrapper", id="quoted-preserves-string"),
+        ],
+    )
+    def test_expiry_multi_digit_minor_version_requires_quoting(
+        self, tmp_path: Path, version_arg: str, returncode: int, expected_text: str
+    ) -> None:
+        """'pydeprecate expiry <path> --version <arg>' behaves differently for a bare vs. quoted "0.10".
+
+        skills/prune/SKILL.md warns that CLI argument parsing can coerce "0.10" to 0.1 and that "shell
+        quoting alone does not guarantee preservation" — confirmed here: Fire infers a bare
+        ``--version 0.10`` as the float 0.1 before it ever reaches this package's own ``str(version)``
+        normalization, so a wrapper with ``remove_in="0.2"`` is (wrongly) reported as not yet expired.
+        Passing the value as an embedded string literal (``'"0.10"'``) is the escape the skill alludes
+        to: it reaches ``validate_deprecation_expiry`` with "0.10" intact, and PEP 440 ordering correctly
+        reports the same wrapper as expired against "0.2". Pinning both outcomes in one test documents
+        the coercion bug and the workaround as a single, comparable contract.
+        """
+        pkg = _make_pkg(tmp_path, content=_MYPKG_INIT_MULTI_DIGIT_MINOR)
+        result = _run_cli("expiry", str(pkg), "--version", version_arg, cwd=tmp_path)
+        assert result.returncode == returncode, result.stdout + result.stderr
+        assert expected_text in result.stdout, result.stdout + result.stderr
 
     def test_chains_subcommand_no_chains(self, tmp_path: Path) -> None:
         """'pydeprecate chains <path>' exits 0 for a package with no deprecation chains."""
         pkg = _make_pkg(tmp_path)
-        result = subprocess.run(
-            [sys.executable, "-m", "deprecate", "chains", str(pkg)],
-            capture_output=True,
-            text=True,
-            env=_cli_env(),
-            cwd=tmp_path,
-        )
+        result = _run_cli("chains", str(pkg), cwd=tmp_path)
         assert result.returncode == 0
         assert "No deprecation chains" in result.stdout
 
@@ -143,26 +176,14 @@ class TestCliSubcommands:
     def test_all_subcommand_clean(self, tmp_path: Path) -> None:
         """'pydeprecate all <path> --version 1.0' exits 0 when all checks pass."""
         pkg = _make_pkg(tmp_path)
-        result = subprocess.run(
-            [sys.executable, "-m", "deprecate", "all", str(pkg), "--version", "1.0"],
-            capture_output=True,
-            text=True,
-            env=_cli_env(),
-            cwd=tmp_path,
-        )
+        result = _run_cli("all", str(pkg), "--version", "1.0", cwd=tmp_path)
         assert result.returncode == 0
 
     @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
     def test_status_subcommand_exits_0(self, tmp_path: Path) -> None:
         """'pydeprecate status <path> --version 1.0' exits 0 and prints a markdown table."""
         pkg = _make_pkg(tmp_path)
-        result = subprocess.run(
-            [sys.executable, "-m", "deprecate", "status", str(pkg), "--version", "1.0"],
-            capture_output=True,
-            text=True,
-            env=_cli_env(),
-            cwd=tmp_path,
-        )
+        result = _run_cli("status", str(pkg), "--version", "1.0", cwd=tmp_path)
         assert result.returncode == 0
         assert "Original API" in result.stdout
 
@@ -179,13 +200,7 @@ class TestCliSubcommands:
         broken_pkg = tmp_path / "broken_pkg"
         broken_pkg.mkdir()
         (broken_pkg / "__init__.py").write_text("from _nonexistent_module_xyz_ import something\n")
-        result = subprocess.run(
-            [sys.executable, "-m", "deprecate", "expiry", str(broken_pkg), "--version", "9.0"],
-            capture_output=True,
-            text=True,
-            env=_cli_env(),
-            cwd=tmp_path,
-        )
+        result = _run_cli("expiry", str(broken_pkg), "--version", "9.0", cwd=tmp_path)
         assert result.returncode != 0
         combined = result.stdout + result.stderr
         assert "_nonexistent_module_xyz_" in combined
@@ -201,13 +216,7 @@ class TestCliSubcommands:
         plain = tmp_path / "plain"
         plain.mkdir()
         (plain / "mod.py").write_text("x = 1\n")
-        result = subprocess.run(
-            [sys.executable, "-m", "deprecate", "all", str(plain)],
-            capture_output=True,
-            text=True,
-            env=_cli_env(),
-            cwd=tmp_path,
-        )
+        result = _run_cli("all", str(plain), cwd=tmp_path)
         assert result.returncode == 0
 
     def test_status_plain_directory_exits_0(self, tmp_path: Path) -> None:
@@ -215,13 +224,7 @@ class TestCliSubcommands:
         plain = tmp_path / "plain"
         plain.mkdir()
         (plain / "mod.py").write_text("x = 1\n")
-        result = subprocess.run(
-            [sys.executable, "-m", "deprecate", "status", str(plain)],
-            capture_output=True,
-            text=True,
-            env=_cli_env(),
-            cwd=tmp_path,
-        )
+        result = _run_cli("status", str(plain), cwd=tmp_path)
         assert result.returncode == 0
 
     def test_check_plain_directory_warns_nested_files_on_stderr(self, tmp_path: Path) -> None:
@@ -238,21 +241,13 @@ class TestCliSubcommands:
         sub = plain / "sub"
         sub.mkdir()
         (sub / "nested.py").write_text("y = 2\n")
-        result = subprocess.run(
-            [sys.executable, "-m", "deprecate", "check", str(plain)],
-            capture_output=True,
-            text=True,
-            env=_cli_env(),
-            cwd=tmp_path,
-        )
+        result = _run_cli("check", str(plain), cwd=tmp_path)
         assert result.returncode == 0
         assert "Skipping nested Python files" in result.stderr
 
     def test_help_lists_subcommands(self) -> None:
         """'pydeprecate --help' output includes the five subcommand names."""
-        result = subprocess.run(
-            [sys.executable, "-m", "deprecate", "--help"], capture_output=True, text=True, env=_cli_env()
-        )
+        result = _run_cli("--help")
         assert result.returncode == 0
         combined = result.stdout + result.stderr
         for name in ("check", "expiry", "chains", "all", "status"):
@@ -260,22 +255,14 @@ class TestCliSubcommands:
 
     def test_subcommand_help(self) -> None:
         """'pydeprecate expiry --help' shows expiry-specific options."""
-        result = subprocess.run(
-            [sys.executable, "-m", "deprecate", "expiry", "--help"], capture_output=True, text=True, env=_cli_env()
-        )
+        result = _run_cli("expiry", "--help")
         assert result.returncode == 0
         assert "version" in (result.stdout + result.stderr).lower()
 
     def test_check_no_recursive_flag(self, tmp_path: Path) -> None:
         """'pydeprecate check <path> --norecursive' is accepted and exits 0."""
         pkg = _make_pkg(tmp_path)
-        result = subprocess.run(
-            [sys.executable, "-m", "deprecate", "check", str(pkg), "--norecursive"],
-            capture_output=True,
-            text=True,
-            env=_cli_env(),
-            cwd=tmp_path,
-        )
+        result = _run_cli("check", str(pkg), "--norecursive", cwd=tmp_path)
         assert result.returncode == 0
 
     def test_check_exit_zero_dash_form(self, tmp_path: Path) -> None:
@@ -283,13 +270,7 @@ class TestCliSubcommands:
         pkg = tmp_path / "badpkg"
         pkg.mkdir()
         (pkg / "__init__.py").write_text(_MYPKG_INIT_INVALID)
-        result = subprocess.run(
-            [sys.executable, "-m", "deprecate", "check", str(pkg), "--exit-zero"],
-            capture_output=True,
-            text=True,
-            env=_cli_env(),
-            cwd=tmp_path,
-        )
+        result = _run_cli("check", str(pkg), "--exit-zero", cwd=tmp_path)
         assert result.returncode == 0
 
     def test_check_exit_zero_underscore_form(self, tmp_path: Path) -> None:
@@ -297,13 +278,7 @@ class TestCliSubcommands:
         pkg = tmp_path / "badpkg"
         pkg.mkdir()
         (pkg / "__init__.py").write_text(_MYPKG_INIT_INVALID)
-        result = subprocess.run(
-            [sys.executable, "-m", "deprecate", "check", str(pkg), "--exit_zero"],
-            capture_output=True,
-            text=True,
-            env=_cli_env(),
-            cwd=tmp_path,
-        )
+        result = _run_cli("check", str(pkg), "--exit_zero", cwd=tmp_path)
         assert result.returncode == 0
 
 
@@ -319,13 +294,7 @@ class TestCliArgumentValidation:
 
         """
         pkg = _make_pkg(tmp_path)
-        result = subprocess.run(
-            [sys.executable, "-m", "deprecate", "check", str(pkg), "--bogusflag"],
-            capture_output=True,
-            text=True,
-            env=_cli_env(COLUMNS="200"),
-            cwd=tmp_path,
-        )
+        result = _run_cli("check", str(pkg), "--bogusflag", env=_cli_env(COLUMNS="200"), cwd=tmp_path)
         assert result.returncode != 0
         assert "Could not consume arg" in result.stderr + result.stdout
 
@@ -338,13 +307,7 @@ class TestCliArgumentValidation:
 
         """
         pkg = _make_pkg(tmp_path)
-        result = subprocess.run(
-            [sys.executable, "-m", "deprecate", "expiry", str(pkg), "--verison", "9.0"],
-            capture_output=True,
-            text=True,
-            env=_cli_env(COLUMNS="200"),
-            cwd=tmp_path,
-        )
+        result = _run_cli("expiry", str(pkg), "--verison", "9.0", env=_cli_env(COLUMNS="200"), cwd=tmp_path)
         assert result.returncode != 0
         assert "Could not consume arg" in result.stderr + result.stdout
 
@@ -364,12 +327,6 @@ class TestCliArgumentValidation:
         (decoy / "pyproject.toml").write_text('[project]\nname = "fakeproj"\nversion = "9.9.9"\n')
         env = _cli_env()
         env["PYTHONPATH"] = f"{proj}{os.pathsep}{env['PYTHONPATH']}"
-        result = subprocess.run(
-            [sys.executable, "-m", "deprecate", "expiry", "mypkg"],
-            capture_output=True,
-            text=True,
-            env=env,
-            cwd=decoy,
-        )
+        result = _run_cli("expiry", "mypkg", env=env, cwd=decoy)
         assert "9.9.9" not in result.stdout + result.stderr
         assert result.returncode == 0

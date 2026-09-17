@@ -902,10 +902,19 @@ class TestCheckModuleDeprecationExpiry:
         expired = validate_deprecation_expiry("tests.collection_deprecate", "100.0", recursive=False)
         assert isinstance(expired, list)
 
-    def test_invalid_current_version_raises_before_scan(self) -> None:
-        """Malformed current_version raises ValueError before any callable is checked."""
+    @pytest.mark.parametrize(
+        "current_version",
+        [pytest.param("invalid", id="non-numeric"), pytest.param("", id="empty-string")],
+    )
+    def test_invalid_current_version_raises_before_scan(self, current_version: str) -> None:
+        """Malformed current_version raises ValueError before any callable is checked.
+
+        The removal skill instructs an agent to pass an arbitrary target-release string straight into
+        ``validate_deprecation_expiry``; both a non-numeric string and an empty string are garbage input
+        that must raise clearly before any wrapper is checked, not be silently treated as "not expired".
+        """
         with pytest.raises(ValueError, match="Invalid current_version"):
-            validate_deprecation_expiry("tests.collection_deprecate", "invalid", recursive=False)
+            validate_deprecation_expiry("tests.collection_deprecate", current_version, recursive=False)
 
     def test_auto_detect_version_fails_for_non_package(self) -> None:
         """Auto-detection raises ImportError when the package has no version metadata."""
@@ -962,6 +971,29 @@ class TestCheckModuleDeprecationExpiry:
         assert all(isinstance(msg, str) for msg in expired)
         for msg in expired:
             assert "Callable" in msg or "scheduled" in msg
+
+    @pytest.mark.parametrize(
+        ("target_release", "expired"),
+        [
+            pytest.param("0.1", False, id="before"),
+            pytest.param("0.2rc1", False, id="prerelease"),
+            pytest.param("0.2", True, id="boundary"),
+            pytest.param("0.10", True, id="multi-digit-minor"),
+        ],
+    )
+    def test_preserves_multi_digit_minor_release_string(self, target_release: str, expired: bool) -> None:
+        """PEP 440 ordering treats "0.10" as newer than "0.2", not as float 0.10 == 0.1.
+
+        A maintainer prepares a release after ``DeprecatedEnum``'s 0.2 removal deadline. The exact
+        string must reach the audit unchanged: comparing "0.10" as a float would read it as 0.1 and
+        miss the removal deadline that PEP 440 ordering correctly detects.
+        """
+        messages = validate_deprecation_expiry(proxy_module, current_version=target_release, recursive=False)
+        expected = (
+            "Callable `tests.collection_deprecate.DeprecatedEnum` was scheduled for removal in version 0.2 "
+            f"but still exists in version {target_release}. Please delete this deprecated code."
+        )
+        assert (expected in messages) is expired
 
 
 class TestBackwardCompatShims:

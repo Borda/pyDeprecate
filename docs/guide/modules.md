@@ -95,7 +95,7 @@ deprecated_module(
 
 ## Mode 3 — parent alias via `deprecated_instance`
 
-When you reorganise a package and want the old sub-module name to remain accessible as an attribute on the parent package, use [`deprecated_instance()`](classes.md#deprecating-constants-and-instances) in the parent `__init__.py`. This does not require a new API — it reuses the existing proxy mechanism.
+When you reorganise a package and want the old sub-module name to remain accessible as an attribute on the parent package, use [`deprecated_instance()`](classes.md#constants-and-instances) in the parent `__init__.py`. This does not require a new API — it reuses the existing proxy mechanism.
 
 ```python
 # phmdoctest:skip — CI template; my_package is not installed
