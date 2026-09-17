@@ -95,7 +95,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-05-23",
-  "dateModified": "2026-06-15"
+  "dateModified": "2026-09-17"
 }
 </script>
 
@@ -979,6 +979,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#install-the-coding-agent-plugin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Install the coding-agent plugin
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#rules-for-agents" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1267,6 +1278,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#install-the-coding-agent-plugin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Install the coding-agent plugin
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#rules-for-agents" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1340,6 +1362,21 @@
 
 <h1 id="coding-agent-recipes">Coding Agent Recipes<a class="headerlink" href="#coding-agent-recipes" title="Permanent link">🔗</a></h1>
 <p>This page is for coding assistants that need to add a correct deprecation cycle to Python code.</p>
+<h2 id="install-the-coding-agent-plugin">Install the coding-agent plugin<a class="headerlink" href="#install-the-coding-agent-plugin" title="Permanent link">🔗</a></h2>
+<p>The repository contains a <code>pydeprecate</code> plugin with the same skills for Codex and Claude Code, available from the repository's default branch (early, pre-1.0). It is separate from the <code>pyDeprecate</code> library, and <code>pip</code> does not install agent skills. Install from GitHub:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Codex</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>codex<span class="w"> </span>plugin<span class="w"> </span>marketplace<span class="w"> </span>add<span class="w"> </span>Borda/pyDeprecate
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>codex<span class="w"> </span>plugin<span class="w"> </span>add<span class="w"> </span>pydeprecate@pydeprecate
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="c1"># Claude Code</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>claude<span class="w"> </span>plugin<span class="w"> </span>marketplace<span class="w"> </span>add<span class="w"> </span>Borda/pyDeprecate
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>claude<span class="w"> </span>plugin<span class="w"> </span>install<span class="w"> </span>pydeprecate@pydeprecate
+</code></pre></div>
+<p>For local development or unpublished changes, run these commands from the repository root with <code>.</code> instead of <code>Borda/pyDeprecate</code> in the marketplace-add command. The plugin-install command stays the same.</p>
+<p>The plugin provides <code>$pydeprecate:sunset</code> and <code>$pydeprecate:prune</code> in Codex, and <code>/pydeprecate:sunset</code> and <code>/pydeprecate:prune</code> in Claude Code. A <code>sunset</code> request (implementing a deprecation) requires package or module scope plus <code>deprecated_in</code> and <code>remove_in</code>; a <code>prune</code> request requires scope plus the target release only. Example requests: “Sunset <code>parse_config</code> in <code>acme.parsers</code>, deprecated_in=1.4, remove_in=2.0.” and “Prune compatibility due by target release 2.0 from <code>acme.parsers</code>.”</p>
+<p>Preview remains read-only. A removal plan requires an explicit release deadline: <code>remove_in &lt;= target release</code> under PEP 440, plus a <code>remove_in</code> whose base release equals an explicitly requested RC target (<code>2.0rc1</code> for <code>remove_in="2.0"</code>) only when the user is preparing that final release; it keeps surviving functions or classes available for argument/attribute compatibility, and leaves incomplete scans unresolved. Use the consumer environment's existing <code>pyDeprecate</code>; Python audits need <code>[audit]</code>, while CLI audits need <code>[audit,cli]</code>.</p>
+<p>The plugin source lives under <code>plugins/pydeprecate/</code>: <code>.codex-plugin/plugin.json</code>, <code>.claude-plugin/plugin.json</code>, <code>skills/sunset/SKILL.md</code>, and <code>skills/prune/SKILL.md</code>.</p>
+<p>For adoption scans, ask: “Scan <code>src/acme</code> for deprecation decorators, warnings, aliases, and shims; suggest supported pyDeprecate conversions without editing.” The scan verifies installed or explicitly identified release support and returns <code>convert</code>, <code>keep</code>, or <code>needs decision</code>. It does not force dependencies or convert operational warnings, and PEP 702 static-checker behavior is not equivalent merely because runtime metadata looks similar.</p>
 <h2 id="rules-for-agents">Rules for agents<a class="headerlink" href="#rules-for-agents" title="Permanent link">🔗</a></h2>
 <ul>
 <li>Install package: <code>pyDeprecate</code>.</li>
@@ -1351,37 +1388,37 @@
 <li>Always include <code>deprecated_in</code>, <code>remove_in</code>, and a migration message when available.</li>
 </ul>
 <h2 id="function-rename">Function rename<a class="headerlink" href="#function-rename" title="Permanent link">🔗</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">detect_objects</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="k">return</span> <span class="n">value</span> <span class="o">+</span> <span class="mi">1</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">detect_objects</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">"1.2"</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">"2.0"</span><span class="p">)</span>
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="k">def</span><span class="w"> </span><span class="nf">detect</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="k">pass</span>  <span class="c1"># body never runs — pyDeprecate intercepts all calls before reaching here</span>
-</code></pre></div>
-<h2 id="argument-rename">Argument rename<a class="headerlink" href="#argument-rename" title="Permanent link">🔗</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">TargetMode</span><span class="p">,</span> <span class="n">deprecated</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="nd">@deprecated</span><span class="p">(</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="n">target</span><span class="o">=</span><span class="n">TargetMode</span><span class="o">.</span><span class="n">ARGS_REMAP</span><span class="p">,</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    <span class="n">args_mapping</span><span class="o">=</span><span class="p">{</span><span class="s2">"old"</span><span class="p">:</span> <span class="s2">"new"</span><span class="p">},</span>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>    <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">"1.2"</span><span class="p">,</span>
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>    <span class="n">remove_in</span><span class="o">=</span><span class="s2">"2.0"</span><span class="p">,</span>
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="p">)</span>
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="k">def</span><span class="w"> </span><span class="nf">api</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">new</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>    <span class="k">return</span> <span class="n">new</span>
-<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>
-<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>
-<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="nb">print</span><span class="p">(</span><span class="n">api</span><span class="p">(</span><span class="n">old</span><span class="o">=</span><span class="s2">"demo"</span><span class="p">))</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">detect_objects</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="k">return</span> <span class="n">value</span> <span class="o">+</span> <span class="mi">1</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">detect_objects</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">"1.2"</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">"2.0"</span><span class="p">)</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="k">def</span><span class="w"> </span><span class="nf">detect</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>    <span class="k">pass</span>  <span class="c1"># body never runs — pyDeprecate intercepts all calls before reaching here</span>
+</code></pre></div>
+<h2 id="argument-rename">Argument rename<a class="headerlink" href="#argument-rename" title="Permanent link">🔗</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">TargetMode</span><span class="p">,</span> <span class="n">deprecated</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="nd">@deprecated</span><span class="p">(</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="n">target</span><span class="o">=</span><span class="n">TargetMode</span><span class="o">.</span><span class="n">ARGS_REMAP</span><span class="p">,</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>    <span class="n">args_mapping</span><span class="o">=</span><span class="p">{</span><span class="s2">"old"</span><span class="p">:</span> <span class="s2">"new"</span><span class="p">},</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>    <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">"1.2"</span><span class="p">,</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>    <span class="n">remove_in</span><span class="o">=</span><span class="s2">"2.0"</span><span class="p">,</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="p">)</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="k">def</span><span class="w"> </span><span class="nf">api</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">new</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>    <span class="k">return</span> <span class="n">new</span>
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>
+<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>
+<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="nb">print</span><span class="p">(</span><span class="n">api</span><span class="p">(</span><span class="n">old</span><span class="o">=</span><span class="s2">"demo"</span><span class="p">))</span>
 </code></pre></div>
 <details>
   <summary>Output: <code>api(old="demo")</code></summary>
 
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>demo
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>demo
 </code></pre></div>
 
 </details>
@@ -1420,7 +1457,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="June 15, 2026 10:12:29 UTC">2026-06-15</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="September 17, 2026 19:01:56 UTC">2026-09-17</span>
   </span>
 
     
