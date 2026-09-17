@@ -8,7 +8,7 @@ Provides two entry points for scanning Python code for misconfigured ``@deprecat
 Subcommands:
     check   — Validate wrapper configuration and flag misconfigured, chain-forming, or positional-only-arg wrappers.
     expiry  — Check for deprecated wrappers that have passed their scheduled ``remove_in`` deadline.
-    policy  — Check wrappers against deprecation-governance rules (grace window, removal cadence, guidance).
+    policy  — Check wrappers against deprecation-governance rules (grace window, migration guidance).
     chains  — Detect deprecated wrappers whose ``target`` is itself a deprecated callable.
     all     — Run all four checks in a single scan pass.
     status  — Render a markdown deprecation table to stdout (and optionally save it to a file).
@@ -35,7 +35,6 @@ from deprecate.audit import (
     DeprecationWrapperInfo,
     PolicyRule,
     TableStyle,
-    VersionBump,
     _build_policy_spec,
     _check_expiry_for_callables,
     _check_policy_for_callables,
@@ -450,7 +449,7 @@ def _is_missing_packaging_import_error(error: ImportError) -> bool:
 def _validate_user_version(version: Optional[str], *, explicit: bool = True) -> Optional[int]:
     """Reject a malformed user-supplied ``--version`` before any subcommand does real scan work.
 
-    Applies only to a value the user actually typed — ``expiry``, ``policy``, and ``all`` previously
+    Applies only to a value the user actually typed — ``expiry``, ``status``, and ``all`` previously
     let a bad ``--version`` fall through to whichever internal call happened to parse it first, exiting
     1 (via the top-level exception handler) in some subcommands and 2 (a validated-argument error, like
     a bad ``--min-grace``) in others. Validating it once, up front, in all three makes a malformed
@@ -460,7 +459,7 @@ def _validate_user_version(version: Optional[str], *, explicit: bool = True) -> 
     Args:
         version: The raw ``--version`` string the user supplied, or ``None`` when omitted (auto-detect).
         explicit: Whether *version* was typed by the user. ``cmd_all`` hands its already-resolved version
-            down to ``cmd_expiry``/``cmd_policy``/``cmd_status``, so those calls pass ``False`` when that
+            down to ``cmd_expiry``/``cmd_status``, so those calls pass ``False`` when that
             version was auto-detected — otherwise a package whose own metadata version is not PEP 440
             would be reported as a malformed ``--version`` flag the user never typed.
 
@@ -489,15 +488,7 @@ def _skipped_policy_rules(spec: "_PolicySpec") -> list[str]:
     printed when ``packaging`` turns out to be unavailable.
 
     """
-    return [
-        rule.value
-        for enabled, rule in (
-            (spec.grace is not None, PolicyRule.MIN_GRACE),
-            (spec.removal_cadence is not None, PolicyRule.REMOVE_ONLY_AT),
-            (spec.deprecated_in_not_future, PolicyRule.DEPRECATED_IN_NOT_FUTURE),
-        )
-        if enabled
-    ]
+    return [PolicyRule.MIN_GRACE.value] if spec.grace is not None else []
 
 
 def _policy_violations_without_packaging(
@@ -505,10 +496,10 @@ def _policy_violations_without_packaging(
 ) -> Optional[list[str]]:
     """Handle a missing-``packaging`` failure from :func:`_check_policy_for_callables`.
 
-    Prints an advisory naming exactly the version-dependent rule(s) *spec* had enabled (``min_grace``,
-    ``remove_only_at``, ``deprecated_in_not_future``) — these are skipped. ``message_required`` needs no
-    version parsing, so when it is enabled it is re-run standalone and its violations still gate the exit
-    code; only the fully-disabled or still-blocked cases fall through to an advisory no-op.
+    Prints an advisory naming the version-dependent rule *spec* had enabled (``min_grace``) — it is skipped.
+    ``message_required`` needs no version parsing, so when it is enabled it is re-run standalone and its
+    violations still gate the exit code; only the fully-disabled or still-blocked cases fall through to an
+    advisory no-op.
 
     Args:
         wrappers: Pre-scanned wrapper list to re-check for ``message_required`` alone.
@@ -529,9 +520,9 @@ def _policy_violations_without_packaging(
         return None
     # `message_required` needs no version parsing at all — rerun with the version-dependent rules
     # disabled and no current_version (avoids re-triggering the same ImportError).
-    message_only_spec = _build_policy_spec(None, None, True, False)
+    message_only_spec = _build_policy_spec(None, True)
     try:
-        return _check_policy_for_callables(wrappers, None, message_only_spec)
+        return _check_policy_for_callables(wrappers, message_only_spec)
     except ImportError as inner_exc:
         if not _is_missing_packaging_import_error(inner_exc):
             raise
@@ -677,82 +668,56 @@ def cmd_expiry(
 
 def cmd_policy(
     path: str = ".",
-    version: Optional[str] = None,
     recursive: bool = True,
     exit_zero: bool = False,
-    min_grace: Optional[Union[str, int, float]] = "0.1",
-    remove_only_at: Optional[str] = VersionBump.MAJOR.value,
+    min_grace: Optional[Union[str, int, float]] = "0.3",
     message_required: bool = True,
-    deprecated_in_not_future: bool = False,
     *,
     _wrappers: Optional[list[DeprecationWrapperInfo]] = None,
-    _version_explicit: bool = True,
 ) -> int:
     """Check deprecated wrappers against deprecation-governance policy rules.
 
     Where ``expiry`` asks whether a wrapper was removed on time, ``policy`` asks whether it was scheduled
-    responsibly: a removal deadline that leaves callers no grace window, a removal scheduled at a patch
-    release, a warning that never names a replacement, or a ``deprecated_in`` ahead of the released version.
+    responsibly: a removal deadline that leaves callers too short a grace window or lands off a release
+    boundary, or a warning that never names a replacement.
 
-    The ``min-grace``, ``remove-only-at``, and ``deprecated-in-not-future`` rules need the ``packaging``
-    library (``pip install 'pyDeprecate[audit]'``) for version comparison; ``message-required`` does not.
-    When ``packaging`` is unavailable, only the enabled version-dependent rule(s) are skipped (advisory
-    warning naming which ones); ``message_required`` still runs and gates the exit code normally. The gate
-    only fully no-ops (return 0 with a warning) when a skipped version-dependent rule was requested and
-    ``message_required`` is also disabled.
+    The ``min-grace`` rule needs the ``packaging`` library (``pip install 'pyDeprecate[audit]'``) for version
+    comparison; ``message-required`` does not. When ``packaging`` is unavailable, ``min-grace`` is skipped with
+    an advisory warning; ``message_required`` still runs and gates the exit code normally. The gate only fully
+    no-ops (return 0 with a warning) when ``min-grace`` was requested and ``message_required`` is also disabled.
 
     Args:
         path: Path to the module, package directory, or importable module name to scan.
-        version: Current package version (e.g. ``"2.0.0"``), auto-detected when omitted. Only the
-            ``deprecated-in-not-future`` rule needs it; the other rules run without a resolved version.
         recursive: Scan submodules recursively (default True). Pass ``--norecursive`` to scan top-level only.
         exit_zero: Always exit 0 even if violations are found.
             Useful for advisory CI steps that should report but never block.
         min_grace: Minimum distance between ``deprecated_in`` and ``remove_in`` as a version-shaped delta —
-            ``1`` one major, ``0.3`` three minors, ``0.0.2`` two patches; default ``0.1``, ``None`` skips the
-            rule. A coarser bump always clears a finer window (``1.2`` → ``2.0`` satisfies ``0.3``). Ten or
-            more steps: quote as a string (``--min-grace='"0.10"'``), else Fire parses ``0.10`` as ``0.1``.
-        remove_only_at: Release level removals are allowed at — ``major`` (default), ``minor``, or ``patch``;
-            pass ``--remove-only-at=None`` to skip the rule.
+            ``1`` one major, ``0.3`` three minors, ``0.0.2`` two patches; default ``0.3``, ``None`` skips the
+            rule. The removal must be one clean bump of a single component (``1.2`` → ``1.5`` or ``2.0``, never
+            ``2.3``); a coarser bump always clears a finer window. Ten or more steps: quote as a string
+            (``--min-grace='"0.10"'``), else Fire parses ``0.10`` as ``0.1``.
         message_required: Require every wrapper to name a replacement (default True).
-        deprecated_in_not_future: Require ``deprecated_in`` to be at or behind *version* (opt-in, default
-            False — a correctly-labelled ``deprecated_in`` names the version the wrapper ships in, which is
-            ahead of the working-tree version at development time).
         _wrappers: Pre-scanned wrapper list. When provided, skips the scan step. Underscore prefix hides this
-            parameter from the Fire CLI (internal use by ``cmd_all`` only).
-        _version_explicit: Whether *version* is a value the user typed rather than one the caller auto-detected.
-            ``cmd_all`` forwards its already-resolved version and passes ``False`` when that version came from
-            auto-detection: a malformed *installed* version must not be reported as a malformed ``--version``
-            flag, and it must not be parsed at all unless a rule actually reads it. Underscore prefix hides this
             parameter from the Fire CLI (internal use by ``cmd_all`` only).
 
     Returns:
-        0 on success, or when every enabled rule needing ``packaging`` is skipped due to it being
-        unavailable and no packaging-free rule finds a violation; 1 when violations are found (including
-        from a still-running ``message_required`` check) and ``exit_zero`` is False; 2 when a
-        user-supplied ``--version`` is not a valid PEP 440 version string.
+        0 on success, or when ``min-grace`` is skipped because ``packaging`` is unavailable and
+        ``message_required`` finds no violation; 1 when violations are found (including from a still-running
+        ``message_required`` check) and ``exit_zero`` is False; 2 when ``--min-grace`` is malformed.
 
     """
-    # Fire auto-converts numeric-looking strings (e.g. "1.0" → float); normalise to str.
-    version_explicit = version is not None and _version_explicit
-    if version is not None:
-        version = str(version)
-    err_code = _validate_user_version(version, explicit=_version_explicit)
-    if err_code is not None:
-        return err_code
     try:
-        spec = _build_policy_spec(min_grace, remove_only_at, message_required, deprecated_in_not_future)
+        spec = _build_policy_spec(min_grace, message_required)
     except ValueError as err:
         _print(str(err), stderr=True)
         return 2
 
-    resolved_version = version if version is not None else _auto_detect_version(_safe_module_name(path), path=path)
     if _wrappers is None:
-        _print_scan_header(path, resolved_version, user_provided=version_explicit)
+        _print_scan_header(path)
         with _managed_sys_path(path):
             _wrappers = _scan_path(path, recursive=recursive)
     try:
-        violations = _check_policy_for_callables(_wrappers, resolved_version, spec, version_explicit=version_explicit)
+        violations = _check_policy_for_callables(_wrappers, spec)
     except ImportError as exc:
         if not _is_missing_packaging_import_error(exc):
             raise
@@ -865,17 +830,10 @@ def cmd_all(
         _wrappers=wrappers,
         _version_explicit=version_explicit,
     )
-    # Advisory inside ``all``: the policy defaults encode a project convention (major-only removals, a one-minor
-    # grace window) that not every repo shares, so ``all`` reports violations but never fails on them — gate on
-    # them with the dedicated ``policy`` subcommand, whose exit code is truthful.
-    cmd_policy(
-        path,
-        version=resolved_version,
-        recursive=recursive,
-        exit_zero=True,
-        _wrappers=wrappers,
-        _version_explicit=version_explicit,
-    )
+    # Advisory inside ``all``: the policy defaults encode a project convention (a three-minor grace window on a
+    # clean release boundary) that not every repo shares, so ``all`` reports violations but never fails on them
+    # — gate on them with the dedicated ``policy`` subcommand, whose exit code is truthful.
+    cmd_policy(path, recursive=recursive, exit_zero=True, _wrappers=wrappers)
     chains_code = cmd_chains(path, recursive=recursive, exit_zero=False, _wrappers=wrappers)
 
     # The status table is a display artifact appended after the three gates. Render it defensively:

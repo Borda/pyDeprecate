@@ -381,7 +381,7 @@ def enforce_deprecation_deadlines():
 
 ## Enforcing a Deprecation Policy
 
-`validate_deprecation_expiry()` asks *"was this removed on time?"*. `validate_deprecation_policy()` asks the earlier question: *"was this scheduled responsibly in the first place?"* — a removal deadline that leaves callers no upgrade window, a removal booked for a patch release, a warning that never names a replacement, or a `deprecated_in` version that has not shipped yet. Each of those is cheap to fix at review time and expensive to fix once downstream projects have pinned against it.
+`validate_deprecation_expiry()` asks *"was this removed on time?"*. `validate_deprecation_policy()` asks the earlier question: *"was this scheduled responsibly in the first place?"* — a removal deadline that leaves callers too short an upgrade window or lands off a release boundary, or a warning that never names a replacement. Each of those is cheap to fix at review time and expensive to fix once downstream projects have pinned against it.
 
 Like the expiry gate, the policy gate compares PEP 440 versions and therefore needs the `audit` extra:
 
@@ -389,23 +389,20 @@ Like the expiry gate, the policy gate compares PEP 440 versions and therefore ne
 pip install 'pyDeprecate[audit]'
 ```
 
-### The four rules
+### The two rules
 
-| Rule slug                  | What it checks                                                                     | Default                          | Disable with                                |
-| -------------------------- | ---------------------------------------------------------------------------------- | -------------------------------- | ------------------------------------------- |
-| `min-grace`                | Distance between `deprecated_in` and `remove_in`                                   | `min_grace="0.1"`                | `min_grace=None`                            |
-| `remove-only-at`           | Release level the `remove_in` version lands on                                     | `remove_only_at="major"`         | `remove_only_at=None`                       |
-| `message-required`         | The wrapper provides migration guidance (a target, a mapping, or a custom message) | `message_required=True`          | `message_required=False`                    |
-| `deprecated-in-not-future` | `deprecated_in` is not ahead of `current_version`                                  | `deprecated_in_not_future=False` | opt in with `deprecated_in_not_future=True` |
+| Rule slug          | What it checks                                                                     | Default                 | Disable with             |
+| ------------------ | ---------------------------------------------------------------------------------- | ----------------------- | ------------------------ |
+| `min-grace`        | `remove_in` is one clean version bump beyond `deprecated_in`, at least this far    | `min_grace="0.3"`       | `min_grace=None`         |
+| `message-required` | The wrapper provides migration guidance (a target, a mapping, or a custom message) | `message_required=True` | `message_required=False` |
 
-Every violation message is prefixed with its rule slug in square brackets — `[min-grace]`, `[remove-only-at]`, `[message-required]`, `[deprecated-in-not-future]` — so a CI log can be grouped or filtered per rule without re-parsing the prose.
+Every violation message is prefixed with its rule slug in square brackets — `[min-grace]`, `[message-required]` — so a CI log can be grouped or filtered per rule without re-parsing the prose.
 
 Rule details worth knowing before you tune the defaults:
 
-- **`min_grace`** is a version-shaped delta with one non-zero component — `"1"` one major, `"0.3"` three minors, `"0.0.2"` two patches; a plain `1` or `0.3` works too (a `float` drops a trailing zero, so write ten or more steps as a string). `"1.2"` or any other spelling raises `ValueError`. A coarser bump always clears a finer window: deprecated in `1.2`, removed in `2.0` satisfies `"0.1"` even though the minor number went *down*.
-- **`remove_only_at="major"`** permits only `X.0.0`-shaped removal versions; `"minor"` permits any `X.Y.0`; `"patch"` permits every release, so the rule is then satisfied by construction. The `"major"` default suits a project past `1.0`; on a `0.x` line the minor **is** the breaking cadence, so pass `remove_only_at="minor"` there instead of switching the rule off.
+- **`min_grace`** is a version-shaped delta with one non-zero component — `"1"` one major, `"0.3"` three minors, `"0.0.2"` two patches; a plain `1` or `0.3` works too (a `float` drops a trailing zero, so write ten or more steps as a string). `"1.2"` or any other spelling raises `ValueError`. The removal must be one **clean bump** of a single component with everything below it reset — `1.2` → `1.5` or `2.0`, never `2.3` or `1.3.1` — because a mixed bump lands on no release boundary a project promises removals on. A coarser bump always clears a finer window: deprecated in `1.2`, removed in `2.0` satisfies `"0.3"` even though the minor number went *down*; a finer bump (a patch against a minor-counted window) never does.
+- **A `0.x` project** needs no special setting: a bump to `1.0` is a major step and clears any window, while removals inside the `0.x` line are counted in minors as usual. `min_grace="1"` is the strict "removals only at a major" policy.
 - **`message_required`** counts a forwarding `target`, an `args_mapping`, an `attrs_mapping`, or a custom `message_template` as guidance. An *empty* `args_mapping`/`attrs_mapping` (`{}`) does **not** count — it carries no actual rename, so the rule treats it the same as no mapping at all. A deprecated *module* is judged on its target and mappings alone, because `deprecated_module()` always stores rendered text in `message_template` and the rule would be inert there.
-- **`deprecated_in_not_future`** is the only rule that needs `current_version`, and it is opt-in — a correctly-labelled `deprecated_in` names the version the wrapper *ships in*, which is by definition ahead of the working-tree version at development time. Pass `deprecated_in_not_future=True` only if your project always records `deprecated_in` as an already-released version. When the version cannot be resolved the rule is skipped and the other three still run.
 
 ### Scanning a package
 
@@ -415,16 +412,16 @@ from deprecate import validate_deprecation_policy
 # For testing purposes, we use the test module; normally you would import your own package
 from tests import collection_policy as my_package
 
-# Full default policy: a one-minor grace window, major-only removals, guidance required
-violations = validate_deprecation_policy(my_package, "2.0", recursive=False)
+# Full default policy: a three-minor grace window on a clean release boundary, guidance required
+violations = validate_deprecation_policy(my_package, recursive=False)
 print(f"Found {len(violations)} violations")
 
 # Every message is prefixed with the slug of the rule it broke
 for msg in sorted(violations):
     print(msg.split("]")[0] + "]")
 
-# Opt out of the removal-cadence rule, keep the rest
-violations = validate_deprecation_policy(my_package, "2.0", recursive=False, remove_only_at=None)
+# Opt out of the grace-window rule, keep the guidance rule
+violations = validate_deprecation_policy(my_package, recursive=False, min_grace=None)
 print(f"Found {len(violations)} violations")
 ```
 
@@ -436,15 +433,15 @@ Found 4 violations
 [message-required]
 [message-required]
 [min-grace]
-[remove-only-at]
-Found 3 violations
+[min-grace]
+Found 2 violations
 ```
 
 </details>
 
 Good to know:
 
-- Wrappers missing `deprecated_in` or `remove_in` are **not** violations — the version-distance rules simply skip them, because a deprecation without a scheduled removal is a valid and common choice.
+- Wrappers missing `deprecated_in` or `remove_in` are **not** violations — the grace-window rule simply skips them, because a deprecation without a scheduled removal is a valid and common choice.
 - An unparsable version string emits a `UserWarning` naming the wrapper and the offending field, then the scan continues for the rest — one typo never aborts the gate.
 - `recursive` and `include_members` behave exactly as in `find_deprecation_wrappers()`; both default to `True`.
 - The CLI exposes the same gate as `pydeprecate policy` — see the [CLI Reference](cli.md) for flags, exit codes, and the CI recipe.
@@ -465,12 +462,9 @@ def test_deprecations_follow_project_policy():
     """Every deprecation is scheduled the way this project promises in its release policy."""
     violations = validate_deprecation_policy(
         my_package,
-        "2.0",  # Replace with: from mypackage import __version__
         recursive=False,
-        min_grace="0.1",  # deprecate at least one minor before removing
-        remove_only_at="major",  # only ever remove at a major release
+        min_grace="1",  # only ever remove at a major release, at least one major later
         message_required=True,  # every warning must name a replacement
-        deprecated_in_not_future=True,  # never claim a version that has not shipped
     )
     if violations:
         pytest.fail("Deprecation policy violations:\n" + "\n".join(f"  - {v}" for v in violations))
@@ -690,7 +684,7 @@ pydeprecate check src/your_package --exit-zero
 | --------- | ----------------------------------------------------------------------------------------------------- |
 | `0`       | No hard errors (or `--exit-zero` was set)                                                             |
 | `1`       | Hard error found: invalid arg mappings, chains, expired wrappers, or policy violations under `policy` |
-| `2`       | `policy` only — a malformed `--min-grace` or `--remove-only-at` value                                 |
+| `2`       | `policy` only — a malformed `--min-grace` value                                                       |
 
 ## Testing Deprecated Code
 

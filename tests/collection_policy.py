@@ -5,27 +5,25 @@ Every wrapper here is *correctly configured* — none of them is a misconfigurat
 They are the fixtures for :func:`~deprecate.audit.validate_deprecation_policy` and the ``pydeprecate policy``
 CLI subcommand.
 
-Rule coverage, evaluated against a current version of ``2.0``:
+Rule coverage under the default policy (``min_grace="0.3"``, ``message_required=True``):
 
-| Wrapper                     | ``deprecated_in`` | ``remove_in`` | Violated rule              |
-| --------------------------- | ----------------- | ------------- | -------------------------- |
-| ``compliant_forward``       | ``1.0``           | ``2.0``       | — (policy-clean baseline)  |
-| ``no_grace_window``         | ``2.0``           | ``2.0``       | ``min-grace``              |
-| ``removed_at_patch``        | ``1.0``           | ``2.0.1``     | ``remove-only-at``         |
-| ``warns_without_replacement`` | ``1.0``         | ``3.0``       | ``message-required``       |
-| ``WarnOnlyLegacyClass``     | ``1.0``           | ``3.0``       | ``message-required``       |
-| ``deprecated_in_the_future`` | ``9.0``          | ``10.0``      | ``deprecated-in-not-future`` |
+| Wrapper                       | ``deprecated_in`` | ``remove_in`` | Violated rule                     |
+| ----------------------------- | ----------------- | ------------- | --------------------------------- |
+| ``compliant_forward``         | ``1.0``           | ``2.0``       | — (policy-clean baseline)         |
+| ``no_grace_window``           | ``2.0``           | ``2.0``       | ``min-grace`` (no distance)       |
+| ``removed_at_patch``          | ``1.0``           | ``2.0.1``     | ``min-grace`` (off a boundary)    |
+| ``warns_without_replacement`` | ``1.0``           | ``3.0``       | ``message-required``              |
+| ``WarnOnlyLegacyClass``       | ``1.0``           | ``3.0``       | ``message-required``              |
 
 Each wrapper violates exactly one rule so a test can assert on a rule in isolation; a real-world wrapper
-usually trips several at once (a removal scheduled one patch after deprecation breaks both the grace window
-and a major-only removal cadence).
+may trip both at once (a warn-only wrapper removed one patch after deprecation).
 
 Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 
 """
 
 from deprecate import TargetMode, deprecated, deprecated_class, void
-from tests.collection_targets import NewCls, base_sum_kwargs, double_value, identity_value, increment_value
+from tests.collection_targets import NewCls, base_sum_kwargs, double_value, increment_value
 
 
 @deprecated(target=base_sum_kwargs, deprecated_in="1.0", remove_in="2.0")
@@ -34,13 +32,10 @@ def compliant_forward(a: int = 0, b: int = 3) -> int:
 
     Examples:
         A maintainer deprecates a helper in ``1.0`` and schedules its removal for the next major,
-        ``2.0`` — one major release of runway, a forwarding ``target``, and a ``deprecated_in`` that
-        has already shipped. ``validate_deprecation_policy()`` reports no violation for this wrapper
-        under the default policy (``min_grace="0.1"``, ``remove_only_at="major"``,
-        ``message_required=True``): the major bump clears the one-minor grace window, the removal
-        lands on a major boundary, and the ``target`` counts as migration guidance. It also passes
-        the opt-in ``deprecated_in_not_future=True`` rule, since ``1.0`` is not ahead of the caller's
-        current version.
+        ``2.0`` — one major release of runway and a forwarding ``target``.
+        ``validate_deprecation_policy()`` reports no violation for this wrapper under the default
+        policy (``min_grace="0.3"``, ``message_required=True``): the clean major bump clears the
+        three-minor grace window, and the ``target`` counts as migration guidance.
 
     """
     return void(a, b)
@@ -54,7 +49,7 @@ def no_grace_window(x: int) -> int:
         A team ships ``deprecated_in="2.0"`` and ``remove_in="2.0"`` in the same release cycle,
         giving downstream callers zero versions to react before the function disappears.
         ``validate_deprecation_policy()`` flags this wrapper under the ``min-grace`` rule because the
-        distance between the two versions is smaller than the required ``"0.1"`` (one-minor) window.
+        distance between the two versions is smaller than the required ``"0.3"`` (three-minor) window.
 
     """
     return void(x)
@@ -62,14 +57,14 @@ def no_grace_window(x: int) -> int:
 
 @deprecated(target=increment_value, deprecated_in="1.0", remove_in="2.0.1")
 def removed_at_patch(x: int) -> int:
-    """Schedule the removal for a patch release, which a major-only removal cadence forbids.
+    """Schedule the removal for a patch release, which lands off every clean release boundary.
 
     Examples:
-        A maintainer plans to drop this callable in a patch release, ``2.0.1``, instead of waiting
-        for the next major boundary. ``validate_deprecation_policy()`` flags this wrapper under the
-        ``remove-only-at`` rule because the default ``remove_only_at="major"`` only permits
-        ``X.0.0``-shaped removal versions, and a patch release breaks that convention even though the
-        grace window itself is otherwise fine.
+        A maintainer plans to drop this callable in a patch release, ``2.0.1``, instead of on the
+        major boundary ``2.0``. ``validate_deprecation_policy()`` flags this wrapper under the
+        ``min-grace`` rule: the removal is not a clean single-component bump from ``1.0`` (it moves
+        the major *and* the patch), so it is rejected even though callers got more than the
+        three-minor window.
 
     """
     return void(x)
@@ -88,21 +83,6 @@ def warns_without_replacement(x: int) -> int:
 
     """
     return x
-
-
-@deprecated(target=identity_value, deprecated_in="9.0", remove_in="10.0")
-def deprecated_in_the_future(x: int) -> int:
-    """Record a ``deprecated_in`` version that has not been released yet, while already warning callers.
-
-    Examples:
-        A wrapper claims ``deprecated_in="9.0"`` while the package's actual current version is only
-        ``"2.0"`` — the deprecation warning fires for a release that has not shipped yet, which
-        misleads callers about when the migration window actually opened.
-        ``validate_deprecation_policy()`` flags this wrapper under the ``deprecated-in-not-future``
-        rule when scanned against a ``current_version`` of ``"2.0"``.
-
-    """
-    return void(x)
 
 
 @deprecated_class(deprecated_in="1.0", remove_in="3.0")

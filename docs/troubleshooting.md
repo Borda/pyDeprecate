@@ -2011,7 +2011,7 @@ ______________________________________________________________________
 
 **Q:** `pydeprecate all src/mypackage` prints a *Deprecation Policy Violations* table, but the command exits `0` and my CI step passes. Is the exit code wrong?
 
-**A:** No — that is deliberate. The policy defaults (`min_grace="0.1"`, `remove_only_at="major"`, `message_required=True`, `deprecated_in_not_future=False`) encode *a* release convention, not a universal rule, so `all` runs the policy check in **advisory** mode: violations are printed for visibility but never contribute to `all`'s exit code. Only invalid argument mappings, deprecated-to-deprecated chains, and expired wrappers make `all` exit `1`.
+**A:** No — that is deliberate. The policy defaults (`min_grace="0.3"`, `message_required=True`) encode *a* release convention, not a universal rule, so `all` runs the policy check in **advisory** mode: violations are printed for visibility but never contribute to `all`'s exit code. Only invalid argument mappings, deprecated-to-deprecated chains, and expired wrappers make `all` exit `1`.
 
 To make the build fail on a policy violation, give `pydeprecate policy` its own CI step — its exit code is truthful (`0` clean, `1` violations, `2` a malformed rule argument):
 
@@ -2020,7 +2020,7 @@ To make the build fail on a policy violation, give `pydeprecate policy` its own 
 pydeprecate all src/mypackage
 
 # this is the step that fails the build
-pydeprecate policy src/mypackage --min-grace=0.1 --remove-only-at=major
+pydeprecate policy src/mypackage --min-grace=0.3 --message-required=True
 ```
 
 Spell the rule flags out in that step even where they match the defaults: the command then records what your project promises, and a future change to pyDeprecate's defaults cannot quietly change what your CI enforces.
@@ -2029,11 +2029,11 @@ ______________________________________________________________________
 
 ## How do I switch off a policy rule my project does not follow?
 
-**Q:** My project removes deprecated code at minor releases, not major ones, so `pydeprecate policy` flags every wrapper with `[remove-only-at]`. I do not want to abandon the other three rules to silence it.
+**Q:** My project removes deprecated code one minor after announcing it, so `pydeprecate policy` flags every wrapper with `[min-grace]`. I do not want to abandon the guidance rule to silence it.
 
-**A:** Each of the four rules is independently controlled — pass `None` for the two that take a value (`min_grace`, `remove_only_at`) or `False` to disable `message_required`. `deprecated_in_not_future` is opt-in (default `False`); pass `True` to enable it. Nothing is all-or-nothing.
+**A:** Both rules are independently controlled — pass `None` for `min_grace` or `False` for `message_required`. Nothing is all-or-nothing.
 
-Before reaching for `None`, check whether **retargeting** the rule is what you actually want. The `remove_only_at="major"` default suits a project past `1.0`; on a `0.x` line the minor **is** the breaking cadence, so a `0.x` project should pass `remove_only_at="minor"` rather than switching the rule off — you keep the gate, pointed at the release level your project really breaks on. Disabling it means nothing checks your removal cadence at all.
+Before reaching for `None`, check whether **retargeting** the window is what you actually want. `min_grace` is a version-shaped delta: `"0.1"` asks for one minor of warning, `"0.3"` (the default) for three, `"1"` for a whole major. Pass the number your project really releases on — you keep the gate, pointed at your own cadence. Disabling it means nothing checks removal schedules at all. A `0.x` project needs no special setting: a bump to `1.0` is a major step and clears any window.
 
 Here is the difference between the two:
 
@@ -2043,13 +2043,13 @@ from deprecate import validate_deprecation_policy
 # For testing purposes, we use the test module; normally you would import your own package
 from tests import collection_policy as my_package
 
-# Relax the cadence: removals at any X.Y.0 release are fine.
-# The fixture still trips it — its removal is booked for `2.0.1`, a patch release.
-violations = validate_deprecation_policy(my_package, "2.0", recursive=False, remove_only_at="minor")
+# Relax the window: one minor of warning is enough.
+# The fixtures still trip it — one removes in the same release, one at a patch off any boundary.
+violations = validate_deprecation_policy(my_package, recursive=False, min_grace="0.1")
 print(f"Found {len(violations)} violations")
 
-# Or drop the rule entirely and keep the other three
-violations = validate_deprecation_policy(my_package, "2.0", recursive=False, remove_only_at=None)
+# Or drop the rule entirely and keep the guidance rule
+violations = validate_deprecation_policy(my_package, recursive=False, min_grace=None)
 print(f"Found {len(violations)} violations")
 ```
 
@@ -2057,12 +2057,12 @@ print(f"Found {len(violations)} violations")
 
 ```
 Found 4 violations
-Found 3 violations
+Found 2 violations
 ```
 
 </details>
 
-The CLI mirrors this one flag per rule — `--remove-only-at=minor`, `--remove-only-at=None`, `--min-grace=None`, `--message-required=False`, `--deprecated-in-not-future=False`. A value the parser does not recognise is rejected before the scan starts and exits `2` with a message naming the accepted spellings, so a typo can never silently disable a rule you meant to keep.
+The CLI mirrors this one flag per rule — `--min-grace=0.1`, `--min-grace=None`, `--message-required=False`. A value the parser does not recognise is rejected before the scan starts and exits `2` with a message naming the accepted spellings, so a typo can never silently disable a rule you meant to keep.
 
 ______________________________________________________________________
 

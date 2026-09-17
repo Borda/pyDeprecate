@@ -17,7 +17,6 @@ import tests.collection_misconfigured as clean_module
 from deprecate import (
     PolicyRule,
     TargetMode,
-    VersionBump,
     deprecated,
     get_deprecation_config,
     validate_deprecation_expiry,
@@ -29,6 +28,7 @@ from deprecate.audit import (
     ChainType,
     DeprecationStatus,
     DeprecationWrapperInfo,
+    VersionBump,
     _build_policy_spec,
     _check_expiry_for_callables,
     _check_policy_for_callables,
@@ -42,7 +42,6 @@ from deprecate.audit import (
     _parse_grace_window,
     _parse_version,
     _satisfies_grace_window,
-    _satisfies_removal_cadence,
     _scan_class,
     find_deprecation_wrappers,
     validate_deprecation_wrapper,
@@ -1500,31 +1499,14 @@ class TestBuildPolicySpec:
     """Validation of the raw policy arguments before any wrapper is scanned."""
 
     def test_disabled_rules_carry_none(self) -> None:
-        """Passing ``None`` for a rule disables it rather than falling back to the default.
+        """Passing ``None`` for the grace window disables it rather than falling back to the default.
 
-        A project that removes APIs at minor releases needs the cadence rule off while keeping the rest, so a
+        A project that only wants the guidance rule needs the grace window off while keeping the rest, so a
         disabled rule must survive as ``None`` all the way into the per-wrapper checks.
         """
-        spec = _build_policy_spec(None, None, False, False)
+        spec = _build_policy_spec(None, False)
         assert spec.grace is None
-        assert spec.removal_cadence is None
-
-    def test_accepts_version_bump_member_for_cadence(self) -> None:
-        """``remove_only_at`` accepts a VersionBump member as well as its string value.
-
-        Python callers hold the enum, CLI callers hold the string; both spellings must reach the same
-        configuration so the rule cannot behave differently depending on the entry point.
-        """
-        assert _build_policy_spec(None, VersionBump.MINOR, True, True).removal_cadence is VersionBump.MINOR
-
-    def test_rejects_unknown_cadence_level(self) -> None:
-        """An unknown removal cadence raises instead of silently skipping the rule.
-
-        ``remove_only_at="release"`` is a plausible typo; accepting it silently would drop the rule from a CI
-        gate that still reports success.
-        """
-        with pytest.raises(ValueError, match="Invalid `remove_only_at` level"):
-            _build_policy_spec(None, "release", True, True)
+        assert spec.message_required is False
 
 
 class TestSatisfiesGraceWindow:
@@ -1535,13 +1517,24 @@ class TestSatisfiesGraceWindow:
         [
             pytest.param("1.0", "1.1", 1, VersionBump.MINOR, True, id="exactly-one-minor"),
             pytest.param("1.0", "1.0", 1, VersionBump.MINOR, False, id="same-release"),
-            pytest.param("1.2", "2.0", 1, VersionBump.MINOR, True, id="major-bump-clears-minor-window"),
-            pytest.param("1.0", "1.1", 2, VersionBump.MINOR, False, id="two-minors-required"),
+            pytest.param("1.2", "1.5", 3, VersionBump.MINOR, True, id="three-minors"),
+            pytest.param("1.2", "1.4", 3, VersionBump.MINOR, False, id="two-minors-short-of-three"),
+            pytest.param("1.2", "2.0", 3, VersionBump.MINOR, True, id="major-bump-clears-minor-window"),
+            pytest.param("1.2", "2.3", 3, VersionBump.MINOR, False, id="mixed-major-and-minor-bump"),
             pytest.param("1.0", "2.0", 1, VersionBump.MAJOR, True, id="one-major"),
             pytest.param("1.0", "1.9", 1, VersionBump.MAJOR, False, id="minors-do-not-clear-major-window"),
+            pytest.param("1.2", "2.1", 1, VersionBump.MAJOR, False, id="major-bump-with-non-zero-minor"),
             pytest.param("1.0.0", "1.0.1", 1, VersionBump.PATCH, True, id="one-patch"),
             pytest.param("1.0.0", "1.1.0", 1, VersionBump.PATCH, True, id="minor-bump-clears-patch-window"),
-            pytest.param("1.0", "2.0rc1", 1, VersionBump.MINOR, True, id="pre-release-of-next-major"),
+            pytest.param("1.2.3", "1.3.0", 1, VersionBump.MINOR, True, id="lower-components-reset-on-bump"),
+            pytest.param("1.2.3", "1.3.1", 1, VersionBump.MINOR, False, id="patch-after-minor-bump"),
+            pytest.param("1.2.3", "1.2.5", 1, VersionBump.MINOR, False, id="patch-bump-finer-than-minor-unit"),
+            pytest.param("1.0", "1.1", 0, VersionBump.MINOR, True, id="zero-count-accepts-any-minor"),
+            pytest.param("1.0", "1.0.1", 0, VersionBump.MINOR, False, id="zero-count-still-rejects-finer-bump"),
+            pytest.param("2", "3", 1, VersionBump.MAJOR, True, id="bare-major-versions"),
+            pytest.param("1.0", "2.0.0.1", 1, VersionBump.MAJOR, False, id="fourth-component-is-not-a-clean-major"),
+            pytest.param("1.0", "2.0rc1", 1, VersionBump.MAJOR, True, id="pre-release-of-next-major"),
+            pytest.param("1.0", "2.0.post1", 1, VersionBump.MAJOR, True, id="post-release-of-next-major"),
             pytest.param("1.0", "1!1.0", 1, VersionBump.MAJOR, True, id="epoch-bump-clears-any-window"),
             pytest.param("1!1.0", "2.0", 1, VersionBump.MAJOR, False, id="epoch-drop-is-not-a-later-version"),
         ],
@@ -1550,47 +1543,18 @@ class TestSatisfiesGraceWindow:
     def test_distance_between_versions(
         self, deprecated_in: str, remove_in: str, count: int, unit: VersionBump, expected: bool
     ) -> None:
-        """The grace window measures distance in its own unit, with coarser bumps counting as satisfied.
+        """The removal must be one clean bump of a single component, at least ``count`` steps in ``unit``.
 
         A wrapper deprecated in ``1.2`` and removed in ``2.0`` has a *smaller* minor number at removal even
-        though callers got a whole major cycle; measuring the components naively would flag that healthy
-        schedule while letting a same-release removal through.
+        though callers got a whole major cycle, so a coarser bump clears the window; ``2.3`` mixes a major and
+        a minor step and is never a release boundary a project promises removals on, so it fails whatever the
+        window. Components below the bumped one restart at zero (``1.2.3`` → ``1.3.0``), and a pre- or
+        post-release of a clean version is the same release line. PEP 440 allows more than three release
+        components, so ``2.0.0.1`` is read as a follow-up release, not a clean major.
         """
         assert (
             _satisfies_grace_window(_parse_version(deprecated_in), _parse_version(remove_in), count, unit) is expected
         )
-
-
-class TestSatisfiesRemovalCadence:
-    """Release-level restriction behind the ``remove-only-at`` rule."""
-
-    @pytest.mark.parametrize(
-        ("remove_in", "cadence", "expected"),
-        [
-            pytest.param("2.0", VersionBump.MAJOR, True, id="major-release"),
-            pytest.param("2.0.0", VersionBump.MAJOR, True, id="explicit-zero-patch"),
-            pytest.param("2.1", VersionBump.MAJOR, False, id="minor-under-major-cadence"),
-            pytest.param("2.0.1", VersionBump.MAJOR, False, id="patch-under-major-cadence"),
-            pytest.param("2.1", VersionBump.MINOR, True, id="minor-under-minor-cadence"),
-            pytest.param("2.1.3", VersionBump.MINOR, False, id="patch-under-minor-cadence"),
-            pytest.param("2.1.3", VersionBump.PATCH, True, id="patch-cadence-allows-everything"),
-            pytest.param("2.0rc1", VersionBump.MAJOR, True, id="pre-release-of-a-major"),
-            pytest.param("1!2.0", VersionBump.MAJOR, True, id="epoch-does-not-change-release-shape"),
-            pytest.param("2", VersionBump.MAJOR, True, id="bare-major-without-minor-or-patch"),
-            pytest.param("2.0.0.1", VersionBump.MAJOR, False, id="fourth-component-under-major-cadence"),
-            pytest.param("2.1.0.1", VersionBump.MINOR, False, id="fourth-component-under-minor-cadence"),
-        ],
-    )
-    @_requires_packaging
-    def test_removal_version_against_cadence(self, remove_in: str, cadence: VersionBump, expected: bool) -> None:
-        """A removal version is judged by the release level it lands on, not by its distance from anything.
-
-        A team that promises "breaking changes only in majors" needs ``2.0.1`` rejected even though it is far
-        past the deprecation; the rule reads the version shape, which is exactly the promise callers rely on.
-        PEP 440 allows more than three release components, and a project on a four-part scheme ships ``2.0.0.1``
-        as a follow-up release — reading only ``minor``/``micro`` would wave it through as a clean major.
-        """
-        assert _satisfies_removal_cadence(_parse_version(remove_in), cadence) is expected
 
 
 class TestHasMigrationGuidance:
@@ -1689,27 +1653,22 @@ class TestValidateDeprecationPolicy:
     @pytest.mark.parametrize(
         ("wrapper_name", "rule"),
         [
-            pytest.param("no_grace_window", PolicyRule.MIN_GRACE, id="min-grace"),
-            pytest.param("removed_at_patch", PolicyRule.REMOVE_ONLY_AT, id="remove-only-at"),
+            pytest.param("no_grace_window", PolicyRule.MIN_GRACE, id="min-grace-no-distance"),
+            pytest.param("removed_at_patch", PolicyRule.MIN_GRACE, id="min-grace-off-boundary"),
             pytest.param("warns_without_replacement", PolicyRule.MESSAGE_REQUIRED, id="message-required"),
             pytest.param("WarnOnlyLegacyClass", PolicyRule.MESSAGE_REQUIRED, id="message-required-proxy"),
-            pytest.param(
-                "deprecated_in_the_future", PolicyRule.DEPRECATED_IN_NOT_FUTURE, id="deprecated-in-not-future"
-            ),
         ],
     )
     @_requires_packaging
     def test_each_fixture_trips_its_rule(self, wrapper_name: str, rule: PolicyRule) -> None:
         """Every governance rule fires on the wrapper that breaks it, and reports it under its own slug.
 
-        This is the reviewer-facing contract: a PR that schedules a removal one patch after the deprecation, or
-        warns without naming a replacement, has to come back with a message naming *which* policy it broke. The
-        sweep runs with every rule switched on, including the opt-in future-dating one, so each fixture is judged
-        by the rule it was written for.
+        This is the reviewer-facing contract: a PR that schedules a removal in the same release, off a clean
+        release boundary, or warns without naming a replacement, has to come back with a message naming *which*
+        policy it broke. The sweep runs under the default policy, so each fixture is judged by the rule it was
+        written for.
         """
-        violations = validate_deprecation_policy(
-            "tests.collection_policy", "2.0", recursive=False, deprecated_in_not_future=True
-        )
+        violations = validate_deprecation_policy("tests.collection_policy", recursive=False)
         matching = [v for v in violations if wrapper_name in v]
         assert len(matching) == 1
         assert matching[0].startswith(f"[{rule.value}]")
@@ -1717,33 +1676,23 @@ class TestValidateDeprecationPolicy:
     @pytest.mark.parametrize(
         ("min_grace", "expected_window"),
         [
-            pytest.param("0.1", "at least 1 minor release.", id="singular-window"),
-            pytest.param("2", "at least 2 major releases.", id="plural-window"),
+            pytest.param("0.1", "at least 1 minor release, landing on a clean major or minor boundary.", id="singular"),
+            pytest.param("2", "at least 2 major releases, landing on a clean major boundary.", id="plural"),
         ],
     )
     @_requires_packaging
     def test_violation_message_echoes_configured_window(self, min_grace: str, expected_window: str) -> None:
-        """The reported grace window reads back as prose naming the count and the release level.
+        """The reported grace window reads back as prose naming the count, the unit, and the allowed boundaries.
 
         A maintainer who configured ``min_grace="2"`` reads the CI log to learn what the gate expected; a
         message echoing the bare ``2`` would leave them guessing which component it counts, so the message
-        spells out ``2 major releases`` -- and a one-unit window still reads as the singular.
+        spells out ``2 major releases`` -- a one-unit window still reads as the singular -- and names the
+        release levels a removal may land on, so a mixed-bump violation is explained by the same sentence.
         """
-        violations = validate_deprecation_policy("tests.collection_policy", "2.0", recursive=False, min_grace=min_grace)
+        violations = validate_deprecation_policy("tests.collection_policy", recursive=False, min_grace=min_grace)
         matching = [v for v in violations if "no_grace_window" in v]
         assert len(matching) == 1
         assert matching[0].endswith(expected_window)
-
-    @_requires_packaging
-    def test_future_dating_rule_is_off_by_default(self) -> None:
-        """A ``deprecated_in`` ahead of the released version is not reported unless the rule is asked for.
-
-        Stamping a wrapper with the release it will ship in is the ordinary development workflow — the version is
-        ahead of the published one until that release is cut — so a default-on rule would flag routine PRs and
-        train the team to ignore the gate.
-        """
-        violations = validate_deprecation_policy("tests.collection_policy", "2.0", recursive=False)
-        assert not [v for v in violations if PolicyRule.DEPRECATED_IN_NOT_FUTURE.value in v]
 
     @_requires_packaging
     def test_compliant_wrapper_is_not_reported(self) -> None:
@@ -1752,40 +1701,39 @@ class TestValidateDeprecationPolicy:
         The gate is only useful if the disciplined case passes silently — a policy that flags every wrapper is
         one a team turns off in its first week.
         """
-        violations = validate_deprecation_policy("tests.collection_policy", "2.0", recursive=False)
+        violations = validate_deprecation_policy("tests.collection_policy", recursive=False)
         assert not [v for v in violations if "compliant_forward" in v]
 
     @_requires_packaging
     def test_all_rules_disabled_reports_nothing_for_a_maximally_violating_wrapper(self) -> None:
-        """Disabling every governance rule silences a wrapper that would otherwise trip all four at once.
+        """Disabling every governance rule silences a wrapper that would otherwise trip both at once.
 
         A wrapper deprecated at `9.0` and removed one patch later (`9.0.1`), warning without naming a
-        replacement, and declaring a `deprecated_in` far ahead of the current `2.0` release breaks
-        `min-grace`, `remove-only-at`, `message-required`, and `deprecated-in-not-future` simultaneously —
-        the worst case for the gate. If disabling all four flags did not also disable the check for this
-        wrapper, a project could never fully opt out of the policy gate on a single incorrigible case.
+        replacement, breaks `min-grace` and `message-required` simultaneously — the worst case for the gate.
+        If disabling both did not also disable the check for this wrapper, a project could never fully opt out
+        of the policy gate on a single incorrigible case.
         """
         info = DeprecationWrapperInfo(
             module="pkg",
             function="everything_wrong",
             deprecated_info=DeprecationConfig(deprecated_in="9.0", remove_in="9.0.1", target=TargetMode.NOTIFY),
         )
-        enabled_spec = _build_policy_spec("0.1", "major", True, True)
-        assert len(_check_policy_for_callables([info], "2.0", enabled_spec)) == 4
+        enabled_spec = _build_policy_spec("0.1", True)
+        assert len(_check_policy_for_callables([info], enabled_spec)) == 2
 
-        disabled_spec = _build_policy_spec(None, None, False, False)
-        assert _check_policy_for_callables([info], "2.0", disabled_spec) == []
+        disabled_spec = _build_policy_spec(None, False)
+        assert _check_policy_for_callables([info], disabled_spec) == []
 
     @_requires_packaging
     def test_disabled_rule_stops_reporting(self) -> None:
-        """Setting a rule to ``None`` removes its violations without affecting the other rules.
+        """Setting a rule to ``None`` removes its violations without affecting the other rule.
 
-        Projects that ship removals at minor releases must be able to keep the grace-window and guidance rules
-        while dropping the cadence rule, instead of abandoning the whole gate.
+        Projects with no fixed release cadence must be able to keep the guidance rule while dropping the
+        grace-window rule, instead of abandoning the whole gate.
         """
-        violations = validate_deprecation_policy("tests.collection_policy", "2.0", recursive=False, remove_only_at=None)
-        assert not [v for v in violations if PolicyRule.REMOVE_ONLY_AT.value in v]
-        assert [v for v in violations if PolicyRule.MIN_GRACE.value in v]
+        violations = validate_deprecation_policy("tests.collection_policy", recursive=False, min_grace=None)
+        assert not [v for v in violations if PolicyRule.MIN_GRACE.value in v]
+        assert [v for v in violations if PolicyRule.MESSAGE_REQUIRED.value in v]
 
     @_requires_packaging
     def test_missing_versions_are_not_violations(self) -> None:
@@ -1799,8 +1747,8 @@ class TestValidateDeprecationPolicy:
             function="warn_forever",
             deprecated_info=DeprecationConfig(deprecated_in="1.0", target=str),
         )
-        spec = _build_policy_spec("0.1", "major", True, True)
-        assert _check_policy_for_callables([info], "2.0", spec) == []
+        spec = _build_policy_spec("0.1", True)
+        assert _check_policy_for_callables([info], spec) == []
 
     @_requires_packaging
     def test_unparsable_version_warns_and_skips_dependent_rules(self) -> None:
@@ -1814,9 +1762,9 @@ class TestValidateDeprecationPolicy:
             function="broken_version",
             deprecated_info=DeprecationConfig(deprecated_in="1.0", remove_in="not.a.version!!", target=str),
         )
-        spec = _build_policy_spec("0.1", "major", True, True)
+        spec = _build_policy_spec("0.1", True)
         with pytest.warns(UserWarning, match="unparsable `remove_in`"):
-            assert _check_policy_for_callables([info], "2.0", spec) == []
+            assert _check_policy_for_callables([info], spec) == []
 
     @_requires_packaging
     def test_forward_epoch_change_warns_and_skips_the_grace_window(self) -> None:
@@ -1832,10 +1780,10 @@ class TestValidateDeprecationPolicy:
             function="epoch_switch",
             deprecated_info=DeprecationConfig(deprecated_in="1.0", remove_in="1!1.0", target=str),
         )
-        spec = _build_policy_spec("0.1", None, False, False)
+        spec = _build_policy_spec("0.1", False)
 
         with pytest.warns(UserWarning, match="epoch"):
-            violations = _check_policy_for_callables([info], "2.0", spec)
+            violations = _check_policy_for_callables([info], spec)
 
         assert not [v for v in violations if PolicyRule.MIN_GRACE.value in v]
 
@@ -1852,9 +1800,9 @@ class TestValidateDeprecationPolicy:
             function="epoch_switch",
             deprecated_info=DeprecationConfig(deprecated_in="1!1.0", remove_in="2.0", target=str),
         )
-        spec = _build_policy_spec("0.1", None, False, False)
+        spec = _build_policy_spec("0.1", False)
 
-        violations = _check_policy_for_callables([info], "2.0", spec)
+        violations = _check_policy_for_callables([info], spec)
 
         assert [v for v in violations if PolicyRule.MIN_GRACE.value in v]
 
@@ -1871,39 +1819,11 @@ class TestValidateDeprecationPolicy:
             function="backwards_patch",
             deprecated_info=DeprecationConfig(deprecated_in="1.0.1", remove_in="1.0.0", target=str),
         )
-        spec = _build_policy_spec("0.0", None, False, False)
+        spec = _build_policy_spec("0.0", False)
 
-        violations = _check_policy_for_callables([info], "2.0", spec)
+        violations = _check_policy_for_callables([info], spec)
 
         assert [v for v in violations if PolicyRule.MIN_GRACE.value in v]
-
-    @_requires_packaging
-    def test_unresolved_current_version_keeps_version_distance_rules(self) -> None:
-        """Without a current version the future-dating rule is skipped while the other rules still run.
-
-        Scanning a package that is not installed (a checkout in CI before ``pip install``) should still catch a
-        removal scheduled at a patch release — only the rule that genuinely needs the released version drops out.
-        """
-        info = DeprecationWrapperInfo(
-            module="pkg",
-            function="removed_at_patch",
-            deprecated_info=DeprecationConfig(deprecated_in="9.0", remove_in="9.0.1", target=str),
-        )
-        spec = _build_policy_spec("0.1", "major", True, True)
-        violations = _check_policy_for_callables([info], None, spec)
-        assert [v for v in violations if PolicyRule.REMOVE_ONLY_AT.value in v]
-        assert not [v for v in violations if PolicyRule.DEPRECATED_IN_NOT_FUTURE.value in v]
-
-    @_requires_packaging
-    def test_rejects_invalid_current_version(self) -> None:
-        """An unparsable ``current_version`` fails fast rather than silently disabling the future-dating rule.
-
-        The version usually arrives from a CI variable; a malformed value has to surface as an error at the call
-        site instead of quietly shrinking the rule set the pipeline believes it is running.
-        """
-        spec = _build_policy_spec(None, None, False, True)
-        with pytest.raises(ValueError, match="Invalid current_version"):
-            _check_policy_for_callables([], "not.a.version!!", spec)
 
 
 def _reject_version_parse(_version_string: str) -> NoReturn:
@@ -1921,10 +1841,7 @@ class TestPolicyVersionParsingIsLazy:
 
         A team installs the package without the ``[audit]`` extra and gates CI on one promise — every
         deprecation names a replacement. No version comparison is enabled, so demanding ``packaging`` there
-        would turn a check that needs no version arithmetic into an install error. ``version_explicit=True``
-        is required here: that is the state ``validate_deprecation_policy(module, current_version=...)``
-        passes for every explicit caller, which is the library's own documented calling convention — a test
-        that leaves it at the ``False`` default never exercises the code path the real bug lived in.
+        would turn a check that needs no version arithmetic into an install error.
         """
         monkeypatch.setattr("deprecate.audit._parse_version", _reject_version_parse)
         info = DeprecationWrapperInfo(
@@ -1932,14 +1849,14 @@ class TestPolicyVersionParsingIsLazy:
             function="warns_without_replacement",
             deprecated_info=DeprecationConfig(deprecated_in="1.0", remove_in="2.0", target=TargetMode.NOTIFY),
         )
-        spec = _build_policy_spec(None, None, True, False)
+        spec = _build_policy_spec(None, True)
 
-        violations = _check_policy_for_callables([info], "2.0", spec, version_explicit=True)
+        violations = _check_policy_for_callables([info], spec)
 
         assert [v for v in violations if PolicyRule.MESSAGE_REQUIRED.value in v]
 
     def test_version_rule_still_reports_missing_packaging(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """With a version-comparison rule switched on, a missing ``packaging`` still surfaces the install hint.
+        """With the grace-window rule switched on, a missing ``packaging`` still surfaces the install hint.
 
         The same CI job turns the grace window back on. That rule cannot be evaluated without version
         arithmetic, so skipping it silently would report a green gate that checked nothing — the ImportError,
@@ -1951,28 +1868,10 @@ class TestPolicyVersionParsingIsLazy:
             function="no_grace_window",
             deprecated_info=DeprecationConfig(deprecated_in="2.0", remove_in="2.0", target=str),
         )
-        spec = _build_policy_spec("0.1", None, False, False)
+        spec = _build_policy_spec("0.1", False)
 
         with pytest.raises(ImportError, match="packaging"):
-            _check_policy_for_callables([info], "2.0", spec)
-
-    def test_future_rule_without_current_version_needs_no_version_machinery(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """A future-only policy skips parsing when no current package version can be resolved.
-
-        The comparison is impossible without a current version, so a checkout that has not been installed must
-        not require the optional ``packaging`` dependency merely to discover that the rule cannot run.
-        """
-        monkeypatch.setattr("deprecate.audit._parse_version", _reject_version_parse)
-        info = DeprecationWrapperInfo(
-            module="pkg",
-            function="future_only",
-            deprecated_info=DeprecationConfig(deprecated_in="not.a.version!!", target=str),
-        )
-        spec = _build_policy_spec(None, None, False, True)
-
-        assert _check_policy_for_callables([info], None, spec) == []
+            _check_policy_for_callables([info], spec)
 
     def test_genuinely_missing_packaging_import_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """A real install without ``packaging`` fails the same way the hand-constructed-``ImportError`` tests assume.
@@ -1991,31 +1890,7 @@ class TestPolicyVersionParsingIsLazy:
             function="no_grace_window",
             deprecated_info=DeprecationConfig(deprecated_in="2.0", remove_in="2.0", target=str),
         )
-        spec = _build_policy_spec("0.1", None, False, False)
+        spec = _build_policy_spec("0.1", False)
 
         with pytest.raises(ImportError, match="packaging"):
-            _check_policy_for_callables([info], "2.0", spec)
-
-    @_requires_packaging
-    def test_caller_supplied_version_is_validated_with_version_rules_off(self) -> None:
-        """A malformed version the caller passed in is rejected even when no enabled rule would read it.
-
-        The value normally arrives from a CI variable, so a typo has to fail at the call site; letting it
-        through would leave the pipeline believing it validated a version that was never looked at, until
-        someone enables the future-dating rule months later and the error surfaces in an unrelated PR.
-        """
-        spec = _build_policy_spec(None, None, True, False)
-
-        with pytest.raises(ValueError, match="Invalid current_version"):
-            _check_policy_for_callables([], "not.a.version!!", spec, version_explicit=True)
-
-    def test_auto_detected_version_is_left_alone_when_no_rule_reads_it(self) -> None:
-        """An unparsable *installed* version does not break a policy run that never consults it.
-
-        A package built from a checkout can advertise a non-PEP-440 version (a ``git describe`` string, for
-        one). Nobody asked for that version — it was auto-detected — so with every version rule off the
-        guidance rules must still run instead of the gate dying on a value it does not need.
-        """
-        spec = _build_policy_spec(None, None, True, False)
-
-        assert _check_policy_for_callables([], "not.a.version!!", spec) == []
+            _check_policy_for_callables([info], spec)

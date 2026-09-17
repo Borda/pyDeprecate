@@ -489,7 +489,7 @@ class TestCmdAll:
         A project whose version metadata is not PEP 440 — a nightly stamped ``2024.06-nightly`` — is scanned
         with no ``--version`` at all. ``all`` resolves that version once and hands it to its subcommands, so
         without the provenance travelling with it they each re-validate it as a flag the user never typed:
-        the policy check exits early reporting an invalid ``--version`` and the status table never renders.
+        the expiry check exits early reporting an invalid ``--version`` and the status table never renders.
         """
         mock_find.return_value = [_POLICY_CLEAN]
         with patch("deprecate._cli._auto_detect_version", return_value="2024.06-nightly"):
@@ -567,8 +567,8 @@ class TestCmdAll:
     def test_policy_violations_stay_advisory(self, mock_find: MagicMock, mock_expiry: MagicMock) -> None:
         """A policy violation is reported by ``all`` but never changes its exit code.
 
-        The policy defaults encode one project's release convention (major-only removals, a one-minor grace
-        window); folding them into ``all``'s exit code would break the CI of every repo that upgrades and does
+        The policy defaults encode one project's release convention (a three-minor grace window on a clean
+        release boundary); folding them into ``all``'s exit code would break the CI of every repo that upgrades and does
         not share that convention, so the dedicated ``policy`` subcommand is the only gate.
         """
         mock_find.return_value = [_POLICY_VIOLATION]
@@ -1303,7 +1303,7 @@ class TestCmdPolicy:
         This is the steady state a team lives in after adopting the gate: the run has to stay quiet and green,
         or the check gets removed from CI within a release.
         """
-        assert cmd_policy(path="some_module", version="1.0", _wrappers=[]) == 0
+        assert cmd_policy(path="some_module", _wrappers=[]) == 0
 
     def test_violations_exit_one(self) -> None:
         """A wrapper breaking a rule fails the gate so the PR that introduced it cannot merge.
@@ -1311,7 +1311,7 @@ class TestCmdPolicy:
         The message-required rule is the one a hurried deprecation trips most often — a warning shipped without
         a replacement named, which reads as complete until a caller asks what to migrate to.
         """
-        assert cmd_policy(path="some_module", version="1.0", _wrappers=[_POLICY_VIOLATION]) == 1
+        assert cmd_policy(path="some_module", _wrappers=[_POLICY_VIOLATION]) == 1
 
     def test_exit_zero_downgrades_violations(self) -> None:
         """``exit_zero=True`` reports the violations but never blocks the pipeline.
@@ -1319,7 +1319,7 @@ class TestCmdPolicy:
         Teams adopting the gate on an existing codebase run it advisory-first to see the backlog before making
         it blocking; without this the first run would fail every branch at once.
         """
-        assert cmd_policy(path="some_module", version="1.0", exit_zero=True, _wrappers=[_POLICY_VIOLATION]) == 0
+        assert cmd_policy(path="some_module", exit_zero=True, _wrappers=[_POLICY_VIOLATION]) == 0
 
     def test_invalid_grace_specification_exits_two(self, capsys: pytest.CaptureFixture[str]) -> None:
         """A malformed ``--min-grace`` reports the accepted format and exits 2 without scanning.
@@ -1327,17 +1327,8 @@ class TestCmdPolicy:
         Exit 2 (usage error) separates "you configured the gate wrong" from exit 1 ("your code broke the
         policy") — a typo must never be reported as a clean policy run.
         """
-        assert cmd_policy(path="some_module", version="1.0", min_grace="1 minor", _wrappers=[]) == 2
+        assert cmd_policy(path="some_module", min_grace="1 minor", _wrappers=[]) == 2
         assert "min_grace" in capsys.readouterr().err
-
-    def test_invalid_version_exits_two(self, capsys: pytest.CaptureFixture[str]) -> None:
-        """A malformed explicit version is reported as a usage error before policy configuration is evaluated.
-
-        A misspelled release version must not look like a clean policy result or a policy violation. The CLI
-        returns exit 2 so CI can identify the command configuration as the problem.
-        """
-        assert cmd_policy(path="some_module", version="not-a-version", _wrappers=[]) == 2
-        assert "Invalid `--version`" in capsys.readouterr().err
 
     @patch("deprecate._cli._check_policy_for_callables")
     def test_packaging_missing_exits_zero(self, mock_policy: MagicMock, capsys: pytest.CaptureFixture[str]) -> None:
@@ -1347,24 +1338,24 @@ class TestCmdPolicy:
         should be told what to add rather than failing on a check it never ran.
         """
         mock_policy.side_effect = ImportError("No module named 'packaging'", name="packaging")
-        assert cmd_policy(path="some_module", version="1.0", _wrappers=[]) == 0
+        assert cmd_policy(path="some_module", _wrappers=[]) == 0
         assert "pyDeprecate[audit]" in capsys.readouterr().err
 
     @patch("deprecate._cli._check_policy_for_callables")
     def test_packaging_missing_keeps_message_required_blocking(
         self, mock_policy: MagicMock, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        """A missing optional dependency skips version rules but not missing migration guidance.
+        """A missing optional dependency skips the grace-window rule but not missing migration guidance.
 
         A base-install CI job may lack ``packaging`` while still using the packaging-free message rule. Its
-        warning must name the skipped version rules, then fail with exit 1 when a wrapper omits a replacement.
+        warning must name the skipped version rule, then fail with exit 1 when a wrapper omits a replacement.
         """
         mock_policy.side_effect = [
             ImportError("No module named 'packaging'", name="packaging"),
             ["[message-required] Callable `mod.warn_only_fn` warns without naming a replacement"],
         ]
 
-        assert cmd_policy(path="some_module", version="1.0", _wrappers=[_POLICY_VIOLATION]) == 1
+        assert cmd_policy(path="some_module", _wrappers=[_POLICY_VIOLATION]) == 1
         captured = capsys.readouterr()
         assert "message-required" in captured.out
         assert "min-grace" in captured.err
@@ -1378,7 +1369,7 @@ class TestCmdPolicy:
         """
         mock_policy.side_effect = ImportError("No module named 'user_dep'", name="user_dep")
         with pytest.raises(ImportError, match="user_dep"):
-            cmd_policy(path="some_module", version="1.0", _wrappers=[])
+            cmd_policy(path="some_module", _wrappers=[])
 
     def test_violations_reported_plain(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Violation messages, including the rule slug, appear in the plain-text (no-rich) output.
@@ -1387,7 +1378,7 @@ class TestCmdPolicy:
         readable but unfilterable, which is how the rich renderer behaved before the escape was added.
         """
         with patch("deprecate._cli._Reporter._HAS_RICH", False):
-            cmd_policy(path="some_module", version="1.0", _wrappers=[_POLICY_VIOLATION])
+            cmd_policy(path="some_module", _wrappers=[_POLICY_VIOLATION])
         captured = capsys.readouterr()
         assert "policy violations" in captured.out.lower()
         assert "[message-required]" in captured.out
@@ -1400,22 +1391,14 @@ class TestCmdPolicy:
         """
         if not _Reporter._HAS_RICH:
             pytest.skip("rich is not installed")
-        cmd_policy(path="some_module", version="1.0", _wrappers=[_POLICY_VIOLATION])
+        cmd_policy(path="some_module", _wrappers=[_POLICY_VIOLATION])
         assert "message-required" in capsys.readouterr().out
 
     def test_disabled_rules_pass_through(self) -> None:
-        """Disabling every rule leaves nothing to report, even for a wrapper that breaks all of them.
+        """Disabling both rules leaves nothing to report, even for a wrapper that breaks both of them.
 
         The flags are the escape hatch for a project whose conventions differ; if a disabled rule still fired,
         the gate could not be adopted incrementally.
         """
-        result = cmd_policy(
-            path="some_module",
-            version="1.0",
-            min_grace=None,
-            remove_only_at=None,
-            message_required=False,
-            deprecated_in_not_future=False,
-            _wrappers=[_POLICY_VIOLATION],
-        )
+        result = cmd_policy(path="some_module", min_grace=None, message_required=False, _wrappers=[_POLICY_VIOLATION])
         assert result == 0

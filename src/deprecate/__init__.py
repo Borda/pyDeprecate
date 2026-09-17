@@ -93,7 +93,6 @@ from deprecate.audit import (
     DeprecationWrapperInfo,
     PolicyRule,
     TableStyle,
-    VersionBump,
     find_deprecated_callables,  # noqa: F401 # deprecated since 0.6, use find_deprecation_wrappers
     find_deprecation_wrappers,
     generate_deprecation_table,
@@ -122,7 +121,6 @@ __all__ = [
     "PolicyRule",
     "TableStyle",
     "TargetMode",
-    "VersionBump",
     "assert_no_warnings",
     "deprecated",
     "deprecated_callable",

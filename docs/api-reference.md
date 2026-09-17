@@ -40,8 +40,6 @@ Auto-generated from source docstrings. For usage examples see the [User Guide](g
 
 ::: deprecate.audit.PolicyRule
 
-::: deprecate.audit.VersionBump
-
 ::: deprecate.audit.DeprecationStatus
 
 ::: deprecate.audit.TableStyle

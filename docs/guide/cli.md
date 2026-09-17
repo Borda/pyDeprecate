@@ -68,24 +68,24 @@ pydeprecate status tests --version 1.2
 
 === "policy"
 
-    Checks whether each deprecation was *scheduled* responsibly, using [`validate_deprecation_policy()`](audit.md#enforcing-a-deprecation-policy). Four rules exist — `min-grace`, `remove-only-at`, `message-required`, and `deprecated-in-not-future`; the first three run by default, and the last is opt-in — and every violation message is prefixed with the slug of the rule it broke. The version-aware rules require the `[audit]` extra (included in `[audit,cli]`); `message-required` works without it.
+    Checks whether each deprecation was *scheduled* responsibly, using [`validate_deprecation_policy()`](audit.md#enforcing-a-deprecation-policy). Two rules exist — `min-grace` and `message-required`, both on by default — and every violation message is prefixed with the slug of the rule it broke. `min-grace` requires the `[audit]` extra (included in `[audit,cli]`); `message-required` works without it. `policy` never needs a package version, so it takes no `--version` flag.
 
     ```bash
-    # default policy: one-minor grace window, major-only removals, guidance required
-    pydeprecate policy path/to/your/package --version 2.0.0
+    # default policy: three-minor grace window on a clean release boundary, guidance required
+    pydeprecate policy path/to/your/package
 
-    # tune the rules to your own release convention
-    pydeprecate policy path/to/your/package --min-grace=0.2 --remove-only-at=minor
+    # tune the window to your own release convention — here: removals only at a major
+    pydeprecate policy path/to/your/package --min-grace=1
 
     # switch individual rules off
     pydeprecate policy path/to/your/package --min-grace=None --message-required=False
     ```
 
-    Exit 1 if any enabled rule finds a violation, exit 2 if `--min-grace` or `--remove-only-at` is malformed (or if `--version` is malformed while `packaging` is available), and exit 0 when clean. If `packaging` is not installed, the version-aware rules — including `--version` validation — are skipped with a warning, but `message-required` still runs and can return exit 1. Only the `deprecated-in-not-future` rule needs `--version`; the others run without a resolved version.
+    Exit 1 if any enabled rule finds a violation, exit 2 if `--min-grace` is malformed, and exit 0 when clean. If `packaging` is not installed, `min-grace` is skipped with a warning, but `message-required` still runs and can return exit 1.
 
     !!! warning "`all` reports policy violations but never fails on them"
 
-        The policy defaults encode *a* project convention — major-only removals, a one-minor grace window — that not every repository shares, so `pydeprecate all` runs this check in **advisory** mode: violations are printed, but they never change `all`'s exit code. To gate CI on the policy, run the dedicated `pydeprecate policy` subcommand, whose exit code is truthful.
+        The policy defaults encode *a* project convention — a three-minor grace window on a clean release boundary — that not every repository shares, so `pydeprecate all` runs this check in **advisory** mode: violations are printed, but they never change `all`'s exit code. To gate CI on the policy, run the dedicated `pydeprecate policy` subcommand, whose exit code is truthful.
 
 === "chains"
 
@@ -99,7 +99,7 @@ pydeprecate status tests --version 1.2
 
 === "all"
 
-    Single scan pass running all four checks ([`find_deprecation_wrappers()`](audit.md#validating-wrapper-configuration), [`validate_deprecation_expiry()`](audit.md#enforcing-removal-deadlines), [`validate_deprecation_policy()`](audit.md#enforcing-a-deprecation-policy), [`validate_deprecation_chains()`](audit.md#detecting-deprecation-chains)), then appends a compact markdown deprecation table. If `packaging` is not installed, expiry and policy's version-aware rules are skipped with a warning; `message-required` still runs, and the other checks continue.
+    Single scan pass running all four checks ([`find_deprecation_wrappers()`](audit.md#validating-wrapper-configuration), [`validate_deprecation_expiry()`](audit.md#enforcing-removal-deadlines), [`validate_deprecation_policy()`](audit.md#enforcing-a-deprecation-policy), [`validate_deprecation_chains()`](audit.md#detecting-deprecation-chains)), then appends a compact markdown deprecation table. If `packaging` is not installed, expiry and policy's `min-grace` rule are skipped with a warning; `message-required` still runs, and the other checks continue.
 
     ```bash
     # explicit version
@@ -125,41 +125,41 @@ pydeprecate status tests --version 1.2
 
 ## Flags
 
-| Flag                | `check` | `expiry` | `policy` | `chains` | `all` | `status` | Effect                                                                                                  | Note                                                                                                 |
-| ------------------- | :-----: | :------: | :------: | :------: | :---: | :------: | ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `--version VERSION` |         |    ✓     |    ✓     |          |   ✓   |    ✓     | Package version for deadline comparison. Auto-detected from installed metadata if omitted.              | `policy` needs it only for the `deprecated-in-not-future` rule.                                      |
-| `--norecursive`     |    ✓    |    ✓     |    ✓     |    ✓     |   ✓   |    ✓     | Scan top-level module only; skip submodules.                                                            | Fire auto-generates this from `recursive=False` — the flag is `--norecursive`, not `--no-recursive`. |
-| `--exit-zero`       |    ✓    |    ✓     |    ✓     |    ✓     |   ✓   |          | Always exit `0` even when hard errors are found — useful for advisory CI steps that should never block. |                                                                                                      |
-| `--style`           |         |          |          |          |       |    ✓     | Table rendering style — `compact` (default) or `matrix`.                                                |                                                                                                      |
-| `--output FILE`     |         |          |          |          |       |    ✓     | Also save the markdown table to a file. Table is always printed to stdout regardless.                   |                                                                                                      |
+| Flag                | Default       | `check` | `expiry` | `policy` | `chains` | `all` | `status` | Effect                                                                                                  | Note                                                                                                 |
+| ------------------- | ------------- | :-----: | :------: | :------: | :------: | :---: | :------: | ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `--version VERSION` | auto-detected |         |    ✓     |          |          |   ✓   |    ✓     | Package version for deadline comparison. Auto-detected from installed metadata if omitted.              | `policy` compares `deprecated_in` to `remove_in` only, so it takes no version.                       |
+| `--norecursive`     | off           |    ✓    |    ✓     |    ✓     |    ✓     |   ✓   |    ✓     | Scan top-level module only; skip submodules.                                                            | Fire auto-generates this from `recursive=False` — the flag is `--norecursive`, not `--no-recursive`. |
+| `--exit-zero`       | off           |    ✓    |    ✓     |    ✓     |    ✓     |   ✓   |          | Always exit `0` even when hard errors are found — useful for advisory CI steps that should never block. |                                                                                                      |
+| `--style`           | `compact`     |         |          |          |          |       |    ✓     | Table rendering style — `compact` (default) or `matrix`.                                                |                                                                                                      |
+| `--output FILE`     | stdout only   |         |          |          |          |       |    ✓     | Also save the markdown table to a file. Table is always printed to stdout regardless.                   |                                                                                                      |
+
+A bare `pydeprecate policy src/mypackage` therefore runs a recursive scan, exits `1` on violations, and applies both default-on rules below (`--min-grace=0.3`, `--message-required=True`).
 
 ### Policy rule flags
 
-These four are specific to `policy` — one flag per rule, each switched off with `None` (grace window, removal cadence) or `False` (the two boolean rules).
+These two are specific to `policy` — one flag per rule, switched off with `--min-grace=None` and `--message-required=False`.
 
-| Flag                                | Default | Rule slug                  | Effect                                                                                                                                                                                                                                                                                                                                         |
-| ----------------------------------- | ------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--min-grace=<delta>`               | `0.1`   | `min-grace`                | Minimum distance between `deprecated_in` and `remove_in` as a version-shaped delta: `1` one major, `0.3` three minors, `0.0.2` two patches. A coarser bump always clears a finer window — `0.3` is satisfied by one major bump. Ten or more steps: quote as a string (`--min-grace='"0.10"'`), else the shell value parses as the float `0.1`. |
-| `--remove-only-at=<level>`          | `major` | `remove-only-at`           | Release level a `remove_in` version is allowed to land on — `major`, `minor`, or `patch`.                                                                                                                                                                                                                                                      |
-| `--message-required=<bool>`         | `True`  | `message-required`         | Require every wrapper to name a replacement (a `target`, a mapping, or a `message_template`).                                                                                                                                                                                                                                                  |
-| `--deprecated-in-not-future=<bool>` | `False` | `deprecated-in-not-future` | Require `deprecated_in` to be at or behind `--version` (opt-in).                                                                                                                                                                                                                                                                               |
+| Flag                        | Default | Rule slug          | Effect                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| --------------------------- | ------- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--min-grace=<delta>`       | `0.3`   | `min-grace`        | Minimum distance between `deprecated_in` and `remove_in` as a version-shaped delta: `1` one major, `0.3` three minors, `0.0.2` two patches. The removal must be one clean bump of a single component (`1.2` → `1.5` or `2.0`, never `2.3`); a coarser bump always clears a finer window — `0.3` is satisfied by one major bump. Ten or more steps: quote as a string (`--min-grace='"0.10"'`), else the shell value parses as the float `0.1`. |
+| `--message-required=<bool>` | `True`  | `message-required` | Require every wrapper to name a replacement (a `target`, a mapping, or a `message_template`).                                                                                                                                                                                                                                                                                                                                                  |
 
-The `--remove-only-at=major` default suits a project past `1.0`. On a `0.x` line the minor **is** the breaking cadence, so pass `--remove-only-at=minor` there rather than switching the rule off — you keep the gate, you just point it at the release level your project actually breaks on.
+`--min-grace=1` is the strict "removals only at a major release" policy. A `0.x` project needs no special setting: a bump to `1.0` is a major step and clears any window, while removals inside the `0.x` line are counted in minors as usual.
 
-A malformed `--min-grace` or `--remove-only-at` value is rejected before the scan starts and exits `2` with a message naming the accepted spellings — it is never silently ignored.
+A malformed `--min-grace` value is rejected before the scan starts and exits `2` with a message naming the accepted spellings — it is never silently ignored.
 
 `--version` auto-detect: when the scanned argument is an existing *path*, `_read_pyproject_version` searches the current directory and up to 2 parent directories for a `pyproject.toml` (current dir + 2 levels up); the nearest one found wins, falling back to installed package metadata. A bare module *name* skips the `pyproject.toml` lookup entirely, so it can never pick up an unrelated project's version from your current working directory.
 
 ## Exit codes
 
-| Subcommand | Exit `0`                                                                 | Exit `1`                                                              | Exit `2`                                                                                   |
-| ---------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `check`    | Clean or advisory warnings only (chains / identity / no-effect)          | Invalid argument mappings found                                       | —                                                                                          |
-| `expiry`   | No expired wrappers; or `packaging` not installed (skipped with warning) | Expired wrappers found (and `--exit-zero` not set)                    | Malformed `--version` when `packaging` is available                                        |
-| `policy`   | No violations; or only skipped version-aware rules                       | Policy violations found (and `--exit-zero` not set)                   | Malformed `--min-grace` / `--remove-only-at`, or `--version` when `packaging` is available |
-| `chains`   | No chains                                                                | Deprecated-to-deprecated chains found                                 | —                                                                                          |
-| `all`      | All checks clean, or only policy violations (table always appended)      | Any hard error above (`packaging` missing → skips expiry, no failure) | Malformed `--version` when `packaging` is available                                        |
-| `status`   | Always — status table is not a pass/fail gate                            | —                                                                     | —                                                                                          |
+| Subcommand | Exit `0`                                                                 | Exit `1`                                                              | Exit `2`                                            |
+| ---------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------- | --------------------------------------------------- |
+| `check`    | Clean or advisory warnings only (chains / identity / no-effect)          | Invalid argument mappings found                                       | —                                                   |
+| `expiry`   | No expired wrappers; or `packaging` not installed (skipped with warning) | Expired wrappers found (and `--exit-zero` not set)                    | Malformed `--version` when `packaging` is available |
+| `policy`   | No violations; or only a skipped `min-grace` rule                        | Policy violations found (and `--exit-zero` not set)                   | Malformed `--min-grace`                             |
+| `chains`   | No chains                                                                | Deprecated-to-deprecated chains found                                 | —                                                   |
+| `all`      | All checks clean, or only policy violations (table always appended)      | Any hard error above (`packaging` missing → skips expiry, no failure) | Malformed `--version` when `packaging` is available |
+| `status`   | Always — status table is not a pass/fail gate                            | —                                                                     | —                                                   |
 
 Policy violations are the one finding `all` reports without acting on: they never move `all` from `0` to `1`. Give `policy` its own CI step when you want the build to fail on them.
 
@@ -190,7 +190,7 @@ jobs:
 
       # 2. governance gate — this is the step that fails on a policy violation
       - name: Enforce the deprecation policy
-        run: pydeprecate policy src/mypackage --min-grace=0.1 --remove-only-at=major
+        run: pydeprecate policy src/mypackage --min-grace=0.3 --message-required=True
 ```
 
 Spell the rule flags out even where they match the defaults, as above: the step then doubles as the written record of what your project promises, and a later change to pyDeprecate's defaults cannot quietly change what your CI enforces.

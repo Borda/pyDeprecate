@@ -239,7 +239,7 @@ class TestCliSubcommands:
         major — the disciplined shape the default rules are written to wave through without any flags.
         """
         pkg = _make_pkg(tmp_path)
-        result = _run_cli(["policy", str(pkg), "--version", "1.0"], env=_cli_env(), cwd=tmp_path)
+        result = _run_cli(["policy", str(pkg)], env=_cli_env(), cwd=tmp_path)
         assert result.returncode == 0
         assert "No deprecation policy violations" in result.stdout
 
@@ -253,7 +253,7 @@ class TestCliSubcommands:
         pkg = tmp_path / "aggressivepkg"
         pkg.mkdir()
         (pkg / "__init__.py").write_text(_MYPKG_INIT_AGGRESSIVE)
-        result = _run_cli(["policy", str(pkg), "--version", "1.0"], env=_cli_env(), cwd=tmp_path)
+        result = _run_cli(["policy", str(pkg)], env=_cli_env(), cwd=tmp_path)
         assert result.returncode == 1
         assert "min-grace" in (result.stdout or ""), result
 
@@ -268,7 +268,7 @@ class TestCliSubcommands:
         pkg.mkdir()
         (pkg / "__init__.py").write_text(_MYPKG_INIT_AGGRESSIVE)
         result = _run_cli(
-            ["policy", str(pkg), "--version", "1.0", "--min-grace=None"],
+            ["policy", str(pkg), "--min-grace=None"],
             env=_cli_env(),
             cwd=tmp_path,
         )
@@ -293,31 +293,26 @@ class TestCliSubcommands:
         pkg.mkdir()
         (pkg / "__init__.py").write_text(_MYPKG_INIT_AGGRESSIVE)
         result = _run_cli(
-            ["policy", str(pkg), "--version", "1.0", flag],
+            ["policy", str(pkg), flag],
             env=_cli_env(),
             cwd=tmp_path,
         )
         assert result.returncode == 1
         assert "min-grace" in (result.stdout or ""), result
 
-    def test_policy_subcommand_invalid_remove_only_at_exits_two(self, tmp_path: Path) -> None:
-        """'--remove-only-at=bogus' exits 2 and names the accepted spellings instead of scanning anything.
+    def test_policy_subcommand_invalid_min_grace_exits_two(self, tmp_path: Path) -> None:
+        """'--min-grace=bogus' exits 2 and names the accepted spellings instead of scanning anything.
 
-        A typo'd removal-cadence level must be caught by `_build_policy_spec()`'s upfront validation before
-        any package scanning starts, so the user gets a usage error (exit 2) naming `major`/`minor`/`patch`
-        rather than a scan failure, a stack trace, or a silently-ignored flag.
+        A typo'd grace-window delta must be caught by `_build_policy_spec()`'s upfront validation before any
+        package scanning starts, so the user gets a usage error (exit 2) naming the `1` / `0.1` / `0.0.1`
+        spellings rather than a scan failure, a stack trace, or a silently-ignored flag.
         """
         pkg = _make_pkg(tmp_path)
-        result = _run_cli(
-            ["policy", str(pkg), "--remove-only-at=bogus"],
-            env=_cli_env(),
-            cwd=tmp_path,
-        )
+        result = _run_cli(["policy", str(pkg), "--min-grace=bogus"], env=_cli_env(), cwd=tmp_path)
         assert result.returncode == 2
         combined = result.stdout + result.stderr
-        assert "major" in combined
-        assert "minor" in combined
-        assert "patch" in combined
+        assert "min_grace" in combined
+        assert "0.0.1" in combined
 
     def test_subcommand_help(self) -> None:
         """'pydeprecate expiry --help' shows expiry-specific options."""

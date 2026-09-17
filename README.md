@@ -1656,8 +1656,8 @@ pydeprecate expiry path/to/your/package   # auto-detects version from the packag
 
 # policy — deprecations scheduled against your governance rules
 # requires: pip install 'pyDeprecate[audit]'
-pydeprecate policy path/to/your/package --version 2.0.0
-pydeprecate policy path/to/your/package --min-grace=0.2 --remove-only-at=minor
+pydeprecate policy path/to/your/package
+pydeprecate policy path/to/your/package --min-grace=1 --message-required=False
 
 # chains — deprecated-to-deprecated forwarding chains only
 pydeprecate chains path/to/your/package
@@ -1672,7 +1672,7 @@ pydeprecate status path/to/your/package --style matrix
 pydeprecate status path/to/your/package --version 2.0.0 --output DEPRECATIONS.md
 ```
 
-**Common flags** (all subcommands): `--norecursive` scans the top-level module only. `check`, `expiry`, `policy`, `chains`, and `all` also accept `--exit-zero` to always exit `0` even when issues are found. `expiry`, `policy`, `all`, and `status` also accept `--version VERSION` to set the current version explicitly. `policy` additionally accepts one flag per rule — `--min-grace`, `--remove-only-at`, `--message-required`, `--deprecated-in-not-future` — and exits `2` when one of them is malformed. `status` additionally accepts `--style compact|matrix` (default `compact`) and `--output FILE` to also save the markdown to that file.
+**Common flags** (all subcommands): `--norecursive` scans the top-level module only. `check`, `expiry`, `policy`, `chains`, and `all` also accept `--exit-zero` to always exit `0` even when issues are found. `expiry`, `all`, and `status` also accept `--version VERSION` to set the current version explicitly. `policy` additionally accepts one flag per rule — `--min-grace`, `--message-required` — and exits `2` when `--min-grace` is malformed. `status` additionally accepts `--style compact|matrix` (default `compact`) and `--output FILE` to also save the markdown to that file.
 
 **Quick demo** using pyDeprecate's own test fixtures (no package setup needed):
 
@@ -1849,16 +1849,14 @@ def enforce_deprecation_deadlines():
 
 ### 📏 Enforcing a Deprecation Policy
 
-`validate_deprecation_expiry()` asks whether deprecated code was removed on time. `validate_deprecation_policy()` asks the earlier question — whether it was *scheduled* responsibly in the first place: a removal deadline that gives callers no upgrade window, a removal booked for a patch release, a warning that never names a replacement, or a `deprecated_in` version that has not shipped yet.
+`validate_deprecation_expiry()` asks whether deprecated code was removed on time. `validate_deprecation_policy()` asks the earlier question — whether it was *scheduled* responsibly in the first place: a removal deadline that gives callers too short an upgrade window or lands off a release boundary, or a warning that never names a replacement.
 
-Four rules exist and each can be switched off independently; three run by default — `deprecated-in-not-future` is opt-in:
+Two rules exist and each can be switched off independently:
 
-| Rule slug                  | What it checks                                         | Default                          | Disable with                                |
-| -------------------------- | ------------------------------------------------------ | -------------------------------- | ------------------------------------------- |
-| `min-grace`                | Distance between `deprecated_in` and `remove_in`       | `min_grace="0.1"`                | `min_grace=None`                            |
-| `remove-only-at`           | Release level the `remove_in` version lands on         | `remove_only_at="major"`         | `remove_only_at=None`                       |
-| `message-required`         | The wrapper names a replacement callers can migrate to | `message_required=True`          | `message_required=False`                    |
-| `deprecated-in-not-future` | `deprecated_in` is not ahead of `current_version`      | `deprecated_in_not_future=False` | opt in with `deprecated_in_not_future=True` |
+| Rule slug          | What it checks                                                                  | Default                 | Disable with             |
+| ------------------ | ------------------------------------------------------------------------------- | ----------------------- | ------------------------ |
+| `min-grace`        | `remove_in` is one clean version bump beyond `deprecated_in`, at least this far | `min_grace="0.3"`       | `min_grace=None`         |
+| `message-required` | The wrapper names a replacement callers can migrate to                          | `message_required=True` | `message_required=False` |
 
 Every violation message is prefixed with its rule slug in square brackets, so a CI log can be grouped or filtered per rule. Like the expiry gate this one compares PEP 440 versions, so it needs `pip install 'pyDeprecate[audit]'`.
 
@@ -1871,20 +1869,20 @@ from deprecate import validate_deprecation_policy
 # For testing purposes, we use the test module; normally you would import your own package
 from tests import collection_policy as my_package
 
-# Default policy: one-minor grace window, major-only removals, every warning names a replacement
-violations = validate_deprecation_policy(my_package, "2.0", recursive=False)
+# Default policy: three-minor grace window on a clean release boundary, every warning names a replacement
+violations = validate_deprecation_policy(my_package, recursive=False)
 print(f"Found {len(violations)} violations")
 
 # Each message starts with the slug of the rule it broke
 for msg in sorted(violations):
     print(msg.split("]")[0] + "]")
 
-# Rules are opt-out — drop the removal-cadence rule, keep the other three
-violations = validate_deprecation_policy(my_package, "2.0", recursive=False, remove_only_at=None)
+# Rules are opt-out — drop the grace-window rule, keep the guidance rule
+violations = validate_deprecation_policy(my_package, recursive=False, min_grace=None)
 print(f"Found {len(violations)} violations")
 
-# Or tighten one: demand two major releases between announcement and removal
-violations = validate_deprecation_policy(my_package, "2.0", recursive=False, min_grace="2")
+# Or tighten it: demand two major releases between announcement and removal
+violations = validate_deprecation_policy(my_package, recursive=False, min_grace="2")
 print(f"Found {len(violations)} violations")
 ```
 
@@ -1896,9 +1894,9 @@ Found 4 violations
 [message-required]
 [message-required]
 [min-grace]
-[remove-only-at]
-Found 3 violations
-Found 7 violations
+[min-grace]
+Found 2 violations
+Found 5 violations
 ```
 
 </details>
@@ -1909,9 +1907,8 @@ Found 7 violations
 >
 > - Wrappers missing `deprecated_in` or `remove_in` are **not** violations — the version-distance rules skip them, since a deprecation without a scheduled removal is a valid choice
 > - An unparsable version string emits a `UserWarning` naming the wrapper and the offending field, then the scan continues for the rest
-> - `min_grace` is a version-shaped delta with one non-zero component — `"1"` one major, `"0.3"` three minors, `"0.0.2"` two patches (a plain `1` or `0.3` works too); a coarser bump always clears a finer window, so `1.2` → `2.0` satisfies `"0.1"`
-> - The `remove_only_at="major"` default suits a project past `1.0`; on a `0.x` line the minor **is** the breaking cadence, so pass `remove_only_at="minor"` there instead of switching the rule off
-> - Only `deprecated_in_not_future` needs `current_version`; when the version cannot be resolved that rule is skipped and the other three still run
+> - `min_grace` is a version-shaped delta with one non-zero component — `"1"` one major, `"0.3"` three minors, `"0.0.2"` two patches (a plain `1` or `0.3` works too). The removal must be one clean bump of a single component (`1.2` → `1.5` or `2.0`, never `2.3`); a coarser bump always clears a finer window, so `1.2` → `2.0` satisfies `"0.3"`
+> - A `0.x` project needs no special setting — a bump to `1.0` is a major step and clears any window, and removals inside the `0.x` line are counted in minors as usual
 > - `pydeprecate all` prints policy violations but never fails on them — run `pydeprecate policy` as its own CI step to gate on them
 
 ### 🔗 Detecting Deprecation Chains
