@@ -21,14 +21,14 @@ Summarize each candidate before any edit: source location, symbol/layer, mode, d
 
 ## Edit according to what expires
 
-| Due compatibility                                   | Required edit                                                                                                                  |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| Obsolete forwarding function/class/object alias     | Remove old entry point and obsolete exports; preserve replacement                                                              |
-| `ARGS_REMAP` on a surviving function or constructor | Remove due mapping/decorator and obsolete parameter/fallback; retain live callable and new signature                           |
-| `ATTRS_REMAP` on a surviving class                  | Remove due alias/mapping; preserve class, new attributes and unrelated proxy behavior                                          |
-| Stacked wrappers with different deadlines           | Remove only due layer; retain later layers and valid decorator order                                                           |
-| Warn-only function, property or class               | Determine whether symbol is retired; migrate owned callers — those inside the step 1 package/source scope — before removing it |
-| Deprecated module                                   | Preserve needed implementation in replacement; remove obsolete module/export/import path only within scope                     |
+| Due compatibility | Required edit |
+| -- | -- |
+| Obsolete forwarding function/class/object alias | Remove old entry point and obsolete exports; preserve replacement |
+| `ARGS_REMAP` on a surviving function or constructor | Remove due mapping/decorator and obsolete parameter/fallback; retain live callable and new signature |
+| `ATTRS_REMAP` on a surviving class | Remove due alias/mapping; preserve class, new attributes and unrelated proxy behavior |
+| Stacked wrappers with different deadlines | Remove only due layer; retain later layers and valid decorator order |
+| Warn-only function, property or class | Determine whether symbol is retired; migrate owned callers — those inside the step 1 package/source scope — before removing it |
+| Deprecated module | Preserve needed implementation in replacement; remove obsolete module/export/import path only within scope |
 
 Trace replacement chains before deleting a target still used by a retained wrapper. Preserve remaining mappings, `args_extra`, `skip_if` and proxy behavior unless their migration is explicitly due. Do not replace an old wrapper with a permanent silent alias when the old entry point is meant to disappear. Updating local callers does not establish compatibility for unknown downstream users. Callers outside the step 1 scope — sibling packages, vendored trees, other repositories — need their own request.
 

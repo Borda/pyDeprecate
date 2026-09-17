@@ -68,8 +68,16 @@ repos:
     hooks:
       - id: mdformat
         name: mdformat (general)
-        exclude: ^docs/
+        exclude: ^(docs|plugins)/
         args: ["--number", "--wrap=no"]
+        additional_dependencies:
+          - mdformat-gfm
+          - mdformat-ruff
+          - mdformat_frontmatter
+      - id: mdformat
+        name: mdformat (plugins)
+        files: ^plugins/
+        args: ["--number", "--wrap=no", "--compact-tables"] # agent-facing skills — compact tables, no cell padding
         additional_dependencies:
           - mdformat-gfm
           - mdformat-ruff
