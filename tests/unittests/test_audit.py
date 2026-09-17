@@ -1447,43 +1447,50 @@ class TestBatchExpiryUnparsableVersion:
 
 
 class TestParseGraceWindow:
-    """Parsing of the ``min_grace`` specification string."""
+    """Parsing of the ``min_grace`` version-shaped delta."""
 
     @pytest.mark.parametrize(
         ("spec", "expected"),
         [
-            pytest.param("1 minor", (1, VersionBump.MINOR), id="singular-unit"),
-            pytest.param("2 majors", (2, VersionBump.MAJOR), id="plural-unit"),
-            pytest.param("1 patches", (1, VersionBump.PATCH), id="english-plural-of-patch"),
-            pytest.param("  3patch ", (3, VersionBump.PATCH), id="no-space-and-padding"),
-            pytest.param("1 MINOR", (1, VersionBump.MINOR), id="upper-case-unit"),
-            pytest.param("0 minor", (0, VersionBump.MINOR), id="zero-count-disables-distance"),
+            pytest.param("0.1", (1, VersionBump.MINOR), id="one-minor"),
+            pytest.param("2", (2, VersionBump.MAJOR), id="two-majors-string"),
+            pytest.param("2.0", (2, VersionBump.MAJOR), id="two-majors-trailing-zero"),
+            pytest.param("0.0.3", (3, VersionBump.PATCH), id="three-patches"),
+            pytest.param(" 0.1 ", (1, VersionBump.MINOR), id="padding"),
+            pytest.param(1, (1, VersionBump.MAJOR), id="int-major"),
+            pytest.param(0.3, (3, VersionBump.MINOR), id="float-minor"),
+            pytest.param("0.0", (0, VersionBump.MINOR), id="zero-count-disables-distance"),
         ],
     )
-    def test_accepts_documented_spellings(self, spec: str, expected: tuple[int, VersionBump]) -> None:
+    def test_accepts_documented_spellings(
+        self, spec: Union[str, int, float], expected: tuple[int, VersionBump]
+    ) -> None:
         """Every documented spelling of a grace window parses to its count and unit.
 
-        A policy is configured from a CLI flag or a keyword argument typed by hand, so the accepted spellings
-        have to cover the plural, the missing space, and the shouted unit a real invocation produces. That
-        includes the English plural of *patch*: someone writing ``"3 patches"`` in a CI config means the same
-        window as ``"3 patch"``, and rejecting it sends them hunting through the source for the spelling.
+        A policy is configured from a CLI flag or a keyword argument typed by hand. The delta reads like a
+        version -- the same shape as ``deprecated_in`` and ``remove_in`` -- so ``"0.1"`` means one minor step and
+        ``"0.0.3"`` three patch steps; a number spells the same thing where a number can (``1``, ``0.3``, which is
+        also what Fire hands the CLI for an unquoted flag value).
         """
         assert _parse_grace_window(spec) == expected
 
     @pytest.mark.parametrize(
         "spec",
         [
-            pytest.param("one minor", id="word-count"),
-            pytest.param("1 release", id="unknown-unit"),
-            pytest.param("minor", id="count-missing"),
+            pytest.param("1 minor", id="legacy-count-unit-spelling"),
+            pytest.param("1.2", id="two-non-zero-components"),
+            pytest.param("0.0.0.1", id="four-components"),
+            pytest.param("one", id="word-count"),
             pytest.param("", id="empty"),
         ],
     )
     def test_rejects_unparseable_specification(self, spec: str) -> None:
         """An unrecognised grace window fails loudly instead of silently disabling the rule.
 
-        A typo such as ``"1 release"`` that quietly turned the grace rule off would leave a CI gate reporting
-        green while checking nothing at all, so the specification is validated before the scan starts.
+        A typo that quietly turned the grace rule off would leave a CI gate reporting green while checking
+        nothing at all, so the specification is validated before the scan starts. ``"1.2"`` is rejected too: a
+        window with two non-zero components has no meaning under the coarser-bump rule, and the old
+        ``"1 minor"`` spelling must not be read as anything.
         """
         with pytest.raises(ValueError, match="Invalid `min_grace` specification"):
             _parse_grace_window(spec)
@@ -1710,17 +1717,17 @@ class TestValidateDeprecationPolicy:
     @pytest.mark.parametrize(
         ("min_grace", "expected_window"),
         [
-            pytest.param("1 minor", "at least 1 minor.", id="singular-window"),
-            pytest.param("2 majors", "at least 2 majors.", id="plural-window"),
+            pytest.param("0.1", "at least 1 minor release.", id="singular-window"),
+            pytest.param("2", "at least 2 major releases.", id="plural-window"),
         ],
     )
     @_requires_packaging
     def test_violation_message_echoes_configured_window(self, min_grace: str, expected_window: str) -> None:
-        """The reported grace window reads back in the plural form the count calls for.
+        """The reported grace window reads back as prose naming the count and the release level.
 
-        A maintainer who configured ``min_grace="2 majors"`` reads the CI log to learn what the gate expected;
-        a message saying "at least 2 major" looks like a different, one-major setting and sends them auditing
-        the configuration instead of the release schedule. A one-unit window still has to read as the singular.
+        A maintainer who configured ``min_grace="2"`` reads the CI log to learn what the gate expected; a
+        message echoing the bare ``2`` would leave them guessing which component it counts, so the message
+        spells out ``2 major releases`` -- and a one-unit window still reads as the singular.
         """
         violations = validate_deprecation_policy("tests.collection_policy", "2.0", recursive=False, min_grace=min_grace)
         matching = [v for v in violations if "no_grace_window" in v]
@@ -1763,7 +1770,7 @@ class TestValidateDeprecationPolicy:
             function="everything_wrong",
             deprecated_info=DeprecationConfig(deprecated_in="9.0", remove_in="9.0.1", target=TargetMode.NOTIFY),
         )
-        enabled_spec = _build_policy_spec("1 minor", "major", True, True)
+        enabled_spec = _build_policy_spec("0.1", "major", True, True)
         assert len(_check_policy_for_callables([info], "2.0", enabled_spec)) == 4
 
         disabled_spec = _build_policy_spec(None, None, False, False)
@@ -1792,7 +1799,7 @@ class TestValidateDeprecationPolicy:
             function="warn_forever",
             deprecated_info=DeprecationConfig(deprecated_in="1.0", target=str),
         )
-        spec = _build_policy_spec("1 minor", "major", True, True)
+        spec = _build_policy_spec("0.1", "major", True, True)
         assert _check_policy_for_callables([info], "2.0", spec) == []
 
     @_requires_packaging
@@ -1807,7 +1814,7 @@ class TestValidateDeprecationPolicy:
             function="broken_version",
             deprecated_info=DeprecationConfig(deprecated_in="1.0", remove_in="not.a.version!!", target=str),
         )
-        spec = _build_policy_spec("1 minor", "major", True, True)
+        spec = _build_policy_spec("0.1", "major", True, True)
         with pytest.warns(UserWarning, match="unparsable `remove_in`"):
             assert _check_policy_for_callables([info], "2.0", spec) == []
 
@@ -1825,7 +1832,7 @@ class TestValidateDeprecationPolicy:
             function="epoch_switch",
             deprecated_info=DeprecationConfig(deprecated_in="1.0", remove_in="1!1.0", target=str),
         )
-        spec = _build_policy_spec("1 minor", None, False, False)
+        spec = _build_policy_spec("0.1", None, False, False)
 
         with pytest.warns(UserWarning, match="epoch"):
             violations = _check_policy_for_callables([info], "2.0", spec)
@@ -1845,7 +1852,7 @@ class TestValidateDeprecationPolicy:
             function="epoch_switch",
             deprecated_info=DeprecationConfig(deprecated_in="1!1.0", remove_in="2.0", target=str),
         )
-        spec = _build_policy_spec("1 minor", None, False, False)
+        spec = _build_policy_spec("0.1", None, False, False)
 
         violations = _check_policy_for_callables([info], "2.0", spec)
 
@@ -1864,7 +1871,7 @@ class TestValidateDeprecationPolicy:
             function="backwards_patch",
             deprecated_info=DeprecationConfig(deprecated_in="1.0.1", remove_in="1.0.0", target=str),
         )
-        spec = _build_policy_spec("0 minor", None, False, False)
+        spec = _build_policy_spec("0.0", None, False, False)
 
         violations = _check_policy_for_callables([info], "2.0", spec)
 
@@ -1882,7 +1889,7 @@ class TestValidateDeprecationPolicy:
             function="removed_at_patch",
             deprecated_info=DeprecationConfig(deprecated_in="9.0", remove_in="9.0.1", target=str),
         )
-        spec = _build_policy_spec("1 minor", "major", True, True)
+        spec = _build_policy_spec("0.1", "major", True, True)
         violations = _check_policy_for_callables([info], None, spec)
         assert [v for v in violations if PolicyRule.REMOVE_ONLY_AT.value in v]
         assert not [v for v in violations if PolicyRule.DEPRECATED_IN_NOT_FUTURE.value in v]
@@ -1944,7 +1951,7 @@ class TestPolicyVersionParsingIsLazy:
             function="no_grace_window",
             deprecated_info=DeprecationConfig(deprecated_in="2.0", remove_in="2.0", target=str),
         )
-        spec = _build_policy_spec("1 minor", None, False, False)
+        spec = _build_policy_spec("0.1", None, False, False)
 
         with pytest.raises(ImportError, match="packaging"):
             _check_policy_for_callables([info], "2.0", spec)
@@ -1984,7 +1991,7 @@ class TestPolicyVersionParsingIsLazy:
             function="no_grace_window",
             deprecated_info=DeprecationConfig(deprecated_in="2.0", remove_in="2.0", target=str),
         )
-        spec = _build_policy_spec("1 minor", None, False, False)
+        spec = _build_policy_spec("0.1", None, False, False)
 
         with pytest.raises(ImportError, match="packaging"):
             _check_policy_for_callables([info], "2.0", spec)

@@ -1657,7 +1657,7 @@ pydeprecate expiry path/to/your/package   # auto-detects version from the packag
 # policy — deprecations scheduled against your governance rules
 # requires: pip install 'pyDeprecate[audit]'
 pydeprecate policy path/to/your/package --version 2.0.0
-pydeprecate policy path/to/your/package --min-grace="2 minors" --remove-only-at=minor
+pydeprecate policy path/to/your/package --min-grace=0.2 --remove-only-at=minor
 
 # chains — deprecated-to-deprecated forwarding chains only
 pydeprecate chains path/to/your/package
@@ -1855,7 +1855,7 @@ Four rules exist and each can be switched off independently; three run by defaul
 
 | Rule slug                  | What it checks                                         | Default                          | Disable with                                |
 | -------------------------- | ------------------------------------------------------ | -------------------------------- | ------------------------------------------- |
-| `min-grace`                | Distance between `deprecated_in` and `remove_in`       | `min_grace="1 minor"`            | `min_grace=None`                            |
+| `min-grace`                | Distance between `deprecated_in` and `remove_in`       | `min_grace="0.1"`                | `min_grace=None`                            |
 | `remove-only-at`           | Release level the `remove_in` version lands on         | `remove_only_at="major"`         | `remove_only_at=None`                       |
 | `message-required`         | The wrapper names a replacement callers can migrate to | `message_required=True`          | `message_required=False`                    |
 | `deprecated-in-not-future` | `deprecated_in` is not ahead of `current_version`      | `deprecated_in_not_future=False` | opt in with `deprecated_in_not_future=True` |
@@ -1884,7 +1884,7 @@ violations = validate_deprecation_policy(my_package, "2.0", recursive=False, rem
 print(f"Found {len(violations)} violations")
 
 # Or tighten one: demand two major releases between announcement and removal
-violations = validate_deprecation_policy(my_package, "2.0", recursive=False, min_grace="2 majors")
+violations = validate_deprecation_policy(my_package, "2.0", recursive=False, min_grace="2")
 print(f"Found {len(violations)} violations")
 ```
 
@@ -1909,7 +1909,7 @@ Found 7 violations
 >
 > - Wrappers missing `deprecated_in` or `remove_in` are **not** violations — the version-distance rules skip them, since a deprecation without a scheduled removal is a valid choice
 > - An unparsable version string emits a `UserWarning` naming the wrapper and the offending field, then the scan continues for the rest
-> - `min_grace` is spelled `"<count> <unit>"` with `major`, `minor`, or `patch` — singular or plural; a coarser bump always clears a finer window, so `1.2` → `2.0` satisfies `"1 minor"`
+> - `min_grace` is a version-shaped delta with one non-zero component — `"1"` one major, `"0.3"` three minors, `"0.0.2"` two patches (a plain `1` or `0.3` works too); a coarser bump always clears a finer window, so `1.2` → `2.0` satisfies `"0.1"`
 > - The `remove_only_at="major"` default suits a project past `1.0`; on a `0.x` line the minor **is** the breaking cadence, so pass `remove_only_at="minor"` there instead of switching the rule off
 > - Only `deprecated_in_not_future` needs `current_version`; when the version cannot be resolved that rule is skipped and the other three still run
 > - `pydeprecate all` prints policy violations but never fails on them — run `pydeprecate policy` as its own CI step to gate on them

@@ -21,7 +21,7 @@ import importlib.util
 import sys
 from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 from deprecate._pkg import (
     _auto_detect_version,
@@ -680,7 +680,7 @@ def cmd_policy(
     version: Optional[str] = None,
     recursive: bool = True,
     exit_zero: bool = False,
-    min_grace: Optional[str] = "1 minor",
+    min_grace: Optional[Union[str, int, float]] = "0.1",
     remove_only_at: Optional[str] = VersionBump.MAJOR.value,
     message_required: bool = True,
     deprecated_in_not_future: bool = False,
@@ -708,10 +708,10 @@ def cmd_policy(
         recursive: Scan submodules recursively (default True). Pass ``--norecursive`` to scan top-level only.
         exit_zero: Always exit 0 even if violations are found.
             Useful for advisory CI steps that should report but never block.
-        min_grace: Minimum distance between ``deprecated_in`` and ``remove_in`` as ``"<count> <unit>"``
-            (default ``"1 minor"``); pass ``--min-grace=None`` to skip the rule. A bump of a coarser
-            component always satisfies the window regardless of *count*: ``"3 minors"`` is cleared by a
-            single major bump (``1.2`` → ``2.0``), just as ``"1 minor"`` is.
+        min_grace: Minimum distance between ``deprecated_in`` and ``remove_in`` as a version-shaped delta —
+            ``1`` one major, ``0.3`` three minors, ``0.0.2`` two patches; default ``0.1``, ``None`` skips the
+            rule. A coarser bump always clears a finer window (``1.2`` → ``2.0`` satisfies ``0.3``). Ten or
+            more steps: quote as a string (``--min-grace='"0.10"'``), else Fire parses ``0.10`` as ``0.1``.
         remove_only_at: Release level removals are allowed at — ``major`` (default), ``minor``, or ``patch``;
             pass ``--remove-only-at=None`` to skip the rule.
         message_required: Require every wrapper to name a replacement (default True).
@@ -740,8 +740,6 @@ def cmd_policy(
     err_code = _validate_user_version(version, explicit=_version_explicit)
     if err_code is not None:
         return err_code
-    if min_grace is not None:
-        min_grace = str(min_grace)
     try:
         spec = _build_policy_spec(min_grace, remove_only_at, message_required, deprecated_in_not_future)
     except ValueError as err:

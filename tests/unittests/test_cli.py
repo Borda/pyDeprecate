@@ -1327,7 +1327,7 @@ class TestCmdPolicy:
         Exit 2 (usage error) separates "you configured the gate wrong" from exit 1 ("your code broke the
         policy") — a typo must never be reported as a clean policy run.
         """
-        assert cmd_policy(path="some_module", version="1.0", min_grace="one minor", _wrappers=[]) == 2
+        assert cmd_policy(path="some_module", version="1.0", min_grace="1 minor", _wrappers=[]) == 2
         assert "min_grace" in capsys.readouterr().err
 
     def test_invalid_version_exits_two(self, capsys: pytest.CaptureFixture[str]) -> None:

@@ -916,8 +916,8 @@ class PolicyRule(str, enum.Enum):
 class VersionBump(str, enum.Enum):
     """Version component addressed by the grace-window and removal-cadence policy rules.
 
-    Used as the unit in a ``min_grace`` window (e.g. ``"1 minor"``) and as the release level a ``remove_only_at``
-    policy permits removals at (e.g. ``"major"``).
+    Used as the unit a ``min_grace`` window is counted in (``"0.1"`` is one :attr:`MINOR`) and as the release
+    level a ``remove_only_at`` policy permits removals at (e.g. ``"major"``).
 
     Examples:
         >>> VersionBump("minor") is VersionBump.MINOR
@@ -930,13 +930,9 @@ class VersionBump(str, enum.Enum):
     PATCH = "patch"
 
 
-#: Accepted ``min_grace`` spelling — a count followed by a :class:`~deprecate.audit.VersionBump` unit,
-#: singular or plural (``"1 minor"``, ``"2 minors"``, ``"1major"``).  The plural suffix is ``(?:e?s)?`` rather
-#: than ``s?`` so the English plural of *patch* — ``"3 patches"``, the spelling anyone writes by hand — parses
-#: too.  ``unit`` still captures the bare singular word, which is what :class:`~deprecate.audit.VersionBump`
-#: is constructed from; the suffix group is non-capturing and deliberately permissive, since the point is to
-#: accept what a human typed, not to police plural forms.
-_GRACE_WINDOW_PATTERN = re.compile(r"^\s*(?P<count>\d+)\s*(?P<unit>major|minor|patch)(?:e?s)?\s*$", re.IGNORECASE)
+#: Version component addressed by each position of a ``min_grace`` delta — ``"1"`` is majors, ``"0.1"`` minors,
+#: ``"0.0.1"`` patches — in the same order :class:`~packaging.version.Version` exposes them.
+_GRACE_WINDOW_UNITS = (VersionBump.MAJOR, VersionBump.MINOR, VersionBump.PATCH)
 
 
 @dataclass(frozen=True)
@@ -958,81 +954,63 @@ class _PolicySpec:
     deprecated_in_not_future: bool
 
 
-def _parse_grace_window(min_grace: str) -> tuple[int, VersionBump]:
-    """Parse a ``min_grace`` specification such as ``"1 minor"`` into its count and unit.
+def _parse_grace_window(min_grace: Union[str, int, float]) -> tuple[int, VersionBump]:
+    """Parse a ``min_grace`` delta such as ``"0.1"`` into its count and unit.
+
+    The delta is spelled like a version: the position of its single non-zero component is the unit, the number
+    is the count — ``"1"`` one major, ``"0.3"`` three minors, ``"0.0.2"`` two patches. A number spells the same
+    thing where it can (``1``, ``0.3``); a ``float`` drops a trailing zero (``0.10`` is ``0.1``), so pass ten or
+    more steps as a string. ``"1.2"`` is rejected — two units have no meaning under the coarser-bump rule.
 
     Args:
-        min_grace: Grace-window specification — a non-negative integer followed by ``major``, ``minor``,
-            or ``patch``, singular or plural (``"2 minors"``, ``"3 patches"``).
+        min_grace: One to three dot-separated non-negative integers, as a string or a number.
 
     Returns:
         Tuple of the required count and the :class:`~deprecate.audit.VersionBump` unit it is counted in.
 
     Raises:
-        ValueError: If the specification does not match the accepted format.
+        ValueError: If the specification is not a delta of that shape.
 
     Examples:
-        >>> _parse_grace_window("1 minor")
+        >>> _parse_grace_window("0.1")
         (1, <VersionBump.MINOR: 'minor'>)
-        >>> _parse_grace_window("2 majors")
+        >>> _parse_grace_window(2)
         (2, <VersionBump.MAJOR: 'major'>)
-        >>> _parse_grace_window("3 patches")
+        >>> _parse_grace_window("0.0.3")
         (3, <VersionBump.PATCH: 'patch'>)
+        >>> _parse_grace_window(0.3)
+        (3, <VersionBump.MINOR: 'minor'>)
 
     """
-    match = _GRACE_WINDOW_PATTERN.match(min_grace)
-    if not match:
-        units = ", ".join(f"`{unit.value}`" for unit in VersionBump)
+    spec = str(min_grace).strip()
+    parts = spec.split(".")
+    valid = all(part.isdigit() for part in parts) and len(parts) <= 3
+    nonzero = [i for i, part in enumerate(parts) if valid and int(part)]
+    if not valid or len(nonzero) > 1:
         raise ValueError(
-            f"Invalid `min_grace` specification `{min_grace}`; expected a count followed by one of {units}"
-            " — for example `1 minor`."
+            f"Invalid `min_grace` specification `{spec}`; expected a version-shaped delta with a single non-zero"
+            " component — `1` (one major), `0.1` (one minor), or `0.0.1` (one patch)."
         )
-    return int(match.group("count")), VersionBump(match.group("unit").lower())
+    # All zeros (`"0.0"`) is a zero-count window in the unit of its last position.
+    position = nonzero[0] if nonzero else len(parts) - 1
+    return int(parts[position]), _GRACE_WINDOW_UNITS[position]
 
 
-#: English plural suffix per :class:`~deprecate.audit.VersionBump` unit, used when a parsed grace window is
-#: rendered back into prose.  Only *patch* is irregular (``patches``); spelling the suffix out per member keeps
-#: that exception in one table instead of a branch at the call site, and makes a future unit's plural a data
-#: change rather than a code change.
-_BUMP_PLURAL_SUFFIX: dict[VersionBump, str] = {
-    VersionBump.MAJOR: "s",
-    VersionBump.MINOR: "s",
-    VersionBump.PATCH: "es",
-}
-
-
-def _format_bump_count(count: int, unit: VersionBump) -> str:
-    """Render a bump count and its unit as English prose, pluralising the unit when the count is not one.
-
-    A :class:`~deprecate.audit.VersionBump` value is the bare singular word (``major``), so interpolating it
-    straight into a message reads *at least 2 major*. Only a count of exactly one takes the singular: zero is a
-    legitimate window — ``"0 minors"`` parses, and a ``remove_in`` that moves *backwards* inside one release line
-    still violates it — and reads as a plural in English, the same as any other count.
-
-    Args:
-        count: Number of bumps, as parsed from a ``min_grace`` specification.
-        unit: Version component the bumps are counted in.
-
-    Returns:
-        The count and unit as a phrase, for example ``"1 minor"`` or ``"2 majors"``.
+def _format_grace_window(count: int, unit: VersionBump) -> str:
+    """Render a parsed grace window as prose, e.g. ``"1 minor release"`` or ``"2 major releases"``.
 
     Examples:
-        >>> _format_bump_count(1, VersionBump.MINOR)
-        '1 minor'
-        >>> _format_bump_count(2, VersionBump.MAJOR)
-        '2 majors'
-        >>> _format_bump_count(3, VersionBump.PATCH)
-        '3 patches'
-        >>> _format_bump_count(0, VersionBump.MINOR)
-        '0 minors'
+        >>> _format_grace_window(1, VersionBump.MINOR)
+        '1 minor release'
+        >>> _format_grace_window(0, VersionBump.PATCH)
+        '0 patch releases'
 
     """
-    suffix = "" if count == 1 else _BUMP_PLURAL_SUFFIX[unit]
-    return f"{count} {unit.value}{suffix}"
+    return f"{count} {unit.value} release{'' if count == 1 else 's'}"
 
 
 def _build_policy_spec(
-    min_grace: Optional[str],
+    min_grace: Optional[Union[str, int, float]],
     remove_only_at: Optional[Union[str, VersionBump]],
     message_required: bool,
     deprecated_in_not_future: bool,
@@ -1040,7 +1018,7 @@ def _build_policy_spec(
     """Validate the raw policy arguments once, before any wrapper is scanned.
 
     Args:
-        min_grace: Grace-window specification (e.g. ``"1 minor"``), or ``None`` to disable the rule.
+        min_grace: Grace-window delta (e.g. ``"0.1"``), or ``None`` to disable the rule.
         remove_only_at: Release level removals are restricted to, or ``None`` to disable the rule.
         message_required: Whether every wrapper must offer migration guidance.
         deprecated_in_not_future: Whether ``deprecated_in`` must not be ahead of the current version.
@@ -1101,14 +1079,14 @@ def _satisfies_grace_window(deprecated_ver: "Version", remove_ver: "Version", co
     """Return whether ``remove_ver`` is at least ``count`` ``unit`` bumps beyond ``deprecated_ver``.
 
     A coarser bump always clears a finer-grained window: a wrapper deprecated in ``1.2`` and removed in ``2.0``
-    satisfies ``"1 minor"`` even though its minor number went *down*, because the major release is the bigger step.
+    satisfies ``"0.1"`` even though its minor number went *down*, because the major release is the bigger step.
     A PEP 440 epoch change is the coarsest bump of all — ``1!1.0`` sorts above every epoch-``0`` version regardless
     of its release numbers, so the epoch is compared first and settles the answer whenever the two differ. That
     ordering keeps this predicate total for any pair of versions; the policy path does not rely on it, because
     :func:`_grace_window_violation` warns and skips the wrapper before an epoch change ever reaches here.
 
     **The shortcut does not multiply by** ``count``. A coarser bump clears the window whatever the count asks for:
-    ``"3 minors"`` is satisfied by the single major bump ``1.2`` → ``2.0`` exactly as ``"1 minor"`` is, and any
+    ``"0.3"`` is satisfied by the single major bump ``1.2`` → ``2.0`` exactly as ``"0.1"`` is, and any
     change to the major or minor number clears a window counted in patches. Converting across components has no
     defensible answer — how many minors is one major worth depends on a release cadence this library cannot see —
     so the coarser step is accepted as sufficient. ``count`` therefore constrains distance only *within* its own
@@ -1183,7 +1161,7 @@ def _grace_window_violation(
         return (
             f"[{PolicyRule.MIN_GRACE.value}] {_format_subject(info)} is deprecated in `{config.deprecated_in}`"
             f" and already scheduled for removal in `{config.remove_in}`;"
-            f" the policy requires a grace window of at least {_format_bump_count(count, unit)}."
+            f" the policy requires a grace window of at least {_format_grace_window(count, unit)}."
         )
     if deprecated_ver.epoch != remove_ver.epoch:
         warnings.warn(
@@ -1198,7 +1176,7 @@ def _grace_window_violation(
     return (
         f"[{PolicyRule.MIN_GRACE.value}] {_format_subject(info)} is deprecated in `{config.deprecated_in}`"
         f" and already scheduled for removal in `{config.remove_in}`;"
-        f" the policy requires a grace window of at least {_format_bump_count(count, unit)}."
+        f" the policy requires a grace window of at least {_format_grace_window(count, unit)}."
     )
 
 
@@ -1396,7 +1374,7 @@ def validate_deprecation_policy(
     recursive: bool = True,
     include_members: bool = True,
     *,
-    min_grace: Optional[str] = "1 minor",
+    min_grace: Optional[Union[str, int, float]] = "0.1",
     remove_only_at: Optional[Union[str, VersionBump]] = "major",
     message_required: bool = True,
     # Opt-in: declaring `deprecated_in` as the *upcoming* release is idiomatic — a wrapper added during
@@ -1414,7 +1392,7 @@ def validate_deprecation_policy(
 
     Four rules are checked, each independently switchable (``None``/``False`` disables, ``True`` enables):
 
-    - ``min_grace`` — minimum distance between ``deprecated_in`` and ``remove_in`` (default ``"1 minor"``).
+    - ``min_grace`` — minimum distance between ``deprecated_in`` and ``remove_in`` (default ``"0.1"``, one minor).
     - ``remove_only_at`` — release level removals are allowed at (default ``"major"``).
     - ``message_required`` — every wrapper must name a replacement (target, mapping, or custom template).
     - ``deprecated_in_not_future`` — ``deprecated_in`` must not be ahead of *current_version* (**opt-in**,
@@ -1427,10 +1405,12 @@ def validate_deprecation_policy(
         recursive: If True (default), recursively scan submodules.
         include_members: If True (default), also scan deprecated class members, matching the discovery default
             of :func:`~deprecate.audit.find_deprecation_wrappers`.
-        min_grace: Minimum grace window as ``"<count> <major|minor|patch>"``, or ``None`` to skip the rule.
-            A bump of a coarser component always satisfies the window regardless of *count*: ``"3 minors"`` is
-            cleared by a single major bump (``1.2`` → ``2.0``), just as ``"1 minor"`` is, and any major/minor
-            change clears a patch-counted window. The count restricts distance only within its own component.
+        min_grace: Minimum grace window as a version-shaped delta — ``"1"`` (one major), ``"0.3"`` (three
+            minors), ``"0.0.2"`` (two patches); a plain ``1`` or ``0.3`` works too — or ``None`` to skip the
+            rule. Exactly one component may be non-zero. A bump of a coarser component always satisfies the
+            window regardless of the count: ``"0.3"`` is cleared by a single major bump (``1.2`` → ``2.0``), just
+            as ``"0.1"`` is, and any major/minor change clears a patch-counted window. The count restricts
+            distance only within its own component.
         remove_only_at: Release level removals are restricted to (``"major"``, ``"minor"``, ``"patch"``, or a
             :class:`~deprecate.audit.VersionBump`), or ``None`` to skip the rule.
         message_required: Require migration guidance on every wrapper.

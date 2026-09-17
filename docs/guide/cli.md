@@ -75,7 +75,7 @@ pydeprecate status tests --version 1.2
     pydeprecate policy path/to/your/package --version 2.0.0
 
     # tune the rules to your own release convention
-    pydeprecate policy path/to/your/package --min-grace="2 minors" --remove-only-at=minor
+    pydeprecate policy path/to/your/package --min-grace=0.2 --remove-only-at=minor
 
     # switch individual rules off
     pydeprecate policy path/to/your/package --min-grace=None --message-required=False
@@ -137,12 +137,12 @@ pydeprecate status tests --version 1.2
 
 These four are specific to `policy` — one flag per rule, each switched off with `None` (grace window, removal cadence) or `False` (the two boolean rules).
 
-| Flag                                | Default     | Rule slug                  | Effect                                                                                                                                                                                                                          |
-| ----------------------------------- | ----------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--min-grace="<count> <unit>"`      | `"1 minor"` | `min-grace`                | Minimum distance between `deprecated_in` and `remove_in`; unit is `major`, `minor`, or `patch`. A bump of a coarser component always satisfies the window regardless of count — `"3 minors"` is cleared by a single major bump. |
-| `--remove-only-at=<level>`          | `major`     | `remove-only-at`           | Release level a `remove_in` version is allowed to land on — `major`, `minor`, or `patch`.                                                                                                                                       |
-| `--message-required=<bool>`         | `True`      | `message-required`         | Require every wrapper to name a replacement (a `target`, a mapping, or a `message_template`).                                                                                                                                   |
-| `--deprecated-in-not-future=<bool>` | `False`     | `deprecated-in-not-future` | Require `deprecated_in` to be at or behind `--version` (opt-in).                                                                                                                                                                |
+| Flag                                | Default | Rule slug                  | Effect                                                                                                                                                                                                                                                                                                                                         |
+| ----------------------------------- | ------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--min-grace=<delta>`               | `0.1`   | `min-grace`                | Minimum distance between `deprecated_in` and `remove_in` as a version-shaped delta: `1` one major, `0.3` three minors, `0.0.2` two patches. A coarser bump always clears a finer window — `0.3` is satisfied by one major bump. Ten or more steps: quote as a string (`--min-grace='"0.10"'`), else the shell value parses as the float `0.1`. |
+| `--remove-only-at=<level>`          | `major` | `remove-only-at`           | Release level a `remove_in` version is allowed to land on — `major`, `minor`, or `patch`.                                                                                                                                                                                                                                                      |
+| `--message-required=<bool>`         | `True`  | `message-required`         | Require every wrapper to name a replacement (a `target`, a mapping, or a `message_template`).                                                                                                                                                                                                                                                  |
+| `--deprecated-in-not-future=<bool>` | `False` | `deprecated-in-not-future` | Require `deprecated_in` to be at or behind `--version` (opt-in).                                                                                                                                                                                                                                                                               |
 
 The `--remove-only-at=major` default suits a project past `1.0`. On a `0.x` line the minor **is** the breaking cadence, so pass `--remove-only-at=minor` there rather than switching the rule off — you keep the gate, you just point it at the release level your project actually breaks on.
 
@@ -190,7 +190,7 @@ jobs:
 
       # 2. governance gate — this is the step that fails on a policy violation
       - name: Enforce the deprecation policy
-        run: pydeprecate policy src/mypackage --min-grace="1 minor" --remove-only-at=major
+        run: pydeprecate policy src/mypackage --min-grace=0.1 --remove-only-at=major
 ```
 
 Spell the rule flags out even where they match the defaults, as above: the step then doubles as the written record of what your project promises, and a later change to pyDeprecate's defaults cannot quietly change what your CI enforces.

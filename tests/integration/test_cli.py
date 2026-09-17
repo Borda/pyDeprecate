@@ -274,6 +274,32 @@ class TestCliSubcommands:
         )
         assert result.returncode == 0
 
+    @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
+    @pytest.mark.parametrize(
+        "flag",
+        [
+            pytest.param("--min-grace=0.2", id="float-minor-delta"),
+            pytest.param("--min-grace=1", id="int-major-delta"),
+        ],
+    )
+    def test_policy_subcommand_accepts_numeric_grace_delta(self, flag: str, tmp_path: Path) -> None:
+        """An unquoted numeric '--min-grace' reaches the rule as a number and still enforces the window.
+
+        Fire converts ``0.2`` and ``1`` on the command line into a ``float`` and an ``int`` before the
+        subcommand sees them; the grace rule must accept those as the delta they spell instead of rejecting
+        them as malformed (exit 2) or silently skipping the rule (exit 0).
+        """
+        pkg = tmp_path / "aggressivepkg3"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text(_MYPKG_INIT_AGGRESSIVE)
+        result = _run_cli(
+            ["policy", str(pkg), "--version", "1.0", flag],
+            env=_cli_env(),
+            cwd=tmp_path,
+        )
+        assert result.returncode == 1
+        assert "min-grace" in (result.stdout or ""), result
+
     def test_policy_subcommand_invalid_remove_only_at_exits_two(self, tmp_path: Path) -> None:
         """'--remove-only-at=bogus' exits 2 and names the accepted spellings instead of scanning anything.
 

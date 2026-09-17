@@ -2011,7 +2011,7 @@ ______________________________________________________________________
 
 **Q:** `pydeprecate all src/mypackage` prints a *Deprecation Policy Violations* table, but the command exits `0` and my CI step passes. Is the exit code wrong?
 
-**A:** No — that is deliberate. The policy defaults (`min_grace="1 minor"`, `remove_only_at="major"`, `message_required=True`, `deprecated_in_not_future=False`) encode *a* release convention, not a universal rule, so `all` runs the policy check in **advisory** mode: violations are printed for visibility but never contribute to `all`'s exit code. Only invalid argument mappings, deprecated-to-deprecated chains, and expired wrappers make `all` exit `1`.
+**A:** No — that is deliberate. The policy defaults (`min_grace="0.1"`, `remove_only_at="major"`, `message_required=True`, `deprecated_in_not_future=False`) encode *a* release convention, not a universal rule, so `all` runs the policy check in **advisory** mode: violations are printed for visibility but never contribute to `all`'s exit code. Only invalid argument mappings, deprecated-to-deprecated chains, and expired wrappers make `all` exit `1`.
 
 To make the build fail on a policy violation, give `pydeprecate policy` its own CI step — its exit code is truthful (`0` clean, `1` violations, `2` a malformed rule argument):
 
@@ -2020,7 +2020,7 @@ To make the build fail on a policy violation, give `pydeprecate policy` its own 
 pydeprecate all src/mypackage
 
 # this is the step that fails the build
-pydeprecate policy src/mypackage --min-grace="1 minor" --remove-only-at=major
+pydeprecate policy src/mypackage --min-grace=0.1 --remove-only-at=major
 ```
 
 Spell the rule flags out in that step even where they match the defaults: the command then records what your project promises, and a future change to pyDeprecate's defaults cannot quietly change what your CI enforces.

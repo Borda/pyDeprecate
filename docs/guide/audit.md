@@ -393,7 +393,7 @@ pip install 'pyDeprecate[audit]'
 
 | Rule slug                  | What it checks                                                                     | Default                          | Disable with                                |
 | -------------------------- | ---------------------------------------------------------------------------------- | -------------------------------- | ------------------------------------------- |
-| `min-grace`                | Distance between `deprecated_in` and `remove_in`                                   | `min_grace="1 minor"`            | `min_grace=None`                            |
+| `min-grace`                | Distance between `deprecated_in` and `remove_in`                                   | `min_grace="0.1"`                | `min_grace=None`                            |
 | `remove-only-at`           | Release level the `remove_in` version lands on                                     | `remove_only_at="major"`         | `remove_only_at=None`                       |
 | `message-required`         | The wrapper provides migration guidance (a target, a mapping, or a custom message) | `message_required=True`          | `message_required=False`                    |
 | `deprecated-in-not-future` | `deprecated_in` is not ahead of `current_version`                                  | `deprecated_in_not_future=False` | opt in with `deprecated_in_not_future=True` |
@@ -402,7 +402,7 @@ Every violation message is prefixed with its rule slug in square brackets — `[
 
 Rule details worth knowing before you tune the defaults:
 
-- **`min_grace`** is spelled `"<count> <unit>"` where the unit is `major`, `minor`, or `patch`, singular or plural — `"1 minor"`, `"2 minors"`, `"1major"` all parse. A coarser bump always clears a finer-grained window: a callable deprecated in `1.2` and removed in `2.0` satisfies `"1 minor"` even though its minor number went *down*, because the major release is the bigger step. An unrecognised spelling raises `ValueError`.
+- **`min_grace`** is a version-shaped delta with one non-zero component — `"1"` one major, `"0.3"` three minors, `"0.0.2"` two patches; a plain `1` or `0.3` works too (a `float` drops a trailing zero, so write ten or more steps as a string). `"1.2"` or any other spelling raises `ValueError`. A coarser bump always clears a finer window: deprecated in `1.2`, removed in `2.0` satisfies `"0.1"` even though the minor number went *down*.
 - **`remove_only_at="major"`** permits only `X.0.0`-shaped removal versions; `"minor"` permits any `X.Y.0`; `"patch"` permits every release, so the rule is then satisfied by construction. The `"major"` default suits a project past `1.0`; on a `0.x` line the minor **is** the breaking cadence, so pass `remove_only_at="minor"` there instead of switching the rule off.
 - **`message_required`** counts a forwarding `target`, an `args_mapping`, an `attrs_mapping`, or a custom `message_template` as guidance. An *empty* `args_mapping`/`attrs_mapping` (`{}`) does **not** count — it carries no actual rename, so the rule treats it the same as no mapping at all. A deprecated *module* is judged on its target and mappings alone, because `deprecated_module()` always stores rendered text in `message_template` and the rule would be inert there.
 - **`deprecated_in_not_future`** is the only rule that needs `current_version`, and it is opt-in — a correctly-labelled `deprecated_in` names the version the wrapper *ships in*, which is by definition ahead of the working-tree version at development time. Pass `deprecated_in_not_future=True` only if your project always records `deprecated_in` as an already-released version. When the version cannot be resolved the rule is skipped and the other three still run.
@@ -467,7 +467,7 @@ def test_deprecations_follow_project_policy():
         my_package,
         "2.0",  # Replace with: from mypackage import __version__
         recursive=False,
-        min_grace="1 minor",  # deprecate at least one minor before removing
+        min_grace="0.1",  # deprecate at least one minor before removing
         remove_only_at="major",  # only ever remove at a major release
         message_required=True,  # every warning must name a replacement
         deprecated_in_not_future=True,  # never claim a version that has not shipped

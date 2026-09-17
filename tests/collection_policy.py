@@ -36,7 +36,7 @@ def compliant_forward(a: int = 0, b: int = 3) -> int:
         A maintainer deprecates a helper in ``1.0`` and schedules its removal for the next major,
         ``2.0`` — one major release of runway, a forwarding ``target``, and a ``deprecated_in`` that
         has already shipped. ``validate_deprecation_policy()`` reports no violation for this wrapper
-        under the default policy (``min_grace="1 minor"``, ``remove_only_at="major"``,
+        under the default policy (``min_grace="0.1"``, ``remove_only_at="major"``,
         ``message_required=True``): the major bump clears the one-minor grace window, the removal
         lands on a major boundary, and the ``target`` counts as migration guidance. It also passes
         the opt-in ``deprecated_in_not_future=True`` rule, since ``1.0`` is not ahead of the caller's
@@ -54,7 +54,7 @@ def no_grace_window(x: int) -> int:
         A team ships ``deprecated_in="2.0"`` and ``remove_in="2.0"`` in the same release cycle,
         giving downstream callers zero versions to react before the function disappears.
         ``validate_deprecation_policy()`` flags this wrapper under the ``min-grace`` rule because the
-        distance between the two versions is smaller than the required ``"1 minor"`` window.
+        distance between the two versions is smaller than the required ``"0.1"`` (one-minor) window.
 
     """
     return void(x)
