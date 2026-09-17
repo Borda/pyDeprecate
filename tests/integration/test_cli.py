@@ -151,7 +151,7 @@ class TestCliSubcommands:
     ) -> None:
         """'pydeprecate expiry <path> --version <arg>' behaves differently for a bare vs. quoted "0.10".
 
-        skills/remove/SKILL.md warns that CLI argument parsing can coerce "0.10" to 0.1 and that "shell
+        skills/prune/SKILL.md warns that CLI argument parsing can coerce "0.10" to 0.1 and that "shell
         quoting alone does not guarantee preservation" — confirmed here: Fire infers a bare
         ``--version 0.10`` as the float 0.1 before it ever reaches this package's own ``str(version)``
         normalization, so a wrapper with ``remove_in="0.2"`` is (wrongly) reported as not yet expired.

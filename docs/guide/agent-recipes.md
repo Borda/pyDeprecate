@@ -24,7 +24,7 @@ For local development or unpublished changes, run these commands from the reposi
 
 The plugin provides `$pydeprecate:sunset` and `$pydeprecate:prune` in Codex, and `/pydeprecate:sunset` and `/pydeprecate:prune` in Claude Code. A `sunset` request (implementing a deprecation) requires package or module scope plus `deprecated_in` and `remove_in`; a `prune` request requires scope plus the target release only. Example requests: “Sunset `parse_config` in `acme.parsers`, deprecated_in=1.4, remove_in=2.0.” and “Prune compatibility due by target release 2.0 from `acme.parsers`.”
 
-Preview remains read-only. A removal plan requires an explicit release deadline with `remove_in <= target release`, keeps surviving functions or classes available for argument/attribute compatibility, and leaves incomplete scans unresolved. Use the consumer environment's existing `pyDeprecate`; Python audits need `[audit]`, while CLI audits need `[audit,cli]`.
+Preview remains read-only. A removal plan requires an explicit release deadline: `remove_in <= target release` under PEP 440, plus a `remove_in` whose base release equals an explicitly requested RC target (`2.0rc1` for `remove_in="2.0"`) only when the user is preparing that final release; it keeps surviving functions or classes available for argument/attribute compatibility, and leaves incomplete scans unresolved. Use the consumer environment's existing `pyDeprecate`; Python audits need `[audit]`, while CLI audits need `[audit,cli]`.
 
 The plugin source lives under `plugins/pydeprecate/`: `.codex-plugin/plugin.json`, `.claude-plugin/plugin.json`, `skills/sunset/SKILL.md`, and `skills/prune/SKILL.md`.
 

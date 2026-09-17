@@ -4,6 +4,8 @@ import importlib.util
 import inspect
 import json
 import re
+import shutil
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -158,13 +160,45 @@ def test_plugin_declares_compatible_package_version(host: str) -> None:
     assert spec.contains(_deprecate_version, prereleases=True)
     assert not spec.contains("0.0.0", prereleases=True), f"{raw_spec!r} does not actually bound the floor"
     assert not spec.contains("0.1.0", prereleases=True), f"{raw_spec!r} does not actually bound the floor"
-    floors = [Version(item.version) for item in spec if item.operator in (">=", "==", "~=")]  # type: ignore[misc]
-    assert len(floors) == 1, f"{raw_spec!r} must declare exactly one lower bound"
+    # `==` is not a floor: `==0.13.0.dev` would satisfy the installed check while supporting none of the window.
+    floors = [Version(item.version) for item in spec if item.operator in (">=", "~=")]  # type: ignore[misc]
+    assert len(floors) == 1, f"{raw_spec!r} must declare exactly one lower bound (>= or ~=)"
     installed = Version(_deprecate_version)  # type: ignore[misc]
     oldest_supported = installed.minor - _SUPPORT_WINDOW_MINORS
     assert (floors[0].major, floors[0].minor) >= (installed.major, oldest_supported), (
         f"{raw_spec!r} trails the installed {installed} by more than {_SUPPORT_WINDOW_MINORS} minors — bump the floor"
     )
+
+
+_CLAUDE_CLI = shutil.which("claude")
+
+
+@pytest.mark.skipif(_CLAUDE_CLI is None, reason="requires the Claude Code CLI on PATH")
+@pytest.mark.parametrize(
+    "target",
+    [
+        pytest.param("plugins/pydeprecate", id="plugin"),
+        pytest.param(".claude-plugin/marketplace.json", id="marketplace"),
+    ],
+)
+def test_claude_host_validates_plugin(target: str) -> None:
+    """Run the Claude Code host validator against the plugin manifest and the marketplace catalog.
+
+    A maintainer edits a manifest field or moves a skill directory. The JSON-only checks above
+    cannot tell whether the host still accepts the result, so when the ``claude`` CLI is present
+    this runs ``claude plugin validate`` on both entry points and requires a passing result;
+    Codex ships no equivalent validator, and hosts without the CLI installed skip this check.
+    """
+    result = subprocess.run(
+        [str(_CLAUDE_CLI), "plugin", "validate", str(_ROOT / target)],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=False,
+        timeout=60,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "Validation passed" in result.stdout, result.stdout
 
 
 _SKILL_PATHS = (_PLUGIN / "skills" / "sunset" / "SKILL.md", _PLUGIN / "skills" / "prune" / "SKILL.md")
