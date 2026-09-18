@@ -1706,7 +1706,7 @@ pydeprecate status path/to/your/package --style matrix
 pydeprecate status path/to/your/package --version 2.0.0 --output DEPRECATIONS.md
 ```
 
-**Common flags** (all subcommands): `--norecursive` scans the top-level module only. `--exclude` takes glob patterns over full dotted module names (one, comma-separated, or a list) the scan itself never imports nor descends into; its default is the `exclude` list of `[tool.pydeprecate]` in the nearest `pyproject.toml`. `check`, `expiry`, `policy`, `chains`, and `all` also accept `--exit-zero` to always exit `0` even when issues are found. `expiry`, `all`, and `status` also accept `--version VERSION` to set the current version explicitly. `policy` additionally accepts one flag per rule — `--min-grace`, `--message-required` — resolved as flag → `[tool.pydeprecate.policy]` in the nearest `pyproject.toml` → built-in default (`min-grace = "0.3"`, `message-required = true`; `false` switches `min-grace` off), and exits `2` when a rule value is malformed. The `Policy:` header line names the source of each value. `status` additionally accepts `--style compact|matrix` (default `compact`) and `--output FILE` to also save the markdown to that file.
+**Common flags** (all subcommands): `--norecursive` scans the top-level module only. `--exclude` takes glob patterns over full dotted module names (one, comma-separated, or a list) the scan itself never imports nor descends into; its default is the `exclude` list of `[tool.pydeprecate]` in the nearest `pyproject.toml`. `check`, `expiry`, `policy`, `chains`, and `all` also accept `--exit-zero` to always exit `0` even when issues are found. `expiry`, `all`, and `status` also accept `--version VERSION` to set the current version explicitly. `policy` additionally accepts one flag per rule — `--min-grace`, `--message-required` — resolved as flag → `[tool.pydeprecate.policy]` in the nearest `pyproject.toml` → built-in default (`min-grace = "0.3"`, `message-required = true`; `false` switches `min-grace` off), and exits `2` when a rule value is malformed, or when the `pyproject.toml` itself cannot be read or parsed (`Cannot read <path>: <err>`) — this file-read exit `2` is checked before `chains` runs even inside `pydeprecate all`, though policy *violation counts* stay advisory there. The `Policy:` header line names the source of each value. `status` additionally accepts `--style compact|matrix` (default `compact`) and `--output FILE` to also save the markdown to that file.
 
 **Quick demo** using pyDeprecate's own test fixtures (no package setup needed):
 
@@ -1730,12 +1730,14 @@ $ pydeprecate chains src/mypackage
 
 **Example: combined one-liner scan across all checks**
 
+The `✓`/`⚠` one-line-per-check layout below is illustrative — condensed for readability, not the CLI's actual Rich-table output — but the policy line reflects the real `[WARNING]`-style advisory trailer:
+
 ```
 $ pydeprecate all src/mypackage
-✓ check:  12 wrappers validated, 0 misconfigured
-⚠ expiry: 2 wrappers past remove_in deadline
-⚠ policy: 1 violation (advisory here — run `pydeprecate policy` to gate on it)
-✓ chains: no deprecated→deprecated chains detected
+✓ check:    12 wrappers validated, 0 misconfigured
+⚠ expiry:   2 wrappers past remove_in deadline
+[WARNING] policy: 1 violation (advisory here — run `pydeprecate policy` to gate on it)
+✓ chains:   no deprecated→deprecated chains detected
 ```
 
 </details>

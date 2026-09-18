@@ -357,7 +357,7 @@ pyDeprecate/
 │   │   ├── _wrappers.py        # DeprecationWrapperInfo, validate_deprecation_wrapper(), subject formatters
 │   │   ├── _scan.py            # find_deprecation_wrappers() walk + chain/mapping filters
 │   │   ├── _lifecycle.py       # PEP 440 parsing, package version, DeprecationStatus, validate_deprecation_expiry()
-│   │   ├── _policy.py          # PolicyRule, GraceWindow, validate_deprecation_policy()
+│   │   ├── _policy.py          # PolicyRule, VersionBump, GraceWindow, GraceWindowSpec, validate_deprecation_policy()
 │   │   └── _report.py          # TableStyle, generate_deprecation_table()
 │   ├── utils.py                # Low-level helpers: void(), assert_no_warnings()
 │   └── docstring/              # Docstring utilities subpackage
