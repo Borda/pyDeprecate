@@ -13,6 +13,17 @@ pyDeprecate is a Python deprecation decorator library for API migration. It prov
 - Optional audit extra: `pip install 'pyDeprecate[audit]'`
 - Optional CLI audit extra: `pip install 'pyDeprecate[audit,cli]'` for `pydeprecate expiry`, `pydeprecate policy`, and `pydeprecate all`
 
+## Coding-Agent Plugin
+
+- This repository also contains a separate `pydeprecate` plugin for Codex and Claude Code, available from the repository's default branch (early, pre-1.0). `pip` installs the library only; it does not install agent skills.
+- Install from GitHub: Codex `codex plugin marketplace add Borda/pyDeprecate` then `codex plugin add pydeprecate@pydeprecate`; Claude Code `claude plugin marketplace add Borda/pyDeprecate` then `claude plugin install pydeprecate@pydeprecate`.
+- For local development or unpublished changes, use `.` instead of `Borda/pyDeprecate` in the marketplace-add command, running from the repository root. The plugin-install command stays the same.
+- Invoke `$pydeprecate:sunset` / `$pydeprecate:prune` in Codex or `/pydeprecate:sunset` / `/pydeprecate:prune` in Claude Code. A `sunset` request (implementing a deprecation) requires package/module scope plus `deprecated_in` and `remove_in`; `prune` requests require scope plus target release only. Example requests: `Sunset old_func in package.module, deprecated_in=1.4, remove_in=2.0.` and `Prune compatibility due by target release 2.0 from package.module.`
+- Preview is read-only. Removal requires an explicit release deadline: `remove_in <= target release` under PEP 440, plus a `remove_in` whose base release equals an explicitly requested RC target (`2.0rc1` for `remove_in="2.0"`) only when the user is preparing that final release; it preserves surviving functions/classes for argument/attribute compatibility, and reports incomplete scans as unresolved.
+- Use the consumer environment's existing `pyDeprecate`; Python audits need `[audit]`, while CLI audits need `[audit,cli]`. The plugin adds no server, hook, runtime dependency, or pip dependency.
+- Plugin source: `plugins/pydeprecate/` with separate host manifests and shared `skills/sunset/` and `skills/prune/` skills.
+- For adoption, ask: `Scan src/acme for deprecation decorators, warnings, aliases, and shims; suggest supported pyDeprecate conversions without editing.` The scan is read-only, verifies installed or explicitly identified release support, and reports `convert`, `keep`, or `needs decision`. Do not force dependencies or convert operational warnings; PEP 702 static-checker behavior is not equivalent merely by matching runtime metadata.
+
 ## Critical Mental Model
 
 - If `target=<callable>` is provided, pyDeprecate forwards the call to the target. The deprecated function body is not the migration path.

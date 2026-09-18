@@ -21,6 +21,13 @@ ______________________________________________________________________
 - [📖 Overview](#overview)
 - [✨ Features](#features)
 - [💾 Installation](#installation)
+
+<!-- following section will be skipped from PyPI description -->
+
+- [🤖 Coding-agent plugin](#coding-agent-plugin)
+
+<!-- end skipping PyPI description -->
+
 - [🚀 Quick Start](#quick-start)
 - [🗺 API at a Glance](#api-at-a-glance)
 - [📊 Comparison with Other Tools](#comparison-with-other-tools)
@@ -115,6 +122,32 @@ pip install https://github.com/Borda/pyDeprecate/archive/main.zip
 ```
 
 </details>
+
+<br>
+
+<!-- following section will be skipped from PyPI description -->
+
+## 🤖 Coding-agent plugin
+
+This repository includes a `pydeprecate` plugin for Codex and Claude Code, available from the repository's default branch (early, pre-1.0). It is a separate artifact from the `pyDeprecate` library and is not installed by `pip`.
+
+Install it from GitHub:
+
+```bash
+# Codex
+codex plugin marketplace add Borda/pyDeprecate
+codex plugin add pydeprecate@pydeprecate
+
+# Claude Code
+claude plugin marketplace add Borda/pyDeprecate
+claude plugin install pydeprecate@pydeprecate
+```
+
+For local development or unpublished changes, run these commands from the repository root with `.` instead of `Borda/pyDeprecate` in the marketplace-add command. The plugin-install command stays the same.
+
+Use `$pydeprecate:sunset` / `$pydeprecate:prune` in Codex, or `/pydeprecate:sunset` / `/pydeprecate:prune` in Claude Code, to implement or retire a deprecation — see the [coding-agent recipes](https://borda.github.io/pyDeprecate/stable/guide/agent-recipes.html) for invocation examples, host commands, and workflow boundaries.
+
+<!-- end skipping PyPI description -->
 
 <br>
 
