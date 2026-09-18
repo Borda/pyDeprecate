@@ -407,6 +407,38 @@
         },
         {
           "@type": "Question",
+          "name": "Why does pydeprecate all report policy violations but still exit 0?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "That is deliberate. The deprecation-policy defaults (min_grace='0.3', message_required=True) encode a release convention rather than a universal rule, so pydeprecate all runs the policy check in advisory mode: violations are printed for visibility but never contribute to the exit code of all. Only invalid argument mappings, deprecated-to-deprecated chains, and expired wrappers make all exit 1. This advisory treatment covers violation counts only — a policy configuration failure (an unreadable or malformed pyproject.toml, or a malformed [tool.pydeprecate.policy] value) still exits 2 even inside all, printing 'Cannot read <path>: <err>', and is checked before the chains check runs. To fail a build on a policy violation, give pydeprecate policy its own CI step — its exit code is truthful (0 clean, 1 violations found, 2 a malformed rule argument or unreadable pyproject.toml). Spell the rule flags out in that step even where they match the defaults, so the command records what your project promises and a future change to pyDeprecate's defaults cannot quietly change what your CI enforces."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How do I switch off a deprecation-policy rule my project does not follow?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Both rules checked by validate_deprecation_policy are independently controlled — pass None for min_grace or False for message_required. Nothing is all-or-nothing. Before reaching for None, check whether retargeting the window is what you want: min_grace is a version-shaped delta — '0.1' one minor of warning, '0.3' (the default) three, '1.0' a whole major — so pass the number your project really releases on; you keep the gate, pointed at your own cadence. Disabling it means nothing checks removal schedules at all. A 0.x project needs no special setting: a bump to 1.0 is a major step and clears any window. The CLI mirrors this with one flag per rule: --min-grace, --message-required. A value the parser does not recognise is rejected before the scan starts and exits 2 with a message naming the accepted spellings, so a typo can never silently disable a rule you meant to keep."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Where does pydeprecate policy take its rules from when no flags are passed?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Each rule is resolved independently as flag, then the [tool.pydeprecate.policy] table in the nearest pyproject.toml (scanned path's directory up to two parents, never for a bare module name), then the built-in default (min-grace = \"0.3\", message-required = true). Keys are the rule slugs; min-grace takes the dotted delta as a quoted string such as \"0.3\" or \"1.0\", and false switches it off. Every run prints a Policy: header naming the source of each value. A malformed file value, or a pyproject.toml that cannot be read or parsed at all, exits 2 naming the file ('Cannot read <path>: <err>'); unknown keys are reported on stderr and ignored, and on Python 3.9-3.10 the TOML parser comes from the [audit] extra. pydeprecate all applies the same resolved settings to its advisory policy pass, but this config-read exit 2 is the one exception to advisory — it still propagates through all, checked before chains runs. validate_deprecation_policy() never reads pyproject.toml."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How do I keep test fixtures or a legacy tree out of the pyDeprecate audit?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Every scanning function and every CLI subcommand takes an exclude list of glob patterns over the full dotted module name: exclude = [\"my_package.tests\", \"*._legacy*\"] under [tool.pydeprecate] in pyproject.toml, --exclude='my_package.tests,*._legacy*' on the command line (quoted), or find_deprecation_wrappers(my_package, exclude=[...]) in Python. A matching package excludes its whole subtree and the scan itself never imports it (if another module in the package imports it, only its wrappers are filtered). The Exclude: header line names what was left out and where the list came from. Write the full dotted name, not a bare tests; a value that is not a string or a list of strings exits 2."
+          }
+        },
+        {
+          "@type": "Question",
           "name": "What does the UserWarning 'audit: skipped <module>' mean during a recursive scan?",
           "acceptedAnswer": {
             "@type": "Answer",

@@ -5,6 +5,7 @@ import importlib.metadata
 import importlib.util
 import inspect
 import pkgutil
+import sys
 import types
 import warnings
 from pathlib import Path
@@ -30,14 +31,12 @@ from deprecate._types import DeprecationConfig
 from deprecate.audit import (
     ChainType,
     DeprecationWrapperInfo,
-    _check_deprecated_wrapper_expiry,
-    _get_package_version,
-    _parse_version,
     find_deprecation_wrappers,
     generate_deprecation_table,
     validate_deprecation_chains,
     validate_deprecation_wrapper,
 )
+from deprecate.audit._lifecycle import _check_deprecated_wrapper_expiry, _get_package_version, _parse_version
 from tests.collection_targets import plain_function_target
 
 # Check if packaging is available for version comparison tests
@@ -460,10 +459,18 @@ class TestFindDeprecatedWrappers:
             results = find_deprecation_wrappers(proxy_module, recursive=False)
         assert results == []
 
-    def test_recursive_scan_handles_walk_packages_error(self) -> None:
-        """Recursive scan continues gracefully when pkgutil.walk_packages raises."""
+    def test_recursive_scan_warns_when_iter_modules_errors(self) -> None:
+        """Recursive scan keeps the top-level results and warns when ``pkgutil.iter_modules`` raises.
+
+        A package directory that cannot be listed (permissions, a vanished mount) stops the submodule walk
+        before any submodule is imported. The gate must still return what the top module yielded and say why
+        the walk ended, instead of silently reporting a partial tree as if it were complete.
+        """
         # `tests` has __path__ so the recursive branch is entered.
-        with patch.object(pkgutil, "walk_packages", side_effect=OSError("no walk")):
+        with (
+            patch.object(pkgutil, "iter_modules", side_effect=OSError("no walk")),
+            pytest.warns(UserWarning, match=r"audit: submodule walk of tests stopped early: OSError\('no walk'\)"),
+        ):
             results = find_deprecation_wrappers(tests, recursive=True)
         assert isinstance(results, list)
 
@@ -489,6 +496,54 @@ class TestFindDeprecatedWrappers:
             results = find_deprecation_wrappers("brokenscan_pkg", recursive=True)
 
         assert "old_fn" in {r.function for r in results}
+
+    def test_excluded_subtree_is_never_imported(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """An excluded package is skipped without being imported, so its import-time failure never surfaces.
+
+        A test-fixture or optional-backend package that blows up at import time is the reason a project excludes
+        it; if the walk imported it before deciding to skip, the exclusion would still emit the ``audit: skipped``
+        warning and pay the import cost it was meant to avoid.
+        """
+        pkg = tmp_path / "exclscan_pkg"
+        (pkg / "tests").mkdir(parents=True)
+        (pkg / "__init__.py").write_text("")
+        (pkg / "good.py").write_text(_GOOD_SUBMODULE_SRC)
+        (pkg / "tests" / "__init__.py").write_text('raise RuntimeError("fixtures must not be imported")\n')
+        (pkg / "tests" / "fixtures.py").write_text(_GOOD_SUBMODULE_SRC)
+        monkeypatch.syspath_prepend(str(tmp_path))
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            results = find_deprecation_wrappers("exclscan_pkg", recursive=True, exclude=["exclscan_pkg.tests"])
+
+        assert {r.module for r in results} == {"exclscan_pkg.good"}
+        assert "exclscan_pkg.tests" not in sys.modules
+
+    @pytest.mark.parametrize(
+        "pattern",
+        [
+            pytest.param("exclscan2_pkg.legacy_api", id="exact-name"),
+            pytest.param("*.legacy*", id="glob"),
+        ],
+    )
+    def test_exclude_pattern_drops_matching_module(
+        self, pattern: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A pattern over the full dotted module name removes that module's wrappers and nothing else.
+
+        Both spellings a project reaches for — the exact dotted name and a glob — have to select the same module,
+        so the ``pyproject.toml`` list can be written either way.
+        """
+        pkg = tmp_path / "exclscan2_pkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text("")
+        (pkg / "good.py").write_text(_GOOD_SUBMODULE_SRC)
+        (pkg / "legacy_api.py").write_text(_GOOD_SUBMODULE_SRC)
+        monkeypatch.syspath_prepend(str(tmp_path))
+
+        results = find_deprecation_wrappers("exclscan2_pkg", recursive=True, exclude=[pattern])
+
+        assert {r.module for r in results} == {"exclscan2_pkg.good"}
 
     def test_empty_deprecated_in_flag_reported_via_find(self) -> None:
         """find_deprecation_wrappers sets empty_deprecated_in=True for wrappers with no version."""
@@ -949,7 +1004,7 @@ class TestCheckModuleDeprecationExpiry:
             function="bad_version_fn",
             deprecated_info=DeprecationConfig(deprecated_in="1.0", remove_in="not-semver"),
         )
-        with patch("deprecate.audit.find_deprecation_wrappers", return_value=[bad_info]):
+        with patch("deprecate.audit._lifecycle.find_deprecation_wrappers", return_value=[bad_info]):
             result = validate_deprecation_expiry("tests.collection_deprecate", "2.0", recursive=False)
         assert result == []
 

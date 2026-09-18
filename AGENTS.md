@@ -112,7 +112,7 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 - Define deprecated wrappers inside test files
 - Use `with warnings.catch_warnings(...)` in any `.md` documentation example in any form — neither `simplefilter("always")` for capturing nor `simplefilter("ignore", ...)` for suppressing; annotate the call with `# warns: FutureWarning` or `# warns: UserWarning` instead; output blocks show only return values
 - Use bare `assert` statements in `.md` documentation examples outside of `def test_...` bodies (e.g. `assert pt.x == 1.0`, `assert isinstance(obj, MyClass)`) — use `print()` instead and follow with a `<details><summary>Output: <code>expression</code></summary>` block showing expected output. **Exception:** bare `assert` inside `def test_...` function bodies shown as pytest integration examples is allowed and idiomatic
-- Import a fictional package name in runnable `.md` examples — executable examples must import from actual test collection modules (`from tests import collection_deprecate`, `collection_misconfigured`, or `collection_chains`). For CI-template snippets that intentionally show a placeholder import, add `# phmdoctest:skip — CI template: replace my_package with your actual package` as the first line so phmdoctest skips execution
+- Import a fictional package name in runnable `.md` examples — executable examples must import from actual test collection modules (`from tests import collection_deprecate`, `collection_misconfigured`, `collection_chains`, or `collection_policy`). For CI-template snippets that intentionally show a placeholder import, add `# phmdoctest:skip — CI template: replace my_package with your actual package` as the first line so phmdoctest skips execution
 - Let `plugins/pydeprecate/skills/*/SKILL.md` contradict `docs/llms.txt` or this file — those are authoritative; the installed plugin and the installed package can drift independently
 - Add extra blank-line spacing inside `plugins/**/*.md`
 - Skip test coverage for new features or bug fixes
@@ -137,7 +137,7 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 
 - **Keep AI-agent documentation in sync** — `docs/llms.txt` is a machine-readable contract read by AI agents before generating code; it must reflect actual behavior at all times. Apply this sync table on every relevant change:
 
-  - **Public API behavior change** — affected module docstrings (`routine.py`, `audit.py`, `proxy.py`, `utils.py`) · inline comments in changed `src/` files · `README.md` Quick Start · relevant `docs/guide/*.md` topic page · `docs/llms.txt` § Agent Notes · `docs/troubleshooting.md` (add or update Q&A) · FAQPage JSON-LD in `docs/overrides/main.html`
+  - **Public API behavior change** — affected module docstrings (`routine.py`, `audit/__init__.py`, `proxy.py`, `utils.py`) · inline comments in changed `src/` files · `README.md` Quick Start · relevant `docs/guide/*.md` topic page · `docs/llms.txt` § Agent Notes · `docs/troubleshooting.md` (add or update Q&A) · FAQPage JSON-LD in `docs/overrides/main.html`
   - **New deprecation pattern** — `docs/llms.txt` Decision Flowchart · relevant `docs/guide/*.md` topic page (functions, classes, properties, async, or advanced)
   - **New anti-pattern discovered** — `docs/llms.txt` § Anti-Patterns · relevant `docs/guide/*.md` topic page
   - **`TargetMode` enum value added or removed** — `docs/llms.txt` Critical Mental Model · Decision Flowchart · relevant `docs/guide/*.md` topic page

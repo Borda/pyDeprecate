@@ -17,16 +17,29 @@ import importlib.metadata
 import os
 import sys
 import warnings
-from collections.abc import Generator
+from collections.abc import Generator, Iterator
 from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import Any, Optional
 
 
-def _load_toml(path: str) -> dict[str, Any]:
+def _load_toml(path: str, *, strict: bool = False) -> dict[str, Any]:
     r"""Load a TOML file using ``tomllib`` (Python 3.11+) or ``tomli`` (Python 3.10 backport).
 
-    Returns an empty dict on any failure (missing library, parse error, IO).
+    Returns an empty dict when no TOML parser is installed. By default a file that cannot be opened or parsed
+    also yields an empty dict, so version auto-detection degrades to installed metadata; with ``strict`` that
+    failure is re-raised instead, for a caller whose result must never silently fall back to built-in defaults.
+
+    Args:
+        path: File-system path of the TOML file.
+        strict: Re-raise read and parse failures instead of returning ``{}``.
+
+    Returns:
+        The parsed document, or ``{}`` for a swallowed failure or a missing parser.
+
+    Raises:
+        OSError: If ``strict`` and the file cannot be opened or read.
+        ValueError: If ``strict`` and the file is not valid TOML (``TOMLDecodeError``) or not valid UTF-8.
 
     Examples:
         >>> import os, tempfile
@@ -39,14 +52,18 @@ def _load_toml(path: str) -> dict[str, Any]:
 
     """
     try:
+        import tomllib
+    except ImportError:
         try:
-            import tomllib
-        except ImportError:
             import tomli as tomllib  # Python 3.10 backport
-
+        except ImportError:
+            return {}
+    try:
         with open(path, "rb") as fh:
             return dict(tomllib.load(fh))
-    except Exception:
+    except (OSError, ValueError):
+        if strict:
+            raise
         return {}
 
 
@@ -115,6 +132,33 @@ def _version_from_toml(toml_path: str, scan_path: str) -> Optional[str]:
     return None
 
 
+def _iter_pyproject_paths(path: str) -> Iterator[str]:
+    r"""Yield every existing ``pyproject.toml`` from *path*'s directory up to 2 levels above it, nearest first.
+
+    Examples:
+        >>> import os, tempfile
+        >>> with tempfile.TemporaryDirectory() as root:
+        ...     pkg = os.path.join(root, "src", "pkg")
+        ...     os.makedirs(pkg)
+        ...     with open(os.path.join(root, "pyproject.toml"), "w") as fh:
+        ...         _ = fh.write("[project]\n")
+        ...     [os.path.relpath(p, root) for p in _iter_pyproject_paths(pkg)]
+        ['pyproject.toml']
+
+    """
+    candidate = os.path.abspath(path)
+    if not os.path.isdir(candidate):
+        candidate = os.path.dirname(candidate)
+    for _ in range(3):  # current dir + 2 levels up
+        toml_path = os.path.join(candidate, "pyproject.toml")
+        if os.path.isfile(toml_path):
+            yield toml_path
+        parent = os.path.dirname(candidate)
+        if parent == candidate:
+            break
+        candidate = parent
+
+
 def _read_pyproject_version(path: str) -> Optional[str]:
     """Return ``[project].version`` from the nearest ``pyproject.toml`` up to 2 levels above *path*.
 
@@ -128,20 +172,82 @@ def _read_pyproject_version(path: str) -> Optional[str]:
         Version string or ``None`` when not found within 2 levels.
 
     """
-    candidate = os.path.abspath(path)
-    if not os.path.isdir(candidate):
-        candidate = os.path.dirname(candidate)
-    for _ in range(3):  # current dir + 2 levels up
-        toml_path = os.path.join(candidate, "pyproject.toml")
-        if os.path.isfile(toml_path):
-            version = _version_from_toml(toml_path, path)
-            if version is not None:
-                return version
-        parent = os.path.dirname(candidate)
-        if parent == candidate:
-            break
-        candidate = parent
+    for toml_path in _iter_pyproject_paths(path):
+        version = _version_from_toml(toml_path, path)
+        if version is not None:
+            return version
     return None
+
+
+#: Dotted key of the ``pyproject.toml`` table that carries the CLI's project-level settings.
+_CONFIG_TABLE = ("tool", "pydeprecate")
+
+
+class _ConfigReadError(Exception):
+    """A ``pyproject.toml`` within reach of the scanned path could not be read or parsed.
+
+    Raised by :func:`_read_pydeprecate_config` instead of skipping the file: a broken ``pyproject.toml`` must not
+    silently fall back to the built-in defaults, and the parser's own error names no file, so the path travels
+    here for the CLI's usage error. The underlying :class:`OSError` or :class:`ValueError` is chained as
+    ``__cause__``.
+
+    Attributes:
+        path: The ``pyproject.toml`` that failed.
+
+    Examples:
+        >>> str(_ConfigReadError("/repo/pyproject.toml", ValueError("Expected '=' after a key (at line 3)")))
+        "Cannot read /repo/pyproject.toml: Expected '=' after a key (at line 3)"
+
+    """
+
+    def __init__(self, path: str, cause: Exception) -> None:
+        super().__init__(f"Cannot read {path}: {cause}")
+        self.path = path
+
+
+def _read_pydeprecate_config(path: str) -> tuple[dict[str, Any], Optional[str]]:
+    r"""Return the ``[tool.pydeprecate]`` table from the nearest ``pyproject.toml`` above *path*.
+
+    Walks the same directory + 2 parents as :func:`_read_pyproject_version` and stops at the first file that
+    declares the table, so a nested package can override its parent project's settings. A ``pyproject.toml``
+    without the table is skipped, not treated as an empty configuration; one that cannot be read or parsed is a
+    hard error rather than a skip, or a syntax slip in the nearest file would silently hand the run to a parent's
+    settings or the built-in defaults.
+
+    Args:
+        path: File-system path to start the upward search from.
+
+    Returns:
+        Tuple of the table contents (kebab-case keys, raw TOML values, nested ``policy`` sub-table included) and
+        the path of the file it came from, or ``({}, None)`` when no file within reach declares it (or the TOML
+        parser is unavailable).
+
+    Raises:
+        _ConfigReadError: If a ``pyproject.toml`` within reach cannot be opened or is not valid TOML.
+
+    Examples:
+        >>> import os, tempfile
+        >>> with tempfile.TemporaryDirectory() as root:
+        ...     with open(os.path.join(root, "pyproject.toml"), "w") as fh:
+        ...         _ = fh.write('[tool.pydeprecate]\nexclude = ["pkg.tests"]\npolicy.min-grace = { major = 1 }\n')
+        ...     table, found = _read_pydeprecate_config(root)
+        >>> table
+        {'exclude': ['pkg.tests'], 'policy': {'min-grace': {'major': 1}}}
+        >>> with tempfile.TemporaryDirectory() as empty:
+        ...     _read_pydeprecate_config(empty)
+        ({}, None)
+
+    """
+    for toml_path in _iter_pyproject_paths(path):
+        try:
+            node: Any = _load_toml(toml_path, strict=True)
+        except (OSError, ValueError) as err:
+            raise _ConfigReadError(toml_path, err) from err
+        for key in _CONFIG_TABLE:
+            node = node.get(key) if isinstance(node, dict) else None
+        if isinstance(node, dict):
+            return dict(node), toml_path
+    return {}, None
 
 
 def _auto_detect_version(module_name: str, path: Optional[str] = None) -> Optional[str]:

@@ -18,6 +18,7 @@ from deprecate import (
     deprecated_instance,
     find_deprecation_wrappers,
     validate_deprecation_expiry,
+    validate_deprecation_policy,
 )
 from deprecate import (
     __all__ as _deprecate_all,
@@ -215,6 +216,7 @@ _SKILL_SKIP_TOKENS = frozenset(
         "pyDeprecate",
         "deprecate",
         "deprecate.__version__",
+        "pyproject.toml",
     }
 )
 _SKILL_CALLABLES = {
@@ -225,6 +227,7 @@ _SKILL_CALLABLES = {
         deprecated_instance,
         find_deprecation_wrappers,
         validate_deprecation_expiry,
+        validate_deprecation_policy,
     )
 }
 _SKILL_KWARGS = frozenset(name for fn in _SKILL_CALLABLES.values() for name in inspect.signature(fn).parameters)

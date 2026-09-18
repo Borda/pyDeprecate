@@ -315,3 +315,27 @@ def caller_three_hop_sum(a: int, b: int = 5) -> int:
 
     """
     return void(a, b)
+
+
+@deprecated(TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
+def notify_layer(value: int) -> int:
+    """Warning-only wrapper that still runs its own body — the inner link of a NOTIFY-target chain.
+
+    Examples:
+        Not a chain on its own: ``TargetMode.NOTIFY`` forwards nowhere, so this link reports no chain.
+
+    """
+    return value
+
+
+@deprecated(target=notify_layer, deprecated_in="1.0", remove_in="2.0")
+def caller_via_notify_layer(value: int) -> int:
+    """Callable target pointing at a NOTIFY wrapper — a forwarding TARGET chain.
+
+    Examples:
+        ``caller_via_notify_layer`` → ``notify_layer`` (deprecated, warning-only).  The audit reports
+        ``ChainType.TARGET`` because the immediate target is itself deprecated, even though that target
+        forwards nowhere further.  Fix: point directly at the surviving implementation.
+
+    """
+    return void(value)

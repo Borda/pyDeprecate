@@ -24,7 +24,7 @@ def old_fn(old: int) -> int:
     pass
 """
 
-# Package with an invalid args_mapping (target param does not exist in new_fn).
+# Package with an invalid args_mapping (the mapped key is not a parameter of old_fn).
 # cmd_check exits 1 for this package without --exit-zero.
 _MYPKG_INIT_INVALID = """\
 from deprecate import deprecated
@@ -34,7 +34,7 @@ def new_fn(x: int) -> int:
     return x
 
 
-@deprecated(target=new_fn, deprecated_in="1.0", remove_in="9.0", args_mapping={"old": "nonexistent"})
+@deprecated(target=new_fn, deprecated_in="1.0", remove_in="9.0", args_mapping={"nonexistent": "x"})
 def old_fn(old: int) -> int:
     pass
 """
@@ -51,6 +51,21 @@ def new_fn(x: int) -> int:
 
 @deprecated(target=new_fn, deprecated_in="0.1", remove_in="0.2")
 def old_fn(x: int) -> int:
+    pass
+"""
+
+
+# Package whose wrapper is deprecated and removed in the very same release — trips the ``min-grace`` rule.
+_MYPKG_INIT_AGGRESSIVE = """\
+from deprecate import deprecated
+
+
+def new_fn(x: int) -> int:
+    return x
+
+
+@deprecated(target=new_fn, deprecated_in="1.0", remove_in="1.0", args_mapping={"old": "x"})
+def old_fn(old: int) -> int:
     pass
 """
 
@@ -246,12 +261,183 @@ class TestCliSubcommands:
         assert "Skipping nested Python files" in result.stderr
 
     def test_help_lists_subcommands(self) -> None:
-        """'pydeprecate --help' output includes the five subcommand names."""
+        """'pydeprecate --help' output includes the six subcommand names."""
         result = _run_cli("--help")
         assert result.returncode == 0
         combined = result.stdout + result.stderr
-        for name in ("check", "expiry", "chains", "all", "status"):
+        for name in ("check", "expiry", "policy", "chains", "all", "status"):
             assert name in combined, f"subcommand '{name}' missing from --help output"
+
+    @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
+    def test_policy_subcommand_clean_package(self, tmp_path: Path) -> None:
+        """'pydeprecate policy <path>' exits 0 for a package whose wrapper respects the default policy.
+
+        The fixture package deprecates in `1.0` with a forwarding target and schedules removal at the `9.0`
+        major — the disciplined shape the default rules are written to wave through without any flags.
+        """
+        pkg = _make_pkg(tmp_path)
+        result = _run_cli("policy", str(pkg), cwd=tmp_path)
+        assert result.returncode == 0
+        assert "No deprecation policy violations" in result.stdout
+
+    @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
+    def test_policy_subcommand_reports_violation(self, tmp_path: Path) -> None:
+        """'pydeprecate policy <path>' exits 1 and names the broken rule for an aggressive removal schedule.
+
+        The package deprecates and removes inside the same `1.x` line, which is the schedule a reviewer is
+        meant to catch before release: callers get no version they can upgrade through.
+        """
+        pkg = _make_pkg(tmp_path, name="aggressivepkg", content=_MYPKG_INIT_AGGRESSIVE)
+        result = _run_cli("policy", str(pkg), cwd=tmp_path)
+        assert result.returncode == 1
+        assert "min-grace" in (result.stdout or ""), result
+
+    @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
+    def test_policy_subcommand_rule_can_be_disabled(self, tmp_path: Path) -> None:
+        """'--min-grace=None' drops the grace-window rule so a same-line removal passes the gate.
+
+        A project that ships removals inside a release line still wants the remaining rules; without a working
+        opt-out flag the whole subcommand would be unusable for it.
+        """
+        pkg = _make_pkg(tmp_path, name="aggressivepkg2", content=_MYPKG_INIT_AGGRESSIVE)
+        result = _run_cli("policy", str(pkg), "--min-grace=None", cwd=tmp_path)
+        assert result.returncode == 0
+
+    @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
+    @pytest.mark.parametrize(
+        "flag",
+        [
+            pytest.param("--min-grace=0.2", id="float-minor-delta"),
+            pytest.param("--min-grace=1.0", id="float-major-delta"),
+        ],
+    )
+    def test_policy_subcommand_accepts_numeric_grace_delta(self, flag: str, tmp_path: Path) -> None:
+        """An unquoted numeric '--min-grace' reaches the rule as a float and still enforces the window.
+
+        Fire converts ``0.2`` and ``1.0`` on the command line into floats before the subcommand sees them; the
+        grace rule must accept those as the delta they spell instead of rejecting them as malformed (exit 2) or
+        silently skipping the rule (exit 0).
+        """
+        pkg = _make_pkg(tmp_path, name="aggressivepkg3", content=_MYPKG_INIT_AGGRESSIVE)
+        result = _run_cli("policy", str(pkg), flag, cwd=tmp_path)
+        assert result.returncode == 1
+        assert "min-grace" in (result.stdout or ""), result
+
+    @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
+    def test_policy_subcommand_reads_pyproject_table(self, tmp_path: Path) -> None:
+        """'pydeprecate policy <path>' applies ``[tool.pydeprecate.policy]`` from the project's ``pyproject.toml``.
+
+        The aggressive package fails the built-in window; with the project declaring ``min-grace = false`` next
+        to it, the same bare invocation passes and the header attributes the setting to ``pyproject.toml`` —
+        the shape a repository uses so CI and every developer run the one policy without repeating flags.
+        """
+        pkg = _make_pkg(tmp_path, name="aggressivepkg4", content=_MYPKG_INIT_AGGRESSIVE)
+        (tmp_path / "pyproject.toml").write_text("[tool.pydeprecate.policy]\nmin-grace = false\n")
+        result = _run_cli("policy", str(pkg), cwd=tmp_path)
+        assert result.returncode == 0, result
+        assert "min-grace=None (pyproject.toml)" in result.stdout
+
+    @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
+    def test_policy_flag_overrides_pyproject_table(self, tmp_path: Path) -> None:
+        """A typed '--min-grace' beats the value ``pyproject.toml`` declares for the same rule.
+
+        The project disabled the window in its config; a maintainer re-enabling it for one run from the command
+        line must see the violation, otherwise the flag would silently lose to the file.
+        """
+        pkg = _make_pkg(tmp_path, name="aggressivepkg5", content=_MYPKG_INIT_AGGRESSIVE)
+        (tmp_path / "pyproject.toml").write_text("[tool.pydeprecate.policy]\nmin-grace = false\n")
+        result = _run_cli("policy", str(pkg), "--min-grace=0.1", cwd=tmp_path)
+        assert result.returncode == 1, result
+        assert "min-grace=0.1 (flag)" in result.stdout
+
+    def test_policy_malformed_pyproject_value_exits_two(self, tmp_path: Path) -> None:
+        """A malformed ``min-grace`` in ``pyproject.toml`` exits 2 and names the file, before any scan.
+
+        A usage error sourced from the file must point the reader at the file, not at a flag they never typed.
+        """
+        pkg = _make_pkg(tmp_path)
+        (tmp_path / "pyproject.toml").write_text('[tool.pydeprecate.policy]\nmin-grace = "bogus"\n')
+        result = _run_cli("policy", str(pkg), cwd=tmp_path)
+        assert result.returncode == 2, result
+        assert "pyproject.toml" in result.stderr
+
+    def test_exclude_from_pyproject_skips_package(self, tmp_path: Path) -> None:
+        """'pydeprecate check <path>' leaves out the packages listed under ``exclude`` in ``pyproject.toml``.
+
+        The fixture package carries an invalid mapping inside ``mypkg.tests``; with the project excluding that
+        subtree the same scan is clean and exits 0, and the header shows the exclusion came from the file.
+        """
+        pkg = _make_pkg(tmp_path, content="")
+        (pkg / "tests").mkdir()
+        (pkg / "tests" / "__init__.py").write_text(_MYPKG_INIT_INVALID)
+        (tmp_path / "pyproject.toml").write_text('[tool.pydeprecate]\nexclude = ["mypkg.tests"]\n')
+        result = _run_cli("check", str(pkg), cwd=tmp_path)
+        assert result.returncode == 0, result
+        assert "Exclude: mypkg.tests (pyproject.toml)" in result.stdout
+        assert "No deprecated callables found" in result.stdout
+
+    def test_exclude_flag_overrides_pyproject(self, tmp_path: Path) -> None:
+        """A typed '--exclude' replaces the file's list, so the invalid mapping is found again.
+
+        Overriding with a pattern that matches nothing brings the excluded subtree back into the scan.
+        """
+        pkg = _make_pkg(tmp_path, content="")
+        (pkg / "tests").mkdir()
+        (pkg / "tests" / "__init__.py").write_text(_MYPKG_INIT_INVALID)
+        (tmp_path / "pyproject.toml").write_text('[tool.pydeprecate]\nexclude = ["mypkg.tests"]\n')
+        result = _run_cli("check", str(pkg), "--exclude=mypkg.nothing", cwd=tmp_path)
+        assert result.returncode == 1, result
+        assert "Exclude: mypkg.nothing (flag)" in result.stdout
+
+    def test_all_subcommand_reads_pyproject_table(self, tmp_path: Path) -> None:
+        """'pydeprecate all <path>' runs its advisory policy pass with the ``pyproject.toml`` settings.
+
+        ``all`` never fails on policy, but its printed advisory must reflect the project's declared rules,
+        otherwise the summary a developer reads locally disagrees with the dedicated ``policy`` gate in CI.
+        """
+        pkg = _make_pkg(tmp_path)
+        (tmp_path / "pyproject.toml").write_text("[tool.pydeprecate.policy]\nmessage-required = false\n")
+        result = _run_cli("all", str(pkg), cwd=tmp_path)
+        assert result.returncode == 0, result
+        assert "message-required=False (pyproject.toml)" in result.stdout
+
+    def test_policy_subcommand_bare_major_exits_two(self, tmp_path: Path) -> None:
+        """'--min-grace=1' is rejected as ambiguous with a hint to write '1.0'.
+
+        Fire hands ``1`` over as an ``int``; one *what*? The gate refuses to guess and names the accepted
+        spellings so the author writes ``1.0`` (or a unit table in ``pyproject.toml``) instead.
+        """
+        pkg = _make_pkg(tmp_path)
+        result = _run_cli("policy", str(pkg), "--min-grace=1", cwd=tmp_path)
+        assert result.returncode == 2, result
+        assert "1.0" in result.stderr
+
+    @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
+    def test_policy_pyproject_table_form_min_grace(self, tmp_path: Path) -> None:
+        """``min-grace = { major = 1 }`` in ``pyproject.toml`` is read as a one-major window.
+
+        The inline-table spelling names the unit outright, so a reader never has to decode ``"1.0"``; it arrives
+        from the TOML parser as a dict and must enforce the same window as the dotted form.
+        """
+        pkg = _make_pkg(tmp_path, name="aggressivepkg6", content=_MYPKG_INIT_AGGRESSIVE)
+        (tmp_path / "pyproject.toml").write_text("[tool.pydeprecate.policy]\nmin-grace = { major = 1 }\n")
+        result = _run_cli("policy", str(pkg), cwd=tmp_path)
+        assert result.returncode == 1, result
+        assert "min-grace={'major': 1} (pyproject.toml)" in result.stdout
+        assert "min-grace" in result.stdout
+
+    def test_policy_subcommand_invalid_min_grace_exits_two(self, tmp_path: Path) -> None:
+        """'--min-grace=bogus' exits 2 and names the accepted spellings instead of scanning anything.
+
+        package scanning starts, so the user gets a usage error (exit 2) naming the `1.0` / `0.1` / `0.0.1`
+        spellings rather than a scan failure, a stack trace, or a silently-ignored flag.
+        """
+        pkg = _make_pkg(tmp_path)
+        result = _run_cli("policy", str(pkg), "--min-grace=bogus", cwd=tmp_path)
+        assert result.returncode == 2
+        combined = result.stdout + result.stderr
+        assert "min_grace" in combined
+        assert "0.0.1" in combined
 
     def test_subcommand_help(self) -> None:
         """'pydeprecate expiry --help' shows expiry-specific options."""

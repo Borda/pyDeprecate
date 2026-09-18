@@ -2007,6 +2007,96 @@ Prefer fixing the newly surfaced entries over passing `include_members=False` �
 
 ______________________________________________________________________
 
+## Why does `pydeprecate all` report policy violations but still exit 0?
+
+**Q:** `pydeprecate all src/mypackage` prints a *Deprecation Policy Violations* table, but the command exits `0` and my CI step passes. Is the exit code wrong?
+
+**A:** No — that is deliberate. The policy defaults (`min_grace="0.3"`, `message_required=True`) encode *a* release convention, not a universal rule, so `all` runs the policy check in **advisory** mode: violations are printed for visibility but never contribute to `all`'s exit code. Only invalid argument mappings, deprecated-to-deprecated chains, and expired wrappers make `all` exit `1`. This "advisory" treatment covers violation *counts* only — a policy **configuration** failure (the nearest `pyproject.toml` cannot be read or parsed, or a `[tool.pydeprecate.policy]` value is malformed) still exits `2` even inside `all`, printing `Cannot read <path>: <err>`, and that failure is checked before the chains check runs.
+
+To make the build fail on a policy violation, give `pydeprecate policy` its own CI step — its exit code is truthful (`0` clean, `1` violations, `2` a malformed rule argument):
+
+```bash
+# reports policy violations, but the exit code ignores them
+pydeprecate all src/mypackage
+
+# this is the step that fails the build
+pydeprecate policy src/mypackage --min-grace=0.3 --message-required=True
+```
+
+Spell the rule flags out in that step even where they match the defaults: the command then records what your project promises, and a future change to pyDeprecate's defaults cannot quietly change what your CI enforces.
+
+______________________________________________________________________
+
+## How do I switch off a policy rule my project does not follow?
+
+**Q:** My project removes deprecated code one minor after announcing it, so `pydeprecate policy` flags every wrapper with `[min-grace]`. I do not want to abandon the guidance rule to silence it.
+
+**A:** Both rules are independently controlled — pass `None` for `min_grace` or `False` for `message_required`. Nothing is all-or-nothing.
+
+Before reaching for `None`, check whether **retargeting** the window is what you actually want. `min_grace` is a version-shaped delta: `"0.1"` asks for one minor of warning, `"0.3"` (the default) for three, `"1.0"` for a whole major. Pass the number your project really releases on — you keep the gate, pointed at your own cadence. Disabling it means nothing checks removal schedules at all. A `0.x` project needs no special setting: a bump to `1.0` is a major step and clears any window.
+
+Here is the difference between the two:
+
+```python
+from deprecate import validate_deprecation_policy
+
+# For testing purposes, we use the test module; normally you would import your own package
+from tests import collection_policy as my_package
+
+# Relax the window: one minor of warning is enough.
+# The fixtures still trip it — one removes in the same release, one at a patch off any boundary.
+violations = validate_deprecation_policy(my_package, recursive=False, min_grace="0.1")
+print(f"Found {len(violations)} violations")
+
+# Or drop the rule entirely and keep the guidance rule
+violations = validate_deprecation_policy(my_package, recursive=False, min_grace=None)
+print(f"Found {len(violations)} violations")
+```
+
+<details><summary>Output: <code>f"Found {len(violations)} violations"</code></summary>
+
+```
+Found 5 violations
+Found 3 violations
+```
+
+</details>
+
+The CLI mirrors this one flag per rule — `--min-grace=0.1`, `--min-grace=None`, `--message-required=False`. A value the parser does not recognise is rejected before the scan starts and exits `2` with a message naming the accepted spellings, so a typo can never silently disable a rule you meant to keep.
+
+______________________________________________________________________
+
+## Where does `pydeprecate policy` take its rules from when I pass no flags?
+
+**Q:** I run a bare `pydeprecate policy src/mypackage` in CI and locally. Which rules apply, and can the project declare them once instead of every invocation repeating `--min-grace` and `--message-required`?
+
+**A:** Each rule is resolved independently as **flag → `[tool.pydeprecate.policy]` in `pyproject.toml` → built-in default** (`min-grace = "0.3"`, `message-required = true`). Declare the project's convention once:
+
+```toml
+[tool.pydeprecate.policy]
+min-grace = "0.3"  # quoted — a TOML float 0.10 reads as 0.1; false switches the rule off
+message-required = true
+```
+
+The file is found the same way `--version` auto-detection finds it — from the scanned *path*'s directory up to two parents, nearest table wins — and never for a bare module name, so running from inside an unrelated checkout cannot adopt its policy. Every run prints a `Policy:` header naming the source of each value (`flag`, `pyproject.toml`, `built-in`), so a CI log always shows which convention was enforced. A malformed value from the file, or a `pyproject.toml` that cannot be read or parsed at all, exits `2` and the message names the file (`Cannot read <path>: <err>`); an unknown key (the usual typo is `min_grace` with an underscore) is reported on stderr and ignored, never silently enforced. On Python 3.9–3.10 the parser comes from the `[audit]` extra (`tomli`); without it a reachable `pyproject.toml` triggers an advisory rather than being skipped in silence. `pydeprecate all` applies the same resolved settings to its advisory policy pass — but this config-read exit `2` is the one exception to "advisory": it still propagates through `all` (checked before `chains` runs) even though violation counts themselves do not. The Python API `validate_deprecation_policy()` never reads `pyproject.toml` — it takes a module (object or importable name), never a filesystem path, so pass `min_grace` and `message_required` explicitly there.
+
+______________________________________________________________________
+
+## How do I keep test fixtures or a legacy tree out of the audit?
+
+**Q:** My package ships `my_package.tests` (or a frozen `my_package._legacy` tree) with deliberately odd `@deprecated` wrappers. `pydeprecate all` reports them, and importing the fixtures is slow. Can the scan skip them?
+
+**A:** Yes — every scanning function and every CLI subcommand takes an `exclude` list of glob patterns over the **full dotted module name**:
+
+```toml
+[tool.pydeprecate]
+exclude = ["my_package.tests", "*._legacy*"]
+```
+
+or `pydeprecate all src/my_package --exclude='my_package.tests,*._legacy*'` (quote it, or the shell expands the `*` first), or `find_deprecation_wrappers(my_package, exclude=["my_package.tests"])` in Python. A pattern that matches a package excludes its whole subtree, and the scan itself **never imports** an excluded package — so a fixture that raises at import time neither slows the scan nor produces an `audit: skipped` warning, as long as nothing else in your package imports it (if something does, the import happens as usual and only the wrappers are filtered out). The header line `Exclude: my_package.tests (pyproject.toml)` shows what was left out and where the list came from. Write the full name (`my_package.tests`), not a bare `tests`: patterns are matched against dotted module names, so a bare word matches only a top-level module of that name. A value that is not a string or a list of strings exits `2`.
+
+______________________________________________________________________
+
 ## UserWarning: `audit: skipped <module>` during a recursive scan
 
 **Q:** A recursive audit scan (`find_deprecation_wrappers`, `validate_deprecation_expiry`, `pydeprecate check` / `all`) emits `UserWarning: audit: skipped <module>: <exception>`. What does it mean?
