@@ -14,6 +14,12 @@ Rule coverage under the default policy (``min_grace="0.3"``, ``message_required=
 | ``removed_at_patch``          | ``1.0``           | ``2.0.1``     | ``min-grace`` (off a boundary)    |
 | ``warns_without_replacement`` | ``1.0``           | ``3.0``       | ``message-required``              |
 | ``WarnOnlyLegacyClass``       | ``1.0``           | ``3.0``       | ``message-required``              |
+| ``args_mapping_only_guidance``     | ``1.0``      | ``2.0``       | — (``args_mapping``-only guidance)|
+| ``AttrsMappingOnlyGuidance``       | ``1.0``      | ``2.0``       | — (``attrs_mapping``-only guidance)|
+| ``message_template_only_guidance`` | ``1.0``      | ``2.0``       | — (``message_template``-only)     |
+| ``warns_with_template_instance``   | ``1.0``      | ``2.0``       | — (instance with custom template) |
+| ``warns_without_template_instance``| ``1.0``      | ``2.0``       | ``message-required`` (instance)   |
+| ``short_minor_runway``             | ``1.0``      | ``1.1``       | ``min-grace`` (insufficient distance)|
 
 Each wrapper violates exactly one rule so a test can assert on a rule in isolation; a real-world wrapper
 may trip both at once (a warn-only wrapper removed one patch after deprecation).
@@ -22,11 +28,17 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 
 """
 
-from deprecate import TargetMode, deprecated, deprecated_class, void
-from tests.collection_targets import NewCls, base_sum_kwargs, double_value, increment_value
+from typing import Any
+
+from deprecate import TargetMode, deprecated, deprecated_class, deprecated_instance, void
+from tests.collection_targets import NewCls, Palette, base_sum_kwargs, double_value, increment_value
+
+#: Shared ``(deprecated_in, remove_in)`` for every fixture that is policy-clean under the default window:
+#: one major release of runway, which clears the ``"0.3"`` (three-minor) grace window outright.
+_DEPRS_CASE_COMPLIANT_ARGS: dict[str, Any] = {"deprecated_in": "1.0", "remove_in": "2.0"}
 
 
-@deprecated(target=base_sum_kwargs, deprecated_in="1.0", remove_in="2.0")
+@deprecated(target=base_sum_kwargs, **_DEPRS_CASE_COMPLIANT_ARGS)
 def compliant_forward(a: int = 0, b: int = 3) -> int:
     """Deprecate one major before removal and forward to the replacement — violates no rule.
 
@@ -97,3 +109,77 @@ class WarnOnlyLegacyClass(NewCls):
         what to migrate to.
 
     """
+
+
+@deprecated(target=increment_value, deprecated_in="1.0", remove_in="1.1")
+def short_minor_runway(x: int) -> int:
+    """Schedule the removal one minor after the deprecation — a real bump, but short of the window.
+
+    Examples:
+        A maintainer bumps ``remove_in`` to the very next minor, ``1.1``, right after deprecating in
+        ``1.0`` — a clean single-component bump, unlike ``removed_at_patch``, but only one minor step.
+        ``validate_deprecation_policy()`` flags this wrapper under the ``min-grace`` rule because the
+        default window (``"0.3"``, three minors) demands at least three, and this wrapper offers only
+        one — the insufficient-distance case, as distinct from ``no_grace_window``'s zero distance.
+
+    """
+    return void(x)
+
+
+@deprecated(target=TargetMode.ARGS_REMAP, **_DEPRS_CASE_COMPLIANT_ARGS, args_mapping={"old_x": "x"})
+def args_mapping_only_guidance(x: int = 0) -> int:
+    """Rename an argument via ``args_mapping`` with no ``target`` and no custom message — violates no rule.
+
+    Examples:
+        A maintainer renames a keyword argument in place using ``TargetMode.ARGS_REMAP`` — old callers
+        passing ``old_x`` are transparently remapped to ``x`` — without pointing at any separate
+        replacement callable. ``validate_deprecation_policy()`` reports no ``message-required``
+        violation for this wrapper: the non-empty ``args_mapping`` itself names what changed for a
+        caller, even with no ``target`` and no custom ``message_template``.
+
+    """
+    return void(x)
+
+
+@deprecated_class(**_DEPRS_CASE_COMPLIANT_ARGS, attrs_mapping={"color": "colour"}, stream=None)
+class AttrsMappingOnlyGuidance(Palette):
+    """Rename an attribute via ``attrs_mapping`` with no ``target`` and no custom message — violates no rule.
+
+    Examples:
+        A team renames an attribute on a legacy class alias using ``attrs_mapping`` alone, with no
+        ``target`` class to redirect to and no hand-written migration sentence: old callers reading
+        ``.color`` are redirected to ``Palette``'s real ``colour`` class attribute.
+        ``validate_deprecation_policy()`` reports no ``message-required`` violation: the non-empty
+        ``attrs_mapping`` already tells a caller which attribute replaced the old one.
+
+    """
+
+
+@deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_COMPLIANT_ARGS, message_template="use `new_thing` instead")
+def message_template_only_guidance(x: int) -> int:
+    """Warn with a hand-written migration sentence and no ``target`` or mapping — violates no rule.
+
+    Examples:
+        A maintainer uses ``TargetMode.NOTIFY`` to warn callers a function is going away, but — unlike
+        ``warns_without_replacement`` — spells out the replacement by hand in a custom
+        ``message_template``. ``validate_deprecation_policy()`` reports no ``message-required``
+        violation: the template alone tells a caller what to migrate to.
+
+    """
+    return x
+
+
+#: Wrap an instance with no ``message_template`` at all — the ``deprecated_instance()`` dead end. A team wraps a
+#: soon-to-be-removed configuration object with ``deprecated_instance()`` but supplies no ``message_template`` —
+#: the only migration-guidance knob ``deprecated_instance()`` accepts, since it has no ``target`` or mapping
+#: argument. ``validate_deprecation_policy()`` flags this wrapper under the ``message-required`` rule, and the
+#: remedy text names only a custom ``message_template``.
+warns_without_template_instance = deprecated_instance(NewCls(1.0), **_DEPRS_CASE_COMPLIANT_ARGS)
+
+#: Wrap an instance with a custom ``message_template`` — violates no rule. A team wraps a soon-to-be-removed
+#: configuration object with ``deprecated_instance()`` and supplies a custom ``message_template`` naming the
+#: replacement. ``validate_deprecation_policy()`` reports no ``message-required`` violation for this wrapper:
+#: the template is the only guidance knob ``deprecated_instance()`` has, and it is set.
+warns_with_template_instance = deprecated_instance(
+    NewCls(1.0), **_DEPRS_CASE_COMPLIANT_ARGS, message_template="use `NewCls` directly instead"
+)

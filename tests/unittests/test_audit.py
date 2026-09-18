@@ -1815,8 +1815,12 @@ class TestValidateDeprecationPolicy:
         [
             pytest.param("no_grace_window", PolicyRule.MIN_GRACE, id="min-grace-no-distance"),
             pytest.param("removed_at_patch", PolicyRule.MIN_GRACE, id="min-grace-off-boundary"),
+            pytest.param("short_minor_runway", PolicyRule.MIN_GRACE, id="min-grace-insufficient-distance"),
             pytest.param("warns_without_replacement", PolicyRule.MESSAGE_REQUIRED, id="message-required"),
             pytest.param("WarnOnlyLegacyClass", PolicyRule.MESSAGE_REQUIRED, id="message-required-proxy"),
+            pytest.param(
+                "warns_without_template_instance", PolicyRule.MESSAGE_REQUIRED, id="message-required-instance"
+            ),
         ],
     )
     @_requires_packaging
@@ -1854,15 +1858,75 @@ class TestValidateDeprecationPolicy:
         assert len(matching) == 1
         assert matching[0].endswith(expected_window)
 
+    @pytest.mark.parametrize(
+        "wrapper_name",
+        [
+            pytest.param("compliant_forward", id="target-forward"),
+            pytest.param("args_mapping_only_guidance", id="args-mapping-only"),
+            pytest.param("AttrsMappingOnlyGuidance", id="attrs-mapping-only"),
+            pytest.param("message_template_only_guidance", id="message-template-only"),
+            pytest.param("warns_with_template_instance", id="instance-with-template"),
+        ],
+    )
     @_requires_packaging
-    def test_compliant_wrapper_is_not_reported(self) -> None:
-        """A wrapper deprecated one release before a major removal, with a target, trips no rule.
+    def test_compliant_wrapper_is_not_reported(self, wrapper_name: str) -> None:
+        """A wrapper that offers guidance through any single accepted channel trips no rule.
 
-        The gate is only useful if the disciplined case passes silently — a policy that flags every wrapper is
-        one a team turns off in its first week.
+        A wrapper's guidance may come from a forwarding ``target`` (``compliant_forward``), a live
+        ``args_mapping`` or ``attrs_mapping`` with no ``target`` at all (``args_mapping_only_guidance``,
+        ``AttrsMappingOnlyGuidance``), a hand-written ``message_template`` with no ``target`` or mapping
+        (``message_template_only_guidance``), or a ``deprecated_instance()`` template
+        (``warns_with_template_instance``). The gate is only useful if every one of these disciplined
+        cases passes silently — a policy that flags every wrapper is one a team turns off in its first
+        week.
         """
         violations = validate_deprecation_policy("tests.collection_policy", recursive=False)
-        assert not [v for v in violations if "compliant_forward" in v]
+        assert not [v for v in violations if wrapper_name in v]
+
+    @_requires_packaging
+    def test_instance_remedy_names_only_the_message_template(self) -> None:
+        """A bare ``deprecated_instance`` violation tells the reader to set ``message_template`` and nothing else.
+
+        ``deprecated_instance()`` accepts no ``target`` or mapping, so a remedy listing those would send a
+        maintainer after knobs that do not exist; the message must name the one knob the API actually has.
+        """
+        violations = validate_deprecation_policy("tests.collection_policy", recursive=False)
+
+        (violation,) = [v for v in violations if "warns_without_template_instance" in v]
+
+        assert "Instance" in violation
+        assert "configure a custom `message_template`" in violation
+        assert "args_mapping" not in violation
+        assert "`target`" not in violation
+
+    @_requires_packaging
+    def test_module_with_custom_template_is_not_reported(self) -> None:
+        """A ``deprecated_module()`` fixture with a custom ``message_template`` naming a replacement trips no rule.
+
+        ``tests.collection_modules.old_math`` is deprecated in place with a ``message_template`` that names
+        ``new_math`` as the replacement and no ``target``. Since ``_module_has_migration_guidance`` reads a
+        template that differs from the built-in notice as guidance, ``validate_deprecation_policy()`` must
+        report no ``message-required`` violation for the module itself.
+        """
+        violations = validate_deprecation_policy("tests.collection_modules.old_math", recursive=False)
+        assert not [v for v in violations if PolicyRule.MESSAGE_REQUIRED.value in v]
+
+    @_requires_packaging
+    def test_module_with_only_the_built_in_notice_is_reported(self) -> None:
+        """A ``deprecated_module()`` fixture with no ``target``, mapping, or custom template is flagged.
+
+        ``tests.collection_modules.old_stats`` is deprecated in place with none of the three module-level
+        guidance channels, so callers only ever see the built-in notice — the module-level dead end.
+        ``validate_deprecation_policy()`` must flag it under ``message-required``, and the remedy must name
+        only the arguments ``deprecated_module()`` accepts (a ``target``, an ``attrs_mapping``, or a custom
+        ``message_template``) -- never ``args_mapping``, which that factory has no such keyword for.
+        """
+        violations = validate_deprecation_policy("tests.collection_modules.old_stats", recursive=False)
+        (violation,) = [v for v in violations if PolicyRule.MESSAGE_REQUIRED.value in v]
+        assert "a `target`" in violation
+        assert "an `attrs_mapping`" in violation
+        assert "a custom `message_template`" in violation
+        assert "args_mapping" not in violation
 
     @_requires_packaging
     def test_all_rules_disabled_reports_nothing_for_a_maximally_violating_wrapper(self) -> None:
@@ -1984,6 +2048,51 @@ class TestValidateDeprecationPolicy:
         violations = _check_policy_for_callables([info], spec)
 
         assert [v for v in violations if PolicyRule.MIN_GRACE.value in v]
+
+    @_requires_packaging
+    def test_same_version_removal_fails_a_zero_count_window(self) -> None:
+        """Removing in the very release that deprecated is a violation even under a zero-count window.
+
+        A zero-count window (``"0.0"``, ``{"minor": 0}``) switches the distance check off but still demands a
+        clean bump of that unit or coarser, so ``deprecated_in="1.0", remove_in="1.0"`` gives callers no
+        warning cycle at all and must keep failing ``min-grace`` — the contract reviewers repeatedly questioned.
+        """
+        info = DeprecationWrapperInfo(
+            module="pkg",
+            function="same_release",
+            deprecated_info=DeprecationConfig(deprecated_in="1.0", remove_in="1.0", target=str),
+        )
+        spec = _build_policy_spec(GraceWindow(0, VersionBump.MINOR), False)
+
+        violations = _check_policy_for_callables([info], spec)
+
+        assert [v for v in violations if PolicyRule.MIN_GRACE.value in v]
+
+    @_requires_packaging
+    def test_mixed_batch_warns_once_and_still_evaluates_the_parsable_wrapper(self) -> None:
+        """One unparsable version in a batch warns for that wrapper only; the parsable one is still linted.
+
+        A large package with a single typo'd ``remove_in`` must not lose the verdicts of every other wrapper in
+        the same scan, and the warning must name the broken wrapper so the typo can be found.
+        """
+        broken = DeprecationWrapperInfo(
+            module="pkg",
+            function="broken_version",
+            deprecated_info=DeprecationConfig(deprecated_in="1.0", remove_in="not.a.version!!", target=str),
+        )
+        too_close = DeprecationWrapperInfo(
+            module="pkg",
+            function="too_close",
+            deprecated_info=DeprecationConfig(deprecated_in="1.0", remove_in="1.1", target=str),
+        )
+        spec = _build_policy_spec("0.3", False)
+
+        with pytest.warns(UserWarning, match="broken_version") as record:
+            violations = _check_policy_for_callables([broken, too_close], spec)
+
+        assert len(record) == 1
+        assert [v for v in violations if PolicyRule.MIN_GRACE.value in v and "too_close" in v]
+        assert not [v for v in violations if "broken_version" in v]
 
 
 def _reject_version_parse(_version_string: str) -> NoReturn:
