@@ -1918,7 +1918,7 @@ violations = validate_deprecation_policy(my_package, recursive=False, min_grace=
 print(f"Found {len(violations)} violations")
 
 # Or tighten it: demand two major releases between announcement and removal
-violations = validate_deprecation_policy(my_package, recursive=False, min_grace={"major": 2})
+violations = validate_deprecation_policy(my_package, recursive=False, min_grace="2.0")
 print(f"Found {len(violations)} violations")
 ```
 
@@ -1945,7 +1945,7 @@ Found 12 violations
 >
 > - Wrappers missing `deprecated_in` or `remove_in` are **not** violations — the version-distance rules skip them, since a deprecation without a scheduled removal is a valid choice
 > - An unparsable version string emits a `UserWarning` naming the wrapper and the offending field, then the scan continues for the rest
-> - `min_grace` is a version-shaped delta with two or three components and one non-zero — `"1.0"` one major, `"0.3"` three minors, `"0.0.2"` two patches (a float `0.3` works too; a bare `"1"` is rejected as ambiguous) — or a one-key unit table, `{"major": 1}` / `{"minor": 3}` / `{"patch": 2}`. The removal must be one clean bump of a single component (`1.2` → `1.5` or `2.0`, never `2.3`); a coarser bump always clears a finer window, so `1.2` → `2.0` satisfies `"0.3"`
+> - `min_grace` is a version-shaped delta with two or three components and one non-zero — `"1.0"` one major, `"0.3"` three minors, `"0.0.2"` two patches; a bare `"1"` is rejected as ambiguous and so is a mixed spelling such as `"1.2"` (`ValueError`). The removal must be one clean bump of a single component (`1.2` → `1.5` or `2.0`, never `2.3`); a coarser bump always clears a finer window, so `1.2` → `2.0` satisfies `"0.3"`
 > - A `0.x` project needs no special setting — a bump to `1.0` is a major step and clears any window, and removals inside the `0.x` line are counted in minors as usual
 > - `pydeprecate all` prints policy violations but never fails on them — run `pydeprecate policy` as its own CI step to gate on them
 > - The CLI can read the rules from a `[tool.pydeprecate.policy]` table in `pyproject.toml`; `validate_deprecation_policy()` never does — pass its keyword arguments explicitly
