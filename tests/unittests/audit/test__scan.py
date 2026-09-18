@@ -28,7 +28,6 @@ from deprecate.proxy import _DeprecatedProxy, deprecated_class
 from tests.collection_targets import PositionalOnlyTarget
 
 _PACKAGING_AVAILABLE = importlib.util.find_spec("packaging") is not None
-_unused_requires_packaging = pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging library")
 
 
 class _SideEffectScanModule:

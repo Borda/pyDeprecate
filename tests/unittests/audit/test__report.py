@@ -1,11 +1,6 @@
 """Unit tests for private helpers in :mod:`deprecate.audit._report`."""
 
-import importlib
-import importlib.metadata
-import importlib.util
 import warnings
-
-import pytest
 
 import tests.collection_misconfigured as clean_module
 from deprecate.audit._report import _format_report_target
