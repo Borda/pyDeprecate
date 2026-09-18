@@ -71,8 +71,14 @@ jobs:
       - name: 🖥️ Smoke-test console script (cli extra)
         working-directory: dist
         run: |
-          pip install "${{ env.PKG_WHEEL }}[cli]" --force-reinstall
+          pip install "${{ env.PKG_WHEEL }}[audit,cli]" --force-reinstall
           pydeprecate --help
+
+      - name: 🐶 Dogfood — audit our own deprecations
+        # `policy` reads `[tool.pydeprecate.policy]` from this repo's pyproject.toml and is the gate; `all` is advisory.
+        run: |
+          pydeprecate all src/deprecate
+          pydeprecate policy src/deprecate
 
       - name: 📦 Install and check package (sdist)
         working-directory: dist

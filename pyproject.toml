@@ -141,3 +141,8 @@ report.exclude_lines = [
   "^\\s*pass\\s*$",
   "pragma: no cover",
 ]
+
+[tool.pydeprecate]
+# Dogfood: our own deprecations are removed only at the next major (`0.6` -> `1.0`), so the window is one major.
+policy.min-grace = "1"
+policy.message-required = true
