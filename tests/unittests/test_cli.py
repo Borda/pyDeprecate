@@ -11,6 +11,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from deprecate._cli import (
+    _FROM_PYPROJECT,
+    _ConfigFlag,
     _ensure_utf8_streams,
     _print,
     _Reporter,
@@ -26,7 +28,7 @@ from deprecate._pkg import (
     _auto_detect_version,
     _distribution_for_import,
     _load_toml,
-    _read_policy_config,
+    _read_pydeprecate_config,
     _version_from_dynamic,
     _version_from_toml,
 )
@@ -70,14 +72,14 @@ class TestCmdCheckScanning:
 
         mock_find.return_value = []
         assert cmd_check(path=str(pkg_dir)) == 0
-        mock_find.assert_called_once_with("mypkg", recursive=True, include_members=True)
+        mock_find.assert_called_once_with("mypkg", recursive=True, include_members=True, exclude=[])
 
     @patch("deprecate._cli.find_deprecation_wrappers")
     def test_no_issues_file(self, mock_find: MagicMock) -> None:
         """Scanning an importable module name with no issues exits 0."""
         mock_find.return_value = []
         assert cmd_check(path="some_module") == 0
-        mock_find.assert_called_once_with("some_module", recursive=True, include_members=True)
+        mock_find.assert_called_once_with("some_module", recursive=True, include_members=True, exclude=[])
 
     @patch("deprecate._cli.find_deprecation_wrappers")
     def test_scan_plain_directory(self, mock_find: MagicMock, tmp_path: Path) -> None:
@@ -197,6 +199,87 @@ class TestCmdCheckScanning:
 # ---------------------------------------------------------------------------
 
 
+class TestCmdExclude:
+    """Tests for the ``--exclude`` flag shared by every subcommand and its ``[tool.pydeprecate]`` counterpart."""
+
+    @patch("deprecate._cli.find_deprecation_wrappers", return_value=[])
+    def test_pyproject_exclude_reaches_scan(
+        self, mock_find: MagicMock, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """``exclude`` in ``[tool.pydeprecate]`` is forwarded to the scan and announced in the header.
+
+        A project keeps its fixture packages out of every audit by listing them once; each subcommand must apply
+        that list without a flag and say so, or a reader cannot tell a clean scan from a skipped one.
+        """
+        _write_pkg(tmp_path, "mypkg", "")
+        (tmp_path / "pyproject.toml").write_text('[tool.pydeprecate]\nexclude = ["mypkg.tests"]\n')
+        assert cmd_check(path=str(tmp_path / "mypkg")) == 0
+        assert mock_find.call_args.kwargs["exclude"] == ["mypkg.tests"]
+        assert "Exclude: mypkg.tests (pyproject.toml)" in capsys.readouterr().out
+
+    @patch("deprecate._cli.find_deprecation_wrappers", return_value=[])
+    def test_flag_overrides_pyproject_and_splits_commas(self, mock_find: MagicMock, tmp_path: Path) -> None:
+        """A typed ``--exclude`` replaces the file's list and a comma-separated value becomes several patterns.
+
+        Fire hands a single string over; splitting on commas lets a shell one-liner name several packages
+        without Python list syntax, and the typed value must win over the file like every other setting.
+        """
+        _write_pkg(tmp_path, "mypkg", "")
+        (tmp_path / "pyproject.toml").write_text('[tool.pydeprecate]\nexclude = ["mypkg.tests"]\n')
+        assert cmd_check(path=str(tmp_path / "mypkg"), exclude="mypkg.a, *.b") == 0
+        assert mock_find.call_args.kwargs["exclude"] == ["mypkg.a", "*.b"]
+
+    @pytest.mark.parametrize(
+        ("body", "flag"),
+        [
+            pytest.param("[tool.pydeprecate]\nexclude = 7\n", _FROM_PYPROJECT, id="file-not-strings"),
+            pytest.param("[tool.pydeprecate]\nexclude = [1, 2]\n", _FROM_PYPROJECT, id="file-list-of-ints"),
+            pytest.param("", 7, id="flag-not-string"),
+        ],
+    )
+    def test_malformed_exclude_exits_two(
+        self, body: str, flag: _ConfigFlag, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """An ``exclude`` that is not a string or a list of strings, in the file or as a flag, is a usage error.
+
+        Silently coercing a number would exclude nothing while the author believes a package is skipped; the
+        value is rejected before any scan starts and the message names where it came from.
+        """
+        _write_pkg(tmp_path, "mypkg", "")
+        (tmp_path / "pyproject.toml").write_text(body)
+        assert cmd_check(path=str(tmp_path / "mypkg"), exclude=flag) == 2
+        assert "`exclude`" in capsys.readouterr().err
+
+    @patch("deprecate._cli.find_deprecation_wrappers", return_value=[])
+    def test_unknown_top_level_key_warns(
+        self, mock_find: MagicMock, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """An unrecognised key directly under ``[tool.pydeprecate]`` is reported, not ignored in silence."""
+        _write_pkg(tmp_path, "mypkg", "")
+        (tmp_path / "pyproject.toml").write_text('[tool.pydeprecate]\nexcludes = ["mypkg.tests"]\n')
+        assert cmd_check(path=str(tmp_path / "mypkg")) == 0
+        assert "`excludes`" in capsys.readouterr().err
+        assert mock_find.call_args.kwargs["exclude"] == []
+
+    @patch("deprecate._cli.cmd_status", return_value=0)
+    @patch("deprecate._cli.find_deprecation_wrappers", return_value=[])
+    def test_all_loads_config_once(
+        self, mock_find: MagicMock, mock_status: MagicMock, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """``all`` reads ``[tool.pydeprecate]`` once and its advisory policy pass reuses it, so a warning prints once.
+
+        ``all`` hands the loaded configuration to ``policy``; re-reading the file there would repeat every
+        unknown-key advisory and make the log look like two separate problems.
+        """
+        _write_pkg(tmp_path, "mypkg", "")
+        (tmp_path / "pyproject.toml").write_text('[tool.pydeprecate]\nexclude = ["mypkg.tests"]\ntypo = 1\n')
+        assert cmd_all(path=str(tmp_path / "mypkg")) == 0
+        captured = capsys.readouterr()
+        assert captured.err.count("`typo`") == 1
+        assert "Exclude: mypkg.tests (pyproject.toml)" in captured.out
+        assert mock_find.call_args.kwargs["exclude"] == ["mypkg.tests"]
+
+
 class TestCmdCheck:
     """Tests for cmd_check() subcommand — the refactored core of main()."""
 
@@ -205,7 +288,7 @@ class TestCmdCheck:
         """``recursive=False`` passes through to find_deprecation_wrappers."""
         mock_find.return_value = []
         assert cmd_check(path="some_module", recursive=False) == 0
-        mock_find.assert_called_once_with("some_module", recursive=False, include_members=True)
+        mock_find.assert_called_once_with("some_module", recursive=False, include_members=True, exclude=[])
 
     @patch("deprecate._cli.find_deprecation_wrappers")
     def test_chain_warning_exits_zero(self, mock_find: MagicMock) -> None:
@@ -312,14 +395,14 @@ class TestCmdExpiry:
         """Explicit version is forwarded to validate_deprecation_expiry."""
         mock_expiry.return_value = []
         cmd_expiry(path="some_module", version="3.0")
-        mock_expiry.assert_called_once_with("some_module", "3.0", recursive=True)
+        mock_expiry.assert_called_once_with("some_module", "3.0", recursive=True, exclude=[])
 
     @patch("deprecate._cli.validate_deprecation_expiry")
     def test_no_recursive_threads_flag(self, mock_expiry: MagicMock) -> None:
         """``recursive=False`` passes through to validate_deprecation_expiry."""
         mock_expiry.return_value = []
         cmd_expiry(path="some_module", version="1.0", recursive=False)
-        mock_expiry.assert_called_once_with("some_module", "1.0", recursive=False)
+        mock_expiry.assert_called_once_with("some_module", "1.0", recursive=False, exclude=[])
 
     def test_plain_directory_rejected(self, tmp_path: Path) -> None:
         """Plain directory without __init__.py raises ValueError; cli() converts it at the CLI boundary."""
@@ -408,7 +491,7 @@ class TestCmdChains:
         """``recursive=False`` passes through to validate_deprecation_chains."""
         mock_chains.return_value = []
         cmd_chains(path="some_module", recursive=False)
-        mock_chains.assert_called_once_with("some_module", recursive=False)
+        mock_chains.assert_called_once_with("some_module", recursive=False, exclude=[])
 
     def test_plain_directory_rejected(self, tmp_path: Path) -> None:
         """Plain directory without __init__.py raises ValueError; cli() converts it at the CLI boundary."""
@@ -551,7 +634,7 @@ class TestCmdAll:
         """``recursive=False`` passes through to find_deprecation_wrappers."""
         mock_find.return_value = []
         cmd_all(path="some_module", version="1.0", recursive=False)
-        mock_find.assert_any_call("some_module", recursive=False, include_members=True)
+        mock_find.assert_any_call("some_module", recursive=False, include_members=True, exclude=[])
 
     @patch("deprecate._cli._check_expiry_for_callables", return_value=[])
     @patch("deprecate._cli.validate_deprecation_chains")
@@ -1006,18 +1089,22 @@ class TestLoadToml:
         assert _load_toml(str(toml)) == {}
 
 
-class TestReadPolicyConfig:
-    """Tests for _read_policy_config() — locates ``[tool.pydeprecate.policy]`` in the nearest ``pyproject.toml``."""
+class TestReadPydeprecateConfig:
+    """Tests for _read_pydeprecate_config() — locates ``[tool.pydeprecate]`` in the nearest ``pyproject.toml``."""
 
     def test_reads_nearest_table_with_raw_values(self, tmp_path: Path) -> None:
-        """The table is returned with its TOML values untouched and the file it came from.
+        """The table is returned with its TOML values untouched, nested ``policy`` included, and its file path.
 
-        A project keeps its policy next to its other tool settings; the CLI needs the raw values to validate them
+        A project keeps its settings next to its other tool tables; the CLI needs the raw values to validate them
         itself, and the path so its usage errors can point at the file a reader has to fix.
         """
         toml = tmp_path / "pyproject.toml"
-        toml.write_text("[tool.pydeprecate.policy]\nmin-grace = 0.3\nmessage-required = false\n")
-        assert _read_policy_config(str(tmp_path)) == ({"min-grace": 0.3, "message-required": False}, str(toml))
+        toml.write_text(
+            '[tool.pydeprecate]\nexclude = ["pkg.tests"]\npolicy.min-grace = 0.3\npolicy.message-required = false\n'
+        )
+        table, found = _read_pydeprecate_config(str(tmp_path))
+        assert table == {"exclude": ["pkg.tests"], "policy": {"min-grace": 0.3, "message-required": False}}
+        assert found == str(toml)
 
     def test_walks_up_two_levels(self, tmp_path: Path) -> None:
         """A ``src/pkg`` scan path finds the project root's table two directories above it.
@@ -1028,27 +1115,27 @@ class TestReadPolicyConfig:
         (tmp_path / "pyproject.toml").write_text('[tool.pydeprecate.policy]\nmin-grace = "1"\n')
         pkg = tmp_path / "src" / "pkg"
         pkg.mkdir(parents=True)
-        table, _ = _read_policy_config(str(pkg))
-        assert table == {"min-grace": "1"}
+        table, _ = _read_pydeprecate_config(str(pkg))
+        assert table == {"policy": {"min-grace": "1"}}
 
     def test_skips_pyproject_without_table(self, tmp_path: Path) -> None:
         """A nearer ``pyproject.toml`` without the table is skipped in favour of a parent that declares it.
 
-        A sub-package with its own build metadata but no policy section inherits the repository policy rather
-        than silently resetting it to the built-in defaults.
+        A sub-package with its own build metadata but no pydeprecate section inherits the repository settings
+        rather than silently resetting them to the built-in defaults.
         """
         (tmp_path / "pyproject.toml").write_text("[tool.pydeprecate.policy]\nmessage-required = false\n")
         sub = tmp_path / "sub"
         sub.mkdir()
         (sub / "pyproject.toml").write_text('[project]\nname = "sub"\n')
-        table, found = _read_policy_config(str(sub))
-        assert table == {"message-required": False}
+        table, found = _read_pydeprecate_config(str(sub))
+        assert table == {"policy": {"message-required": False}}
         assert found == str(tmp_path / "pyproject.toml")
 
     def test_no_table_anywhere_returns_empty(self, tmp_path: Path) -> None:
-        """A tree with no policy table yields ``({}, None)`` so every rule falls back to its built-in default."""
+        """A tree with no ``[tool.pydeprecate]`` yields ``({}, None)`` so every setting falls back to its default."""
         (tmp_path / "pyproject.toml").write_text('[project]\nname = "plain"\n')
-        assert _read_policy_config(str(tmp_path)) == ({}, None)
+        assert _read_pydeprecate_config(str(tmp_path)) == ({}, None)
 
 
 @pytest.mark.usefixtures("_clean_sys_modules")

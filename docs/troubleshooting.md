@@ -2082,6 +2082,21 @@ The file is found the same way `--version` auto-detection finds it — from the 
 
 ______________________________________________________________________
 
+## How do I keep test fixtures or a legacy tree out of the audit?
+
+**Q:** My package ships `my_package.tests` (or a frozen `my_package._legacy` tree) with deliberately odd `@deprecated` wrappers. `pydeprecate all` reports them, and importing the fixtures is slow. Can the scan skip them?
+
+**A:** Yes — every scanning function and every CLI subcommand takes an `exclude` list of glob patterns over the **full dotted module name**:
+
+```toml
+[tool.pydeprecate]
+exclude = ["my_package.tests", "*._legacy*"]
+```
+
+or `pydeprecate all src/my_package --exclude='my_package.tests,*._legacy*'` (quote it, or the shell expands the `*` first), or `find_deprecation_wrappers(my_package, exclude=["my_package.tests"])` in Python. A pattern that matches a package excludes its whole subtree, and the scan itself **never imports** an excluded package — so a fixture that raises at import time neither slows the scan nor produces an `audit: skipped` warning, as long as nothing else in your package imports it (if something does, the import happens as usual and only the wrappers are filtered out). The header line `Exclude: my_package.tests (pyproject.toml)` shows what was left out and where the list came from. Write the full name (`my_package.tests`), not a bare `tests`: patterns are matched against dotted module names, so a bare word matches only a top-level module of that name. A value that is not a string or a list of strings exits `2`.
+
+______________________________________________________________________
+
 ## UserWarning: `audit: skipped <module>` during a recursive scan
 
 **Q:** A recursive audit scan (`find_deprecation_wrappers`, `validate_deprecation_expiry`, `pydeprecate check` / `all`) emits `UserWarning: audit: skipped <module>: <exception>`. What does it mean?

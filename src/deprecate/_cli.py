@@ -19,7 +19,7 @@ import contextlib
 import functools
 import importlib.util
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional, Union
 
@@ -29,7 +29,7 @@ from deprecate._pkg import (
     _is_package_dir,
     _iter_pyproject_paths,
     _managed_sys_path,
-    _read_policy_config,
+    _read_pydeprecate_config,
     _resolve_module_name,
     _safe_module_name,
 )
@@ -74,7 +74,9 @@ def _print(msg: str, *, stderr: bool = False) -> None:
         print(msg, file=std_)
 
 
-def _scan_directory(path: str, include_members: bool = True) -> list[DeprecationWrapperInfo]:
+def _scan_directory(
+    path: str, include_members: bool = True, exclude: Optional[Sequence[str]] = None
+) -> list[DeprecationWrapperInfo]:
     """Scan a plain directory of top-level Python files.
 
     Nested Python files in subdirectories are skipped unless they are part of an importable package layout. Plain
@@ -93,7 +95,11 @@ def _scan_directory(path: str, include_members: bool = True) -> list[Deprecation
                 continue
             module_name: str = entry.stem
             try:
-                results.extend(find_deprecation_wrappers(module_name, recursive=False, include_members=include_members))
+                results.extend(
+                    find_deprecation_wrappers(
+                        module_name, recursive=False, include_members=include_members, exclude=exclude
+                    )
+                )
             except SystemExit:
                 _print(f"Skipping {module_name}: module-level code exited (not a library module)", stderr=True)
             except Exception as e:
@@ -114,7 +120,9 @@ def _scan_directory(path: str, include_members: bool = True) -> list[Deprecation
     return results
 
 
-def _scan_path(path: str, recursive: bool = True, include_members: bool = True) -> list[DeprecationWrapperInfo]:
+def _scan_path(
+    path: str, recursive: bool = True, include_members: bool = True, exclude: Optional[Sequence[str]] = None
+) -> list[DeprecationWrapperInfo]:
     """Scan a directory or importable module/package name for deprecated wrappers.
 
     File paths are not accepted because ``find_deprecation_wrappers()`` expects an importable module or package name,
@@ -126,18 +134,18 @@ def _scan_path(path: str, recursive: bool = True, include_members: bool = True) 
         if _is_package_dir(pth):
             # package dir: resolve importable name from directory stem
             return find_deprecation_wrappers(
-                Path(path).resolve().name, recursive=recursive, include_members=include_members
+                Path(path).resolve().name, recursive=recursive, include_members=include_members, exclude=exclude
             )
         # Flat src-layout or project root: find package in direct children or src/ subdir.
         child_pkgs = _find_child_packages(pth)
         if len(child_pkgs) == 1:
-            return _scan_path(str(child_pkgs[0]), recursive=recursive, include_members=include_members)
-        return _scan_directory(path, include_members=include_members)
+            return _scan_path(str(child_pkgs[0]), recursive=recursive, include_members=include_members, exclude=exclude)
+        return _scan_directory(path, include_members=include_members, exclude=exclude)
     if pth.is_file():
         raise ValueError(
             f"File paths are not supported: {path!r}. Pass an importable module/package name or a directory instead."
         )
-    return find_deprecation_wrappers(path, recursive=recursive, include_members=include_members)
+    return find_deprecation_wrappers(path, recursive=recursive, include_members=include_members, exclude=exclude)
 
 
 # ---------------------------------------------------------------------------
@@ -347,7 +355,9 @@ class _Reporter:
         return True
 
 
-def _do_expiry(path: str, version: Optional[str], recursive: bool) -> Optional[list[str]]:
+def _do_expiry(
+    path: str, version: Optional[str], recursive: bool, exclude: Optional[Sequence[str]] = None
+) -> Optional[list[str]]:
     """Run the expiry scan and return expired wrapper messages, or None when packaging is unavailable.
 
     Caller is responsible for setting up ``sys.path`` via :func:`_managed_sys_path` before calling.
@@ -356,6 +366,7 @@ def _do_expiry(path: str, version: Optional[str], recursive: bool) -> Optional[l
         path: Package directory path or importable module name string.
         version: Current package version for comparison, or None to auto-detect.
         recursive: Scan submodules recursively.
+        exclude: Module-name glob patterns to leave out of the scan.
 
     Returns:
         List of expired wrapper message strings (may be empty), or None when the
@@ -364,7 +375,7 @@ def _do_expiry(path: str, version: Optional[str], recursive: bool) -> Optional[l
     """
     module_name = _resolve_module_name(path)
     try:
-        return validate_deprecation_expiry(module_name, version, recursive=recursive)
+        return validate_deprecation_expiry(module_name, version, recursive=recursive, exclude=exclude)
     except ImportError as exc:
         if _is_missing_packaging_import_error(exc):
             _print(
@@ -484,10 +495,10 @@ def _validate_user_version(version: Optional[str], *, explicit: bool = True) -> 
 
 
 class _FromPyproject:
-    """Sentinel default for the ``policy`` flags: read the value from ``pyproject.toml``, else use the built-in.
+    """Sentinel default for CLI flags that ``pyproject.toml`` may set: read the file, else use the built-in.
 
     Fire cannot tell a typed ``--min-grace=0.3`` from the signature default, so the signature default is this marker
-    instead — the ``repr`` is what ``pydeprecate policy --help`` shows as ``Default:``.
+    instead — the ``repr`` is what ``--help`` shows as ``Default:``.
 
     """
 
@@ -496,26 +507,42 @@ class _FromPyproject:
 
 
 _FROM_PYPROJECT = _FromPyproject()
-_PolicyFlag = Union[str, int, float, bool, None, _FromPyproject]
+_ConfigFlag = Union[str, int, float, bool, None, Sequence[str], _FromPyproject]
+#: A loaded ``[tool.pydeprecate]`` table (known keys only) and the ``pyproject.toml`` it came from.
+_Config = tuple[dict[str, Any], Optional[str]]
 #: Built-in value per policy rule, used when neither a flag nor ``[tool.pydeprecate.policy]`` sets it.
 _POLICY_DEFAULTS: dict[str, Any] = {PolicyRule.MIN_GRACE.value: "0.3", PolicyRule.MESSAGE_REQUIRED.value: True}
+_CONFIG_TABLE_NAME = "[tool.pydeprecate]"
 _POLICY_TABLE_NAME = "[tool.pydeprecate.policy]"
+_EXCLUDE_KEY = "exclude"
+_POLICY_KEY = "policy"
 
 
-def _load_policy_config(path: str) -> tuple[dict[str, Any], Optional[str]]:
-    """Read ``[tool.pydeprecate.policy]`` for the scanned *path*, warning about anything silently ignorable.
+def _warn_unknown_keys(table: dict[str, Any], known: Sequence[str], table_name: str, toml_path: Optional[str]) -> None:
+    """Report keys of *table* that the CLI does not recognise — a typo would otherwise configure nothing, silently."""
+    unknown = sorted(set(table) - set(known))
+    if unknown:
+        _print(
+            f"Ignoring unknown key(s) {', '.join(f'`{k}`' for k in unknown)} in `{table_name}` of {toml_path}; "
+            f"the recognised keys are {', '.join(f'`{k}`' for k in known)}.",
+            stderr=True,
+        )
+
+
+def _load_pydeprecate_config(path: str) -> _Config:
+    """Read ``[tool.pydeprecate]`` for the scanned *path*, warning about anything silently ignorable.
 
     Only an existing file-system path is searched — a bare module name would otherwise walk up from the
     current directory and adopt whatever unrelated project the caller is standing in. Two silent no-ops are
     turned into stderr advisories: a ``pyproject.toml`` within reach when no TOML parser is installed (Python
-    3.9-3.10 without the ``audit`` extra), and unknown keys in the table (a typo would otherwise disable nothing
-    and enable nothing).
+    3.9-3.10 without the ``audit`` extra), and unknown keys in the table or its ``policy`` sub-table.
 
     Args:
         path: The ``path`` argument of the subcommand.
 
     Returns:
-        Tuple of the known keys of the table and the ``pyproject.toml`` it came from, or ``({}, None)``.
+        The known keys of the table (``exclude`` and the known keys of ``policy``) and the ``pyproject.toml``
+        they came from, or ``({}, None)``.
 
     """
     if not Path(path).exists():
@@ -524,95 +551,137 @@ def _load_policy_config(path: str) -> tuple[dict[str, Any], Optional[str]]:
         if next(_iter_pyproject_paths(path), None) is not None:
             _print(
                 f"A `pyproject.toml` is within reach of `{path}` but no TOML parser is installed, so any "
-                f"`{_POLICY_TABLE_NAME}` section is ignored.\nInstall one with: `pip install 'pyDeprecate[audit]'`",
+                f"`{_CONFIG_TABLE_NAME}` section is ignored.\nInstall one with: `pip install 'pyDeprecate[audit]'`",
                 stderr=True,
             )
         return {}, None
-    config, toml_path = _read_policy_config(path)
-    unknown = sorted(set(config) - set(_POLICY_DEFAULTS))
-    if unknown:
-        known = ", ".join(f"`{slug}`" for slug in _POLICY_DEFAULTS)
-        _print(
-            f"Ignoring unknown key(s) {', '.join(f'`{k}`' for k in unknown)} in `{_POLICY_TABLE_NAME}` of "
-            f"{toml_path}; the recognised keys are {known}.",
-            stderr=True,
-        )
-    return {slug: config[slug] for slug in _POLICY_DEFAULTS if slug in config}, toml_path
+    table, toml_path = _read_pydeprecate_config(path)
+    _warn_unknown_keys(table, (_EXCLUDE_KEY, _POLICY_KEY), _CONFIG_TABLE_NAME, toml_path)
+    config: dict[str, Any] = {}
+    if _EXCLUDE_KEY in table:
+        config[_EXCLUDE_KEY] = table[_EXCLUDE_KEY]
+    policy = table.get(_POLICY_KEY)
+    if isinstance(policy, dict):
+        _warn_unknown_keys(policy, list(_POLICY_DEFAULTS), _POLICY_TABLE_NAME, toml_path)
+        config[_POLICY_KEY] = {slug: policy[slug] for slug in _POLICY_DEFAULTS if slug in policy}
+    elif policy is not None:
+        _print(f"Ignoring `{_POLICY_KEY}` in `{_CONFIG_TABLE_NAME}` of {toml_path}; expected a table.", stderr=True)
+    return config, toml_path
 
 
-def _resolve_policy_settings(path: str, flags: dict[str, _PolicyFlag]) -> tuple[dict[str, Any], dict[str, str]]:
-    """Resolve each policy rule's value as flag > ``pyproject.toml`` > built-in default.
+def _resolve_setting(
+    flag: _ConfigFlag,
+    table: dict[str, Any],
+    key: str,
+    default: Any,  # noqa: ANN401
+    config: _Config,
+) -> tuple[Any, str]:
+    """Resolve one setting as flag > ``pyproject.toml`` > built-in default, returning the value and its source.
 
-    Args:
-        path: The ``path`` argument of the subcommand, used to locate ``pyproject.toml``.
-        flags: Rule slug to the value the subcommand received; :data:`_FROM_PYPROJECT` means "not typed".
-
-    Returns:
-        Two dicts keyed by rule slug: the resolved value, and where it came from — ``"flag"``, the path of the
-        ``pyproject.toml``, or ``"built-in"``. A TOML ``false`` for ``min-grace`` is normalised to ``None``
-        (TOML has no null) so the value is what :func:`_build_policy_spec` expects.
+    The source is ``"flag"``, the path of the ``pyproject.toml``, or ``"built-in"``.
 
     """
-    config: dict[str, Any] = {}
-    toml_path: Optional[str] = None
-    if any(value is _FROM_PYPROJECT for value in flags.values()):
-        config, toml_path = _load_policy_config(path)
-    values: dict[str, Any] = {}
-    sources: dict[str, str] = {}
-    for slug, flag in flags.items():
-        if flag is not _FROM_PYPROJECT:
-            values[slug], sources[slug] = flag, "flag"
-        elif slug in config:
-            values[slug], sources[slug] = config[slug], str(toml_path)
-        else:
-            values[slug], sources[slug] = _POLICY_DEFAULTS[slug], "built-in"
-    if values[PolicyRule.MIN_GRACE.value] is False:
-        values[PolicyRule.MIN_GRACE.value] = None
-    return values, sources
+    if flag is not _FROM_PYPROJECT:
+        return flag, "flag"
+    if key in table:
+        return table[key], str(config[1])
+    return default, "built-in"
 
 
-def _describe_policy_source(slug: str, source: str) -> str:
-    """Name where a rule's value came from, for the usage error and the header line."""
+def _describe_source(flag: str, table_name: str, source: str) -> str:
+    """Name where a value came from, for usage errors."""
     if source == "flag":
-        return f"`--{slug}`"
+        return f"`--{flag}`"
     if source == "built-in":
         return "the built-in default"
-    return f"`{_POLICY_TABLE_NAME}` in {source}"
+    return f"`{table_name}` in {source}"
 
 
-def _resolve_policy_spec(path: str, flags: dict[str, _PolicyFlag]) -> Optional[tuple["_PolicySpec", str]]:
-    """Build the policy spec from the resolved settings, printing any usage error.
+def _source_label(source: str) -> str:
+    """Short provenance tag for header lines — ``flag``, ``built-in`` or ``pyproject.toml``."""
+    return source if source in ("flag", "built-in") else "pyproject.toml"
+
+
+def _resolve_exclude(
+    path: str, exclude: _ConfigFlag, config: Optional[_Config] = None
+) -> Optional[tuple[list[str], str]]:
+    """Resolve the module-exclusion patterns as flag > ``pyproject.toml`` > nothing, printing any usage error.
+
+    A flag value may be one pattern, a comma-separated string, or a list; the file value must be a list of
+    strings.
 
     Args:
         path: The ``path`` argument of the subcommand.
-        flags: Rule slug to the value the subcommand received (see :func:`_resolve_policy_settings`).
+        exclude: The value the subcommand received; :data:`_FROM_PYPROJECT` means "not typed".
+        config: An already-loaded configuration, to avoid re-reading (and re-warning about) the file.
+
+    Returns:
+        The pattern list and its source, or ``None`` after printing a usage error (the caller exits 2).
+
+    """
+    if config is None:
+        config = _load_pydeprecate_config(path) if exclude is _FROM_PYPROJECT else ({}, None)
+    raw, source = _resolve_setting(exclude, config[0], _EXCLUDE_KEY, [], config)
+    if isinstance(raw, str):
+        patterns: Any = [item.strip() for item in raw.split(",") if item.strip()]
+    elif raw is None:
+        patterns = []
+    else:
+        patterns = list(raw) if isinstance(raw, (list, tuple)) else raw
+    if not isinstance(patterns, list) or not all(isinstance(item, str) for item in patterns):
+        _print(
+            f"Invalid `exclude` value `{raw}` from {_describe_source(_EXCLUDE_KEY, _CONFIG_TABLE_NAME, source)}; "
+            'expected a list of module-name glob patterns such as `["my_package.tests"]`.',
+            stderr=True,
+        )
+        return None
+    return patterns, source
+
+
+def _resolve_policy_spec(
+    path: str, flags: dict[str, _ConfigFlag], config: Optional[_Config] = None
+) -> Optional[tuple["_PolicySpec", str]]:
+    """Build the policy spec as flag > ``pyproject.toml`` > built-in default per rule, printing any usage error.
+
+    A TOML ``false`` for ``min-grace`` is normalised to ``None`` (TOML has no null) so the value is what
+    :func:`_build_policy_spec` expects.
+
+    Args:
+        path: The ``path`` argument of the subcommand.
+        flags: Rule slug to the value the subcommand received; :data:`_FROM_PYPROJECT` means "not typed".
+        config: An already-loaded configuration, to avoid re-reading (and re-warning about) the file.
 
     Returns:
         The spec and the ``Policy:`` header line naming each value's source, or ``None`` after printing a usage
         error naming the offending value and its source (the caller exits 2).
 
     """
-    values, sources = _resolve_policy_settings(path, flags)
+    if config is None:
+        config = _load_pydeprecate_config(path) if any(v is _FROM_PYPROJECT for v in flags.values()) else ({}, None)
+    table = config[0].get(_POLICY_KEY, {})
+    values: dict[str, Any] = {}
+    sources: dict[str, str] = {}
+    for slug, flag in flags.items():
+        values[slug], sources[slug] = _resolve_setting(flag, table, slug, _POLICY_DEFAULTS[slug], config)
     min_grace_slug, message_slug = PolicyRule.MIN_GRACE.value, PolicyRule.MESSAGE_REQUIRED.value
+    if values[min_grace_slug] is False:
+        values[min_grace_slug] = None
     if not isinstance(values[message_slug], bool):
         _print(
             f"Invalid `message_required` value `{values[message_slug]}` from "
-            f"{_describe_policy_source(message_slug, sources[message_slug])}; expected `true` or `false`.",
+            f"{_describe_source(message_slug, _POLICY_TABLE_NAME, sources[message_slug])}; expected `true` or `false`.",
             stderr=True,
         )
         return None
     try:
         spec = _build_policy_spec(values[min_grace_slug], values[message_slug])
     except ValueError as err:
-        _print(f"{err} (from {_describe_policy_source(min_grace_slug, sources[min_grace_slug])})", stderr=True)
+        _print(
+            f"{err} (from {_describe_source(min_grace_slug, _POLICY_TABLE_NAME, sources[min_grace_slug])})", stderr=True
+        )
         return None
-    header = "Policy: " + "  ".join(f"{slug}={values[slug]} ({_policy_source_label(sources[slug])})" for slug in values)
+    header = "Policy: " + "  ".join(f"{slug}={values[slug]} ({_source_label(sources[slug])})" for slug in values)
     return spec, header
-
-
-def _policy_source_label(source: str) -> str:
-    """Short provenance tag for the ``Policy:`` header line — ``flag``, ``built-in`` or ``pyproject.toml``."""
-    return source if source in ("flag", "built-in") else "pyproject.toml"
 
 
 def _skipped_policy_rules(spec: "_PolicySpec") -> list[str]:
@@ -670,8 +739,14 @@ def _policy_violations_without_packaging(
 # ---------------------------------------------------------------------------
 
 
-def _print_scan_header(path: str, version: Optional[str] = None, *, user_provided: bool = False) -> None:
-    """Print a consistent scan header: scanning location, package name, and version."""
+def _print_scan_header(
+    path: str,
+    version: Optional[str] = None,
+    *,
+    user_provided: bool = False,
+    exclude: Optional[tuple[list[str], str]] = None,
+) -> None:
+    """Print a consistent scan header: scanning location, package name, version, and any exclusion patterns."""
     module = _safe_module_name(path)
     _print(f"Scanning: {path}")
     if version is not None:
@@ -679,12 +754,15 @@ def _print_scan_header(path: str, version: Optional[str] = None, *, user_provide
         _print(f"Package: {module}  Version: {version} ({source})")
     else:
         _print(f"Package: {module}")
+    if exclude is not None and exclude[0]:
+        _print(f"Exclude: {', '.join(exclude[0])} ({_source_label(exclude[1])})")
 
 
 def cmd_check(
     path: str = ".",
     recursive: bool = True,
     exit_zero: bool = False,
+    exclude: _ConfigFlag = _FROM_PYPROJECT,
     *,
     _wrappers: Optional[list[DeprecationWrapperInfo]] = None,
 ) -> int:
@@ -700,17 +778,25 @@ def cmd_check(
         recursive: Scan submodules recursively (default True). Pass ``--norecursive`` to scan top-level only.
         exit_zero: Always exit 0 even if hard errors (invalid argument mappings) are found.
             Useful for advisory CI steps that should report but never block.
+        exclude: Module-name glob patterns to leave out of the scan — one pattern, a comma-separated string, or a
+            list (``--exclude='my_package.tests,*._legacy*'``); the scan itself never imports a matching package
+            nor descends into it. Default: the ``exclude`` list of ``[tool.pydeprecate]`` in the nearest
+            ``pyproject.toml``, else nothing.
         _wrappers: Pre-scanned wrapper list. When provided, skips the scan step. Underscore
             prefix hides this parameter from the Fire CLI (internal use by ``cmd_all`` only).
 
     Returns:
-        0 on success or advisory-only issues; 1 when hard errors are found and ``exit_zero`` is False.
+        0 on success or advisory-only issues; 1 when hard errors are found and ``exit_zero`` is False; 2 when
+        ``--exclude`` is malformed.
 
     """
     if _wrappers is None:
-        _print_scan_header(path)
+        resolved_exclude = _resolve_exclude(path, exclude)
+        if resolved_exclude is None:
+            return 2
+        _print_scan_header(path, exclude=resolved_exclude)
         with _managed_sys_path(path):
-            _wrappers = _scan_path(path, recursive=recursive)
+            _wrappers = _scan_path(path, recursive=recursive, exclude=resolved_exclude[0])
 
     if not _wrappers:
         _print("No deprecated callables found.")
@@ -730,6 +816,7 @@ def cmd_expiry(
     version: Optional[str] = None,
     recursive: bool = True,
     exit_zero: bool = False,
+    exclude: _ConfigFlag = _FROM_PYPROJECT,
     *,
     _wrappers: Optional[list[DeprecationWrapperInfo]] = None,
     _version_explicit: bool = True,
@@ -746,6 +833,10 @@ def cmd_expiry(
         recursive: Scan submodules recursively (default True). Pass ``--norecursive`` to scan top-level only.
         exit_zero: Always exit 0 even if expired wrappers are found.
             Useful for advisory CI steps that should report but never block.
+        exclude: Module-name glob patterns to leave out of the scan — one pattern, a comma-separated string, or a
+            list (``--exclude='my_package.tests,*._legacy*'``); the scan itself never imports a matching package
+            nor descends into it. Default: the ``exclude`` list of ``[tool.pydeprecate]`` in the nearest
+            ``pyproject.toml``, else nothing.
         _wrappers: Pre-scanned wrapper list. When provided, skips the scan step and derives
             expired wrappers via ``_do_expiry_prescanned``. Requires *version* to be
             non-``None`` when set. Underscore prefix hides this parameter from the Fire CLI
@@ -760,7 +851,7 @@ def cmd_expiry(
         0 on success, when the ``packaging`` library is unavailable, or when an auto-detected version
         turns out not to be valid PEP 440 (advisory — the check is skipped); 1 when expired wrappers
         are found and ``exit_zero`` is False; 2 when a user-supplied ``--version`` is not a valid
-        PEP 440 version string.
+        PEP 440 version string or ``--exclude`` is malformed.
 
     """
     # Fire auto-converts numeric-looking strings (e.g. "1.0" → float); normalise to str.
@@ -771,6 +862,9 @@ def cmd_expiry(
     if err_code is not None:
         return err_code
     if _wrappers is None:
+        resolved_exclude = _resolve_exclude(path, exclude)
+        if resolved_exclude is None:
+            return 2
         # Standalone path: full scan + version auto-detect inside _do_expiry.
         resolved_version = version if version is not None else _auto_detect_version(_safe_module_name(path), path=path)
         if resolved_version is None and version is None:
@@ -780,9 +874,9 @@ def cmd_expiry(
                 "Pass --version explicitly for a definitive check.",
                 stderr=True,
             )
-        _print_scan_header(path, resolved_version, user_provided=version_explicit)
+        _print_scan_header(path, resolved_version, user_provided=version_explicit, exclude=resolved_exclude)
         with _managed_sys_path(path):
-            raw = _do_expiry(path, resolved_version, recursive)
+            raw = _do_expiry(path, resolved_version, recursive, exclude=resolved_exclude[0])
         if raw is None:  # packaging unavailable — warning already printed to stderr
             return 0
         expired = raw
@@ -804,10 +898,12 @@ def cmd_policy(
     path: str = ".",
     recursive: bool = True,
     exit_zero: bool = False,
-    min_grace: _PolicyFlag = _FROM_PYPROJECT,
-    message_required: _PolicyFlag = _FROM_PYPROJECT,
+    min_grace: _ConfigFlag = _FROM_PYPROJECT,
+    message_required: _ConfigFlag = _FROM_PYPROJECT,
+    exclude: _ConfigFlag = _FROM_PYPROJECT,
     *,
     _wrappers: Optional[list[DeprecationWrapperInfo]] = None,
+    _config: Optional[_Config] = None,
 ) -> int:
     """Check deprecated wrappers against deprecation-governance policy rules.
 
@@ -837,27 +933,37 @@ def cmd_policy(
             ``2.0``, never ``2.3``); a coarser bump always clears a finer window. Ten or more steps: quote as a
             string (``--min-grace='"0.10"'``), else Fire parses ``0.10`` as ``0.1``.
         message_required: Require every wrapper to name a replacement (built-in default True).
+        exclude: Module-name glob patterns to leave out of the scan — one pattern, a comma-separated string, or a
+            list (``--exclude='my_package.tests,*._legacy*'``); the scan itself never imports a matching package
+            nor descends into it. Default: the ``exclude`` list of ``[tool.pydeprecate]`` in the nearest
+            ``pyproject.toml``, else nothing.
         _wrappers: Pre-scanned wrapper list. When provided, skips the scan step. Underscore prefix hides this
             parameter from the Fire CLI (internal use by ``cmd_all`` only).
+        _config: Already-loaded ``[tool.pydeprecate]`` configuration, so ``cmd_all`` does not re-read (and
+            re-warn about) the file. Underscore prefix hides this parameter from the Fire CLI.
 
     Returns:
         0 on success, or when ``min-grace`` is skipped because ``packaging`` is unavailable and
         ``message_required`` finds no violation; 1 when violations are found (including from a still-running
-        ``message_required`` check) and ``exit_zero`` is False; 2 when a rule's value — from a flag or from
-        ``pyproject.toml`` — is malformed.
+        ``message_required`` check) and ``exit_zero`` is False; 2 when a rule's value or ``exclude`` — from a
+        flag or from ``pyproject.toml`` — is malformed.
 
     """
+    config = _config if _config is not None else _load_pydeprecate_config(path)
     resolved = _resolve_policy_spec(
-        path, {PolicyRule.MIN_GRACE.value: min_grace, PolicyRule.MESSAGE_REQUIRED.value: message_required}
+        path, {PolicyRule.MIN_GRACE.value: min_grace, PolicyRule.MESSAGE_REQUIRED.value: message_required}, config
     )
     if resolved is None:
         return 2
     spec, policy_header = resolved
 
     if _wrappers is None:
-        _print_scan_header(path)
+        resolved_exclude = _resolve_exclude(path, exclude, config)
+        if resolved_exclude is None:
+            return 2
+        _print_scan_header(path, exclude=resolved_exclude)
         with _managed_sys_path(path):
-            _wrappers = _scan_path(path, recursive=recursive)
+            _wrappers = _scan_path(path, recursive=recursive, exclude=resolved_exclude[0])
     _print(policy_header)
     try:
         violations = _check_policy_for_callables(_wrappers, spec)
@@ -880,6 +986,7 @@ def cmd_chains(
     path: str = ".",
     recursive: bool = True,
     exit_zero: bool = False,
+    exclude: _ConfigFlag = _FROM_PYPROJECT,
     *,
     _wrappers: Optional[list[DeprecationWrapperInfo]] = None,
 ) -> int:
@@ -893,18 +1000,28 @@ def cmd_chains(
         recursive: Scan submodules recursively (default True). Pass ``--norecursive`` to scan top-level only.
         exit_zero: Always exit 0 even if chains are found.
             Useful for advisory CI steps that should report but never block.
+        exclude: Module-name glob patterns to leave out of the scan — one pattern, a comma-separated string, or a
+            list (``--exclude='my_package.tests,*._legacy*'``); the scan itself never imports a matching package
+            nor descends into it. Default: the ``exclude`` list of ``[tool.pydeprecate]`` in the nearest
+            ``pyproject.toml``, else nothing.
         _wrappers: Pre-scanned wrapper list. When provided, skips the scan step and filters
             for ``chain_type is not None`` internally. Underscore prefix hides this parameter
             from the Fire CLI (internal use by ``cmd_all`` only).
 
     Returns:
-        0 when no chains are found or ``exit_zero`` is True; 1 when chains are found.
+        0 when no chains are found or ``exit_zero`` is True; 1 when chains are found; 2 when ``--exclude`` is
+        malformed.
 
     """
     if _wrappers is None:
-        _print_scan_header(path)
+        resolved_exclude = _resolve_exclude(path, exclude)
+        if resolved_exclude is None:
+            return 2
+        _print_scan_header(path, exclude=resolved_exclude)
         with _managed_sys_path(path):
-            _wrappers = validate_deprecation_chains(_resolve_module_name(path), recursive=recursive)
+            _wrappers = validate_deprecation_chains(
+                _resolve_module_name(path), recursive=recursive, exclude=resolved_exclude[0]
+            )
     chains = [r for r in _wrappers if r.chain_type is not None]
     if not chains:
         _print("No deprecation chains found.")
@@ -919,6 +1036,7 @@ def cmd_all(
     version: Optional[str] = None,
     recursive: bool = True,
     exit_zero: bool = False,
+    exclude: _ConfigFlag = _FROM_PYPROJECT,
 ) -> int:
     """Run all four checks then append a deprecation table.
 
@@ -939,10 +1057,15 @@ def cmd_all(
         recursive: Scan submodules recursively (default True). Pass ``--norecursive`` to scan top-level only.
         exit_zero: Always exit 0 even if issues are found.
             Useful for advisory CI steps that should report but never block.
+        exclude: Module-name glob patterns to leave out of the scan — one pattern, a comma-separated string, or a
+            list (``--exclude='my_package.tests,*._legacy*'``); the scan itself never imports a matching package
+            nor descends into it. Default: the ``exclude`` list of ``[tool.pydeprecate]`` in the nearest
+            ``pyproject.toml``, else nothing.
 
     Returns:
         0 when the check, expiry, and chain gates pass or ``exit_zero`` is True; 1 when any of them finds a hard
-        error; 2 when a user-supplied ``--version`` is not a valid PEP 440 version string.
+        error; 2 when a user-supplied ``--version`` is not a valid PEP 440 version string or ``--exclude`` is
+        malformed.
         Policy violations are advisory here and never contribute to this code.
         The deprecation table is always appended regardless of pass/fail outcome.
 
@@ -952,12 +1075,16 @@ def cmd_all(
         err_code = _validate_user_version(version)
         if err_code is not None:
             return err_code
+    config = _load_pydeprecate_config(path)
+    resolved_exclude = _resolve_exclude(path, exclude, config)
+    if resolved_exclude is None:
+        return 2
     version_path = path if Path(path).exists() else None
     version_explicit = version is not None
     resolved_version = version if version_explicit else _auto_detect_version(_safe_module_name(path), path=version_path)
-    _print_scan_header(path, resolved_version, user_provided=version_explicit)
+    _print_scan_header(path, resolved_version, user_provided=version_explicit, exclude=resolved_exclude)
     with _managed_sys_path(path):
-        wrappers = _scan_path(path, recursive=recursive)
+        wrappers = _scan_path(path, recursive=recursive, exclude=resolved_exclude[0])
 
     # Sub-commands run with exit_zero=False so cmd_all sees their truthful exit codes;
     # the user-facing --exit-zero is applied to the aggregate below.
@@ -976,7 +1103,7 @@ def cmd_all(
     # Advisory inside ``all``: the policy defaults encode a project convention (a three-minor grace window on a
     # clean release boundary) that not every repo shares, so ``all`` reports violations but never fails on them
     # — gate on them with the dedicated ``policy`` subcommand, whose exit code is truthful.
-    cmd_policy(path, recursive=recursive, exit_zero=True, _wrappers=wrappers)
+    cmd_policy(path, recursive=recursive, exit_zero=True, _wrappers=wrappers, _config=config)
     chains_code = cmd_chains(path, recursive=recursive, exit_zero=False, _wrappers=wrappers)
 
     # The status table is a display artifact appended after the three gates. Render it defensively:
@@ -1003,6 +1130,7 @@ def cmd_status(
     style: str = "compact",
     include_members: bool = True,
     output: Optional[str] = None,
+    exclude: _ConfigFlag = _FROM_PYPROJECT,
     *,
     _wrappers: Optional[list[DeprecationWrapperInfo]] = None,
     _version_explicit: bool = True,
@@ -1010,7 +1138,7 @@ def cmd_status(
     """Print a markdown deprecation status table to stdout.
 
     Scans the target package for deprecated wrappers and renders their lifecycle
-    status as a Markdown table. Standalone — runs no checks, always exits 0.
+    status as a Markdown table. Standalone — runs no checks, exits 0 (2 only for a malformed ``--exclude``).
     When ``--output`` is given, the table is also written to that file.
 
     Args:
@@ -1022,6 +1150,10 @@ def cmd_status(
         include_members: Include deprecated class members such as methods and constructors (default True).
         output: Optional file path to write the markdown table. The table is always
             printed to stdout regardless of this flag.
+        exclude: Module-name glob patterns to leave out of the scan — one pattern, a comma-separated string, or a
+            list (``--exclude='my_package.tests,*._legacy*'``); the scan itself never imports a matching package
+            nor descends into it. Default: the ``exclude`` list of ``[tool.pydeprecate]`` in the nearest
+            ``pyproject.toml``, else nothing.
         _wrappers: Pre-scanned wrapper list. When provided, skips the scan step. Underscore prefix hides
             this parameter from the Fire CLI (internal use by ``cmd_all`` only).
         _version_explicit: Whether *version* is a value the user typed rather than one the caller
@@ -1031,7 +1163,7 @@ def cmd_status(
             Fire CLI (internal use by ``cmd_all`` only).
 
     Returns:
-        Always 0 — status table generation is not a pass/fail gate.
+        0 — status table generation is not a pass/fail gate; 2 only when ``--exclude`` is malformed.
 
     """
     version_explicit = version is not None and _version_explicit
@@ -1051,9 +1183,14 @@ def cmd_status(
     module_name = _safe_module_name(path)
     resolved_version = version if version is not None else _auto_detect_version(module_name, path=path)
     if _wrappers is None:
-        _print_scan_header(path, resolved_version, user_provided=version_explicit)
+        resolved_exclude = _resolve_exclude(path, exclude)
+        if resolved_exclude is None:
+            return 2
+        _print_scan_header(path, resolved_version, user_provided=version_explicit, exclude=resolved_exclude)
         with _managed_sys_path(path):
-            _wrappers = _scan_path(path, recursive=recursive, include_members=include_members)
+            _wrappers = _scan_path(
+                path, recursive=recursive, include_members=include_members, exclude=resolved_exclude[0]
+            )
     markdown = generate_deprecation_table(
         module_name,
         current_version=resolved_version,

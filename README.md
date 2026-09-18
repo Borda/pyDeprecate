@@ -1706,7 +1706,7 @@ pydeprecate status path/to/your/package --style matrix
 pydeprecate status path/to/your/package --version 2.0.0 --output DEPRECATIONS.md
 ```
 
-**Common flags** (all subcommands): `--norecursive` scans the top-level module only. `check`, `expiry`, `policy`, `chains`, and `all` also accept `--exit-zero` to always exit `0` even when issues are found. `expiry`, `all`, and `status` also accept `--version VERSION` to set the current version explicitly. `policy` additionally accepts one flag per rule — `--min-grace`, `--message-required` — resolved as flag → `[tool.pydeprecate.policy]` in the nearest `pyproject.toml` → built-in default (`min-grace = "0.3"`, `message-required = true`; `false` switches `min-grace` off), and exits `2` when a rule value is malformed. The `Policy:` header line names the source of each value. `status` additionally accepts `--style compact|matrix` (default `compact`) and `--output FILE` to also save the markdown to that file.
+**Common flags** (all subcommands): `--norecursive` scans the top-level module only. `--exclude` takes glob patterns over full dotted module names (one, comma-separated, or a list) the scan itself never imports nor descends into; its default is the `exclude` list of `[tool.pydeprecate]` in the nearest `pyproject.toml`. `check`, `expiry`, `policy`, `chains`, and `all` also accept `--exit-zero` to always exit `0` even when issues are found. `expiry`, `all`, and `status` also accept `--version VERSION` to set the current version explicitly. `policy` additionally accepts one flag per rule — `--min-grace`, `--message-required` — resolved as flag → `[tool.pydeprecate.policy]` in the nearest `pyproject.toml` → built-in default (`min-grace = "0.3"`, `message-required = true`; `false` switches `min-grace` off), and exits `2` when a rule value is malformed. The `Policy:` header line names the source of each value. `status` additionally accepts `--style compact|matrix` (default `compact`) and `--output FILE` to also save the markdown to that file.
 
 **Quick demo** using pyDeprecate's own test fixtures (no package setup needed):
 
@@ -1945,6 +1945,7 @@ Found 5 violations
 > - A `0.x` project needs no special setting — a bump to `1.0` is a major step and clears any window, and removals inside the `0.x` line are counted in minors as usual
 > - `pydeprecate all` prints policy violations but never fails on them — run `pydeprecate policy` as its own CI step to gate on them
 > - The CLI can read the rules from a `[tool.pydeprecate.policy]` table in `pyproject.toml`; `validate_deprecation_policy()` never does — pass its keyword arguments explicitly
+> - Every scanning function takes a keyword-only `exclude` list of module-name globs (`exclude=["my_package.tests"]`); the scan never imports a matching package itself, and its wrappers are never reported
 
 ### 🔗 Detecting Deprecation Chains
 

@@ -125,15 +125,16 @@ pydeprecate status tests --version 1.2
 
 ## Flags
 
-| Flag                | Default       | `check` | `expiry` | `policy` | `chains` | `all` | `status` | Effect                                                                                                  | Note                                                                                                 |
-| ------------------- | ------------- | :-----: | :------: | :------: | :------: | :---: | :------: | ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `--version VERSION` | auto-detected |         |    ✓     |          |          |   ✓   |    ✓     | Package version for deadline comparison. Auto-detected from installed metadata if omitted.              | `policy` compares `deprecated_in` to `remove_in` only, so it takes no version.                       |
-| `--norecursive`     | off           |    ✓    |    ✓     |    ✓     |    ✓     |   ✓   |    ✓     | Scan top-level module only; skip submodules.                                                            | Fire auto-generates this from `recursive=False` — the flag is `--norecursive`, not `--no-recursive`. |
-| `--exit-zero`       | off           |    ✓    |    ✓     |    ✓     |    ✓     |   ✓   |          | Always exit `0` even when hard errors are found — useful for advisory CI steps that should never block. |                                                                                                      |
-| `--style`           | `compact`     |         |          |          |          |       |    ✓     | Table rendering style — `compact` (default) or `matrix`.                                                |                                                                                                      |
-| `--output FILE`     | stdout only   |         |          |          |          |       |    ✓     | Also save the markdown table to a file. Table is always printed to stdout regardless.                   |                                                                                                      |
+| Flag                | Default          | `check` | `expiry` | `policy` | `chains` | `all` | `status` | Effect                                                                                                                                                                                | Note                                                                                                                                                                     |
+| ------------------- | ---------------- | :-----: | :------: | :------: | :------: | :---: | :------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `--version VERSION` | auto-detected    |         |    ✓     |          |          |   ✓   |    ✓     | Package version for deadline comparison. Auto-detected from installed metadata if omitted.                                                                                            | `policy` compares `deprecated_in` to `remove_in` only, so it takes no version.                                                                                           |
+| `--norecursive`     | off              |    ✓    |    ✓     |    ✓     |    ✓     |   ✓   |    ✓     | Scan top-level module only; skip submodules.                                                                                                                                          | Fire auto-generates this from `recursive=False` — the flag is `--norecursive`, not `--no-recursive`.                                                                     |
+| `--exit-zero`       | off              |    ✓    |    ✓     |    ✓     |    ✓     |   ✓   |          | Always exit `0` even when hard errors are found — useful for advisory CI steps that should never block.                                                                               |                                                                                                                                                                          |
+| `--exclude`         | `pyproject.toml` |    ✓    |    ✓     |    ✓     |    ✓     |   ✓   |    ✓     | Glob patterns over full dotted module names to leave out of the scan; the scan itself never imports a matching package nor descends into it. One pattern, comma-separated, or a list. | Default is the `exclude` list of `[tool.pydeprecate]` (see below), else nothing. Quote the value — an unquoted `*` is expanded by the shell first. Malformed → exit `2`. |
+| `--style`           | `compact`        |         |          |          |          |       |    ✓     | Table rendering style — `compact` (default) or `matrix`.                                                                                                                              |                                                                                                                                                                          |
+| `--output FILE`     | stdout only      |         |          |          |          |       |    ✓     | Also save the markdown table to a file. Table is always printed to stdout regardless.                                                                                                 |                                                                                                                                                                          |
 
-A bare `pydeprecate policy src/mypackage` therefore runs a recursive scan, exits `1` on violations, and applies both default-on rules below (`--min-grace=0.3`, `--message-required=True`) — unless the project's `pyproject.toml` says otherwise (see [Policy in `pyproject.toml`](#policy-in-pyprojecttoml)).
+A bare `pydeprecate policy src/mypackage` therefore runs a recursive scan, exits `1` on violations, and applies both default-on rules below (`--min-grace=0.3`, `--message-required=True`) — unless the project's `pyproject.toml` says otherwise (see [Project configuration in `pyproject.toml`](#project-configuration-in-pyprojecttoml)).
 
 ### Policy rule flags
 
@@ -148,40 +149,45 @@ These two are specific to `policy` — one flag per rule, switched off with `--m
 
 A malformed `--min-grace` value is rejected before the scan starts and exits `2` with a message naming the accepted spellings — it is never silently ignored.
 
-### Policy in `pyproject.toml`
+### Project configuration in `pyproject.toml`
 
-Declare the rules once, next to the code they govern, and every bare `pydeprecate policy` run — a developer's shell or a CI step — applies the same policy without repeating flags:
+Declare the settings once, next to the code they govern, and every bare `pydeprecate` run — a developer's shell or a CI step — applies them without repeating flags:
 
 ```toml
-[tool.pydeprecate.policy]
+[tool.pydeprecate]
+exclude = ["my_package.tests", "*._legacy*"]   # every subcommand: the scan skips these packages (never imports them itself)
+
+[tool.pydeprecate.policy]                      # the `policy` subcommand's rules, keyed by rule slug
 min-grace = "0.3"          # a version-shaped delta, as a string; false switches the rule off (TOML has no null)
 message-required = true
 ```
 
-The keys are the rule slugs. Each rule resolves independently as **flag → `pyproject.toml` → built-in default**, and the `Policy:` header line of every run names the source of each value (`flag`, `pyproject.toml`, or `built-in`), so a log always shows which convention was applied:
+Each setting resolves independently as **flag → `pyproject.toml` → built-in default**, and the header lines of every run name the source of each value (`flag`, `pyproject.toml`, or `built-in`), so a log always shows what was applied:
 
 ```text
+Exclude: my_package.tests, *._legacy* (pyproject.toml)
 Policy: min-grace=0.3 (pyproject.toml)  message-required=True (built-in)
 ```
 
-- The table is looked up like `--version` auto-detection below: from the scanned *path*'s directory up to two parents, nearest file that declares the table wins; a bare module *name* never triggers the lookup.
+- The table is looked up like `--version` auto-detection below: from the scanned *path*'s directory up to two parents, nearest file that declares `[tool.pydeprecate]` wins (one table per project — a nested file that declares it replaces the parent's whole table); a bare module *name* never triggers the lookup.
+- `exclude` patterns are `fnmatch` globs over the full dotted module name (`my_package.tests`, not `tests`); a pattern that matches a package excludes its whole subtree. A wrapper is reported iff the module it is reported under does not match — so even when something else in the package imports an excluded module, its wrappers stay out. A string or comma-separated string is accepted in place of the list.
 - Quote `min-grace` as a string (`"0.10"`, not `0.10`) — a TOML float drops the trailing zero exactly as the shell does.
-- A malformed value from the file exits `2` and the message names the `pyproject.toml` it came from; a non-boolean `message-required` is rejected the same way. Unknown keys in the table (`min_grace` with an underscore is the usual typo) are reported on stderr and ignored, never silently enforced.
+- A malformed value from the file exits `2` and the message names the `pyproject.toml` it came from; a non-boolean `message-required` or a non-string `exclude` entry is rejected the same way. Unknown keys in either table (`min_grace` with an underscore is the usual typo) are reported on stderr and ignored, never silently enforced.
 - Reading the file needs a TOML parser — built in on Python 3.11+, the `tomli` backport from the `[audit]` extra on 3.9–3.10. Without one, a reachable `pyproject.toml` triggers a stderr advisory instead of being silently skipped.
-- `pydeprecate all` runs its advisory policy pass with the same resolved settings. The Python API (`validate_deprecation_policy()`) takes a module (object or importable name), never a filesystem path, and does not read `pyproject.toml` — pass its keyword arguments explicitly.
+- `pydeprecate all` applies the same resolved settings to its single scan and its advisory policy pass. The Python API (`validate_deprecation_policy()`) takes a module (object or importable name), never a filesystem path, and does not read `pyproject.toml` — pass its keyword arguments (including `exclude`) explicitly.
 
 `--version` auto-detect: when the scanned argument is an existing *path*, `_read_pyproject_version` searches the current directory and up to 2 parent directories for a `pyproject.toml` (current dir + 2 levels up); the nearest one found wins, falling back to installed package metadata. A bare module *name* skips the `pyproject.toml` lookup entirely, so it can never pick up an unrelated project's version from your current working directory.
 
 ## Exit codes
 
-| Subcommand | Exit `0`                                                                 | Exit `1`                                                              | Exit `2`                                            |
-| ---------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------- | --------------------------------------------------- |
-| `check`    | Clean or advisory warnings only (chains / identity / no-effect)          | Invalid argument mappings found                                       | —                                                   |
-| `expiry`   | No expired wrappers; or `packaging` not installed (skipped with warning) | Expired wrappers found (and `--exit-zero` not set)                    | Malformed `--version` when `packaging` is available |
-| `policy`   | No violations; or only a skipped `min-grace` rule                        | Policy violations found (and `--exit-zero` not set)                   | Malformed rule value (flag or `pyproject.toml`)     |
-| `chains`   | No chains                                                                | Deprecated-to-deprecated chains found                                 | —                                                   |
-| `all`      | All checks clean, or only policy violations (table always appended)      | Any hard error above (`packaging` missing → skips expiry, no failure) | Malformed `--version` when `packaging` is available |
-| `status`   | Always — status table is not a pass/fail gate                            | —                                                                     | —                                                   |
+| Subcommand | Exit `0`                                                                 | Exit `1`                                                              | Exit `2`                                                                      |
+| ---------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `check`    | Clean or advisory warnings only (chains / identity / no-effect)          | Invalid argument mappings found                                       | Malformed `--exclude`                                                         |
+| `expiry`   | No expired wrappers; or `packaging` not installed (skipped with warning) | Expired wrappers found (and `--exit-zero` not set)                    | Malformed `--version` when `packaging` is available, or malformed `--exclude` |
+| `policy`   | No violations; or only a skipped `min-grace` rule                        | Policy violations found (and `--exit-zero` not set)                   | Malformed rule value or `--exclude` (flag or `pyproject.toml`)                |
+| `chains`   | No chains                                                                | Deprecated-to-deprecated chains found                                 | Malformed `--exclude`                                                         |
+| `all`      | All checks clean, or only policy violations (table always appended)      | Any hard error above (`packaging` missing → skips expiry, no failure) | Malformed `--version` when `packaging` is available, or malformed `--exclude` |
+| `status`   | Always — status table is not a pass/fail gate                            | —                                                                     | Malformed `--exclude`                                                         |
 
 Policy violations are the one finding `all` reports without acting on: they never move `all` from `0` to `1`. Give `policy` its own CI step when you want the build to fail on them.
 

@@ -197,7 +197,7 @@ pydeprecate all src/      # check + expiry + policy + chains; policy is ADVISORY
 pydeprecate policy src/   # the gate that actually fails on a policy violation
 ```
 
-The CLI resolves each policy rule as flag → `[tool.pydeprecate.policy]` in the nearest `pyproject.toml` (scanned path's directory + 2 parents; never for a bare module name) → built-in default. Keys are the rule slugs: `min-grace = "0.3"` (quote it — a TOML float drops trailing zeros; `false` disables), `message-required = true`. A malformed value exits `2` naming the file; unknown keys warn on stderr. `validate_deprecation_policy()` never reads `pyproject.toml`.
+The CLI resolves each setting as flag → `[tool.pydeprecate]` in the nearest `pyproject.toml` (scanned path's directory + 2 parents; never for a bare module name) → built-in default. `exclude = ["my_package.tests"]` (all subcommands, also `--exclude`) lists `fnmatch` globs over full dotted module names the scan itself never imports nor descends into (its wrappers are filtered even if the package imports them elsewhere); `[tool.pydeprecate.policy]` keys are the rule slugs: `min-grace = "0.3"` (quote it — a TOML float drops trailing zeros; `false` disables), `message-required = true`. A malformed value exits `2` naming the file; unknown keys warn on stderr. The Python scanning functions take the same `exclude` keyword but never read `pyproject.toml`.
 
 ## Anti-Patterns
 

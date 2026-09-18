@@ -24,7 +24,7 @@ def old_fn(old: int) -> int:
     pass
 """
 
-# Package with an invalid args_mapping (target param does not exist in new_fn).
+# Package with an invalid args_mapping (the mapped key is not a parameter of old_fn).
 # cmd_check exits 1 for this package without --exit-zero.
 _MYPKG_INIT_INVALID = """\
 from deprecate import deprecated
@@ -34,7 +34,7 @@ def new_fn(x: int) -> int:
     return x
 
 
-@deprecated(target=new_fn, deprecated_in="1.0", remove_in="9.0", args_mapping={"old": "nonexistent"})
+@deprecated(target=new_fn, deprecated_in="1.0", remove_in="9.0", args_mapping={"nonexistent": "x"})
 def old_fn(old: int) -> int:
     pass
 """
@@ -360,6 +360,34 @@ class TestCliSubcommands:
         result = _run_cli("policy", str(pkg), cwd=tmp_path)
         assert result.returncode == 2, result
         assert "pyproject.toml" in result.stderr
+
+    def test_exclude_from_pyproject_skips_package(self, tmp_path: Path) -> None:
+        """'pydeprecate check <path>' leaves out the packages listed under ``exclude`` in ``pyproject.toml``.
+
+        The fixture package carries an invalid mapping inside ``mypkg.tests``; with the project excluding that
+        subtree the same scan is clean and exits 0, and the header shows the exclusion came from the file.
+        """
+        pkg = _make_pkg(tmp_path, content="")
+        (pkg / "tests").mkdir()
+        (pkg / "tests" / "__init__.py").write_text(_MYPKG_INIT_INVALID)
+        (tmp_path / "pyproject.toml").write_text('[tool.pydeprecate]\nexclude = ["mypkg.tests"]\n')
+        result = _run_cli("check", str(pkg), cwd=tmp_path)
+        assert result.returncode == 0, result
+        assert "Exclude: mypkg.tests (pyproject.toml)" in result.stdout
+        assert "No deprecated callables found" in result.stdout
+
+    def test_exclude_flag_overrides_pyproject(self, tmp_path: Path) -> None:
+        """A typed '--exclude' replaces the file's list, so the invalid mapping is found again.
+
+        Overriding with a pattern that matches nothing brings the excluded subtree back into the scan.
+        """
+        pkg = _make_pkg(tmp_path, content="")
+        (pkg / "tests").mkdir()
+        (pkg / "tests" / "__init__.py").write_text(_MYPKG_INIT_INVALID)
+        (tmp_path / "pyproject.toml").write_text('[tool.pydeprecate]\nexclude = ["mypkg.tests"]\n')
+        result = _run_cli("check", str(pkg), "--exclude=mypkg.nothing", cwd=tmp_path)
+        assert result.returncode == 1, result
+        assert "Exclude: mypkg.nothing (flag)" in result.stdout
 
     def test_all_subcommand_reads_pyproject_table(self, tmp_path: Path) -> None:
         """'pydeprecate all <path>' runs its advisory policy pass with the ``pyproject.toml`` settings.

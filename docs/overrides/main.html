@@ -431,6 +431,14 @@
         },
         {
           "@type": "Question",
+          "name": "How do I keep test fixtures or a legacy tree out of the pyDeprecate audit?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Every scanning function and every CLI subcommand takes an exclude list of glob patterns over the full dotted module name: exclude = [\"my_package.tests\", \"*._legacy*\"] under [tool.pydeprecate] in pyproject.toml, --exclude='my_package.tests,*._legacy*' on the command line (quoted), or find_deprecation_wrappers(my_package, exclude=[...]) in Python. A matching package excludes its whole subtree and the scan itself never imports it (if another module in the package imports it, only its wrappers are filtered). The Exclude: header line names what was left out and where the list came from. Write the full dotted name, not a bare tests; a value that is not a string or a list of strings exits 2."
+          }
+        },
+        {
+          "@type": "Question",
           "name": "What does the UserWarning 'audit: skipped <module>' mean during a recursive scan?",
           "acceptedAnswer": {
             "@type": "Answer",

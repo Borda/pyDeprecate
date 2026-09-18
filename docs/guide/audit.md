@@ -124,6 +124,8 @@ Warning: This wrapper configuration has zero impact!
 
 `find_deprecation_wrappers()` walks an entire package or module and returns a list of `DeprecationWrapperInfo` entries, one per deprecated callable discovered. Pass either a module object or a dotted module path string. This is the foundation for all package-wide CI checks.
 
+Every scanning function — `find_deprecation_wrappers()`, `validate_deprecation_expiry()`, `validate_deprecation_policy()`, `validate_deprecation_chains()`, `validate_mapping_compatibility()`, `generate_deprecation_table()` — accepts a keyword-only `exclude` list of glob patterns over full dotted module names (`exclude=["my_package.tests", "*._legacy*"]`). The scan itself never imports a matching package nor descends into it (another module in the package may still import it — its wrappers are filtered either way), and no wrapper reported under a matching module is returned — the way to keep test fixtures or a frozen legacy tree out of every audit. The CLI takes the same list from `--exclude` or from `exclude` under `[tool.pydeprecate]` in `pyproject.toml` ([details](cli.md#project-configuration-in-pyprojecttoml)).
+
 Recursive scans import every submodule, so module-level side effects run. A submodule that fails to import — for any exception, not just `ImportError` — is skipped with a `UserWarning` of the form `audit: skipped <module>: <exception>` and the scan continues, so one broken submodule cannot abort the whole CI gate.
 
 ```python
@@ -443,8 +445,8 @@ Good to know:
 
 - Wrappers missing `deprecated_in` or `remove_in` are **not** violations — the grace-window rule simply skips them, because a deprecation without a scheduled removal is a valid and common choice.
 - An unparsable version string emits a `UserWarning` naming the wrapper and the offending field, then the scan continues for the rest — one typo never aborts the gate.
-- `recursive` and `include_members` behave exactly as in `find_deprecation_wrappers()`; both default to `True`.
-- The CLI exposes the same gate as `pydeprecate policy` — see the [CLI Reference](cli.md) for flags, exit codes, and the CI recipe. The CLI can also read the rules from a `[tool.pydeprecate.policy]` table in `pyproject.toml` ([details](cli.md#policy-in-pyprojecttoml)); this function takes a module (object or importable name), never a filesystem path, and does not read that file — pass `min_grace` and `message_required` explicitly.
+- `recursive`, `include_members` and `exclude` behave exactly as in `find_deprecation_wrappers()`.
+- The CLI exposes the same gate as `pydeprecate policy` — see the [CLI Reference](cli.md) for flags, exit codes, and the CI recipe. The CLI can also read the rules from a `[tool.pydeprecate.policy]` table in `pyproject.toml` ([details](cli.md#project-configuration-in-pyprojecttoml)); this function takes a module (object or importable name), never a filesystem path, and does not read that file — pass `min_grace` and `message_required` explicitly.
 
 ### pytest integration for policy enforcement
 
@@ -680,11 +682,11 @@ pydeprecate check src/your_package --exit-zero
 
 **Exit codes** (see [CLI Reference — Exit codes](cli.md#exit-codes) for per-subcommand details):
 
-| Exit code | Meaning                                                                                               |
-| --------- | ----------------------------------------------------------------------------------------------------- |
-| `0`       | No hard errors (or `--exit-zero` was set)                                                             |
-| `1`       | Hard error found: invalid arg mappings, chains, expired wrappers, or policy violations under `policy` |
-| `2`       | `policy` only — a malformed rule value, from `--min-grace` or from `[tool.pydeprecate.policy]`        |
+| Exit code | Meaning                                                                                                  |
+| --------- | -------------------------------------------------------------------------------------------------------- |
+| `0`       | No hard errors (or `--exit-zero` was set)                                                                |
+| `1`       | Hard error found: invalid arg mappings, chains, expired wrappers, or policy violations under `policy`    |
+| `2`       | A malformed setting: `--exclude`, or for `policy` a rule value, from a flag or from `[tool.pydeprecate]` |
 
 ## Testing Deprecated Code
 
