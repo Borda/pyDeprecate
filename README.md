@@ -1896,48 +1896,50 @@ Two rules exist and each can be switched off independently:
 
 Every violation message is prefixed with its rule slug in square brackets, so a CI log can be grouped or filtered per rule. Like the expiry gate this one compares PEP 440 versions, so it needs `pip install 'pyDeprecate[audit]'`.
 
-<details>
-<summary>Example: linting a package against a deprecation policy</summary>
+Declare the rules once in `pyproject.toml` and run the gate as its own CI step — no test code needed:
 
-```python
-from deprecate import validate_deprecation_policy
+```toml
+[tool.pydeprecate.policy]
+min-grace = "1.0"          # removals only at the next major; "0.3" (three minors) is the built-in default
+message-required = true    # every warning must name a replacement
+```
 
-# For testing purposes, we use the test module; normally you would import your own package
-from tests import collection_policy as my_package
-
-# Default policy: three-minor grace window on a clean release boundary, every warning names a replacement
-violations = validate_deprecation_policy(my_package, recursive=False)
-print(f"Found {len(violations)} violations")
-
-# Each message starts with the slug of the rule it broke
-for msg in sorted(violations):
-    print(msg.split("]")[0] + "]")
-
-# Rules are opt-out — drop the grace-window rule, keep the guidance rule
-violations = validate_deprecation_policy(my_package, recursive=False, min_grace=None)
-print(f"Found {len(violations)} violations")
-
-# Or tighten it: demand two major releases between announcement and removal
-violations = validate_deprecation_policy(my_package, recursive=False, min_grace="2.0")
-print(f"Found {len(violations)} violations")
+```bash
+pydeprecate policy src/mypackage    # exit 1 on a violation, 2 on a malformed rule or unreadable pyproject.toml
 ```
 
 <details>
-  <summary>Output: <code>f"Found {len(violations)} violations"</code></summary>
+<summary>Example: what a policy run reports</summary>
 
-```
-Found 6 violations
-[message-required]
-[message-required]
-[message-required]
-[min-grace]
-[min-grace]
-[min-grace]
-Found 3 violations
-Found 12 violations
+Run against pyDeprecate's own fixtures (`tests/collection_policy.py`, one broken rule per wrapper) with the built-in defaults spelled out as flags:
+
+```bash
+pydeprecate policy tests.collection_policy --norecursive --min-grace=0.3 --message-required=True
 ```
 
-</details>
+```text
+Scanning: tests.collection_policy
+Package: tests.collection_policy
+Policy: min-grace=0.3 (flag)  message-required=True (flag)
+                         Deprecation Policy Violations
+╭──────────────────────────────────────────────────────────────────────────────╮
+│ Message                                                                      │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ [min-grace] Callable `tests.collection_policy.no_grace_window` is deprecated │
+│ in `2.0` and scheduled for removal in `2.0`; the policy requires a grace     │
+│ window of at least 3 minor releases, landing on a clean major or minor       │
+│ boundary.                                                                    │
+│ [message-required] Callable                                                  │
+│ `tests.collection_policy.warns_without_replacement` warns without naming a   │
+│ replacement; configure a `target`, an `args_mapping`/`attrs_mapping`, or a   │
+│ custom `message_template` so callers learn what to migrate to.               │
+│ …                                                                            │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+6 policy violation(s) found.
+```
+
+The same check is available in Python as `validate_deprecation_policy(my_package, min_grace="1.0", message_required=True)` — it returns the violation strings and never reads `pyproject.toml`; see the [audit guide](https://borda.github.io/pyDeprecate/stable/guide/audit#enforcing-a-deprecation-policy).
 
 </details>
 
@@ -1948,7 +1950,7 @@ Found 12 violations
 > - `min_grace` is a version-shaped delta with two or three components and one non-zero — `"1.0"` one major, `"0.3"` three minors, `"0.0.2"` two patches; a bare `"1"` is rejected as ambiguous and so is a mixed spelling such as `"1.2"` (`ValueError`). The removal must be one clean bump of a single component (`1.2` → `1.5` or `2.0`, never `2.3`); a coarser bump always clears a finer window, so `1.2` → `2.0` satisfies `"0.3"`
 > - A `0.x` project needs no special setting — a bump to `1.0` is a major step and clears any window, and removals inside the `0.x` line are counted in minors as usual
 > - `pydeprecate all` prints policy violations but never fails on them — run `pydeprecate policy` as its own CI step to gate on them
-> - The CLI can read the rules from a `[tool.pydeprecate.policy]` table in `pyproject.toml`; `validate_deprecation_policy()` never does — pass its keyword arguments explicitly
+> - A typed `--min-grace` / `--message-required` flag beats the `pyproject.toml` table for that run; the `Policy:` header names where each value came from
 > - Every scanning function takes a keyword-only `exclude` list of module-name globs (`exclude=["my_package.tests"]`); the scan never imports a matching package itself, and its wrappers are never reported
 
 ### 🔗 Detecting Deprecation Chains
