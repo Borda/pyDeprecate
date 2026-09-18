@@ -459,10 +459,18 @@ class TestFindDeprecatedWrappers:
             results = find_deprecation_wrappers(proxy_module, recursive=False)
         assert results == []
 
-    def test_recursive_scan_handles_iter_modules_error(self) -> None:
-        """Recursive scan continues gracefully when pkgutil.iter_modules raises."""
+    def test_recursive_scan_warns_when_iter_modules_errors(self) -> None:
+        """Recursive scan keeps the top-level results and warns when ``pkgutil.iter_modules`` raises.
+
+        A package directory that cannot be listed (permissions, a vanished mount) stops the submodule walk
+        before any submodule is imported. The gate must still return what the top module yielded and say why
+        the walk ended, instead of silently reporting a partial tree as if it were complete.
+        """
         # `tests` has __path__ so the recursive branch is entered.
-        with patch.object(pkgutil, "iter_modules", side_effect=OSError("no walk")):
+        with (
+            patch.object(pkgutil, "iter_modules", side_effect=OSError("no walk")),
+            pytest.warns(UserWarning, match=r"audit: submodule walk of tests stopped early: OSError\('no walk'\)"),
+        ):
             results = find_deprecation_wrappers(tests, recursive=True)
         assert isinstance(results, list)
 

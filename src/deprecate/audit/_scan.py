@@ -408,8 +408,10 @@ def find_deprecation_wrappers(
         try:
             for submod in _walk_submodules(module, patterns):
                 results.extend(_scan_module(submod, include_members=include_members, seen=seen))
-        except (OSError, ImportError):
-            pass
+        except (OSError, ImportError) as exc:
+            # ``_walk_submodules`` already warns per broken submodule import; this catches the walk itself failing
+            # (unreadable package dir, a member scan triggering an import) — keep what was found, say why it stopped.
+            warnings.warn(f"audit: submodule walk of {module.__name__} stopped early: {exc!r}", stacklevel=2)
 
     # Belt for the paths the walk does not cover — a ``deprecated_module`` entry, a per-file directory scan,
     # or the top module itself — judged by the module each wrapper is reported under.
