@@ -246,7 +246,7 @@ Self-references: 0
 
 ### CLI usage
 
-All audit functions are also available from the command line via six subcommands (`check`, `expiry`, `policy`, `chains`, `all`, `status`). See the [CLI Reference](cli.md) for the full guide including flags, exit codes, and CI recipes.
+All audit functions are also available from the command line via six subcommands (`check`, `expiry`, `policy`, `chains`, `all`, `status`). See the [CLI Reference](cli.md) for the full guide including flags and exit codes; the CI workflow is in [Enforcing the policy in CI](#enforcing-the-policy-in-ci).
 
 ### pytest integration
 
@@ -464,7 +464,7 @@ Good to know:
 - Wrappers missing `deprecated_in` or `remove_in` are **not** violations — the grace-window rule simply skips them, because a deprecation without a scheduled removal is a valid and common choice.
 - An unparsable version string emits a `UserWarning` naming the wrapper and the offending field, then the scan continues for the rest — one typo never aborts the gate.
 - `recursive`, `include_members` and `exclude` behave exactly as in `find_deprecation_wrappers()`.
-- The CLI exposes the same gate as `pydeprecate policy` — see the [CLI Reference](cli.md) for flags, exit codes, and the CI recipe. The CLI can also read the rules from a `[tool.pydeprecate.policy]` table in `pyproject.toml` ([details](cli.md#project-configuration-in-pyprojecttoml)); this function takes a module (object or importable name), never a filesystem path, and does not read that file — pass `min_grace` and `message_required` explicitly.
+- The CLI exposes the same gate as `pydeprecate policy` — see the [CLI Reference](cli.md) for flags and exit codes, and [Enforcing the policy in CI](#enforcing-the-policy-in-ci) below for the workflow. The CLI can also read the rules from a `[tool.pydeprecate.policy]` table in `pyproject.toml` ([details](cli.md#project-configuration-in-pyprojecttoml)); this function takes a module (object or importable name), never a filesystem path, and does not read that file — pass `min_grace` and `message_required` explicitly.
 
 ### Enforcing the policy in CI
 

@@ -195,33 +195,7 @@ Unknown or misspelled flags are never silently ignored: any unconsumed argument 
 
 ## CI recipes
 
-Two gates, two steps. The expiry gate fails the build when deprecated code outlives its deadline; the policy gate fails it when a *new* deprecation is scheduled in a way the project does not allow. Keeping them separate means a failure tells you which of the two problems you have.
-
-```yaml
-# .github/workflows/deprecations.yml
-name: Deprecations
-on: [push, pull_request]
-
-jobs:
-  audit:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - run: pip install -e . "pyDeprecate[audit,cli]"
-
-      # 1. wrapper config + chains + expiry (policy runs here too, advisory only)
-      - name: Audit deprecations
-        run: pydeprecate all src/mypackage
-
-      # 2. governance gate — this is the step that fails on a policy violation
-      - name: Enforce the deprecation policy
-        run: pydeprecate policy src/mypackage --min-grace=0.3 --message-required=True
-```
-
-Spell the rule flags out even where they match the defaults, as above, or declare them once in `[tool.pydeprecate.policy]` and run a bare `pydeprecate policy src/mypackage`: either way the project carries a written record of what it promises, and a later change to pyDeprecate's built-in defaults cannot quietly change what your CI enforces.
+Two gates, two steps: `pydeprecate all` fails the build on misconfigured wrappers, chains and expired deprecations, and a separate `pydeprecate policy` step fails it when a *new* deprecation is scheduled in a way the project does not allow — keeping them separate means a failure tells you which problem you have. The full workflow, with the rules declared once in `[tool.pydeprecate.policy]`, is in the [audit guide](audit.md#enforcing-the-policy-in-ci).
 
 While you are bringing an existing codebase into line, run the gate advisory-first so it reports without blocking, then drop the flag once the backlog is clear:
 
