@@ -6,10 +6,7 @@ import warnings
 
 import pytest
 
-from deprecate import (
-    TargetMode,
-    deprecated,
-)
+from deprecate import deprecated
 from deprecate._types import DeprecationConfig
 from deprecate.audit import (
     ChainType,
@@ -18,6 +15,7 @@ from deprecate.audit import (
 )
 from deprecate.audit._wrappers import _classify_member_api_type
 from deprecate.proxy import _DeprecatedProxy
+from tests.collection_chains import caller_via_notify_layer
 from tests.collection_targets import ColorEnum
 
 _PACKAGING_AVAILABLE = importlib.util.find_spec("packaging") is not None
@@ -135,17 +133,13 @@ class TestValidateDeprecationWrapperWithProxy:
         assert result.empty_args_mapping is True
 
     def test_callable_targeting_notify_wrapper_is_target_chain(self) -> None:
-        """A callable target pointing to a NOTIFY wrapper is a forwarding TARGET chain."""
+        """A callable target pointing to a NOTIFY wrapper is a forwarding TARGET chain.
 
-        @deprecated(TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
-        def notify_layer(value: int) -> int:
-            return value
-
-        @deprecated(target=notify_layer, deprecated_in="1.0", remove_in="2.0")
-        def caller(value: int) -> int:
-            return value
-
-        result = validate_deprecation_wrapper(caller)
+        A team first turns an old helper into a warning-only shim, then later redirects another wrapper at that
+        shim instead of at the surviving implementation. The audit must report the outer wrapper as a chain even
+        though the inner link forwards nowhere further.
+        """
+        result = validate_deprecation_wrapper(caller_via_notify_layer)
         assert result.chain_type is ChainType.TARGET
 
 

@@ -1,7 +1,8 @@
 """Unit tests for :mod:`deprecate._types` — :class:`DeprecationConfig` and the ``_has_deprecation_meta`` guard."""
 
 import dataclasses
-from typing import Union, cast
+from collections.abc import Callable
+from typing import cast
 
 import pytest
 
@@ -10,6 +11,7 @@ from deprecate import TargetMode, deprecated, get_deprecation_config
 from deprecate._types import DeprecationConfig, _DeprecatedCallable, _has_deprecation_meta
 from deprecate.audit import find_deprecation_wrappers, validate_deprecation_wrapper
 from deprecate.proxy import _DeprecatedProxy
+from tests.collection_chains import caller_stacked_args_enum_enum, caller_stacked_args_legacy_enum
 from tests.collection_targets import base_sum_kwargs
 
 
@@ -58,23 +60,19 @@ class TestHasDeprecationMeta:
         assert _has_deprecation_meta(proxy) is True
 
     @pytest.mark.parametrize(
-        "target_val",
+        "fn",
         [
-            pytest.param(TargetMode.ARGS_REMAP, id="TargetMode.ARGS_REMAP"),
-            pytest.param(True, marks=pytest.mark.filterwarnings("ignore::FutureWarning"), id="legacy-True"),
+            pytest.param(caller_stacked_args_enum_enum, id="TargetMode.ARGS_REMAP"),
+            pytest.param(caller_stacked_args_legacy_enum, id="legacy-True"),
         ],
     )
-    def test_returns_true_for_deprecated_decorated_callable(self, target_val: Union[TargetMode, bool]) -> None:
+    def test_returns_true_for_deprecated_decorated_callable(self, fn: Callable[..., int]) -> None:
         """Return true for both current target representations after the metadata split.
 
         Applications migrating from the legacy boolean target spelling must receive the same metadata-discovery
-        result as applications already using ``TargetMode``.
+        result as applications already using ``TargetMode``. The outermost decorator of each fixture spells the
+        target differently — ``TargetMode.ARGS_REMAP`` versus the legacy ``True``.
         """
-
-        @deprecated(deprecated_in="1.0", remove_in="2.0", target=target_val)
-        def fn() -> None:
-            pass
-
         assert _has_deprecation_meta(fn) is True
 
     def test_legacy_callable_is_validated_through_public_fallback(self) -> None:
