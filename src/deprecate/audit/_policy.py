@@ -71,6 +71,12 @@ class VersionBump(str, enum.Enum):
     PATCH = "patch"
 
 
+#: Built-in ``min_grace`` window (three minors) — the single source for the
+#: :func:`validate_deprecation_policy` signature default and the CLI's ``pydeprecate policy`` fallback.
+_DEFAULT_MIN_GRACE = "0.3"
+#: Built-in ``message_required`` setting — every wrapper must name a replacement; shared with the CLI the same way.
+_DEFAULT_MESSAGE_REQUIRED = True
+
 #: Version component addressed by each position of a ``min_grace`` delta — ``"1.0"`` is majors, ``"0.1"`` minors,
 #: ``"0.0.1"`` patches — in the same order :class:`~packaging.version.Version` exposes them.
 _GRACE_WINDOW_UNITS = (VersionBump.MAJOR, VersionBump.MINOR, VersionBump.PATCH)
@@ -553,8 +559,8 @@ def validate_deprecation_policy(
     recursive: bool = True,
     include_members: bool = True,
     *,
-    min_grace: Optional[GraceWindowSpec] = "0.3",
-    message_required: bool = True,
+    min_grace: Optional[GraceWindowSpec] = _DEFAULT_MIN_GRACE,
+    message_required: bool = _DEFAULT_MESSAGE_REQUIRED,
     exclude: Optional[Sequence[str]] = None,
 ) -> list[str]:
     """Check every deprecated wrapper in a module/package against deprecation-governance rules.

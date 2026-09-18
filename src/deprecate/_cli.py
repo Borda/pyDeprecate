@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING, Any, Optional, Union
 
 from deprecate._pkg import (
     _auto_detect_version,
+    _ConfigReadError,
     _find_child_packages,
     _is_package_dir,
     _iter_pyproject_paths,
@@ -43,7 +44,12 @@ from deprecate.audit import (
     validate_deprecation_expiry,
 )
 from deprecate.audit._lifecycle import _check_expiry_for_callables, _parse_version
-from deprecate.audit._policy import _build_policy_spec, _check_policy_for_callables
+from deprecate.audit._policy import (
+    _DEFAULT_MESSAGE_REQUIRED,
+    _DEFAULT_MIN_GRACE,
+    _build_policy_spec,
+    _check_policy_for_callables,
+)
 
 if TYPE_CHECKING:
     from deprecate.audit._policy import _PolicySpec
@@ -279,7 +285,7 @@ class _Reporter:
         )
 
     @staticmethod
-    def _render_message_table(title: str, plain_prefix: str, messages: list[str]) -> None:
+    def _render_message_table(title: str, plain_prefix: str, messages: list[str], *, error: bool = True) -> None:
         """Render a single-column Message table shared by the expiry and policy reports.
 
         Every message is wrapped in :class:`rich.text.Text` so a ``[rule-slug]``-style prefix (used by
@@ -290,11 +296,14 @@ class _Reporter:
             title: Rich table title.
             plain_prefix: Header line printed above the list in the no-Rich fallback.
             messages: Message strings to render, one per row/line.
+            error: Render in red (a finding that fails the run); ``False`` renders in yellow, the colour the
+                other reporters use for advisory findings.
 
         """
         if _Reporter._HAS_RICH:
-            table = _Reporter._RichTable(title=title, box=_Reporter._rich_box.ROUNDED, title_style="bold red")
-            table.add_column("Message", style="red")
+            title_style, col_style = ("bold red", "red") if error else ("bold yellow", "yellow")
+            table = _Reporter._RichTable(title=title, box=_Reporter._rich_box.ROUNDED, title_style=title_style)
+            table.add_column("Message", style=col_style)
             for msg in messages:
                 table.add_row(_Reporter._RichText(msg))
             _Reporter._console().print(table)
@@ -311,10 +320,19 @@ class _Reporter:
         )
 
     @staticmethod
-    def policy(violations: list[str]) -> None:
-        """Report wrappers that break one of the deprecation-governance policy rules."""
+    def policy(violations: list[str], *, advisory: bool = False) -> None:
+        """Report wrappers that break one of the deprecation-governance policy rules.
+
+        ``advisory=True`` renders the same table as a ``[WARNING]`` in yellow — how ``all`` reports violations it does
+        not fail on — so a reader can tell it from the red ``[ERROR]`` of the gating ``policy`` subcommand.
+
+        """
+        prefix = "[WARNING]" if advisory else "[ERROR]"
         _Reporter._render_message_table(
-            "Deprecation Policy Violations", "[ERROR] Found deprecation policy violations:", violations
+            "Deprecation Policy Violations",
+            f"{prefix} Found deprecation policy violations:",
+            violations,
+            error=not advisory,
         )
 
     @staticmethod
@@ -513,8 +531,12 @@ _FROM_PYPROJECT = _FromPyproject()
 _ConfigFlag = Union[str, int, float, bool, None, Sequence[str], _FromPyproject]
 #: A loaded ``[tool.pydeprecate]`` table (known keys only) and the ``pyproject.toml`` it came from.
 _Config = tuple[dict[str, Any], Optional[str]]
-#: Built-in value per policy rule, used when neither a flag nor ``[tool.pydeprecate.policy]`` sets it.
-_POLICY_DEFAULTS: dict[str, Any] = {PolicyRule.MIN_GRACE.value: "0.3", PolicyRule.MESSAGE_REQUIRED.value: True}
+#: Built-in value per policy rule, used when neither a flag nor ``[tool.pydeprecate.policy]`` sets it — the same
+#: objects :func:`~deprecate.audit.validate_deprecation_policy` declares as its signature defaults.
+_POLICY_DEFAULTS: dict[str, Any] = {
+    PolicyRule.MIN_GRACE.value: _DEFAULT_MIN_GRACE,
+    PolicyRule.MESSAGE_REQUIRED.value: _DEFAULT_MESSAGE_REQUIRED,
+}
 _CONFIG_TABLE_NAME = "[tool.pydeprecate]"
 _POLICY_TABLE_NAME = "[tool.pydeprecate.policy]"
 _EXCLUDE_KEY = "exclude"
@@ -532,20 +554,23 @@ def _warn_unknown_keys(table: dict[str, Any], known: Sequence[str], table_name: 
         )
 
 
-def _load_pydeprecate_config(path: str) -> _Config:
+def _load_pydeprecate_config(path: str) -> Optional[_Config]:
     """Read ``[tool.pydeprecate]`` for the scanned *path*, warning about anything silently ignorable.
 
     Only an existing file-system path is searched — a bare module name would otherwise walk up from the
     current directory and adopt whatever unrelated project the caller is standing in. Two silent no-ops are
     turned into stderr advisories: a ``pyproject.toml`` within reach when no TOML parser is installed (Python
-    3.9-3.10 without the ``audit`` extra), and unknown keys in the table or its ``policy`` sub-table.
+    3.9-3.10 without the ``audit`` extra), and unknown keys in the table or its ``policy`` sub-table. Two more
+    are usage errors, because either would leave the author believing a configuration is in force that the run
+    never applied: a ``pyproject.toml`` within reach that cannot be read or parsed, and a ``policy`` key that is
+    not a table.
 
     Args:
         path: The ``path`` argument of the subcommand.
 
     Returns:
         The known keys of the table (``exclude`` and the known keys of ``policy``) and the ``pyproject.toml``
-        they came from, or ``({}, None)``.
+        they came from, or ``({}, None)``; ``None`` after printing a usage error (the caller exits 2).
 
     """
     if not Path(path).exists():
@@ -558,7 +583,11 @@ def _load_pydeprecate_config(path: str) -> _Config:
                 stderr=True,
             )
         return {}, None
-    table, toml_path = _read_pydeprecate_config(path)
+    try:
+        table, toml_path = _read_pydeprecate_config(path)
+    except _ConfigReadError as err:
+        _print(str(err), stderr=True)
+        return None
     _warn_unknown_keys(table, (_EXCLUDE_KEY, _POLICY_KEY), _CONFIG_TABLE_NAME, toml_path)
     config: dict[str, Any] = {}
     if _EXCLUDE_KEY in table:
@@ -568,7 +597,12 @@ def _load_pydeprecate_config(path: str) -> _Config:
         _warn_unknown_keys(policy, list(_POLICY_DEFAULTS), _POLICY_TABLE_NAME, toml_path)
         config[_POLICY_KEY] = {slug: policy[slug] for slug in _POLICY_DEFAULTS if slug in policy}
     elif policy is not None:
-        _print(f"Ignoring `{_POLICY_KEY}` in `{_CONFIG_TABLE_NAME}` of {toml_path}; expected a table.", stderr=True)
+        _print(
+            f"Invalid `{_POLICY_KEY}` value `{policy}` in `{_CONFIG_TABLE_NAME}` of {toml_path}; expected a table "
+            f"such as `{_POLICY_TABLE_NAME}` holding the rule keys.",
+            stderr=True,
+        )
+        return None
     return config, toml_path
 
 
@@ -624,6 +658,8 @@ def _resolve_exclude(
     """
     if config is None:
         config = _load_pydeprecate_config(path) if exclude is _FROM_PYPROJECT else ({}, None)
+        if config is None:
+            return None
     raw, source = _resolve_setting(exclude, config[0], _EXCLUDE_KEY, [], config)
     if isinstance(raw, str):
         patterns: Any = [item.strip() for item in raw.split(",") if item.strip()]
@@ -906,6 +942,7 @@ def cmd_policy(
     *,
     _wrappers: Optional[list[DeprecationWrapperInfo]] = None,
     _config: Optional[_Config] = None,
+    _advisory: bool = False,
 ) -> int:
     """Check deprecated wrappers against deprecation-governance policy rules.
 
@@ -945,15 +982,23 @@ def cmd_policy(
             parameter from the Fire CLI (internal use by ``cmd_all`` only).
         _config: Already-loaded ``[tool.pydeprecate]`` configuration, so ``cmd_all`` does not re-read (and
             re-warn about) the file. Underscore prefix hides this parameter from the Fire CLI.
+        _advisory: Render violations as a yellow ``[WARNING]`` with a trailer pointing at this subcommand, instead
+            of the red ``[ERROR]`` of a gating run. Only ``cmd_all`` passes ``True`` — it reports policy
+            violations without failing on them, and the output has to say so. Never inferred from ``exit_zero``,
+            which downgrades the exit code without changing what the violations mean. Underscore prefix hides
+            this parameter from the Fire CLI.
 
     Returns:
         0 on success, or when ``min-grace`` is skipped because ``packaging`` is unavailable and
         ``message_required`` finds no violation; 1 when violations are found (including from a still-running
         ``message_required`` check) and ``exit_zero`` is False; 2 when a rule's value or ``exclude`` — from a
-        flag or from ``pyproject.toml`` — is malformed.
+        flag or from ``pyproject.toml`` — is malformed, when ``policy`` in ``[tool.pydeprecate]`` is not a table,
+        or when a ``pyproject.toml`` within reach cannot be read or parsed.
 
     """
     config = _config if _config is not None else _load_pydeprecate_config(path)
+    if config is None:
+        return 2
     resolved = _resolve_policy_spec(
         path, {PolicyRule.MIN_GRACE.value: min_grace, PolicyRule.MESSAGE_REQUIRED.value: message_required}, config
     )
@@ -981,8 +1026,10 @@ def cmd_policy(
     if not violations:
         _print("No deprecation policy violations found.")
         return 0
-    _Reporter.policy(violations)
+    _Reporter.policy(violations, advisory=_advisory)
     _print(f"\n{len(violations)} policy violation(s) found.")
+    if _advisory:
+        _print("(advisory here — run `pydeprecate policy` to gate on it)")
     return 0 if exit_zero else 1
 
 
@@ -1068,10 +1115,12 @@ def cmd_all(
 
     Returns:
         0 when the check, expiry, and chain gates pass or ``exit_zero`` is True; 1 when any of them finds a hard
-        error; 2 when a user-supplied ``--version`` is not a valid PEP 440 version string or ``--exclude`` is
-        malformed.
+        error; 2 for a usage error, which ``exit_zero`` never downgrades: a user-supplied ``--version`` that is
+        not a valid PEP 440 version string, a malformed ``exclude`` (flag or file), a ``pyproject.toml`` within
+        reach that cannot be read or parsed, a ``policy`` key in ``[tool.pydeprecate]`` that is not a table, or a
+        malformed rule value in ``[tool.pydeprecate.policy]``.
         Policy violations are advisory here and never contribute to this code.
-        The deprecation table is always appended regardless of pass/fail outcome.
+        The deprecation table is appended after the gates, so a usage error raised by the policy pass skips it.
 
     """
     if version is not None:
@@ -1080,6 +1129,8 @@ def cmd_all(
         if err_code is not None:
             return err_code
     config = _load_pydeprecate_config(path)
+    if config is None:
+        return 2
     resolved_exclude = _resolve_exclude(path, exclude, config)
     if resolved_exclude is None:
         return 2
@@ -1105,9 +1156,15 @@ def cmd_all(
         _version_explicit=version_explicit,
     )
     # Advisory inside ``all``: the policy defaults encode a project convention (a three-minor grace window on a
-    # clean release boundary) that not every repo shares, so ``all`` reports violations but never fails on them
-    # — gate on them with the dedicated ``policy`` subcommand, whose exit code is truthful.
-    cmd_policy(path, recursive=recursive, exit_zero=True, _wrappers=wrappers, _config=config)
+    # clean release boundary) that not every repo shares, so ``all`` reports violations (exit 1 below) but never
+    # fails on them — gate on them with the dedicated ``policy`` subcommand, whose exit code is truthful. A usage
+    # error (exit 2: a malformed rule value in ``pyproject.toml``) is not a violation and stops the run, exactly
+    # as a malformed ``exclude`` does above.
+    policy_code = cmd_policy(
+        path, recursive=recursive, exit_zero=False, _wrappers=wrappers, _config=config, _advisory=True
+    )
+    if policy_code == 2:
+        return 2
     chains_code = cmd_chains(path, recursive=recursive, exit_zero=False, _wrappers=wrappers)
 
     # The status table is a display artifact appended after the three gates. Render it defensively:
