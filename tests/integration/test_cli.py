@@ -429,8 +429,7 @@ class TestCliSubcommands:
     def test_policy_subcommand_invalid_min_grace_exits_two(self, tmp_path: Path) -> None:
         """'--min-grace=bogus' exits 2 and names the accepted spellings instead of scanning anything.
 
-        A typo'd grace-window delta must be caught by `_build_policy_spec()`'s upfront validation before any
-        package scanning starts, so the user gets a usage error (exit 2) naming the `1` / `0.1` / `0.0.1`
+        package scanning starts, so the user gets a usage error (exit 2) naming the `1.0` / `0.1` / `0.0.1`
         spellings rather than a scan failure, a stack trace, or a silently-ignored flag.
         """
         pkg = _make_pkg(tmp_path)

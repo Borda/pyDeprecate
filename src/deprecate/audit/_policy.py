@@ -33,7 +33,7 @@ class PolicyRule(str, enum.Enum):
 
     Attributes:
         MIN_GRACE: ``remove_in`` must be one clean bump of a single version component beyond ``deprecated_in``,
-            at least ``min_grace`` steps of it -- a version-shaped delta: ``"0.3"`` three minors (default), ``"1"``
+            at least ``min_grace`` steps of it -- a version-shaped delta: ``"0.3"`` three minors (default), ``"1.0"``
             one major, ``"0.0.2"`` two patches; ``None`` disables. A coarser bump clears a finer window (``1.2``
             -> ``2.0`` satisfies ``"0.3"``), a mixed bump never passes (``1.2`` -> ``2.3`` is neither a major nor
             a minor step), and a ``remove_in`` at or before ``deprecated_in`` always fails. Versions spanning a
@@ -67,7 +67,7 @@ class VersionBump(str, enum.Enum):
     PATCH = "patch"
 
 
-#: Version component addressed by each position of a ``min_grace`` delta — ``"1"`` is majors, ``"0.1"`` minors,
+#: Version component addressed by each position of a ``min_grace`` delta — ``"1.0"`` is majors, ``"0.1"`` minors,
 #: ``"0.0.1"`` patches — in the same order :class:`~packaging.version.Version` exposes them.
 _GRACE_WINDOW_UNITS = (VersionBump.MAJOR, VersionBump.MINOR, VersionBump.PATCH)
 
