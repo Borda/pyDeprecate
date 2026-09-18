@@ -1112,11 +1112,11 @@ class TestReadPydeprecateConfig:
         The scanned path is usually the package directory, not the repo root where ``pyproject.toml`` lives;
         the walk-up mirrors the one version auto-detection already performs.
         """
-        (tmp_path / "pyproject.toml").write_text('[tool.pydeprecate.policy]\nmin-grace = "1"\n')
+        (tmp_path / "pyproject.toml").write_text('[tool.pydeprecate.policy]\nmin-grace = "1.0"\n')
         pkg = tmp_path / "src" / "pkg"
         pkg.mkdir(parents=True)
         table, _ = _read_pydeprecate_config(str(pkg))
-        assert table == {"policy": {"min-grace": "1"}}
+        assert table == {"policy": {"min-grace": "1.0"}}
 
     def test_skips_pyproject_without_table(self, tmp_path: Path) -> None:
         """A nearer ``pyproject.toml`` without the table is skipped in favour of a parent that declares it.

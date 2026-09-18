@@ -185,10 +185,10 @@ def _read_pydeprecate_config(path: str) -> tuple[dict[str, Any], Optional[str]]:
         >>> import os, tempfile
         >>> with tempfile.TemporaryDirectory() as root:
         ...     with open(os.path.join(root, "pyproject.toml"), "w") as fh:
-        ...         _ = fh.write('[tool.pydeprecate]\nexclude = ["pkg.tests"]\npolicy.min-grace = "1"\n')
+        ...         _ = fh.write('[tool.pydeprecate]\nexclude = ["pkg.tests"]\npolicy.min-grace = { major = 1 }\n')
         ...     table, found = _read_pydeprecate_config(root)
         >>> table
-        {'exclude': ['pkg.tests'], 'policy': {'min-grace': '1'}}
+        {'exclude': ['pkg.tests'], 'policy': {'min-grace': {'major': 1}}}
         >>> with tempfile.TemporaryDirectory() as empty:
         ...     _read_pydeprecate_config(empty)
         ({}, None)

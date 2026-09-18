@@ -402,7 +402,7 @@ Every violation message is prefixed with its rule slug in square brackets — `[
 
 Rule details worth knowing before you tune the defaults:
 
-- **`min_grace`** is a version-shaped delta with one non-zero component — `"1"` one major, `"0.3"` three minors, `"0.0.2"` two patches; a plain `1` or `0.3` works too (a `float` drops a trailing zero, so write ten or more steps as a string). `"1.2"` or any other spelling raises `ValueError`. The removal must be one **clean bump** of a single component with everything below it reset — `1.2` → `1.5` or `2.0`, never `2.3` or `1.3.1` — because a mixed bump lands on no release boundary a project promises removals on. A coarser bump always clears a finer window: deprecated in `1.2`, removed in `2.0` satisfies `"0.3"` even though the minor number went *down*; a finer bump (a patch against a minor-counted window) never does.
+- **`min_grace`** is either a version-shaped delta with two or three components and one non-zero — `"1.0"` one major, `"0.3"` three minors, `"0.0.2"` two patches; a float such as `0.3` works too (it drops a trailing zero, so write ten or more steps as a string) — or a one-key table naming the unit: `{"major": 1}`, `{"minor": 3}`, `{"patch": 2}`. A bare `"1"` is rejected as ambiguous (one *what*?), and so is `"1.2"`, a two-unit table, or any other spelling — `ValueError`. The removal must be one **clean bump** of a single component with everything below it reset — `1.2` → `1.5` or `2.0`, never `2.3` or `1.3.1` — because a mixed bump lands on no release boundary a project promises removals on. A coarser bump always clears a finer window: deprecated in `1.2`, removed in `2.0` satisfies `"0.3"` even though the minor number went *down*; a finer bump (a patch against a minor-counted window) never does.
 - **A `0.x` project** needs no special setting: a bump to `1.0` is a major step and clears any window, while removals inside the `0.x` line are counted in minors as usual. `min_grace="1"` is the strict "removals only at a major" policy.
 - **`message_required`** counts a forwarding `target`, an `args_mapping`, an `attrs_mapping`, or a custom `message_template` as guidance. An *empty* `args_mapping`/`attrs_mapping` (`{}`) does **not** count — it carries no actual rename, so the rule treats it the same as no mapping at all. A deprecated *module* is judged on its target and mappings alone, because `deprecated_module()` always stores rendered text in `message_template` and the rule would be inert there.
 
@@ -465,7 +465,7 @@ def test_deprecations_follow_project_policy():
     violations = validate_deprecation_policy(
         my_package,
         recursive=False,
-        min_grace="1",  # only ever remove at a major release, at least one major later
+        min_grace={"major": 1},  # only ever remove at a major release, at least one major later
         message_required=True,  # every warning must name a replacement
     )
     if violations:

@@ -308,15 +308,15 @@ class TestCliSubcommands:
         "flag",
         [
             pytest.param("--min-grace=0.2", id="float-minor-delta"),
-            pytest.param("--min-grace=1", id="int-major-delta"),
+            pytest.param("--min-grace=1.0", id="float-major-delta"),
         ],
     )
     def test_policy_subcommand_accepts_numeric_grace_delta(self, flag: str, tmp_path: Path) -> None:
-        """An unquoted numeric '--min-grace' reaches the rule as a number and still enforces the window.
+        """An unquoted numeric '--min-grace' reaches the rule as a float and still enforces the window.
 
-        Fire converts ``0.2`` and ``1`` on the command line into a ``float`` and an ``int`` before the
-        subcommand sees them; the grace rule must accept those as the delta they spell instead of rejecting
-        them as malformed (exit 2) or silently skipping the rule (exit 0).
+        Fire converts ``0.2`` and ``1.0`` on the command line into floats before the subcommand sees them; the
+        grace rule must accept those as the delta they spell instead of rejecting them as malformed (exit 2) or
+        silently skipping the rule (exit 0).
         """
         pkg = _make_pkg(tmp_path, name="aggressivepkg3", content=_MYPKG_INIT_AGGRESSIVE)
         result = _run_cli("policy", str(pkg), flag, cwd=tmp_path)
@@ -400,6 +400,31 @@ class TestCliSubcommands:
         result = _run_cli("all", str(pkg), cwd=tmp_path)
         assert result.returncode == 0, result
         assert "message-required=False (pyproject.toml)" in result.stdout
+
+    def test_policy_subcommand_bare_major_exits_two(self, tmp_path: Path) -> None:
+        """'--min-grace=1' is rejected as ambiguous with a hint to write '1.0'.
+
+        Fire hands ``1`` over as an ``int``; one *what*? The gate refuses to guess and names the accepted
+        spellings so the author writes ``1.0`` (or a unit table in ``pyproject.toml``) instead.
+        """
+        pkg = _make_pkg(tmp_path)
+        result = _run_cli("policy", str(pkg), "--min-grace=1", cwd=tmp_path)
+        assert result.returncode == 2, result
+        assert "1.0" in result.stderr
+
+    @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
+    def test_policy_pyproject_table_form_min_grace(self, tmp_path: Path) -> None:
+        """``min-grace = { major = 1 }`` in ``pyproject.toml`` is read as a one-major window.
+
+        The inline-table spelling names the unit outright, so a reader never has to decode ``"1.0"``; it arrives
+        from the TOML parser as a dict and must enforce the same window as the dotted form.
+        """
+        pkg = _make_pkg(tmp_path, name="aggressivepkg6", content=_MYPKG_INIT_AGGRESSIVE)
+        (tmp_path / "pyproject.toml").write_text("[tool.pydeprecate.policy]\nmin-grace = { major = 1 }\n")
+        result = _run_cli("policy", str(pkg), cwd=tmp_path)
+        assert result.returncode == 1, result
+        assert "min-grace={'major': 1} (pyproject.toml)" in result.stdout
+        assert "min-grace" in result.stdout
 
     def test_policy_subcommand_invalid_min_grace_exits_two(self, tmp_path: Path) -> None:
         """'--min-grace=bogus' exits 2 and names the accepted spellings instead of scanning anything.

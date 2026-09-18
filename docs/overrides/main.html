@@ -426,7 +426,7 @@
           "name": "Where does pydeprecate policy take its rules from when no flags are passed?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Each rule is resolved independently as flag, then the [tool.pydeprecate.policy] table in the nearest pyproject.toml (scanned path's directory up to two parents, never for a bare module name), then the built-in default (min-grace = \"0.3\", message-required = true). Keys are the rule slugs; quote min-grace as a string and use false to switch it off. Every run prints a Policy: header naming the source of each value. A malformed file value exits 2 naming the file, unknown keys are reported on stderr and ignored, and on Python 3.9-3.10 the TOML parser comes from the [audit] extra. validate_deprecation_policy() never reads pyproject.toml."
+            "text": "Each rule is resolved independently as flag, then the [tool.pydeprecate.policy] table in the nearest pyproject.toml (scanned path's directory up to two parents, never for a bare module name), then the built-in default (min-grace = \"0.3\", message-required = true). Keys are the rule slugs; min-grace takes a one-key unit table such as { minor = 3 } or the dotted delta as a quoted string, and false switches it off. Every run prints a Policy: header naming the source of each value. A malformed file value exits 2 naming the file, unknown keys are reported on stderr and ignored, and on Python 3.9-3.10 the TOML parser comes from the [audit] extra. validate_deprecation_policy() never reads pyproject.toml."
           }
         },
         {

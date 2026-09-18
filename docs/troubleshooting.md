@@ -2033,7 +2033,7 @@ ______________________________________________________________________
 
 **A:** Both rules are independently controlled — pass `None` for `min_grace` or `False` for `message_required`. Nothing is all-or-nothing.
 
-Before reaching for `None`, check whether **retargeting** the window is what you actually want. `min_grace` is a version-shaped delta: `"0.1"` asks for one minor of warning, `"0.3"` (the default) for three, `"1"` for a whole major. Pass the number your project really releases on — you keep the gate, pointed at your own cadence. Disabling it means nothing checks removal schedules at all. A `0.x` project needs no special setting: a bump to `1.0` is a major step and clears any window.
+Before reaching for `None`, check whether **retargeting** the window is what you actually want. `min_grace` is a version-shaped delta: `"0.1"` asks for one minor of warning, `"0.3"` (the default) for three, `"1.0"` for a whole major — or a unit table that says so outright: `{"minor": 1}`, `{"major": 1}`. Pass the number your project really releases on — you keep the gate, pointed at your own cadence. Disabling it means nothing checks removal schedules at all. A `0.x` project needs no special setting: a bump to `1.0` is a major step and clears any window.
 
 Here is the difference between the two:
 
@@ -2074,7 +2074,7 @@ ______________________________________________________________________
 
 ```toml
 [tool.pydeprecate.policy]
-min-grace = "0.3"          # quote it — a TOML float 0.10 reads as 0.1; false switches the rule off
+min-grace = { minor = 3 }  # or the dotted delta "0.3" (quoted — a TOML float 0.10 reads as 0.1); false switches the rule off
 message-required = true
 ```
 

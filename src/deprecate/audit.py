@@ -59,7 +59,7 @@ import pkgutil
 import re
 import types
 import warnings
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from contextlib import suppress
 from dataclasses import dataclass, field, is_dataclass, replace
 from enum import Enum
@@ -966,43 +966,74 @@ class _PolicySpec:
     message_required: bool
 
 
-def _parse_grace_window(min_grace: Union[str, int, float]) -> tuple[int, VersionBump]:
-    """Parse a ``min_grace`` delta such as ``"0.1"`` into its count and unit.
+#: Accepted ``min_grace`` value: a dotted delta string (``"0.3"``), a float Fire/TOML may hand over, or a one-key table.
+GraceWindow = Union[str, float, Mapping[str, int]]
+_GRACE_WINDOW_UNITS_BY_NAME = {unit.value: unit for unit in _GRACE_WINDOW_UNITS}
+_GRACE_WINDOW_SPELLINGS = (
+    "`1.0` (one major), `0.1` (one minor), `0.0.1` (one patch), or a one-key table such as `{'minor': 1}`"
+)
 
-    The delta is spelled like a version: the position of its single non-zero component is the unit, the number
-    is the count — ``"1"`` one major, ``"0.3"`` three minors, ``"0.0.2"`` two patches. A number spells the same
-    thing where it can (``1``, ``0.3``); a ``float`` drops a trailing zero (``0.10`` is ``0.1``), so pass ten or
-    more steps as a string. ``"1.2"`` is rejected — two units have no meaning under the coarser-bump rule.
+
+def _grace_window_error(min_grace: object, detail: str) -> ValueError:
+    """Build the uniform ``ValueError`` for a ``min_grace`` value the parser does not accept."""
+    return ValueError(
+        f"Invalid `min_grace` specification `{min_grace}`; {detail} — expected {_GRACE_WINDOW_SPELLINGS}."
+    )
+
+
+def _parse_grace_table(min_grace: Mapping[str, int]) -> tuple[int, VersionBump]:
+    """Parse the table form ``{"minor": 3}`` — exactly one unit key, a non-negative integer count."""
+    if len(min_grace) != 1:
+        raise _grace_window_error(dict(min_grace), "a table must name exactly one unit")
+    ((unit_name, count),) = min_grace.items()
+    unit_key = unit_name.value if isinstance(unit_name, VersionBump) else unit_name
+    if unit_key not in _GRACE_WINDOW_UNITS_BY_NAME:
+        raise _grace_window_error(dict(min_grace), f"unknown unit `{unit_key}`")
+    if isinstance(count, bool) or not isinstance(count, int) or count < 0:
+        raise _grace_window_error(dict(min_grace), "the count must be a non-negative integer")
+    return count, _GRACE_WINDOW_UNITS_BY_NAME[unit_key]
+
+
+def _parse_grace_window(min_grace: GraceWindow) -> tuple[int, VersionBump]:
+    """Parse a ``min_grace`` window such as ``"0.3"`` or ``{"minor": 3}`` into its count and unit.
+
+    Two spellings. The **dotted delta** is shaped like a version with two or three components and a single
+    non-zero one — its position is the unit, the number the count: ``"1.0"`` one major, ``"0.3"`` three minors,
+    ``"0.0.2"`` two patches. A bare ``"1"`` is rejected as ambiguous (write ``"1.0"``), and so is ``"1.2"`` —
+    two units have no meaning under the coarser-bump rule. A ``float`` is read as its text (``0.3``, ``1.0``),
+    which drops a trailing zero (``0.10`` is ``0.1``): quote ten or more steps. The **table** names the unit
+    outright — ``{"major": 1}``, ``{"minor": 3}``, ``{"patch": 2}`` — and can only ever carry one unit.
 
     Args:
-        min_grace: One to three dot-separated non-negative integers, as a string or a number.
+        min_grace: The dotted delta as a string or float, or a one-key mapping from unit name to count.
 
     Returns:
         Tuple of the required count and the :class:`~deprecate.audit.VersionBump` unit it is counted in.
 
     Raises:
-        ValueError: If the specification is not a delta of that shape.
+        ValueError: If the specification is not of either shape.
 
     Examples:
         >>> _parse_grace_window("0.1")
         (1, <VersionBump.MINOR: 'minor'>)
-        >>> _parse_grace_window(2)
+        >>> _parse_grace_window("2.0")
         (2, <VersionBump.MAJOR: 'major'>)
-        >>> _parse_grace_window("0.0.3")
+        >>> _parse_grace_window({"patch": 3})
         (3, <VersionBump.PATCH: 'patch'>)
         >>> _parse_grace_window(0.3)
         (3, <VersionBump.MINOR: 'minor'>)
 
     """
+    if isinstance(min_grace, Mapping):
+        return _parse_grace_table(min_grace)
+    if isinstance(min_grace, bool) or not isinstance(min_grace, (str, float)):
+        raise _grace_window_error(min_grace, "a bare number does not say which release level it counts")
     spec = str(min_grace).strip()
     parts = spec.split(".")
-    valid = all(part.isdigit() for part in parts) and len(parts) <= 3
+    valid = 2 <= len(parts) <= 3 and all(part.isdigit() for part in parts)
     nonzero = [i for i, part in enumerate(parts) if valid and int(part)]
     if not valid or len(nonzero) > 1:
-        raise ValueError(
-            f"Invalid `min_grace` specification `{spec}`; expected a version-shaped delta with a single non-zero"
-            " component — `1` (one major), `0.1` (one minor), or `0.0.1` (one patch)."
-        )
+        raise _grace_window_error(spec, "a dotted delta needs two or three components with at most one non-zero")
     # All zeros (`"0.0"`) is a zero-count window in the unit of its last position.
     position = nonzero[0] if nonzero else len(parts) - 1
     return int(parts[position]), _GRACE_WINDOW_UNITS[position]
@@ -1035,7 +1066,7 @@ def _format_release_boundaries(unit: VersionBump) -> str:
     return " or ".join(filter(None, [", ".join(levels[:-1]), levels[-1]]))
 
 
-def _build_policy_spec(min_grace: Optional[Union[str, int, float]], message_required: bool) -> _PolicySpec:
+def _build_policy_spec(min_grace: Optional[GraceWindow], message_required: bool) -> _PolicySpec:
     """Validate the raw policy arguments once, before any wrapper is scanned.
 
     Args:
@@ -1301,7 +1332,7 @@ def validate_deprecation_policy(
     recursive: bool = True,
     include_members: bool = True,
     *,
-    min_grace: Optional[Union[str, int, float]] = "0.3",
+    min_grace: Optional[GraceWindow] = "0.3",
     message_required: bool = True,
     exclude: Optional[Sequence[str]] = None,
 ) -> list[str]:
@@ -1323,12 +1354,13 @@ def validate_deprecation_policy(
         recursive: If True (default), recursively scan submodules.
         include_members: If True (default), also scan deprecated class members, matching the discovery default
             of :func:`~deprecate.audit.find_deprecation_wrappers`.
-        min_grace: Minimum grace window as a version-shaped delta — ``"1"`` (one major), ``"0.3"`` (three
-            minors), ``"0.0.2"`` (two patches); a plain ``1`` or ``0.3`` works too — or ``None`` to skip the
-            rule. Exactly one component may be non-zero. The removal has to be a *clean* bump of one component
-            with everything below it reset (``1.2`` → ``1.5`` or ``2.0``, never ``2.3``); a coarser bump always
-            satisfies the window regardless of the count (``1.2`` → ``2.0`` clears ``"0.3"``), a finer one never
-            does. The count restricts distance only within its own component.
+        min_grace: Minimum grace window, either a version-shaped delta with two or three components — ``"1.0"``
+            (one major), ``"0.3"`` (three minors), ``"0.0.2"`` (two patches); a float such as ``0.3`` works too —
+            or a one-key table naming the unit: ``{"major": 1}``, ``{"minor": 3}``, ``{"patch": 2}``. ``None``
+            skips the rule; a bare ``"1"`` is rejected as ambiguous. The removal has to be a *clean* bump of one
+            component with everything below it reset (``1.2`` → ``1.5`` or ``2.0``, never ``2.3``); a coarser bump
+            always satisfies the window regardless of the count (``1.2`` → ``2.0`` clears ``"0.3"``), a finer one
+            never does. The count restricts distance only within its own component.
         message_required: Require migration guidance on every wrapper.
         exclude: Glob patterns over full dotted module names to leave out of the scan, as in
             :func:`~deprecate.audit.find_deprecation_wrappers` (e.g. ``["my_package.tests"]``); ``None`` excludes

@@ -28,6 +28,7 @@ from deprecate.audit import (
     ChainType,
     DeprecationStatus,
     DeprecationWrapperInfo,
+    GraceWindow,
     VersionBump,
     _build_policy_spec,
     _check_expiry_for_callables,
@@ -1446,53 +1447,66 @@ class TestBatchExpiryUnparsableVersion:
 
 
 class TestParseGraceWindow:
-    """Parsing of the ``min_grace`` version-shaped delta."""
+    """Parsing of the ``min_grace`` window — a dotted delta or a one-key unit table."""
 
     @pytest.mark.parametrize(
         ("spec", "expected"),
         [
             pytest.param("0.1", (1, VersionBump.MINOR), id="one-minor"),
-            pytest.param("2", (2, VersionBump.MAJOR), id="two-majors-string"),
-            pytest.param("2.0", (2, VersionBump.MAJOR), id="two-majors-trailing-zero"),
+            pytest.param("2.0", (2, VersionBump.MAJOR), id="two-majors"),
             pytest.param("0.0.3", (3, VersionBump.PATCH), id="three-patches"),
             pytest.param(" 0.1 ", (1, VersionBump.MINOR), id="padding"),
-            pytest.param(1, (1, VersionBump.MAJOR), id="int-major"),
+            pytest.param(1.0, (1, VersionBump.MAJOR), id="float-major"),
             pytest.param(0.3, (3, VersionBump.MINOR), id="float-minor"),
             pytest.param("0.0", (0, VersionBump.MINOR), id="zero-count-disables-distance"),
+            pytest.param({"major": 1}, (1, VersionBump.MAJOR), id="table-major"),
+            pytest.param({"minor": 3}, (3, VersionBump.MINOR), id="table-minor"),
+            pytest.param({"patch": 2}, (2, VersionBump.PATCH), id="table-patch"),
+            pytest.param({VersionBump.MINOR: 3}, (3, VersionBump.MINOR), id="table-enum-key"),
+            pytest.param({"minor": 0}, (0, VersionBump.MINOR), id="table-zero-count"),
         ],
     )
-    def test_accepts_documented_spellings(
-        self, spec: Union[str, int, float], expected: tuple[int, VersionBump]
-    ) -> None:
+    def test_accepts_documented_spellings(self, spec: GraceWindow, expected: tuple[int, VersionBump]) -> None:
         """Every documented spelling of a grace window parses to its count and unit.
 
-        A policy is configured from a CLI flag or a keyword argument typed by hand. The delta reads like a
-        version -- the same shape as ``deprecated_in`` and ``remove_in`` -- so ``"0.1"`` means one minor step and
-        ``"0.0.3"`` three patch steps; a number spells the same thing where a number can (``1``, ``0.3``, which is
-        also what Fire hands the CLI for an unquoted flag value).
+        A policy is configured from a CLI flag, a ``pyproject.toml`` table, or a keyword argument typed by hand.
+        The dotted delta reads like a version -- the same shape as ``deprecated_in`` and ``remove_in`` -- so
+        ``"0.1"`` means one minor step and ``"0.0.3"`` three patch steps, and a float spells the same thing
+        (``0.3``, which is also what Fire hands the CLI for an unquoted flag value); the table names the unit
+        outright, which is what a TOML inline table (``{ minor = 3 }``) arrives as.
         """
         assert _parse_grace_window(spec) == expected
 
     @pytest.mark.parametrize(
         "spec",
         [
+            pytest.param("1", id="bare-major-ambiguous"),
+            pytest.param(1, id="bare-int"),
+            pytest.param(True, id="bool"),
             pytest.param("1 minor", id="legacy-count-unit-spelling"),
             pytest.param("1.2", id="two-non-zero-components"),
             pytest.param("0.0.0.1", id="four-components"),
             pytest.param("one", id="word-count"),
             pytest.param("", id="empty"),
+            pytest.param({}, id="empty-table"),
+            pytest.param({"major": 1, "minor": 2}, id="two-unit-table"),
+            pytest.param({"release": 1}, id="unknown-unit"),
+            pytest.param({"minor": "3"}, id="string-count"),
+            pytest.param({"minor": -1}, id="negative-count"),
+            pytest.param({"minor": True}, id="bool-count"),
         ],
     )
-    def test_rejects_unparseable_specification(self, spec: str) -> None:
+    def test_rejects_unparseable_specification(self, spec: object) -> None:
         """An unrecognised grace window fails loudly instead of silently disabling the rule.
 
         A typo that quietly turned the grace rule off would leave a CI gate reporting green while checking
-        nothing at all, so the specification is validated before the scan starts. ``"1.2"`` is rejected too: a
-        window with two non-zero components has no meaning under the coarser-bump rule, and the old
-        ``"1 minor"`` spelling must not be read as anything.
+        nothing at all, so the specification is validated before the scan starts. A bare ``"1"`` is rejected as
+        ambiguous -- one *what*? -- and must be written ``"1.0"`` or ``{"major": 1}``; ``"1.2"`` has no meaning
+        under the coarser-bump rule; a table can only ever name one unit with an integer count, which is the
+        policy's own rule made structural.
         """
         with pytest.raises(ValueError, match="Invalid `min_grace` specification"):
-            _parse_grace_window(spec)
+            _parse_grace_window(spec)  # type: ignore[arg-type]
 
 
 class TestBuildPolicySpec:
@@ -1677,14 +1691,14 @@ class TestValidateDeprecationPolicy:
         ("min_grace", "expected_window"),
         [
             pytest.param("0.1", "at least 1 minor release, landing on a clean major or minor boundary.", id="singular"),
-            pytest.param("2", "at least 2 major releases, landing on a clean major boundary.", id="plural"),
+            pytest.param("2.0", "at least 2 major releases, landing on a clean major boundary.", id="plural"),
         ],
     )
     @_requires_packaging
     def test_violation_message_echoes_configured_window(self, min_grace: str, expected_window: str) -> None:
         """The reported grace window reads back as prose naming the count, the unit, and the allowed boundaries.
 
-        A maintainer who configured ``min_grace="2"`` reads the CI log to learn what the gate expected; a
+        A maintainer who configured ``min_grace="2.0"`` reads the CI log to learn what the gate expected; a
         message echoing the bare ``2`` would leave them guessing which component it counts, so the message
         spells out ``2 major releases`` -- a one-unit window still reads as the singular -- and names the
         release levels a removal may land on, so a mixed-bump violation is explained by the same sentence.

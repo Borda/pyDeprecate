@@ -75,7 +75,7 @@ pydeprecate status tests --version 1.2
     pydeprecate policy path/to/your/package
 
     # tune the window to your own release convention — here: removals only at a major
-    pydeprecate policy path/to/your/package --min-grace=1
+    pydeprecate policy path/to/your/package --min-grace=1.0
 
     # switch individual rules off
     pydeprecate policy path/to/your/package --min-grace=None --message-required=False
@@ -140,12 +140,12 @@ A bare `pydeprecate policy src/mypackage` therefore runs a recursive scan, exits
 
 These two are specific to `policy` — one flag per rule, switched off with `--min-grace=None` and `--message-required=False`. The *Default* column is the built-in value; a `[tool.pydeprecate.policy]` table in `pyproject.toml` replaces it, and a typed flag beats both.
 
-| Flag                        | Default | Rule slug          | Effect                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| --------------------------- | ------- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--min-grace=<delta>`       | `0.3`   | `min-grace`        | Minimum distance between `deprecated_in` and `remove_in` as a version-shaped delta: `1` one major, `0.3` three minors, `0.0.2` two patches. The removal must be one clean bump of a single component (`1.2` → `1.5` or `2.0`, never `2.3`); a coarser bump always clears a finer window — `0.3` is satisfied by one major bump. Ten or more steps: quote as a string (`--min-grace='"0.10"'`), else the shell value parses as the float `0.1`. |
-| `--message-required=<bool>` | `True`  | `message-required` | Require every wrapper to name a replacement (a `target`, a mapping, or a `message_template`).                                                                                                                                                                                                                                                                                                                                                  |
+| Flag                        | Default | Rule slug          | Effect                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| --------------------------- | ------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `--min-grace=<delta>`       | `0.3`   | `min-grace`        | Minimum distance between `deprecated_in` and `remove_in` as a version-shaped delta with two or three components: `1.0` one major, `0.3` three minors, `0.0.2` two patches (a bare `1` is rejected as ambiguous — one *what*?). In `pyproject.toml` a unit table `{ minor = 3 }` says the same thing without decoding. The removal must be one clean bump of a single component (`1.2` → `1.5` or `2.0`, never `2.3`); a coarser bump always clears a finer window — `0.3` is satisfied by one major bump. Ten or more steps: quote as a string (`--min-grace='"0.10"'`), else the shell value parses as the float `0.1`. |
+| `--message-required=<bool>` | `True`  | `message-required` | Require every wrapper to name a replacement (a `target`, a mapping, or a `message_template`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 
-`--min-grace=1` is the strict "removals only at a major release" policy. A `0.x` project needs no special setting: a bump to `1.0` is a major step and clears any window, while removals inside the `0.x` line are counted in minors as usual.
+`--min-grace=1.0` (or `min-grace = { major = 1 }` in `pyproject.toml`) is the strict "removals only at a major release" policy. A `0.x` project needs no special setting: a bump to `1.0` is a major step and clears any window, while removals inside the `0.x` line are counted in minors as usual.
 
 A malformed `--min-grace` value is rejected before the scan starts and exits `2` with a message naming the accepted spellings — it is never silently ignored.
 
@@ -158,7 +158,7 @@ Declare the settings once, next to the code they govern, and every bare `pydepre
 exclude = ["my_package.tests", "*._legacy*"]   # every subcommand: the scan skips these packages (never imports them itself)
 
 [tool.pydeprecate.policy]                      # the `policy` subcommand's rules, keyed by rule slug
-min-grace = "0.3"          # a version-shaped delta, as a string; false switches the rule off (TOML has no null)
+min-grace = { minor = 3 }  # or the dotted delta "0.3"; false switches the rule off (TOML has no null)
 message-required = true
 ```
 
@@ -171,7 +171,7 @@ Policy: min-grace=0.3 (pyproject.toml)  message-required=True (built-in)
 
 - The table is looked up like `--version` auto-detection below: from the scanned *path*'s directory up to two parents, nearest file that declares `[tool.pydeprecate]` wins (one table per project — a nested file that declares it replaces the parent's whole table); a bare module *name* never triggers the lookup.
 - `exclude` patterns are `fnmatch` globs over the full dotted module name (`my_package.tests`, not `tests`); a pattern that matches a package excludes its whole subtree. A wrapper is reported iff the module it is reported under does not match — so even when something else in the package imports an excluded module, its wrappers stay out. A string or comma-separated string is accepted in place of the list.
-- Quote `min-grace` as a string (`"0.10"`, not `0.10`) — a TOML float drops the trailing zero exactly as the shell does.
+- `min-grace` takes a one-key unit table (`{ major = 1 }`, `{ minor = 3 }`, `{ patch = 2 }`) or the dotted delta as a string (`"1.0"`, `"0.3"`); quote the delta (`"0.10"`, not `0.10`) — a TOML float drops the trailing zero exactly as the shell does.
 - A malformed value from the file exits `2` and the message names the `pyproject.toml` it came from; a non-boolean `message-required` or a non-string `exclude` entry is rejected the same way. Unknown keys in either table (`min_grace` with an underscore is the usual typo) are reported on stderr and ignored, never silently enforced.
 - Reading the file needs a TOML parser — built in on Python 3.11+, the `tomli` backport from the `[audit]` extra on 3.9–3.10. Without one, a reachable `pyproject.toml` triggers a stderr advisory instead of being silently skipped.
 - `pydeprecate all` applies the same resolved settings to its single scan and its advisory policy pass. The Python API (`validate_deprecation_policy()`) takes a module (object or importable name), never a filesystem path, and does not read `pyproject.toml` — pass its keyword arguments (including `exclude`) explicitly.

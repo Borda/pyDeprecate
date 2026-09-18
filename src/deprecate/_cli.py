@@ -927,11 +927,13 @@ def cmd_policy(
         recursive: Scan submodules recursively (default True). Pass ``--norecursive`` to scan top-level only.
         exit_zero: Always exit 0 even if violations are found.
             Useful for advisory CI steps that should report but never block.
-        min_grace: Minimum distance between ``deprecated_in`` and ``remove_in`` as a version-shaped delta —
-            ``1`` one major, ``0.3`` three minors, ``0.0.2`` two patches; built-in default ``0.3``, ``None``
-            skips the rule. The removal must be one clean bump of a single component (``1.2`` → ``1.5`` or
-            ``2.0``, never ``2.3``); a coarser bump always clears a finer window. Ten or more steps: quote as a
-            string (``--min-grace='"0.10"'``), else Fire parses ``0.10`` as ``0.1``.
+        min_grace: Minimum distance between ``deprecated_in`` and ``remove_in`` as a version-shaped delta with
+            two or three components — ``1.0`` one major, ``0.3`` three minors, ``0.0.2`` two patches (a bare
+            ``1`` is rejected as ambiguous) — or a one-key unit table (``{"minor": 3}``, the natural spelling in
+            ``pyproject.toml``); built-in default ``0.3``, ``None`` skips the rule. The removal must be one clean
+            bump of a single component (``1.2`` → ``1.5`` or ``2.0``, never ``2.3``); a coarser bump always clears
+            a finer window. Ten or more steps: quote as a string (``--min-grace='"0.10"'``), else Fire parses
+            ``0.10`` as ``0.1``.
         message_required: Require every wrapper to name a replacement (built-in default True).
         exclude: Module-name glob patterns to leave out of the scan — one pattern, a comma-separated string, or a
             list (``--exclude='my_package.tests,*._legacy*'``); the scan itself never imports a matching package
