@@ -1598,7 +1598,7 @@ class TestCmdPolicy:
         The version comparison needs the optional ``audit`` extra; a CI job that installed only the base package
         should be told what to add rather than failing on a check it never ran.
         """
-        mock_policy.side_effect = ImportError("No module named 'packaging'", name="packaging")
+        mock_policy.side_effect = [ImportError("No module named 'packaging'", name="packaging"), []]
         assert cmd_policy(path="some_module", _wrappers=[]) == 0
         assert "pyDeprecate[audit]" in capsys.readouterr().err
 

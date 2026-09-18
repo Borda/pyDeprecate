@@ -761,15 +761,7 @@ def _policy_violations_without_packaging(
         return None
     # `message_required` needs no version parsing at all, so a spec with the grace-window rule switched off keeps
     # the version machinery — and with it the ImportError just handled — out of this second pass entirely.
-    message_only_spec = _build_policy_spec(None, True)
-    try:
-        return _check_policy_for_callables(wrappers, message_only_spec)
-    except ImportError as inner_exc:
-        if not _is_missing_packaging_import_error(inner_exc):
-            raise
-        # Unreachable through the real engine (a message-only spec parses no version); kept only because
-        # `test_cli.py::test_packaging_missing_exits_zero` mocks the engine to raise on every call.
-        return None
+    return _check_policy_for_callables(wrappers, _build_policy_spec(None, True))
 
 
 # ---------------------------------------------------------------------------
