@@ -11,9 +11,6 @@ import tests.collection_misconfigured as clean_module
 from deprecate.audit._report import _format_report_target
 from deprecate.proxy import deprecated_class
 
-_PACKAGING_AVAILABLE = importlib.util.find_spec("packaging") is not None
-_requires_packaging = pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging library")
-
 
 class TestFormatReportProxyTarget:
     """_format_report_target reads a chained-proxy target statically, never via dynamic ``getattr``."""
