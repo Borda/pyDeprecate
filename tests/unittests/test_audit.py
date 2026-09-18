@@ -31,22 +31,25 @@ from deprecate.audit import (
     GraceWindow,
     GraceWindowSpec,
     VersionBump,
-    _build_policy_spec,
-    _check_expiry_for_callables,
-    _check_policy_for_callables,
-    _classify_member_api_type,
-    _format_report_target,
-    _get_deprecation_status,
-    _get_package_version,
-    _has_migration_guidance,
-    _member_has_deprecation_meta,
-    _normalize_version_string,
-    _parse_version,
-    _satisfies_grace_window,
-    _scan_class,
     find_deprecation_wrappers,
     validate_deprecation_wrapper,
 )
+from deprecate.audit._lifecycle import (
+    _check_expiry_for_callables,
+    _get_deprecation_status,
+    _get_package_version,
+    _normalize_version_string,
+    _parse_version,
+)
+from deprecate.audit._policy import (
+    _build_policy_spec,
+    _check_policy_for_callables,
+    _has_migration_guidance,
+    _satisfies_grace_window,
+)
+from deprecate.audit._report import _format_report_target
+from deprecate.audit._scan import _member_has_deprecation_meta, _scan_class
+from deprecate.audit._wrappers import _classify_member_api_type
 from deprecate.proxy import _DeprecatedProxy, deprecated_class
 from tests.collection_targets import ColorEnum, PositionalOnlyTarget
 
@@ -1877,7 +1880,7 @@ class TestPolicyVersionParsingIsLazy:
         deprecation names a replacement. No version comparison is enabled, so demanding ``packaging`` there
         would turn a check that needs no version arithmetic into an install error.
         """
-        monkeypatch.setattr("deprecate.audit._parse_version", _reject_version_parse)
+        monkeypatch.setattr("deprecate.audit._policy._parse_version", _reject_version_parse)
         info = DeprecationWrapperInfo(
             module="pkg",
             function="warns_without_replacement",
@@ -1896,7 +1899,7 @@ class TestPolicyVersionParsingIsLazy:
         arithmetic, so skipping it silently would report a green gate that checked nothing — the ImportError,
         which the CLI renders as an install hint, is the honest answer.
         """
-        monkeypatch.setattr("deprecate.audit._parse_version", _reject_version_parse)
+        monkeypatch.setattr("deprecate.audit._policy._parse_version", _reject_version_parse)
         info = DeprecationWrapperInfo(
             module="pkg",
             function="no_grace_window",

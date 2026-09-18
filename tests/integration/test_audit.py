@@ -31,14 +31,12 @@ from deprecate._types import DeprecationConfig
 from deprecate.audit import (
     ChainType,
     DeprecationWrapperInfo,
-    _check_deprecated_wrapper_expiry,
-    _get_package_version,
-    _parse_version,
     find_deprecation_wrappers,
     generate_deprecation_table,
     validate_deprecation_chains,
     validate_deprecation_wrapper,
 )
+from deprecate.audit._lifecycle import _check_deprecated_wrapper_expiry, _get_package_version, _parse_version
 from tests.collection_targets import plain_function_target
 
 # Check if packaging is available for version comparison tests
@@ -998,7 +996,7 @@ class TestCheckModuleDeprecationExpiry:
             function="bad_version_fn",
             deprecated_info=DeprecationConfig(deprecated_in="1.0", remove_in="not-semver"),
         )
-        with patch("deprecate.audit.find_deprecation_wrappers", return_value=[bad_info]):
+        with patch("deprecate.audit._lifecycle.find_deprecation_wrappers", return_value=[bad_info]):
             result = validate_deprecation_expiry("tests.collection_deprecate", "2.0", recursive=False)
         assert result == []
 

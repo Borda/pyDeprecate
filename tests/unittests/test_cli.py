@@ -33,7 +33,8 @@ from deprecate._pkg import (
     _version_from_toml,
 )
 from deprecate._types import DeprecationConfig, TargetMode
-from deprecate.audit import ChainType, DeprecationWrapperInfo, _check_expiry_for_callables
+from deprecate.audit import ChainType, DeprecationWrapperInfo
+from deprecate.audit._lifecycle import _check_expiry_for_callables
 
 # ---------------------------------------------------------------------------
 # Helpers

@@ -353,7 +353,12 @@ pyDeprecate/
 │   ├── _properties.py          # property descriptors: _DeprecatedProperty, _StrictProperty
 │   ├── proxy.py                # Instance/class proxy: deprecated_class(), deprecated_instance()
 │   ├── module.py               # Module-level deprecation: deprecated_module()
-│   ├── audit.py                # Audit tools: validate_*, find_deprecation_wrappers()
+│   ├── audit/                  # Audit tools subpackage — public surface re-exported from __init__.py
+│   │   ├── _wrappers.py        # DeprecationWrapperInfo, validate_deprecation_wrapper(), subject formatters
+│   │   ├── _scan.py            # find_deprecation_wrappers() walk + chain/mapping filters
+│   │   ├── _lifecycle.py       # PEP 440 parsing, package version, DeprecationStatus, validate_deprecation_expiry()
+│   │   ├── _policy.py          # PolicyRule, GraceWindow, validate_deprecation_policy()
+│   │   └── _report.py          # TableStyle, generate_deprecation_table()
 │   ├── utils.py                # Low-level helpers: void(), assert_no_warnings()
 │   └── docstring/              # Docstring utilities subpackage
 │       ├── inject.py           # Runtime injection helpers: TEMPLATE_DOC_*, _update_docstring_*()
@@ -452,7 +457,7 @@ Tests live in `tests/` and follow a **three-layer separation**:
 >
 > Failing to do this causes the corresponding generated test file(s) under `tests/docs/` or `tests/integration/test_readme.py` to fail in CI. Enumerating specific files here goes stale as soon as a new doc example is added — grep for the fixture module's import if in doubt.
 
-**`unittests/`** — Tests import private symbols directly (e.g. `_raise_warn`, `_parse_version`) and use mocking/monkeypatching to stay isolated from external state. Each file mirrors a source module (`deprecation.py`, `docstring/inject.py`, `audit.py`, `utils.py`).
+**`unittests/`** — Tests import private symbols directly (e.g. `_raise_warn`, `_parse_version`) and use mocking/monkeypatching to stay isolated from external state. Each file mirrors a source module or subpackage (`deprecation.py`, `docstring/inject.py`, `audit/`, `utils.py`); private symbols of the `audit/` subpackage are imported from their defining submodule (`deprecate.audit._policy`), never from the package root.
 
 > [!IMPORTANT]
 >
@@ -823,15 +828,15 @@ Use `# NEW/FUTURE API —` when the replacement is defined in the same block imm
 
 **What `docs/llms.txt` contains:** package facts, links to human-facing docs, and Agent Notes (critical mental model, anti-patterns with WRONG/CORRECT pairs, decision flowchart for choosing the right API).
 
-**The comprehensive sync rule:** these five surfaces must always agree: public-API module docstrings (`routine.py`, `audit.py`, `proxy.py`, `utils.py`) ↔ inline comments in changed `src/` files ↔ `README.md` ↔ `docs/guide/use-cases.md` ↔ `docs/llms.txt`. Additionally update `docs/robots.txt` when AI crawler policy changes.
+**The comprehensive sync rule:** these five surfaces must always agree: public-API module docstrings (`routine.py`, `audit/__init__.py`, `proxy.py`, `utils.py`) ↔ inline comments in changed `src/` files ↔ `README.md` ↔ `docs/guide/use-cases.md` ↔ `docs/llms.txt`. Additionally update `docs/robots.txt` when AI crawler policy changes.
 
-| When you change...                                                          | Also update...                                                                                                                                                                                                |
-| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Public API behavior (parameter meaning, forwarding semantics, default mode) | affected module docstrings (`routine.py`, `audit.py`, `proxy.py`, `utils.py`) · inline comments in changed `src/` files · `README.md` Quick Start · `docs/guide/use-cases.md` · `docs/llms.txt` § Agent Notes |
-| A new supported deprecation pattern                                         | `docs/guide/use-cases.md` (new section) · `docs/llms.txt` Decision Flowchart                                                                                                                                  |
-| A newly discovered anti-pattern                                             | `docs/llms.txt` § Anti-Patterns · `docs/guide/use-cases.md` (danger admonition)                                                                                                                               |
-| A `TargetMode` value (added, renamed, removed)                              | `docs/llms.txt` Critical Mental Model and Decision Flowchart · `docs/guide/use-cases.md` · `README.md`                                                                                                        |
-| A new mainstream AI crawler is released                                     | `docs/robots.txt` (new `User-agent: <bot> / Allow: /` block)                                                                                                                                                  |
+| When you change...                                                          | Also update...                                                                                                                                                                                                         |
+| --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Public API behavior (parameter meaning, forwarding semantics, default mode) | affected module docstrings (`routine.py`, `audit/__init__.py`, `proxy.py`, `utils.py`) · inline comments in changed `src/` files · `README.md` Quick Start · `docs/guide/use-cases.md` · `docs/llms.txt` § Agent Notes |
+| A new supported deprecation pattern                                         | `docs/guide/use-cases.md` (new section) · `docs/llms.txt` Decision Flowchart                                                                                                                                           |
+| A newly discovered anti-pattern                                             | `docs/llms.txt` § Anti-Patterns · `docs/guide/use-cases.md` (danger admonition)                                                                                                                                        |
+| A `TargetMode` value (added, renamed, removed)                              | `docs/llms.txt` Critical Mental Model and Decision Flowchart · `docs/guide/use-cases.md` · `README.md`                                                                                                                 |
+| A new mainstream AI crawler is released                                     | `docs/robots.txt` (new `User-agent: <bot> / Allow: /` block)                                                                                                                                                           |
 
 > [!IMPORTANT]
 >

@@ -26,7 +26,8 @@ from deprecate import (
     validate_deprecation_wrapper,
 )
 from deprecate._types import DeprecationConfig
-from deprecate.audit import _check_deprecated_wrapper_expiry, _format_report_symbol
+from deprecate.audit._lifecycle import _check_deprecated_wrapper_expiry
+from deprecate.audit._wrappers import _format_report_symbol
 from deprecate.module import deprecated_module
 
 # Shared version kwargs for module deprecation call sites (see AGENTS.md Unification pattern).

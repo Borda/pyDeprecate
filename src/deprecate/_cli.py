@@ -37,18 +37,16 @@ from deprecate.audit import (
     DeprecationWrapperInfo,
     PolicyRule,
     TableStyle,
-    _build_policy_spec,
-    _check_expiry_for_callables,
-    _check_policy_for_callables,
-    _parse_version,
     find_deprecation_wrappers,
     generate_deprecation_table,
     validate_deprecation_chains,
     validate_deprecation_expiry,
 )
+from deprecate.audit._lifecycle import _check_expiry_for_callables, _parse_version
+from deprecate.audit._policy import _build_policy_spec, _check_policy_for_callables
 
 if TYPE_CHECKING:
-    from deprecate.audit import _PolicySpec
+    from deprecate.audit._policy import _PolicySpec
 
 
 def _is_package_available(name: str) -> bool:
