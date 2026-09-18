@@ -391,6 +391,22 @@ Like the expiry gate, the policy gate compares PEP 440 versions and therefore ne
 pip install 'pyDeprecate[audit]'
 ```
 
+Quickest setup — two steps, copy-paste. Declare the policy once in `pyproject.toml`:
+
+```toml
+[tool.pydeprecate.policy]
+min-grace = "1.0"
+message-required = true
+```
+
+then run the gate (locally or in CI — see [Enforcing the policy in CI](#enforcing-the-policy-in-ci)):
+
+```bash
+pydeprecate policy src/mypackage
+```
+
+`min-grace` is a version-shaped delta: `"1.0"` allows removals only at the next major, `"0.3"` (the built-in default) is three minors, `"0.0.2"` two patches; `false` switches the rule off. Every run resolves each rule as flag → this table → built-in default and prints a `Policy:` header naming the source ([details](cli.md#project-configuration-in-pyprojecttoml)). The Python function below takes the rules as arguments and never reads the file.
+
 ### The two rules
 
 | Rule slug          | What it checks                                                                     | Default                 | Disable with             |
@@ -450,29 +466,34 @@ Good to know:
 - `recursive`, `include_members` and `exclude` behave exactly as in `find_deprecation_wrappers()`.
 - The CLI exposes the same gate as `pydeprecate policy` — see the [CLI Reference](cli.md) for flags, exit codes, and the CI recipe. The CLI can also read the rules from a `[tool.pydeprecate.policy]` table in `pyproject.toml` ([details](cli.md#project-configuration-in-pyprojecttoml)); this function takes a module (object or importable name), never a filesystem path, and does not read that file — pass `min_grace` and `message_required` explicitly.
 
-### pytest integration for policy enforcement
+### Enforcing the policy in CI
 
-The policy defaults encode *a* convention, not *the* convention. Pick the numbers your project actually releases on, write them down once in a test, and the gate becomes self-documenting.
+The policy defaults encode *a* convention, not *the* convention. Write the numbers your project actually releases on into `[tool.pydeprecate.policy]` (above) and run the CLI as its own job — the table is the single source of truth, the job is the gate, and there is no test code to maintain. This is the exact step pyDeprecate runs on itself:
 
-```python
-import pytest
-from deprecate import validate_deprecation_policy
+```yaml
+# .github/workflows/deprecations.yml
+name: Deprecations
+on: [push, pull_request]
 
-# For testing purposes, we use the test module; normally you would import your own package
-from tests import collection_policy as my_package
+jobs:
+  policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e . 'pyDeprecate[audit,cli]'
 
+      - name: Audit deprecations (policy advisory here)
+        run: pydeprecate all src/mypackage
 
-def test_deprecations_follow_project_policy():
-    """Every deprecation is scheduled the way this project promises in its release policy."""
-    violations = validate_deprecation_policy(
-        my_package,
-        recursive=False,
-        min_grace={"major": 1},  # only ever remove at a major release, at least one major later
-        message_required=True,  # every warning must name a replacement
-    )
-    if violations:
-        pytest.fail("Deprecation policy violations:\n" + "\n".join(f"  - {v}" for v in violations))
+      - name: Enforce the deprecation policy
+        # reads [tool.pydeprecate.policy] from pyproject.toml; exits 1 on a violation
+        run: pydeprecate policy src/mypackage
 ```
+
+`pydeprecate all` prints policy violations as a `[WARNING]` without failing, so the dedicated `policy` step is the one that blocks the merge. A one-off override never needs a config edit — `pydeprecate policy src/mypackage --min-grace=0.3` beats the table for that run only.
 
 ## Detecting Deprecation Chains
 
