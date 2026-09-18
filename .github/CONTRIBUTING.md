@@ -389,6 +389,7 @@ pyDeprecate/
 │   ├── integration/                # End-to-end tests via the public API
 │   │   └── test_agent_plugin.py    # Codex/Claude plugin catalog and manifest parity
 │   └── unittests/                  # Focused tests for private/internal helpers
+│       └── audit/                  # One test__<module>.py per audit submodule (_wrappers, _scan, _lifecycle, _policy, _report)
 ├── .github/
 │   ├── workflows/              # CI/CD pipelines
 │   └── *.md                    # Documentation and guidelines
@@ -457,7 +458,7 @@ Tests live in `tests/` and follow a **three-layer separation**:
 >
 > Failing to do this causes the corresponding generated test file(s) under `tests/docs/` or `tests/integration/test_readme.py` to fail in CI. Enumerating specific files here goes stale as soon as a new doc example is added — grep for the fixture module's import if in doubt.
 
-**`unittests/`** — Tests import private symbols directly (e.g. `_raise_warn`, `_parse_version`) and use mocking/monkeypatching to stay isolated from external state. Each file mirrors a source module or subpackage (`deprecation.py`, `docstring/inject.py`, `audit/`, `utils.py`); private symbols of the `audit/` subpackage are imported from their defining submodule (`deprecate.audit._policy`), never from the package root.
+**`unittests/`** — Tests import private symbols directly (e.g. `_raise_warn`, `_parse_version`) and use mocking/monkeypatching to stay isolated from external state. Each file mirrors a source module (`deprecation.py`, `docstring/inject.py`, `utils.py`), and a source subpackage becomes a test subpackage with one file per submodule — `unittests/audit/test__policy.py` for `deprecate/audit/_policy.py`; private symbols of the `audit/` subpackage are imported from their defining submodule (`deprecate.audit._policy`), never from the package root.
 
 > [!IMPORTANT]
 >
