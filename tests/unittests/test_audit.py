@@ -29,6 +29,7 @@ from deprecate.audit import (
     DeprecationStatus,
     DeprecationWrapperInfo,
     GraceWindow,
+    GraceWindowSpec,
     VersionBump,
     _build_policy_spec,
     _check_expiry_for_callables,
@@ -40,7 +41,6 @@ from deprecate.audit import (
     _has_migration_guidance,
     _member_has_deprecation_meta,
     _normalize_version_string,
-    _parse_grace_window,
     _parse_version,
     _satisfies_grace_window,
     _scan_class,
@@ -1446,36 +1446,57 @@ class TestBatchExpiryUnparsableVersion:
         assert expired == []
 
 
-class TestParseGraceWindow:
-    """Parsing of the ``min_grace`` window — a dotted delta or a one-key unit table."""
+class TestGraceWindow:
+    """The strict ``min_grace`` form -- one unit, one count -- and parsing of every user-facing spelling into it."""
 
     @pytest.mark.parametrize(
         ("spec", "expected"),
         [
-            pytest.param("0.1", (1, VersionBump.MINOR), id="one-minor"),
-            pytest.param("2.0", (2, VersionBump.MAJOR), id="two-majors"),
-            pytest.param("0.0.3", (3, VersionBump.PATCH), id="three-patches"),
-            pytest.param(" 0.1 ", (1, VersionBump.MINOR), id="padding"),
-            pytest.param(1.0, (1, VersionBump.MAJOR), id="float-major"),
-            pytest.param(0.3, (3, VersionBump.MINOR), id="float-minor"),
-            pytest.param("0.0", (0, VersionBump.MINOR), id="zero-count-disables-distance"),
-            pytest.param({"major": 1}, (1, VersionBump.MAJOR), id="table-major"),
-            pytest.param({"minor": 3}, (3, VersionBump.MINOR), id="table-minor"),
-            pytest.param({"patch": 2}, (2, VersionBump.PATCH), id="table-patch"),
-            pytest.param({VersionBump.MINOR: 3}, (3, VersionBump.MINOR), id="table-enum-key"),
-            pytest.param({"minor": 0}, (0, VersionBump.MINOR), id="table-zero-count"),
+            pytest.param("0.1", GraceWindow(1, VersionBump.MINOR), id="one-minor"),
+            pytest.param("2.0", GraceWindow(2, VersionBump.MAJOR), id="two-majors"),
+            pytest.param("0.0.3", GraceWindow(3, VersionBump.PATCH), id="three-patches"),
+            pytest.param(" 0.1 ", GraceWindow(1, VersionBump.MINOR), id="padding"),
+            pytest.param(1.0, GraceWindow(1, VersionBump.MAJOR), id="float-major"),
+            pytest.param(0.3, GraceWindow(3, VersionBump.MINOR), id="float-minor"),
+            pytest.param("0.0", GraceWindow(0, VersionBump.MINOR), id="zero-count-disables-distance"),
+            pytest.param({"major": 1}, GraceWindow(1, VersionBump.MAJOR), id="table-major"),
+            pytest.param({"minor": 3}, GraceWindow(3, VersionBump.MINOR), id="table-minor"),
+            pytest.param({"patch": 2}, GraceWindow(2, VersionBump.PATCH), id="table-patch"),
+            pytest.param({VersionBump.MINOR: 3}, GraceWindow(3, VersionBump.MINOR), id="table-enum-key"),
+            pytest.param({"minor": 0}, GraceWindow(0, VersionBump.MINOR), id="table-zero-count"),
+            pytest.param(GraceWindow(1, VersionBump.MAJOR), GraceWindow(1, VersionBump.MAJOR), id="passthrough"),
         ],
     )
-    def test_accepts_documented_spellings(self, spec: GraceWindow, expected: tuple[int, VersionBump]) -> None:
-        """Every documented spelling of a grace window parses to its count and unit.
+    def test_parse_accepts_documented_spellings(self, spec: GraceWindowSpec, expected: GraceWindow) -> None:
+        """Every documented spelling of a grace window converts to the same strict form.
 
         A policy is configured from a CLI flag, a ``pyproject.toml`` table, or a keyword argument typed by hand.
         The dotted delta reads like a version -- the same shape as ``deprecated_in`` and ``remove_in`` -- so
         ``"0.1"`` means one minor step and ``"0.0.3"`` three patch steps, and a float spells the same thing
         (``0.3``, which is also what Fire hands the CLI for an unquoted flag value); the table names the unit
-        outright, which is what a TOML inline table (``{ minor = 3 }``) arrives as.
+        outright, which is what a TOML inline table (``{ minor = 3 }``) arrives as. Whatever the spelling, the
+        scan only ever sees a ``GraceWindow``, and an instance built by hand passes through untouched.
         """
-        assert _parse_grace_window(spec) == expected
+        assert GraceWindow.parse(spec) == expected
+
+    @pytest.mark.parametrize(
+        ("count", "unit"),
+        [
+            pytest.param(-1, VersionBump.MINOR, id="negative-count"),
+            pytest.param(True, VersionBump.MINOR, id="bool-count"),
+            pytest.param("3", VersionBump.MINOR, id="string-count"),
+            pytest.param(1, "minor", id="string-unit"),
+        ],
+    )
+    def test_construction_rejects_invalid_fields(self, count: object, unit: object) -> None:
+        """Building a ``GraceWindow`` by hand is held to the same rules as parsing one.
+
+        The strict form is the single place the scan trusts, so a window assembled in code (a test helper, a
+        config loader that bypasses ``parse``) must not be able to carry a value no spelling could produce --
+        otherwise the version arithmetic downstream would compare against a bool or a string.
+        """
+        with pytest.raises(ValueError, match="Invalid `min_grace` specification"):
+            GraceWindow(count, unit)  # type: ignore[arg-type]
 
     @pytest.mark.parametrize(
         "spec",
@@ -1506,7 +1527,7 @@ class TestParseGraceWindow:
         policy's own rule made structural.
         """
         with pytest.raises(ValueError, match="Invalid `min_grace` specification"):
-            _parse_grace_window(spec)  # type: ignore[arg-type]
+            GraceWindow.parse(spec)  # type: ignore[arg-type]
 
 
 class TestBuildPolicySpec:
@@ -1566,9 +1587,8 @@ class TestSatisfiesGraceWindow:
         post-release of a clean version is the same release line. PEP 440 allows more than three release
         components, so ``2.0.0.1`` is read as a follow-up release, not a clean major.
         """
-        assert (
-            _satisfies_grace_window(_parse_version(deprecated_in), _parse_version(remove_in), count, unit) is expected
-        )
+        window = GraceWindow(count, unit)
+        assert _satisfies_grace_window(_parse_version(deprecated_in), _parse_version(remove_in), window) is expected
 
 
 class TestHasMigrationGuidance:

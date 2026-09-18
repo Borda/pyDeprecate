@@ -951,23 +951,6 @@ class VersionBump(str, enum.Enum):
 _GRACE_WINDOW_UNITS = (VersionBump.MAJOR, VersionBump.MINOR, VersionBump.PATCH)
 
 
-@dataclass(frozen=True)
-class _PolicySpec:
-    """Parsed, validated policy configuration shared by every wrapper in one policy scan.
-
-    Attributes:
-        grace: ``(count, unit)`` minimum distance required between ``deprecated_in`` and ``remove_in``,
-            or ``None`` when the rule is disabled.
-        message_required: Whether every wrapper must offer migration guidance.
-
-    """
-
-    grace: Optional[tuple[int, VersionBump]]
-    message_required: bool
-
-
-#: Accepted ``min_grace`` value: a dotted delta string (``"0.3"``), a float Fire/TOML may hand over, or a one-key table.
-GraceWindow = Union[str, float, Mapping[str, int]]
 _GRACE_WINDOW_UNITS_BY_NAME = {unit.value: unit for unit in _GRACE_WINDOW_UNITS}
 _GRACE_WINDOW_SPELLINGS = (
     "`1.0` (one major), `0.1` (one minor), `0.0.1` (one patch), or a one-key table such as `{'minor': 1}`"
@@ -981,75 +964,131 @@ def _grace_window_error(min_grace: object, detail: str) -> ValueError:
     )
 
 
-def _parse_grace_table(min_grace: Mapping[str, int]) -> tuple[int, VersionBump]:
-    """Parse the table form ``{"minor": 3}`` — exactly one unit key, a non-negative integer count."""
-    if len(min_grace) != 1:
-        raise _grace_window_error(dict(min_grace), "a table must name exactly one unit")
-    ((unit_name, count),) = min_grace.items()
-    unit_key = unit_name.value if isinstance(unit_name, VersionBump) else unit_name
-    if unit_key not in _GRACE_WINDOW_UNITS_BY_NAME:
-        raise _grace_window_error(dict(min_grace), f"unknown unit `{unit_key}`")
-    if isinstance(count, bool) or not isinstance(count, int) or count < 0:
-        raise _grace_window_error(dict(min_grace), "the count must be a non-negative integer")
-    return count, _GRACE_WINDOW_UNITS_BY_NAME[unit_key]
+@dataclass(frozen=True)
+class GraceWindow:
+    """Strict form of a ``min_grace`` window: ``count`` steps of exactly one version component ``unit``.
 
+    This is what every user-facing spelling is converted into before a policy scan starts, so the single-unit
+    rule is structural rather than something each consumer re-checks: an instance cannot name two units, and
+    construction rejects a negative or non-integer count. Build one directly, or from any accepted spelling with
+    :meth:`parse` — a dotted delta (``"0.3"``), the float Fire or TOML may hand over, or a one-key table.
 
-def _parse_grace_window(min_grace: GraceWindow) -> tuple[int, VersionBump]:
-    """Parse a ``min_grace`` window such as ``"0.3"`` or ``{"minor": 3}`` into its count and unit.
-
-    Two spellings. The **dotted delta** is shaped like a version with two or three components and a single
-    non-zero one — its position is the unit, the number the count: ``"1.0"`` one major, ``"0.3"`` three minors,
-    ``"0.0.2"`` two patches. A bare ``"1"`` is rejected as ambiguous (write ``"1.0"``), and so is ``"1.2"`` —
-    two units have no meaning under the coarser-bump rule. A ``float`` is read as its text (``0.3``, ``1.0``),
-    which drops a trailing zero (``0.10`` is ``0.1``): quote ten or more steps. The **table** names the unit
-    outright — ``{"major": 1}``, ``{"minor": 3}``, ``{"patch": 2}`` — and can only ever carry one unit.
-
-    Args:
-        min_grace: The dotted delta as a string or float, or a one-key mapping from unit name to count.
-
-    Returns:
-        Tuple of the required count and the :class:`~deprecate.audit.VersionBump` unit it is counted in.
-
-    Raises:
-        ValueError: If the specification is not of either shape.
+    Attributes:
+        count: Minimum number of bumps required; ``0`` disables the distance check while still requiring a
+            clean bump of ``unit`` or coarser.
+        unit: Version component the bumps are counted in.
 
     Examples:
-        >>> _parse_grace_window("0.1")
-        (1, <VersionBump.MINOR: 'minor'>)
-        >>> _parse_grace_window("2.0")
-        (2, <VersionBump.MAJOR: 'major'>)
-        >>> _parse_grace_window({"patch": 3})
-        (3, <VersionBump.PATCH: 'patch'>)
-        >>> _parse_grace_window(0.3)
-        (3, <VersionBump.MINOR: 'minor'>)
+        >>> GraceWindow(3, VersionBump.MINOR)
+        GraceWindow(count=3, unit=<VersionBump.MINOR: 'minor'>)
+        >>> GraceWindow(-1, VersionBump.MINOR)
+        Traceback (most recent call last):
+            ...
+        ValueError: Invalid `min_grace` specification `GraceWindow(count=-1, ...)`; ...
 
     """
-    if isinstance(min_grace, Mapping):
-        return _parse_grace_table(min_grace)
-    if isinstance(min_grace, bool) or not isinstance(min_grace, (str, float)):
-        raise _grace_window_error(min_grace, "a bare number does not say which release level it counts")
-    spec = str(min_grace).strip()
-    parts = spec.split(".")
-    valid = 2 <= len(parts) <= 3 and all(part.isdigit() for part in parts)
-    nonzero = [i for i, part in enumerate(parts) if valid and int(part)]
-    if not valid or len(nonzero) > 1:
-        raise _grace_window_error(spec, "a dotted delta needs two or three components with at most one non-zero")
-    # All zeros (`"0.0"`) is a zero-count window in the unit of its last position.
-    position = nonzero[0] if nonzero else len(parts) - 1
-    return int(parts[position]), _GRACE_WINDOW_UNITS[position]
+
+    count: int
+    unit: VersionBump
+
+    def __post_init__(self) -> None:
+        """Reject a count or unit no accepted spelling could have produced."""
+        if isinstance(self.count, bool) or not isinstance(self.count, int) or self.count < 0:
+            raise _grace_window_error(self, "the count must be a non-negative integer")
+        if not isinstance(self.unit, VersionBump):
+            raise _grace_window_error(self, f"unknown unit `{self.unit}`")
+
+    @classmethod
+    def parse(cls, min_grace: "GraceWindowSpec") -> "GraceWindow":
+        """Convert any accepted ``min_grace`` spelling into a :class:`GraceWindow`.
+
+        Two spellings, plus an instance passed through unchanged. The **dotted delta** is shaped like a version
+        with two or three components and a single non-zero one — its position is the unit, the number the count:
+        ``"1.0"`` one major, ``"0.3"`` three minors, ``"0.0.2"`` two patches. A bare ``"1"`` is rejected as
+        ambiguous (write ``"1.0"``), and so is ``"1.2"`` — two units have no meaning under the coarser-bump
+        rule. A ``float`` is read as its text (``0.3``, ``1.0``), which drops a trailing zero (``0.10`` is
+        ``0.1``): quote ten or more steps. The **table** names the unit outright — ``{"major": 1}``,
+        ``{"minor": 3}``, ``{"patch": 2}`` — and can only ever carry one unit.
+
+        Args:
+            min_grace: The dotted delta as a string or float, a one-key mapping from unit name to count, or an
+                already-built window.
+
+        Returns:
+            The strict window.
+
+        Raises:
+            ValueError: If the specification is not of any accepted shape.
+
+        Examples:
+            >>> GraceWindow.parse("0.1")
+            GraceWindow(count=1, unit=<VersionBump.MINOR: 'minor'>)
+            >>> GraceWindow.parse("2.0")
+            GraceWindow(count=2, unit=<VersionBump.MAJOR: 'major'>)
+            >>> GraceWindow.parse({"patch": 3})
+            GraceWindow(count=3, unit=<VersionBump.PATCH: 'patch'>)
+            >>> GraceWindow.parse(0.3)
+            GraceWindow(count=3, unit=<VersionBump.MINOR: 'minor'>)
+
+        """
+        if isinstance(min_grace, GraceWindow):
+            return min_grace
+        if isinstance(min_grace, Mapping):
+            return cls._parse_table(min_grace)
+        if isinstance(min_grace, bool) or not isinstance(min_grace, (str, float)):
+            raise _grace_window_error(min_grace, "a bare number does not say which release level it counts")
+        spec = str(min_grace).strip()
+        parts = spec.split(".")
+        valid = 2 <= len(parts) <= 3 and all(part.isdigit() for part in parts)
+        nonzero = [i for i, part in enumerate(parts) if valid and int(part)]
+        if not valid or len(nonzero) > 1:
+            raise _grace_window_error(spec, "a dotted delta needs two or three components with at most one non-zero")
+        # All zeros (`"0.0"`) is a zero-count window in the unit of its last position.
+        position = nonzero[0] if nonzero else len(parts) - 1
+        return cls(int(parts[position]), _GRACE_WINDOW_UNITS[position])
+
+    @classmethod
+    def _parse_table(cls, min_grace: Mapping[str, int]) -> "GraceWindow":
+        """Parse the table form ``{"minor": 3}`` — exactly one unit key; the count is validated on construction."""
+        if len(min_grace) != 1:
+            raise _grace_window_error(dict(min_grace), "a table must name exactly one unit")
+        ((unit_name, count),) = min_grace.items()
+        unit_key = unit_name.value if isinstance(unit_name, VersionBump) else unit_name
+        if unit_key not in _GRACE_WINDOW_UNITS_BY_NAME:
+            raise _grace_window_error(dict(min_grace), f"unknown unit `{unit_key}`")
+        return cls(count, _GRACE_WINDOW_UNITS_BY_NAME[unit_key])
+
+    def describe(self) -> str:
+        """Render the window as prose, e.g. ``"1 minor release"`` or ``"2 major releases"``.
+
+        Examples:
+            >>> GraceWindow(1, VersionBump.MINOR).describe()
+            '1 minor release'
+            >>> GraceWindow(0, VersionBump.PATCH).describe()
+            '0 patch releases'
+
+        """
+        return f"{self.count} {self.unit.value} release{'' if self.count == 1 else 's'}"
 
 
-def _format_grace_window(count: int, unit: VersionBump) -> str:
-    """Render a parsed grace window as prose, e.g. ``"1 minor release"`` or ``"2 major releases"``.
+#: Accepted ``min_grace`` value: a dotted delta string (``"0.3"``), a float Fire/TOML may hand over, a one-key
+#: table, or an already-strict :class:`GraceWindow`.
+GraceWindowSpec = Union[str, float, Mapping[str, int], GraceWindow]
 
-    Examples:
-        >>> _format_grace_window(1, VersionBump.MINOR)
-        '1 minor release'
-        >>> _format_grace_window(0, VersionBump.PATCH)
-        '0 patch releases'
+
+@dataclass(frozen=True)
+class _PolicySpec:
+    """Parsed, validated policy configuration shared by every wrapper in one policy scan.
+
+    Attributes:
+        grace: Minimum distance required between ``deprecated_in`` and ``remove_in``, or ``None`` when the rule
+            is disabled.
+        message_required: Whether every wrapper must offer migration guidance.
 
     """
-    return f"{count} {unit.value} release{'' if count == 1 else 's'}"
+
+    grace: Optional[GraceWindow]
+    message_required: bool
 
 
 def _format_release_boundaries(unit: VersionBump) -> str:
@@ -1066,11 +1105,11 @@ def _format_release_boundaries(unit: VersionBump) -> str:
     return " or ".join(filter(None, [", ".join(levels[:-1]), levels[-1]]))
 
 
-def _build_policy_spec(min_grace: Optional[GraceWindow], message_required: bool) -> _PolicySpec:
+def _build_policy_spec(min_grace: Optional[GraceWindowSpec], message_required: bool) -> _PolicySpec:
     """Validate the raw policy arguments once, before any wrapper is scanned.
 
     Args:
-        min_grace: Grace-window delta (e.g. ``"0.3"``), or ``None`` to disable the rule.
+        min_grace: Grace-window spelling (e.g. ``"0.3"``) or a :class:`GraceWindow`, or ``None`` to disable the rule.
         message_required: Whether every wrapper must offer migration guidance.
 
     Returns:
@@ -1080,7 +1119,7 @@ def _build_policy_spec(min_grace: Optional[GraceWindow], message_required: bool)
         ValueError: If ``min_grace`` is not a recognised specification.
 
     """
-    grace = _parse_grace_window(min_grace) if min_grace is not None else None
+    grace = GraceWindow.parse(min_grace) if min_grace is not None else None
     return _PolicySpec(grace=grace, message_required=message_required)
 
 
@@ -1112,18 +1151,18 @@ def _parse_policy_version(raw: Optional[str], info: DeprecationWrapperInfo, fiel
         return None
 
 
-def _satisfies_grace_window(deprecated_ver: "Version", remove_ver: "Version", count: int, unit: VersionBump) -> bool:
-    """Return whether ``remove_ver`` is one clean bump beyond ``deprecated_ver``, at least ``count`` steps in ``unit``.
+def _satisfies_grace_window(deprecated_ver: "Version", remove_ver: "Version", window: GraceWindow) -> bool:
+    """Return whether ``remove_ver`` is one clean bump beyond ``deprecated_ver`` that clears ``window``.
 
     A removal version has to be reachable from the deprecation version by bumping a *single* release component
     and resetting everything below it — ``1.2.3`` → ``1.3.0`` or ``2.0.0``, never ``2.3`` or ``1.3.1``. That
     is the shape every release cadence promises removals on; a mixed bump lands on no boundary at all, so it
-    fails whatever the window asks for. The bumped component then has to be at least as coarse as ``unit``: a
-    finer bump (a patch against a minor-counted window) fails, a coarser one (a major against the same window)
-    clears the window whatever ``count`` is — a wrapper deprecated in ``1.2`` and removed in ``2.0`` satisfies
-    ``"0.3"`` even though its minor number went *down*, because the major release is the bigger step. Converting
-    across components has no defensible answer (how many minors one major is worth depends on a cadence this
-    library cannot see), so ``count`` constrains distance only *within* its own component.
+    fails whatever the window asks for. The bumped component then has to be at least as coarse as the window's
+    unit: a finer bump (a patch against a minor-counted window) fails, a coarser one (a major against the same
+    window) clears the window whatever its count is — a wrapper deprecated in ``1.2`` and removed in ``2.0``
+    satisfies ``"0.3"`` even though its minor number went *down*, because the major release is the bigger step.
+    Converting across components has no defensible answer (how many minors one major is worth depends on a
+    cadence this library cannot see), so the count constrains distance only *within* its own component.
 
     Only the release numbers are read, so a pre- or post-release of a clean version (``2.0rc1``, ``2.0.post1``)
     is the same release line and passes. Every release component below the bumped one has to be zero, not just
@@ -1138,8 +1177,7 @@ def _satisfies_grace_window(deprecated_ver: "Version", remove_ver: "Version", co
     Args:
         deprecated_ver: Version the wrapper was deprecated in.
         remove_ver: Version the wrapper is scheduled for removal in.
-        count: Minimum number of bumps required.
-        unit: Version component the bumps are counted in.
+        window: Minimum number of bumps required and the version component they are counted in.
 
     Returns:
         True when the scheduled removal is a clean bump that respects the grace window.
@@ -1157,18 +1195,14 @@ def _satisfies_grace_window(deprecated_ver: "Version", remove_ver: "Version", co
     bumped = next((i for i, (o, n) in enumerate(zip(old, new)) if o != n), None)
     if bumped is None or new[bumped] < old[bumped] or any(new[bumped + 1 :]):
         return False  # Same release, a step backwards, or a mixed bump — not a clean release boundary.
-    unit_position = _GRACE_WINDOW_UNITS.index(unit)
+    unit_position = _GRACE_WINDOW_UNITS.index(window.unit)
     if bumped != unit_position:
         return bumped < unit_position  # A coarser bump clears the window outright; a finer one never does.
-    return new[bumped] - old[bumped] >= count
+    return new[bumped] - old[bumped] >= window.count
 
 
 def _grace_window_violation(
-    info: DeprecationWrapperInfo,
-    deprecated_ver: "Version",
-    remove_ver: "Version",
-    count: int,
-    unit: VersionBump,
+    info: DeprecationWrapperInfo, deprecated_ver: "Version", remove_ver: "Version", window: GraceWindow
 ) -> Optional[str]:
     """Return the ``min-grace`` violation message for one wrapper, or ``None`` when it passes or is skipped.
 
@@ -1188,8 +1222,7 @@ def _grace_window_violation(
         info: Wrapper being checked; named in the violation message and in the skip warning.
         deprecated_ver: Parsed version the wrapper was deprecated in.
         remove_ver: Parsed version the wrapper is scheduled for removal in.
-        count: Minimum number of bumps the policy requires.
-        unit: Version component the bumps are counted in.
+        window: Minimum number of bumps the policy requires and the version component they are counted in.
 
     Returns:
         The violation message, or ``None`` when the window is satisfied or the check was skipped.
@@ -1199,7 +1232,7 @@ def _grace_window_violation(
     violation = (
         f"[{PolicyRule.MIN_GRACE.value}] {_format_subject(info)} is deprecated in `{config.deprecated_in}`"
         f" and scheduled for removal in `{config.remove_in}`; the policy requires a grace window of at least"
-        f" {_format_grace_window(count, unit)}, landing on a clean {_format_release_boundaries(unit)} boundary."
+        f" {window.describe()}, landing on a clean {_format_release_boundaries(window.unit)} boundary."
     )
     if remove_ver <= deprecated_ver:
         return violation
@@ -1211,7 +1244,7 @@ def _grace_window_violation(
             stacklevel=2,
         )
         return None
-    return None if _satisfies_grace_window(deprecated_ver, remove_ver, count, unit) else violation
+    return None if _satisfies_grace_window(deprecated_ver, remove_ver, window) else violation
 
 
 def _has_migration_guidance(info: DeprecationWrapperInfo) -> bool:
@@ -1285,7 +1318,7 @@ def _policy_violations_for_wrapper(info: DeprecationWrapperInfo, spec: _PolicySp
         deprecated_ver = _parse_policy_version(config.deprecated_in, info, "deprecated_in")
         remove_ver = _parse_policy_version(config.remove_in, info, "remove_in")
         if deprecated_ver is not None and remove_ver is not None:
-            grace_violation = _grace_window_violation(info, deprecated_ver, remove_ver, *spec.grace)
+            grace_violation = _grace_window_violation(info, deprecated_ver, remove_ver, spec.grace)
             if grace_violation is not None:
                 violations.append(grace_violation)
 
@@ -1332,7 +1365,7 @@ def validate_deprecation_policy(
     recursive: bool = True,
     include_members: bool = True,
     *,
-    min_grace: Optional[GraceWindow] = "0.3",
+    min_grace: Optional[GraceWindowSpec] = "0.3",
     message_required: bool = True,
     exclude: Optional[Sequence[str]] = None,
 ) -> list[str]:
@@ -1356,8 +1389,10 @@ def validate_deprecation_policy(
             of :func:`~deprecate.audit.find_deprecation_wrappers`.
         min_grace: Minimum grace window, either a version-shaped delta with two or three components — ``"1.0"``
             (one major), ``"0.3"`` (three minors), ``"0.0.2"`` (two patches); a float such as ``0.3`` works too —
-            or a one-key table naming the unit: ``{"major": 1}``, ``{"minor": 3}``, ``{"patch": 2}``. ``None``
-            skips the rule; a bare ``"1"`` is rejected as ambiguous. The removal has to be a *clean* bump of one
+            or a one-key table naming the unit: ``{"major": 1}``, ``{"minor": 3}``, ``{"patch": 2}``; every
+            spelling is converted to a :class:`~deprecate.audit.GraceWindow` up front, which can also be passed
+            directly. ``None`` skips the rule; a bare ``"1"`` is rejected as ambiguous. The removal has to be a
+            *clean* bump of one
             component with everything below it reset (``1.2`` → ``1.5`` or ``2.0``, never ``2.3``); a coarser bump
             always satisfies the window regardless of the count (``1.2`` → ``2.0`` clears ``"0.3"``), a finer one
             never does. The count restricts distance only within its own component.
