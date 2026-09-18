@@ -9,7 +9,6 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 
 import enum
 import importlib
-import importlib.metadata
 import types
 import warnings
 from collections.abc import Mapping, Sequence
