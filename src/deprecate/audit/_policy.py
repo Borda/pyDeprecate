@@ -10,6 +10,7 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 import enum
 import importlib
 import importlib.metadata
+import types
 import warnings
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -18,10 +19,11 @@ from typing import TYPE_CHECKING, Any, Optional, Union
 if TYPE_CHECKING:
     from packaging.version import Version
 
-from deprecate._types import TargetMode
+from deprecate._types import DeprecationConfig, TargetMode
 from deprecate.audit._lifecycle import _parse_version
 from deprecate.audit._scan import find_deprecation_wrappers
 from deprecate.audit._wrappers import DeprecationWrapperInfo, _format_subject
+from deprecate.module import _build_module_warn_msg
 
 
 class PolicyRule(str, enum.Enum):
@@ -41,7 +43,9 @@ class PolicyRule(str, enum.Enum):
         MESSAGE_REQUIRED: the wrapper must name what to migrate *to* -- a ``target``, a non-empty
             ``args_mapping``/``attrs_mapping``, or a non-empty custom ``message_template``; ``message_required=False``
             disables. An explicit :attr:`~deprecate.TargetMode.NOTIFY` counts only the template; a deprecated module
-            only target and mappings. The one rule that runs without ``packaging``.
+            counts its replacement module, its ``attrs_mapping``, or a template other than the built-in notice
+            :func:`~deprecate.module.deprecated_module` renders when given none. The one rule that runs without
+            ``packaging``.
 
     Examples:
         >>> PolicyRule.MIN_GRACE.value
@@ -129,7 +133,10 @@ class GraceWindow:
         ambiguous (write ``"1.0"``), and so is ``"1.2"`` — two units have no meaning under the coarser-bump
         rule. A ``float`` is read as its text (``0.3``, ``1.0``), which drops a trailing zero (``0.10`` is
         ``0.1``): quote ten or more steps. The **table** names the unit outright — ``{"major": 1}``,
-        ``{"minor": 3}``, ``{"patch": 2}`` — and can only ever carry one unit.
+        ``{"minor": 3}``, ``{"patch": 2}`` — and can only ever carry one unit. An all-zero spelling (``"0.0"``,
+        ``{"minor": 0}``) is a zero-count window in the unit of its last position: the distance check is off, but
+        a clean bump of that unit or coarser is still required, so ``1.2`` → ``1.2.1`` still violates a zero-minor
+        window.
 
         Args:
             min_grace: The dotted delta as a string or float, a one-key mapping from unit name to count, or an
@@ -164,7 +171,8 @@ class GraceWindow:
         nonzero = [i for i, part in enumerate(parts) if valid and int(part)]
         if not valid or len(nonzero) > 1:
             raise _grace_window_error(spec, "a dotted delta needs two or three components with at most one non-zero")
-        # All zeros (`"0.0"`) is a zero-count window in the unit of its last position.
+        # All zeros (`"0.0"`) is a zero-count window in the unit of its last position: it switches the distance
+        # check off but still demands a clean bump of that unit or coarser (`1.2` -> `1.2.1` fails a zero-minor window).
         position = nonzero[0] if nonzero else len(parts) - 1
         return cls(int(parts[position]), _GRACE_WINDOW_UNITS[position])
 
@@ -290,10 +298,11 @@ def _satisfies_grace_window(deprecated_ver: "Version", remove_ver: "Version", wi
     the two :attr:`~packaging.version.Version.minor` and :attr:`~packaging.version.Version.micro` expose: PEP 440
     allows arbitrarily many, and a four-component ``2.0.0.1`` is as much a follow-up release as ``2.0.1`` is.
 
-    A PEP 440 epoch change is the coarsest bump of all — ``1!1.0`` sorts above every epoch-``0`` version regardless
-    of its release numbers, so the epoch is compared first and settles the answer whenever the two differ. That
-    ordering keeps this predicate total for any pair of versions; the policy path does not rely on it, because
-    :func:`_grace_window_violation` warns and skips the wrapper before an epoch change ever reaches here.
+    Both versions have to sit in the same PEP 440 epoch. Release numbers are only comparable inside one epoch —
+    ``2.0`` is *older* than ``1!1.0`` — and the distance across an epoch change is not expressible in majors,
+    minors, or patches at all, so rather than settle it by some ordering rule the predicate refuses the pair.
+    :func:`_grace_window_violation` intercepts an epoch change before calling here: a backward one is reported
+    as a plain violation, a forward one warns and skips the wrapper.
 
     Args:
         deprecated_ver: Version the wrapper was deprecated in.
@@ -303,11 +312,15 @@ def _satisfies_grace_window(deprecated_ver: "Version", remove_ver: "Version", wi
     Returns:
         True when the scheduled removal is a clean bump that respects the grace window.
 
+    Raises:
+        ValueError: If the two versions are in different PEP 440 epochs; the caller must handle that case first.
+
     """
     if deprecated_ver.epoch != remove_ver.epoch:
-        # Comparing release numbers across epochs is meaningless (``2.0`` is *older* than ``1!1.0``); the epoch
-        # bump itself is a bigger step than any window expressed in majors, so it clears every unit.
-        return remove_ver.epoch > deprecated_ver.epoch
+        raise ValueError(
+            f"Cannot measure a grace window from `{deprecated_ver}` to `{remove_ver}`: their PEP 440 epochs differ;"
+            " caller must handle an epoch change before calling `_satisfies_grace_window`."
+        )
     # Pad both release tuples to a common length (at least major/minor/patch) so ``2`` reads as ``2.0.0`` and a
     # fourth component is compared rather than silently dropped.
     width = max(len(deprecated_ver.release), len(remove_ver.release), len(_GRACE_WINDOW_UNITS))
@@ -327,14 +340,15 @@ def _grace_window_violation(
 ) -> Optional[str]:
     """Return the ``min-grace`` violation message for one wrapper, or ``None`` when it passes or is skipped.
 
-    Kept separate from :func:`_satisfies_grace_window` so the arithmetic stays a pure predicate while the one
-    case that cannot be measured — a *forward* PEP 440 epoch change between the two versions — is surfaced to
-    the user instead of being settled by the predicate's ordering rule.
+    Kept separate from :func:`_satisfies_grace_window` so the arithmetic stays a pure same-epoch predicate — it
+    refuses a cross-epoch pair with a :class:`ValueError` — while the one case that cannot be measured, a
+    *forward* PEP 440 epoch change between the two versions, is intercepted here and surfaced to the user before
+    the predicate is ever asked.
 
     Release numbers are only comparable inside one epoch: ``2.0`` is *older* than ``1!1.0``, and the distance
-    between them is not expressible in majors, minors, or patches at all. A forward epoch bump would otherwise
-    clear every grace window silently, so a wrapper that in fact gave callers no warning cycle at all would read
-    as policy-clean; that case warns and reports the rule as skipped, the same treatment an unparsable version
+    between them is not expressible in majors, minors, or patches at all. Silently clearing every grace window
+    on a forward epoch bump would let a wrapper that in fact gave callers no warning cycle at all read as
+    policy-clean; that case warns and reports the rule as skipped, the same treatment an unparsable version
     string gets in :func:`_parse_policy_version`. A removal version that sorts at or before
     ``deprecated_in`` is not a measurement gap: it is reported directly as a ``min-grace`` violation, since no
     version-distance calculation is needed to see that no grace window was given at all.
@@ -392,9 +406,8 @@ def _has_migration_guidance(info: DeprecationWrapperInfo) -> bool:
     *unset* target keeps its mapping: only an explicitly chosen ``NOTIFY`` is barred from auto-resolving to a remap
     mode, so a mapping stored against ``target=None`` is still applied.
 
-    Deprecated modules are judged on their target and mappings alone: :func:`~deprecate.module.deprecated_module`
-    stores the already-rendered warning text in ``message_template``, so that field is always set for a module and
-    would make the rule inert there.
+    A deprecated module is read through :func:`_module_has_migration_guidance` instead, because
+    :func:`~deprecate.module.deprecated_module` records its configuration differently from the other factories.
 
     Args:
         info: Wrapper to inspect.
@@ -404,10 +417,11 @@ def _has_migration_guidance(info: DeprecationWrapperInfo) -> bool:
 
     """
     config = info.deprecated_info
+    if info.api_type == "module":
+        return _module_has_migration_guidance(config)
     target = config.target
     has_mapping = bool(config.args_mapping or config.attrs_mapping)
-    # A deprecated module stores its already-rendered warning here, so that text is not a custom message.
-    has_message = bool(config.message_template) and info.api_type != "module"
+    has_message = bool(config.message_template)
     if target is TargetMode.NOTIFY:
         return has_message
     if target in (TargetMode.ARGS_REMAP, TargetMode.ATTRS_REMAP):
@@ -415,6 +429,60 @@ def _has_migration_guidance(info: DeprecationWrapperInfo) -> bool:
     if target is not None:
         return True
     return has_mapping or has_message
+
+
+def _module_has_migration_guidance(config: DeprecationConfig) -> bool:
+    """Return whether a deprecated module tells callers what to migrate *to*.
+
+    :func:`~deprecate.module.deprecated_module` records its configuration differently from the other factories,
+    so the generic reading in :func:`_has_migration_guidance` would misjudge it on two counts:
+
+    - It stores :attr:`~deprecate.TargetMode.NOTIFY` for "no replacement module" rather than leaving the target
+      unset, and still applies ``attrs_mapping`` on every attribute access — so the sentinel is not the explicit,
+      mapping-discarding opt-out it is for a callable, and a non-empty mapping counts as guidance here.
+    - It renders the warning up front and stores the result in ``message_template`` — the built-in notice when
+      the author passed no template, their own text otherwise. The field is therefore always set, and only text
+      that differs from the built-in notice for the same module, versions and target is a custom message. The
+      notice is re-rendered here with the same helper the factory uses, so the two cannot drift apart.
+
+    Args:
+        config: Metadata :func:`~deprecate.module.deprecated_module` attached to the module.
+
+    Returns:
+        True when the module redirects to a replacement, renames attributes, or carries a custom message.
+
+    """
+    target = config.target if isinstance(config.target, types.ModuleType) else None
+    if target is not None or config.attrs_mapping:
+        return True
+    built_in = _build_module_warn_msg(config.name, config.deprecated_in, config.remove_in, target, None)
+    return bool(config.message_template) and config.message_template != built_in
+
+
+#: ``message-required`` remedy per ``api_type`` — each names only the arguments that wrapper's factory accepts.
+#: :func:`~deprecate.proxy.deprecated_instance` takes a ``message_template`` and nothing else that names a
+#: replacement; :func:`~deprecate.module.deprecated_module` takes a ``target`` module, an ``attrs_mapping`` and a
+#: ``message_template``; every other wrapper comes from a factory that also accepts an ``args_mapping``.
+_MESSAGE_REQUIRED_REMEDIES = {
+    "data": "configure a custom `message_template`",
+    "module": "configure a `target`, an `attrs_mapping`, or a custom `message_template`",
+}
+_MESSAGE_REQUIRED_DEFAULT_REMEDY = (
+    "configure a `target`, an `args_mapping`/`attrs_mapping`, or a custom `message_template`"
+)
+
+
+def _message_required_remedy(api_type: str) -> str:
+    """Name the arguments a wrapper of ``api_type`` can be given so that its warning names a replacement.
+
+    Examples:
+        >>> _message_required_remedy("data")
+        'configure a custom `message_template`'
+        >>> _message_required_remedy("callable")
+        'configure a `target`, an `args_mapping`/`attrs_mapping`, or a custom `message_template`'
+
+    """
+    return _MESSAGE_REQUIRED_REMEDIES.get(api_type, _MESSAGE_REQUIRED_DEFAULT_REMEDY)
 
 
 def _policy_violations_for_wrapper(info: DeprecationWrapperInfo, spec: _PolicySpec) -> list[str]:
@@ -446,8 +514,7 @@ def _policy_violations_for_wrapper(info: DeprecationWrapperInfo, spec: _PolicySp
     if spec.message_required and not _has_migration_guidance(info):
         violations.append(
             f"[{PolicyRule.MESSAGE_REQUIRED.value}] {_format_subject(info)} warns without naming a replacement;"
-            " configure a `target`, an `args_mapping`/`attrs_mapping`, or a custom `message_template`"
-            " so callers learn what to migrate to."
+            f" {_message_required_remedy(info.api_type)} so callers learn what to migrate to."
         )
 
     return violations

@@ -199,11 +199,16 @@ class _Reporter:
         rows: list[tuple[str, ...]],
         plain_prefix: str,
     ) -> None:
-        """Render a three-column Module/Function/Detail table (rich or plain fallback)."""
+        """Render a three-column Module/Function/Detail table (rich or plain fallback).
+
+        Every cell is wrapped in :class:`rich.text.Text`, as in :meth:`_render_message_table`, so a square-bracketed
+        detail is rendered literally instead of being parsed as Rich style markup.
+
+        """
         if _Reporter._HAS_RICH:
             table = _Reporter._make_table(title, col, title_style=title_style, col_style=col_style)
             for row in rows:
-                table.add_row(*row)
+                table.add_row(*(_Reporter._RichText(cell) for cell in row))
             _Reporter._console().print(table)
         else:
             _print(f"\n{plain_prefix}")
@@ -637,7 +642,7 @@ def _resolve_exclude(
 
 
 def _resolve_policy_spec(
-    path: str, flags: dict[str, _ConfigFlag], config: Optional[_Config] = None
+    path: str, flags: dict[str, _ConfigFlag], config: _Config
 ) -> Optional[tuple["_PolicySpec", str]]:
     """Build the policy spec as flag > ``pyproject.toml`` > built-in default per rule, printing any usage error.
 
@@ -647,15 +652,14 @@ def _resolve_policy_spec(
     Args:
         path: The ``path`` argument of the subcommand.
         flags: Rule slug to the value the subcommand received; :data:`_FROM_PYPROJECT` means "not typed".
-        config: An already-loaded configuration, to avoid re-reading (and re-warning about) the file.
+        config: The already-loaded ``[tool.pydeprecate]`` configuration; :func:`cmd_policy` loads it once so the
+            file is never re-read (and re-warned about) here.
 
     Returns:
         The spec and the ``Policy:`` header line naming each value's source, or ``None`` after printing a usage
         error naming the offending value and its source (the caller exits 2).
 
     """
-    if config is None:
-        config = _load_pydeprecate_config(path) if any(v is _FROM_PYPROJECT for v in flags.values()) else ({}, None)
     table = config[0].get(_POLICY_KEY, {})
     values: dict[str, Any] = {}
     sources: dict[str, str] = {}
@@ -686,7 +690,8 @@ def _skipped_policy_rules(spec: "_PolicySpec") -> list[str]:
     """Return the CLI-facing slugs of the version-dependent policy rules *spec* has enabled.
 
     These are exactly the rules that cannot run without the ``packaging`` library — used to name them in the advisory
-    printed when ``packaging`` turns out to be unavailable.
+    printed when ``packaging`` turns out to be unavailable. Today ``min-grace`` is the only such rule, so the list holds
+    at most one entry.
 
     """
     return [PolicyRule.MIN_GRACE.value] if spec.grace is not None else []
@@ -699,36 +704,35 @@ def _policy_violations_without_packaging(
 
     Prints an advisory naming the version-dependent rule *spec* had enabled (``min_grace``) — it is skipped.
     ``message_required`` needs no version parsing, so when it is enabled it is re-run standalone and its
-    violations still gate the exit code; only the fully-disabled or still-blocked cases fall through to an
-    advisory no-op.
+    violations still gate the exit code; only the fully-disabled case falls through to an advisory no-op.
 
     Args:
         wrappers: Pre-scanned wrapper list to re-check for ``message_required`` alone.
         spec: The originally requested (unsatisfiable) policy configuration.
 
     Returns:
-        The ``message_required``-only violations list, or ``None`` when there is nothing left to check
-        (``message_required`` disabled, or the audit engine still needs ``packaging`` even for it).
+        The ``message_required``-only violations list, or ``None`` when ``message_required`` is disabled and there
+        is nothing left to check.
 
     """
-    skipped_rules = _skipped_policy_rules(spec)
+    skipped_rules = ", ".join(f"`{rule}`" for rule in _skipped_policy_rules(spec))
     _print(
-        f"The `packaging` library is required for the {', '.join(f'`{r}`' for r in skipped_rules)} policy "
-        "rule(s); skipping them.\nInstall it with: `pip install 'pyDeprecate[audit]'`",
+        f"The `packaging` library is required for the {skipped_rules} policy rule; skipping it.\n"
+        "Install it with: `pip install 'pyDeprecate[audit]'`",
         stderr=True,
     )
     if not spec.message_required:
         return None
-    # `message_required` needs no version parsing at all — rerun with the version-dependent rules
-    # disabled and no current_version (avoids re-triggering the same ImportError).
+    # `message_required` needs no version parsing at all, so a spec with the grace-window rule switched off keeps
+    # the version machinery — and with it the ImportError just handled — out of this second pass entirely.
     message_only_spec = _build_policy_spec(None, True)
     try:
         return _check_policy_for_callables(wrappers, message_only_spec)
     except ImportError as inner_exc:
         if not _is_missing_packaging_import_error(inner_exc):
             raise
-        # `audit`'s policy engine still needs `packaging` even for a message-required-only scan —
-        # degrade to a fully advisory no-op rather than crashing.
+        # Unreachable through the real engine (a message-only spec parses no version); kept only because
+        # `test_cli.py::test_packaging_missing_exits_zero` mocks the engine to raise on every call.
         return None
 
 

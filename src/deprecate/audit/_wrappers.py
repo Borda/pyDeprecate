@@ -461,23 +461,29 @@ def _format_report_symbol(info: DeprecationWrapperInfo) -> str:
     return info.module or info.function
 
 
+#: Subject noun per ``api_type`` for wrappers that are not callables; every other kind reads as *Callable*.
+_SUBJECT_NOUNS = {"module": "Module", "data": "Instance"}
+
+
 def _subject_noun(info: DeprecationWrapperInfo) -> str:
     """Return the grammatical subject noun for a deprecated wrapper, driven by ``api_type``.
 
-    Centralises noun selection so error and report text says *Module* for a deprecated module and *Callable* for
-    everything else, instead of inlining ``info.function`` (which is empty for modules).
+    Centralises noun selection so error and report text says *Module* for a deprecated module, *Instance* for a
+    :func:`~deprecate.proxy.deprecated_instance` proxy (``api_type="data"`` -- the wrapped object is not called), and
+    *Callable* for everything else, instead of inlining ``info.function`` (which is empty for modules).
 
     """
-    return "Module" if info.api_type == "module" else "Callable"
+    return _SUBJECT_NOUNS.get(info.api_type, "Callable")
 
 
 def _format_subject(info: DeprecationWrapperInfo) -> str:
     """Return the backticked subject phrase used in expiry error messages.
 
-    Renders the noun from :func:`_subject_noun` (``Callable`` or ``Module``) followed by the backtick-quoted fully-
-    qualified label from :func:`_format_report_symbol` — for example a callable subject reads *Callable* then the quoted
-    name, and a module subject reads *Module* then the quoted module path. Centralising this here means no expiry site
-    inlines ``info.function`` directly, so an empty or sentinel module label can never leak into the text.
+    Renders the noun from :func:`_subject_noun` (``Callable``, ``Instance`` or ``Module``) followed by the backtick-
+    quoted fully-qualified label from :func:`_format_report_symbol` — for example a callable subject reads *Callable*
+    then the quoted name, and a module subject reads *Module* then the quoted module path. Centralising this here means
+    no expiry site inlines ``info.function`` directly, so an empty or sentinel module label can never leak into the
+    text.
 
     """
     return f"{_subject_noun(info)} `{_format_report_symbol(info)}`"

@@ -8,7 +8,7 @@ import sys
 import types
 import warnings
 from functools import cached_property
-from typing import NoReturn, Union
+from typing import Any, NoReturn, Union
 
 import pytest
 
@@ -60,6 +60,13 @@ _requires_packaging = pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requi
 # collection never fails; the tests that use ``Version`` are gated by ``@_requires_packaging``.
 if _PACKAGING_AVAILABLE:
     from packaging.version import Version
+
+#: Identity fields ``deprecated_module()`` records for a module deprecated in ``1.0`` and removed in ``2.0``.
+_MODULE_IDENTITY: dict[str, Any] = {"name": "pkg.old_mod", "deprecated_in": "1.0", "remove_in": "2.0"}
+#: The notice ``deprecated_module()`` renders into ``message_template`` for that module when the author passes none.
+_MODULE_BUILT_IN_NOTICE = "The `pkg.old_mod` module was deprecated since v1.0. It will be removed in v2.0."
+#: Replacement module for the redirect case; ``deprecated_module()`` reads only its ``__name__``.
+_MODULE_TARGET = types.ModuleType("pkg.new_mod")
 
 
 class _SideEffectScanModule:
@@ -1573,8 +1580,6 @@ class TestSatisfiesGraceWindow:
             pytest.param("1.0", "2.0.0.1", 1, VersionBump.MAJOR, False, id="fourth-component-is-not-a-clean-major"),
             pytest.param("1.0", "2.0rc1", 1, VersionBump.MAJOR, True, id="pre-release-of-next-major"),
             pytest.param("1.0", "2.0.post1", 1, VersionBump.MAJOR, True, id="post-release-of-next-major"),
-            pytest.param("1.0", "1!1.0", 1, VersionBump.MAJOR, True, id="epoch-bump-clears-any-window"),
-            pytest.param("1!1.0", "2.0", 1, VersionBump.MAJOR, False, id="epoch-drop-is-not-a-later-version"),
         ],
     )
     @_requires_packaging
@@ -1592,6 +1597,26 @@ class TestSatisfiesGraceWindow:
         """
         window = GraceWindow(count, unit)
         assert _satisfies_grace_window(_parse_version(deprecated_in), _parse_version(remove_in), window) is expected
+
+    @pytest.mark.parametrize(
+        ("deprecated_in", "remove_in"),
+        [
+            pytest.param("1.0", "1!1.0", id="forward-epoch-bump"),
+            pytest.param("1!1.0", "2.0", id="backward-epoch-drop"),
+        ],
+    )
+    @_requires_packaging
+    def test_refuses_versions_from_different_epochs(self, deprecated_in: str, remove_in: str) -> None:
+        """A pair of versions from different PEP 440 epochs is refused instead of being measured.
+
+        Release numbers are only comparable inside one epoch -- ``2.0`` is *older* than ``1!1.0`` -- so no count
+        of majors, minors, or patches describes the distance across an epoch change. A verdict either way would
+        silently misjudge the window (a forward bump used to clear every window, in whichever direction), so the
+        predicate raises and leaves the case to ``_grace_window_violation``, which intercepts it first and warns.
+        """
+        window = GraceWindow(1, VersionBump.MAJOR)
+        with pytest.raises(ValueError, match="epoch"):
+            _satisfies_grace_window(_parse_version(deprecated_in), _parse_version(remove_in), window)
 
 
 class TestHasMigrationGuidance:
@@ -1670,18 +1695,116 @@ class TestHasMigrationGuidance:
         info = DeprecationWrapperInfo(module="pkg", function="old_api", deprecated_info=config)
         assert _has_migration_guidance(info) is expected
 
-    def test_module_rendered_message_is_not_guidance(self) -> None:
-        """A deprecated module's pre-rendered warning text does not count as migration guidance.
+    @pytest.mark.parametrize(
+        ("config", "expected"),
+        [
+            pytest.param(
+                DeprecationConfig(
+                    target=TargetMode.NOTIFY, message_template=_MODULE_BUILT_IN_NOTICE, **_MODULE_IDENTITY
+                ),
+                False,
+                id="built-in-notice-only",
+            ),
+            pytest.param(
+                DeprecationConfig(
+                    target=TargetMode.NOTIFY, message_template="use `pkg.new_mod` instead", **_MODULE_IDENTITY
+                ),
+                True,
+                id="custom-template-spells-it-out",
+            ),
+            pytest.param(
+                DeprecationConfig(
+                    target=TargetMode.NOTIFY,
+                    message_template=_MODULE_BUILT_IN_NOTICE,
+                    attrs_mapping={"old_name": "new_name"},
+                    **_MODULE_IDENTITY,
+                ),
+                True,
+                id="attrs-mapping-without-target-is-applied",
+            ),
+            pytest.param(
+                DeprecationConfig(
+                    target=_MODULE_TARGET,
+                    message_template=(
+                        "The `pkg.old_mod` module was deprecated since v1.0 in favor of `pkg.new_mod`."
+                        " It will be removed in v2.0."
+                    ),
+                    **_MODULE_IDENTITY,
+                ),
+                True,
+                id="redirect-target",
+            ),
+        ],
+    )
+    def test_module_guidance_sources(self, config: DeprecationConfig, expected: bool) -> None:
+        """A deprecated module is judged on its target, its attribute mapping, and a template of its own.
 
-        ``deprecated_module()`` stores its already-substituted warning in ``message_template``, so treating that
-        field as guidance would make the rule permanently inert for every deprecated module.
+        ``deprecated_module()`` differs from the other factories in two ways the rule has to see through: it
+        renders the warning up front and stores the result in ``message_template`` -- the built-in notice when
+        the author passed none, their own text otherwise -- and it stores ``TargetMode.NOTIFY`` for "no
+        replacement module" rather than leaving the target unset, while still applying ``attrs_mapping`` on
+        every access. Reading the stored text as guidance would make the rule inert for every module; reading
+        the sentinel as an explicit opt-out would discard a live mapping and flag a module whose author wrote a
+        migration sentence by hand. Only the built-in notice with nothing else is the dead end.
         """
-        info = DeprecationWrapperInfo(
-            module="pkg.old_mod",
-            deprecated_info=DeprecationConfig(target=None, message_template="`pkg.old_mod` is deprecated"),
-            api_type="module",
-        )
-        assert _has_migration_guidance(info) is False
+        info = DeprecationWrapperInfo(module="pkg.old_mod", deprecated_info=config, api_type="module")
+        assert _has_migration_guidance(info) is expected
+
+
+class TestMessageRequiredRemedy:
+    """The ``message-required`` violation names only the knobs the wrapper's own factory accepts."""
+
+    @pytest.mark.parametrize(
+        ("api_type", "config", "named", "absent"),
+        [
+            pytest.param(
+                "data",
+                DeprecationConfig(target=None, name="old_cfg"),
+                ["Instance `pkg.old_cfg`", "a custom `message_template`"],
+                ["`target`", "`args_mapping`", "`attrs_mapping`"],
+                id="instance-has-only-a-template",
+            ),
+            pytest.param(
+                "module",
+                DeprecationConfig(
+                    target=TargetMode.NOTIFY, message_template=_MODULE_BUILT_IN_NOTICE, **_MODULE_IDENTITY
+                ),
+                ["Module `pkg.old_cfg`", "a `target`", "an `attrs_mapping`", "a custom `message_template`"],
+                ["`args_mapping`"],
+                id="module-has-no-args-mapping",
+            ),
+            pytest.param(
+                "callable",
+                DeprecationConfig(target=TargetMode.NOTIFY),
+                [
+                    "Callable `pkg.old_cfg`",
+                    "a `target`",
+                    "an `args_mapping`/`attrs_mapping`",
+                    "a custom `message_template`",
+                ],
+                [],
+                id="callable-lists-every-knob",
+            ),
+        ],
+    )
+    def test_remedy_matches_the_factory(
+        self, api_type: str, config: DeprecationConfig, named: list[str], absent: list[str]
+    ) -> None:
+        """The remedy text lists the arguments the wrapper's factory actually takes, under the matching subject noun.
+
+        A maintainer reads the violation and reaches for the first option it names. ``deprecated_instance()`` has
+        no ``target`` or mapping argument at all, and ``deprecated_module()`` has no ``args_mapping``, so a remedy
+        copied from the callable case sends them to a keyword that raises ``TypeError`` -- and calling an instance
+        proxy a *Callable* points them at the wrong factory to begin with.
+        """
+        info = DeprecationWrapperInfo(module="pkg", function="old_cfg", deprecated_info=config, api_type=api_type)
+        spec = _build_policy_spec(None, True)
+
+        (violation,) = _check_policy_for_callables([info], spec)
+
+        assert violation.startswith(f"[{PolicyRule.MESSAGE_REQUIRED.value}] ")
+        assert all(fragment in violation for fragment in named)
+        assert not any(fragment in violation for fragment in absent)
 
 
 class TestValidateDeprecationPolicy:
