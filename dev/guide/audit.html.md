@@ -1,11 +1,11 @@
 ---
 id: audit
-description: "Use pyDeprecate's audit tools in CI/CD: validate decorator configuration, enforce removal deadlines by version, detect deprecation chains, test deprecation behaviour, and integrate with pre-commit hooks."
+description: "Use pyDeprecate's audit tools in CI/CD: validate decorator configuration, enforce removal deadlines by version, lint deprecations against a governance policy, detect deprecation chains, test deprecation behaviour, and integrate with pre-commit hooks."
 ---
 
 # Audit Tools
 
-Three things go wrong with deprecations in practice: a `remove_in` deadline passes and nobody deletes the code (zombie code); a deprecated wrapper targets another deprecated function, so callers get two notices instead of one (a chain); or an `args_mapping` key has a typo and silently does nothing (a misconfiguration). `validate_deprecation_expiry()`, `validate_deprecation_chains()`, and `find_deprecation_wrappers()` catch each of these in CI before they reach users.
+Four things go wrong with deprecations in practice: a `remove_in` deadline passes and nobody deletes the code (zombie code); a deprecated wrapper targets another deprecated function, so callers get two notices instead of one (a chain); an `args_mapping` key has a typo and silently does nothing (a misconfiguration); or the deprecation was scheduled badly from the start — removed one patch after it was announced, or announced without ever naming a replacement (a policy violation). `validate_deprecation_expiry()`, `validate_deprecation_chains()`, `find_deprecation_wrappers()`, and `validate_deprecation_policy()` catch each of these in CI before they reach users.
 
 !!! note "Renamed in v0.6"
 
@@ -123,6 +123,8 @@ Warning: This wrapper configuration has zero impact!
 ### Scanning a package for deprecated wrappers
 
 `find_deprecation_wrappers()` walks an entire package or module and returns a list of `DeprecationWrapperInfo` entries, one per deprecated callable discovered. Pass either a module object or a dotted module path string. This is the foundation for all package-wide CI checks.
+
+Every scanning function — `find_deprecation_wrappers()`, `validate_deprecation_expiry()`, `validate_deprecation_policy()`, `validate_deprecation_chains()`, `validate_mapping_compatibility()`, `generate_deprecation_table()` — accepts a keyword-only `exclude` list of glob patterns over full dotted module names (`exclude=["my_package.tests", "*._legacy*"]`). The scan itself never imports a matching package nor descends into it (another module in the package may still import it — its wrappers are filtered either way), and no wrapper reported under a matching module is returned — the way to keep test fixtures or a frozen legacy tree out of every audit. The CLI takes the same list from `--exclude` or from `exclude` under `[tool.pydeprecate]` in `pyproject.toml` ([details](cli.md#project-configuration-in-pyprojecttoml)).
 
 Recursive scans import every submodule, so module-level side effects run. A submodule that fails to import — for any exception, not just `ImportError` — is skipped with a `UserWarning` of the form `audit: skipped <module>: <exception>` and the scan continues, so one broken submodule cannot abort the whole CI gate.
 
@@ -244,7 +246,7 @@ Self-references: 0
 
 ### CLI usage
 
-All audit functions are also available from the command line via five subcommands (`check`, `expiry`, `chains`, `all`, `status`). See the [CLI Reference](cli.md) for the full guide including flags, exit codes, and CI recipes.
+All audit functions are also available from the command line via six subcommands (`check`, `expiry`, `policy`, `chains`, `all`, `status`). See the [CLI Reference](cli.md) for the full guide including flags and exit codes; the CI workflow is in [Enforcing the policy in CI](#enforcing-the-policy-in-ci).
 
 ### pytest integration
 
@@ -378,6 +380,120 @@ def enforce_deprecation_deadlines():
             f"Remove these functions first: {expired}"
         )
 ```
+
+## Enforcing a Deprecation Policy
+
+`validate_deprecation_expiry()` asks *"was this removed on time?"*. `validate_deprecation_policy()` asks the earlier question: *"was this scheduled responsibly in the first place?"* — a removal deadline that leaves callers too short an upgrade window or lands off a release boundary, or a warning that never names a replacement. Each of those is cheap to fix at review time and expensive to fix once downstream projects have pinned against it.
+
+Like the expiry gate, the policy gate compares PEP 440 versions and therefore needs the `audit` extra:
+
+```bash
+pip install 'pyDeprecate[audit]'
+```
+
+Quickest setup — two steps, copy-paste. Declare the policy once in `pyproject.toml`:
+
+```toml
+[tool.pydeprecate.policy]
+min-grace = "1.0"
+message-required = true
+```
+
+then run the gate (locally or in CI — see [Enforcing the policy in CI](#enforcing-the-policy-in-ci)):
+
+```bash
+pydeprecate policy src/mypackage
+```
+
+`min-grace` is a version-shaped delta: `"1.0"` allows removals only at the next major, `"0.3"` (the built-in default) is three minors, `"0.0.2"` two patches; `false` switches the rule off. Every run resolves each rule as flag → this table → built-in default and prints a `Policy:` header naming the source ([details](cli.md#project-configuration-in-pyprojecttoml)). The Python function below takes the rules as arguments and never reads the file.
+
+### The two rules
+
+| Rule slug          | What it checks                                                                     | Default                 | Disable with             |
+| ------------------ | ---------------------------------------------------------------------------------- | ----------------------- | ------------------------ |
+| `min-grace`        | `remove_in` is one clean version bump beyond `deprecated_in`, at least this far    | `min_grace="0.3"`       | `min_grace=None`         |
+| `message-required` | The wrapper provides migration guidance (a target, a mapping, or a custom message) | `message_required=True` | `message_required=False` |
+
+Every violation message is prefixed with its rule slug in square brackets — `[min-grace]`, `[message-required]` — so a CI log can be grouped or filtered per rule without re-parsing the prose.
+
+Rule details worth knowing before you tune the defaults:
+
+- **`min_grace`** is a version-shaped delta **string** with two or three components and at most one non-zero — `"1.0"` one major, `"0.3"` three minors, `"0.0.2"` two patches. Always pass a string: a float such as `0.10` drops its trailing zero and reads as one minor. A bare `"1"` is rejected as ambiguous (one *what*?), and so is `"1.2"` or any other mixed spelling — `ValueError`, raised before the scan starts. An all-zero spelling (`"0.0"`) is a valid **zero-count window**: the distance check is effectively off, but a clean bump of that unit or coarser is still required, so `1.2` → `1.2.1` still violates a zero-minor window. Internally every spelling is parsed into `deprecate.audit.GraceWindow(count, unit)` — one unit, one count — which the scan alone consults; a `GraceWindow` instance (`from deprecate import GraceWindow, VersionBump`) or a one-key unit table (`{"major": 1}`) is accepted as well. The removal must be one **clean bump** of a single component with everything below it reset — `1.2` → `1.5` or `2.0`, never `2.3` or `1.3.1` — because a mixed bump lands on no release boundary a project promises removals on. A coarser bump always clears a finer window: deprecated in `1.2`, removed in `2.0` satisfies `"0.3"` even though the minor number went *down*; a finer bump (a patch against a minor-counted window) never does.
+- **A `0.x` project** needs no special setting: a bump to `1.0` is a major step and clears any window, while removals inside the `0.x` line are counted in minors as usual. `min_grace="1.0"` is the strict "removals only at a major" policy.
+- **`message_required`** counts a forwarding `target`, an `args_mapping`, an `attrs_mapping`, or a custom `message_template` as guidance. An *empty* `args_mapping`/`attrs_mapping` (`{}`) does **not** count — it carries no actual rename, so the rule treats it the same as no mapping at all. A deprecated *module* satisfies the rule with a **custom** `message_template` — the auto-rendered text `deprecated_module()` stores there by default does not count, since every module would otherwise pass trivially; a module relying only on `target`/`attrs_mapping` still needs one of those to be non-empty. A `deprecated_instance()` proxy built with no `target` and no `args_mapping`/`attrs_mapping` likewise needs a custom `message_template` to satisfy the default policy.
+
+### Scanning a package
+
+```python
+from deprecate import validate_deprecation_policy
+
+# For testing purposes, we use the test module; normally you would import your own package
+from tests import collection_policy as my_package
+
+# Full default policy: a three-minor grace window on a clean release boundary, guidance required
+violations = validate_deprecation_policy(my_package, recursive=False)
+print(f"Found {len(violations)} violations")
+
+# Every message is prefixed with the slug of the rule it broke
+for msg in sorted(violations):
+    print(msg.split("]")[0] + "]")
+
+# Opt out of the grace-window rule, keep the guidance rule
+violations = validate_deprecation_policy(my_package, recursive=False, min_grace=None)
+print(f"Found {len(violations)} violations")
+```
+
+<details>
+  <summary>Output: <code>f"Found {len(violations)} violations"</code></summary>
+
+```
+Found 6 violations
+[message-required]
+[message-required]
+[message-required]
+[min-grace]
+[min-grace]
+[min-grace]
+Found 3 violations
+```
+
+</details>
+
+Good to know:
+
+- Wrappers missing `deprecated_in` or `remove_in` are **not** violations — the grace-window rule simply skips them, because a deprecation without a scheduled removal is a valid and common choice.
+- An unparsable version string emits a `UserWarning` naming the wrapper and the offending field, then the scan continues for the rest — one typo never aborts the gate.
+- `recursive`, `include_members` and `exclude` behave exactly as in `find_deprecation_wrappers()`.
+- The CLI exposes the same gate as `pydeprecate policy` — see the [CLI Reference](cli.md) for flags and exit codes, and [Enforcing the policy in CI](#enforcing-the-policy-in-ci) below for the workflow. The CLI can also read the rules from a `[tool.pydeprecate.policy]` table in `pyproject.toml` ([details](cli.md#project-configuration-in-pyprojecttoml)); this function takes a module (object or importable name), never a filesystem path, and does not read that file — pass `min_grace` and `message_required` explicitly.
+
+### Enforcing the policy in CI
+
+The policy defaults encode *a* convention, not *the* convention. Write the numbers your project actually releases on into `[tool.pydeprecate.policy]` (above) and run the CLI as its own job — the table is the single source of truth, the job is the gate, and there is no test code to maintain. This is the exact step pyDeprecate runs on itself:
+
+```yaml
+# .github/workflows/deprecations.yml
+name: Deprecations
+on: [push, pull_request]
+
+jobs:
+  policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e . 'pyDeprecate[audit,cli]'
+
+      - name: Audit deprecations (policy advisory here)
+        run: pydeprecate all src/mypackage
+
+      - name: Enforce the deprecation policy
+        # reads [tool.pydeprecate.policy] from pyproject.toml; exits 1 on a violation
+        run: pydeprecate policy src/mypackage
+```
+
+`pydeprecate all` prints policy violations as a `[WARNING]` without failing, so the dedicated `policy` step is the one that blocks the merge. A one-off override never needs a config edit — `pydeprecate policy src/mypackage --min-grace=0.3` beats the table for that run only.
 
 ## Detecting Deprecation Chains
 
@@ -564,7 +680,7 @@ Unlike `validate_deprecation_expiry` or `validate_deprecation_chains`, a positio
 
     Native pre-commit hook support is planned. For now, run the validator directly via `pydeprecate` in your `Makefile` or CI step.
 
-The CLI provides five subcommands. Use `check` for wrapper config validation, `all` to run every check in a single pass (and append a deprecation table), or `status` to generate a standalone markdown deprecation table without running any checks. See the [CLI Reference](cli.md) for full flag and exit-code documentation.
+The CLI provides six subcommands. Use `check` for wrapper config validation, `policy` to gate on your project's deprecation-governance rules, `all` to run every check in a single pass (and append a deprecation table), or `status` to generate a standalone markdown deprecation table without running any checks. See the [CLI Reference](cli.md) for full flag and exit-code documentation.
 
 ```bash
 # Install CLI + audit extras (audit needed for expiry checks)
@@ -574,7 +690,11 @@ pip install 'pyDeprecate[audit,cli]'
 pydeprecate check src/your_package
 
 # all — exits 1 on invalid mappings, chains, or expired wrappers; appends deprecation table
+# policy violations are printed here but never change this exit code
 pydeprecate all src/your_package
+
+# policy — exits 1 if any deprecation breaks a governance rule (gate on it separately from `all`)
+pydeprecate policy src/your_package
 
 # status — standalone deprecation status table only (no checks, always exits 0)
 pydeprecate status src/your_package
@@ -585,10 +705,11 @@ pydeprecate check src/your_package --exit-zero
 
 **Exit codes** (see [CLI Reference — Exit codes](cli.md#exit-codes) for per-subcommand details):
 
-| Exit code | Meaning                                                             |
-| --------- | ------------------------------------------------------------------- |
-| `0`       | No hard errors (or `--exit-zero` was set)                           |
-| `1`       | Hard error found: invalid arg mappings, chains, or expired wrappers |
+| Exit code | Meaning                                                                                                  |
+| --------- | -------------------------------------------------------------------------------------------------------- |
+| `0`       | No hard errors (or `--exit-zero` was set)                                                                |
+| `1`       | Hard error found: invalid arg mappings, chains, expired wrappers, or policy violations under `policy`    |
+| `2`       | A malformed setting: `--exclude`, or for `policy` a rule value, from a flag or from `[tool.pydeprecate]` |
 
 ## Testing Deprecated Code
 

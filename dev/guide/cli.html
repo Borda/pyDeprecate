@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Command-line interface reference for pyDeprecate: scan deprecated wrappers, enforce removal deadlines, detect chains, and run all checks in one pass.">
+        <meta name="description" content="Command-line interface reference for pyDeprecate: scan deprecated wrappers, enforce removal deadlines, lint deprecations against a governance policy, detect chains, and run all checks in one pass.">
       
       
       
@@ -66,7 +66,7 @@
 <!-- Open Graph meta tags -->
 <meta property="og:type" content="article" />
 <meta property="og:title" content="CLI — pyDeprecate" />
-<meta property="og:description" content="Command-line interface reference for pyDeprecate: scan deprecated wrappers, enforce removal deadlines, detect chains, and run all checks in one pass." />
+<meta property="og:description" content="Command-line interface reference for pyDeprecate: scan deprecated wrappers, enforce removal deadlines, lint deprecations against a governance policy, detect chains, and run all checks in one pass." />
 <meta property="og:url" content="https://borda.github.io/pyDeprecate/stable/guide/cli.html" />
 <meta property="og:site_name" content="pyDeprecate — Python Deprecation Library" />
 <meta property="og:image" content="https://borda.github.io/pyDeprecate/dev/assets/images/demo-docs-mkdocs.png" />
@@ -76,7 +76,7 @@
 <meta property="og:locale" content="en_US" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="CLI — pyDeprecate" />
-<meta name="twitter:description" content="Command-line interface reference for pyDeprecate: scan deprecated wrappers, enforce removal deadlines, detect chains, and run all checks in one pass." />
+<meta name="twitter:description" content="Command-line interface reference for pyDeprecate: scan deprecated wrappers, enforce removal deadlines, lint deprecations against a governance policy, detect chains, and run all checks in one pass." />
 <meta name="twitter:image" content="https://borda.github.io/pyDeprecate/dev/assets/images/demo-docs-mkdocs.png" />
 <meta name="twitter:image:alt" content="pyDeprecate documentation" />
 
@@ -87,7 +87,7 @@
   "@context": "https://schema.org",
   "@type": "TechArticle",
   "headline": "CLI",
-  "description": "Command-line interface reference for pyDeprecate: scan deprecated wrappers, enforce removal deadlines, detect chains, and run all checks in one pass.",
+  "description": "Command-line interface reference for pyDeprecate: scan deprecated wrappers, enforce removal deadlines, lint deprecations against a governance policy, detect chains, and run all checks in one pass.",
   "url": "https://borda.github.io/pyDeprecate/stable/guide/cli.html",
   "mainEntityOfPage": { "@type": "WebPage", "@id": "https://borda.github.io/pyDeprecate/stable/guide/cli.html" },
   "image": "https://borda.github.io/pyDeprecate/dev/assets/images/demo-docs-mkdocs.png",
@@ -95,7 +95,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-04-29",
-  "dateModified": "2026-07-03"
+  "dateModified": "2026-09-18"
 }
 </script>
 
@@ -773,6 +773,34 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Flags">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#policy-rule-flags" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Policy rule flags
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#project-configuration-in-pyprojecttoml" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Project configuration in pyproject.toml
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -780,6 +808,17 @@
     <span class="md-ellipsis">
       
         Exit codes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ci-recipes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CI recipes
       
     </span>
   </a>
@@ -1331,6 +1370,34 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Flags">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#policy-rule-flags" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Policy rule flags
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#project-configuration-in-pyprojecttoml" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Project configuration in pyproject.toml
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1338,6 +1405,17 @@
     <span class="md-ellipsis">
       
         Exit codes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ci-recipes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CI recipes
       
     </span>
   </a>
@@ -1384,15 +1462,16 @@
 
 
 <h1 id="cli-reference">CLI Reference<a class="headerlink" href="#cli-reference" title="Permanent link">🔗</a></h1>
-<p>The <code>pydeprecate</code> CLI lets you run all three <a href="audit.html">audit checks</a> — wrapper configuration, expiry enforcement, and chain detection — directly from the command line without writing a Python script.</p>
+<p>The <code>pydeprecate</code> CLI lets you run all four <a href="audit.html">audit checks</a> — wrapper configuration, expiry enforcement, policy linting, and chain detection — directly from the command line without writing a Python script.</p>
 <h2 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">🔗</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s1">'pyDeprecate[audit,cli]'</span>
 </code></pre></div>
-<p>Start with <code>[audit,cli]</code> unless you are certain you will never use <code>expiry</code> or <code>all</code>. The <code>[audit]</code> extra pulls in <code>packaging</code>, which <code>expiry</code> and the expiry phase of <code>all</code> require.</p>
+<p>Start with <code>[audit,cli]</code> unless you are certain you will never use <code>expiry</code>, <code>policy</code>, or <code>all</code>. The <code>[audit]</code> extra pulls in <code>packaging</code>, which <code>expiry</code> always requires, and which <code>policy</code> (and the policy phase of <code>all</code>) needs only when a wrapper's <code>deprecated_in</code>/<code>remove_in</code> is actually compared against a version — a policy scan with no version fields set never imports it.</p>
 <h2 id="quick-start">Quick start<a class="headerlink" href="#quick-start" title="Permanent link">🔗</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pydeprecate<span class="w"> </span>all<span class="w"> </span>src/mypackage<span class="w">   </span><span class="c1"># run all checks + deprecation table in one pass</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>pydeprecate<span class="w"> </span>check<span class="w"> </span>path/to/your/package<span class="w">   </span><span class="c1"># validate wrapper config</span>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>pydeprecate<span class="w"> </span>check<span class="w"> </span>mypackage.submodule<span class="w">    </span><span class="c1"># importable module name also accepted</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>pydeprecate<span class="w"> </span>policy<span class="w"> </span>src/mypackage<span class="w">         </span><span class="c1"># gate on your deprecation-governance rules</span>
 </code></pre></div>
 <p><strong>Quick demo</strong> using pyDeprecate's own test fixtures (no package setup needed):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Run all checks + deprecation table on the bundled test fixtures</span>
@@ -1402,7 +1481,7 @@
 </code></pre></div>
 <p><code>tests/</code> contains pyDeprecate's own deprecation fixtures. Note: <code>expiry</code> and <code>chains</code> (run as part of <code>all</code>) require an importable package name rather than a plain directory path.</p>
 <h2 id="subcommands">Subcommands<a class="headerlink" href="#subcommands" title="Permanent link">🔗</a></h2>
-<div class="tabbed-set tabbed-alternate" data-tabs="1:5"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><input id="__tabbed_1_3" name="__tabbed_1" type="radio" /><input id="__tabbed_1_4" name="__tabbed_1" type="radio" /><input id="__tabbed_1_5" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">check</label><label for="__tabbed_1_2">expiry</label><label for="__tabbed_1_3">chains</label><label for="__tabbed_1_4">all</label><label for="__tabbed_1_5">status</label></div>
+<div class="tabbed-set tabbed-alternate" data-tabs="1:6"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><input id="__tabbed_1_3" name="__tabbed_1" type="radio" /><input id="__tabbed_1_4" name="__tabbed_1" type="radio" /><input id="__tabbed_1_5" name="__tabbed_1" type="radio" /><input id="__tabbed_1_6" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">check</label><label for="__tabbed_1_2">expiry</label><label for="__tabbed_1_3">policy</label><label for="__tabbed_1_4">chains</label><label for="__tabbed_1_5">all</label><label for="__tabbed_1_6">status</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
 <p>Validates wrapper configuration: invalid <code>args_mapping</code> keys, identity mappings, no-effect wrappers, and deprecated-to-deprecated chains. Backed by <a href="audit.html#validating-wrapper-configuration"><code>find_deprecation_wrappers()</code></a>.</p>
@@ -1412,7 +1491,7 @@
 <p>Exit 1 only for invalid argument mappings. Chains, identity mappings, and no-effect wrappers are reported as warnings — exit 0.</p>
 <div class="admonition note">
 <p class="admonition-title">Chain handling differs in <code>all</code></p>
-<p><code>check</code> treats chains as advisory warnings (exit 0). <code>all</code> treats chains as hard errors (exit 1), because <code>all</code> ≡ <code>check + expiry + chains</code> and <code>chains</code> exits 1 on any chain found.</p>
+<p><code>check</code> treats chains as advisory warnings (exit 0). <code>all</code> treats chains as hard errors (exit 1), because <code>all</code> ≡ <code>check + expiry + policy + chains</code> and <code>chains</code> exits 1 on any chain found — <code>policy</code> remains advisory even inside <code>all</code>.</p>
 </div>
 </div>
 <div class="tabbed-block">
@@ -1426,26 +1505,43 @@
 <p>Exit 1 if any wrapper is past its removal deadline. If <code>packaging</code> is not installed, the check is skipped with a warning and exits 0 (use <code>--exit-zero</code> to suppress exit 1 when expired wrappers are found).</p>
 </div>
 <div class="tabbed-block">
+<p>Checks whether each deprecation was <em>scheduled</em> responsibly, using <a href="audit.html#enforcing-a-deprecation-policy"><code>validate_deprecation_policy()</code></a>. Two rules exist — <code>min-grace</code> and <code>message-required</code>, both on by default — and every violation message is prefixed with the slug of the rule it broke. <code>min-grace</code> requires the <code>[audit]</code> extra (included in <code>[audit,cli]</code>); <code>message-required</code> works without it. <code>policy</code> never needs a package version, so it takes no <code>--version</code> flag.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># default policy: three-minor grace window on a clean release boundary, guidance required</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>pydeprecate<span class="w"> </span>policy<span class="w"> </span>path/to/your/package
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="c1"># tune the window to your own release convention — here: removals only at a major</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>pydeprecate<span class="w"> </span>policy<span class="w"> </span>path/to/your/package<span class="w"> </span>--min-grace<span class="o">=</span><span class="m">1</span>.0
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="c1"># switch individual rules off</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>pydeprecate<span class="w"> </span>policy<span class="w"> </span>path/to/your/package<span class="w"> </span>--min-grace<span class="o">=</span>None<span class="w"> </span>--message-required<span class="o">=</span>False
+</code></pre></div>
+<p>Exit 1 if any enabled rule finds a violation, exit 2 if <code>--min-grace</code> is malformed <strong>or</strong> if the nearest <code>pyproject.toml</code> cannot be read or parsed (prints <code>Cannot read &lt;path&gt;: &lt;err&gt;</code>), and exit 0 when clean or when <code>--exit-zero</code> is passed. If <code>packaging</code> is not installed, <code>min-grace</code> is skipped with a warning, but <code>message-required</code> still runs and can return exit 1.</p>
+<div class="admonition warning">
+<p class="admonition-title"><code>all</code> reports policy violations but never fails on them</p>
+<p>The policy defaults encode <em>a</em> project convention — a three-minor grace window on a clean release boundary — that not every repository shares, so <code>pydeprecate all</code> runs this check in <strong>advisory</strong> mode: violations are printed, but they never change <code>all</code>'s exit code. Inside <code>all</code> the violation table renders as <code>[WARNING]</code> (yellow), with a trailer noting "advisory here — run <code>pydeprecate policy</code> to gate on it" — never as <code>[ERROR]</code>, which is reserved for a direct <code>pydeprecate policy</code> run. To gate CI on the policy, run the dedicated <code>pydeprecate policy</code> subcommand, whose exit code is truthful. A config-read failure is the one exception to "advisory": an unreadable or malformed <code>pyproject.toml</code> still exits <code>2</code> inside <code>all</code> too (see below), before the chains check ever runs.</p>
+</div>
+</div>
+<div class="tabbed-block">
 <p>Detects deprecated wrappers whose <code>target</code> is itself a deprecated callable (<code>ChainType.TARGET</code>) or where stacked argument mappings should be collapsed (<code>ChainType.STACKED</code>). Backed by <a href="audit.html#detecting-deprecation-chains"><code>validate_deprecation_chains()</code></a>.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>pydeprecate<span class="w"> </span>chains<span class="w"> </span>path/to/your/package
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>pydeprecate<span class="w"> </span>chains<span class="w"> </span>path/to/your/package
 </code></pre></div>
 <p>Exit 1 if any chains are found.</p>
 </div>
 <div class="tabbed-block">
-<p>Single scan pass running all three checks (<a href="audit.html#validating-wrapper-configuration"><code>find_deprecation_wrappers()</code></a>, <a href="audit.html#enforcing-removal-deadlines"><code>validate_deprecation_expiry()</code></a>, <a href="audit.html#detecting-deprecation-chains"><code>validate_deprecation_chains()</code></a>), then appends a compact markdown deprecation table. If <code>packaging</code> is not installed, the expiry check is skipped with a warning and the other checks still run.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># explicit version</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>pydeprecate<span class="w"> </span>all<span class="w"> </span>path/to/your/package<span class="w"> </span>--version<span class="w"> </span><span class="m">2</span>.0.0
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="c1"># auto-detect version</span>
-<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>pydeprecate<span class="w"> </span>all<span class="w"> </span>path/to/your/package
+<p>Single scan pass running all four checks (<a href="audit.html#validating-wrapper-configuration"><code>find_deprecation_wrappers()</code></a>, <a href="audit.html#enforcing-removal-deadlines"><code>validate_deprecation_expiry()</code></a>, <a href="audit.html#enforcing-a-deprecation-policy"><code>validate_deprecation_policy()</code></a>, <a href="audit.html#detecting-deprecation-chains"><code>validate_deprecation_chains()</code></a>), then appends a compact markdown deprecation table. If <code>packaging</code> is not installed, expiry and policy's <code>min-grace</code> rule are skipped with a warning; <code>message-required</code> still runs, and the other checks continue.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># explicit version</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>pydeprecate<span class="w"> </span>all<span class="w"> </span>path/to/your/package<span class="w"> </span>--version<span class="w"> </span><span class="m">2</span>.0.0
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="c1"># auto-detect version</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>pydeprecate<span class="w"> </span>all<span class="w"> </span>path/to/your/package
 </code></pre></div>
-<p>Exit 1 if any hard error is found: invalid argument mappings, deprecated-to-deprecated chains, or expired wrappers. If <code>packaging</code> is not installed, expiry is skipped with a warning and does not cause exit <code>1</code>. The deprecation table is always appended regardless of pass/fail outcome.</p>
+<p>Exit 1 if any hard error is found: invalid argument mappings, deprecated-to-deprecated chains, or expired wrappers. <strong>Policy violations are advisory here</strong> — they are printed (rendered as <code>[WARNING]</code>, with a trailer noting the check is advisory and naming <code>pydeprecate policy</code> as the gate) but never contribute to the exit code, because the policy defaults encode a project convention that not every repository shares; run <code>pydeprecate policy</code> as its own CI step to gate on them. This advisory treatment covers violation <em>counts</em> only: a policy <strong>configuration</strong> failure — the nearest <code>pyproject.toml</code> cannot be read or parsed, or a <code>[tool.pydeprecate.policy]</code> value is malformed — still exits <code>2</code>, printing <code>Cannot read &lt;path&gt;: &lt;err&gt;</code>, and that exit is checked before the chains check ever runs. If <code>packaging</code> is not installed, expiry is skipped and policy runs its packaging-free <code>message-required</code> rule in advisory mode, so neither affects <code>all</code>'s exit <code>1</code>; a malformed explicit <code>--version</code> is also advisory. With <code>packaging</code> available, an invalid explicit <code>--version</code> exits <code>2</code>. The deprecation table is always appended regardless of pass/fail outcome.</p>
 </div>
 <div class="tabbed-block">
 <p>Generates and prints a markdown deprecation table to stdout. Standalone — runs no checks and exits <code>0</code> on success (invalid <code>--style</code> falls back to <code>compact</code> with a warning to stderr). Use this when you only want to render the deprecation status table without running any validation.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>pydeprecate<span class="w"> </span>status<span class="w"> </span>path/to/your/package
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>pydeprecate<span class="w"> </span>status<span class="w"> </span>path/to/your/package<span class="w"> </span>--style<span class="w"> </span>matrix
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>pydeprecate<span class="w"> </span>status<span class="w"> </span>path/to/your/package<span class="w"> </span>--version<span class="w"> </span><span class="m">2</span>.0.0<span class="w"> </span>--output<span class="w"> </span>DEPRECATIONS.md
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>pydeprecate<span class="w"> </span>status<span class="w"> </span>path/to/your/package
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>pydeprecate<span class="w"> </span>status<span class="w"> </span>path/to/your/package<span class="w"> </span>--style<span class="w"> </span>matrix
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>pydeprecate<span class="w"> </span>status<span class="w"> </span>path/to/your/package<span class="w"> </span>--version<span class="w"> </span><span class="m">2</span>.0.0<span class="w"> </span>--output<span class="w"> </span>DEPRECATIONS.md
 </code></pre></div>
 <p><code>--style compact</code> (default) renders one row per symbol with a status column; <code>--style matrix</code> renders one column per version with <code>D</code>/<code>R</code> lifecycle markers. <code>--output FILE</code> writes the table to a file in addition to printing it to stdout.</p>
 </div>
@@ -1456,8 +1552,10 @@
 <thead>
 <tr>
 <th>Flag</th>
+<th>Default</th>
 <th style="text-align: center;"><code>check</code></th>
 <th style="text-align: center;"><code>expiry</code></th>
+<th style="text-align: center;"><code>policy</code></th>
 <th style="text-align: center;"><code>chains</code></th>
 <th style="text-align: center;"><code>all</code></th>
 <th style="text-align: center;"><code>status</code></th>
@@ -1468,16 +1566,20 @@
 <tbody>
 <tr>
 <td><code>--version VERSION</code></td>
+<td>auto-detected</td>
 <td style="text-align: center;"></td>
 <td style="text-align: center;">✓</td>
+<td style="text-align: center;"></td>
 <td style="text-align: center;"></td>
 <td style="text-align: center;">✓</td>
 <td style="text-align: center;">✓</td>
 <td>Package version for deadline comparison. Auto-detected from installed metadata if omitted.</td>
-<td></td>
+<td><code>policy</code> compares <code>deprecated_in</code> to <code>remove_in</code> only, so it takes no version.</td>
 </tr>
 <tr>
 <td><code>--norecursive</code></td>
+<td>off</td>
+<td style="text-align: center;">✓</td>
 <td style="text-align: center;">✓</td>
 <td style="text-align: center;">✓</td>
 <td style="text-align: center;">✓</td>
@@ -1488,6 +1590,8 @@
 </tr>
 <tr>
 <td><code>--exit-zero</code></td>
+<td>off</td>
+<td style="text-align: center;">✓</td>
 <td style="text-align: center;">✓</td>
 <td style="text-align: center;">✓</td>
 <td style="text-align: center;">✓</td>
@@ -1497,7 +1601,21 @@
 <td></td>
 </tr>
 <tr>
+<td><code>--exclude</code></td>
+<td><code>pyproject.toml</code></td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td>Glob patterns over full dotted module names to leave out of the scan; the scan itself never imports a matching package nor descends into it. One pattern, comma-separated, or a list.</td>
+<td>Default is the <code>exclude</code> list of <code>[tool.pydeprecate]</code> (see below), else nothing. Quote the value — an unquoted <code>*</code> is expanded by the shell first. Malformed → exit <code>2</code>.</td>
+</tr>
+<tr>
 <td><code>--style</code></td>
+<td><code>compact</code></td>
+<td style="text-align: center;"></td>
 <td style="text-align: center;"></td>
 <td style="text-align: center;"></td>
 <td style="text-align: center;"></td>
@@ -1508,6 +1626,8 @@
 </tr>
 <tr>
 <td><code>--output FILE</code></td>
+<td>stdout only</td>
+<td style="text-align: center;"></td>
 <td style="text-align: center;"></td>
 <td style="text-align: center;"></td>
 <td style="text-align: center;"></td>
@@ -1518,6 +1638,56 @@
 </tr>
 </tbody>
 </table>
+<p>A bare <code>pydeprecate policy src/mypackage</code> therefore runs a recursive scan, exits <code>1</code> on violations, and applies both default-on rules below (<code>--min-grace=0.3</code>, <code>--message-required=True</code>) — unless the project's <code>pyproject.toml</code> says otherwise (see <a href="#project-configuration-in-pyprojecttoml">Project configuration in <code>pyproject.toml</code></a>).</p>
+<h3 id="policy-rule-flags">Policy rule flags<a class="headerlink" href="#policy-rule-flags" title="Permanent link">🔗</a></h3>
+<p>These two are specific to <code>policy</code> — one flag per rule, switched off with <code>--min-grace=None</code> and <code>--message-required=False</code>. The <em>Default</em> column is the built-in value; a <code>[tool.pydeprecate.policy]</code> table in <code>pyproject.toml</code> replaces it, and a typed flag beats both.</p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Rule slug</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--min-grace=&lt;delta&gt;</code></td>
+<td><code>0.3</code></td>
+<td><code>min-grace</code></td>
+<td>Minimum distance between <code>deprecated_in</code> and <code>remove_in</code> as a version-shaped delta: <code>1.0</code> one major, <code>0.3</code> three minors, <code>0.0.2</code> two patches.</td>
+</tr>
+<tr>
+<td><code>--message-required=&lt;bool&gt;</code></td>
+<td><code>True</code></td>
+<td><code>message-required</code></td>
+<td>Require every wrapper to name a replacement (a <code>target</code>, a mapping, or a <code>message_template</code>).</td>
+</tr>
+</tbody>
+</table>
+<p>The delta has two or three components with at most one non-zero; a bare <code>1</code> is rejected as ambiguous (one <em>what</em>?) and so is a mixed spelling such as <code>1.2</code>. The removal must be one clean bump of a single component (<code>1.2</code> → <code>1.5</code> or <code>2.0</code>, never <code>2.3</code>); a coarser bump always clears a finer window — <code>0.3</code> is satisfied by one major bump. An all-zero spelling such as <code>0.0</code> is a zero-count window: no minimum distance, but a clean bump of that unit or coarser is still required. Ten or more steps: quote as a string (<code>--min-grace='"0.10"'</code>), else the shell value parses as the float <code>0.1</code>. <code>--min-grace=1.0</code> (or <code>min-grace = "1.0"</code> in <code>pyproject.toml</code>) is the strict "removals only at a major release" policy. A <code>0.x</code> project needs no special setting: a bump to <code>1.0</code> is a major step and clears any window, while removals inside the <code>0.x</code> line are counted in minors as usual.</p>
+<p>A malformed <code>--min-grace</code> value is rejected before the scan starts and exits <code>2</code> with a message naming the accepted spellings — it is never silently ignored.</p>
+<h3 id="project-configuration-in-pyprojecttoml">Project configuration in <code>pyproject.toml</code><a class="headerlink" href="#project-configuration-in-pyprojecttoml" title="Permanent link">🔗</a></h3>
+<p>Declare the settings once, next to the code they govern, and every bare <code>pydeprecate</code> run — a developer's shell or a CI step — applies them without repeating flags:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="k">[tool.pydeprecate]</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="n">exclude</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"my_package.tests"</span><span class="p">,</span><span class="w"> </span><span class="s2">"*._legacy*"</span><span class="p">]</span><span class="w">   </span><span class="c1"># every subcommand: the scan skips these packages (never imports them itself)</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="k">[tool.pydeprecate.policy]</span><span class="w">                      </span><span class="c1"># the `policy` subcommand's rules, keyed by rule slug</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="n">min-grace</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"0.3"</span><span class="w">  </span><span class="c1"># quoted dotted delta; false switches the rule off (TOML has no null)</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="n">message-required</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span>
+</code></pre></div>
+<p>Each setting resolves independently as <strong>flag → <code>pyproject.toml</code> → built-in default</strong>, and the header lines of every run name the source of each value (<code>flag</code>, <code>pyproject.toml</code>, or <code>built-in</code>), so a log always shows what was applied:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>Exclude: my_package.tests, *._legacy* (pyproject.toml)
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>Policy: min-grace=0.3 (pyproject.toml)  message-required=True (built-in)
+</code></pre></div>
+<ul>
+<li>The table is looked up like <code>--version</code> auto-detection below: from the scanned <em>path</em>'s directory up to two parents, nearest file that declares <code>[tool.pydeprecate]</code> wins (one table per project — a nested file that declares it replaces the parent's whole table); a bare module <em>name</em> never triggers the lookup.</li>
+<li><code>exclude</code> patterns are <code>fnmatch</code> globs over the full dotted module name (<code>my_package.tests</code>, not <code>tests</code>); a pattern that matches a package excludes its whole subtree. A wrapper is reported iff the module it is reported under does not match — so even when something else in the package imports an excluded module, its wrappers stay out. A string or comma-separated string is accepted in place of the list.</li>
+<li><code>min-grace</code> takes the dotted delta as a string (<code>"1.0"</code>, <code>"0.3"</code>, <code>"0.0.2"</code>); a one-key unit table (<code>{ minor = 3 }</code>) is also accepted; quote the delta (<code>"0.10"</code>, not <code>0.10</code>) — a TOML float drops the trailing zero exactly as the shell does.</li>
+<li>A malformed value from the file exits <code>2</code> and the message names the <code>pyproject.toml</code> it came from; a non-boolean <code>message-required</code> or a non-string <code>exclude</code> entry is rejected the same way. Unknown keys in either table (<code>min_grace</code> with an underscore is the usual typo) are reported on stderr and ignored, never silently enforced.</li>
+<li>Reading the file needs a TOML parser — built in on Python 3.11+, the <code>tomli</code> backport from the <code>[audit]</code> extra on 3.9–3.10. Without one, a reachable <code>pyproject.toml</code> triggers a stderr advisory instead of being silently skipped.</li>
+<li><code>pydeprecate all</code> applies the same resolved settings to its single scan and its advisory policy pass. The Python API (<code>validate_deprecation_policy()</code>) takes a module (object or importable name), never a filesystem path, and does not read <code>pyproject.toml</code> — pass its keyword arguments (including <code>exclude</code>) explicitly.</li>
+</ul>
 <p><code>--version</code> auto-detect: when the scanned argument is an existing <em>path</em>, <code>_read_pyproject_version</code> searches the current directory and up to 2 parent directories for a <code>pyproject.toml</code> (current dir + 2 levels up); the nearest one found wins, falling back to installed package metadata. A bare module <em>name</em> skips the <code>pyproject.toml</code> lookup entirely, so it can never pick up an unrelated project's version from your current working directory.</p>
 <h2 id="exit-codes">Exit codes<a class="headerlink" href="#exit-codes" title="Permanent link">🔗</a></h2>
 <table>
@@ -1526,6 +1696,7 @@
 <th>Subcommand</th>
 <th>Exit <code>0</code></th>
 <th>Exit <code>1</code></th>
+<th>Exit <code>2</code></th>
 </tr>
 </thead>
 <tbody>
@@ -1533,30 +1704,47 @@
 <td><code>check</code></td>
 <td>Clean or advisory warnings only (chains / identity / no-effect)</td>
 <td>Invalid argument mappings found</td>
+<td>Malformed <code>--exclude</code></td>
 </tr>
 <tr>
 <td><code>expiry</code></td>
 <td>No expired wrappers; or <code>packaging</code> not installed (skipped with warning)</td>
 <td>Expired wrappers found (and <code>--exit-zero</code> not set)</td>
+<td>Malformed <code>--version</code> when <code>packaging</code> is available, or malformed <code>--exclude</code></td>
+</tr>
+<tr>
+<td><code>policy</code></td>
+<td>No violations; or only a skipped <code>min-grace</code> rule</td>
+<td>Policy violations found (and <code>--exit-zero</code> not set)</td>
+<td>Malformed rule value or <code>--exclude</code> (flag or <code>pyproject.toml</code>)</td>
 </tr>
 <tr>
 <td><code>chains</code></td>
 <td>No chains</td>
 <td>Deprecated-to-deprecated chains found</td>
+<td>Malformed <code>--exclude</code></td>
 </tr>
 <tr>
 <td><code>all</code></td>
-<td>All checks clean (deprecation table always appended)</td>
+<td>All checks clean, or only policy violations (table always appended)</td>
 <td>Any hard error above (<code>packaging</code> missing → skips expiry, no failure)</td>
+<td>Malformed <code>--version</code> when <code>packaging</code> is available, or malformed <code>--exclude</code></td>
 </tr>
 <tr>
 <td><code>status</code></td>
 <td>Always — status table is not a pass/fail gate</td>
 <td>—</td>
+<td>Malformed <code>--exclude</code></td>
 </tr>
 </tbody>
 </table>
+<p>Policy violations are the one finding <code>all</code> reports without acting on: they never move <code>all</code> from <code>0</code> to <code>1</code>. Give <code>policy</code> its own CI step when you want the build to fail on them.</p>
 <p>Unknown or misspelled flags are never silently ignored: any unconsumed argument (e.g. <code>pydeprecate expiry mypackage --verison 2.0</code>) exits <code>2</code> with a <code>Could not consume arg: --verison</code> diagnostic from the underlying argument parser.</p>
+<h2 id="ci-recipes">CI recipes<a class="headerlink" href="#ci-recipes" title="Permanent link">🔗</a></h2>
+<p>Two gates, two steps: <code>pydeprecate all</code> fails the build on misconfigured wrappers, chains and expired deprecations, and a separate <code>pydeprecate policy</code> step fails it when a <em>new</em> deprecation is scheduled in a way the project does not allow — keeping them separate means a failure tells you which problem you have. The full workflow, with the rules declared once in <code>[tool.pydeprecate.policy]</code>, is in the <a href="audit.html#enforcing-the-policy-in-ci">audit guide</a>.</p>
+<p>While you are bringing an existing codebase into line, run the gate advisory-first so it reports without blocking, then drop the flag once the backlog is clear:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>pydeprecate<span class="w"> </span>policy<span class="w"> </span>src/mypackage<span class="w"> </span>--exit-zero
+</code></pre></div>
 <h2 id="path-formats">Path formats<a class="headerlink" href="#path-formats" title="Permanent link">🔗</a></h2>
 <p>All subcommands accept:</p>
 <ul>
@@ -1566,8 +1754,8 @@
 </ul>
 <h2 id="python-module-invocation">Python module invocation<a class="headerlink" href="#python-module-invocation" title="Permanent link">🔗</a></h2>
 <p>Both <code>pydeprecate</code> and <code>python -m deprecate</code> are equivalent entry points:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>python<span class="w"> </span>-m<span class="w"> </span>deprecate<span class="w"> </span>check<span class="w"> </span>src/mypackage
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>python<span class="w"> </span>-m<span class="w"> </span>deprecate<span class="w"> </span>expiry<span class="w"> </span>src/mypackage<span class="w"> </span>--version<span class="w"> </span><span class="m">2</span>.0.0
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>python<span class="w"> </span>-m<span class="w"> </span>deprecate<span class="w"> </span>check<span class="w"> </span>src/mypackage
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>python<span class="w"> </span>-m<span class="w"> </span>deprecate<span class="w"> </span>expiry<span class="w"> </span>src/mypackage<span class="w"> </span>--version<span class="w"> </span><span class="m">2</span>.0.0
 </code></pre></div>
 <p>Useful in environments where the <code>pydeprecate</code> script is not on <code>PATH</code> (e.g. inside a Docker image where only <code>python</code> is available).</p>
 
@@ -1592,7 +1780,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="July 3, 2026 07:04:37 UTC">2026-07-03</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="September 18, 2026 18:25:07 UTC">2026-09-18</span>
   </span>
 
     

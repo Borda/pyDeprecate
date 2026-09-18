@@ -365,6 +365,38 @@
         },
         {
           "@type": "Question",
+          "name": "Why does pydeprecate all report policy violations but still exit 0?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "That is deliberate. The deprecation-policy defaults (min_grace='0.3', message_required=True) encode a release convention rather than a universal rule, so pydeprecate all runs the policy check in advisory mode: violations are printed for visibility but never contribute to the exit code of all. Only invalid argument mappings, deprecated-to-deprecated chains, and expired wrappers make all exit 1. This advisory treatment covers violation counts only — a policy configuration failure (an unreadable or malformed pyproject.toml, or a malformed [tool.pydeprecate.policy] value) still exits 2 even inside all, printing 'Cannot read <path>: <err>', and is checked before the chains check runs. To fail a build on a policy violation, give pydeprecate policy its own CI step — its exit code is truthful (0 clean, 1 violations found, 2 a malformed rule argument or unreadable pyproject.toml). Spell the rule flags out in that step even where they match the defaults, so the command records what your project promises and a future change to pyDeprecate's defaults cannot quietly change what your CI enforces."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How do I switch off a deprecation-policy rule my project does not follow?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Both rules checked by validate_deprecation_policy are independently controlled — pass None for min_grace or False for message_required. Nothing is all-or-nothing. Before reaching for None, check whether retargeting the window is what you want: min_grace is a version-shaped delta — '0.1' one minor of warning, '0.3' (the default) three, '1.0' a whole major — so pass the number your project really releases on; you keep the gate, pointed at your own cadence. Disabling it means nothing checks removal schedules at all. A 0.x project needs no special setting: a bump to 1.0 is a major step and clears any window. The CLI mirrors this with one flag per rule: --min-grace, --message-required. A value the parser does not recognise is rejected before the scan starts and exits 2 with a message naming the accepted spellings, so a typo can never silently disable a rule you meant to keep."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Where does pydeprecate policy take its rules from when no flags are passed?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Each rule is resolved independently as flag, then the [tool.pydeprecate.policy] table in the nearest pyproject.toml (scanned path's directory up to two parents, never for a bare module name), then the built-in default (min-grace = \"0.3\", message-required = true). Keys are the rule slugs; min-grace takes the dotted delta as a quoted string such as \"0.3\" or \"1.0\", and false switches it off. Every run prints a Policy: header naming the source of each value. A malformed file value, or a pyproject.toml that cannot be read or parsed at all, exits 2 naming the file ('Cannot read <path>: <err>'); unknown keys are reported on stderr and ignored, and on Python 3.9-3.10 the TOML parser comes from the [audit] extra. pydeprecate all applies the same resolved settings to its advisory policy pass, but this config-read exit 2 is the one exception to advisory — it still propagates through all, checked before chains runs. validate_deprecation_policy() never reads pyproject.toml."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How do I keep test fixtures or a legacy tree out of the pyDeprecate audit?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Every scanning function and every CLI subcommand takes an exclude list of glob patterns over the full dotted module name: exclude = [\"my_package.tests\", \"*._legacy*\"] under [tool.pydeprecate] in pyproject.toml, --exclude='my_package.tests,*._legacy*' on the command line (quoted), or find_deprecation_wrappers(my_package, exclude=[...]) in Python. A matching package excludes its whole subtree and the scan itself never imports it (if another module in the package imports it, only its wrappers are filtered). The Exclude: header line names what was left out and where the list came from. Write the full dotted name, not a bare tests; a value that is not a string or a list of strings exits 2."
+          }
+        },
+        {
+          "@type": "Question",
           "name": "What does the UserWarning 'audit: skipped <module>' mean during a recursive scan?",
           "acceptedAnswer": {
             "@type": "Answer",
@@ -1781,6 +1813,50 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#why-does-pydeprecate-all-report-policy-violations-but-still-exit-0" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why does pydeprecate all report policy violations but still exit 0?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-do-i-switch-off-a-policy-rule-my-project-does-not-follow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How do I switch off a policy rule my project does not follow?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#where-does-pydeprecate-policy-take-its-rules-from-when-i-pass-no-flags" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where does pydeprecate policy take its rules from when I pass no flags?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-do-i-keep-test-fixtures-or-a-legacy-tree-out-of-the-audit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How do I keep test fixtures or a legacy tree out of the audit?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#userwarning-audit-skipped-module-during-a-recursive-scan" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2385,6 +2461,50 @@
     <span class="md-ellipsis">
       
         My expiry gate reports more expired wrappers after upgrading
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-does-pydeprecate-all-report-policy-violations-but-still-exit-0" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why does pydeprecate all report policy violations but still exit 0?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-do-i-switch-off-a-policy-rule-my-project-does-not-follow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How do I switch off a policy rule my project does not follow?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#where-does-pydeprecate-policy-take-its-rules-from-when-i-pass-no-flags" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where does pydeprecate policy take its rules from when I pass no flags?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-do-i-keep-test-fixtures-or-a-legacy-tree-out-of-the-audit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How do I keep test fixtures or a legacy tree out of the audit?
       
     </span>
   </a>
@@ -4098,10 +4218,68 @@
 
 <p>Prefer fixing the newly surfaced entries over passing <code>include_members=False</code> — the narrower scope hides genuinely expired member deprecations.</p>
 <hr />
+<h2 id="why-does-pydeprecate-all-report-policy-violations-but-still-exit-0">Why does <code>pydeprecate all</code> report policy violations but still exit 0?<a class="headerlink" href="#why-does-pydeprecate-all-report-policy-violations-but-still-exit-0" title="Permanent link">🔗</a></h2>
+<p><strong>Q:</strong> <code>pydeprecate all src/mypackage</code> prints a <em>Deprecation Policy Violations</em> table, but the command exits <code>0</code> and my CI step passes. Is the exit code wrong?</p>
+<p><strong>A:</strong> No — that is deliberate. The policy defaults (<code>min_grace="0.3"</code>, <code>message_required=True</code>) encode <em>a</em> release convention, not a universal rule, so <code>all</code> runs the policy check in <strong>advisory</strong> mode: violations are printed for visibility but never contribute to <code>all</code>'s exit code. Only invalid argument mappings, deprecated-to-deprecated chains, and expired wrappers make <code>all</code> exit <code>1</code>. This "advisory" treatment covers violation <em>counts</em> only — a policy <strong>configuration</strong> failure (the nearest <code>pyproject.toml</code> cannot be read or parsed, or a <code>[tool.pydeprecate.policy]</code> value is malformed) still exits <code>2</code> even inside <code>all</code>, printing <code>Cannot read &lt;path&gt;: &lt;err&gt;</code>, and that failure is checked before the chains check runs.</p>
+<p>To make the build fail on a policy violation, give <code>pydeprecate policy</code> its own CI step — its exit code is truthful (<code>0</code> clean, <code>1</code> violations, <code>2</code> a malformed rule argument):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-103-1" name="__codelineno-103-1" href="#__codelineno-103-1"></a><span class="c1"># reports policy violations, but the exit code ignores them</span>
+<a id="__codelineno-103-2" name="__codelineno-103-2" href="#__codelineno-103-2"></a>pydeprecate<span class="w"> </span>all<span class="w"> </span>src/mypackage
+<a id="__codelineno-103-3" name="__codelineno-103-3" href="#__codelineno-103-3"></a>
+<a id="__codelineno-103-4" name="__codelineno-103-4" href="#__codelineno-103-4"></a><span class="c1"># this is the step that fails the build</span>
+<a id="__codelineno-103-5" name="__codelineno-103-5" href="#__codelineno-103-5"></a>pydeprecate<span class="w"> </span>policy<span class="w"> </span>src/mypackage<span class="w"> </span>--min-grace<span class="o">=</span><span class="m">0</span>.3<span class="w"> </span>--message-required<span class="o">=</span>True
+</code></pre></div>
+<p>Spell the rule flags out in that step even where they match the defaults: the command then records what your project promises, and a future change to pyDeprecate's defaults cannot quietly change what your CI enforces.</p>
+<hr />
+<h2 id="how-do-i-switch-off-a-policy-rule-my-project-does-not-follow">How do I switch off a policy rule my project does not follow?<a class="headerlink" href="#how-do-i-switch-off-a-policy-rule-my-project-does-not-follow" title="Permanent link">🔗</a></h2>
+<p><strong>Q:</strong> My project removes deprecated code one minor after announcing it, so <code>pydeprecate policy</code> flags every wrapper with <code>[min-grace]</code>. I do not want to abandon the guidance rule to silence it.</p>
+<p><strong>A:</strong> Both rules are independently controlled — pass <code>None</code> for <code>min_grace</code> or <code>False</code> for <code>message_required</code>. Nothing is all-or-nothing.</p>
+<p>Before reaching for <code>None</code>, check whether <strong>retargeting</strong> the window is what you actually want. <code>min_grace</code> is a version-shaped delta: <code>"0.1"</code> asks for one minor of warning, <code>"0.3"</code> (the default) for three, <code>"1.0"</code> for a whole major. Pass the number your project really releases on — you keep the gate, pointed at your own cadence. Disabling it means nothing checks removal schedules at all. A <code>0.x</code> project needs no special setting: a bump to <code>1.0</code> is a major step and clears any window.</p>
+<p>Here is the difference between the two:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-104-1" name="__codelineno-104-1" href="#__codelineno-104-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">validate_deprecation_policy</span>
+<a id="__codelineno-104-2" name="__codelineno-104-2" href="#__codelineno-104-2"></a>
+<a id="__codelineno-104-3" name="__codelineno-104-3" href="#__codelineno-104-3"></a><span class="c1"># For testing purposes, we use the test module; normally you would import your own package</span>
+<a id="__codelineno-104-4" name="__codelineno-104-4" href="#__codelineno-104-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">tests</span><span class="w"> </span><span class="kn">import</span> <span class="n">collection_policy</span> <span class="k">as</span> <span class="n">my_package</span>
+<a id="__codelineno-104-5" name="__codelineno-104-5" href="#__codelineno-104-5"></a>
+<a id="__codelineno-104-6" name="__codelineno-104-6" href="#__codelineno-104-6"></a><span class="c1"># Relax the window: one minor of warning is enough.</span>
+<a id="__codelineno-104-7" name="__codelineno-104-7" href="#__codelineno-104-7"></a><span class="c1"># The fixtures still trip it — one removes in the same release, one at a patch off any boundary.</span>
+<a id="__codelineno-104-8" name="__codelineno-104-8" href="#__codelineno-104-8"></a><span class="n">violations</span> <span class="o">=</span> <span class="n">validate_deprecation_policy</span><span class="p">(</span><span class="n">my_package</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">min_grace</span><span class="o">=</span><span class="s2">"0.1"</span><span class="p">)</span>
+<a id="__codelineno-104-9" name="__codelineno-104-9" href="#__codelineno-104-9"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Found </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">violations</span><span class="p">)</span><span class="si">}</span><span class="s2"> violations"</span><span class="p">)</span>
+<a id="__codelineno-104-10" name="__codelineno-104-10" href="#__codelineno-104-10"></a>
+<a id="__codelineno-104-11" name="__codelineno-104-11" href="#__codelineno-104-11"></a><span class="c1"># Or drop the rule entirely and keep the guidance rule</span>
+<a id="__codelineno-104-12" name="__codelineno-104-12" href="#__codelineno-104-12"></a><span class="n">violations</span> <span class="o">=</span> <span class="n">validate_deprecation_policy</span><span class="p">(</span><span class="n">my_package</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">min_grace</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+<a id="__codelineno-104-13" name="__codelineno-104-13" href="#__codelineno-104-13"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Found </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">violations</span><span class="p">)</span><span class="si">}</span><span class="s2"> violations"</span><span class="p">)</span>
+</code></pre></div>
+<details><summary>Output: <code>f"Found {len(violations)} violations"</code></summary>
+
+<div class="highlight"><pre><span></span><code><a id="__codelineno-105-1" name="__codelineno-105-1" href="#__codelineno-105-1"></a>Found 5 violations
+<a id="__codelineno-105-2" name="__codelineno-105-2" href="#__codelineno-105-2"></a>Found 3 violations
+</code></pre></div>
+
+</details>
+
+<p>The CLI mirrors this one flag per rule — <code>--min-grace=0.1</code>, <code>--min-grace=None</code>, <code>--message-required=False</code>. A value the parser does not recognise is rejected before the scan starts and exits <code>2</code> with a message naming the accepted spellings, so a typo can never silently disable a rule you meant to keep.</p>
+<hr />
+<h2 id="where-does-pydeprecate-policy-take-its-rules-from-when-i-pass-no-flags">Where does <code>pydeprecate policy</code> take its rules from when I pass no flags?<a class="headerlink" href="#where-does-pydeprecate-policy-take-its-rules-from-when-i-pass-no-flags" title="Permanent link">🔗</a></h2>
+<p><strong>Q:</strong> I run a bare <code>pydeprecate policy src/mypackage</code> in CI and locally. Which rules apply, and can the project declare them once instead of every invocation repeating <code>--min-grace</code> and <code>--message-required</code>?</p>
+<p><strong>A:</strong> Each rule is resolved independently as <strong>flag → <code>[tool.pydeprecate.policy]</code> in <code>pyproject.toml</code> → built-in default</strong> (<code>min-grace = "0.3"</code>, <code>message-required = true</code>). Declare the project's convention once:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-106-1" name="__codelineno-106-1" href="#__codelineno-106-1"></a><span class="k">[tool.pydeprecate.policy]</span>
+<a id="__codelineno-106-2" name="__codelineno-106-2" href="#__codelineno-106-2"></a><span class="n">min-grace</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"0.3"</span><span class="w">  </span><span class="c1"># quoted — a TOML float 0.10 reads as 0.1; false switches the rule off</span>
+<a id="__codelineno-106-3" name="__codelineno-106-3" href="#__codelineno-106-3"></a><span class="n">message-required</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span>
+</code></pre></div>
+<p>The file is found the same way <code>--version</code> auto-detection finds it — from the scanned <em>path</em>'s directory up to two parents, nearest table wins — and never for a bare module name, so running from inside an unrelated checkout cannot adopt its policy. Every run prints a <code>Policy:</code> header naming the source of each value (<code>flag</code>, <code>pyproject.toml</code>, <code>built-in</code>), so a CI log always shows which convention was enforced. A malformed value from the file, or a <code>pyproject.toml</code> that cannot be read or parsed at all, exits <code>2</code> and the message names the file (<code>Cannot read &lt;path&gt;: &lt;err&gt;</code>); an unknown key (the usual typo is <code>min_grace</code> with an underscore) is reported on stderr and ignored, never silently enforced. On Python 3.9–3.10 the parser comes from the <code>[audit]</code> extra (<code>tomli</code>); without it a reachable <code>pyproject.toml</code> triggers an advisory rather than being skipped in silence. <code>pydeprecate all</code> applies the same resolved settings to its advisory policy pass — but this config-read exit <code>2</code> is the one exception to "advisory": it still propagates through <code>all</code> (checked before <code>chains</code> runs) even though violation counts themselves do not. The Python API <code>validate_deprecation_policy()</code> never reads <code>pyproject.toml</code> — it takes a module (object or importable name), never a filesystem path, so pass <code>min_grace</code> and <code>message_required</code> explicitly there.</p>
+<hr />
+<h2 id="how-do-i-keep-test-fixtures-or-a-legacy-tree-out-of-the-audit">How do I keep test fixtures or a legacy tree out of the audit?<a class="headerlink" href="#how-do-i-keep-test-fixtures-or-a-legacy-tree-out-of-the-audit" title="Permanent link">🔗</a></h2>
+<p><strong>Q:</strong> My package ships <code>my_package.tests</code> (or a frozen <code>my_package._legacy</code> tree) with deliberately odd <code>@deprecated</code> wrappers. <code>pydeprecate all</code> reports them, and importing the fixtures is slow. Can the scan skip them?</p>
+<p><strong>A:</strong> Yes — every scanning function and every CLI subcommand takes an <code>exclude</code> list of glob patterns over the <strong>full dotted module name</strong>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-107-1" name="__codelineno-107-1" href="#__codelineno-107-1"></a><span class="k">[tool.pydeprecate]</span>
+<a id="__codelineno-107-2" name="__codelineno-107-2" href="#__codelineno-107-2"></a><span class="n">exclude</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"my_package.tests"</span><span class="p">,</span><span class="w"> </span><span class="s2">"*._legacy*"</span><span class="p">]</span>
+</code></pre></div>
+<p>or <code>pydeprecate all src/my_package --exclude='my_package.tests,*._legacy*'</code> (quote it, or the shell expands the <code>*</code> first), or <code>find_deprecation_wrappers(my_package, exclude=["my_package.tests"])</code> in Python. A pattern that matches a package excludes its whole subtree, and the scan itself <strong>never imports</strong> an excluded package — so a fixture that raises at import time neither slows the scan nor produces an <code>audit: skipped</code> warning, as long as nothing else in your package imports it (if something does, the import happens as usual and only the wrappers are filtered out). The header line <code>Exclude: my_package.tests (pyproject.toml)</code> shows what was left out and where the list came from. Write the full name (<code>my_package.tests</code>), not a bare <code>tests</code>: patterns are matched against dotted module names, so a bare word matches only a top-level module of that name. A value that is not a string or a list of strings exits <code>2</code>.</p>
+<hr />
 <h2 id="userwarning-audit-skipped-module-during-a-recursive-scan">UserWarning: <code>audit: skipped &lt;module&gt;</code> during a recursive scan<a class="headerlink" href="#userwarning-audit-skipped-module-during-a-recursive-scan" title="Permanent link">🔗</a></h2>
 <p><strong>Q:</strong> A recursive audit scan (<code>find_deprecation_wrappers</code>, <code>validate_deprecation_expiry</code>, <code>pydeprecate check</code> / <code>all</code>) emits <code>UserWarning: audit: skipped &lt;module&gt;: &lt;exception&gt;</code>. What does it mean?</p>
 <p><strong>A:</strong> Recursive scans import every submodule of the scanned package, so module-level code runs. When a submodule raises any exception at import time — not just <code>ImportError</code> — the scanner emits this warning and continues with the remaining modules instead of aborting the whole scan:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-103-1" name="__codelineno-103-1" href="#__codelineno-103-1"></a>UserWarning: audit: skipped my_package.legacy_ext: RuntimeError('optional native extension not built')
+<div class="highlight"><pre><span></span><code><a id="__codelineno-108-1" name="__codelineno-108-1" href="#__codelineno-108-1"></a>UserWarning: audit: skipped my_package.legacy_ext: RuntimeError('optional native extension not built')
 </code></pre></div>
 <p>The scan results are complete for every module that imported successfully; only the named submodule is missing. Investigate and fix that submodule (or accept the gap if the failure is expected, e.g. an optional dependency) — one broken submodule no longer kills the CI gate, but its deprecations are not audited until it imports cleanly.</p>
 <hr />
@@ -4136,7 +4314,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="September 7, 2026 12:07:51 UTC">2026-09-07</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="September 18, 2026 18:25:07 UTC">2026-09-18</span>
   </span>
 
     

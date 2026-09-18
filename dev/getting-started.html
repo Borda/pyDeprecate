@@ -95,7 +95,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-04-21",
-  "dateModified": "2026-07-23"
+  "dateModified": "2026-09-18"
 }
 </script>
 
@@ -1381,12 +1381,12 @@
 <tr>
 <td>CI deadline checks</td>
 <td><code>pip install 'pyDeprecate[audit]'</code></td>
-<td>Adds <code>packaging</code> for PEP 440 version comparison in <code>validate_deprecation_expiry()</code></td>
+<td>Adds <code>packaging</code> for PEP 440 version comparison in <code>validate_deprecation_expiry()</code> and <code>validate_deprecation_policy()</code></td>
 </tr>
 <tr>
 <td>Command-line audit workflows</td>
 <td><code>pip install 'pyDeprecate[audit,cli]'</code></td>
-<td>Adds CLI dependencies (<code>fire</code>, <code>rich</code>) plus expiry support for <code>pydeprecate expiry</code> and <code>pydeprecate all</code></td>
+<td>Adds CLI dependencies (<code>fire</code>, <code>rich</code>) plus <code>packaging</code>-backed checks for <code>pydeprecate expiry</code>, <code>pydeprecate policy</code>, and <code>pydeprecate all</code></td>
 </tr>
 </tbody>
 </table>
@@ -1396,7 +1396,7 @@
 <p>To install directly from source (for pre-release or development versions):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pip<span class="w"> </span>install<span class="w"> </span>https://github.com/Borda/pyDeprecate/archive/main.zip
 </code></pre></div>
-<p>The <code>audit</code> extra adds <code>packaging</code> for version comparison, needed only by <a href="guide/audit.html#enforcing-removal-deadlines"><code>validate_deprecation_expiry</code></a>. Install it when you want to enforce removal deadlines in CI:</p>
+<p>The <code>audit</code> extra adds <code>packaging</code> for version comparison, needed only by <a href="guide/audit.html#enforcing-removal-deadlines"><code>validate_deprecation_expiry</code></a> and <a href="guide/audit.html#enforcing-a-deprecation-policy"><code>validate_deprecation_policy</code></a>. Install it when you want to enforce removal deadlines or a deprecation policy in CI:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s1">'pyDeprecate[audit]'</span>
 </code></pre></div>
 <p>For command-line audit workflows:</p>
@@ -1698,7 +1698,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="July 23, 2026 15:23:12 UTC">2026-07-23</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="September 18, 2026 18:25:07 UTC">2026-09-18</span>
   </span>
 
     
