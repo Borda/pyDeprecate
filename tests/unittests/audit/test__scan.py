@@ -27,8 +27,6 @@ from deprecate.audit._scan import _member_has_deprecation_meta, _scan_class
 from deprecate.proxy import _DeprecatedProxy, deprecated_class
 from tests.collection_targets import PositionalOnlyTarget
 
-_PACKAGING_AVAILABLE = importlib.util.find_spec("packaging") is not None
-
 
 class _SideEffectScanModule:
     """Test double that mimics module-level dynamic attribute side effects."""
