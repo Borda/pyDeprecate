@@ -27,7 +27,9 @@ from deprecate._pkg import (
     _auto_detect_version,
     _find_child_packages,
     _is_package_dir,
+    _iter_pyproject_paths,
     _managed_sys_path,
+    _read_policy_config,
     _resolve_module_name,
     _safe_module_name,
 )
@@ -481,6 +483,138 @@ def _validate_user_version(version: Optional[str], *, explicit: bool = True) -> 
     return None
 
 
+class _FromPyproject:
+    """Sentinel default for the ``policy`` flags: read the value from ``pyproject.toml``, else use the built-in.
+
+    Fire cannot tell a typed ``--min-grace=0.3`` from the signature default, so the signature default is this marker
+    instead — the ``repr`` is what ``pydeprecate policy --help`` shows as ``Default:``.
+
+    """
+
+    def __repr__(self) -> str:
+        return "pyproject.toml"
+
+
+_FROM_PYPROJECT = _FromPyproject()
+_PolicyFlag = Union[str, int, float, bool, None, _FromPyproject]
+#: Built-in value per policy rule, used when neither a flag nor ``[tool.pydeprecate.policy]`` sets it.
+_POLICY_DEFAULTS: dict[str, Any] = {PolicyRule.MIN_GRACE.value: "0.3", PolicyRule.MESSAGE_REQUIRED.value: True}
+_POLICY_TABLE_NAME = "[tool.pydeprecate.policy]"
+
+
+def _load_policy_config(path: str) -> tuple[dict[str, Any], Optional[str]]:
+    """Read ``[tool.pydeprecate.policy]`` for the scanned *path*, warning about anything silently ignorable.
+
+    Only an existing file-system path is searched — a bare module name would otherwise walk up from the
+    current directory and adopt whatever unrelated project the caller is standing in. Two silent no-ops are
+    turned into stderr advisories: a ``pyproject.toml`` within reach when no TOML parser is installed (Python
+    3.9-3.10 without the ``audit`` extra), and unknown keys in the table (a typo would otherwise disable nothing
+    and enable nothing).
+
+    Args:
+        path: The ``path`` argument of the subcommand.
+
+    Returns:
+        Tuple of the known keys of the table and the ``pyproject.toml`` it came from, or ``({}, None)``.
+
+    """
+    if not Path(path).exists():
+        return {}, None
+    if not (_is_package_available("tomllib") or _is_package_available("tomli")):
+        if next(_iter_pyproject_paths(path), None) is not None:
+            _print(
+                f"A `pyproject.toml` is within reach of `{path}` but no TOML parser is installed, so any "
+                f"`{_POLICY_TABLE_NAME}` section is ignored.\nInstall one with: `pip install 'pyDeprecate[audit]'`",
+                stderr=True,
+            )
+        return {}, None
+    config, toml_path = _read_policy_config(path)
+    unknown = sorted(set(config) - set(_POLICY_DEFAULTS))
+    if unknown:
+        known = ", ".join(f"`{slug}`" for slug in _POLICY_DEFAULTS)
+        _print(
+            f"Ignoring unknown key(s) {', '.join(f'`{k}`' for k in unknown)} in `{_POLICY_TABLE_NAME}` of "
+            f"{toml_path}; the recognised keys are {known}.",
+            stderr=True,
+        )
+    return {slug: config[slug] for slug in _POLICY_DEFAULTS if slug in config}, toml_path
+
+
+def _resolve_policy_settings(path: str, flags: dict[str, _PolicyFlag]) -> tuple[dict[str, Any], dict[str, str]]:
+    """Resolve each policy rule's value as flag > ``pyproject.toml`` > built-in default.
+
+    Args:
+        path: The ``path`` argument of the subcommand, used to locate ``pyproject.toml``.
+        flags: Rule slug to the value the subcommand received; :data:`_FROM_PYPROJECT` means "not typed".
+
+    Returns:
+        Two dicts keyed by rule slug: the resolved value, and where it came from — ``"flag"``, the path of the
+        ``pyproject.toml``, or ``"built-in"``. A TOML ``false`` for ``min-grace`` is normalised to ``None``
+        (TOML has no null) so the value is what :func:`_build_policy_spec` expects.
+
+    """
+    config: dict[str, Any] = {}
+    toml_path: Optional[str] = None
+    if any(value is _FROM_PYPROJECT for value in flags.values()):
+        config, toml_path = _load_policy_config(path)
+    values: dict[str, Any] = {}
+    sources: dict[str, str] = {}
+    for slug, flag in flags.items():
+        if flag is not _FROM_PYPROJECT:
+            values[slug], sources[slug] = flag, "flag"
+        elif slug in config:
+            values[slug], sources[slug] = config[slug], str(toml_path)
+        else:
+            values[slug], sources[slug] = _POLICY_DEFAULTS[slug], "built-in"
+    if values[PolicyRule.MIN_GRACE.value] is False:
+        values[PolicyRule.MIN_GRACE.value] = None
+    return values, sources
+
+
+def _describe_policy_source(slug: str, source: str) -> str:
+    """Name where a rule's value came from, for the usage error and the header line."""
+    if source == "flag":
+        return f"`--{slug}`"
+    if source == "built-in":
+        return "the built-in default"
+    return f"`{_POLICY_TABLE_NAME}` in {source}"
+
+
+def _resolve_policy_spec(path: str, flags: dict[str, _PolicyFlag]) -> Optional[tuple["_PolicySpec", str]]:
+    """Build the policy spec from the resolved settings, printing any usage error.
+
+    Args:
+        path: The ``path`` argument of the subcommand.
+        flags: Rule slug to the value the subcommand received (see :func:`_resolve_policy_settings`).
+
+    Returns:
+        The spec and the ``Policy:`` header line naming each value's source, or ``None`` after printing a usage
+        error naming the offending value and its source (the caller exits 2).
+
+    """
+    values, sources = _resolve_policy_settings(path, flags)
+    min_grace_slug, message_slug = PolicyRule.MIN_GRACE.value, PolicyRule.MESSAGE_REQUIRED.value
+    if not isinstance(values[message_slug], bool):
+        _print(
+            f"Invalid `message_required` value `{values[message_slug]}` from "
+            f"{_describe_policy_source(message_slug, sources[message_slug])}; expected `true` or `false`.",
+            stderr=True,
+        )
+        return None
+    try:
+        spec = _build_policy_spec(values[min_grace_slug], values[message_slug])
+    except ValueError as err:
+        _print(f"{err} (from {_describe_policy_source(min_grace_slug, sources[min_grace_slug])})", stderr=True)
+        return None
+    header = "Policy: " + "  ".join(f"{slug}={values[slug]} ({_policy_source_label(sources[slug])})" for slug in values)
+    return spec, header
+
+
+def _policy_source_label(source: str) -> str:
+    """Short provenance tag for the ``Policy:`` header line — ``flag``, ``built-in`` or ``pyproject.toml``."""
+    return source if source in ("flag", "built-in") else "pyproject.toml"
+
+
 def _skipped_policy_rules(spec: "_PolicySpec") -> list[str]:
     """Return the CLI-facing slugs of the version-dependent policy rules *spec* has enabled.
 
@@ -670,8 +804,8 @@ def cmd_policy(
     path: str = ".",
     recursive: bool = True,
     exit_zero: bool = False,
-    min_grace: Optional[Union[str, int, float]] = "0.3",
-    message_required: bool = True,
+    min_grace: _PolicyFlag = _FROM_PYPROJECT,
+    message_required: _PolicyFlag = _FROM_PYPROJECT,
     *,
     _wrappers: Optional[list[DeprecationWrapperInfo]] = None,
 ) -> int:
@@ -686,36 +820,45 @@ def cmd_policy(
     an advisory warning; ``message_required`` still runs and gates the exit code normally. The gate only fully
     no-ops (return 0 with a warning) when ``min-grace`` was requested and ``message_required`` is also disabled.
 
+    Each rule is resolved as flag > ``[tool.pydeprecate.policy]`` in the nearest ``pyproject.toml`` (the scanned
+    directory or up to two levels above it) > built-in default, and the header names the source of each. The
+    table uses the rule slugs as keys — ``min-grace = "0.3"``, ``message-required = true`` — and ``false`` for
+    ``min-grace`` where the flag would take ``None`` (TOML has no null). It is only consulted for an existing
+    path, never for a bare module name.
+
     Args:
         path: Path to the module, package directory, or importable module name to scan.
         recursive: Scan submodules recursively (default True). Pass ``--norecursive`` to scan top-level only.
         exit_zero: Always exit 0 even if violations are found.
             Useful for advisory CI steps that should report but never block.
         min_grace: Minimum distance between ``deprecated_in`` and ``remove_in`` as a version-shaped delta —
-            ``1`` one major, ``0.3`` three minors, ``0.0.2`` two patches; default ``0.3``, ``None`` skips the
-            rule. The removal must be one clean bump of a single component (``1.2`` → ``1.5`` or ``2.0``, never
-            ``2.3``); a coarser bump always clears a finer window. Ten or more steps: quote as a string
-            (``--min-grace='"0.10"'``), else Fire parses ``0.10`` as ``0.1``.
-        message_required: Require every wrapper to name a replacement (default True).
+            ``1`` one major, ``0.3`` three minors, ``0.0.2`` two patches; built-in default ``0.3``, ``None``
+            skips the rule. The removal must be one clean bump of a single component (``1.2`` → ``1.5`` or
+            ``2.0``, never ``2.3``); a coarser bump always clears a finer window. Ten or more steps: quote as a
+            string (``--min-grace='"0.10"'``), else Fire parses ``0.10`` as ``0.1``.
+        message_required: Require every wrapper to name a replacement (built-in default True).
         _wrappers: Pre-scanned wrapper list. When provided, skips the scan step. Underscore prefix hides this
             parameter from the Fire CLI (internal use by ``cmd_all`` only).
 
     Returns:
         0 on success, or when ``min-grace`` is skipped because ``packaging`` is unavailable and
         ``message_required`` finds no violation; 1 when violations are found (including from a still-running
-        ``message_required`` check) and ``exit_zero`` is False; 2 when ``--min-grace`` is malformed.
+        ``message_required`` check) and ``exit_zero`` is False; 2 when a rule's value — from a flag or from
+        ``pyproject.toml`` — is malformed.
 
     """
-    try:
-        spec = _build_policy_spec(min_grace, message_required)
-    except ValueError as err:
-        _print(str(err), stderr=True)
+    resolved = _resolve_policy_spec(
+        path, {PolicyRule.MIN_GRACE.value: min_grace, PolicyRule.MESSAGE_REQUIRED.value: message_required}
+    )
+    if resolved is None:
         return 2
+    spec, policy_header = resolved
 
     if _wrappers is None:
         _print_scan_header(path)
         with _managed_sys_path(path):
             _wrappers = _scan_path(path, recursive=recursive)
+    _print(policy_header)
     try:
         violations = _check_policy_for_callables(_wrappers, spec)
     except ImportError as exc:

@@ -323,6 +323,56 @@ class TestCliSubcommands:
         assert result.returncode == 1
         assert "min-grace" in (result.stdout or ""), result
 
+    @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
+    def test_policy_subcommand_reads_pyproject_table(self, tmp_path: Path) -> None:
+        """'pydeprecate policy <path>' applies ``[tool.pydeprecate.policy]`` from the project's ``pyproject.toml``.
+
+        The aggressive package fails the built-in window; with the project declaring ``min-grace = false`` next
+        to it, the same bare invocation passes and the header attributes the setting to ``pyproject.toml`` —
+        the shape a repository uses so CI and every developer run the one policy without repeating flags.
+        """
+        pkg = _make_pkg(tmp_path, name="aggressivepkg4", content=_MYPKG_INIT_AGGRESSIVE)
+        (tmp_path / "pyproject.toml").write_text("[tool.pydeprecate.policy]\nmin-grace = false\n")
+        result = _run_cli("policy", str(pkg), cwd=tmp_path)
+        assert result.returncode == 0, result
+        assert "min-grace=None (pyproject.toml)" in result.stdout
+
+    @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
+    def test_policy_flag_overrides_pyproject_table(self, tmp_path: Path) -> None:
+        """A typed '--min-grace' beats the value ``pyproject.toml`` declares for the same rule.
+
+        The project disabled the window in its config; a maintainer re-enabling it for one run from the command
+        line must see the violation, otherwise the flag would silently lose to the file.
+        """
+        pkg = _make_pkg(tmp_path, name="aggressivepkg5", content=_MYPKG_INIT_AGGRESSIVE)
+        (tmp_path / "pyproject.toml").write_text("[tool.pydeprecate.policy]\nmin-grace = false\n")
+        result = _run_cli("policy", str(pkg), "--min-grace=0.1", cwd=tmp_path)
+        assert result.returncode == 1, result
+        assert "min-grace=0.1 (flag)" in result.stdout
+
+    def test_policy_malformed_pyproject_value_exits_two(self, tmp_path: Path) -> None:
+        """A malformed ``min-grace`` in ``pyproject.toml`` exits 2 and names the file, before any scan.
+
+        A usage error sourced from the file must point the reader at the file, not at a flag they never typed.
+        """
+        pkg = _make_pkg(tmp_path)
+        (tmp_path / "pyproject.toml").write_text('[tool.pydeprecate.policy]\nmin-grace = "bogus"\n')
+        result = _run_cli("policy", str(pkg), cwd=tmp_path)
+        assert result.returncode == 2, result
+        assert "pyproject.toml" in result.stderr
+
+    def test_all_subcommand_reads_pyproject_table(self, tmp_path: Path) -> None:
+        """'pydeprecate all <path>' runs its advisory policy pass with the ``pyproject.toml`` settings.
+
+        ``all`` never fails on policy, but its printed advisory must reflect the project's declared rules,
+        otherwise the summary a developer reads locally disagrees with the dedicated ``policy`` gate in CI.
+        """
+        pkg = _make_pkg(tmp_path)
+        (tmp_path / "pyproject.toml").write_text("[tool.pydeprecate.policy]\nmessage-required = false\n")
+        result = _run_cli("all", str(pkg), cwd=tmp_path)
+        assert result.returncode == 0, result
+        assert "message-required=False (pyproject.toml)" in result.stdout
+
     def test_policy_subcommand_invalid_min_grace_exits_two(self, tmp_path: Path) -> None:
         """'--min-grace=bogus' exits 2 and names the accepted spellings instead of scanning anything.
 

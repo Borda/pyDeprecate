@@ -26,6 +26,7 @@ from deprecate._pkg import (
     _auto_detect_version,
     _distribution_for_import,
     _load_toml,
+    _read_policy_config,
     _version_from_dynamic,
     _version_from_toml,
 )
@@ -1005,6 +1006,51 @@ class TestLoadToml:
         assert _load_toml(str(toml)) == {}
 
 
+class TestReadPolicyConfig:
+    """Tests for _read_policy_config() — locates ``[tool.pydeprecate.policy]`` in the nearest ``pyproject.toml``."""
+
+    def test_reads_nearest_table_with_raw_values(self, tmp_path: Path) -> None:
+        """The table is returned with its TOML values untouched and the file it came from.
+
+        A project keeps its policy next to its other tool settings; the CLI needs the raw values to validate them
+        itself, and the path so its usage errors can point at the file a reader has to fix.
+        """
+        toml = tmp_path / "pyproject.toml"
+        toml.write_text("[tool.pydeprecate.policy]\nmin-grace = 0.3\nmessage-required = false\n")
+        assert _read_policy_config(str(tmp_path)) == ({"min-grace": 0.3, "message-required": False}, str(toml))
+
+    def test_walks_up_two_levels(self, tmp_path: Path) -> None:
+        """A ``src/pkg`` scan path finds the project root's table two directories above it.
+
+        The scanned path is usually the package directory, not the repo root where ``pyproject.toml`` lives;
+        the walk-up mirrors the one version auto-detection already performs.
+        """
+        (tmp_path / "pyproject.toml").write_text('[tool.pydeprecate.policy]\nmin-grace = "1"\n')
+        pkg = tmp_path / "src" / "pkg"
+        pkg.mkdir(parents=True)
+        table, _ = _read_policy_config(str(pkg))
+        assert table == {"min-grace": "1"}
+
+    def test_skips_pyproject_without_table(self, tmp_path: Path) -> None:
+        """A nearer ``pyproject.toml`` without the table is skipped in favour of a parent that declares it.
+
+        A sub-package with its own build metadata but no policy section inherits the repository policy rather
+        than silently resetting it to the built-in defaults.
+        """
+        (tmp_path / "pyproject.toml").write_text("[tool.pydeprecate.policy]\nmessage-required = false\n")
+        sub = tmp_path / "sub"
+        sub.mkdir()
+        (sub / "pyproject.toml").write_text('[project]\nname = "sub"\n')
+        table, found = _read_policy_config(str(sub))
+        assert table == {"message-required": False}
+        assert found == str(tmp_path / "pyproject.toml")
+
+    def test_no_table_anywhere_returns_empty(self, tmp_path: Path) -> None:
+        """A tree with no policy table yields ``({}, None)`` so every rule falls back to its built-in default."""
+        (tmp_path / "pyproject.toml").write_text('[project]\nname = "plain"\n')
+        assert _read_policy_config(str(tmp_path)) == ({}, None)
+
+
 @pytest.mark.usefixtures("_clean_sys_modules")
 class TestVersionFromDynamic:
     """Tests for _version_from_dynamic() — imports a package to read its ``__version__`` for dynamic versions."""
@@ -1402,3 +1448,101 @@ class TestCmdPolicy:
         """
         result = cmd_policy(path="some_module", min_grace=None, message_required=False, _wrappers=[_POLICY_VIOLATION])
         assert result == 0
+
+    def test_header_names_built_in_source(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """Without flags or a ``pyproject.toml`` the header reports both rules as built-in defaults.
+
+        A reader of a CI log has to know which convention the gate applied and where it came from before deciding
+        whether to change the code or the configuration.
+        """
+        cmd_policy(path="some_module", _wrappers=[])
+        assert "min-grace=0.3 (built-in)" in capsys.readouterr().out
+
+    def test_pyproject_table_supplies_defaults(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        """``[tool.pydeprecate.policy]`` next to the scanned package replaces the built-in defaults.
+
+        A project that wants its policy versioned with the code declares it once in ``pyproject.toml`` and every
+        bare ``pydeprecate policy`` invocation — local or CI — applies the same rules without flags.
+        """
+        (tmp_path / "pyproject.toml").write_text("[tool.pydeprecate.policy]\nmessage-required = false\n")
+        assert cmd_policy(path=str(tmp_path), _wrappers=[_POLICY_VIOLATION]) == 0
+        assert "message-required=False (pyproject.toml)" in capsys.readouterr().out
+
+    def test_flag_overrides_pyproject(self, tmp_path: Path) -> None:
+        """An explicit flag wins over the ``pyproject.toml`` value for the same rule.
+
+        A one-off stricter run (``--message-required=True`` on a project that disabled the rule) must not be
+        silently overruled by the file, or the flag would become a no-op nobody can trust.
+        """
+        (tmp_path / "pyproject.toml").write_text("[tool.pydeprecate.policy]\nmessage-required = false\n")
+        assert cmd_policy(path=str(tmp_path), message_required=True, _wrappers=[_POLICY_VIOLATION]) == 1
+
+    def test_pyproject_false_disables_grace_window(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        """``min-grace = false`` in TOML stands in for the ``None`` a flag would pass.
+
+        TOML has no null, so the file needs its own spelling for "rule off"; ``false`` mirrors the boolean rule
+        and must reach the engine as a disabled window rather than as a malformed delta (exit 2).
+        """
+        (tmp_path / "pyproject.toml").write_text("[tool.pydeprecate.policy]\nmin-grace = false\n")
+        assert cmd_policy(path=str(tmp_path), _wrappers=[]) == 0
+        assert "min-grace=None (pyproject.toml)" in capsys.readouterr().out
+
+    def test_malformed_pyproject_value_exits_two_naming_file(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A malformed ``min-grace`` in ``pyproject.toml`` exits 2 and names the file it came from.
+
+        The value did not come from the command line, so an error that only quoted the bad delta would send the
+        reader hunting through flags that were never typed.
+        """
+        (tmp_path / "pyproject.toml").write_text('[tool.pydeprecate.policy]\nmin-grace = "1.2"\n')
+        assert cmd_policy(path=str(tmp_path), _wrappers=[]) == 2
+        assert "pyproject.toml" in capsys.readouterr().err
+
+    def test_non_bool_message_required_exits_two(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        """A non-boolean ``message-required`` in ``pyproject.toml`` is a usage error, not a truthy toggle.
+
+        ``message-required = "no"`` would be truthy if passed straight through, enabling the rule the author
+        meant to switch off; rejecting it keeps a typo from silently inverting the configuration.
+        """
+        (tmp_path / "pyproject.toml").write_text('[tool.pydeprecate.policy]\nmessage-required = "no"\n')
+        assert cmd_policy(path=str(tmp_path), _wrappers=[]) == 2
+        assert "message_required" in capsys.readouterr().err
+
+    def test_unknown_pyproject_key_warns(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        """An unrecognised key in the table is reported on stderr instead of being ignored.
+
+        ``min_grace`` (underscore) is the likeliest typo; without the warning it would leave the built-in window in
+        force while the author believes they configured a different one.
+        """
+        (tmp_path / "pyproject.toml").write_text('[tool.pydeprecate.policy]\nmin_grace = "1"\n')
+        assert cmd_policy(path=str(tmp_path), _wrappers=[]) == 0
+        captured = capsys.readouterr()
+        assert "`min_grace`" in captured.err
+        assert "min-grace=0.3 (built-in)" in captured.out
+
+    def test_bare_module_name_ignores_cwd_pyproject(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A module *name* never triggers the ``pyproject.toml`` walk-up from the current directory.
+
+        Running ``pydeprecate policy somepkg`` from inside an unrelated checkout must not adopt that checkout's
+        policy — the same guard version auto-detection applies to a bare name.
+        """
+        (tmp_path / "pyproject.toml").write_text("[tool.pydeprecate.policy]\nmessage-required = false\n")
+        monkeypatch.chdir(tmp_path)
+        assert cmd_policy(path="some_module", _wrappers=[_POLICY_VIOLATION]) == 1
+        assert "(built-in)" in capsys.readouterr().out
+
+    @patch("deprecate._cli._is_package_available", return_value=False)
+    def test_missing_toml_parser_warns(
+        self, mock_available: MagicMock, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """With no TOML parser installed, a reachable ``pyproject.toml`` is reported as ignored, not read silently.
+
+        On Python 3.9-3.10 without the ``audit`` extra there is no ``tomllib``; a configured-but-unread policy is
+        the silent no-op the advisory exists to expose, and it names the extra that fixes it.
+        """
+        (tmp_path / "pyproject.toml").write_text("[tool.pydeprecate.policy]\nmessage-required = false\n")
+        assert cmd_policy(path=str(tmp_path), _wrappers=[_POLICY_VIOLATION]) == 1
+        assert "pyDeprecate[audit]" in capsys.readouterr().err

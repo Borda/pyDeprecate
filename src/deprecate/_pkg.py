@@ -17,7 +17,7 @@ import importlib.metadata
 import os
 import sys
 import warnings
-from collections.abc import Generator
+from collections.abc import Generator, Iterator
 from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import Any, Optional
@@ -115,6 +115,33 @@ def _version_from_toml(toml_path: str, scan_path: str) -> Optional[str]:
     return None
 
 
+def _iter_pyproject_paths(path: str) -> Iterator[str]:
+    r"""Yield every existing ``pyproject.toml`` from *path*'s directory up to 2 levels above it, nearest first.
+
+    Examples:
+        >>> import os, tempfile
+        >>> with tempfile.TemporaryDirectory() as root:
+        ...     pkg = os.path.join(root, "src", "pkg")
+        ...     os.makedirs(pkg)
+        ...     with open(os.path.join(root, "pyproject.toml"), "w") as fh:
+        ...         _ = fh.write("[project]\n")
+        ...     [os.path.relpath(p, root) for p in _iter_pyproject_paths(pkg)]
+        ['pyproject.toml']
+
+    """
+    candidate = os.path.abspath(path)
+    if not os.path.isdir(candidate):
+        candidate = os.path.dirname(candidate)
+    for _ in range(3):  # current dir + 2 levels up
+        toml_path = os.path.join(candidate, "pyproject.toml")
+        if os.path.isfile(toml_path):
+            yield toml_path
+        parent = os.path.dirname(candidate)
+        if parent == candidate:
+            break
+        candidate = parent
+
+
 def _read_pyproject_version(path: str) -> Optional[str]:
     """Return ``[project].version`` from the nearest ``pyproject.toml`` up to 2 levels above *path*.
 
@@ -128,20 +155,51 @@ def _read_pyproject_version(path: str) -> Optional[str]:
         Version string or ``None`` when not found within 2 levels.
 
     """
-    candidate = os.path.abspath(path)
-    if not os.path.isdir(candidate):
-        candidate = os.path.dirname(candidate)
-    for _ in range(3):  # current dir + 2 levels up
-        toml_path = os.path.join(candidate, "pyproject.toml")
-        if os.path.isfile(toml_path):
-            version = _version_from_toml(toml_path, path)
-            if version is not None:
-                return version
-        parent = os.path.dirname(candidate)
-        if parent == candidate:
-            break
-        candidate = parent
+    for toml_path in _iter_pyproject_paths(path):
+        version = _version_from_toml(toml_path, path)
+        if version is not None:
+            return version
     return None
+
+
+#: Dotted key of the ``pyproject.toml`` table that carries the ``pydeprecate policy`` defaults.
+_POLICY_TABLE = ("tool", "pydeprecate", "policy")
+
+
+def _read_policy_config(path: str) -> tuple[dict[str, Any], Optional[str]]:
+    r"""Return the ``[tool.pydeprecate.policy]`` table from the nearest ``pyproject.toml`` above *path*.
+
+    Walks the same directory + 2 parents as :func:`_read_pyproject_version` and stops at the first file that
+    declares the table, so a nested package can override its parent project's policy. A ``pyproject.toml``
+    without the table is skipped, not treated as an empty policy.
+
+    Args:
+        path: File-system path to start the upward search from.
+
+    Returns:
+        Tuple of the table contents (kebab-case keys, raw TOML values) and the path of the file it came from,
+        or ``({}, None)`` when no file within reach declares it (or the TOML parser is unavailable).
+
+    Examples:
+        >>> import os, tempfile
+        >>> with tempfile.TemporaryDirectory() as root:
+        ...     with open(os.path.join(root, "pyproject.toml"), "w") as fh:
+        ...         _ = fh.write('[tool.pydeprecate.policy]\nmin-grace = "1"\nmessage-required = false\n')
+        ...     table, found = _read_policy_config(root)
+        >>> table
+        {'min-grace': '1', 'message-required': False}
+        >>> with tempfile.TemporaryDirectory() as empty:
+        ...     _read_policy_config(empty)
+        ({}, None)
+
+    """
+    for toml_path in _iter_pyproject_paths(path):
+        node: Any = _load_toml(toml_path)
+        for key in _POLICY_TABLE:
+            node = node.get(key) if isinstance(node, dict) else None
+        if isinstance(node, dict):
+            return dict(node), toml_path
+    return {}, None
 
 
 def _auto_detect_version(module_name: str, path: Optional[str] = None) -> Optional[str]:

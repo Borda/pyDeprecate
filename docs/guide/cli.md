@@ -133,11 +133,11 @@ pydeprecate status tests --version 1.2
 | `--style`           | `compact`     |         |          |          |          |       |    ✓     | Table rendering style — `compact` (default) or `matrix`.                                                |                                                                                                      |
 | `--output FILE`     | stdout only   |         |          |          |          |       |    ✓     | Also save the markdown table to a file. Table is always printed to stdout regardless.                   |                                                                                                      |
 
-A bare `pydeprecate policy src/mypackage` therefore runs a recursive scan, exits `1` on violations, and applies both default-on rules below (`--min-grace=0.3`, `--message-required=True`).
+A bare `pydeprecate policy src/mypackage` therefore runs a recursive scan, exits `1` on violations, and applies both default-on rules below (`--min-grace=0.3`, `--message-required=True`) — unless the project's `pyproject.toml` says otherwise (see [Policy in `pyproject.toml`](#policy-in-pyprojecttoml)).
 
 ### Policy rule flags
 
-These two are specific to `policy` — one flag per rule, switched off with `--min-grace=None` and `--message-required=False`.
+These two are specific to `policy` — one flag per rule, switched off with `--min-grace=None` and `--message-required=False`. The *Default* column is the built-in value; a `[tool.pydeprecate.policy]` table in `pyproject.toml` replaces it, and a typed flag beats both.
 
 | Flag                        | Default | Rule slug          | Effect                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | --------------------------- | ------- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -148,6 +148,28 @@ These two are specific to `policy` — one flag per rule, switched off with `--m
 
 A malformed `--min-grace` value is rejected before the scan starts and exits `2` with a message naming the accepted spellings — it is never silently ignored.
 
+### Policy in `pyproject.toml`
+
+Declare the rules once, next to the code they govern, and every bare `pydeprecate policy` run — a developer's shell or a CI step — applies the same policy without repeating flags:
+
+```toml
+[tool.pydeprecate.policy]
+min-grace = "0.3"          # a version-shaped delta, as a string; false switches the rule off (TOML has no null)
+message-required = true
+```
+
+The keys are the rule slugs. Each rule resolves independently as **flag → `pyproject.toml` → built-in default**, and the `Policy:` header line of every run names the source of each value (`flag`, `pyproject.toml`, or `built-in`), so a log always shows which convention was applied:
+
+```text
+Policy: min-grace=0.3 (pyproject.toml)  message-required=True (built-in)
+```
+
+- The table is looked up like `--version` auto-detection below: from the scanned *path*'s directory up to two parents, nearest file that declares the table wins; a bare module *name* never triggers the lookup.
+- Quote `min-grace` as a string (`"0.10"`, not `0.10`) — a TOML float drops the trailing zero exactly as the shell does.
+- A malformed value from the file exits `2` and the message names the `pyproject.toml` it came from; a non-boolean `message-required` is rejected the same way. Unknown keys in the table (`min_grace` with an underscore is the usual typo) are reported on stderr and ignored, never silently enforced.
+- Reading the file needs a TOML parser — built in on Python 3.11+, the `tomli` backport from the `[audit]` extra on 3.9–3.10. Without one, a reachable `pyproject.toml` triggers a stderr advisory instead of being silently skipped.
+- `pydeprecate all` runs its advisory policy pass with the same resolved settings. The Python API (`validate_deprecation_policy()`) takes a module (object or importable name), never a filesystem path, and does not read `pyproject.toml` — pass its keyword arguments explicitly.
+
 `--version` auto-detect: when the scanned argument is an existing *path*, `_read_pyproject_version` searches the current directory and up to 2 parent directories for a `pyproject.toml` (current dir + 2 levels up); the nearest one found wins, falling back to installed package metadata. A bare module *name* skips the `pyproject.toml` lookup entirely, so it can never pick up an unrelated project's version from your current working directory.
 
 ## Exit codes
@@ -156,7 +178,7 @@ A malformed `--min-grace` value is rejected before the scan starts and exits `2`
 | ---------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------- | --------------------------------------------------- |
 | `check`    | Clean or advisory warnings only (chains / identity / no-effect)          | Invalid argument mappings found                                       | —                                                   |
 | `expiry`   | No expired wrappers; or `packaging` not installed (skipped with warning) | Expired wrappers found (and `--exit-zero` not set)                    | Malformed `--version` when `packaging` is available |
-| `policy`   | No violations; or only a skipped `min-grace` rule                        | Policy violations found (and `--exit-zero` not set)                   | Malformed `--min-grace`                             |
+| `policy`   | No violations; or only a skipped `min-grace` rule                        | Policy violations found (and `--exit-zero` not set)                   | Malformed rule value (flag or `pyproject.toml`)     |
 | `chains`   | No chains                                                                | Deprecated-to-deprecated chains found                                 | —                                                   |
 | `all`      | All checks clean, or only policy violations (table always appended)      | Any hard error above (`packaging` missing → skips expiry, no failure) | Malformed `--version` when `packaging` is available |
 | `status`   | Always — status table is not a pass/fail gate                            | —                                                                     | —                                                   |
@@ -193,7 +215,7 @@ jobs:
         run: pydeprecate policy src/mypackage --min-grace=0.3 --message-required=True
 ```
 
-Spell the rule flags out even where they match the defaults, as above: the step then doubles as the written record of what your project promises, and a later change to pyDeprecate's defaults cannot quietly change what your CI enforces.
+Spell the rule flags out even where they match the defaults, as above, or declare them once in `[tool.pydeprecate.policy]` and run a bare `pydeprecate policy src/mypackage`: either way the project carries a written record of what it promises, and a later change to pyDeprecate's built-in defaults cannot quietly change what your CI enforces.
 
 While you are bringing an existing codebase into line, run the gate advisory-first so it reports without blocking, then drop the flag once the backlog is clear:
 

@@ -2066,6 +2066,22 @@ The CLI mirrors this one flag per rule — `--min-grace=0.1`, `--min-grace=None`
 
 ______________________________________________________________________
 
+## Where does `pydeprecate policy` take its rules from when I pass no flags?
+
+**Q:** I run a bare `pydeprecate policy src/mypackage` in CI and locally. Which rules apply, and can the project declare them once instead of every invocation repeating `--min-grace` and `--message-required`?
+
+**A:** Each rule is resolved independently as **flag → `[tool.pydeprecate.policy]` in `pyproject.toml` → built-in default** (`min-grace = "0.3"`, `message-required = true`). Declare the project's convention once:
+
+```toml
+[tool.pydeprecate.policy]
+min-grace = "0.3"          # quote it — a TOML float 0.10 reads as 0.1; false switches the rule off
+message-required = true
+```
+
+The file is found the same way `--version` auto-detection finds it — from the scanned *path*'s directory up to two parents, nearest table wins — and never for a bare module name, so running from inside an unrelated checkout cannot adopt its policy. Every run prints a `Policy:` header naming the source of each value (`flag`, `pyproject.toml`, `built-in`), so a CI log always shows which convention was enforced. A malformed value from the file exits `2` and the message names the file; an unknown key (the usual typo is `min_grace` with an underscore) is reported on stderr and ignored, never silently enforced. On Python 3.9–3.10 the parser comes from the `[audit]` extra (`tomli`); without it a reachable `pyproject.toml` triggers an advisory rather than being skipped in silence. `pydeprecate all` applies the same resolved settings to its advisory policy pass. The Python API `validate_deprecation_policy()` never reads `pyproject.toml` — it takes a module (object or importable name), never a filesystem path, so pass `min_grace` and `message_required` explicitly there.
+
+______________________________________________________________________
+
 ## UserWarning: `audit: skipped <module>` during a recursive scan
 
 **Q:** A recursive audit scan (`find_deprecation_wrappers`, `validate_deprecation_expiry`, `pydeprecate check` / `all`) emits `UserWarning: audit: skipped <module>: <exception>`. What does it mean?

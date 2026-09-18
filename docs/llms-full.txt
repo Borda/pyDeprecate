@@ -197,6 +197,8 @@ pydeprecate all src/      # check + expiry + policy + chains; policy is ADVISORY
 pydeprecate policy src/   # the gate that actually fails on a policy violation
 ```
 
+The CLI resolves each policy rule as flag → `[tool.pydeprecate.policy]` in the nearest `pyproject.toml` (scanned path's directory + 2 parents; never for a bare module name) → built-in default. Keys are the rule slugs: `min-grace = "0.3"` (quote it — a TOML float drops trailing zeros; `false` disables), `message-required = true`. A malformed value exits `2` naming the file; unknown keys warn on stderr. `validate_deprecation_policy()` never reads `pyproject.toml`.
+
 ## Anti-Patterns
 
 - Do not import `pydeprecate` in Python code; use `deprecate`.

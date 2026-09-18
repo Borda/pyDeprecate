@@ -444,7 +444,7 @@ Good to know:
 - Wrappers missing `deprecated_in` or `remove_in` are **not** violations — the grace-window rule simply skips them, because a deprecation without a scheduled removal is a valid and common choice.
 - An unparsable version string emits a `UserWarning` naming the wrapper and the offending field, then the scan continues for the rest — one typo never aborts the gate.
 - `recursive` and `include_members` behave exactly as in `find_deprecation_wrappers()`; both default to `True`.
-- The CLI exposes the same gate as `pydeprecate policy` — see the [CLI Reference](cli.md) for flags, exit codes, and the CI recipe.
+- The CLI exposes the same gate as `pydeprecate policy` — see the [CLI Reference](cli.md) for flags, exit codes, and the CI recipe. The CLI can also read the rules from a `[tool.pydeprecate.policy]` table in `pyproject.toml` ([details](cli.md#policy-in-pyprojecttoml)); this function takes a module (object or importable name), never a filesystem path, and does not read that file — pass `min_grace` and `message_required` explicitly.
 
 ### pytest integration for policy enforcement
 
@@ -684,7 +684,7 @@ pydeprecate check src/your_package --exit-zero
 | --------- | ----------------------------------------------------------------------------------------------------- |
 | `0`       | No hard errors (or `--exit-zero` was set)                                                             |
 | `1`       | Hard error found: invalid arg mappings, chains, expired wrappers, or policy violations under `policy` |
-| `2`       | `policy` only — a malformed `--min-grace` value                                                       |
+| `2`       | `policy` only — a malformed rule value, from `--min-grace` or from `[tool.pydeprecate.policy]`        |
 
 ## Testing Deprecated Code
 
