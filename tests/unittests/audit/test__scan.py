@@ -1,7 +1,6 @@
 """Unit tests for private helpers in :mod:`deprecate.audit._scan`."""
 
 import dataclasses
-import importlib.util
 import types
 import warnings
 from functools import cached_property
