@@ -8,7 +8,6 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 
 import fnmatch
 import importlib
-import importlib.metadata
 import inspect
 import pkgutil
 import warnings
@@ -407,11 +406,10 @@ def find_deprecation_wrappers(
     patterns = list(exclude or ())
     if recursive and _is_package:
         try:
-            submodules = list(_walk_submodules(module, patterns))
+            for submod in _walk_submodules(module, patterns):
+                results.extend(_scan_module(submod, include_members=include_members, seen=seen))
         except (OSError, ImportError):
-            submodules = []
-        for submod in submodules:
-            results.extend(_scan_module(submod, include_members=include_members, seen=seen))
+            pass
 
     # Belt for the paths the walk does not cover — a ``deprecated_module`` entry, a per-file directory scan,
     # or the top module itself — judged by the module each wrapper is reported under.

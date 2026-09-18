@@ -1,8 +1,6 @@
 """Unit tests for private helpers in :mod:`deprecate.audit._scan`."""
 
 import dataclasses
-import importlib
-import importlib.metadata
 import importlib.util
 import types
 import warnings

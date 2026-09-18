@@ -1,7 +1,5 @@
 """Unit tests for private helpers in :mod:`deprecate.audit._policy`."""
 
-import importlib
-import importlib.metadata
 import importlib.util
 import sys
 import types
