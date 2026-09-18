@@ -2056,8 +2056,8 @@ print(f"Found {len(violations)} violations")
 <details><summary>Output: <code>f"Found {len(violations)} violations"</code></summary>
 
 ```
-Found 4 violations
-Found 2 violations
+Found 5 violations
+Found 3 violations
 ```
 
 </details>

@@ -431,12 +431,14 @@ print(f"Found {len(violations)} violations")
   <summary>Output: <code>f"Found {len(violations)} violations"</code></summary>
 
 ```
-Found 4 violations
+Found 6 violations
+[message-required]
 [message-required]
 [message-required]
 [min-grace]
 [min-grace]
-Found 2 violations
+[min-grace]
+Found 3 violations
 ```
 
 </details>
