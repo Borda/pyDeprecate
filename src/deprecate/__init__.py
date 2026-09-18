@@ -31,6 +31,10 @@ Core Components:
       other deprecated wrappers
     - :class:`~deprecate.audit.DeprecationWrapperInfo`: Structured result returned by the audit functions
     - :class:`~deprecate.audit.ChainType`: Enum describing the kind of deprecation chain detected
+    - :class:`~deprecate.audit.GraceWindow`: Strict form of a policy ``min_grace`` window — ``count`` steps of one
+      version component — accepted directly by :func:`~deprecate.audit.validate_deprecation_policy`
+    - :class:`~deprecate.audit.VersionBump`: Enum naming the version component (major, minor, patch) a
+      :class:`~deprecate.audit.GraceWindow` is counted in
     - :func:`~deprecate._types.get_deprecation_config`: Read a wrapper's :class:`~deprecate._types.DeprecationConfig`
       metadata — the supported external read path since ``__deprecated__`` became a plain PEP 702-conformant
       message string in ``v0.13``
@@ -91,8 +95,10 @@ from deprecate.audit import (
     DeprecatedCallableInfo,  # noqa: F401 # backward-compat alias for DeprecationWrapperInfo
     DeprecationStatus,
     DeprecationWrapperInfo,
+    GraceWindow,
     PolicyRule,
     TableStyle,
+    VersionBump,
     find_deprecated_callables,  # noqa: F401 # deprecated since 0.6, use find_deprecation_wrappers
     find_deprecation_wrappers,
     generate_deprecation_table,
@@ -118,9 +124,11 @@ __all__ = [
     "DeprecationProxy",
     "DeprecationStatus",
     "DeprecationWrapperInfo",
+    "GraceWindow",
     "PolicyRule",
     "TableStyle",
     "TargetMode",
+    "VersionBump",
     "assert_no_warnings",
     "deprecated",
     "deprecated_callable",
