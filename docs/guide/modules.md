@@ -116,6 +116,23 @@ old_utils = deprecated_instance(
 
 `import my_package; my_package.old_utils.add(1, 2)` emits a `FutureWarning` on the first attribute access and forwards to `new_calculator`.
 
+## Limiting warning volume with `num_warns`
+
+By default `deprecated_module()` warns on **every** public attribute access, matching its behavior before `num_warns` existed. Pass `num_warns` to cap emissions — the same semantics as `@deprecated`'s `num_warns`, just defaulting to `-1` (unlimited) instead of `1`, since a module's whole purpose is warning on every access unless you opt into a budget:
+
+```python
+# phmdoctest:skip — old_calculator.py in-place warn template, budgeted variant
+from deprecate import deprecated_module
+
+deprecated_module(
+    deprecated_in="2.0",
+    remove_in="3.0",
+    num_warns=1,  # warn once per process, then stay silent
+)
+```
+
+`0` never warns, a positive `N` warns exactly `N` times, and `-1` (the default) warns unconditionally. The counter is one budget shared across every attribute name on the module — there is no per-attribute counter the way `deprecated_class`'s `attrs_mapping` gets one. Use this the same way you would use `@deprecated`'s `num_warns` in a hot loop: a worker service touching a deprecated module's attributes repeatedly would otherwise flood logs with one `FutureWarning` per access.
+
 ## Star imports also warn
 
 Star imports (`from old_calculator import *`) still trigger the deprecation warning. CPython's `IMPORT_STAR` bytecode calls `getattr(module, name)` for each public name being pulled in, and that call routes through the same `__getattribute__` interception installed by `deprecated_module()` — so a `FutureWarning` fires once per pulled-in public name, exactly as it would for `old_calculator.add(1, 2)`. This closes a gap that a PEP 562 module-level `__getattr__` hook would otherwise leave open, since `__getattr__` only fires for missing names and star imports never trigger it.

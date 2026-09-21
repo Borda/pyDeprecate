@@ -6,8 +6,11 @@ stack-level correctness.  Fixture modules live in ``tests/collection_modules/``.
 
 from __future__ import annotations
 
+import concurrent.futures
 import importlib
 import sys
+import threading
+import time
 import types
 import warnings
 from collections.abc import Iterator
@@ -771,6 +774,151 @@ def make_tmp_module() -> Iterator[Callable[..., types.ModuleType]]:
     yield _factory
     for name in created:
         sys.modules.pop(name, None)
+
+
+class TestNumWarns:
+    """``num_warns`` caps the number of warnings a deprecated module emits (Ft-11)."""
+
+    def test_default_is_unlimited(self, make_tmp_module: Callable[..., types.ModuleType]) -> None:
+        """Omitting ``num_warns`` preserves the pre-Ft-11 behaviour: every access warns.
+
+        A user upgrading pyDeprecate without touching their ``deprecated_module()`` calls must see
+        identical behaviour to before ``num_warns`` existed — otherwise adding the parameter would be a
+        silent breaking change. Three accesses must produce three warnings.
+        """
+        mod_name = "_test_num_warns_default_tmp"
+        make_tmp_module(mod_name)
+        deprecated_module(mod_name, **_DEPRS_CASE_MOD_ARGS)
+        mod = sys.modules[mod_name]
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            getattr(mod, "a", None)
+            getattr(mod, "b", None)
+            getattr(mod, "c", None)
+        assert len(w) == 3
+        assert all(issubclass(x.category, FutureWarning) for x in w)
+
+    def test_num_warns_one_caps_to_single_warning(self, make_tmp_module: Callable[..., types.ModuleType]) -> None:
+        """``num_warns=1`` warns on the first access only; later accesses stay silent.
+
+        A worker service that touches a deprecated module's attributes in a hot loop would otherwise
+        flood logs with one ``FutureWarning`` per access. ``num_warns=1`` mirrors ``@deprecated``'s
+        default, giving operators exactly one signal per process.
+        """
+        mod_name = "_test_num_warns_one_tmp"
+        make_tmp_module(mod_name)
+        deprecated_module(mod_name, **_DEPRS_CASE_MOD_ARGS, num_warns=1)
+        mod = sys.modules[mod_name]
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            getattr(mod, "a", None)
+            getattr(mod, "b", None)
+            getattr(mod, "c", None)
+        assert len(w) == 1
+        assert issubclass(w[0].category, FutureWarning)
+
+    def test_num_warns_zero_never_warns(self, make_tmp_module: Callable[..., types.ModuleType]) -> None:
+        """``num_warns=0`` suppresses every warning while attribute access keeps working.
+
+        Matches ``@deprecated``'s documented ``0`` semantics ("never") — a caller can silence a
+        deprecated module entirely without removing the deprecation metadata audit tools rely on.
+        """
+        mod_name = "_test_num_warns_zero_tmp"
+        mod = make_tmp_module(mod_name)
+        mod.value = 42  # type: ignore[attr-defined]
+        deprecated_module(mod_name, **_DEPRS_CASE_MOD_ARGS, num_warns=0)
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = sys.modules[mod_name].value  # type: ignore[attr-defined]
+        assert result == 42
+        assert len(w) == 0
+
+    def test_num_warns_n_emits_exactly_n(self, make_tmp_module: Callable[..., types.ModuleType]) -> None:
+        """``num_warns=2`` emits exactly two warnings across five accesses, then goes silent.
+
+        Guards the general ``N`` case, not just the ``0``/``1`` edges, and confirms the budget applies
+        across DIFFERENT attribute names — the counter is module-global, not per-attribute.
+        """
+        mod_name = "_test_num_warns_n_tmp"
+        make_tmp_module(mod_name)
+        deprecated_module(mod_name, **_DEPRS_CASE_MOD_ARGS, num_warns=2)
+        mod = sys.modules[mod_name]
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            for attr_name in ["a", "b", "c", "d", "e"]:
+                getattr(mod, attr_name, None)
+        assert len(w) == 2
+
+    def test_budget_is_independent_per_module(self, make_tmp_module: Callable[..., types.ModuleType]) -> None:
+        """Two separately deprecated modules each get their own ``num_warns=1`` budget.
+
+        The counter lives on the module object (``__deprecated_state__``), not on shared process-global
+        state, so deprecating a second module must not exhaust or share the first module's budget.
+        """
+        mod_a_name = "_test_num_warns_indep_a_tmp"
+        mod_b_name = "_test_num_warns_indep_b_tmp"
+        make_tmp_module(mod_a_name)
+        make_tmp_module(mod_b_name)
+        deprecated_module(mod_a_name, **_DEPRS_CASE_MOD_ARGS, num_warns=1)
+        deprecated_module(mod_b_name, **_DEPRS_CASE_MOD_ARGS, num_warns=1)
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            getattr(sys.modules[mod_a_name], "a", None)
+            getattr(sys.modules[mod_b_name], "b", None)
+        assert len(w) == 2
+
+    def test_differing_num_warns_alone_is_not_a_reconfiguration(
+        self, make_tmp_module: Callable[..., types.ModuleType]
+    ) -> None:
+        """A second call changing only ``num_warns`` is a silent no-op, like a differing ``stream``.
+
+        ``num_warns`` is a runtime delivery knob, not part of a module's deprecation identity — mirrors
+        the documented exclusion of ``stream`` from ``_config_identity``. Without this exclusion, an
+        ``importlib.reload()`` that happens to pass a different ``num_warns`` would spuriously warn about
+        a "different configuration" even though nothing about WHAT is deprecated changed.
+        """
+        mod_name = "_test_num_warns_identity_tmp"
+        make_tmp_module(mod_name)
+        deprecated_module(mod_name, **_DEPRS_CASE_MOD_ARGS, num_warns=1)
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            deprecated_module(mod_name, **_DEPRS_CASE_MOD_ARGS, num_warns=5)
+        assert [x for x in w if issubclass(x.category, UserWarning)] == []
+
+    def test_quota_holds_under_concurrent_access(self, make_tmp_module: Callable[..., types.ModuleType]) -> None:
+        """16 threads released together against ``num_warns=1`` produce exactly one emission.
+
+        Mirrors ``TestWarnQuotaThreadSafety`` in ``tests/unittests/test__dispatch.py`` for the callable
+        path: without the lock guarding the check-then-act sequence, concurrent first accesses could all
+        read the counter as unexhausted and each emit a warning.
+        """
+        previous_interval = sys.getswitchinterval()
+        sys.setswitchinterval(1e-6)
+        try:
+            mod_name = "_test_num_warns_concurrent_tmp"
+            make_tmp_module(mod_name)
+            emissions: list[int] = []
+            emit_lock = threading.Lock()
+
+            def counting_stream(message: str, *args: object, **kwargs: object) -> None:
+                time.sleep(0.001)
+                with emit_lock:
+                    emissions.append(1)
+
+            deprecated_module(mod_name, **_DEPRS_CASE_MOD_ARGS, num_warns=1, stream=counting_stream)
+            mod = sys.modules[mod_name]
+            n_threads = 16
+            barrier = threading.Barrier(n_threads)
+
+            def worker(_ignored: int) -> None:
+                barrier.wait()
+                getattr(mod, "a", None)
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=n_threads) as pool:
+                list(pool.map(worker, range(n_threads)))
+            assert len(emissions) == 1
+        finally:
+            sys.setswitchinterval(previous_interval)
 
 
 class TestIdempotency:

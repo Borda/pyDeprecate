@@ -25,8 +25,8 @@ import types
 import warnings
 from typing import Any, Callable, Optional
 
-from deprecate._types import DeprecationConfig, TargetMode, get_deprecation_config
-from deprecate.messaging import _format_deprecation_message, _validate_message_template
+from deprecate._types import DeprecationConfig, TargetMode, _WrapperState, get_deprecation_config
+from deprecate.messaging import _consume_warn_budget, _format_deprecation_message, _validate_message_template
 
 #: Thread-local set of ``(module_name, attr_name)`` pairs currently being resolved through a redirect
 #: ``target``. Guards against cyclic redirects (e.g. ``A`` redirects to ``B`` and ``B`` back to ``A``):
@@ -110,8 +110,29 @@ def _config_identity(config: DeprecationConfig) -> tuple[Any, ...]:
     return (config.target, config.deprecated_in, config.remove_in, frozen_mapping, config.message_template)
 
 
-def _emit_module_warning(config: DeprecationConfig, stream: Optional[Callable[..., Any]]) -> None:
-    """Emit the module deprecation warning via ``stream`` or :func:`warnings.warn`."""
+def _emit_module_warning(
+    config: DeprecationConfig,
+    stream: Optional[Callable[..., Any]],
+    state: _WrapperState,
+    num_warns: int,
+) -> None:
+    """Emit the module deprecation warning via ``stream`` or :func:`warnings.warn`, honoring the warn budget.
+
+    ``num_warns < 0`` (the default) skips the counter entirely — no lock is taken and every access warns, matching the
+    pre-``num_warns`` behaviour exactly with zero added overhead on the hot `__getattribute__` path. A configured budget
+    (``num_warns >= 0``) reuses the exact check-then-act sequence ``@deprecated`` uses via
+    :func:`~deprecate.messaging._consume_warn_budget`, gating on a single module-level counter
+    (``reason_callable=True``) since a module has only one warning reason, unlike a callable's callable-vs-argument
+    split.
+
+    """
+    if num_warns >= 0:
+        should_warn = False
+        if state.warned_calls < num_warns:
+            with state.lock:
+                should_warn = _consume_warn_budget(state, num_warns, reason_callable=True, reason_argument={})
+        if not should_warn:
+            return
     warn_msg: str = config.message_template or ""
     if stream is not None:
         try:
@@ -214,7 +235,12 @@ class _DeprecatedModuleWrapper(types.ModuleType):
 
         # Emit warning for every non-private attribute access (real or missing).
         if config is not None:
-            _emit_module_warning(config, d.get("__deprecated_stream__"))
+            _emit_module_warning(
+                config,
+                d.get("__deprecated_stream__"),
+                d["__deprecated_state__"],
+                d.get("__deprecated_num_warns__", -1),
+            )
 
             # attrs_mapping takes precedence for listed names — BEFORE the __dict__ fast path
             # below. A rename/removal marker must win even when the old body still lives in
@@ -286,6 +312,7 @@ def deprecated_module(
     remove_in: str = "",
     stream: Optional[Callable[..., Any]] = None,
     message_template: Optional[str] = None,
+    num_warns: int = -1,
 ) -> None:
     """Mark a module as deprecated by intercepting all public attribute accesses.
 
@@ -297,11 +324,12 @@ def deprecated_module(
 
     Note:
         This design uses ``__getattribute__`` rather than PEP 562 ``__getattr__`` so real
-        ``__dict__`` attributes are covered too. With the default warnings path, every public access
-        still runs the full warning machinery (stacklevel walk plus warning registry/filter checks).
-        That overhead is intentional and not free: it is a documented tradeoff, not a bug. In tight
-        loops, repeated reads of a deprecated-module constant can dwarf the underlying dictionary
-        fetch by orders of magnitude. Cache the value locally instead of reading it in a hot loop.
+        ``__dict__`` attributes are covered too. With the default ``num_warns=-1`` (unlimited) and the
+        default warnings path, every public access still runs the full warning machinery (stacklevel walk
+        plus warning registry/filter checks). That overhead is intentional and not free: it is a
+        documented tradeoff, not a bug. In tight loops, repeated reads of a deprecated-module constant can
+        dwarf the underlying dictionary fetch by orders of magnitude. Cache the value locally instead of
+        reading it in a hot loop, or pass ``num_warns`` to cap the number of warnings emitted.
 
     Args:
         name: The ``__name__`` of the module being deprecated.  When omitted (or ``None``), the caller's
@@ -323,11 +351,9 @@ def deprecated_module(
             audits cannot gate the module), matching :func:`~deprecate.deprecated`.
         remove_in: Version string when this module will be removed (e.g. ``"2.0"``).  Defaults to ``""``.
         stream: Callable used to emit the warning instead of :func:`warnings.warn`.  Pass ``None`` (default) to use
-            the standard :mod:`warnings` machinery.  Note: there is no warn budget — unlike ``@deprecated``'s
-            ``num_warns``, a warning fires on *every* public attribute access.  The default warnings path is
-            de-duplicated per call site by Python's ``__warningregistry__``, but a custom ``stream`` (e.g.
-            ``logging.warning``) is invoked on every access; cap or throttle it on your side if a hot loop reads a
-            deprecated-module attribute repeatedly.
+            the standard :mod:`warnings` machinery.  Subject to the same ``num_warns`` budget as every other
+            emission path: a custom ``stream`` (e.g. ``logging.warning``) stops being invoked once the budget is
+            exhausted, exactly like the default :func:`warnings.warn` path.
         message_template: Optional custom warning message.  When supplied it *replaces* the built-in
             redirect/version notice entirely — it is not appended to it.  Plain text without any ``%`` renders
             verbatim; a literal ``%`` must be escaped as ``%%``.  The ``%``-style placeholders ``%(source_name)s``
@@ -335,6 +361,14 @@ def deprecated_module(
             ``target``) are substituted.  A malformed conversion or an unknown placeholder raises
             :class:`ValueError` at decoration time, matching the other four factories exactly (this call goes
             through the same ``_validate_message_template`` validator).  ``None`` (default) keeps the built-in notice.
+        num_warns: Maximum number of warnings to emit across ALL public attribute accesses on this module,
+            mirroring :func:`~deprecate.deprecated`'s ``num_warns`` semantics exactly: ``-1`` (default) is
+            unlimited — every access warns, matching this function's behaviour before ``num_warns`` existed;
+            ``0`` never warns; a positive ``N`` warns exactly ``N`` times then goes silent.  The counter is
+            shared across every attribute name on the module (there is no per-attribute budget, unlike
+            ``deprecated_class``'s ``attrs_mapping``-scoped counters) and is thread-safe under concurrent
+            access.  The default ``-1`` takes no lock on the ``__getattribute__`` hot path, so leaving
+            ``num_warns`` unset costs nothing beyond the pre-existing warning machinery.
 
     Raises:
         ValueError: If the resolved module ``name`` is not found in :data:`sys.modules`; if ``name`` is omitted
@@ -410,7 +444,9 @@ def deprecated_module(
     # from in-place warn to a redirect target, or changing versions/message_template/attrs_mapping) is a
     # reconfiguration that would otherwise vanish without trace — emit a UserWarning and keep the
     # original config rather than silently dropping the second call. The `stream` callable is
-    # excluded from the comparison (see _config_identity).
+    # excluded from the comparison (see _config_identity); `num_warns` is excluded for the same
+    # reason — it never enters `DeprecationConfig` at all (stored separately, see below) — and a
+    # differing `num_warns` alone does not constitute a configuration difference.
     existing_config = get_deprecation_config(mod)
     if isinstance(existing_config, DeprecationConfig):
         if _config_identity(existing_config) != _config_identity(new_config):
@@ -453,6 +489,8 @@ def deprecated_module(
     # warning (see _DeprecatedModuleWrapper.__getattribute__), so ordering here is warning-free and
     # static scanners (e.g. find_deprecation_wrappers) read __deprecation_config__ cleanly.
     vars(mod)["__deprecated_stream__"] = stream
+    vars(mod)["__deprecated_num_warns__"] = num_warns
+    vars(mod)["__deprecated_state__"] = _WrapperState()
     if existing_getattr is not None:
         warnings.warn(
             f"`deprecated_module`: pre-existing `__getattr__` found on {module_name!r} — chaining.",
