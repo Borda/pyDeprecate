@@ -1315,7 +1315,7 @@ Sent to 'alice@example.com': 'Hello' [normal]
 
 Use `deprecated_module()` at the bottom of a module you are retiring. Three modes are supported.
 
-**Mode 1 — in-place warn** (keep the module, warn on every public attribute access):
+**Mode 1 — in-place warning path** (keep the module and invoke its warning path on every public attribute access; filters can suppress repeated display):
 
 ```python
 # phmdoctest:skip — CI template: replace old_calculator with your actual module
@@ -1327,12 +1327,12 @@ def add(a: float, b: float) -> float:
     return a + b
 
 
-# Call once at the bottom — warns on every public attribute access, including real ones.
+# Call once at the bottom — invokes the warning path for every public attribute access, including real ones.
 # `__name__` is passed explicitly here; it is optional (auto-detected from the caller frame when omitted),
 # but passing it is the robust idiom — auto-detection relies on `sys._getframe` and only works when the
 # call sits directly in the module body, not when routed through a helper.
 deprecated_module(__name__, deprecated_in="2.0", remove_in="3.0", message_template="Use `new_calculator` instead.")
-# old_calculator.add(1, 2)  # warns: FutureWarning, returns 3
+# old_calculator.add(1, 2)  # warning path: FutureWarning; returns 3
 ```
 
 **Mode 2 — redirect** (forward missing-attr lookups to a replacement module, useful when renaming):
@@ -1371,9 +1371,11 @@ old_utils = deprecated_instance(
 # my_package.old_utils.add(1, 2)  # warns: FutureWarning
 ```
 
+Use `num_warns` to cap warning delivery across every public attribute access on the module. `-1` is the default and delivers a warning for each access; `0` delivers none; a positive `N` delivers exactly `N`. The standard warnings filter can still suppress repeated display at a location. `-1` skips budget locking, but each access still performs normal module lookup and warning handling.
+
 > [!NOTE]
 >
-> **Star imports also warn:** `from old_calculator import *` still emits a `FutureWarning`. CPython's `IMPORT_STAR` bytecode calls `getattr(module, name)` for each public name pulled in, so it routes through the same `__getattribute__` interception as any other attribute access — one warning per pulled-in public name. This closes a gap a PEP 562 `__getattr__` hook would otherwise leave open.
+> **Star imports invoke the warning path:** `from old_calculator import *` calls the path for every public name CPython pulls in; standard warning filters can suppress repeated visible `FutureWarning` output. CPython's `IMPORT_STAR` bytecode calls `getattr(module, name)` for each public name, so it routes through the same `__getattribute__` interception as any other attribute access. This closes a gap a PEP 562 `__getattr__` hook would otherwise leave open.
 
 ### 🌀 Async functions
 

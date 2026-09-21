@@ -870,20 +870,25 @@ class TestNumWarns:
     def test_differing_num_warns_alone_is_not_a_reconfiguration(
         self, make_tmp_module: Callable[..., types.ModuleType]
     ) -> None:
-        """A second call changing only ``num_warns`` is a silent no-op, like a differing ``stream``.
+        """A second call changing only ``num_warns`` is a silent no-op and retains the first budget.
 
         ``num_warns`` is a runtime delivery knob, not part of a module's deprecation identity — mirrors
         the documented exclusion of ``stream`` from ``_config_identity``. Without this exclusion, an
         ``importlib.reload()`` that happens to pass a different ``num_warns`` would spuriously warn about
-        a "different configuration" even though nothing about WHAT is deprecated changed.
+        a "different configuration" even though nothing about WHAT is deprecated changed. A service can therefore
+        reload the same deprecation declaration without accidentally expanding its original one-warning budget.
         """
         mod_name = "_test_num_warns_identity_tmp"
         make_tmp_module(mod_name)
         deprecated_module(mod_name, **_DEPRS_CASE_MOD_ARGS, num_warns=1)
+        mod = sys.modules[mod_name]
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             deprecated_module(mod_name, **_DEPRS_CASE_MOD_ARGS, num_warns=5)
+            getattr(mod, "a", None)
+            getattr(mod, "b", None)
         assert [x for x in w if issubclass(x.category, UserWarning)] == []
+        assert len([x for x in w if issubclass(x.category, FutureWarning)]) == 1
 
     def test_quota_holds_under_concurrent_access(self, make_tmp_module: Callable[..., types.ModuleType]) -> None:
         """16 threads released together against ``num_warns=1`` produce exactly one emission.

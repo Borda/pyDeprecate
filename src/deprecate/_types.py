@@ -760,9 +760,10 @@ class _ProxyConfig:
 
 @dataclass
 class _WrapperState:
-    """Private mutable runtime state for ``@deprecated``-decorated callables.
+    """Private mutable runtime state for callable and module deprecation warning budgets.
 
-    This is an internal type — not exported from the package and not referenced outside of :mod:`deprecate.deprecation`.
+    This is an internal type — not exported from the package. Callable wrappers use all counters; module deprecation
+    uses ``warned_calls`` and ``lock`` for its module-wide ``num_warns`` budget.
 
     Attributes:
         called: Total invocation count, including calls where the warning was suppressed.

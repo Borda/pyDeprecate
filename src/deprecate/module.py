@@ -2,17 +2,18 @@
 
 Call :func:`deprecated_module` once at module level to mark an entire module deprecated. The function
 changes the module's ``__class__`` to :class:`_DeprecatedModuleWrapper` so that every public attribute
-access on the module emits a :class:`FutureWarning` — including real attributes already in ``__dict__``.
+access on the module invokes its :class:`FutureWarning` path — including real attributes already in ``__dict__``.
+Standard warning filters can suppress repeated display at the same location.
 PEP 562 ``__getattr__`` only sees missing names, so the module subclass is required to catch existing
 attributes too. It also attaches ``__deprecation_config__`` metadata so that
 :func:`~deprecate.audit.find_deprecation_wrappers` can discover it like any other deprecated wrapper.
 
 Three deprecation modes are supported:
 
-* **Mode 1 — in-place warn**: the module stays at its original path; a :class:`FutureWarning` is emitted
-  on every public attribute access (real or missing).
-* **Mode 2 — redirect**: only missing public attribute access is forwarded to a replacement module; a
-  :class:`FutureWarning` is emitted on every public attribute access.
+* **Mode 1 — in-place warn**: the module stays at its original path; every public attribute access (real or missing)
+  invokes its :class:`FutureWarning` path, subject to the configured warning filter's display policy.
+* **Mode 2 — redirect**: only missing public attribute access is forwarded to a replacement module; every public
+  attribute access invokes its :class:`FutureWarning` path, subject to the configured warning filter's display policy.
 * **Mode 3 — parent alias**: use :func:`~deprecate.proxy.deprecated_instance` on the parent package's
   ``__init__.py`` to expose the deprecated module name as an attribute.  No new API needed; documented
   as a usage pattern.
@@ -118,8 +119,9 @@ def _emit_module_warning(
 ) -> None:
     """Emit the module deprecation warning via ``stream`` or :func:`warnings.warn`, honoring the warn budget.
 
-    ``num_warns < 0`` (the default) skips the counter entirely — no lock is taken and every access warns, matching the
-    pre-``num_warns`` behaviour exactly with zero added overhead on the hot `__getattribute__` path. A configured budget
+    ``num_warns < 0`` (the default) skips budget accounting entirely — no budget lock is taken and each access is
+    delivered to its configured warning path, matching the pre-``num_warns`` behaviour. Normal metadata lookup and
+    warning handling still run on every access. A configured budget
     (``num_warns >= 0``) reuses the exact check-then-act sequence ``@deprecated`` uses via
     :func:`~deprecate.messaging._consume_warn_budget`, gating on a single module-level counter
     (``reason_callable=True``) since a module has only one warning reason, unlike a callable's callable-vs-argument
@@ -221,7 +223,7 @@ def _resolve_mapped(
 
 
 class _DeprecatedModuleWrapper(types.ModuleType):
-    """Module subclass that emits a deprecation warning on every public attribute access.
+    """Module subclass that invokes its deprecation warning path on every public attribute access.
 
     Installed via ``mod.__class__ = _DeprecatedModuleWrapper`` in :func:`deprecated_module` so that
     real attributes already in ``__dict__`` (functions, classes, constants) are also covered — Python's
@@ -233,7 +235,7 @@ class _DeprecatedModuleWrapper(types.ModuleType):
         d = object.__getattribute__(self, "__dict__")
         config = get_deprecation_config(self) if not name.startswith("_") else None
 
-        # Emit warning for every non-private attribute access (real or missing).
+        # Invoke the warning path for every non-private attribute access (real or missing).
         if config is not None:
             _emit_module_warning(
                 config,
@@ -318,7 +320,8 @@ def deprecated_module(
 
     Call this function once at module level (typically at the bottom of an ``old_module.py``). It changes
     the module's ``__class__`` to :class:`_DeprecatedModuleWrapper` so that every public attribute access
-    emits a :class:`FutureWarning` — including real attributes already in ``__dict__``. It also attaches
+    invokes its :class:`FutureWarning` path — including real attributes already in ``__dict__``; standard warning
+    filters can suppress repeated display. It also attaches
     ``__deprecation_config__`` metadata to the module so that :func:`~deprecate.audit.find_deprecation_wrappers`
     can discover it.
 
@@ -329,7 +332,7 @@ def deprecated_module(
         plus warning registry/filter checks). That overhead is intentional and not free: it is a
         documented tradeoff, not a bug. In tight loops, repeated reads of a deprecated-module constant can
         dwarf the underlying dictionary fetch by orders of magnitude. Cache the value locally instead of
-        reading it in a hot loop, or pass ``num_warns`` to cap the number of warnings emitted.
+        reading it in a hot loop, or pass ``num_warns`` to cap warning-path delivery.
 
     Args:
         name: The ``__name__`` of the module being deprecated.  When omitted (or ``None``), the caller's
@@ -361,14 +364,15 @@ def deprecated_module(
             ``target``) are substituted.  A malformed conversion or an unknown placeholder raises
             :class:`ValueError` at decoration time, matching the other four factories exactly (this call goes
             through the same ``_validate_message_template`` validator).  ``None`` (default) keeps the built-in notice.
-        num_warns: Maximum number of warnings to emit across ALL public attribute accesses on this module,
+        num_warns: Maximum number of warning-path deliveries across ALL public attribute accesses on this module,
             mirroring :func:`~deprecate.deprecated`'s ``num_warns`` semantics exactly: ``-1`` (default) is
-            unlimited — every access warns, matching this function's behaviour before ``num_warns`` existed;
-            ``0`` never warns; a positive ``N`` warns exactly ``N`` times then goes silent.  The counter is
+            unlimited — every access invokes its warning path, matching this function's behaviour before
+            ``num_warns`` existed; ``0`` invokes none; a positive ``N`` invokes exactly ``N`` then goes silent.
+            Standard warning filters can suppress repeated display. The counter is
             shared across every attribute name on the module (there is no per-attribute budget, unlike
             ``deprecated_class``'s ``attrs_mapping``-scoped counters) and is thread-safe under concurrent
-            access.  The default ``-1`` takes no lock on the ``__getattribute__`` hot path, so leaving
-            ``num_warns`` unset costs nothing beyond the pre-existing warning machinery.
+            access. The default ``-1`` takes no budget lock on the ``__getattribute__`` hot path, but each access
+            still performs normal metadata lookup and warning handling.
 
     Raises:
         ValueError: If the resolved module ``name`` is not found in :data:`sys.modules`; if ``name`` is omitted

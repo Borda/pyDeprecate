@@ -4,6 +4,7 @@
 
 ### Added
 
+- **Module warning budgets — `deprecated_module(..., num_warns=...)`.** Module deprecations can now cap warning delivery across all public attribute accesses: `0` delivers none, a positive `N` delivers exactly `N`, and the default `-1` preserves unlimited delivery without taking the budget lock. ([#233](https://github.com/Borda/pyDeprecate/pull/233))
 ### Changed
 
 ### Deprecated
