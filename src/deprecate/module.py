@@ -121,11 +121,10 @@ def _emit_module_warning(
 
     ``num_warns < 0`` (the default) skips budget accounting entirely — no budget lock is taken and each access is
     delivered to its configured warning path, matching the pre-``num_warns`` behaviour. Normal metadata lookup and
-    warning handling still run on every access. A configured budget
-    (``num_warns >= 0``) reuses the exact check-then-act sequence ``@deprecated`` uses via
-    :func:`~deprecate.messaging._consume_warn_budget`, gating on a single module-level counter
-    (``reason_callable=True``) since a module has only one warning reason, unlike a callable's callable-vs-argument
-    split.
+    warning handling still run on every access. A configured budget (``num_warns >= 0``) reuses the exact check-then-act
+    sequence ``@deprecated`` uses via :func:`~deprecate.messaging._consume_warn_budget`, gating on a single module-level
+    counter (``reason_callable=True``) since a module has only one warning reason, unlike a callable's callable-vs-
+    argument split.
 
     """
     if num_warns >= 0:
