@@ -95,7 +95,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-07-18",
-  "dateModified": "2026-09-17"
+  "dateModified": "2026-09-22"
 }
 </script>
 
@@ -575,6 +575,17 @@
     <span class="md-ellipsis">
       
         Mode 3 — parent alias via deprecated_instance
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#limiting-warning-volume-with-num_warns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Limiting warning volume with num_warns
       
     </span>
   </a>
@@ -1334,6 +1345,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#limiting-warning-volume-with-num_warns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Limiting warning volume with num_warns
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#star-imports-also-warn" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1384,11 +1406,11 @@
 
 
 <h1 id="modules">Modules<a class="headerlink" href="#modules" title="Permanent link">🔗</a></h1>
-<p><code>deprecated_module()</code> marks an entire Python module as deprecated by replacing its <code>__class__</code> with an intercepting wrapper, so every public attribute access on the old module name emits a <code>FutureWarning</code>. Three patterns are supported: warn in place without moving any code (Mode 1), redirect all attribute access to a replacement module (Mode 2), and expose a deprecated module name as a package attribute (Mode 3). For deprecating individual functions see <a href="functions.html">Functions</a>; for classes see <a href="classes.html">Classes</a>.</p>
+<p><code>deprecated_module()</code> marks an entire Python module as deprecated by replacing its <code>__class__</code> with an intercepting wrapper, so every public attribute access on the old module name invokes its <code>FutureWarning</code> path. Standard warning filters can suppress repeated display. Three patterns are supported: warn in place without moving any code (Mode 1), redirect all attribute access to a replacement module (Mode 2), and expose a deprecated module name as a package attribute (Mode 3). For deprecating individual functions see <a href="functions.html">Functions</a>; for classes see <a href="classes.html">Classes</a>.</p>
 <h2 id="when-to-use-deprecated_module">When to use <code>deprecated_module()</code><a class="headerlink" href="#when-to-use-deprecated_module" title="Permanent link">🔗</a></h2>
-<p>Reach for <code>deprecated_module()</code> when a module is being replaced or renamed and you want every attribute access on the old name to warn callers automatically. Place the call at the bottom of the file being deprecated: it reassigns the module's <code>__class__</code> to an intercepting wrapper, attaches <code>__deprecation_config__</code> metadata so that <a href="audit.html"><code>find_deprecation_wrappers()</code></a> can discover it, and emits a <code>FutureWarning</code> on every public attribute access.</p>
+<p>Reach for <code>deprecated_module()</code> when a module is being replaced or renamed and you want every attribute access on the old name to invoke the configured warning path automatically. Place the call at the bottom of the file being deprecated: it reassigns the module's <code>__class__</code> to an intercepting wrapper and attaches <code>__deprecation_config__</code> metadata so that <a href="audit.html"><code>find_deprecation_wrappers()</code></a> can discover it.</p>
 <h2 id="mode-1-in-place-warn">Mode 1 — in-place warn<a class="headerlink" href="#mode-1-in-place-warn" title="Permanent link">🔗</a></h2>
-<p>Use this when you want to keep the module in place and warn on every attribute access. Call <code>deprecated_module(__name__, ...)</code> at the bottom of <code>old_calculator.py</code>:</p>
+<p>Use this when you want to keep the module in place and invoke its warning path on every attribute access. Call <code>deprecated_module(__name__, ...)</code> at the bottom of <code>old_calculator.py</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># phmdoctest:skip — old_calculator.py in-place warn template</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="c1"># old_calculator.py — DEPRECATED API; use new_calculator instead</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="c1"># NEW API — same functions now live in new_calculator.py</span>
@@ -1418,7 +1440,7 @@
 <a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a>    <span class="n">message_template</span><span class="o">=</span><span class="s2">"Use `new_calculator` instead."</span><span class="p">,</span>
 <a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a><span class="p">)</span>
 </code></pre></div>
-<p><code>import old_calculator; old_calculator.add(1, 2)</code> emits a <code>FutureWarning</code> and returns the result. Every public attribute access — real functions, classes, constants — warns because <code>deprecated_module()</code> replaces the module's <code>__class__</code> with an intercepting wrapper.</p>
+<p><code>import old_calculator; old_calculator.add(1, 2)</code> invokes the <code>FutureWarning</code> path and returns the result. Every public attribute access — real functions, classes, constants — takes that path because <code>deprecated_module()</code> replaces the module's <code>__class__</code> with an intercepting wrapper; standard filters can suppress repeated display.</p>
 <blockquote>
 <p><strong>Call it at module top level when omitting <code>name</code>.</strong> Auto-detection reads the caller frame's <code>__name__</code>, which only names the intended module when the call sits directly in the module body. Calling it without <code>name</code> from inside a function or class body (e.g. a <code>_setup_deprecations()</code> helper) raises <code>TypeError</code> — the frame's <code>__name__</code> would point at the enclosing module and silently deprecate all of it. Pass <code>name</code> explicitly to call from any other scope.</p>
 </blockquote>
@@ -1442,7 +1464,7 @@
 <a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>    <span class="n">message_template</span><span class="o">=</span><span class="s2">"Use `new_calculator` instead."</span><span class="p">,</span>
 <a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="p">)</span>
 </code></pre></div>
-<p>Now <code>import old_calculator; old_calculator.add(1, 2)</code> emits a <code>FutureWarning</code> and returns the result from <code>new_calculator.add</code>. The <code>attrs_mapping</code> parameter lets you rename specific attributes during the redirect:</p>
+<p>Now <code>import old_calculator; old_calculator.add(1, 2)</code> invokes the <code>FutureWarning</code> path and returns the result from <code>new_calculator.add</code>; standard warning filters can suppress repeated display. The <code>attrs_mapping</code> parameter lets you rename specific attributes during the redirect:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># phmdoctest:skip — attrs_mapping continuation; requires new_calculator</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="c1"># Map old attr name to new attr name, or to None to raise AttributeError.</span>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="c1"># Keys are the names callers use today (the original API names).</span>
@@ -1456,7 +1478,7 @@
 <a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>    <span class="n">remove_in</span><span class="o">=</span><span class="s2">"3.0"</span><span class="p">,</span>
 <a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="p">)</span>
 </code></pre></div>
-<p><code>old_calculator.compute</code> warns and forwards to <code>new_calculator.add</code> (the function was renamed). <code>old_calculator.beta_feature</code> warns and raises <code>AttributeError</code> (no replacement). All other names fall through to <code>new_calculator</code>.</p>
+<p><code>old_calculator.compute</code> invokes the warning path and forwards to <code>new_calculator.add</code> (the function was renamed). <code>old_calculator.beta_feature</code> invokes it and raises <code>AttributeError</code> (no replacement). Standard filters can suppress repeated display; all other names fall through to <code>new_calculator</code>.</p>
 <h2 id="mode-3-parent-alias-via-deprecated_instance">Mode 3 — parent alias via <code>deprecated_instance</code><a class="headerlink" href="#mode-3-parent-alias-via-deprecated_instance" title="Permanent link">🔗</a></h2>
 <p>When you reorganise a package and want the old sub-module name to remain accessible as an attribute on the parent package, use <a href="classes.html#constants-and-instances"><code>deprecated_instance()</code></a> in the parent <code>__init__.py</code>. This does not require a new API — it reuses the existing proxy mechanism.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># phmdoctest:skip — CI template; my_package is not installed</span>
@@ -1474,17 +1496,29 @@
 <a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>    <span class="n">message_template</span><span class="o">=</span><span class="s2">"Use `my_package.new_calculator` instead."</span><span class="p">,</span>
 <a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a><span class="p">)</span>
 </code></pre></div>
-<p><code>import my_package; my_package.old_utils.add(1, 2)</code> emits a <code>FutureWarning</code> on the first attribute access and forwards to <code>new_calculator</code>.</p>
+<p><code>import my_package; my_package.old_utils.add(1, 2)</code> invokes the <code>FutureWarning</code> path on the first attribute access and forwards to <code>new_calculator</code>; standard filters can suppress display.</p>
+<h2 id="limiting-warning-volume-with-num_warns">Limiting warning volume with <code>num_warns</code><a class="headerlink" href="#limiting-warning-volume-with-num_warns" title="Permanent link">🔗</a></h2>
+<p>By default <code>deprecated_module()</code> delivers a warning on <strong>every</strong> public attribute access, matching its behavior before <code>num_warns</code> existed. Standard warning filters can still suppress repeated <em>display</em> at the same location. Pass <code>num_warns</code> to cap deliveries — the same semantics as <code>@deprecated</code>'s <code>num_warns</code>, just defaulting to <code>-1</code> (unlimited) instead of <code>1</code>, since a module's whole purpose is warning on every access unless you opt into a budget:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># phmdoctest:skip — old_calculator.py in-place warn template, budgeted variant</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated_module</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="n">deprecated_module</span><span class="p">(</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>    <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">"2.0"</span><span class="p">,</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>    <span class="n">remove_in</span><span class="o">=</span><span class="s2">"3.0"</span><span class="p">,</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>    <span class="n">num_warns</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>  <span class="c1"># warn once per process, then stay silent</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="p">)</span>
+</code></pre></div>
+<p><code>0</code> never delivers a warning, a positive <code>N</code> delivers exactly <code>N</code>, and <code>-1</code> (the default) delivers on every access. The counter is one budget shared across every attribute name on the module — there is no per-attribute counter the way <code>deprecated_class</code>'s <code>attrs_mapping</code> gets one. <code>-1</code> avoids budget locking but still performs metadata lookup and warning handling. Use a finite budget for a worker service whose custom stream or warning filter would otherwise record repeated accesses.</p>
 <h2 id="star-imports-also-warn">Star imports also warn<a class="headerlink" href="#star-imports-also-warn" title="Permanent link">🔗</a></h2>
 <p>Star imports (<code>from old_calculator import *</code>) still trigger the deprecation warning. CPython's <code>IMPORT_STAR</code> bytecode calls <code>getattr(module, name)</code> for each public name being pulled in, and that call routes through the same <code>__getattribute__</code> interception installed by <code>deprecated_module()</code> — so a <code>FutureWarning</code> fires once per pulled-in public name, exactly as it would for <code>old_calculator.add(1, 2)</code>. This closes a gap that a PEP 562 module-level <code>__getattr__</code> hook would otherwise leave open, since <code>__getattr__</code> only fires for missing names and star imports never trigger it.</p>
 <h2 id="audit-integration">Audit integration<a class="headerlink" href="#audit-integration" title="Permanent link">🔗</a></h2>
 <p><code>find_deprecation_wrappers()</code> discovers modules marked with <code>deprecated_module()</code> the same way it discovers function and class wrappers — by reading the <code>__deprecation_config__</code> attribute attached to the module object:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># phmdoctest:skip — CI template: replace my_package with your actual package</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">my_package</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">find_deprecation_wrappers</span>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="n">deprecated_items</span> <span class="o">=</span> <span class="n">find_deprecation_wrappers</span><span class="p">(</span><span class="n">my_package</span><span class="p">)</span>
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="n">module_items</span> <span class="o">=</span> <span class="p">[</span><span class="n">r</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">deprecated_items</span> <span class="k">if</span> <span class="n">r</span><span class="o">.</span><span class="n">api_type</span> <span class="o">==</span> <span class="s2">"module"</span><span class="p">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># phmdoctest:skip — CI template: replace my_package with your actual package</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">my_package</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">find_deprecation_wrappers</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="n">deprecated_items</span> <span class="o">=</span> <span class="n">find_deprecation_wrappers</span><span class="p">(</span><span class="n">my_package</span><span class="p">)</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="n">module_items</span> <span class="o">=</span> <span class="p">[</span><span class="n">r</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">deprecated_items</span> <span class="k">if</span> <span class="n">r</span><span class="o">.</span><span class="n">api_type</span> <span class="o">==</span> <span class="s2">"module"</span><span class="p">]</span>
 </code></pre></div>
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">🔗</a></h2>
 <ul>
@@ -1518,7 +1552,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="September 17, 2026 19:01:56 UTC">2026-09-17</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="September 22, 2026 09:11:18 UTC">2026-09-22</span>
   </span>
 
     

@@ -144,7 +144,7 @@
           "name": "Why did the deprecation warning stop appearing in my long-running service?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "The num_warns budget is per-process, not per-deployment. A worker or server that hits a deprecated path once at startup exhausts the default num_warns=1 immediately and stays silent for the rest of that process's life, even across weeks of steady-state traffic. Seeing nothing in production logs does not mean the deprecated path is unused. To confirm whether it is still being hit: restart the process to reset the counter and watch for the warning again, or temporarily redeploy with num_warns=-1 to log every call."
+            "text": "The num_warns budget is per-process, not per-deployment. A worker or server that hits a deprecated path once at startup exhausts the default num_warns=1 immediately and stays silent for the rest of that process's life, even across weeks of steady-state traffic. Seeing nothing in production logs does not mean the deprecated path is unused. To confirm whether it is still being hit: restart the process to reset the counter and watch for the warning again, or temporarily redeploy with num_warns=-1 to invoke the configured warning path on every call; standard warning filters can still suppress repeated display."
           }
         },
         {
@@ -320,7 +320,7 @@
           "name": "How do I deprecate an entire Python module?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Use deprecated_module(__name__, deprecated_in=..., remove_in=...) at the bottom of the module you are retiring. Three modes are available. Mode 1 (no target=): changes the module __class__ to an intercepting wrapper that emits FutureWarning on every public attribute access — including real attributes (functions, classes, constants already in __dict__). Mode 2 (target=new_module): additionally forwards every missing-attribute lookup to the replacement module, optionally with attrs_mapping for per-name redirects; use this when callers need to be transparently redirected to the new name. Mode 3: use deprecated_instance() on the parent package __init__.py to expose the old module name as a deprecated attribute — no new API needed. Star imports (from old_module import *) also trigger the warning in all modes, once per pulled-in public name."
+            "text": "Use deprecated_module(__name__, deprecated_in=..., remove_in=...) at the bottom of the module you are retiring. Three modes are available. Mode 1 (no target=): changes the module __class__ to an intercepting wrapper that delivers FutureWarning on every public attribute access — including real attributes (functions, classes, constants already in __dict__). Mode 2 (target=new_module): additionally forwards every missing-attribute lookup to the replacement module, optionally with attrs_mapping for per-name redirects; use this when callers need to be transparently redirected to the new name. Mode 3: use deprecated_instance() on the parent package __init__.py to expose the old module name as a deprecated attribute — no new API needed. num_warns=-1 is the default and delivers on every access; 0 delivers none and a positive N delivers exactly N. Standard warning filters can suppress repeated display, and -1 skips only budget locking, not normal warning handling. Star imports (from old_module import *) invoke the warning path once per pulled-in public name; delivery remains subject to num_warns."
           }
         },
         {
@@ -336,7 +336,7 @@
           "name": "Does deprecated_module() warn when accessing real attributes (functions, classes, constants) on the deprecated module?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Yes. deprecated_module() changes the module's __class__ to _DeprecatedModuleWrapper, which overrides __getattribute__ to emit FutureWarning on every public attribute access — including real attributes already in __dict__. Unlike a PEP 562 __getattr__ hook (which fires only for missing names), __getattribute__ intercepts all lookups. Star imports (from old_module import *) are not an exception: CPython's IMPORT_STAR bytecode calls getattr(module, name) for each pulled-in public name, which still routes through __getattribute__."
+            "text": "Yes. deprecated_module() changes the module's __class__ to _DeprecatedModuleWrapper, which overrides __getattribute__ to invoke the FutureWarning path on every public attribute access — including real attributes already in __dict__. Standard warning filters can suppress repeated display. Unlike a PEP 562 __getattr__ hook (which fires only for missing names), __getattribute__ intercepts all lookups. Star imports (from old_module import *) are not an exception: CPython's IMPORT_STAR bytecode calls getattr(module, name) for each pulled-in public name, which still routes through __getattribute__."
           }
         },
         {
@@ -344,7 +344,7 @@
           "name": "Does from old_module import * still trigger the deprecation warning?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Yes. CPython's IMPORT_STAR bytecode resolves from module import * by calling getattr(module, name) once for each public name being pulled into the importing namespace (either the names in __all__, or all non-underscore names when __all__ is absent). Each of those getattr() calls routes through the module wrapper's __getattribute__ interception (_DeprecatedModuleWrapper) exactly like any other attribute access, so deprecated_module() emits one FutureWarning per pulled-in public name, in both Mode 1 and Mode 2. This is also why deprecated_module() is implemented via __class__ reassignment plus __getattribute__ rather than a PEP 562 module-level __getattr__ hook: __getattr__ fires only for missing names and would never see the getattr() calls issued by IMPORT_STAR, leaving star imports completely unwarned. The __getattribute__ approach closes that gap."
+            "text": "Yes. CPython's IMPORT_STAR bytecode resolves from module import * by calling getattr(module, name) once for each public name being pulled into the importing namespace (either the names in __all__, or all non-underscore names when __all__ is absent). Each of those getattr() calls routes through the module wrapper's __getattribute__ interception (_DeprecatedModuleWrapper) exactly like any other attribute access, so deprecated_module() invokes its FutureWarning path per pulled-in public name in both Mode 1 and Mode 2. Standard warning filters can suppress repeated display. This is also why deprecated_module() is implemented via __class__ reassignment plus __getattribute__ rather than a PEP 562 module-level __getattr__ hook: __getattr__ fires only for missing names and would never see the getattr() calls issued by IMPORT_STAR, leaving star imports completely unwarned. The __getattribute__ approach closes that gap."
           }
         },
         {
@@ -352,7 +352,7 @@
           "name": "Why do pytest, Sphinx, or my IDE trigger warnings on a deprecated module?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "That is expected in Mode 1 and Mode 2. deprecated_module() overrides the module's __getattribute__, so any public attribute probe emits FutureWarning even when the access comes from tooling rather than your own code. pytest collection, plugin-spec lookups, Sphinx autodoc, and IDE completion can all walk module attributes repeatedly during discovery, which can turn one import into many warnings. If that noise is expected in tests, scope it in test config with warnings.filterwarnings() for the deprecated module instead of suppressing warnings globally."
+            "text": "That is expected in Mode 1 and Mode 2. deprecated_module() overrides the module's __getattribute__, so any public attribute probe invokes its FutureWarning path even when the access comes from tooling rather than your own code. pytest collection, plugin-spec lookups, Sphinx autodoc, and IDE completion can all walk module attributes repeatedly during discovery. Standard warning filters can suppress repeated display; custom streams can still observe every permitted delivery. If that noise is expected in tests, scope it in test config with warnings.filterwarnings() for the deprecated module instead of suppressing warnings globally."
           }
         },
         {
@@ -1780,6 +1780,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#why-does-num_warns-1-still-appear-in-profiling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why does num_warns=-1 still appear in profiling?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#why-do-pytest-sphinx-or-my-ide-trigger-warnings-on-a-deprecated-module" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2435,6 +2446,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#why-does-num_warns-1-still-appear-in-profiling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why does num_warns=-1 still appear in profiling?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#why-do-pytest-sphinx-or-my-ide-trigger-warnings-on-a-deprecated-module" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2888,7 +2910,7 @@
 </details>
 
 <p>If you are writing tests and need to verify that a warning fires, use <code>pytest.warns(FutureWarning)</code> on the first call and <code>assert_no_warnings(FutureWarning)</code> on subsequent calls. See <a href="guide/audit.html#testing-deprecated-code">Testing Deprecated Code</a> for full examples.</p>
-<p><strong>The <code>num_warns</code> budget is per-process, not per-deployment.</strong> A long-running service — a worker, a web server — that hits a deprecated code path once at startup exhausts the default <code>num_warns=1</code> immediately; the path stays completely silent for the rest of that process's life, even after weeks of steady-state traffic. Checking production logs and seeing nothing does not mean the deprecated path is unused — it may mean the one allowed warning already fired and scrolled out of the retained log window. To confirm whether a deprecated path is still being hit in a running service: restart the process (the counter resets) and watch for the warning again, or redeploy temporarily with <code>num_warns=-1</code> to log every call.</p>
+<p><strong>The <code>num_warns</code> budget is per-process, not per-deployment.</strong> A long-running service — a worker, a web server — that hits a deprecated code path once at startup exhausts the default <code>num_warns=1</code> immediately; the path stays completely silent for the rest of that process's life, even after weeks of steady-state traffic. Checking production logs and seeing nothing does not mean the deprecated path is unused — it may mean the one allowed warning already fired and scrolled out of the retained log window. To confirm whether a deprecated path is still being hit in a running service: restart the process (the counter resets) and watch for the warning again, or redeploy temporarily with <code>num_warns=-1</code> to invoke the configured warning path on every call. Standard warning filters can still suppress repeated display; a custom stream can record each delivery.</p>
 <h2 id="deprecation-target-path-incorrect-across-modules">Deprecation target path incorrect across modules<a class="headerlink" href="#deprecation-target-path-incorrect-across-modules" title="Permanent link">🔗</a></h2>
 <p><strong>Q:</strong> I moved a function to a different module and the deprecation message shows an unexpected path. How do I fix the displayed module path?</p>
 <p><strong>A:</strong> The deprecation message reports the fully-qualified path of the target callable as Python resolves it at decoration time. Ensure the target is imported from its canonical location before the <code>@deprecated</code> decorator is applied.</p>
@@ -4129,9 +4151,9 @@
 <p>If a tool still renders the proxy, point it at <code>__wrapped__</code> explicitly. When the wrapped object has no introspectable signature — a plain <code>dict</code> handed to <code>deprecated_instance()</code>, or any C-level type — <code>__signature__</code> is <code>None</code> rather than missing; wrapping never fails because the source cannot be introspected.</p>
 <hr />
 <h2 id="module-deprecation-accessing-a-missing-attribute-raises-attributeerror">Module deprecation: accessing a missing attribute raises AttributeError<a class="headerlink" href="#module-deprecation-accessing-a-missing-attribute-raises-attributeerror" title="Permanent link">🔗</a></h2>
-<p><strong>Q:</strong> I called <code>deprecated_module()</code> in Mode 1 (no <code>target=</code>). Real attributes warn correctly, but accessing a name that is not in the module raises <code>AttributeError</code> instead of just warning. Is there a way to forward missing-attr lookups to a replacement module?</p>
-<p><strong>A:</strong> Yes — that is exactly what Mode 2 (<code>target=new_module</code>) does. Mode 1 intercepts every public attribute access (real or missing) via <code>__getattribute__</code>, so real attributes warn and are returned. However, for names <strong>not</strong> in the module's <code>__dict__</code>, Mode 1 raises <code>AttributeError</code> after warning because there is no target to forward to.</p>
-<p>If you want unknown names to warn <strong>and</strong> resolve, switch to Mode 2:</p>
+<p><strong>Q:</strong> I called <code>deprecated_module()</code> in Mode 1 (no <code>target=</code>). Real attributes invoke the warning path correctly, but accessing a name that is not in the module raises <code>AttributeError</code> instead of just invoking that path. Is there a way to forward missing-attr lookups to a replacement module?</p>
+<p><strong>A:</strong> Yes — that is exactly what Mode 2 (<code>target=new_module</code>) does. Mode 1 intercepts every public attribute access (real or missing) via <code>__getattribute__</code>, so real attributes invoke the warning path and are returned. Standard warning filters can suppress repeated display. However, for names <strong>not</strong> in the module's <code>__dict__</code>, Mode 1 raises <code>AttributeError</code> after invoking that path because there is no target to forward to.</p>
+<p>If you want unknown names to invoke the warning path <strong>and</strong> resolve, switch to Mode 2:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-97-1" name="__codelineno-97-1" href="#__codelineno-97-1"></a><span class="c1"># phmdoctest:skip — CI template; new_calculator is not installed</span>
 <a id="__codelineno-97-2" name="__codelineno-97-2" href="#__codelineno-97-2"></a><span class="c1"># old_calculator.py — redirect missing-attr lookups to new_calculator</span>
 <a id="__codelineno-97-3" name="__codelineno-97-3" href="#__codelineno-97-3"></a><span class="kn">import</span><span class="w"> </span><span class="nn">new_calculator</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">_new_calculator</span>
@@ -4144,17 +4166,21 @@
 <a id="__codelineno-97-10" name="__codelineno-97-10" href="#__codelineno-97-10"></a>    <span class="n">remove_in</span><span class="o">=</span><span class="s2">"3.0"</span><span class="p">,</span>
 <a id="__codelineno-97-11" name="__codelineno-97-11" href="#__codelineno-97-11"></a>    <span class="n">message_template</span><span class="o">=</span><span class="s2">"Use `new_calculator` instead."</span><span class="p">,</span>
 <a id="__codelineno-97-12" name="__codelineno-97-12" href="#__codelineno-97-12"></a><span class="p">)</span>
-<a id="__codelineno-97-13" name="__codelineno-97-13" href="#__codelineno-97-13"></a><span class="c1"># old_calculator.add(1, 2)  # warns: FutureWarning + returns new_calculator.add(1, 2)</span>
+<a id="__codelineno-97-13" name="__codelineno-97-13" href="#__codelineno-97-13"></a><span class="c1"># old_calculator.add(1, 2)  # invokes FutureWarning path + returns new_calculator.add(1, 2)</span>
 </code></pre></div>
 <hr />
 <h2 id="does-from-old_calculator-import-still-trigger-the-deprecation-warning">Does <code>from old_calculator import *</code> still trigger the deprecation warning?<a class="headerlink" href="#does-from-old_calculator-import-still-trigger-the-deprecation-warning" title="Permanent link">🔗</a></h2>
 <p><strong>Q:</strong> I used <code>from old_calculator import *</code> after calling <code>deprecated_module()</code> on it. Does that star import emit a <code>FutureWarning</code>, or does it slip through silently?</p>
-<p><strong>A:</strong> Yes, it still warns. CPython's <code>IMPORT_STAR</code> bytecode resolves <code>from module import *</code> by calling <code>getattr(module, name)</code> once for each public name being pulled into the importing namespace (either the names in <code>__all__</code>, or all non-underscore names when <code>__all__</code> is absent). Each of those <code>getattr()</code> calls routes through the module wrapper's <code>__getattribute__</code> interception (<code>_DeprecatedModuleWrapper</code>) exactly like any other attribute access, so <code>deprecated_module()</code> emits one <code>FutureWarning</code> per pulled-in public name.</p>
+<p><strong>A:</strong> Yes, it still invokes the warning path. CPython's <code>IMPORT_STAR</code> bytecode resolves <code>from module import *</code> by calling <code>getattr(module, name)</code> once for each public name being pulled into the importing namespace (either the names in <code>__all__</code>, or all non-underscore names when <code>__all__</code> is absent). Each of those <code>getattr()</code> calls routes through the module wrapper's <code>__getattribute__</code> interception (<code>_DeprecatedModuleWrapper</code>) exactly like any other attribute access. Standard warning filters can suppress repeated display.</p>
 <p>This holds for both Mode 1 and Mode 2 of <code>deprecated_module()</code>. It is also why <code>deprecated_module()</code> is implemented via <code>__class__</code> reassignment plus <code>__getattribute__</code> rather than a PEP 562 module-level <code>__getattr__</code> hook: <code>__getattr__</code> fires only for missing names and would never see the <code>getattr()</code> calls issued by <code>IMPORT_STAR</code>, leaving star imports completely unwarned. The <code>__getattribute__</code> approach closes that gap.</p>
+<hr />
+<h2 id="why-does-num_warns-1-still-appear-in-profiling">Why does <code>num_warns=-1</code> still appear in profiling?<a class="headerlink" href="#why-does-num_warns-1-still-appear-in-profiling" title="Permanent link">🔗</a></h2>
+<p><strong>Q:</strong> I left <code>deprecated_module(..., num_warns=-1)</code> at its default. Why do repeated attribute accesses still show warning-related work, even though no warning-budget lock is taken?</p>
+<p><strong>A:</strong> <code>-1</code> disables only budget accounting. Each public access still looks up module deprecation metadata and delivers the configured warning path; the standard warnings filter may suppress repeated display, but it still evaluates the warning. Use a finite <code>num_warns</code> when the warning delivery work itself must stop after a known number of accesses.</p>
 <hr />
 <h2 id="why-do-pytest-sphinx-or-my-ide-trigger-warnings-on-a-deprecated-module">Why do pytest, Sphinx, or my IDE trigger warnings on a deprecated module?<a class="headerlink" href="#why-do-pytest-sphinx-or-my-ide-trigger-warnings-on-a-deprecated-module" title="Permanent link">🔗</a></h2>
 <p><strong>Q:</strong> I only imported a deprecated module once, but pytest collection, Sphinx autodoc, or my IDE/linter triggers many <code>FutureWarning</code>s. Why?</p>
-<p><strong>A:</strong> That is expected in Mode 1 and Mode 2. <code>deprecated_module()</code> overrides the module's <code>__getattribute__</code>, so any public attribute probe emits a warning even when the access comes from tooling rather than your own code. Test and documentation tools often call <code>getattr()</code>, inspect plugin metadata, or walk module attributes repeatedly during discovery, so pytest's collection probes, plugin-spec lookups, Sphinx autodoc, IDE completion, and linters can fan out into many warnings.</p>
+<p><strong>A:</strong> That is expected in Mode 1 and Mode 2. <code>deprecated_module()</code> overrides the module's <code>__getattribute__</code>, so any public attribute probe invokes the warning path even when the access comes from tooling rather than your own code. Standard warning filters can suppress repeated display; custom streams can still observe every permitted delivery. Test and documentation tools often call <code>getattr()</code>, inspect plugin metadata, or walk module attributes repeatedly during discovery.</p>
 <p>If that noise is expected in tests, scope it in test config with <code>warnings.filterwarnings</code> instead of suppressing warnings globally:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-98-1" name="__codelineno-98-1" href="#__codelineno-98-1"></a><span class="c1"># tests/conftest.py</span>
 <a id="__codelineno-98-2" name="__codelineno-98-2" href="#__codelineno-98-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">warnings</span>
@@ -4314,7 +4340,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="September 18, 2026 18:25:07 UTC">2026-09-18</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="September 22, 2026 09:11:18 UTC">2026-09-22</span>
   </span>
 
     

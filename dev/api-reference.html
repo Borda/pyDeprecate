@@ -4180,7 +4180,7 @@ True</p>
 
 
 <h2 id="deprecate.module.deprecated_module" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">deprecate</span><span class="o">.</span><span class="n">module</span><span class="o">.</span><span class="n">deprecated_module</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">attrs_mapping</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s1">''</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s1">''</span><span class="p">,</span> <span class="n">stream</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">message_template</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">deprecate</span><span class="o">.</span><span class="n">module</span><span class="o">.</span><span class="n">deprecated_module</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">attrs_mapping</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s1">''</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s1">''</span><span class="p">,</span> <span class="n">stream</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">message_template</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">num_warns</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span></code>
 
 <a href="#deprecate.module.deprecated_module" class="headerlink" title="Permanent link">🔗</a></h2>
 
@@ -4190,7 +4190,8 @@ True</p>
         <p>Mark a module as deprecated by intercepting all public attribute accesses.</p>
 <p>Call this function once at module level (typically at the bottom of an <code>old_module.py</code>). It changes
 the module's <code>__class__</code> to :class:<code>_DeprecatedModuleWrapper</code> so that every public attribute access
-emits a :class:<code>FutureWarning</code> — including real attributes already in <code>__dict__</code>. It also attaches
+invokes its :class:<code>FutureWarning</code> path — including real attributes already in <code>__dict__</code>; standard warning
+filters can suppress repeated display. It also attaches
 <code>__deprecation_config__</code> metadata to the module so that :func:<code>~deprecate.audit.find_deprecation_wrappers</code>
 can discover it.</p>
 
@@ -4198,11 +4199,12 @@ can discover it.</p>
 <details class="note" open>
   <summary>Note</summary>
   <p>This design uses <code>__getattribute__</code> rather than PEP 562 <code>__getattr__</code> so real
-<code>__dict__</code> attributes are covered too. With the default warnings path, every public access
-still runs the full warning machinery (stacklevel walk plus warning registry/filter checks).
-That overhead is intentional and not free: it is a documented tradeoff, not a bug. In tight
-loops, repeated reads of a deprecated-module constant can dwarf the underlying dictionary
-fetch by orders of magnitude. Cache the value locally instead of reading it in a hot loop.</p>
+<code>__dict__</code> attributes are covered too. With the default <code>num_warns=-1</code> (unlimited) and the
+default warnings path, every public access still runs the full warning machinery (stacklevel walk
+plus warning registry/filter checks). That overhead is intentional and not free: it is a
+documented tradeoff, not a bug. In tight loops, repeated reads of a deprecated-module constant can
+dwarf the underlying dictionary fetch by orders of magnitude. Cache the value locally instead of
+reading it in a hot loop, or pass <code>num_warns</code> to cap warning-path delivery.</p>
 </details>
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -4319,11 +4321,9 @@ audits cannot gate the module), matching :func:<code>~deprecate.deprecated</code
             <td>
               <div class="doc-md-description">
                 <p>Callable used to emit the warning instead of :func:<code>warnings.warn</code>.  Pass <code>None</code> (default) to use
-the standard :mod:<code>warnings</code> machinery.  Note: there is no warn budget — unlike <code>@deprecated</code>'s
-<code>num_warns</code>, a warning fires on <em>every</em> public attribute access.  The default warnings path is
-de-duplicated per call site by Python's <code>__warningregistry__</code>, but a custom <code>stream</code> (e.g.
-<code>logging.warning</code>) is invoked on every access; cap or throttle it on your side if a hot loop reads a
-deprecated-module attribute repeatedly.</p>
+the standard :mod:<code>warnings</code> machinery.  Subject to the same <code>num_warns</code> budget as every other
+emission path: a custom <code>stream</code> (e.g. <code>logging.warning</code>) stops being invoked once the budget is
+exhausted, exactly like the default :func:<code>warnings.warn</code> path.</p>
               </div>
             </td>
             <td>
@@ -4350,6 +4350,30 @@ through the same <code>_validate_message_template</code> validator).  <code>None
             </td>
             <td>
                   <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>num_warns</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Maximum number of warning-path deliveries across ALL public attribute accesses on this module,
+mirroring :func:<code>~deprecate.deprecated</code>'s <code>num_warns</code> semantics exactly: <code>-1</code> (default) is
+unlimited — every access invokes its warning path, matching this function's behaviour before
+<code>num_warns</code> existed; <code>0</code> invokes none; a positive <code>N</code> invokes exactly <code>N</code> then goes silent.
+Standard warning filters can suppress repeated display. The counter is
+shared across every attribute name on the module (there is no per-attribute budget, unlike
+<code>deprecated_class</code>'s <code>attrs_mapping</code>-scoped counters) and is thread-safe under concurrent
+access. The default <code>-1</code> takes no budget lock on the <code>__getattribute__</code> hot path, but each access
+still performs normal metadata lookup and warning handling.</p>
+              </div>
+            </td>
+            <td>
+                  <code>-1</code>
             </td>
           </tr>
       </tbody>
