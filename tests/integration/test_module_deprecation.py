@@ -798,7 +798,7 @@ class TestNumWarns:
         assert len(w) == 3
         assert all(issubclass(x.category, FutureWarning) for x in w)
 
-    def test_num_warns_one_caps_to_single_warning(self, make_tmp_module: Callable[..., types.ModuleType]) -> None:
+    def test_one_caps_to_single_warning(self, make_tmp_module: Callable[..., types.ModuleType]) -> None:
         """``num_warns=1`` warns on the first access only; later accesses stay silent.
 
         A worker service that touches a deprecated module's attributes in a hot loop would otherwise
@@ -817,7 +817,7 @@ class TestNumWarns:
         assert len(w) == 1
         assert issubclass(w[0].category, FutureWarning)
 
-    def test_num_warns_zero_never_warns(self, make_tmp_module: Callable[..., types.ModuleType]) -> None:
+    def test_zero_never_warns(self, make_tmp_module: Callable[..., types.ModuleType]) -> None:
         """``num_warns=0`` suppresses every warning while attribute access keeps working.
 
         Matches ``@deprecated``'s documented ``0`` semantics ("never") — a caller can silence a
@@ -833,7 +833,7 @@ class TestNumWarns:
         assert result == 42
         assert len(w) == 0
 
-    def test_num_warns_n_emits_exactly_n(self, make_tmp_module: Callable[..., types.ModuleType]) -> None:
+    def test_n_emits_exactly_n(self, make_tmp_module: Callable[..., types.ModuleType]) -> None:
         """``num_warns=2`` emits exactly two warnings across five accesses, then goes silent.
 
         Guards the general ``N`` case, not just the ``0``/``1`` edges, and confirms the budget applies
@@ -867,9 +867,7 @@ class TestNumWarns:
             getattr(sys.modules[mod_b_name], "b", None)
         assert len(w) == 2
 
-    def test_differing_num_warns_alone_is_not_a_reconfiguration(
-        self, make_tmp_module: Callable[..., types.ModuleType]
-    ) -> None:
+    def test_differing_value_is_not_a_reconfiguration(self, make_tmp_module: Callable[..., types.ModuleType]) -> None:
         """A second call changing only ``num_warns`` is a silent no-op and retains the first budget.
 
         ``num_warns`` is a runtime delivery knob, not part of a module's deprecation identity — mirrors
@@ -906,6 +904,7 @@ class TestNumWarns:
             emit_lock = threading.Lock()
 
             def counting_stream(message: str, *args: object, **kwargs: object) -> None:
+                """Record one stream delivery while widening the budget race window."""
                 time.sleep(0.001)
                 with emit_lock:
                     emissions.append(1)
@@ -916,6 +915,7 @@ class TestNumWarns:
             barrier = threading.Barrier(n_threads)
 
             def worker(_ignored: int) -> None:
+                """Synchronize one public attribute access with the other test workers."""
                 barrier.wait()
                 getattr(mod, "a", None)
 

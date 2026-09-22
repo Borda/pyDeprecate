@@ -1332,7 +1332,7 @@ def add(a: float, b: float) -> float:
 # but passing it is the robust idiom — auto-detection relies on `sys._getframe` and only works when the
 # call sits directly in the module body, not when routed through a helper.
 deprecated_module(__name__, deprecated_in="2.0", remove_in="3.0", message_template="Use `new_calculator` instead.")
-# old_calculator.add(1, 2)  # warning path: FutureWarning; returns 3
+# old_calculator.add(1, 2)  # warns: FutureWarning; returns 3
 ```
 
 **Mode 2 — redirect** (forward missing-attr lookups to a replacement module, useful when renaming):

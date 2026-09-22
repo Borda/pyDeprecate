@@ -231,6 +231,7 @@ class _DeprecatedModuleWrapper(types.ModuleType):
     """
 
     def __getattribute__(self, name: str) -> Any:  # noqa: ANN401
+        """Return a module attribute after applying its deprecation behavior."""
         d = object.__getattribute__(self, "__dict__")
         config = get_deprecation_config(self) if not name.startswith("_") else None
 
