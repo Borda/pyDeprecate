@@ -53,7 +53,7 @@ Use explicit modes, never legacy `target=True` / `target=None` sentinels. Attrib
 
 For properties, descriptors, async/generators, modules or stacked wrappers, read the relevant installed implementation/release documentation before editing. Property forwarding is not supported by the decorator: delegate inside the accessor for warn-only property migrations. Preserve unrelated decorators and future deprecation layers. Check `skip_if`: it can execute the original body instead of forwarding.
 
-Provide migration guidance through the replacement/mapping and, when needed, `message_template` (since 0.12; `template_mgs` on 0.11). Verify supported template fields rather than inventing a `message=` argument.
+Provide migration guidance through the replacement/mapping and, when needed, `message_template` (since 0.12; `template_mgs` on 0.11). Verify supported template fields rather than inventing a `message=` argument. Opt into `escalate=True` (since 0.14; absent on older releases) only when the user asks for a message that ramps as their own installed version nears `remove_in`; it appends text, never changes the warning category, and needs the `[audit]` extra — without it decoration emits one warning and the message stays flat. Its past-deadline text reports that the package shipped `remove_in` without removing the symbol, so never relay it to a user as blame for not migrating.
 
 ## Verify and hand off
 
