@@ -77,11 +77,20 @@ class TestComputeEscalationNote:
         """
         assert _compute_escalation_note("1.2", "1.0", "2.0") == ""
 
-    def test_past_remove_in_warns_overdue(self) -> None:
-        """The current version at or past ``remove_in`` gets the strongest "past removal" suffix."""
+    def test_past_remove_in_points_at_upstream_release_notes(self) -> None:
+        """The current version at or past ``remove_in`` gets the last tier, worded neutrally about cause.
+
+        This tier is only reachable when the package shipped its own ``remove_in`` version without
+        deleting the symbol — an upstream schedule slip, since a removal that actually happened would
+        raise ``AttributeError`` rather than warn. The caller who triggered the warning is therefore not
+        necessarily late, so the text points at the upstream release notes instead of ordering them to
+        migrate immediately.
+        """
         note = _compute_escalation_note("2.0", "1.0", "2.0")
-        assert "past its scheduled removal" in note
+        assert "planned removal" in note
         assert "v2.0" in note
+        assert "release notes" in note
+        assert "migrate immediately" not in note
 
     def test_prerelease_of_remove_in_base_warns_imminent(self) -> None:
         """A release-candidate of the ``remove_in`` version gets the "removal imminent" suffix.
@@ -129,7 +138,7 @@ class TestResolveEscalationNote:
         """``escalate=True`` detects the current version and forwards it into the ramp computation."""
         monkeypatch.setattr("deprecate._version._detect_current_version", lambda _: "2.0")
         note = _resolve_escalation_note(True, "deprecate", "1.0", "2.0", stacklevel=2)
-        assert "past its scheduled removal" in note
+        assert "planned removal" in note
 
     def test_missing_packaging_warns_and_returns_empty_string(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Without the ``packaging`` extra, ``escalate=True`` emits ``UserWarning`` and disables the ramp.

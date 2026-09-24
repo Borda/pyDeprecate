@@ -745,13 +745,15 @@ def old_parse(text: str) -> dict: ...
 #  before it ships."
 
 # my_package v2.0 installed (removal deadline reached): ramps further
-# "... It will be removed in v2.0. This is past its scheduled removal in v2.0 —
-#  please migrate immediately."
+# "... It will be removed in v2.0. Past its planned removal in v2.0 — check the
+#  upstream release notes; it may be dropped in any release."
 ```
 
 </details>
 
 The note is computed once, at decoration time, from the decorated symbol's own top-level installed package version — not recomputed on every call, since that version cannot change mid-process.
+
+The last tier is worded as information, not blame. Reaching it means the package shipped its own `remove_in` version with the symbol still in place — an upstream schedule slip, since a removal that actually happened would raise `AttributeError` instead of warning. What it tells a caller is that the ground can move under them at any release, so the pointer is to the upstream release notes.
 
 ### 🔒 Strict callable-only deprecation
 

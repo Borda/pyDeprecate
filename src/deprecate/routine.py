@@ -287,10 +287,12 @@ def deprecated_callable(  # noqa: C901
             supplying both raises :class:`TypeError`. Removed in ``v1.0``.
         escalate: When ``True``, append a message suffix that ramps as the installed package version nears
             (or passes) ``remove_in`` — e.g. "Removal imminent" on a pre-release of the ``remove_in`` base
-            version, "past its scheduled removal" once ``remove_in`` is reached. Computed once at decoration
+            version, "past its planned removal" once ``remove_in`` is reached. Computed once at decoration
             time from the installed version of the decorated function's own top-level package (never the
-            caller's). The warning **category never changes** — it stays the configured ``stream``'s category
-            (default :class:`FutureWarning`), already the most visible tier for most of a deprecation window;
+            caller's) — so the past-removal wording stays neutral about cause: reaching it means the package
+            shipped ``remove_in`` without deleting the symbol, which is an upstream schedule slip rather than
+            proof the caller is late. The warning **category never changes** — it stays the configured
+            ``stream``'s category (default :class:`FutureWarning`), already the most visible tier;
             escalation is message urgency, not category demotion. Requires the ``packaging`` extra
             (``pip install pyDeprecate[audit]``); without it, decoration emits a :class:`UserWarning` and the
             message stays phase-less. Default ``False`` — no change to existing message text.

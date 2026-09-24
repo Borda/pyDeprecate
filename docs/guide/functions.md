@@ -505,7 +505,9 @@ print(skip_pow(2, 3))
 
 - Mid-window: the base message only — `deprecated since v1.0, will be removed in v2.0`.
 - A pre-release (`rc`/`dev`/`a`/`b`) of the `remove_in` base version: `Removal imminent in v2.0 — this is the last chance to migrate before it ships.`
-- Once the installed version reaches or passes `remove_in`: `This is past its scheduled removal in v2.0 — please migrate immediately.`
+- Once the installed version reaches or passes `remove_in`: `Past its planned removal in v2.0 — check the upstream release notes; it may be dropped in any release.`
+
+That last tier is worded as information, not blame. Reaching it means the package shipped its own `remove_in` version with the symbol still in place — an upstream schedule slip, since a removal that actually happened would raise `AttributeError` instead of warning. What it tells a caller is that the ground can move under them at any release, so the pointer is to the upstream release notes rather than a reprimand for not having migrated.
 
 `escalate` is available on `@deprecated`, `deprecated_callable()`, `deprecated_class()`, `deprecated_instance()`, and `deprecated_module()`. It requires the `audit` extra (`pip install pyDeprecate[audit]`, which pulls in `packaging`); without it, decoration emits a `UserWarning` and the message stays phase-less instead of raising. The note is computed once at decoration time from the decorated symbol's own top-level installed package version — never recomputed per call, since that version cannot change mid-process:
 
@@ -521,7 +523,7 @@ def old_parse(text: str) -> dict: ...
 
 # my_package v1.4 installed (mid-window): base message only.
 # my_package v2.0rc1 installed: ramps to "Removal imminent in v2.0 ...".
-# my_package v2.0 installed: ramps to "This is past its scheduled removal in v2.0 ...".
+# my_package v2.0 installed: ramps to "Past its planned removal in v2.0 ...".
 ```
 
 ## See also

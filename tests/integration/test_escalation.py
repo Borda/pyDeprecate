@@ -74,7 +74,7 @@ class TestCallableEscalation:
             wrapped(3)
         msg = str(caught[0].message)
         assert msg.startswith("The `double_value` was deprecated since v1.0. It will be removed in v2.0.")
-        assert "past its scheduled removal" in msg
+        assert "planned removal" in msg
 
     def test_category_stays_future_warning_even_when_overdue(self, fixed_current_version: VersionPinner) -> None:
         """The escalation ramp never changes the warning category — only the message text.
@@ -106,7 +106,7 @@ class TestCallableEscalation:
         )
         cfg = get_deprecation_config(cast(_DeprecatedCallable, wrapped))
         assert cfg is not None
-        assert "past its scheduled removal" in cfg.escalation_note
+        assert "planned removal" in cfg.escalation_note
 
 
 class TestFrontDoorEscalation:
@@ -119,7 +119,7 @@ class TestFrontDoorEscalation:
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             wrapped(3)
-        assert "past its scheduled removal" in str(caught[0].message)
+        assert "planned removal" in str(caught[0].message)
 
     def test_forwards_to_class_arm(self, fixed_current_version: VersionPinner) -> None:
         """``@deprecated(escalate=True)`` on a class reaches the same ramp as ``deprecated_class``."""
@@ -129,7 +129,7 @@ class TestFrontDoorEscalation:
             warnings.simplefilter("always")
             proxy(1.0)
         messages = [str(item.message) for item in caught]
-        assert any("past its scheduled removal" in msg for msg in messages)
+        assert any("planned removal" in msg for msg in messages)
 
 
 class TestClassProxyEscalation:
@@ -142,7 +142,7 @@ class TestClassProxyEscalation:
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             proxy(1.0)
-        assert "past its scheduled removal" in str(caught[0].message)
+        assert "planned removal" in str(caught[0].message)
 
     def test_default_escalate_false_leaves_message_unchanged(self) -> None:
         """Omitting ``escalate`` on ``deprecated_class`` leaves the pre-Ft-2 message untouched."""
@@ -150,7 +150,7 @@ class TestClassProxyEscalation:
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             proxy(1.0)
-        assert "past its scheduled removal" not in str(caught[0].message)
+        assert "planned removal" not in str(caught[0].message)
 
 
 class TestInstanceProxyEscalation:
@@ -165,7 +165,7 @@ class TestInstanceProxyEscalation:
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             proxy["a"]
-        assert "past its scheduled removal" in str(caught[0].message)
+        assert "planned removal" in str(caught[0].message)
 
     def test_version_detection_uses_callers_module_not_builtins(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """``deprecated_instance({"a": 1}, escalate=True)`` detects the CALLER's package version.
@@ -206,7 +206,7 @@ class TestModuleEscalation:
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             getattr(tmp_module, "anything", None)
-        assert "past its scheduled removal" in str(caught[0].message)
+        assert "planned removal" in str(caught[0].message)
 
     def test_default_escalate_false_leaves_message_unchanged(self, tmp_module: types.ModuleType) -> None:
         """Omitting ``escalate`` on ``deprecated_module`` leaves the pre-Ft-2 message untouched."""
@@ -214,7 +214,7 @@ class TestModuleEscalation:
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             getattr(tmp_module, "anything", None)
-        assert "past its scheduled removal" not in str(caught[0].message)
+        assert "planned removal" not in str(caught[0].message)
 
     def test_static_dunder_deprecated_stays_phase_less(
         self, tmp_module: types.ModuleType, fixed_current_version: VersionPinner
@@ -229,7 +229,7 @@ class TestModuleEscalation:
         """
         fixed_current_version("2.0")
         _deprecated_module(tmp_module.__name__, deprecated_in="1.0", remove_in="2.0", escalate=True)
-        assert "past its scheduled removal" not in tmp_module.__deprecated__  # type: ignore[attr-defined]
+        assert "planned removal" not in tmp_module.__deprecated__  # type: ignore[attr-defined]
 
     def test_message_required_policy_still_flags_escalate_only_module(
         self, tmp_module: types.ModuleType, fixed_current_version: VersionPinner

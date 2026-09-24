@@ -217,7 +217,7 @@ def _compute_escalation_note(current_version: Optional[str], deprecated_in: str,
         >>> _compute_escalation_note("1.5", "1.0", "2.0")
         ''
         >>> _compute_escalation_note("2.0", "1.0", "2.0")
-        ' This is past its scheduled removal in v2.0 — please migrate immediately.'
+        ' Past its planned removal in v2.0 — check the upstream release notes; it may be dropped in any release.'
         >>> _compute_escalation_note("2.0rc1", "1.0", "2.0")
         ' Removal imminent in v2.0 — this is the last chance to migrate before it ships.'
         >>> _compute_escalation_note(None, "1.0", "2.0")
@@ -235,7 +235,14 @@ def _compute_escalation_note(current_version: Optional[str], deprecated_in: str,
     except (ImportError, ValueError):
         return ""
     if current >= remove_ver:
-        return f" This is past its scheduled removal in v{remove_in} — please migrate immediately."
+        # Deliberately neutral about cause: this branch can only be reached when the symbol still exists
+        # past the version its own package promised to delete it in, which is an upstream schedule slip,
+        # not evidence the caller is late (had the removal actually happened, the call would raise instead
+        # of warning). Point at the release notes rather than blaming whoever triggered the warning.
+        return (
+            f" Past its planned removal in v{remove_in} — check the upstream release notes;"
+            " it may be dropped in any release."
+        )
     if current.is_prerelease:
         same_base = False
         with suppress(Exception):

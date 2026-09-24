@@ -1936,7 +1936,9 @@ What actually changes is the message text, once you are near the deadline:
 
 - Mid-window: no change — the base message already states `deprecated_in`/`remove_in`.
 - A pre-release (`rc`/`dev`/`a`/`b`) of the `remove_in` base version: `" Removal imminent in v<remove_in> — this is the last chance to migrate before it ships."`
-- Once the installed version reaches or passes `remove_in`: `" This is past its scheduled removal in v<remove_in> — please migrate immediately."`
+- Once the installed version reaches or passes `remove_in`: `" Past its planned removal in v<remove_in> — check the upstream release notes; it may be dropped in any release."`
+
+That last tier deliberately states a fact rather than assigning fault. It can only be reached when the package shipped its own `remove_in` version without deleting the symbol — an upstream schedule slip, because a removal that actually happened would raise `AttributeError` instead of warning. It is not evidence that the caller who triggered the warning is late, so the wording points at the upstream release notes instead of demanding an immediate migration.
 
 The "current version" compared against `remove_in` is the **installed version of the decorated symbol's own top-level package**, detected once at decoration time (not per call) via `importlib.metadata`, falling back to the package's `__version__` attribute. If your own code's version never advances past `deprecated_in` in the environment where the warning fires, the message legitimately never ramps — that reflects your actual installed version, not a bug. `escalate` requires the `audit` extra (`pip install pyDeprecate[audit]`, for `packaging`); without it, decoration emits one `UserWarning` and the message stays phase-less rather than crashing.
 
