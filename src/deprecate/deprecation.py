@@ -47,6 +47,7 @@ class _PackingClassArgs:
     skip_if: Union[bool, Callable]
     update_docstring: bool
     docstring_style: str
+    escalate: bool
     _stacklevel: int
 
 
@@ -136,6 +137,7 @@ def _packing_class_source(
         skip_if=pack_args.skip_if,
         update_docstring=pack_args.update_docstring,
         docstring_style=pack_args.docstring_style,
+        escalate=pack_args.escalate,
         _misconfigured_override=class_misconfigured,
         # The dispatcher inserts two frames beyond a direct ``deprecated_class(...)`` call
         # (``packing`` and this function) before reaching ``decorator(cls)`` — without this offset
@@ -158,6 +160,7 @@ def deprecated(
     update_docstring: bool = False,
     docstring_style: Literal["auto", "rst", "mkdocs", "markdown"] = "auto",
     template_mgs: Optional[str] = None,
+    escalate: bool = False,
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Deprecate a function, method, or class — the friendly front door.
 
@@ -222,6 +225,10 @@ def deprecated(
         template_mgs: Deprecated alias for ``message_template`` (renamed in ``v0.12``; the old spelling was a
             typo). Supplying it emits a :class:`FutureWarning` and its value is used as ``message_template``;
             supplying both raises :class:`TypeError`. Removed in ``v1.0``.
+        escalate: When ``True``, append a message suffix that ramps as the installed package version nears
+            (or passes) ``remove_in`` — see :func:`~deprecate.routine.deprecated_callable`'s ``escalate``
+            for the exact ramp rule and the ``packaging``-missing fallback. The warning category never
+            changes. Default ``False``.
 
     Returns:
         Decorator that wraps the source callable, or the class proxy for a class source.
@@ -270,6 +277,7 @@ def deprecated(
         skip_if=skip_if,
         update_docstring=update_docstring,
         docstring_style=docstring_style,
+        escalate=escalate,
     )
 
     def packing(
@@ -308,6 +316,7 @@ def deprecated(
                     skip_if=skip_if,
                     update_docstring=update_docstring,
                     docstring_style=docstring_style,
+                    escalate=escalate,
                     _stacklevel=_stacklevel + 1,
                 ),
             )

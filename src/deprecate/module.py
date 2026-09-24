@@ -27,6 +27,7 @@ import warnings
 from typing import Any, Callable, Optional
 
 from deprecate._types import DeprecationConfig, TargetMode, _WrapperState, get_deprecation_config
+from deprecate._version import _resolve_escalation_note
 from deprecate.messaging import _consume_warn_budget, _format_deprecation_message, _validate_message_template
 
 #: Thread-local set of ``(module_name, attr_name)`` pairs currently being resolved through a redirect
@@ -90,10 +91,11 @@ def _config_identity(config: DeprecationConfig) -> tuple[Any, ...]:
     requests the *same* deprecation (a safe silent no-op) or a *different* one (a reconfiguration
     that must be reported rather than silently dropped).  Only fields a caller controls are
     compared: the redirect ``target`` (or the :attr:`~deprecate._types.TargetMode.NOTIFY` sentinel),
-    both version strings, the per-attribute mapping, and the fully-rendered warning message (which
-    already folds in the caller's ``message_template`` argument).  The runtime ``stream`` callable is
-    intentionally excluded — a differing ``stream`` alone does not constitute a configuration
-    difference.
+    both version strings, the per-attribute mapping, the fully-rendered base warning message (which
+    already folds in the caller's ``message_template`` argument, but never the ``escalate`` ramp — see
+    :attr:`~deprecate._types.DeprecationConfig.escalation_note`), and the escalation note itself.  The
+    runtime ``stream`` callable is intentionally excluded — a differing ``stream`` alone does not
+    constitute a configuration difference.
 
     Args:
         config: The :class:`~deprecate._types.DeprecationConfig` attached to a module by a prior call.
@@ -108,7 +110,14 @@ def _config_identity(config: DeprecationConfig) -> tuple[Any, ...]:
     # An empty dict normalizes to None (truthiness check, not `is not None`): an empty mapping is
     # semantically identical to no mapping, so `{}` and `None` must not read as a config difference.
     frozen_mapping = frozenset(attrs_mapping.items()) if attrs_mapping else None
-    return (config.target, config.deprecated_in, config.remove_in, frozen_mapping, config.message_template)
+    return (
+        config.target,
+        config.deprecated_in,
+        config.remove_in,
+        frozen_mapping,
+        config.message_template,
+        config.escalation_note,
+    )
 
 
 def _emit_module_warning(
@@ -134,7 +143,9 @@ def _emit_module_warning(
                 should_warn = _consume_warn_budget(state, num_warns, reason_callable=True, reason_argument={})
         if not should_warn:
             return
-    warn_msg: str = config.message_template or ""
+    # escalation_note ("" by default) is appended here, not baked into message_template — see
+    # _config_identity's docstring for why the two are kept separate.
+    warn_msg: str = (config.message_template or "") + config.escalation_note
     if stream is not None:
         try:
             stream(warn_msg, stacklevel=3)
@@ -315,6 +326,7 @@ def deprecated_module(
     stream: Optional[Callable[..., Any]] = None,
     message_template: Optional[str] = None,
     num_warns: int = -1,
+    escalate: bool = False,
 ) -> None:
     """Mark a module as deprecated by intercepting all public attribute accesses.
 
@@ -373,6 +385,16 @@ def deprecated_module(
             ``deprecated_class``'s ``attrs_mapping``-scoped counters) and is thread-safe under concurrent
             access. The default ``-1`` takes no budget lock on the ``__getattribute__`` hot path, but each access
             still performs normal metadata lookup and warning handling.
+        escalate: When ``True``, append a message suffix that ramps as the installed package version nears
+            (or passes) ``remove_in`` — see :func:`~deprecate.routine.deprecated_callable`'s ``escalate`` for
+            the exact ramp rule and the ``packaging``-missing fallback. The warning category never changes.
+            Computed once here (module deprecation runs once at import) and stored in
+            :attr:`~deprecate._types.DeprecationConfig.escalation_note`, appended to the base message only
+            at warn-emission time — kept out of ``message_template`` deliberately, so
+            :func:`~deprecate.audit.validate_deprecation_policy`'s ``message_required`` rule (which detects
+            an auto-rendered, non-custom ``message_template`` by recomputing and comparing it) is not
+            fooled into treating the escalation ramp as caller-supplied migration guidance. Default
+            ``False``.
 
     Raises:
         ValueError: If the resolved module ``name`` is not found in :data:`sys.modules`; if ``name`` is omitted
@@ -430,6 +452,12 @@ def deprecated_module(
     _validate_message_template(message_template)
 
     warn_msg = _build_module_warn_msg(module_name, deprecated_in, remove_in, target, message_template)
+    # Kept OUT of warn_msg (unlike an earlier draft): audit's `_has_migration_guidance` (audit/_policy.py)
+    # detects an "auto-rendered, doesn't count" message_template by recomputing _build_module_warn_msg and
+    # comparing equality — baking the note in here would make that comparison mismatch and make every
+    # escalate=True module spuriously satisfy `message-required` on the ramp note alone, not real guidance.
+    # Stacklevel 3: user code -> deprecated_module -> _resolve_escalation_note -> warnings.warn.
+    _escalation_note = _resolve_escalation_note(escalate, module_name, deprecated_in, remove_in, stacklevel=3)
 
     # Build the incoming config first so the idempotency guard can compare it against any config a
     # prior call already installed.
@@ -439,6 +467,7 @@ def deprecated_module(
         name=module_name,
         target=target if target is not None else TargetMode.NOTIFY,
         message_template=warn_msg,
+        escalation_note=_escalation_note,
         attrs_mapping=attrs_mapping,
     )
 

@@ -499,6 +499,31 @@ print(skip_pow(2, 3))
 
 </details>
 
+## Staged warning escalation
+
+`escalate=True` ramps the warning **message** as your package's own installed version nears (or passes) `remove_in` — the warning **category** never changes. Today's default category is already `FutureWarning`, the most visible tier for most of a deprecation window (Python's default filters ignore `PendingDeprecationWarning`/`DeprecationWarning` outside `__main__`); a Pending→Deprecation→Future category ladder would *downgrade* visibility instead of ramping it, so escalation is expressed purely as message urgency:
+
+- Mid-window: the base message only — `deprecated since v1.0, will be removed in v2.0`.
+- A pre-release (`rc`/`dev`/`a`/`b`) of the `remove_in` base version: `Removal imminent in v2.0 — this is the last chance to migrate before it ships.`
+- Once the installed version reaches or passes `remove_in`: `This is past its scheduled removal in v2.0 — please migrate immediately.`
+
+`escalate` is available on `@deprecated`, `deprecated_callable()`, `deprecated_class()`, `deprecated_instance()`, and `deprecated_module()`. It requires the `audit` extra (`pip install pyDeprecate[audit]`, which pulls in `packaging`); without it, decoration emits a `UserWarning` and the message stays phase-less instead of raising. The note is computed once at decoration time from the decorated symbol's own top-level installed package version — never recomputed per call, since that version cannot change mid-process:
+
+```python
+# phmdoctest:skip — CI template: the ramp compares against YOUR package's installed version, which
+# this snippet cannot control deterministically; replace my_package with your actual package
+from deprecate import deprecated_callable
+
+
+@deprecated_callable(deprecated_in="1.0", remove_in="2.0", escalate=True)
+def old_parse(text: str) -> dict: ...
+
+
+# my_package v1.4 installed (mid-window): base message only.
+# my_package v2.0rc1 installed: ramps to "Removal imminent in v2.0 ...".
+# my_package v2.0 installed: ramps to "This is past its scheduled removal in v2.0 ...".
+```
+
 ## See also
 
 - [Use Cases overview](use-cases.md) — start here for a guided tour of all deprecation patterns

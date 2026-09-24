@@ -1926,6 +1926,22 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
+## Why doesn't `escalate=True` change my warning's category as the removal deadline nears?
+
+**Q:** I passed `escalate=True` expecting the warning to become more severe (e.g. `DeprecationWarning` → `FutureWarning`) as `remove_in` approaches, but the category stays exactly the same. Is escalation broken?
+
+**A:** No — this is by design, not a bug. `escalate=True` ramps the warning **message** only; the **category** never changes, staying whatever `stream` already uses (default `FutureWarning`). The category is deliberately floored, not escalated: `FutureWarning` is already the most visible default tier — Python's default warning filters ignore `PendingDeprecationWarning` and `DeprecationWarning` outside `__main__`, so a `Pending → Deprecation → Future` category ladder would *downgrade* visibility for most of the deprecation window instead of ramping it up.
+
+What actually changes is the message text, once you are near the deadline:
+
+- Mid-window: no change — the base message already states `deprecated_in`/`remove_in`.
+- A pre-release (`rc`/`dev`/`a`/`b`) of the `remove_in` base version: `" Removal imminent in v<remove_in> — this is the last chance to migrate before it ships."`
+- Once the installed version reaches or passes `remove_in`: `" This is past its scheduled removal in v<remove_in> — please migrate immediately."`
+
+The "current version" compared against `remove_in` is the **installed version of the decorated symbol's own top-level package**, detected once at decoration time (not per call) via `importlib.metadata`, falling back to the package's `__version__` attribute. If your own code's version never advances past `deprecated_in` in the environment where the warning fires, the message legitimately never ramps — that reflects your actual installed version, not a bug. `escalate` requires the `audit` extra (`pip install pyDeprecate[audit]`, for `packaging`); without it, decoration emits one `UserWarning` and the message stays phase-less rather than crashing.
+
+______________________________________________________________________
+
 ## Why do pytest, Sphinx, or my IDE trigger warnings on a deprecated module?
 
 **Q:** I only imported a deprecated module once, but pytest collection, Sphinx autodoc, or my IDE/linter triggers many `FutureWarning`s. Why?

@@ -391,6 +391,14 @@
         },
         {
           "@type": "Question",
+          "name": "Why doesn't escalate=True change my warning's category as the removal deadline nears?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "By design, not a bug. escalate=True ramps the warning message only; the category never changes, staying whatever stream already uses (default FutureWarning). FutureWarning is already the most visible default tier -- Python's default warning filters ignore PendingDeprecationWarning and DeprecationWarning outside __main__ -- so a Pending to Deprecation to Future category ladder would downgrade visibility for most of the deprecation window instead of ramping it up. What actually changes is the message text: no change mid-window, a Removal imminent suffix on a pre-release of the remove_in base version, and a This is past its scheduled removal suffix once the installed version reaches or passes remove_in. The current version compared against remove_in is the installed version of the decorated symbol's own top-level package, detected once at decoration time via importlib.metadata (falling back to the package's __version__ attribute), not recomputed per call. escalate requires the audit extra (pip install pyDeprecate[audit], for packaging); without it, decoration emits one UserWarning and the message stays phase-less rather than crashing."
+          }
+        },
+        {
+          "@type": "Question",
           "name": "Why do pytest, Sphinx, or my IDE trigger warnings on a deprecated module?",
           "acceptedAnswer": {
             "@type": "Answer",

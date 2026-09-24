@@ -132,6 +132,7 @@ def _raise_warn(
     source: Callable,
     message_template: str,
     stacklevel: int = _DEFAULT_STACKLEVEL_TO_CALLER,
+    escalation_note: str = "",
     **extras: str,
 ) -> None:
     """Issue a deprecation warning using the specified stream and message template.
@@ -145,6 +146,9 @@ def _raise_warn(
         message_template: Python format string with placeholders for message variables.
         stacklevel: Passed to ``warnings.warn`` so the warning points to the user's call site.  Default 4 accounts for
             the ``_raise_warn → _raise_warn_callable/_raise_warn_arguments → wrapped_fn → caller`` chain.
+        escalation_note: Optional ``escalate=True`` message suffix (see
+            :func:`~deprecate._version._compute_escalation_note`), appended verbatim after template rendering.
+            ``""`` (default) appends nothing — the rendered message is unchanged from before Ft-2.
         **extras: Additional string values to substitute into the template (e.g., deprecated_in="1.0", remove_in="2.0").
 
     Note:
@@ -166,6 +170,8 @@ def _raise_warn(
     source_name = _source_display_name(source)
     source_path = f"{source.__module__}.{source_name}"
     msg = _format_deprecation_message(message_template, source_name, source_path, **extras)
+    if escalation_note:
+        msg += escalation_note
     try:
         stream(msg, stacklevel=stacklevel)
     except TypeError as _exc:
@@ -262,6 +268,7 @@ def _raise_warn_callable(
     remove_in: str,
     message_template: Optional[str] = None,
     stacklevel: int = _DEFAULT_STACKLEVEL_TO_CALLER,
+    escalation_note: str = "",
 ) -> None:
     """Issue deprecation warning for callable (function/class) deprecation.
 
@@ -281,6 +288,7 @@ def _raise_warn_callable(
         message_template: Custom message template. If None, uses :data:`TEMPLATE_WARNING_CALLABLE` when a target
             callable is provided, otherwise :data:`TEMPLATE_WARNING_NO_TARGET`.
         stacklevel: Passed through to :func:`_raise_warn`; default 4 points to the user's call site.
+        escalation_note: Passed through to :func:`_raise_warn` verbatim; see its docstring.
 
     Template Variables Available:
         - source_name: Function name (e.g., "old_func")
@@ -322,6 +330,7 @@ def _raise_warn_callable(
         source=source,
         message_template=message_template or template_warn,
         stacklevel=stacklevel,
+        escalation_note=escalation_note,
         deprecated_in=deprecated_in,
         remove_in=remove_in,
         target_name=target_name,
@@ -337,6 +346,7 @@ def _raise_warn_arguments(
     remove_in: str,
     message_template: Optional[str] = None,
     stacklevel: int = _DEFAULT_STACKLEVEL_TO_CALLER,
+    escalation_note: str = "",
 ) -> None:
     """Issue deprecation warning for deprecated function arguments.
 
@@ -352,6 +362,7 @@ def _raise_warn_arguments(
         remove_in: Version when arguments will be removed (e.g., "2.0.0").
         message_template: Custom message template. If None, uses default template.
         stacklevel: Passed through to :func:`_raise_warn`; default 4 points to the user's call site.
+        escalation_note: Passed through to :func:`_raise_warn` verbatim; see its docstring.
 
     Template Variables Available:
         - source_name: Function name (e.g., "my_func")
@@ -380,6 +391,7 @@ def _raise_warn_arguments(
         source,
         message_template or TEMPLATE_WARNING_ARGUMENTS,
         stacklevel=stacklevel,
+        escalation_note=escalation_note,
         deprecated_in=deprecated_in,
         remove_in=remove_in,
         argument_map=args_map,

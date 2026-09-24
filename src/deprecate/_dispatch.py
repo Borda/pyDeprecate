@@ -753,6 +753,7 @@ def _build_call_plan(  # noqa: C901, PLR0912
                 remove_in=dep_cfg.remove_in,
                 message_template=dep_cfg.message_template,
                 stacklevel=_stacklevel_to_caller,
+                escalation_note=dep_cfg.escalation_note,
             )
         elif reason_argument:
             _raise_warn_arguments(
@@ -763,6 +764,7 @@ def _build_call_plan(  # noqa: C901, PLR0912
                 remove_in=dep_cfg.remove_in,
                 message_template=dep_cfg.message_template,
                 stacklevel=_stacklevel_to_caller,
+                escalation_note=dep_cfg.escalation_note,
             )
 
     if reason_callable:
