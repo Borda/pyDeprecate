@@ -59,6 +59,7 @@ from deprecate.messaging import (
     TEMPLATE_WARNING_NO_TARGET,
     _render_static_deprecation_message,
     _resolve_message_template_alias,
+    _select_template,
     _validate_message_template,
     deprecation_warning,
 )
@@ -550,7 +551,7 @@ class _DeprecatedProxy:
         if new_attr is not None:
             owner = self._target_display_name(target, dep.name) if not isinstance(target, TargetMode) else dep.name
             target_path = f"{owner}.{new_attr}"
-            template = custom_template or TEMPLATE_WARNING_CALLABLE
+            template = _select_template(custom_template, TEMPLATE_WARNING_CALLABLE, dep.escalation_note)
             return template % {
                 "source_name": attr_name,
                 "source_path": attr_name,
@@ -560,7 +561,7 @@ class _DeprecatedProxy:
                 "target_path": target_path,
                 "argument_map": "",
             }
-        template = custom_template or TEMPLATE_WARNING_NO_TARGET
+        template = _select_template(custom_template, TEMPLATE_WARNING_NO_TARGET, dep.escalation_note)
         return template % {
             "source_name": attr_name,
             "source_path": attr_name,
@@ -1479,7 +1480,7 @@ def _build_proxy_warn_msg(
     if arg_name is not None and args_mapping and arg_name in args_mapping:
         new_arg = args_mapping[arg_name]
         argument_map = TEMPLATE_ARGUMENT_MAPPING % {"old_arg": arg_name, "new_arg": str(new_arg)}
-        template = custom_template or TEMPLATE_WARNING_ARGUMENTS
+        template = _select_template(custom_template, TEMPLATE_WARNING_ARGUMENTS, dep.escalation_note)
         return template % {
             "source_name": dep.name,
             "source_path": dep.name,
@@ -1494,7 +1495,7 @@ def _build_proxy_warn_msg(
     if callable(target):
         target_name = target.__name__
         target_path = f"{target.__module__}.{target_name}"
-        template = custom_template or TEMPLATE_WARNING_CALLABLE
+        template = _select_template(custom_template, TEMPLATE_WARNING_CALLABLE, dep.escalation_note)
         return template % {
             "source_name": dep.name,
             "source_path": dep.name,
@@ -1504,7 +1505,7 @@ def _build_proxy_warn_msg(
             "target_path": target_path,
             "argument_map": "",
         }
-    template = custom_template or TEMPLATE_WARNING_NO_TARGET
+    template = _select_template(custom_template, TEMPLATE_WARNING_NO_TARGET, dep.escalation_note)
     return template % {
         "source_name": dep.name,
         "source_path": dep.name,

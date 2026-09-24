@@ -27,7 +27,7 @@ import warnings
 from typing import Any, Callable, Optional
 
 from deprecate._types import DeprecationConfig, TargetMode, _WrapperState, get_deprecation_config
-from deprecate._version import _resolve_escalation_note
+from deprecate._version import _is_past_removal_note, _resolve_escalation_note
 from deprecate.messaging import _consume_warn_budget, _format_deprecation_message, _validate_message_template
 
 #: Thread-local set of ``(module_name, attr_name)`` pairs currently being resolved through a redirect
@@ -38,16 +38,22 @@ from deprecate.messaging import _consume_warn_budget, _format_deprecation_messag
 #: after the first.
 _redirect_guard = threading.local()
 
+#: Closing sentence shared by both built-in module templates, in the tense each case calls for.  Unlike the
+#: callable/proxy paths — which pick a tense while the template still holds placeholders — a module stores its
+#: message fully rendered, so the swap happens on the rendered suffix at emission time (see
+#: :func:`_emit_module_warning`).  Keeping both forms here is what lets that swap stay an exact match.
+_TAIL_MODULE_FUTURE = " It will be removed in v%(remove_in)s."
+_TAIL_MODULE_PAST = " It was due to be removed in v%(remove_in)s."
+
 #: Default warning template for a deprecated module (no target).
 _TEMPLATE_MODULE_NO_TARGET = (
-    "The `%(source_name)s` module was deprecated since v%(deprecated_in)s. It will be removed in v%(remove_in)s."
+    "The `%(source_name)s` module was deprecated since v%(deprecated_in)s." + _TAIL_MODULE_FUTURE
 )
 
 #: Default warning template for a deprecated module redirected to a replacement.
 _TEMPLATE_MODULE_REDIRECT = (
     "The `%(source_name)s` module was deprecated since v%(deprecated_in)s"
-    " in favor of `%(target_name)s`."
-    " It will be removed in v%(remove_in)s."
+    " in favor of `%(target_name)s`." + _TAIL_MODULE_FUTURE
 )
 
 
@@ -145,7 +151,16 @@ def _emit_module_warning(
             return
     # escalation_note ("" by default) is appended here, not baked into message_template — see
     # _config_identity's docstring for why the two are kept separate.
-    warn_msg: str = (config.message_template or "") + config.escalation_note
+    warn_msg: str = config.message_template or ""
+    if _is_past_removal_note(config.escalation_note):
+        # remove_in already shipped, so "It will be removed in vX" promises something that did not happen.
+        # Swap it for the past-tense form, but only on the exact sentence this module rendered itself — a
+        # caller's own message_template keeps the wording they wrote. Emission-time only: message_template
+        # stays as stored, or audit's `message_required` recompute-and-compare would stop matching.
+        tail_future = _TAIL_MODULE_FUTURE % {"remove_in": config.remove_in}
+        if warn_msg.endswith(tail_future):
+            warn_msg = warn_msg[: -len(tail_future)] + _TAIL_MODULE_PAST % {"remove_in": config.remove_in}
+    warn_msg += config.escalation_note
     if stream is not None:
         try:
             stream(warn_msg, stacklevel=3)

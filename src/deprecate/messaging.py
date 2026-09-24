@@ -15,6 +15,7 @@ from typing import Callable, Optional, Union
 from warnings import warn
 
 from deprecate._types import DeprecationConfig, TargetMode, _WrapperState
+from deprecate._version import _is_past_removal_note
 from deprecate.utils import _unwrap_descriptor_target
 
 # caller → wrapped_fn → _raise_warn_callable/_raise_warn_arguments → _raise_warn → warnings.warn
@@ -37,6 +38,49 @@ TEMPLATE_ARGUMENT_MAPPING = "`%(old_arg)s` -> `%(new_arg)s`"
 TEMPLATE_WARNING_NO_TARGET = (
     "The `%(source_name)s` was deprecated since v%(deprecated_in)s. It will be removed in v%(remove_in)s."
 )
+
+#: Past-tense counterparts of the three built-in templates, used only while the ``escalate`` ramp reports
+#: that ``remove_in`` already shipped.  "It will be removed in v2.0" is then a false promise — that release
+#: came and went with the symbol still here — so the base clause states what was planned instead of
+#: predicting it.  Keyed by the built-in it replaces, so a caller-supplied ``message_template`` (never a key
+#: here) is always left exactly as written.
+_PAST_TENSE_TEMPLATES: dict[str, str] = {
+    TEMPLATE_WARNING_CALLABLE: (
+        "The `%(source_name)s` was deprecated since v%(deprecated_in)s in favor of `%(target_path)s`."
+        " It was due to be removed in v%(remove_in)s."
+    ),
+    TEMPLATE_WARNING_ARGUMENTS: (
+        "The `%(source_name)s` uses deprecated arguments: %(argument_map)s."
+        " They were deprecated since v%(deprecated_in)s and were due to be removed in v%(remove_in)s."
+    ),
+    TEMPLATE_WARNING_NO_TARGET: (
+        "The `%(source_name)s` was deprecated since v%(deprecated_in)s. It was due to be removed in v%(remove_in)s."
+    ),
+}
+
+
+def _select_template(custom_template: Optional[str], builtin: str, escalation_note: str = "") -> str:
+    """Return the template to render: the caller's when given, else the built-in in the right tense.
+
+    The past-tense swap fires only for the past-removal escalation tier (see
+    :func:`~deprecate._version._is_past_removal_note`) and only on a built-in template — a caller who
+    supplied their own ``message_template`` owns its wording and gets it back untouched.
+
+    Examples:
+        >>> overdue = " Past its planned removal in v2.0 — ..."
+        >>> _select_template(None, TEMPLATE_WARNING_NO_TARGET) is TEMPLATE_WARNING_NO_TARGET
+        True
+        >>> _select_template("my own text", TEMPLATE_WARNING_NO_TARGET, overdue)
+        'my own text'
+        >>> "was due to be removed" in _select_template(None, TEMPLATE_WARNING_NO_TARGET, overdue)
+        True
+
+    """
+    if custom_template:
+        return custom_template
+    if _is_past_removal_note(escalation_note):
+        return _PAST_TENSE_TEMPLATES.get(builtin, builtin)
+    return builtin
 
 
 deprecation_warning = partial(warn, category=FutureWarning)
@@ -328,7 +372,7 @@ def _raise_warn_callable(
     _raise_warn(
         stream=stream,
         source=source,
-        message_template=message_template or template_warn,
+        message_template=_select_template(message_template, template_warn, escalation_note),
         stacklevel=stacklevel,
         escalation_note=escalation_note,
         deprecated_in=deprecated_in,
@@ -389,7 +433,7 @@ def _raise_warn_arguments(
     _raise_warn(
         stream,
         source,
-        message_template or TEMPLATE_WARNING_ARGUMENTS,
+        _select_template(message_template, TEMPLATE_WARNING_ARGUMENTS, escalation_note),
         stacklevel=stacklevel,
         escalation_note=escalation_note,
         deprecated_in=deprecated_in,

@@ -188,6 +188,29 @@ def _cached_package_version(package_name: str) -> Optional[str]:
     return None
 
 
+#: Opening text of the past-removal escalation tier.  Emitters match against it (via
+#: :func:`_is_past_removal_note`) to decide whether the base message's "will be removed" clause should
+#: switch to past tense, so the tier is recognised from the note alone — no second config field, and no
+#: re-deriving version state at emission time.  The note itself is built from this constant, so the two
+#: cannot drift apart.
+_PAST_REMOVAL_NOTE_PREFIX = " Past its planned removal in v"
+
+
+def _is_past_removal_note(escalation_note: str) -> bool:
+    """Return whether *escalation_note* is the past-removal tier (as opposed to ``""`` or "removal imminent").
+
+    Examples:
+        >>> _is_past_removal_note("")
+        False
+        >>> _is_past_removal_note(_compute_escalation_note("2.0", "1.0", "2.0"))
+        True
+        >>> _is_past_removal_note(_compute_escalation_note("2.0rc1", "1.0", "2.0"))
+        False
+
+    """
+    return escalation_note.startswith(_PAST_REMOVAL_NOTE_PREFIX)
+
+
 def _compute_escalation_note(current_version: Optional[str], deprecated_in: str, remove_in: str) -> str:
     """Return a message suffix that ramps urgency as *current_version* nears *remove_in*.
 
@@ -240,7 +263,7 @@ def _compute_escalation_note(current_version: Optional[str], deprecated_in: str,
         # not evidence the caller is late (had the removal actually happened, the call would raise instead
         # of warning). Point at the release notes rather than blaming whoever triggered the warning.
         return (
-            f" Past its planned removal in v{remove_in} — check the upstream release notes;"
+            f"{_PAST_REMOVAL_NOTE_PREFIX}{remove_in} — check the upstream release notes;"
             " it may be dropped in any release."
         )
     if current.is_prerelease:

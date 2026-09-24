@@ -73,7 +73,46 @@ class TestCallableEscalation:
             warnings.simplefilter("always")
             wrapped(3)
         msg = str(caught[0].message)
+        assert msg.startswith("The `double_value` was deprecated since v1.0. It was due to be removed in v2.0.")
+        assert "planned removal" in msg
+
+    def test_imminent_keeps_future_tense_base_message(self, fixed_current_version: VersionPinner) -> None:
+        """At a pre-release of ``remove_in`` the base clause still reads "will be removed".
+
+        The removal has not happened yet at this point — the release carrying it is only in its RC — so
+        the promise is still accurate and only the past-removal tier has cause to flip it.
+        """
+        fixed_current_version("2.0rc1")
+        wrapped = deprecated_callable(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0", escalate=True)(
+            double_value
+        )
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            wrapped(3)
+        msg = str(caught[0].message)
         assert msg.startswith("The `double_value` was deprecated since v1.0. It will be removed in v2.0.")
+        assert "imminent" in msg
+
+    def test_overdue_leaves_custom_message_template_untouched(self, fixed_current_version: VersionPinner) -> None:
+        """A caller-supplied ``message_template`` keeps its own wording even when the removal is overdue.
+
+        The past-tense swap exists to stop the library contradicting itself in text the library wrote.
+        Text the caller wrote is theirs: it may deliberately use a different tense, voice, or language,
+        so the ramp appends its note and changes nothing else.
+        """
+        fixed_current_version("2.0")
+        wrapped = deprecated_callable(
+            target=TargetMode.NOTIFY,
+            deprecated_in="1.0",
+            remove_in="2.0",
+            escalate=True,
+            message_template="`%(source_name)s` goes away in v%(remove_in)s.",
+        )(double_value)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            wrapped(3)
+        msg = str(caught[0].message)
+        assert msg.startswith("`double_value` goes away in v2.0.")
         assert "planned removal" in msg
 
     def test_category_stays_future_warning_even_when_overdue(self, fixed_current_version: VersionPinner) -> None:
@@ -200,13 +239,20 @@ class TestModuleEscalation:
     def test_overdue_appends_past_removal_suffix(
         self, tmp_module: types.ModuleType, fixed_current_version: VersionPinner
     ) -> None:
-        """A deprecated module accessed after ``remove_in`` has passed gets the same ramp as a callable."""
+        """A deprecated module accessed after ``remove_in`` has passed gets the same ramp as a callable.
+
+        The module path stores its message fully rendered rather than as a template, so the past-tense
+        swap has to happen on the rendered suffix — this test is what proves the two paths still agree.
+        """
         fixed_current_version("2.0")
         _deprecated_module(tmp_module.__name__, deprecated_in="1.0", remove_in="2.0", escalate=True)
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             getattr(tmp_module, "anything", None)
-        assert "planned removal" in str(caught[0].message)
+        msg = str(caught[0].message)
+        assert "planned removal" in msg
+        assert "It was due to be removed in v2.0." in msg
+        assert "will be removed" not in msg
 
     def test_default_escalate_false_leaves_message_unchanged(self, tmp_module: types.ModuleType) -> None:
         """Omitting ``escalate`` on ``deprecated_module`` leaves the pre-Ft-2 message untouched."""
@@ -230,6 +276,7 @@ class TestModuleEscalation:
         fixed_current_version("2.0")
         _deprecated_module(tmp_module.__name__, deprecated_in="1.0", remove_in="2.0", escalate=True)
         assert "planned removal" not in tmp_module.__deprecated__  # type: ignore[attr-defined]
+        assert "It will be removed in v2.0." in tmp_module.__deprecated__  # type: ignore[attr-defined]
 
     def test_message_required_policy_still_flags_escalate_only_module(
         self, tmp_module: types.ModuleType, fixed_current_version: VersionPinner

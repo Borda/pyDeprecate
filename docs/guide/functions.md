@@ -505,7 +505,7 @@ print(skip_pow(2, 3))
 
 - Mid-window: the base message only — `deprecated since v1.0, will be removed in v2.0`.
 - A pre-release (`rc`/`dev`/`a`/`b`) of the `remove_in` base version: `Removal imminent in v2.0 — this is the last chance to migrate before it ships.`
-- Once the installed version reaches or passes `remove_in`: `Past its planned removal in v2.0 — check the upstream release notes; it may be dropped in any release.`
+- Once the installed version reaches or passes `remove_in`: `Past its planned removal in v2.0 — check the upstream release notes; it may be dropped in any release.` — and the built-in base clause flips from `It will be removed in v2.0` to `It was due to be removed in v2.0`, since that release shipped without the removal happening. A custom `message_template` is never rewritten, and the static `__deprecated__` attribute keeps the plain future-tense text.
 
 That last tier is worded as information, not blame. Reaching it means the package shipped its own `remove_in` version with the symbol still in place — an upstream schedule slip, since a removal that actually happened would raise `AttributeError` instead of warning. What it tells a caller is that the ground can move under them at any release, so the pointer is to the upstream release notes rather than a reprimand for not having migrated.
 
@@ -523,7 +523,7 @@ def old_parse(text: str) -> dict: ...
 
 # my_package v1.4 installed (mid-window): base message only.
 # my_package v2.0rc1 installed: ramps to "Removal imminent in v2.0 ...".
-# my_package v2.0 installed: ramps to "Past its planned removal in v2.0 ...".
+# my_package v2.0 installed: "... It was due to be removed in v2.0. Past its planned removal in v2.0 ...".
 ```
 
 ## See also
