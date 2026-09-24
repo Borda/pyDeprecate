@@ -391,6 +391,14 @@
         },
         {
           "@type": "Question",
+          "name": "Why doesn't escalate=True change my warning's category as the removal deadline nears?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "By design, not a bug. escalate=True ramps the warning message only; the category never changes, staying whatever stream already uses (default FutureWarning). FutureWarning is already the most visible default tier -- Python's default warning filters ignore PendingDeprecationWarning and DeprecationWarning outside __main__ -- so a Pending to Deprecation to Future category ladder would downgrade visibility for most of the deprecation window instead of ramping it up. What actually changes is the message text: no change mid-window, a Removal imminent suffix on a pre-release of the remove_in base version, and a Past its planned removal suffix once the installed version reaches or passes remove_in. That last tier states a fact rather than assigning fault: it can only be reached when the package shipped its own remove_in version without deleting the symbol, which is an upstream schedule slip -- a removal that actually happened would raise AttributeError instead of warning -- so it points at the upstream release notes rather than demanding an immediate migration from whoever triggered the warning. That tier also flips the built-in base clause from It will be removed in vX to It was due to be removed in vX, because the release carrying the removal already shipped; only pyDeprecate's own built-in wording is swapped, a custom message_template renders verbatim and the static __deprecated__ attribute keeps the plain future-tense text. The current version compared against remove_in is the installed version of the decorated symbol's own top-level package, detected once at decoration time via importlib.metadata (falling back to the package's __version__ attribute), not recomputed per call. escalate requires the audit extra (pip install pyDeprecate[audit], for packaging); without it, decoration emits one UserWarning and the message stays phase-less rather than crashing."
+          }
+        },
+        {
+          "@type": "Question",
           "name": "Why do pytest, Sphinx, or my IDE trigger warnings on a deprecated module?",
           "acceptedAnswer": {
             "@type": "Answer",

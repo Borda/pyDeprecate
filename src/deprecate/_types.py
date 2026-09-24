@@ -412,6 +412,14 @@ class DeprecationConfig:
             Note: for :func:`~deprecate.module.deprecated_module` specifically this field stores the fully-rendered
             warning text (the template already substituted at decoration time), not the raw caller-supplied template
             that the callable and proxy factories store here verbatim.
+        escalation_note: Message suffix computed once at decoration time when ``escalate=True`` was passed to
+            :func:`~deprecate.deprecated`/:func:`~deprecate.routine.deprecated_callable`/
+            :func:`~deprecate.proxy.deprecated_class`/:func:`~deprecate.proxy.deprecated_instance`/
+            :func:`~deprecate.module.deprecated_module`, appended to the emitted warning message as the current
+            installed version nears (or passes) :attr:`remove_in`. ``""`` (default) when ``escalate=False``, when
+            escalation could not be computed (``remove_in`` unset/unparsable, current version undetectable, or the
+            ``packaging`` extra missing), or when still comfortably mid-window. See
+            :func:`~deprecate._version._compute_escalation_note` for the exact ramp rule.
         attrs_mapping: Optional mapping of deprecated attribute names to their canonical replacement names (or
             ``None`` for warn-only).  Set by :func:`~deprecate.proxy.deprecated_class` when
             selective per-attribute deprecation is enabled.  Non-``None`` redirect targets must be existing attribute
@@ -494,6 +502,7 @@ class DeprecationConfig:
     misconfigured: bool = False
     docstring_style: Literal["rst", "mkdocs"] = "rst"
     message_template: Optional[str] = None
+    escalation_note: str = ""
     attrs_mapping: Optional[dict[str, Optional[str]]] = None
     args_mapping_auto_expanded: tuple[str, ...] = field(default_factory=tuple)
     args_mapping_positional_only: tuple[str, ...] = field(default_factory=tuple)

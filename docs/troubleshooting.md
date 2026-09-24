@@ -1926,6 +1926,26 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
+## Why doesn't `escalate=True` change my warning's category as the removal deadline nears?
+
+**Q:** I passed `escalate=True` expecting the warning to become more severe (e.g. `DeprecationWarning` → `FutureWarning`) as `remove_in` approaches, but the category stays exactly the same. Is escalation broken?
+
+**A:** No — this is by design, not a bug. `escalate=True` ramps the warning **message** only; the **category** never changes, staying whatever `stream` already uses (default `FutureWarning`). The category is deliberately floored, not escalated: `FutureWarning` is already the most visible default tier — Python's default warning filters ignore `PendingDeprecationWarning` and `DeprecationWarning` outside `__main__`, so a `Pending → Deprecation → Future` category ladder would *downgrade* visibility for most of the deprecation window instead of ramping it up.
+
+What actually changes is the message text, once you are near the deadline:
+
+- Mid-window: no change — the base message already states `deprecated_in`/`remove_in`.
+- A pre-release (`rc`/`dev`/`a`/`b`) of the `remove_in` base version: `" Removal imminent in v<remove_in> — this is the last chance to migrate before it ships."`
+- Once the installed version reaches or passes `remove_in`: `" Past its planned removal in v<remove_in> — check the upstream release notes; it may be dropped in any release."`
+
+That last tier also flips the built-in base clause from `It will be removed in v<remove_in>` to `It was due to be removed in v<remove_in>`: that release shipped and the symbol is still here, so the future tense would promise something that did not happen. The swap touches only wording pyDeprecate generated — a custom `message_template` renders exactly as written, and the static `__deprecated__` attribute keeps the plain future-tense snapshot.
+
+That last tier deliberately states a fact rather than assigning fault. It can only be reached when the package shipped its own `remove_in` version without deleting the symbol — an upstream schedule slip, because a removal that actually happened would raise `AttributeError` instead of warning. It is not evidence that the caller who triggered the warning is late, so the wording points at the upstream release notes instead of demanding an immediate migration.
+
+The "current version" compared against `remove_in` is the **installed version of the decorated symbol's own top-level package**, detected once at decoration time (not per call) via `importlib.metadata`, falling back to the package's `__version__` attribute. If your own code's version never advances past `deprecated_in` in the environment where the warning fires, the message legitimately never ramps — that reflects your actual installed version, not a bug. `escalate` requires the `audit` extra (`pip install pyDeprecate[audit]`, for `packaging`); without it, decoration emits one `UserWarning` and the message stays phase-less rather than crashing.
+
+______________________________________________________________________
+
 ## Why do pytest, Sphinx, or my IDE trigger warnings on a deprecated module?
 
 **Q:** I only imported a deprecated module once, but pytest collection, Sphinx autodoc, or my IDE/linter triggers many `FutureWarning`s. Why?

@@ -228,10 +228,11 @@ Not sure which API to reach for? Start here.
 | `skip_if`          | `False`                     | `bool` or `Callable → bool`; deactivate the deprecation machinery when true                                                                                             |
 | `update_docstring` | `False`                     | Append Sphinx `.. deprecated::` notice to docstring                                                                                                                     |
 | `docstring_style`  | `"auto"`                    | Docstring notice format: `auto` · `rst` · `mkdocs`/`markdown`                                                                                                           |
+| `escalate`         | `False`                     | Ramp the warning message as the installed version nears/passes `remove_in`; category never changes. Requires the `audit` extra (`packaging`)                            |
 
 > [!TIP]
 >
-> All three decorators share every parameter above. The only differences: `deprecated_class()` adds the class-only `attrs_mapping` (attribute-name remapping — `TypeError` on the other two), and a **class source** is dispatched to `deprecated_class` by `@deprecated` but rejected with `TypeError` by `deprecated_callable()`. `TargetMode.AUTO` is front-door-only: `deprecated_callable()` defaults `target` to `TargetMode.NOTIFY`, `deprecated_class()` leaves it unset, and both raise `TypeError` when handed `TargetMode.AUTO` explicitly. `deprecated_instance()` shares `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_extra`, `message_template`, and `skip_if`; it requires `obj` and adds `name` (display name) and `read_only`.
+> All three decorators share every parameter above. The only differences: `deprecated_class()` adds the class-only `attrs_mapping` (attribute-name remapping — `TypeError` on the other two), and a **class source** is dispatched to `deprecated_class` by `@deprecated` but rejected with `TypeError` by `deprecated_callable()`. `TargetMode.AUTO` is front-door-only: `deprecated_callable()` defaults `target` to `TargetMode.NOTIFY`, `deprecated_class()` leaves it unset, and both raise `TypeError` when handed `TargetMode.AUTO` explicitly. `deprecated_instance()` shares `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_extra`, `message_template`, `skip_if`, and `escalate`; it requires `obj` and adds `name` (display name) and `read_only`.
 
 </details>
 
@@ -717,6 +718,45 @@ print(skip_pow(2, 3))
 </details>
 
 This pattern is useful when a migration is only active for some environments or dependency versions.
+
+### 📢 Staged warning escalation
+
+Use `escalate=True` to ramp the warning **message** as your package's own installed version nears (or passes) `remove_in` — the warning **category** never changes (it stays whatever `stream` already uses, default `FutureWarning`, the most visible tier for most of a deprecation window). Requires the `audit` extra (`pip install pyDeprecate[audit]`, for `packaging`); without it, decoration emits a `UserWarning` and the message stays phase-less. Available on `@deprecated`, `deprecated_callable()`, `deprecated_class()`, `deprecated_instance()`, and `deprecated_module()`.
+
+<details>
+<summary>Example: <code>escalate</code> ramping toward a removal deadline</summary>
+
+```python
+# phmdoctest:skip — CI template: the ramp compares against YOUR package's installed version, which
+# this snippet cannot control deterministically; replace my_package with your actual package
+# my_package/legacy.py
+from deprecate import deprecated_callable
+
+
+@deprecated_callable(deprecated_in="1.0", remove_in="2.0", escalate=True)
+def old_parse(text: str) -> dict: ...
+
+
+# my_package v1.4 installed (mid-window): base message only
+# "The `old_parse` was deprecated since v1.0. It will be removed in v2.0."
+
+# my_package v2.0rc1 installed (release-candidate of remove_in): ramps up
+# "... It will be removed in v2.0. Removal imminent in v2.0 — this is the last chance to migrate
+#  before it ships."
+
+# my_package v2.0 installed (removal deadline reached): ramps further, base clause flips tense
+# "The `old_parse` was deprecated since v1.0. It was due to be removed in v2.0.
+#  Past its planned removal in v2.0 — check the upstream release notes; it may be
+#  dropped in any release."
+```
+
+</details>
+
+The note is computed once, at decoration time, from the decorated symbol's own top-level installed package version — not recomputed on every call, since that version cannot change mid-process.
+
+The last tier is worded as information, not blame. Reaching it means the package shipped its own `remove_in` version with the symbol still in place — an upstream schedule slip, since a removal that actually happened would raise `AttributeError` instead of warning. What it tells a caller is that the ground can move under them at any release, so the pointer is to the upstream release notes.
+
+That same tier also flips the built-in message from `It will be removed in v2.0` to `It was due to be removed in v2.0` — the release carrying the removal already shipped, so the future tense would be a promise the package did not keep. Only the built-in wording changes; a custom `message_template` is rendered exactly as written, and the static `__deprecated__` attribute keeps the plain future-tense text.
 
 ### 🔒 Strict callable-only deprecation
 

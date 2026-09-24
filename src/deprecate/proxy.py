@@ -34,6 +34,7 @@ import inspect
 import math
 import operator
 import os
+import sys
 import threading
 import types
 import warnings
@@ -49,6 +50,7 @@ from deprecate._types import (
     _ProxyConfig,
     get_deprecation_config,
 )
+from deprecate._version import _resolve_escalation_note
 from deprecate.docstring.inject import _update_docstring_with_deprecation, normalize_docstring_style
 from deprecate.messaging import (
     TEMPLATE_ARGUMENT_MAPPING,
@@ -57,6 +59,7 @@ from deprecate.messaging import (
     TEMPLATE_WARNING_NO_TARGET,
     _render_static_deprecation_message,
     _resolve_message_template_alias,
+    _select_template,
     _validate_message_template,
     deprecation_warning,
 )
@@ -330,8 +333,10 @@ class _DeprecatedProxy:
         skip_if: Union[bool, Callable[[], bool]] = False,
         read_only: bool = False,
         docstring_style: str = "auto",
+        escalate: bool = False,
         _misconfigured_override: bool = False,
         _stacklevel_extra: int = 0,
+        _module_name: Optional[str] = None,
     ) -> None:
         """Initialise the proxy with typed runtime/config dataclasses.
 
@@ -421,6 +426,24 @@ class _DeprecatedProxy:
             skip_if=skip_if,
         )
         object.__setattr__(self, "_DeprecatedProxy__config", cfg)
+        # Computed once at construction time (not per-access) — the installed package version does not
+        # change during a process's lifetime. See `_version._resolve_escalation_note` for the
+        # packaging-missing fallback (UserWarning + phase-less message). Guarded on `escalate` so the
+        # attribute probe below costs nothing on the (default) non-escalating path.
+        #
+        # `_module_name` (a caller-supplied override) is required for `deprecated_instance`: an arbitrary
+        # wrapped object's own `__module__` (or its type's, for a builtin like `dict`/`list`, which is
+        # "builtins") is almost never the package whose version should gate escalation — the caller's own
+        # module is. `deprecated_class` needs no override: the wrapped class's `__module__` already names
+        # its declaring package correctly, matching how `deprecated_module` uses its own module name.
+        _escalation_note = ""
+        if escalate:
+            _resolved_module_name = (
+                _module_name if _module_name is not None else (getattr(obj, "__module__", None) or type(obj).__module__)
+            )
+            _escalation_note = _resolve_escalation_note(
+                escalate, _resolved_module_name, deprecated_in, remove_in, stacklevel=4 + _stacklevel_extra
+            )
         # Static deprecation metadata stored as a dunder attribute — readable by audit tools via
         # __deprecation_config__; __deprecated__ carries the PEP-702-conformant rendered message string.
         dep_meta = DeprecationConfig(
@@ -433,6 +456,7 @@ class _DeprecatedProxy:
             misconfigured=misconfigured,
             docstring_style=normalize_docstring_style(docstring_style),
             message_template=message_template,
+            escalation_note=_escalation_note,
             attrs_mapping=attrs_mapping,
             args_mapping_auto_expanded=tuple(_auto_expanded),
             args_mapping_positional_only=_incompatible,
@@ -527,7 +551,7 @@ class _DeprecatedProxy:
         if new_attr is not None:
             owner = self._target_display_name(target, dep.name) if not isinstance(target, TargetMode) else dep.name
             target_path = f"{owner}.{new_attr}"
-            template = custom_template or TEMPLATE_WARNING_CALLABLE
+            template = _select_template(custom_template, TEMPLATE_WARNING_CALLABLE, dep.escalation_note)
             return template % {
                 "source_name": attr_name,
                 "source_path": attr_name,
@@ -537,7 +561,7 @@ class _DeprecatedProxy:
                 "target_path": target_path,
                 "argument_map": "",
             }
-        template = custom_template or TEMPLATE_WARNING_NO_TARGET
+        template = _select_template(custom_template, TEMPLATE_WARNING_NO_TARGET, dep.escalation_note)
         return template % {
             "source_name": attr_name,
             "source_path": attr_name,
@@ -588,6 +612,7 @@ class _DeprecatedProxy:
         msg = _build_proxy_warn_msg(self, arg_name, dep, cfg)
         if msg is None:
             return
+        msg += dep.escalation_note  # "" (default) is a no-op — no branch needed
         # Take the state lock around quota check + counter increment so concurrent first accesses
         # cannot all read the counter as 0, all pass the gate, and each emit a warning
         # (check-then-act race).  Mirrors the decorator-path pattern in ``deprecation.py``:
@@ -1348,8 +1373,8 @@ def _resolve_proxy_target(
 
     Only ``None`` — the ``deprecated_class`` default, meaning "no explicit target" — auto-resolves: a mapping present
     selects :attr:`~deprecate._types.TargetMode.ARGS_REMAP` / :attr:`~deprecate._types.TargetMode.ATTRS_REMAP` (or the
-    wrapped object itself when dataclass auto-expand activated both surfaces); no mapping keeps ``None`` (warn-on-access
-    proxy).  An **explicit** ``TargetMode.NOTIFY`` is a deliberate caller choice and is never overridden — with
+    wrapped object itself when dataclass auto-expand activated both surfaces); no mapping keeps ``None`` (warn- on-
+    access proxy).  An **explicit** ``TargetMode.NOTIFY`` is a deliberate caller choice and is never overridden — with
     ``attrs_mapping`` present the pair is contradictory, so dataclass auto-expand is skipped and the flag in the
     returned tuple tells the proxy to ignore the mapping at runtime (the validators emit the misconfig ``UserWarning``).
 
@@ -1455,7 +1480,7 @@ def _build_proxy_warn_msg(
     if arg_name is not None and args_mapping and arg_name in args_mapping:
         new_arg = args_mapping[arg_name]
         argument_map = TEMPLATE_ARGUMENT_MAPPING % {"old_arg": arg_name, "new_arg": str(new_arg)}
-        template = custom_template or TEMPLATE_WARNING_ARGUMENTS
+        template = _select_template(custom_template, TEMPLATE_WARNING_ARGUMENTS, dep.escalation_note)
         return template % {
             "source_name": dep.name,
             "source_path": dep.name,
@@ -1470,7 +1495,7 @@ def _build_proxy_warn_msg(
     if callable(target):
         target_name = target.__name__
         target_path = f"{target.__module__}.{target_name}"
-        template = custom_template or TEMPLATE_WARNING_CALLABLE
+        template = _select_template(custom_template, TEMPLATE_WARNING_CALLABLE, dep.escalation_note)
         return template % {
             "source_name": dep.name,
             "source_path": dep.name,
@@ -1480,7 +1505,7 @@ def _build_proxy_warn_msg(
             "target_path": target_path,
             "argument_map": "",
         }
-    template = custom_template or TEMPLATE_WARNING_NO_TARGET
+    template = _select_template(custom_template, TEMPLATE_WARNING_NO_TARGET, dep.escalation_note)
     return template % {
         "source_name": dep.name,
         "source_path": dep.name,
@@ -1513,6 +1538,7 @@ def deprecated_class(
     update_docstring: bool = False,
     docstring_style: Literal["auto", "rst", "mkdocs", "markdown"] = "auto",
     template_mgs: Optional[str] = None,
+    escalate: bool = False,
     _misconfigured_override: bool = False,
     _stacklevel_extra: int = 0,
 ) -> Callable[[_ClassOrProxy], "_DeprecatedProxy"]:
@@ -1608,6 +1634,11 @@ def deprecated_class(
         template_mgs: Deprecated alias for ``message_template`` (renamed in ``v0.12``; the old spelling was a
             typo).  Supplying it emits a :class:`FutureWarning` and its value is used as ``message_template``;
             supplying both raises :class:`TypeError`.  Removed in ``v1.0``.
+        escalate: When ``True``, append a message suffix that ramps as the installed package version nears
+            (or passes) ``remove_in`` — see :func:`~deprecate.routine.deprecated_callable`'s ``escalate``
+            for the exact ramp rule and the ``packaging``-missing fallback. The warning category never
+            changes. Computed once at decoration time from the wrapped class's own top-level package.
+            Default ``False``.
 
     Returns:
         A decorator that wraps the class in a :class:`~deprecate.proxy._DeprecatedProxy`, which satisfies the public
@@ -1714,6 +1745,7 @@ def deprecated_class(
             attrs_mapping=attrs_mapping,
             skip_if=skip_if,
             docstring_style=docstring_style,
+            escalate=escalate,
             _misconfigured_override=_misconfigured_override,
             _stacklevel_extra=_stacklevel_extra,
         )
@@ -1743,6 +1775,7 @@ def deprecated_instance(
     read_only: bool = False,
     args_extra: Optional[dict[str, Any]] = None,
     template_mgs: Optional[str] = None,
+    escalate: bool = False,
 ) -> "_DeprecatedProxy":
     """Wrap any Python object with deprecation warnings.
 
@@ -1777,6 +1810,11 @@ def deprecated_instance(
         template_mgs: Deprecated alias for ``message_template`` (renamed in ``v0.12``; the old spelling was a
             typo).  Supplying it emits a :class:`FutureWarning` and its value is used as ``message_template``;
             supplying both raises :class:`TypeError`.  Removed in ``v1.0``.
+        escalate: When ``True``, append a message suffix that ramps as the installed package version nears
+            (or passes) ``remove_in`` — see :func:`~deprecate.routine.deprecated_callable`'s ``escalate``
+            for the exact ramp rule and the ``packaging``-missing fallback. The warning category never
+            changes. Computed once at construction time from *obj*'s own top-level package. Default
+            ``False``.
 
     Returns:
         A :class:`~deprecate.proxy._DeprecatedProxy` wrapping *obj*, satisfying the public
@@ -1816,6 +1854,12 @@ def deprecated_instance(
             UserWarning,
             stacklevel=2,
         )
+    # An arbitrary wrapped object's own __module__ (or its type's, "builtins" for a dict/list/str
+    # constant — the documented primary use case) is almost never the package whose installed version
+    # should gate escalation; the CALLER's module is. Resolved only when escalate=True (avoids the frame
+    # lookup on the default path) via the immediate caller's frame, mirroring deprecated_module's own
+    # sys._getframe(1)-based auto-detection.
+    _module_name = sys._getframe(1).f_globals.get("__name__", "") if escalate else None
     return _DeprecatedProxy(
         obj=obj,
         name=resolved_name,
@@ -1827,6 +1871,8 @@ def deprecated_instance(
         skip_if=skip_if,
         read_only=read_only,
         args_extra=args_extra,
+        escalate=escalate,
+        _module_name=_module_name,
     )
 
 

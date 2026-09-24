@@ -43,6 +43,7 @@ from deprecate._types import (
     _has_deprecation_meta,
     _WrapperState,
 )
+from deprecate._version import _resolve_escalation_note
 from deprecate.docstring.inject import _update_docstring_with_deprecation, normalize_docstring_style
 from deprecate.messaging import (
     _render_static_deprecation_message,
@@ -200,6 +201,7 @@ def deprecated_callable(  # noqa: C901
     update_docstring: bool = False,
     docstring_style: Literal["auto", "rst", "mkdocs", "markdown"] = "auto",
     template_mgs: Optional[str] = None,
+    escalate: bool = False,
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Decorate a function/method with warning message and forward calls to target — the strict callable form.
 
@@ -283,6 +285,17 @@ def deprecated_callable(  # noqa: C901
         template_mgs: Deprecated alias for ``message_template`` (renamed in ``v0.12``; the old spelling was a
             typo). Supplying it emits a :class:`FutureWarning` and its value is used as ``message_template``;
             supplying both raises :class:`TypeError`. Removed in ``v1.0``.
+        escalate: When ``True``, append a message suffix that ramps as the installed package version nears
+            (or passes) ``remove_in`` — e.g. "Removal imminent" on a pre-release of the ``remove_in`` base
+            version, "past its planned removal" once ``remove_in`` is reached. Computed once at decoration
+            time from the installed version of the decorated function's own top-level package (never the
+            caller's) — so the past-removal wording stays neutral about cause: reaching it means the package
+            shipped ``remove_in`` without deleting the symbol, which is an upstream schedule slip rather than
+            proof the caller is late. The warning **category never changes** — it stays the configured
+            ``stream``'s category (default :class:`FutureWarning`), already the most visible tier;
+            escalation is message urgency, not category demotion. Requires the ``packaging`` extra
+            (``pip install pyDeprecate[audit]``); without it, decoration emits a :class:`UserWarning` and the
+            message stays phase-less. Default ``False`` — no change to existing message text.
 
     Returns:
         Decorator function that wraps the source function/method.
@@ -460,6 +473,12 @@ def deprecated_callable(  # noqa: C901
         # caller's original dict after decoration (which would silently change forwarding behavior at call time).
         _args_mapping = dict(args_mapping) if isinstance(args_mapping, dict) else args_mapping
         _args_extra = dict(args_extra) if isinstance(args_extra, dict) else args_extra
+        # Computed once at decoration time (not per-call) — the installed package version does not change
+        # during a process's lifetime. See `_version._resolve_escalation_note` for the packaging-missing
+        # fallback (UserWarning + phase-less message).
+        _escalation_note = _resolve_escalation_note(
+            escalate, source.__module__, deprecated_in, remove_in, stacklevel=_stacklevel + 1
+        )
         dep_meta = DeprecationConfig(
             deprecated_in=deprecated_in,
             remove_in=remove_in,
@@ -470,6 +489,7 @@ def deprecated_callable(  # noqa: C901
             misconfigured=misconfigured,
             docstring_style=normalized_docstring_style,
             message_template=message_template,
+            escalation_note=_escalation_note,
             target_positional_only=_target_positional_only,
             target_positional_only_order=_target_positional_only_order,
             source_positional_only=_source_positional_only,

@@ -4,6 +4,11 @@ Everything here compares a wrapper's ``deprecated_in``/``remove_in`` against a v
 by the policy lint and the report, :class:`DeprecationStatus`, and
 :func:`~deprecate.audit.validate_deprecation_expiry`.
 
+``_normalize_version_string`` and ``_parse_version`` are re-imported from :mod:`deprecate._version` (Ft-2 moved
+them there so the core warning-escalation path could reuse them without importing this ``audit`` subpackage, which
+itself imports from the core and would create a cycle) — every pre-existing call site and test that reaches them
+via ``deprecate.audit._lifecycle`` keeps working unchanged.
+
 Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 
 """
@@ -21,6 +26,7 @@ from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 if TYPE_CHECKING:
     from packaging.version import Version
 
+from deprecate._version import _normalize_version_string, _parse_version  # noqa: F401 — re-exported, see docstring
 from deprecate.audit._scan import find_deprecation_wrappers
 from deprecate.audit._wrappers import DeprecationWrapperInfo, _format_subject, validate_deprecation_wrapper
 
@@ -70,129 +76,6 @@ class DeprecationStatus(str, enum.Enum):
     def __ge__(self, other: object) -> bool:
         """Raise TypeError — urgency ordering is not meaningful for emoji-valued status labels."""
         raise TypeError("'>=' not supported between instances of 'DeprecationStatus' — compare by identity")
-
-
-def _normalize_version_string(version: str) -> str:
-    """Normalize non-standard version strings before PEP 440 parsing.
-
-    Newer ``packaging`` (>=22) is strict PEP 440 and rejects real-world strings that omit trailing digits
-    on pre/post/dev release labels (e.g. ``"1.8.0.dev"``, ``"1.8.0dev"``, ``"1.8.0.post"``). This helper
-    performs the minimum normalization needed to make such strings parseable, then defers everything else
-    (label aliasing like ``alpha`` -> ``a``, case folding, separator handling) to ``packaging.Version``.
-
-    The transformation is conservative:
-
-    1. Strip a single leading ``v`` or ``V`` prefix (left-anchored, so only one leading ``v`` is removed).
-    2. Append ``0`` to bare pre/post/dev labels that lack a trailing digit. Labels recognized:
-       ``dev``, ``rc``, ``a``, ``b``, ``c``, ``alpha``, ``beta``, ``preview``, ``post``.
-
-    The label normalization runs only over the *public* part of the version — any PEP 440 local segment
-    (everything after ``+``) is split off first and re-attached verbatim, so a legitimate local like
-    ``1.2.3+cuda`` is never mangled into ``1.2.3+cuda0`` by the trailing-``a`` label rule.
-
-    No other transformations are applied — case, separators, and label aliases pass through unchanged
-    so ``packaging.Version`` can apply its own canonicalization.
-
-    Args:
-        version: Raw version string, possibly missing trailing digits on labels.
-
-    Returns:
-        Normalized version string ready to be passed to ``packaging.version.Version``.
-
-    Examples:
-        >>> _normalize_version_string("1.8.0.dev")
-        '1.8.0.dev0'
-        >>> _normalize_version_string("1.8.0dev")
-        '1.8.0dev0'
-        >>> _normalize_version_string("1.8.0.post")
-        '1.8.0.post0'
-        >>> _normalize_version_string("v1.2.3")
-        '1.2.3'
-        >>> _normalize_version_string("1.8.0.RC1")
-        '1.8.0.RC1'
-        >>> _normalize_version_string("1.2.3")
-        '1.2.3'
-        >>> _normalize_version_string("1.2.3+cuda")
-        '1.2.3+cuda'
-        >>> _normalize_version_string("v1.8.0.dev+local.a")
-        '1.8.0.dev0+local.a'
-
-    """
-    # Split off any PEP 440 local segment (after ``+``) so the label regex never touches it; labels like
-    # ``post``/``dev`` never appear in a local segment, and running the rule over it mangles legit locals.
-    public, plus, local = version.partition("+")
-    # Strip a single left-anchored leading ``v``/``V`` (``lstrip("vV")`` would strip *all* leading v's).
-    normalized = re.sub(r"^[vV]", "", public)
-    # Append ``0`` to bare pre/post/dev labels with no trailing digit. The ordering of the alternatives
-    # matters: longer labels (``alpha``, ``beta``, ``preview``) must come before their single-letter
-    # forms (``a``, ``b``) so the regex prefers the longer match.
-    # Use a negative lookahead for ``[0-9]`` to detect "no trailing digit"; ``(?=$|[^A-Za-z0-9])``
-    # ensures the label is a whole token (e.g. ``dev`` but not ``develop``).
-    pattern = re.compile(
-        r"(?P<sep>\.?)(?P<label>alpha|beta|preview|post|dev|rc|a|b|c)(?![A-Za-z0-9])",
-        re.IGNORECASE,
-    )
-    normalized = pattern.sub(lambda m: f"{m.group('sep')}{m.group('label')}0", normalized)
-    return f"{normalized}{plus}{local}"
-
-
-def _parse_version(version_string: str) -> "Version":
-    """Parse a version string using the packaging library (PEP 440 compliant).
-
-    This function requires the 'packaging' library, which is available as an optional dependency via the 'audit'
-    extra: ``pip install pyDeprecate[audit]``
-
-    The packaging library provides robust PEP 440 version parsing and comparison, supporting pre-releases
-    (alpha/beta/rc), stable releases, post-releases, and development releases with proper ordering.
-
-    Inputs are first passed through :func:`_normalize_version_string`, which appends ``0`` to bare
-    pre/post/dev labels (e.g. ``"1.8.0.dev"`` becomes ``"1.8.0.dev0"``) so non-canonical-but-common
-    strings parse successfully under strict ``packaging`` (>=22).
-
-    Args:
-        version_string: Version string (e.g., "1.2.3", "2.0", "1.5.0a1", "1.5.0rc1", "1.5.0.post1").
-
-    Returns:
-        packaging.version.Version object that supports comparison operations.
-
-    Raises:
-        ImportError: If the packaging library is not installed.
-        ValueError: If the version string is not valid per PEP 440
-            (wraps ``packaging.version.InvalidVersion`` with additional context).
-
-    Example:
-        >>> import importlib; importlib.import_module("packaging")  # doctest: +ELLIPSIS
-        <module 'packaging' ...>
-        >>> v1 = _parse_version("1.2.3")
-        >>> v2 = _parse_version("2.0")
-        >>> v1 < v2
-        True
-        >>> _parse_version("1.5.0a1") < _parse_version("1.5.0")
-        True
-        >>> _parse_version("1.8.0.dev") < _parse_version("1.8.0")
-        True
-        >>> _parse_version("1.8.0.post") > _parse_version("1.8.0")
-        True
-
-    !!! note
-        Install the audit extra to use version comparison features:
-        ``pip install pyDeprecate[audit]``
-
-    """
-    try:
-        from packaging.version import InvalidVersion, Version
-    except ImportError as err:
-        raise ImportError(
-            "Version comparison requires the 'packaging' library. Install with: pip install pyDeprecate[audit]"
-        ) from err
-
-    try:
-        return Version(_normalize_version_string(version_string))
-    except InvalidVersion as err:
-        raise ValueError(
-            f"Failed to parse version '{version_string}'. Expected PEP 440 format "
-            f"(e.g., '1.2.3', '2.0', '1.5.0a1'). Error: {err}"
-        ) from err
 
 
 def _check_deprecated_wrapper_expiry(func: Union[Callable, types.ModuleType], current_version: str) -> None:
