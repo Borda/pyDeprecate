@@ -412,6 +412,12 @@ class DeprecationConfig:
             Note: for :func:`~deprecate.module.deprecated_module` specifically this field stores the fully-rendered
             warning text (the template already substituted at decoration time), not the raw caller-supplied template
             that the callable and proxy factories store here verbatim.
+        as_exception: Whether this deprecation raises :class:`~deprecate._fatal.DeprecatedError` instead of
+            emitting a warning.  ``None`` (default) defers to the process-wide ``deprecate.AS_EXCEPTIONS``
+            switch; ``True`` is always fatal; ``False`` means "not fatal by default" and still yields to a
+            ``True`` global, so a consumer's strict run cannot be opted out of by an upstream wrapper.  See
+            :func:`~deprecate._fatal._resolve_as_exception` for the resolution rule.  A fatal deprecation
+            bypasses ``num_warns`` entirely — it raises on every call rather than on the first one.
         attrs_mapping: Optional mapping of deprecated attribute names to their canonical replacement names (or
             ``None`` for warn-only).  Set by :func:`~deprecate.proxy.deprecated_class` when
             selective per-attribute deprecation is enabled.  Non-``None`` redirect targets must be existing attribute
@@ -494,6 +500,7 @@ class DeprecationConfig:
     misconfigured: bool = False
     docstring_style: Literal["rst", "mkdocs"] = "rst"
     message_template: Optional[str] = None
+    as_exception: Optional[bool] = None
     attrs_mapping: Optional[dict[str, Optional[str]]] = None
     args_mapping_auto_expanded: tuple[str, ...] = field(default_factory=tuple)
     args_mapping_positional_only: tuple[str, ...] = field(default_factory=tuple)

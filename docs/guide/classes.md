@@ -1103,6 +1103,10 @@ RetryConfig
 
 Objects with no introspectable signature — a plain `dict` wrapped by `deprecated_instance()`, for instance — get `__signature__ = None` instead of an error. Wrapping never fails because the source cannot be introspected.
 
+## Fatal deprecations
+
+`as_exception=True` works on `deprecated_class()` and `deprecated_instance()` exactly as it does on the callable forms — see [Fatal deprecations](functions.md#fatal-deprecations) for the full contract. On a proxy, every access that would warn raises `DeprecatedError` instead: instantiation, attribute reads and writes, item access, calls, and the arithmetic/conversion dunders. Structural probes stay silent because they never warned either — `isinstance`, `issubclass`, `repr`, `str`, equality, ordering, and `len` are transparent by design, so a debugger or a duck-typing check does not trip the gate. A failed `hasattr` probe also stays quiet (the attribute is resolved before the warning fires), but a *successful* one raises, since that is a real use of the deprecated attribute.
+
 ## See also
 
 - [Use Cases overview](use-cases.md) — start here for a guided tour of all deprecation patterns

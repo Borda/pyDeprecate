@@ -226,12 +226,13 @@ Not sure which API to reach for? Start here.
 | `message_template` | `None`                      | Custom warning message template (`%`-style placeholders)                                                                                                                |
 | `args_extra`       | `None`                      | Fixed kwargs injected into the target call                                                                                                                              |
 | `skip_if`          | `False`                     | `bool` or `Callable → bool`; deactivate the deprecation machinery when true                                                                                             |
+| `as_exception`     | `None`                      | Raise `DeprecatedError` instead of warning; `None` follows the global `deprecate.AS_EXCEPTIONS`                                                                         |
 | `update_docstring` | `False`                     | Append Sphinx `.. deprecated::` notice to docstring                                                                                                                     |
 | `docstring_style`  | `"auto"`                    | Docstring notice format: `auto` · `rst` · `mkdocs`/`markdown`                                                                                                           |
 
 > [!TIP]
 >
-> All three decorators share every parameter above. The only differences: `deprecated_class()` adds the class-only `attrs_mapping` (attribute-name remapping — `TypeError` on the other two), and a **class source** is dispatched to `deprecated_class` by `@deprecated` but rejected with `TypeError` by `deprecated_callable()`. `TargetMode.AUTO` is front-door-only: `deprecated_callable()` defaults `target` to `TargetMode.NOTIFY`, `deprecated_class()` leaves it unset, and both raise `TypeError` when handed `TargetMode.AUTO` explicitly. `deprecated_instance()` shares `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_extra`, `message_template`, and `skip_if`; it requires `obj` and adds `name` (display name) and `read_only`.
+> All three decorators share every parameter above. The only differences: `deprecated_class()` adds the class-only `attrs_mapping` (attribute-name remapping — `TypeError` on the other two), and a **class source** is dispatched to `deprecated_class` by `@deprecated` but rejected with `TypeError` by `deprecated_callable()`. `TargetMode.AUTO` is front-door-only: `deprecated_callable()` defaults `target` to `TargetMode.NOTIFY`, `deprecated_class()` leaves it unset, and both raise `TypeError` when handed `TargetMode.AUTO` explicitly. `deprecated_instance()` shares `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_extra`, `message_template`, `skip_if`, and `as_exception`; it requires `obj` and adds `name` (display name) and `read_only`.
 
 </details>
 
@@ -717,6 +718,67 @@ print(skip_pow(2, 3))
 </details>
 
 This pattern is useful when a migration is only active for some environments or dependency versions.
+
+### 💥 Fatal deprecations
+
+A warning is a request; sometimes you need a refusal. `as_exception=True` raises `DeprecatedError` instead of emitting the warning — the same rendered message, but the call stops: the replacement target is never invoked and the source body never runs (so `TargetMode.NOTIFY` and `TargetMode.ARGS_REMAP` stop instead of falling through). It is the middle step of the warn → raise → delete lifecycle, available on `@deprecated`, `deprecated_callable()`, `deprecated_class()`, `deprecated_instance()`, and `deprecated_module()`.
+
+Two behaviours differ from the warning path and are deliberate: a fatal deprecation ignores `num_warns` and raises on **every** call (a budget that stopped raising after the first call would be a gate with a hole in it), and `stream=None` silences only the message, never the raise. `skip_if` still suppresses everything, fatal included.
+
+<details>
+<summary>Example: <code>as_exception</code> on a single wrapper</summary>
+
+```python
+from deprecate import DeprecatedError, TargetMode, deprecated
+
+
+@deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0", as_exception=True)
+def legacy_encode(text: str) -> str:
+    return text.upper()
+
+
+# the body never runs — the call is refused, not merely flagged
+try:
+    legacy_encode("ship it")
+except DeprecatedError as err:
+    print(err)
+
+# and it refuses again: the `num_warns` budget does not apply to a fatal deprecation
+try:
+    legacy_encode("again")
+except DeprecatedError as err:
+    print(type(err).__name__)
+```
+
+</details>
+
+<details>
+  <summary>Output: <code>legacy_encode("ship it"); legacy_encode("again")</code></summary>
+
+```
+The `legacy_encode` was deprecated since v1.0. It will be removed in v2.0.
+DeprecatedError
+```
+
+</details>
+
+With a forwarding `target=new_encode` the raised message names the replacement exactly as the warning would (`… in favor of `mypkg.new_encode\`\`), but the target is still never called.
+
+Flip every deprecation at once with the process-wide switch — `deprecate.AS_EXCEPTIONS`, seeded at import from the `DEPRECATE_AS_EXCEPTIONS` environment variable (`1`, `true`, `yes`, or `on`):
+
+```bash
+DEPRECATE_AS_EXCEPTIONS=1 pytest   # every pyDeprecate deprecation your code triggers now fails the run
+```
+
+Precedence is **monotonic**: an explicit `as_exception=True` is always fatal, while `as_exception=False` means "not fatal by default" and still yields to a `True` global — so a consumer's strict run cannot be opted out of by the library that declared the deprecation.
+
+> [!TIP]
+>
+> Python already offers `-W error::FutureWarning` and `PYTHONWARNINGS=error::FutureWarning`, and those are the right tool when you want *every* library's `FutureWarning` to raise. Reach for `as_exception` when you need something they cannot do: fail only on pyDeprecate's own deprecations (not on NumPy's or pandas'), fail when the wrapper routes through a non-warnings `stream` such as `logging.warning`, or ship one symbol as fatal ahead of the rest.
+
+> [!WARNING]
+>
+> A fatal **module** deprecation raises on every public attribute access, which includes attribute-walking tools — pytest collection, Sphinx autodoc, `pickle`, `copy`. That is the contract working as intended, but expect such tools to stop at the module rather than skip it. pyDeprecate's own audit is the exception: `find_deprecation_wrappers()` and the `pydeprecate` CLI read the module's `__dict__`, so a fatal module still shows up in discovery and reports.
 
 ### 🔒 Strict callable-only deprecation
 

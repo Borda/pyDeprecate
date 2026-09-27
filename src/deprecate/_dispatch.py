@@ -16,6 +16,7 @@ from functools import cached_property
 from inspect import Parameter
 from typing import Any, Callable, Optional, Union, cast
 
+from deprecate._fatal import _resolve_as_exception
 from deprecate._types import (
     DeprecationConfig,
     TargetMode,
@@ -736,12 +737,16 @@ def _build_call_plan(  # noqa: C901, PLR0912
     # warned_calls >= num_warns on every subsequent call — no benefit from acquiring the lock.
     # The authoritative check-then-increment still runs under the lock when a warning may fire.
     # Argument-specific budgets are not pre-checked (rare path, dict lookup not worth the complexity).
-    should_warn = False
-    if stream and (num_warns < 0 or reason_argument or state.warned_calls < num_warns):
+    # A fatal deprecation is resolved first and sidesteps both gates below: the warn budget (it must raise on
+    # every call, not once — otherwise a caller catching DeprecatedError sails through on the second attempt)
+    # and the ``stream`` check (``stream=None`` silences the message, it does not open the door).  The budget
+    # counters stay untouched, so flipping the global switch off mid-process restores ordinary warn-once.
+    _fatal = _resolve_as_exception(dep_cfg.as_exception)
+    should_warn = _fatal
+    if not _fatal and stream and (num_warns < 0 or reason_argument or state.warned_calls < num_warns):
         with state.lock:
             should_warn = _consume_warn_budget(state, num_warns, reason_callable, reason_argument)
     if should_warn:
-        assert stream is not None  # noqa: S101 — should_warn is only set while holding the lock when stream is truthy
         if reason_callable:
             # Use original `target` (not remapped normalized_target) so the warning
             # names the class (e.g. "NewCls") rather than "__init__".
@@ -753,6 +758,7 @@ def _build_call_plan(  # noqa: C901, PLR0912
                 remove_in=dep_cfg.remove_in,
                 message_template=dep_cfg.message_template,
                 stacklevel=_stacklevel_to_caller,
+                as_exception=_fatal,
             )
         elif reason_argument:
             _raise_warn_arguments(
@@ -763,6 +769,7 @@ def _build_call_plan(  # noqa: C901, PLR0912
                 remove_in=dep_cfg.remove_in,
                 message_template=dep_cfg.message_template,
                 stacklevel=_stacklevel_to_caller,
+                as_exception=_fatal,
             )
 
     if reason_callable:

@@ -26,6 +26,7 @@ import types
 import warnings
 from typing import Any, Callable, Optional
 
+from deprecate._fatal import DeprecatedError, _resolve_as_exception
 from deprecate._types import DeprecationConfig, TargetMode, _WrapperState, get_deprecation_config
 from deprecate.messaging import _consume_warn_budget, _format_deprecation_message, _validate_message_template
 
@@ -126,7 +127,19 @@ def _emit_module_warning(
     counter (``reason_callable=True``) since a module has only one warning reason, unlike a callable's callable-vs-
     argument split.
 
+    A fatal deprecation (``as_exception=True`` on the wrapper, or the process-wide ``deprecate.AS_EXCEPTIONS``)
+    raises :class:`~deprecate._fatal.DeprecatedError` carrying the same rendered message instead of emitting it,
+    bypassing the budget so every access to the deprecated module fails rather than only the first.
+
+    Raises:
+        DeprecatedError: When the deprecation resolves as fatal.
+
     """
+    warn_msg: str = config.message_template or ""
+    # Fatal first: a fatal module deprecation raises on every access, so it never consults the warn budget and
+    # is not silenced by ``stream=None`` (which suppresses only the message).
+    if _resolve_as_exception(config.as_exception):
+        raise DeprecatedError(warn_msg)
     if num_warns >= 0:
         should_warn = False
         if state.warned_calls < num_warns:
@@ -134,7 +147,6 @@ def _emit_module_warning(
                 should_warn = _consume_warn_budget(state, num_warns, reason_callable=True, reason_argument={})
         if not should_warn:
             return
-    warn_msg: str = config.message_template or ""
     if stream is not None:
         try:
             stream(warn_msg, stacklevel=3)
@@ -315,6 +327,7 @@ def deprecated_module(
     stream: Optional[Callable[..., Any]] = None,
     message_template: Optional[str] = None,
     num_warns: int = -1,
+    as_exception: Optional[bool] = None,
 ) -> None:
     """Mark a module as deprecated by intercepting all public attribute accesses.
 
@@ -373,6 +386,11 @@ def deprecated_module(
             ``deprecated_class``'s ``attrs_mapping``-scoped counters) and is thread-safe under concurrent
             access. The default ``-1`` takes no budget lock on the ``__getattribute__`` hot path, but each access
             still performs normal metadata lookup and warning handling.
+        as_exception: Promote every access to this module into a raised
+            :class:`~deprecate._fatal.DeprecatedError` instead of a warning — see
+            :func:`~deprecate.routine.deprecated_callable`'s ``as_exception`` for the full contract. A fatal
+            module deprecation ignores ``num_warns`` (every access raises) and is not silenced by
+            ``stream=None``. ``None`` (default) defers to the process-wide ``deprecate.AS_EXCEPTIONS`` switch.
 
     Raises:
         ValueError: If the resolved module ``name`` is not found in :data:`sys.modules`; if ``name`` is omitted
@@ -439,6 +457,7 @@ def deprecated_module(
         name=module_name,
         target=target if target is not None else TargetMode.NOTIFY,
         message_template=warn_msg,
+        as_exception=as_exception,
         attrs_mapping=attrs_mapping,
     )
 

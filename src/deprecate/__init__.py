@@ -83,6 +83,7 @@ Complete Documentation:
 """
 
 from deprecate.__about__ import *  # noqa: F403
+from deprecate._fatal import DeprecatedError, _env_as_exceptions
 
 # Opt-in strict ``property`` replacement: ``from deprecate import property`` shadows the builtin
 # in the importing module only, rejecting inner-order ``@property @deprecated`` at class-body time.
@@ -119,8 +120,16 @@ from deprecate.utils import (
     void,
 )
 
+#: Process-wide default for ``as_exception``: when ``True``, every deprecation that does not set
+#: ``as_exception=False`` raises :class:`~deprecate._fatal.DeprecatedError` instead of warning.  Seeded from
+#: ``DEPRECATE_AS_EXCEPTIONS`` at import and re-read on every emission, so assigning to it at runtime (or in a
+#: test) takes effect immediately.  An explicit ``as_exception=True`` on a wrapper is fatal regardless of this.
+AS_EXCEPTIONS: bool = _env_as_exceptions()
+
 __all__ = [
+    "AS_EXCEPTIONS",
     "ChainType",
+    "DeprecatedError",
     "DeprecationProxy",
     "DeprecationStatus",
     "DeprecationWrapperInfo",
