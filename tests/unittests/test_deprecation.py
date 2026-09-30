@@ -89,11 +89,20 @@ class TestFrontDoorDispatchForwarding:
         assert forwarded["remove_in"] == "2.0"
 
 
-@pytest.mark.parametrize("decorator", [deprecated, deprecated_callable], ids=["front-door", "strict"])
+@pytest.mark.parametrize(
+    "decorator",
+    [
+        pytest.param(deprecated, id="front-door"),
+        pytest.param(deprecated_callable, id="strict"),
+    ],
+)
 @pytest.mark.parametrize(
     "options",
-    [(True,), (True, "rst"), (True, "rst", "legacy message")],
-    ids=["update-docstring", "docstring-style", "template-alias"],
+    [
+        pytest.param((True,), id="update-docstring"),
+        pytest.param((True, "rst"), id="docstring-style"),
+        pytest.param((True, "rst", "legacy message"), id="template-alias"),
+    ],
 )
 def test_positional_docstring_options(decorator: Callable, options: tuple) -> None:
     """Preserve positional bindings from releases preceding fatal deprecation mode.

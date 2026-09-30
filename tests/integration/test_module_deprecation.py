@@ -957,8 +957,11 @@ class TestReconfigurationWarns:
 
     @pytest.mark.parametrize(
         ("original", "incoming"),
-        [(None, True), (False, True), (True, False)],
-        ids=["default-to-fatal", "warning-to-fatal", "fatal-to-warning"],
+        [
+            pytest.param(None, True, id="default-to-fatal"),
+            pytest.param(False, True, id="warning-to-fatal"),
+            pytest.param(True, False, id="fatal-to-warning"),
+        ],
     )
     def test_fatal_mode_warns_and_keeps_original(
         self, make_tmp_module: Callable[..., types.ModuleType], original: bool | None, incoming: bool

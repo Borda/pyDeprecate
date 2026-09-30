@@ -1543,10 +1543,10 @@ def deprecated_class(
     args_extra: Optional[dict[str, Any]] = None,
     attrs_mapping: Optional[dict[str, Optional[str]]] = None,
     skip_if: Union[bool, Callable[[], bool]] = False,
-    as_exception: Optional[bool] = None,
     update_docstring: bool = False,
     docstring_style: Literal["auto", "rst", "mkdocs", "markdown"] = "auto",
     template_mgs: Optional[str] = None,
+    as_exception: Optional[bool] = None,
     _misconfigured_override: bool = False,
     _stacklevel_extra: int = 0,
 ) -> Callable[[_ClassOrProxy], "_DeprecatedProxy"]:
@@ -1634,12 +1634,6 @@ def deprecated_class(
             ``deprecated_callable(skip_if=...)``, where a skipped call executes the source body unchanged.
             The condition may be consulted more than once per proxy operation, so keep the callable cheap and
             stable; a callable that returns a non-``bool`` raises :class:`TypeError` at access time.
-        as_exception: Promote this deprecation from a warning to a raised
-            :class:`~deprecate._fatal.DeprecatedError` — see :func:`~deprecate.routine.deprecated_callable`'s
-            ``as_exception`` for the full contract. Every access that would warn raises instead (structural
-            probes such as ``isinstance``, ``repr``, equality, and ``len`` stay silent, exactly as they already
-            were), the warn budget does not apply, and ``stream=None`` silences only the message. ``None``
-            (default) defers to the process-wide ``deprecate.AS_EXCEPTIONS`` switch.
         update_docstring: If ``True``, inject a deprecation notice into the class docstring at decoration time (same
             behaviour as ``@deprecated(update_docstring=True)``).
         docstring_style: Output style for the injected notice when ``update_docstring=True``.  ``"auto"`` detects the
@@ -1648,6 +1642,12 @@ def deprecated_class(
         template_mgs: Deprecated alias for ``message_template`` (renamed in ``v0.12``; the old spelling was a
             typo).  Supplying it emits a :class:`FutureWarning` and its value is used as ``message_template``;
             supplying both raises :class:`TypeError`.  Removed in ``v1.0``.
+        as_exception: Promote this deprecation from a warning to a raised
+            :class:`~deprecate._fatal.DeprecatedError` — see :func:`~deprecate.routine.deprecated_callable`'s
+            ``as_exception`` for the full contract. Every access that would warn raises instead (structural
+            probes such as ``isinstance``, ``repr``, equality, and ``len`` stay silent, exactly as they already
+            were), the warn budget does not apply, and ``stream=None`` silences only the message. ``None``
+            (default) defers to the process-wide ``deprecate.AS_EXCEPTIONS`` switch.
 
     Returns:
         A decorator that wraps the class in a :class:`~deprecate.proxy._DeprecatedProxy`, which satisfies the public
@@ -1781,10 +1781,10 @@ def deprecated_instance(
     stream: Optional[Callable[..., None]] = deprecation_warning,
     message_template: Optional[str] = None,
     skip_if: Union[bool, Callable[[], bool]] = False,
-    as_exception: Optional[bool] = None,
     read_only: bool = False,
     args_extra: Optional[dict[str, Any]] = None,
     template_mgs: Optional[str] = None,
+    as_exception: Optional[bool] = None,
 ) -> "_DeprecatedProxy":
     """Wrap any Python object with deprecation warnings.
 
@@ -1810,12 +1810,6 @@ def deprecated_instance(
             than once per proxy operation; a callable that returns a non-``bool`` raises :class:`TypeError` at
             access time.  For picklable proxies, use a module-level callable or a plain ``bool`` (same constraint
             as *stream*).
-        as_exception: Promote this deprecation from a warning to a raised
-            :class:`~deprecate._fatal.DeprecatedError` — see :func:`~deprecate.routine.deprecated_callable`'s
-            ``as_exception`` for the full contract. Every access that would warn raises instead (structural
-            probes such as ``isinstance``, ``repr``, equality, and ``len`` stay silent, exactly as they already
-            were), the warn budget does not apply, and ``stream=None`` silences only the message. ``None``
-            (default) defers to the process-wide ``deprecate.AS_EXCEPTIONS`` switch.
         read_only: If ``True``, raise :class:`AttributeError` on any write attempt through the proxy.
             Only the following standard collection mutator names are intercepted: ``append``, ``clear``,
             ``discard``, ``extend``, ``insert``, ``pop``, ``remove``, ``setdefault``, ``update``, ``add``.
@@ -1825,6 +1819,12 @@ def deprecated_instance(
         template_mgs: Deprecated alias for ``message_template`` (renamed in ``v0.12``; the old spelling was a
             typo).  Supplying it emits a :class:`FutureWarning` and its value is used as ``message_template``;
             supplying both raises :class:`TypeError`.  Removed in ``v1.0``.
+        as_exception: Promote this deprecation from a warning to a raised
+            :class:`~deprecate._fatal.DeprecatedError` — see :func:`~deprecate.routine.deprecated_callable`'s
+            ``as_exception`` for the full contract. Every access that would warn raises instead (structural
+            probes such as ``isinstance``, ``repr``, equality, and ``len`` stay silent, exactly as they already
+            were), the warn budget does not apply, and ``stream=None`` silences only the message. ``None``
+            (default) defers to the process-wide ``deprecate.AS_EXCEPTIONS`` switch.
 
     Returns:
         A :class:`~deprecate.proxy._DeprecatedProxy` wrapping *obj*, satisfying the public
