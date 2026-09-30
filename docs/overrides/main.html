@@ -516,6 +516,14 @@
             "@type": "Answer",
             "text": "Both are intended. num_warns budgets messages; a gate that stopped refusing after the first call would let a caller retrying inside except DeprecatedError straight through, so a fatal deprecation bypasses the budget, raises on every call, and leaves the warn counters untouched. stream=None silences the message, not the lifecycle state: the raise is the gate, and letting an unrelated cosmetic setting switch it off would be a trap in CI. The one switch that does suppress a fatal deprecation is skip_if, because a wrapper turned off by configuration is not a deprecation at that moment. For whole modules there is a flip side: a fatal deprecated_module raises on every public attribute access, including attribute-walking tools such as pytest collection, Sphinx autodoc, pickle, and copy, so expect those to stop at the module rather than skip it."
           }
+        },
+        {
+          "@type": "Question",
+          "name": "Why don't mypy, pyright, or my IDE flag functions deprecated with pyDeprecate?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Type checkers recognise a deprecation only when the decorator is literally warnings.deprecated (Python 3.13+) or typing_extensions.deprecated; they match the decorator by name, so no runtime decorator, pyDeprecate's included, can make them see it. Stack the PEP 702 decorator directly above pyDeprecate's: warnings.deprecated(\"Use new_name instead.\", category=None) over deprecated(...). Keep category=None, otherwise every call warns twice; write the message as a string literal, because mypy silently ignores a constant or f-string; and import the module rather than the name so pyDeprecate's deprecated is not shadowed. mypy only reports it with enable_error_code = [\"deprecated\"], pyright in CI with reportDeprecated = \"error\". Over deprecated_class(...), mypy flags the old class name but pyright does not, because it sees the proxy the decorator returns."
+          }
         }
       ]
     }

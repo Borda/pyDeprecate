@@ -85,7 +85,12 @@ warn_unused_ignores = "True"
 warn_no_return = "True"
 allow_redefinition = "True"
 warn_unused_configs = "True"
-overrides = [ { module = [ "tests.*" ], warn_unused_ignores = false } ]
+# `test_pep702` asserts that mypy flags every documented PEP 702 stacking spelling: each use carries
+# `# type: ignore[deprecated]`, so a spelling mypy stops recognising turns into an unused-ignore failure.
+overrides = [
+  { module = [ "tests.*" ], warn_unused_ignores = false },
+  { module = [ "tests.unittests.test_pep702" ], warn_unused_ignores = true, enable_error_code = [ "deprecated" ] },
+]
 show_error_codes = "True"
 
 [tool.pytest]

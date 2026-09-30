@@ -813,10 +813,17 @@ class _DeprecatedProxy:
         When ``attrs_mapping`` is configured and the attribute name is a deprecated alias, emits a warning and
         redirects the write to the canonical attribute name.
 
+        ``__deprecated__`` is proxy metadata, not wrapped-object state: it is stored on the proxy itself, ahead of the
+        ``skip_if`` pass-through and the read-only guard, so a PEP 702 decorator stacked on the proxy never marks the
+        wrapped (replacement) object deprecated.
+
         Raises:
             AttributeError: If the proxy is in read-only mode.
 
         """
+        if name == "__deprecated__":
+            object.__setattr__(self, name, value)
+            return
         # skip_if active — write straight to the wrapped source; no warning, redirect, or read-only guard.
         if self._shall_skip():
             setattr(self._cfg.obj, name, value)
@@ -842,12 +849,16 @@ class _DeprecatedProxy:
         """Forward attribute deletion to the active object, raising in read-only mode.
 
         When ``attrs_mapping`` is configured and the attribute name is a deprecated alias, emits a warning and
-        redirects the deletion to the canonical attribute name.
+        redirects the deletion to the canonical attribute name. ``__deprecated__`` is deleted from the proxy itself,
+        mirroring :meth:`~deprecate.proxy._DeprecatedProxy.__setattr__`.
 
         Raises:
             AttributeError: If the proxy is in read-only mode.
 
         """
+        if name == "__deprecated__":
+            object.__delattr__(self, name)
+            return
         # skip_if active — delete straight on the wrapped source; no warning, redirect, or read-only guard.
         if self._shall_skip():
             delattr(self._cfg.obj, name)

@@ -76,7 +76,9 @@ class DeprecationWrapperInfo:
         api_type: Inferred deprecated API type for report generation.
             Possible values: ``callable``, ``args``, ``class``, ``dataclass``, ``dataclass attributes``,
             ``data``, ``class constructor``, ``class constructor args``, ``class method``, ``class method args``,
-            ``classmethod``, ``classmethod args``, ``staticmethod``, ``staticmethod args``.
+            ``classmethod``, ``classmethod args``, ``staticmethod``, ``staticmethod args``, and ``pep702`` for an
+            object deprecated only with ``warnings.deprecated``/``typing_extensions.deprecated`` (reported only when
+            :func:`~deprecate.audit.find_deprecation_wrappers` is called with ``include_pep702=True``).
         args_mapping_auto_expanded: ``args_mapping`` keys that were automatically copied from ``attrs_mapping``
             by the dataclass dual-surface expansion at decoration time.  Empty list when no auto-expansion
             occurred.  Read from :attr:`~deprecate._types.DeprecationConfig.args_mapping_auto_expanded`.
@@ -92,6 +94,9 @@ class DeprecationWrapperInfo:
             ``@deprecated(...) @property`` (which produces a :class:`~deprecate._properties._DeprecatedProperty`
             that re-wraps every rebound accessor).  CI pipelines can filter on this field to reject the silent
             write/delete gap.  ``False`` for outer-order properties, non-property wrappers, and proxies.
+        pep702_message: The message a PEP 702 decorator recorded on ``__deprecated__`` for an ``api_type="pep702"``
+            row — the only metadata such an object carries, so ``deprecated_info`` holds no versions or target.
+            Empty for every pyDeprecate wrapper.
 
     Example:
         >>> info = DeprecationWrapperInfo(
@@ -124,6 +129,7 @@ class DeprecationWrapperInfo:
     args_mapping_auto_expanded: list[str] = field(default_factory=list)
     args_mapping_positional_only: list[str] = field(default_factory=list)
     inner_order_property: bool = False
+    pep702_message: str = field(repr=False, default="")
 
     def __post_init__(self) -> None:
         """Derive ``empty_deprecated_in`` from ``deprecated_info`` to keep them in sync."""

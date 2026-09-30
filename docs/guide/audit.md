@@ -244,6 +244,34 @@ Self-references: 0
 
 </details>
 
+### PEP 702-only deprecations
+
+A symbol deprecated with `warnings.deprecated` / `typing_extensions.deprecated` alone carries no pyDeprecate metadata, so the default scan skips it — that keeps `check`, `expiry`, and `policy` results unchanged for projects that mix both decorators. Pass `include_pep702=True` to list those symbols too. Each appears as a row with `api_type="pep702"` and the decorator's message in `pep702_message`; its `deprecated_info` holds no versions (`empty_deprecated_in` is `True`), because PEP 702 records none. A pyDeprecate wrapper with a PEP 702 decorator stacked on top — the [static-checker pattern](functions.md#static-type-checkers-pep-702) — stays a regular row with its full schedule.
+
+```python
+from deprecate import find_deprecation_wrappers
+from tests import collection_pep702
+
+rows = find_deprecation_wrappers(collection_pep702, include_pep702=True)
+for row in rows:
+    if row.api_type == "pep702":
+        print(f"{row.function}: {row.pep702_message}")
+```
+
+<details>
+  <summary>Output: <code>row.function, row.pep702_message</code></summary>
+
+```
+Pep702OnlyClass: Use `Pep702StaticTarget` instead.
+Pep702OnlyMembers.old_method: Use `pep702_target` instead.
+Pep702OnlyMembers.old_value: Read `value` instead.
+pep702_only_function: Use `pep702_target` instead.
+```
+
+</details>
+
+A subclass of a PEP 702-deprecated class is not listed: it inherits `__deprecated__` through the MRO but is not itself deprecated.
+
 ### CLI usage
 
 All audit functions are also available from the command line via six subcommands (`check`, `expiry`, `policy`, `chains`, `all`, `status`). See the [CLI Reference](cli.md) for the full guide including flags and exit codes; the CI workflow is in [Enforcing the policy in CI](#enforcing-the-policy-in-ci).

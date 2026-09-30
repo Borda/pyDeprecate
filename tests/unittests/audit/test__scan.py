@@ -9,6 +9,7 @@ import pytest
 
 import tests.collection_deprecate as col
 import tests.collection_misconfigured as clean_module
+import tests.collection_pep702 as pep702_module
 from deprecate import (
     TargetMode,
     deprecated,
@@ -64,6 +65,69 @@ class TestFindDeprecationWrappersWarningBudget:
         # Budget should be untouched — scanning must not consume it
         with pytest.warns(FutureWarning):
             proxy.get("x")  # triggers __getattr__ → _warn() → should still fire
+
+
+class TestFindDeprecationWrappersPep702:
+    """Opt-in discovery of objects deprecated only with the PEP 702 decorator (``include_pep702=True``)."""
+
+    def test_default_scan_reports_only_pydeprecate_wrappers(self) -> None:
+        """Without the opt-in, PEP 702-only objects stay out of the report and every gate built on it.
+
+        A project mixing pyDeprecate and ``warnings.deprecated`` must see no change in ``check``/``expiry``/``policy``
+        results: PEP 702-only objects carry no version schedule, so reporting them by default would flip
+        ``empty_deprecated_in`` and ``message-required`` gates for code that was never scheduled with pyDeprecate.
+
+        """
+        infos = find_deprecation_wrappers(pep702_module, recursive=False)
+        assert {info.function for info in infos} == {
+            "stacked_callable",
+            "StackedAlias",
+            "StackedMembers.legacy_method",
+            "StackedMembers.legacy_value",
+            "StackedMembers.legacy_static",
+        }
+
+    def test_opt_in_reports_pep702_only_objects(self) -> None:
+        """With ``include_pep702=True`` every PEP 702-only function, class, method and property getter is listed.
+
+        A maintainer wants one audit listing of every live deprecation, including symbols that only carry the
+        stdlib-style decorator. A subclass that merely inherits ``__deprecated__`` through the MRO is not itself
+        deprecated and must not appear.
+
+        """
+        infos = find_deprecation_wrappers(pep702_module, recursive=False, include_pep702=True)
+        assert {info.function for info in infos if info.api_type == "pep702"} == {
+            "pep702_only_function",
+            "Pep702OnlyClass",
+            "Pep702OnlyMembers.old_method",
+            "Pep702OnlyMembers.old_value",
+        }
+
+    def test_pep702_row_carries_message_and_no_schedule(self) -> None:
+        """A PEP 702 row exposes the decorator's message and reports the missing version schedule.
+
+        The message is the only metadata a PEP 702 decorator records; the empty ``deprecated_in`` tells a CI filter
+        that this symbol has no removal plan pyDeprecate could enforce.
+
+        """
+        infos = find_deprecation_wrappers(pep702_module, recursive=False, include_pep702=True)
+        row = next(info for info in infos if info.function == "pep702_only_function")
+        assert (row.module, row.pep702_message, row.empty_deprecated_in) == (
+            "tests.collection_pep702",
+            "Use `pep702_target` instead.",
+            True,
+        )
+
+    def test_stacked_wrapper_stays_a_pydeprecate_row(self) -> None:
+        """A pyDeprecate wrapper with a PEP 702 decorator stacked on top is reported once, with its full schedule.
+
+        Stacking is the documented static-checker pattern; it must not demote the wrapper to a schedule-less PEP 702
+        row or report it twice.
+
+        """
+        infos = find_deprecation_wrappers(pep702_module, recursive=False, include_pep702=True)
+        rows = [info for info in infos if info.function == "stacked_callable"]
+        assert [(row.api_type, row.deprecated_info.remove_in) for row in rows] == [("callable", "2.0")]
 
 
 class TestFindDeprecationWrappersReexport:

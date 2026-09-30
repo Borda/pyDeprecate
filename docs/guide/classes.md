@@ -1103,6 +1103,46 @@ RetryConfig
 
 Objects with no introspectable signature — a plain `dict` wrapped by `deprecated_instance()`, for instance — get `__signature__ = None` instead of an error. Wrapping never fails because the source cannot be introspected.
 
+### PEP 702 static checkers
+
+A `typing_extensions.deprecated` / `warnings.deprecated` decorator stacked directly above `@deprecated_class(...)` — with `category=None` and a string-literal message, as described in [Functions → Static type checkers](functions.md#static-type-checkers-pep-702) — makes mypy flag every use of the old class name. pyright does not: it applies the class decorator's return type, sees the proxy instance, and never reaches the PEP 702 marker. Since mypy ignores a class decorator's return type, keep the old class's body mirroring the replacement's constructor and methods so mypy type-checks calls against the right signature.
+
+The PEP 702 decorator writes its message onto the proxy, never onto the replacement class — the class callers are migrating *to* stays unmarked. A `copy.deepcopy` or `pickle` round-trip of the alias restores pyDeprecate's own rendered message in place of the PEP 702 one; type checkers never see that runtime value.
+
+```python
+import typing_extensions
+
+from deprecate import deprecated_class
+
+
+# NEW API — the renamed writer
+class ReportWriter:
+    def __init__(self, path: str = "") -> None:
+        self.path = path
+
+
+# DEPRECATED API — flagged by mypy, forwarded with a warning at runtime
+@typing_extensions.deprecated("Use `ReportWriter` instead.", category=None)
+@deprecated_class(target=ReportWriter, deprecated_in="1.2", remove_in="2.0")
+class CsvReportWriter:
+    def __init__(self, path: str = "") -> None:
+        self.path = path
+
+
+print(CsvReportWriter("out.csv").path)  # warns: FutureWarning
+print("__deprecated__" in vars(ReportWriter))
+```
+
+<details>
+  <summary>Output: <code>CsvReportWriter("out.csv").path; "__deprecated__" in vars(ReportWriter)</code></summary>
+
+```
+out.csv
+False
+```
+
+</details>
+
 ## Fatal deprecations
 
 `as_exception=True` works on `deprecated_class()` and `deprecated_instance()` as it does on the callable forms — see [Fatal deprecations](functions.md#fatal-deprecations) for the full contract. On a proxy, every operation that would warn raises `DeprecatedError` instead: instantiation, warning-producing attribute reads, item access, calls, and data-use arithmetic/conversion dunders. Writes to names listed in `attrs_mapping` also raise before the mapped write. Ordinary attribute writes and reads/writes of names outside an active `attrs_mapping` remain silent; constructor-only `TargetMode.ARGS_REMAP` does not make attribute access fatal.

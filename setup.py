@@ -70,6 +70,8 @@ setup(
     license=ABOUT.__license__,
     package_dir={"": "src"},
     packages=find_packages(where="src"),
+    # PEP 561 marker: lets downstream mypy/pyright read the inline type hints instead of treating the package as untyped
+    package_data={"deprecate": ["py.typed"]},
     long_description=_load_readme_description(
         _PATH_ROOT, codebase_url=ABOUT.__source_code__, version=f"v{ABOUT.__version__}"
     ),

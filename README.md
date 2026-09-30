@@ -262,7 +262,7 @@ Most alternatives emit a deprecation notice. pyDeprecate is for migrations where
 - **Testing Helpers**: Built-in tools like `assert_no_warnings()` ensure your deprecations are testable and deterministic.
 - **Class/Instance Proxy**: Deprecate entire classes, Enums, dataclasses, and module-level objects with transparent proxy wrappers (`deprecated_class`, `deprecated_instance`).
 - **CI/Audit Tools**: Validate wrapper configuration, and — when installed with the `pyDeprecate[audit]` extra — enforce removal deadlines (PEP 440) and detect deprecated-to-deprecated chains.
-- **Static Type-Checker Signals**: Native PEP 702 static diagnostics come from `warnings.deprecated`. For projects that need both static-checker hints and runtime call-forwarding, `warnings.deprecated` (for the static signal) and pyDeprecate's `@deprecated` (for forwarding) can be applied separately to the same function.
+- **Static Type-Checker Signals**: Native PEP 702 static diagnostics come from `warnings.deprecated` — type checkers recognise that decorator by name only. For both static-checker hints and runtime call-forwarding, stack `@warnings.deprecated("literal message", category=None)` directly above pyDeprecate's `@deprecated(...)`; `category=None` keeps the runtime warning pyDeprecate-only. The package ships `py.typed` and keeps decorated signatures intact for type checkers, and `find_deprecation_wrappers(..., include_pep702=True)` also lists symbols deprecated with the PEP 702 decorator alone.
 - **Decorator Stacking**: Stack `@deprecated` decorators for multi-version migrations — rename arguments across releases (`ARGS_REMAP + ARGS_REMAP`), then deprecate the whole function when a complete replacement arrives (`ARGS_REMAP + NOTIFY`). Unsupported combinations warn at decoration time.
 - **Sphinx Plugin**: Ships a Sphinx autodoc extension (`deprecate.docstring.sphinx_ext`) so `_DeprecatedProxy` objects are documented with their injected deprecation notice instead of rendering as opaque aliases.
 - **MkDocs Plugin**: Ships a Griffe extension (`deprecate.docstring.griffe_ext`) for mkdocstrings so runtime-injected `!!! warning` admonitions are visible in MkDocs-generated API docs.
@@ -1567,6 +1567,7 @@ The `DeprecationWrapperInfo` dataclass contains:
 - `self_reference`: True if target points to the same function (self-reference)
 - `no_effect`: True if wrapper has zero impact (self-reference, empty mapping, or all identity)
 - `empty_deprecated_in`: True if `deprecated_in` is absent (CI misconfiguration signal — missing introductory version metadata)
+- `pep702_message`: the PEP 702 decorator's message on a row found with `find_deprecation_wrappers(..., include_pep702=True)` for a symbol deprecated only with `warnings.deprecated` (`api_type="pep702"`); empty for pyDeprecate wrappers
 
 <details>
 <summary><b>Validating a Single Function</b></summary>

@@ -21,7 +21,7 @@ import inspect
 import warnings
 from contextvars import ContextVar
 from functools import cached_property, wraps
-from typing import Any, Callable, Literal, Optional, Union, cast
+from typing import Any, Callable, Literal, Optional, TypeVar, Union, cast
 
 from deprecate._dispatch import (
     _build_call_plan,
@@ -60,6 +60,9 @@ from deprecate.utils import _get_signature, _unwrap_descriptor_target
 # A synchronous recursive chain (same task/stack) shares one set — correct for cycle detection.
 # Lives here (not in _dispatch) because only the ``wrapped_fn`` closures below read/write it.
 _cycle_detection: ContextVar[Optional[set[int]]] = ContextVar("_cycle_detection", default=None)
+
+#: Decorated source type: the wrapper keeps the source's calling signature, so type checkers and IDEs see it unchanged.
+_SourceT = TypeVar("_SourceT")
 
 
 def _packing_descriptor(  # noqa: C901 — property-path guards (fget/fset/fdel validation + TypeError raises) are one coherent story; splitting further adds indirection without reducing real complexity
@@ -202,7 +205,7 @@ def deprecated_callable(  # noqa: C901
     template_mgs: Optional[str] = None,
     *,
     as_exception: Optional[bool] = None,
-) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+) -> Callable[[_SourceT], _SourceT]:
     """Decorate a function/method with warning message and forward calls to target — the strict callable form.
 
     This is the canonical callable-only implementation.  It behaves like :func:`deprecated` for functions,
@@ -635,4 +638,6 @@ def deprecated_callable(  # noqa: C901
 
         return wrapped_fn
 
-    return packing
+    # ``packing`` also takes private ``_stacklevel``/``_is_static`` arguments the front door passes; the public
+    # contract is the identity signature above.
+    return cast(Callable[[_SourceT], _SourceT], packing)

@@ -1659,17 +1659,14 @@ def pep702_stacked(x: int) -> int:
 # ========== PEP 702 stacking regression fixture (B1b — deprecated_class proxy) ==========
 # ``typing_extensions.deprecated`` stacked OUTSIDE pyDeprecate's ``deprecated_class``
 # proxy wrapper.  The inner ``deprecated_class(...)`` returns a ``_DeprecatedProxy``
-# instance whose ``__deprecated__`` slot lives in the proxy instance ``__dict__``
-# (set via ``object.__setattr__``) and is read back via ``object.__getattribute__``.
+# instance whose configuration lives on ``__deprecation_config__``.
 #
-# PEP 702's outer wrapper assigns ``arg.__deprecated__ = msg`` on the proxy.  That
-# attribute set routes through the proxy's forwarding ``__setattr__``, which calls
-# ``setattr(self._get_active(), "__deprecated__", msg)`` — landing on the wrapped
-# class, not on the proxy's own instance ``__dict__``.  As a result, the proxy's
-# ``object.__getattribute__(self, "__deprecated__")`` reads in ``_dep`` and ``__call__``
-# still resolve to the original ``DeprecationConfig`` and instantiation survives.
+# PEP 702's outer wrapper assigns ``arg.__deprecated__ = msg`` on the proxy.  The
+# proxy's ``__setattr__`` stores that message on the proxy itself — never forwarding it
+# to ``_Pep702ProxyTarget`` — so the configuration survives and the wrapped class is
+# not marked deprecated.
 #
-# This fixture is the B1b regression guard against re-introducing a clobber path.
+# This fixture is the B1b regression guard against re-introducing a clobber or leak path.
 # Both intermediate bindings are underscore-prefixed so audit walkers do not probe
 # the PEP 702-wrapped plain function as a pyDeprecate target.
 _pep702_proxy_inner = deprecated_class(deprecated_in="0.8", remove_in="1.0")(_Pep702ProxyTarget)

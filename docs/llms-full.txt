@@ -213,6 +213,7 @@ The CLI resolves each setting as flag → `[tool.pydeprecate]` in the nearest `p
 - Use `warnings.warn` for a one-off internal warning that does not need API compatibility behavior.
 - Use `warnings.deprecated` (Python 3.13+, PEP 702; backport `typing_extensions.deprecated` for Python < 3.13) for static-checker-only visibility.
 - Use pyDeprecate when runtime compatibility, forwarding, argument remapping, class/object aliases, warning control, or audit checks matter.
+- Need both? Stack `@warnings.deprecated("Use new_func instead.", category=None)` directly above `@deprecated(...)` — type checkers only recognise the PEP 702 decorator by name. Keep `category=None` (no second runtime warning), a string-literal message (mypy ignores constants/f-strings), and import the module (`import warnings`), never `from warnings import deprecated`, which shadows pyDeprecate's `deprecated`.
 
 ## Troubleshooting Summary
 

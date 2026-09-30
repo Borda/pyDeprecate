@@ -64,6 +64,7 @@ from tests.collection_deprecate import (
     pep702_proxy_stacked,
 )
 from tests.collection_misconfigured import make_stacked_legacy_proxy
+from tests.collection_pep702 import StackedAlias
 from tests.collection_targets import (
     AsyncManagedResource,
     AutoExpandDC,
@@ -77,6 +78,7 @@ from tests.collection_targets import (
     Palette,
     PaletteEnum,
     PaletteOld,
+    Pep702StaticTarget,
     PositionalOnlyTarget,
     SomeTargetClass,
     SubclassableBase,
@@ -1286,12 +1288,10 @@ class TestPEP702ProxyStackingRegression:
     """Stacking ``typing_extensions.deprecated`` outside ``deprecated_class`` does not break the proxy (B1b).
 
     PEP 702's ``typing_extensions.deprecated`` assigns ``arg.__deprecated__ = msg`` on the
-    object it decorates.  For a ``_DeprecatedProxy`` instance, that assignment routes
-    through the proxy's forwarding ``__setattr__`` and lands on the wrapped class — it
-    does **not** clobber the proxy's own instance ``__dict__`` slot (which was set via
-    ``object.__setattr__`` at construction time and is read back via
-    ``object.__getattribute__`` in ``_dep`` and ``__call__``).  These tests guard against
-    a future refactor re-introducing a clobber path on the proxy.
+    object it decorates.  For a ``_DeprecatedProxy`` instance, ``__setattr__`` stores that
+    message on the proxy itself — never on the wrapped class — while pyDeprecate's
+    configuration stays on ``__deprecation_config__`` untouched.  These tests guard both
+    halves: the proxy keeps working, and the replacement class is never marked deprecated.
 
     """
 
@@ -1313,6 +1313,43 @@ class TestPEP702ProxyStackingRegression:
         """Outer ``typing_extensions.deprecated`` emits its DeprecationWarning on call."""
         with pytest.warns(DeprecationWarning, match="use `Pep702ProxyTarget`"):
             pep702_proxy_stacked()
+
+    @pytest.mark.parametrize(
+        "target_cls",
+        [
+            pytest.param(_Pep702ProxyTarget, id="default-category"),
+            pytest.param(Pep702StaticTarget, id="category-none"),
+        ],
+    )
+    def test_replacement_class_stays_undeprecated(self, target_cls: type) -> None:
+        """The PEP 702 marker written onto a stacked proxy never reaches the replacement class.
+
+        A library stacks ``typing_extensions.deprecated`` over a ``deprecated_class`` alias so type checkers flag the
+        old name. PEP 702 writes ``__deprecated__`` onto the object it decorates — the proxy. Forwarding that write to
+        the wrapped class would mark the *replacement* deprecated for every tool that reads the attribute.
+
+        """
+        assert "__deprecated__" not in vars(target_cls)
+
+    def test_stacked_alias_carries_pep702_message(self) -> None:
+        """The proxy itself holds the PEP 702 message after stacking, as PEP 702 specifies for the decorated object.
+
+        Runtime tools reading ``StackedAlias.__deprecated__`` must see the message the author gave the static-checker
+        decorator, while pyDeprecate's own configuration stays reachable through ``get_deprecation_config``.
+
+        """
+        assert object.__getattribute__(StackedAlias, "__deprecated__") == "Use `Pep702StaticTarget` instead."
+
+    def test_pep702_marker_write_ignores_read_only_and_skip_if(self) -> None:
+        """Writing ``__deprecated__`` on a read-only, skipped proxy updates proxy metadata instead of raising.
+
+        ``__deprecated__`` is metadata about the proxy, not state of the wrapped object: the read-only guard and the
+        ``skip_if`` pass-through (which would forward the write to a plain ``list`` and raise) must not apply to it.
+
+        """
+        proxy = make_deprecated_instance_skip_if_true_read_only()
+        proxy.__deprecated__ = "Use `new_list` instead."
+        assert object.__getattribute__(proxy, "__deprecated__") == "Use `new_list` instead."
 
 
 class TestCombinedArgAttrsMapping:

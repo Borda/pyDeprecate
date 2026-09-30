@@ -2143,6 +2143,14 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
+## Why don't mypy, pyright, or my IDE flag functions deprecated with pyDeprecate?
+
+**Q:** My deprecated function warns at runtime, but the editor shows no strikethrough and `mypy` / `pyright` report nothing when I call it.
+
+**A:** Type checkers recognise a deprecation only when the decorator is literally `warnings.deprecated` (Python 3.13+) or `typing_extensions.deprecated` — they match the decorator by name, so no runtime decorator (pyDeprecate's included) can make them see it. Stack the PEP 702 decorator directly above pyDeprecate's: `@warnings.deprecated("Use `new_name` instead.", category=None)` over `@deprecated(...)`. Keep `category=None` (otherwise every call warns twice), write the message as a string literal (mypy silently ignores a constant or f-string), and import the module rather than the name so pyDeprecate's `deprecated` is not shadowed. mypy only reports it with `enable_error_code = ["deprecated"]`, pyright in CI with `reportDeprecated = "error"`. Over `@deprecated_class(...)`, mypy flags the old class name but pyright does not, because it sees the proxy the decorator returns. See [Functions → Static type checkers](guide/functions.md#static-type-checkers-pep-702).
+
+______________________________________________________________________
+
 ## Still stuck?
 
 !!! question "Open a GitHub issue"

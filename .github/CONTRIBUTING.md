@@ -384,6 +384,7 @@ pyDeprecate/
 │   ├── collection_misconfigured.py # Invalid configs for validation
 │   ├── collection_chains.py        # Chained deprecation patterns
 │   ├── collection_policy.py        # Wrappers breaking one governance policy rule each
+│   ├── collection_pep702.py        # PEP 702 decorator stacked over pyDeprecate, plus PEP 702-only symbols
 │   ├── collection_docstrings.py    # Fixtures for update_docstring=True behaviour
 │   ├── collection_modules/         # Fixture modules for deprecated_module() integration tests
 │   ├── integration/                # End-to-end tests via the public API
@@ -419,17 +420,18 @@ def my_function(arg: SomeType) -> None:
 
 Tests live in `tests/` and follow a **three-layer separation**:
 
-| File/Folder                   | Purpose                                                                                                                             |
-| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `collection_targets.py`       | Target functions and classes (the "new" implementations that deprecated code forwards to)                                           |
-| `collection_deprecate.py`     | Deprecated wrappers that use `@deprecated(...)` to forward to targets                                                               |
-| `collection_misconfigured.py` | Intentionally invalid/ineffective deprecation configurations for validation testing                                                 |
-| `collection_chains.py`        | Multi-hop deprecation chains (deprecated → deprecated → target) for chain-detection tests                                           |
-| `collection_policy.py`        | Correctly configured wrappers scheduled against project policy — one broken governance rule each, for `validate_deprecation_policy` |
-| `collection_docstrings.py`    | Fixtures for `update_docstring=True` behaviour — new and deprecated callables whose generated docstrings are compared in tests      |
-| `collection_modules/`         | Fixture modules for `deprecated_module()` tests — the deprecated module targets themselves plus their replacement modules           |
-| `integration/`                | End-to-end tests exercising the **public API** via the collection modules                                                           |
-| `unittests/`                  | Focused tests for **private/internal helpers**, each file mirroring one source module                                               |
+| File/Folder                   | Purpose                                                                                                                                                                      |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `collection_targets.py`       | Target functions and classes (the "new" implementations that deprecated code forwards to)                                                                                    |
+| `collection_deprecate.py`     | Deprecated wrappers that use `@deprecated(...)` to forward to targets                                                                                                        |
+| `collection_misconfigured.py` | Intentionally invalid/ineffective deprecation configurations for validation testing                                                                                          |
+| `collection_chains.py`        | Multi-hop deprecation chains (deprecated → deprecated → target) for chain-detection tests                                                                                    |
+| `collection_policy.py`        | Correctly configured wrappers scheduled against project policy — one broken governance rule each, for `validate_deprecation_policy`                                          |
+| `collection_pep702.py`        | `typing_extensions.deprecated` stacked over pyDeprecate wrappers (static-checker pattern) plus PEP 702-only symbols, for `include_pep702` audit and mypy `deprecated` checks |
+| `collection_docstrings.py`    | Fixtures for `update_docstring=True` behaviour — new and deprecated callables whose generated docstrings are compared in tests                                               |
+| `collection_modules/`         | Fixture modules for `deprecated_module()` tests — the deprecated module targets themselves plus their replacement modules                                                    |
+| `integration/`                | End-to-end tests exercising the **public API** via the collection modules                                                                                                    |
+| `unittests/`                  | Focused tests for **private/internal helpers**, each file mirroring one source module                                                                                        |
 
 **`integration/`** — Each file covers one area of the public surface (functions, classes, audit, utils, docstrings, README examples, or agent-plugin manifests). Tests call `@deprecated`-decorated code as a user would and assert on warnings, return values, and forwarded types. `test_readme.py` is generated by `phmdoctest` from README code blocks; `test_agent_plugin.py` verifies that both host catalogs resolve the same local plugin skills and aligned manifests.
 
@@ -448,7 +450,7 @@ Tests live in `tests/` and follow a **three-layer separation**:
 > - Use `print()` to display values; follow immediately with a `<details><summary>Output: <code>expression</code></summary>` block showing expected output.
 > - Do **not** use bare `assert` statements in top-level example code (e.g. `assert pt.x == 1.0`, `assert isinstance(obj, MyClass)`) — use `print()` instead so the value is visible rather than crashing with `AssertionError`. **Exception:** bare `assert` statements inside `def test_...` function bodies shown as pytest integration examples are allowed and idiomatic.
 > - Avoid placeholders that do not validate behavior.
-> - **Never import a fictional package name** in runnable examples — executable examples must import from actual test collection modules (`from tests import collection_deprecate`, `collection_misconfigured`, `collection_chains`, or `collection_policy`). For CI-template snippets that intentionally show a placeholder import, add `# phmdoctest:skip — CI template: replace my_package with your actual package` as the first line of the code block so phmdoctest skips execution.
+> - **Never import a fictional package name** in runnable examples — executable examples must import from actual test collection modules (`from tests import collection_deprecate`, `collection_misconfigured`, `collection_chains`, `collection_policy`, or `collection_pep702`). For CI-template snippets that intentionally show a placeholder import, add `# phmdoctest:skip — CI template: replace my_package with your actual package` as the first line of the code block so phmdoctest skips execution.
 
 > [!NOTE]
 >
@@ -613,7 +615,7 @@ def depr_class_whole_mode_warns_on_call(x: int) -> int: ...
 
 **Docstrings in test collections:**
 
-Functions in `collection_deprecate.py`, `collection_misconfigured.py`, `collection_chains.py`, `collection_policy.py`, and `collection_docstrings.py` must have Google-style docstrings with a **user-first focus** — describe the real-world scenario a user would encounter, not just the technical configuration. This keeps tests grounded in actual use cases and helps contributors understand *why* each deprecation pattern exists.
+Functions in `collection_deprecate.py`, `collection_misconfigured.py`, `collection_chains.py`, `collection_policy.py`, `collection_pep702.py`, and `collection_docstrings.py` must have Google-style docstrings with a **user-first focus** — describe the real-world scenario a user would encounter, not just the technical configuration. This keeps tests grounded in actual use cases and helps contributors understand *why* each deprecation pattern exists.
 
 Use a one-line summary of the deprecation pattern, then an `Examples:` section describing the user scenario:
 
