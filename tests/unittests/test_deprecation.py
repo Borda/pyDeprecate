@@ -8,10 +8,15 @@ routing so a regression in argument forwarding (wrong target resolution, a dropp
 loudly and cheaply without depending on the full machinery.
 """
 
+import inspect
 import warnings
+from collections.abc import Callable
 from unittest import mock
 
-from deprecate import TargetMode, deprecated
+import pytest
+
+from deprecate import DeprecatedError, TargetMode, deprecated, deprecated_callable
+from tests.collection_deprecate import make_positional_docstring_wrapper
 
 
 class TestFrontDoorDispatchForwarding:
@@ -82,3 +87,40 @@ class TestFrontDoorDispatchForwarding:
         assert forwarded["args_mapping"] == {"old_arg": "new_arg"}
         assert forwarded["deprecated_in"] == "1.0"
         assert forwarded["remove_in"] == "2.0"
+
+
+@pytest.mark.parametrize(
+    "decorator",
+    [
+        pytest.param(deprecated, id="front-door"),
+        pytest.param(deprecated_callable, id="strict"),
+    ],
+)
+@pytest.mark.parametrize(
+    "options",
+    [
+        pytest.param((True,), id="update-docstring"),
+        pytest.param((True, "rst"), id="docstring-style"),
+        pytest.param((True, "rst", "legacy message"), id="template-alias"),
+    ],
+)
+def test_positional_docstring_options(decorator: Callable, options: tuple) -> None:
+    """Preserve positional bindings from releases preceding fatal deprecation mode.
+
+    A caller upgrading the package keeps its positional docstring and legacy template settings.
+    These settings must still inject the notice while an explicit keyword selects fatal behavior.
+    """
+    signature = inspect.signature(decorator)
+    bound = signature.bind(TargetMode.NOTIFY, "1.0", "2.0", None, 1, None, None, None, False, *options)
+    assert bound.arguments["update_docstring"] is True
+    if len(options) > 1:
+        assert bound.arguments["docstring_style"] == "rst"
+    if len(options) > 2:
+        assert bound.arguments["template_mgs"] == "legacy message"
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", FutureWarning)
+        wrapper = make_positional_docstring_wrapper(decorator, options, fatal=True)
+    assert wrapper.__doc__ is not None
+    assert "deprecated" in wrapper.__doc__.lower()
+    with pytest.raises(DeprecatedError, match="legacy message" if len(options) > 2 else "deprecated"):
+        wrapper(3)

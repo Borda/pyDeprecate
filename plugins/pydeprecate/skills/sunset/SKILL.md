@@ -48,10 +48,13 @@ Present the derived versions with the rule and source behind each before the fir
 | Class rename | `deprecated_class(target=Replacement, ...)` | Preserve constructor compatibility |
 | Object alias | `deprecated_instance(...)` | Inspect proxy behavior needed by callers |
 | Attribute-only migration | `deprecated_class(target=TargetMode.ATTRS_REMAP, attrs_mapping=..., ...)` | Preserve unaffected class behavior |
+| Final release before removal | add `as_exception=True` (since 0.14) to the existing wrapper | Body unreachable — the call raises |
 
 Use explicit modes, never legacy `target=True` / `target=None` sentinels. Attribute mappings belong on `deprecated_class`, not `deprecated`. Keep old calling conventions, including positional arguments, defaults and keyword conflicts; a rename must not silently change binding.
 
 For properties, descriptors, async/generators, modules or stacked wrappers, read the relevant installed implementation/release documentation before editing. Property forwarding is not supported by the decorator: delegate inside the accessor for warn-only property migrations. Preserve unrelated decorators and future deprecation layers. Check `skip_if`: it can execute the original body instead of forwarding.
+
+A deprecation that is past polite warning can refuse the call instead: `as_exception=True` (since 0.14; no equivalent on 0.11-0.13) raises `DeprecatedError` carrying the same message, never invokes the target and never runs the source body. Use it as the warn -> raise -> delete middle step, one release before removal, and record in the changelog that the symbol now raises. It ignores `num_warns` (every call raises) and is not silenced by `stream=None`; `skip_if` still suppresses it. The process-wide `deprecate.AS_EXCEPTIONS` (seeded from `DEPRECATE_AS_EXCEPTIONS`) is the consumer's switch, not the library's: do not set it in library code. When the user only wants every `FutureWarning` to fail their run, point at `-W error::FutureWarning` instead.
 
 Provide migration guidance through the replacement/mapping and, when needed, `message_template` (since 0.12; `template_mgs` on 0.11). Verify supported template fields rather than inventing a `message=` argument.
 

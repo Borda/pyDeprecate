@@ -45,6 +45,7 @@ class _PackingClassArgs:
     args_mapping: Optional[dict[str, Optional[str]]]
     args_extra: Optional[dict[str, Any]]
     skip_if: Union[bool, Callable]
+    as_exception: Optional[bool]
     update_docstring: bool
     docstring_style: str
     _stacklevel: int
@@ -134,6 +135,7 @@ def _packing_class_source(
         args_mapping=pack_args.args_mapping,
         args_extra=pack_args.args_extra,
         skip_if=pack_args.skip_if,
+        as_exception=pack_args.as_exception,
         update_docstring=pack_args.update_docstring,
         docstring_style=pack_args.docstring_style,
         _misconfigured_override=class_misconfigured,
@@ -158,6 +160,8 @@ def deprecated(
     update_docstring: bool = False,
     docstring_style: Literal["auto", "rst", "mkdocs", "markdown"] = "auto",
     template_mgs: Optional[str] = None,
+    *,
+    as_exception: Optional[bool] = None,
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Deprecate a function, method, or class — the friendly front door.
 
@@ -222,6 +226,12 @@ def deprecated(
         template_mgs: Deprecated alias for ``message_template`` (renamed in ``v0.12``; the old spelling was a
             typo). Supplying it emits a :class:`FutureWarning` and its value is used as ``message_template``;
             supplying both raises :class:`TypeError`. Removed in ``v1.0``.
+        as_exception: Promote this deprecation from a warning to a raised
+            :class:`~deprecate._fatal.DeprecatedError` — see :func:`~deprecate.routine.deprecated_callable`'s
+            ``as_exception`` for the full contract (message text, ``num_warns`` bypass, ``stream=None`` and
+            ``skip_if`` interaction, and the monotonic precedence against ``deprecate.AS_EXCEPTIONS``).
+            ``None`` (default) follows the global switch, which is off unless ``DEPRECATE_AS_EXCEPTIONS`` is
+            set.
 
     Returns:
         Decorator that wraps the source callable, or the class proxy for a class source.
@@ -268,6 +278,7 @@ def deprecated(
         args_mapping=args_mapping,
         args_extra=args_extra,
         skip_if=skip_if,
+        as_exception=as_exception,
         update_docstring=update_docstring,
         docstring_style=docstring_style,
     )
@@ -306,6 +317,7 @@ def deprecated(
                     args_mapping=args_mapping,
                     args_extra=args_extra,
                     skip_if=skip_if,
+                    as_exception=as_exception,
                     update_docstring=update_docstring,
                     docstring_style=docstring_style,
                     _stacklevel=_stacklevel + 1,

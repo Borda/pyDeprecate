@@ -777,7 +777,10 @@ class TestCmdAll:
 class TestReportChains:
     """Tests for _report_chains_rich and _report_chains_plain via _report_issues."""
 
-    @pytest.mark.parametrize("has_rich", [True, False], ids=["rich", "plain"])
+    @pytest.mark.parametrize(
+        "has_rich",
+        [pytest.param(True, id="rich"), pytest.param(False, id="plain")],
+    )
     @pytest.mark.parametrize(
         ("chain_type", "expected_label"),
         [
@@ -795,7 +798,10 @@ class TestReportChains:
         captured = capsys.readouterr()
         assert expected_label in captured.out.lower()
 
-    @pytest.mark.parametrize("has_rich", [True, False], ids=["rich", "plain"])
+    @pytest.mark.parametrize(
+        "has_rich",
+        [pytest.param(True, id="rich"), pytest.param(False, id="plain")],
+    )
     def test_chains_flag_true(self, has_rich: bool) -> None:
         """_report_issues returns True when chains are present."""
         results = [DeprecationWrapperInfo(module="mod", function="fn", chain_type=ChainType.TARGET)]
@@ -806,7 +812,10 @@ class TestReportChains:
 class TestReportExpiry:
     """Tests for _report_expiry_rich and _report_expiry_plain."""
 
-    @pytest.mark.parametrize("has_rich", [True, False], ids=["rich", "plain"])
+    @pytest.mark.parametrize(
+        "has_rich",
+        [pytest.param(True, id="rich"), pytest.param(False, id="plain")],
+    )
     def test_expired_message_in_output(self, capsys: pytest.CaptureFixture[str], has_rich: bool) -> None:
         """Expired message text appears in both rich and plain output via cmd_expiry."""
         with (
@@ -860,7 +869,10 @@ class TestReportPolicy:
 class TestReportIssues:
     """Tests for _report_issues covering both the rich and plain-text output paths."""
 
-    @pytest.mark.parametrize("has_rich", [True, False], ids=["rich", "plain"])
+    @pytest.mark.parametrize(
+        "has_rich",
+        [pytest.param(True, id="rich"), pytest.param(False, id="plain")],
+    )
     @pytest.mark.parametrize(
         ("results", "expected"),
         [

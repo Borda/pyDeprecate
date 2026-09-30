@@ -42,6 +42,7 @@ from dataclasses import replace
 from typing import Any, Callable, Literal, Optional, SupportsIndex, Union, cast
 
 from deprecate._dispatch import _split_positional_only_kwargs
+from deprecate._fatal import DeprecatedError, _resolve_as_exception
 from deprecate._types import (
     DeprecationConfig,
     DeprecationProxy,
@@ -72,6 +73,41 @@ _DEFAULT_STACKLEVEL_TO_CALLER: int = 3
 def _is_dunder(name: str) -> bool:
     """Return whether *name* is a dunder attribute name (``__x__``) — introspection machinery, not user API."""
     return name.startswith("__") and name.endswith("__")
+
+
+def _consume_proxy_warn_budget(cfg: _ProxyConfig, arg_name: Optional[str]) -> bool:
+    """Claim one slot of a proxy's warn budget, returning whether the caller may emit the warning.
+
+    The quota check and the counter increment happen together under ``cfg.lock`` so concurrent first accesses
+    cannot all read the counter as ``0``, all pass the gate, and each emit a warning (check-then-act race).
+    Mirrors the decorator path's decide-and-increment-under-the-lock pattern; the warning itself is emitted by
+    the caller, outside the lock, to avoid serialising callers on a potentially slow ``stream`` callable.
+
+    Args:
+        cfg: The proxy's mutable runtime config holding the counters and the lock.
+        arg_name: A renamed argument's name for a per-argument budget, or ``None`` for the proxy-wide counter.
+
+    Returns:
+        ``True`` when a slot was claimed and the warning must be emitted, ``False`` when the budget is spent.
+
+    Examples:
+        >>> from deprecate._types import _ProxyConfig
+        >>> cfg = _ProxyConfig(obj=object(), stream=None, num_warns=1, read_only=False)
+        >>> _consume_proxy_warn_budget(cfg, None), _consume_proxy_warn_budget(cfg, None)
+        (True, False)
+
+    """
+    with cfg.lock:
+        if arg_name is not None:
+            arg_count = cfg.warned_args.get(arg_name, 0)
+            if cfg.num_warns < 0 or arg_count < cfg.num_warns:
+                cfg.warned_args[arg_name] = arg_count + 1
+                return True
+            return False
+        if cfg.num_warns < 0 or cfg.warned < cfg.num_warns:
+            cfg.warned += 1
+            return True
+        return False
 
 
 class _DeprecatedProxy:
@@ -328,6 +364,7 @@ class _DeprecatedProxy:
         stream: Optional[Callable[..., None]] = deprecation_warning,
         message_template: Optional[str] = None,
         skip_if: Union[bool, Callable[[], bool]] = False,
+        as_exception: Optional[bool] = None,
         read_only: bool = False,
         docstring_style: str = "auto",
         _misconfigured_override: bool = False,
@@ -433,6 +470,7 @@ class _DeprecatedProxy:
             misconfigured=misconfigured,
             docstring_style=normalize_docstring_style(docstring_style),
             message_template=message_template,
+            as_exception=as_exception,
             attrs_mapping=attrs_mapping,
             args_mapping_auto_expanded=tuple(_auto_expanded),
             args_mapping_positional_only=_incompatible,
@@ -579,38 +617,33 @@ class _DeprecatedProxy:
         if self._shall_skip():
             return
         cfg = self._cfg
+        dep = self._dep
+        # Fatal deprecations are resolved before the ``stream`` gate: ``stream=None`` silences the message but
+        # never opens the door.  Every ``_warn`` call site is a data-producing use of the deprecated object —
+        # structural probes (``__eq__``, ordering, ``__len__``, ``__repr__``, ``__bool__``, ``__exit__``) never
+        # reach here, and ``__getattr__`` resolves the attribute before warning — so each one is also a
+        # legitimate place to raise, with no per-dunder exemptions.
+        fatal = _resolve_as_exception(dep.as_exception)
         stream = cfg.stream
-        if not stream:
+        if not stream and not fatal:
             return
         # Build the message before taking the lock: attrs_mapping miss returns None (no warning),
         # and message building is pure CPU work with no IO.
-        dep = self._dep
         msg = _build_proxy_warn_msg(self, arg_name, dep, cfg)
         if msg is None:
             return
-        # Take the state lock around quota check + counter increment so concurrent first accesses
-        # cannot all read the counter as 0, all pass the gate, and each emit a warning
-        # (check-then-act race).  Mirrors the decorator-path pattern in ``deprecation.py``:
-        # decide-and-increment under the lock, emit the warning outside to avoid serialising
-        # callers on a potentially slow ``stream`` callable.
-        should_warn = False
-        with cfg.lock:
-            if arg_name is not None:
-                arg_count = cfg.warned_args.get(arg_name, 0)
-                if cfg.num_warns < 0 or arg_count < cfg.num_warns:
-                    should_warn = True
-                    cfg.warned_args[arg_name] = arg_count + 1
-            else:
-                if cfg.num_warns < 0 or cfg.warned < cfg.num_warns:
-                    should_warn = True
-                    cfg.warned += 1
-        if not should_warn:
+        if fatal:
+            # Ahead of the budget block on purpose: a fatal deprecation raises on every access, and leaves the
+            # warn counters untouched so turning the global switch back off restores ordinary warn-once.
+            raise DeprecatedError(msg)
+        if not _consume_proxy_warn_budget(cfg, arg_name):
             return
         # Route the warning to the caller's frame rather than ``proxy.py``.
         # A plain ``try/except TypeError`` would swallow a TypeError raised *inside* a
         # stacklevel-accepting stream and re-invoke it (double side-effect).
         # Checking the exception message distinguishes a keyword-rejection error from an
         # internal one — the stream is called exactly once in all but the keyword-rejection case.
+        assert stream is not None  # noqa: S101 — a falsy stream returned above unless the fatal branch raised
         try:
             stream(msg, stacklevel=_DEFAULT_STACKLEVEL_TO_CALLER + _extra_frames)
         except TypeError as _exc:
@@ -1513,6 +1546,7 @@ def deprecated_class(
     update_docstring: bool = False,
     docstring_style: Literal["auto", "rst", "mkdocs", "markdown"] = "auto",
     template_mgs: Optional[str] = None,
+    as_exception: Optional[bool] = None,
     _misconfigured_override: bool = False,
     _stacklevel_extra: int = 0,
 ) -> Callable[[_ClassOrProxy], "_DeprecatedProxy"]:
@@ -1608,6 +1642,12 @@ def deprecated_class(
         template_mgs: Deprecated alias for ``message_template`` (renamed in ``v0.12``; the old spelling was a
             typo).  Supplying it emits a :class:`FutureWarning` and its value is used as ``message_template``;
             supplying both raises :class:`TypeError`.  Removed in ``v1.0``.
+        as_exception: Promote this deprecation from a warning to a raised
+            :class:`~deprecate._fatal.DeprecatedError` — see :func:`~deprecate.routine.deprecated_callable`'s
+            ``as_exception`` for the full contract. Every access that would warn raises instead (structural
+            probes such as ``isinstance``, ``repr``, equality, and ``len`` stay silent, exactly as they already
+            were), the warn budget does not apply, and ``stream=None`` silences only the message. ``None``
+            (default) defers to the process-wide ``deprecate.AS_EXCEPTIONS`` switch.
 
     Returns:
         A decorator that wraps the class in a :class:`~deprecate.proxy._DeprecatedProxy`, which satisfies the public
@@ -1713,6 +1753,7 @@ def deprecated_class(
             args_extra=args_extra,
             attrs_mapping=attrs_mapping,
             skip_if=skip_if,
+            as_exception=as_exception,
             docstring_style=docstring_style,
             _misconfigured_override=_misconfigured_override,
             _stacklevel_extra=_stacklevel_extra,
@@ -1743,6 +1784,7 @@ def deprecated_instance(
     read_only: bool = False,
     args_extra: Optional[dict[str, Any]] = None,
     template_mgs: Optional[str] = None,
+    as_exception: Optional[bool] = None,
 ) -> "_DeprecatedProxy":
     """Wrap any Python object with deprecation warnings.
 
@@ -1777,6 +1819,12 @@ def deprecated_instance(
         template_mgs: Deprecated alias for ``message_template`` (renamed in ``v0.12``; the old spelling was a
             typo).  Supplying it emits a :class:`FutureWarning` and its value is used as ``message_template``;
             supplying both raises :class:`TypeError`.  Removed in ``v1.0``.
+        as_exception: Promote this deprecation from a warning to a raised
+            :class:`~deprecate._fatal.DeprecatedError` — see :func:`~deprecate.routine.deprecated_callable`'s
+            ``as_exception`` for the full contract. Every access that would warn raises instead (structural
+            probes such as ``isinstance``, ``repr``, equality, and ``len`` stay silent, exactly as they already
+            were), the warn budget does not apply, and ``stream=None`` silences only the message. ``None``
+            (default) defers to the process-wide ``deprecate.AS_EXCEPTIONS`` switch.
 
     Returns:
         A :class:`~deprecate.proxy._DeprecatedProxy` wrapping *obj*, satisfying the public
@@ -1825,6 +1873,7 @@ def deprecated_instance(
         stream=stream,
         message_template=message_template,
         skip_if=skip_if,
+        as_exception=as_exception,
         read_only=read_only,
         args_extra=args_extra,
     )

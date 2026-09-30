@@ -500,6 +500,22 @@
             "@type": "Answer",
             "text": "The tool is rendering the proxy rather than the class it wraps. Every pyDeprecate proxy carries two breadcrumbs back to the source: __wrapped__ is the source class or object, consumed by inspect.unwrap, Sphinx autodoc, griffe/mkdocstrings, and IDEs; __signature__ is the source's signature, consumed by inspect.signature and any tool that does not walk __wrapped__. Reading either attribute emits no deprecation warning, so documentation builds and IDE hovers stay quiet. If a tool still renders the proxy, point it at __wrapped__ explicitly. When the wrapped object has no introspectable signature — a plain dict passed to deprecated_instance, or any C-level type — __signature__ is None rather than absent, and wrapping never fails."
           }
+        },
+        {
+          "@type": "Question",
+          "name": "Why does my deprecated function raise DeprecatedError instead of warning?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Something switched the deprecation to fatal. Check three places in order: the wrapper itself (as_exception=True on the @deprecated, deprecated_class, deprecated_instance, or deprecated_module call), the process-wide deprecate.AS_EXCEPTIONS attribute, which an application bootstrap or test fixture may set, and the DEPRECATE_AS_EXCEPTIONS environment variable, which seeds that attribute at import when set to 1, true, yes, or on. Precedence is monotonic: an explicit as_exception=True is always fatal, and as_exception=False means not fatal by default but still yields to a True global, so a strict CI run cannot be opted out of by the library that declared the deprecation. To locate the source, print deprecate.AS_EXCEPTIONS at the failing call site and read get_deprecation_config(the_wrapper).as_exception for the wrapper's own value."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why does as_exception ignore num_warns and raise even with stream=None?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Both are intended. num_warns budgets messages; a gate that stopped refusing after the first call would let a caller retrying inside except DeprecatedError straight through, so a fatal deprecation bypasses the budget, raises on every call, and leaves the warn counters untouched. stream=None silences the message, not the lifecycle state: the raise is the gate, and letting an unrelated cosmetic setting switch it off would be a trap in CI. The one switch that does suppress a fatal deprecation is skip_if, because a wrapper turned off by configuration is not a deprecation at that moment. For whole modules there is a flip side: a fatal deprecated_module raises on every public attribute access, including attribute-walking tools such as pytest collection, Sphinx autodoc, pickle, and copy, so expect those to stop at the module rather than skip it."
+          }
         }
       ]
     }

@@ -2127,6 +2127,22 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
+## My deprecated function raises `DeprecatedError` instead of warning
+
+**Q:** A call that used to emit a `FutureWarning` now raises `deprecate.DeprecatedError`. Nothing in my code changed.
+
+**A:** Something switched the deprecation to fatal. Three places to check, in order: the wrapper itself (`as_exception=True` on the `@deprecated` / `deprecated_class` / `deprecated_instance` / `deprecated_module` call), the process-wide `deprecate.AS_EXCEPTIONS` attribute (an application bootstrap or a test fixture may set it), and the `DEPRECATE_AS_EXCEPTIONS` environment variable, which seeds that attribute at import when set to `1`, `true`, `yes`, or `on`. Precedence is monotonic, so `as_exception=False` on the wrapper does **not** escape a `True` global — that is deliberate, so a strict CI run cannot be opted out of by the library that declared the deprecation. To find the source, print `deprecate.AS_EXCEPTIONS` and `os.environ.get("DEPRECATE_AS_EXCEPTIONS")` at the failing call site, and read `get_deprecation_config(the_wrapper).as_exception` for the wrapper's own value.
+
+______________________________________________________________________
+
+## Why does `as_exception` ignore `num_warns`, and raise even with `stream=None`?
+
+**Q:** I set `num_warns=1` expecting one exception, or `stream=None` expecting silence, but every call to my fatal deprecation still raises.
+
+**A:** Both are intended. `num_warns` budgets *messages*; a gate that stopped refusing after the first call would let a caller retrying inside `except DeprecatedError` straight through, so a fatal deprecation bypasses the budget and raises on every call, leaving the warn counters untouched. `stream=None` silences the message, not the lifecycle state — the raise is the gate, and making an unrelated cosmetic setting switch it off would be a trap in CI. The one switch that does suppress a fatal deprecation is `skip_if`: a wrapper turned off by configuration is not a deprecation at that moment. Note the flip side for whole modules: a fatal `deprecated_module` raises on every public attribute access, which includes attribute-walking tools such as pytest collection, Sphinx autodoc, `pickle`, and `copy` — expect those to stop at the module rather than skip it. pyDeprecate's own audit is unaffected — `find_deprecation_wrappers()` and the `pydeprecate` CLI read the module's `__dict__` instead of going through attribute access, so a fatal module is still discovered and reported normally.
+
+______________________________________________________________________
+
 ## Still stuck?
 
 !!! question "Open a GitHub issue"

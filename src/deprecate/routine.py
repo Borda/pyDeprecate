@@ -200,6 +200,8 @@ def deprecated_callable(  # noqa: C901
     update_docstring: bool = False,
     docstring_style: Literal["auto", "rst", "mkdocs", "markdown"] = "auto",
     template_mgs: Optional[str] = None,
+    *,
+    as_exception: Optional[bool] = None,
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Decorate a function/method with warning message and forward calls to target — the strict callable form.
 
@@ -283,6 +285,19 @@ def deprecated_callable(  # noqa: C901
         template_mgs: Deprecated alias for ``message_template`` (renamed in ``v0.12``; the old spelling was a
             typo). Supplying it emits a :class:`FutureWarning` and its value is used as ``message_template``;
             supplying both raises :class:`TypeError`. Removed in ``v1.0``.
+        as_exception: Promote this deprecation from a warning to a raised
+            :class:`~deprecate._fatal.DeprecatedError` — the warn/raise/delete lifecycle step before the symbol
+            goes away. The raised message is the same text the warning would have carried, the replacement
+            target is never invoked, and the source body never runs (so ``TargetMode.NOTIFY`` and
+            ``TargetMode.ARGS_REMAP`` stop instead of falling through). A fatal deprecation ignores
+            ``num_warns`` and raises on **every** call, and ``stream=None`` silences only the message, never
+            the raise; ``skip_if`` still suppresses it entirely. ``None`` (default) defers to the process-wide
+            ``deprecate.AS_EXCEPTIONS`` switch (seeded from the ``DEPRECATE_AS_EXCEPTIONS`` environment
+            variable); ``True`` is always fatal; ``False`` means "not fatal by default" and still yields to a
+            ``True`` global, so a consumer's strict run cannot be opted out of by an upstream wrapper.
+            Python's own ``-W error::FutureWarning`` is the alternative when you want *every* library's
+            ``FutureWarning`` to raise; this flag is scoped to pyDeprecate's own deprecations and also works
+            when ``stream`` is not a warnings function (e.g. :func:`logging.warning`).
 
     Returns:
         Decorator function that wraps the source function/method.
@@ -299,6 +314,7 @@ def deprecated_callable(  # noqa: C901
         TypeError: If the source is a class method and target is a method on a *different* class (cross-class
             method forwarding detected at decoration time via ``__qualname__`` comparison). Skipped silently
             when the target's qualname prefix names a class absent from the target's module globals.
+
         TypeError: If skip_if is a callable that doesn't return a bool.
         TypeError: If arguments in args_mapping don't exist in target function and target doesn't accept **kwargs.
 
@@ -470,6 +486,7 @@ def deprecated_callable(  # noqa: C901
             misconfigured=misconfigured,
             docstring_style=normalized_docstring_style,
             message_template=message_template,
+            as_exception=as_exception,
             target_positional_only=_target_positional_only,
             target_positional_only_order=_target_positional_only_order,
             source_positional_only=_source_positional_only,

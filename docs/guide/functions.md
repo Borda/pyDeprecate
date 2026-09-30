@@ -499,6 +499,59 @@ print(skip_pow(2, 3))
 
 </details>
 
+## Fatal deprecations
+
+`as_exception=True` raises `DeprecatedError` instead of emitting the warning, carrying the same rendered message. The call is refused rather than flagged: the forwarding target is never invoked and the source body never runs, so `TargetMode.NOTIFY` and `TargetMode.ARGS_REMAP` stop instead of falling through to the body. This is the middle step of the warn → raise → delete lifecycle, and it is available on every entry point (`@deprecated`, `deprecated_callable()`, `deprecated_class()`, `deprecated_instance()`, `deprecated_module()`).
+
+Two rules differ from the warning path on purpose:
+
+- **`num_warns` does not apply.** A fatal deprecation raises on *every* call. A budget would leave a gate that stops refusing after the first attempt — a caller retrying inside `except` would sail through.
+- **`stream=None` silences the message, not the raise.** Fatal mode is a lifecycle state, not an output channel.
+
+`skip_if` still suppresses everything, fatal deprecations included — a wrapper switched off by configuration is not a deprecation at that moment.
+
+```python
+from deprecate import DeprecatedError, TargetMode, deprecated_callable
+
+
+@deprecated_callable(TargetMode.NOTIFY, "1.0", "2.0", as_exception=True)
+def legacy_checksum(payload: str) -> int:
+    return len(payload)
+
+
+try:
+    legacy_checksum("abc")
+except DeprecatedError as err:
+    print(err)
+```
+
+<details>
+  <summary>Output: <code>legacy_checksum("abc")</code></summary>
+
+```
+The `legacy_checksum` was deprecated since v1.0. It will be removed in v2.0.
+```
+
+</details>
+
+### The global switch
+
+`deprecate.AS_EXCEPTIONS` is the process-wide default, seeded at import from the `DEPRECATE_AS_EXCEPTIONS` environment variable (`1`, `true`, `yes`, or `on`; anything else is off). It is re-read on every emission, so an application can flip it during bootstrap and a test suite can toggle it per case:
+
+```bash
+DEPRECATE_AS_EXCEPTIONS=1 pytest
+```
+
+Precedence is **monotonic**: an explicit `as_exception=True` is always fatal, and `as_exception=False` means "not fatal by default" but still yields to a `True` global. A consumer's strict run therefore cannot be opted out of by the library that declared the deprecation, while an author can still promote one symbol ahead of the rest.
+
+### When to prefer `-W error` instead
+
+Python already turns warnings into exceptions: `-W error::FutureWarning` or `PYTHONWARNINGS=error::FutureWarning`. Use those when you want *every* library's `FutureWarning` to raise. `as_exception` exists for the three cases they cannot cover:
+
+1. **Scope** — fail only on pyDeprecate's own deprecations, not on NumPy's or pandas'.
+2. **Non-warnings streams** — a wrapper with `stream=logging.warning` never reaches the warnings machinery, so no filter can make it fail.
+3. **Per-symbol promotion** — ship one deprecation as fatal while the rest keep warning.
+
 ## See also
 
 - [Use Cases overview](use-cases.md) — start here for a guided tour of all deprecation patterns

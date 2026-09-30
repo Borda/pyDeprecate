@@ -147,8 +147,8 @@ def test_claude_host_validates_plugin(target: str) -> None:
 
 
 _SKILL_PATHS = (_PLUGIN / "skills" / "sunset" / "SKILL.md", _PLUGIN / "skills" / "prune" / "SKILL.md")
-# Prose words, stdlib/foreign names, and the wrapper attribute `__deprecated__` the skill bodies also backtick —
-# none of them is a deprecate.* module export.
+# Prose words, stdlib/foreign names, environment-variable names, and the wrapper attribute `__deprecated__` the
+# skill bodies also backtick — none of them is a deprecate.* module export.
 _SKILL_SKIP_TOKENS = frozenset(
     {
         "__deprecated__",
@@ -161,6 +161,7 @@ _SKILL_SKIP_TOKENS = frozenset(
         "deprecate",
         "deprecate.__version__",
         "pyproject.toml",
+        "DEPRECATE_AS_EXCEPTIONS",
     }
 )
 _SKILL_CALLABLES = {

@@ -136,6 +136,7 @@ _DEPRS_CASE_TGT_MODE_ARGS: dict[str, Any] = {"deprecated_in": "1.2", "remove_in"
 _DEPRS_CASE_TGT_MODE_INF_ARGS: dict[str, Any] = {"deprecated_in": "1.2", "remove_in": "2.0", "num_warns": -1}
 _DEPRS_CASE_STD_ARGS: dict[str, Any] = {"deprecated_in": "1.0", "remove_in": "2.0"}
 _DEPRS_CASE_STD_INF_ARGS: dict[str, Any] = {"deprecated_in": "1.0", "remove_in": "2.0", "num_warns": -1}
+_DEPRS_CASE_FATAL_ARGS: dict[str, Any] = {"deprecated_in": "1.0", "remove_in": "2.0", "as_exception": True}
 
 # Shared deprecated_class() instances — used as both decorator and factory form in
 # form-equivalence and fixture groups below; defined here so all usages reference the
@@ -2881,3 +2882,94 @@ def make_deprecated_hostile_signature_instance() -> Any:  # noqa: ANN401
 
     """
     return deprecated_instance(HostileSignatureCallable(), **_DEPRS_CASE_STD_INF_ARGS, stream=None)
+
+
+# ---------------------------------------------------------------------------------------------------------
+# Fatal deprecations (``as_exception``) — Ft-14.  Each wrapper below keeps the DEFAULT ``num_warns=1`` unless
+# the scenario needs otherwise, because the budget-bypass contract (a fatal deprecation raises on every call,
+# never once) is only observable with a finite budget.  ``_DEPRS_CASE_FATAL_ARGS`` lives in the top
+# constants block alongside the other shared version-kwargs constants.
+# ---------------------------------------------------------------------------------------------------------
+
+
+@deprecated(target=base_sum_kwargs, **_DEPRS_CASE_FATAL_ARGS)
+def decorated_sum_fatal(a: int, b: int = 5) -> int:
+    """Forward to `base_sum_kwargs`, but as a fatal deprecation — calling it raises instead of warning."""
+    return a + b
+
+
+@deprecated(target=base_sum_kwargs, deprecated_in="1.0", remove_in="2.0", as_exception=False)
+def decorated_sum_fatal_opt_out(a: int, b: int = 5) -> int:
+    """Forward to `base_sum_kwargs` with `as_exception=False` — not fatal by default, yields to a True global."""
+    return a + b
+
+
+@deprecated(target=base_sum_kwargs, **_DEPRS_CASE_FATAL_ARGS, stream=None)
+def decorated_sum_fatal_no_stream(a: int, b: int = 5) -> int:
+    """Fatal deprecation whose warning stream is silenced — the raise is a gate, not a message channel."""
+    return a + b
+
+
+@deprecated(target=base_sum_kwargs, **_DEPRS_CASE_FATAL_ARGS, skip_if=True)
+def decorated_sum_fatal_skipped(a: int, b: int = 5) -> int:
+    """Fatal deprecation that `skip_if=True` disables — a skipped deprecation is not a deprecation."""
+    return a + b
+
+
+@deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_FATAL_ARGS)
+def decorated_sum_fatal_notify(a: int, b: int = 5) -> int:
+    """Warn-only (NOTIFY) deprecation turned fatal — the source body must NOT run once it raises."""
+    return a + b
+
+
+@deprecated(target=TargetMode.ARGS_REMAP, **_DEPRS_CASE_FATAL_ARGS, args_mapping={"old_x": "x"})
+def decorated_remap_fatal(x: int = 0, old_x: int = 0) -> int:
+    """Self-deprecating argument rename turned fatal — the body must NOT run once it raises."""
+    return x
+
+
+@deprecated(target=base_sum_kwargs, **_DEPRS_CASE_FATAL_ARGS, args_mapping={"old_a": "a"})
+def decorated_args_fatal(old_a: int = 0, b: int = 5) -> int:
+    """Fatal deprecation reached through the renamed-argument reason rather than the callable reason."""
+    return old_a + b
+
+
+@deprecated_class(**_DEPRS_CASE_FATAL_ARGS)
+class FatalLegacyWidget:
+    """Class whose deprecation is fatal — any attribute access or instantiation raises."""
+
+    DEFAULT_SIZE = 3
+
+    def __init__(self, size: int = 1) -> None:
+        """Store the widget size."""
+        self.size = size
+
+
+@deprecated(**_DEPRS_CASE_FATAL_ARGS)
+class FatalLegacyWidgetViaFrontDoor:
+    """Class-source fatal deprecation applied through the ``@deprecated`` front door.
+
+    Not ``deprecated_class`` directly — exercises the ``as_exception`` forwarding in
+    :func:`deprecate.deprecation._packing_class_source`.
+    """
+
+    def __init__(self, size: int = 1) -> None:
+        """Store the widget size."""
+        self.size = size
+
+
+#: Instance deprecation turned fatal — reading a key raises rather than warning.
+fatal_legacy_settings = deprecated_instance({"threshold": 0.5}, name="fatal_legacy_settings", **_DEPRS_CASE_FATAL_ARGS)
+
+
+@deprecated(target=async_target, **_DEPRS_CASE_FATAL_ARGS)
+async def decorated_async_fatal(x: int) -> int:
+    """Async source with a fatal deprecation — awaiting the coroutine raises before the target runs."""
+    return x * 2
+
+
+def make_positional_docstring_wrapper(decorator: Callable, options: tuple[Any, ...], fatal: bool = False) -> Callable:
+    """Build a wrapper using the established positional docstring options and keyword fatal mode."""
+    return decorator(TargetMode.NOTIFY, "1.0", "2.0", None, 1, None, None, None, False, *options, as_exception=fatal)(
+        double_value
+    )

@@ -955,6 +955,31 @@ class TestIdempotency:
 class TestReconfigurationWarns:
     """Second call with a DIFFERENT configuration warns and keeps the original config."""
 
+    @pytest.mark.parametrize(
+        ("original", "incoming"),
+        [
+            pytest.param(None, True, id="default-to-fatal"),
+            pytest.param(False, True, id="warning-to-fatal"),
+            pytest.param(True, False, id="fatal-to-warning"),
+        ],
+    )
+    def test_fatal_mode_warns_and_keeps_original(
+        self, make_tmp_module: Callable[..., types.ModuleType], original: bool | None, incoming: bool
+    ) -> None:
+        """Report a repeated module registration that changes only fatal mode.
+
+        Two registrations disagree about warning versus exception delivery. The second must report
+        that disagreement and retain the first configuration so import order stays deterministic.
+        """
+        mod_name = "_test_fatal_reconfiguration_tmp"
+        make_tmp_module(mod_name)
+        deprecated_module(mod_name, as_exception=original, **_DEPRS_CASE_MOD_ARGS)
+        config = vars(sys.modules[mod_name])["__deprecation_config__"]
+        with pytest.warns(UserWarning, match="different configuration.*second call ignored"):
+            deprecated_module(mod_name, as_exception=incoming, **_DEPRS_CASE_MOD_ARGS)
+        assert vars(sys.modules[mod_name])["__deprecation_config__"] is config
+        assert config.as_exception is original
+
     def test_different_mode_warns_and_keeps_original(self, make_tmp_module: Callable[..., types.ModuleType]) -> None:
         """Switching from Mode 1 (in-place warn) to Mode 2 (redirect) on a second call is reported, not dropped.
 

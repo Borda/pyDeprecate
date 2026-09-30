@@ -150,6 +150,12 @@ deprecated_items = find_deprecation_wrappers(my_package)
 module_items = [r for r in deprecated_items if r.api_type == "module"]
 ```
 
+## Fatal deprecations
+
+`deprecated_module(..., as_exception=True)` turns every public attribute access on the module into a raised `DeprecatedError` — see [Fatal deprecations](functions.md#fatal-deprecations) for the full contract, including the process-wide `DEPRECATE_AS_EXCEPTIONS` switch. It ignores `num_warns` (every access raises, not just the first) and is not silenced by `stream=None`.
+
+A module is the broadest surface this feature covers, so expect the blast radius to match: any tool that walks module attributes stops at a fatal module rather than skipping it — pytest collection, Sphinx autodoc, `pickle`, `copy`. pyDeprecate's own audit is unaffected, because `find_deprecation_wrappers()` and the `pydeprecate` CLI read the module's `__dict__` rather than going through attribute access, so a fatal module still appears in discovery and reports like any other.
+
 ## See also
 
 - [Use Cases overview](use-cases.md) — start here for a guided tour of all deprecation patterns
