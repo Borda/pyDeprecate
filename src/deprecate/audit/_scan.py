@@ -209,6 +209,18 @@ def _member_has_deprecation_meta(obj: Any) -> bool:  # noqa: ANN401
     return any(_has_deprecation_meta(c) for c in _descriptor_underlying_callables(obj))
 
 
+def _member_is_deprecated(obj: Any, pep702_message: Optional[str]) -> bool:  # noqa: ANN401
+    """Return whether a class member carries either deprecation marker, so a private member stays in the scan.
+
+    Args:
+        obj: The raw class member (possibly a descriptor).
+        pep702_message: The member's own PEP 702 message, already looked up by the caller, or ``None`` when it has
+            none or the scan did not opt in to PEP 702.
+
+    """
+    return _member_has_deprecation_meta(obj) or pep702_message is not None
+
+
 def _scan_class_member(
     obj: Any,  # noqa: ANN401
     module_name: str,
@@ -295,13 +307,7 @@ def _scan_class(
     for attr_name, obj in members:
         # Looked up once per owned member; the private-member gate and the row below share it.
         pep702_message = _descriptor_pep702_message(obj) if attr_name in pep702_names else None
-        # Private members with either deprecation marker stay visible to an opt-in audit.
-        if (
-            attr_name.startswith("_")
-            and attr_name != "__init__"
-            and not _member_has_deprecation_meta(obj)
-            and pep702_message is None
-        ):
+        if attr_name.startswith("_") and attr_name != "__init__" and not _member_is_deprecated(obj, pep702_message):
             continue
         qualified = f"{cls_name}.{attr_name}"
         result = _scan_class_member(obj, module_name, qualified, attr_name)
