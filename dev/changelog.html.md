@@ -4,6 +4,7 @@
 
 ### Added
 
+- **Fatal deprecations — `as_exception=True` and process-wide strict mode.** All deprecation entry points can raise `DeprecatedError` instead of warning; `deprecate.AS_EXCEPTIONS` and the import-time `DEPRECATE_AS_EXCEPTIONS` environment setting enable strict mode globally. Fatal warning paths ignore `num_warns` and `stream=None`, respect `skip_if`, and stop callable execution or forwarding. Proxy operations that never warn remain silent; ordinary descriptor getters can execute before the fatal error. `as_exception` is keyword-only and the last parameter on every public entry point (`deprecated`, `deprecated_callable`, `deprecated_class`, `deprecated_instance`, `deprecated_module`), so future additions never shift existing positional usage. ([#236](https://github.com/Borda/pyDeprecate/pull/236))
 - **Module warning budgets — `deprecated_module(..., num_warns=...)`.** Module deprecations can now cap warning delivery across all public attribute accesses: `0` delivers none, a positive `N` delivers exactly `N`, and the default `-1` preserves unlimited delivery without taking the budget lock. ([#233](https://github.com/Borda/pyDeprecate/pull/233))
 
 ### Changed

@@ -95,7 +95,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-06-15",
-  "dateModified": "2026-09-07"
+  "dateModified": "2026-09-30"
 }
 </script>
 
@@ -777,6 +777,17 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fatal-deprecations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fatal deprecations
+      
+    </span>
+  </a>
   
 </li>
       
@@ -1762,6 +1773,17 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fatal-deprecations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fatal deprecations
+      
+    </span>
+  </a>
   
 </li>
       
@@ -2778,6 +2800,10 @@
 </details>
 
 <p>Objects with no introspectable signature — a plain <code>dict</code> wrapped by <code>deprecated_instance()</code>, for instance — get <code>__signature__ = None</code> instead of an error. Wrapping never fails because the source cannot be introspected.</p>
+<h2 id="fatal-deprecations">Fatal deprecations<a class="headerlink" href="#fatal-deprecations" title="Permanent link">🔗</a></h2>
+<p><code>as_exception=True</code> works on <code>deprecated_class()</code> and <code>deprecated_instance()</code> as it does on the callable forms — see <a href="functions.html#fatal-deprecations">Fatal deprecations</a> for the full contract. On a proxy, every operation that would warn raises <code>DeprecatedError</code> instead: instantiation, warning-producing attribute reads, item access, calls, and data-use arithmetic/conversion dunders. Writes to names listed in <code>attrs_mapping</code> also raise before the mapped write. Ordinary attribute writes and reads/writes of names outside an active <code>attrs_mapping</code> remain silent; constructor-only <code>TargetMode.ARGS_REMAP</code> does not make attribute access fatal.</p>
+<p>Structural probes stay silent because they never warned either — <code>isinstance</code>, <code>issubclass</code>, <code>repr</code>, <code>str</code>, equality, ordering, and <code>len</code> are transparent by design. Without <code>attrs_mapping</code>, a missing attribute makes <code>hasattr</code> return <code>False</code> silently; a successful non-dunder lookup on a warning-producing path raises <code>DeprecatedError</code>, which <code>hasattr</code> does not swallow. With <code>attrs_mapping</code>, a listed name raises before lookup even if missing, while unlisted names stay silent whether present or missing.</p>
+<p>Fatal deprecation is a migration control, not an authorization boundary. Without <code>attrs_mapping</code>, attribute lookup resolves the value before the fatal warning path: a property getter or another descriptor can execute and produce side effects before <code>DeprecatedError</code> is raised. If that getter raises its own exception, it propagates before the fatal path is reached. Mapped attribute reads reach the fatal path before resolving the mapped descriptor.</p>
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">🔗</a></h2>
 <ul>
 <li><a href="use-cases.html">Use Cases overview</a> — start here for a guided tour of all deprecation patterns</li>
@@ -2812,7 +2838,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="September 7, 2026 12:07:51 UTC">2026-09-07</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="September 30, 2026 18:08:09 UTC">2026-09-30</span>
   </span>
 
     

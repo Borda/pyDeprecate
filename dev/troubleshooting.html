@@ -458,6 +458,22 @@
             "@type": "Answer",
             "text": "The tool is rendering the proxy rather than the class it wraps. Every pyDeprecate proxy carries two breadcrumbs back to the source: __wrapped__ is the source class or object, consumed by inspect.unwrap, Sphinx autodoc, griffe/mkdocstrings, and IDEs; __signature__ is the source's signature, consumed by inspect.signature and any tool that does not walk __wrapped__. Reading either attribute emits no deprecation warning, so documentation builds and IDE hovers stay quiet. If a tool still renders the proxy, point it at __wrapped__ explicitly. When the wrapped object has no introspectable signature — a plain dict passed to deprecated_instance, or any C-level type — __signature__ is None rather than absent, and wrapping never fails."
           }
+        },
+        {
+          "@type": "Question",
+          "name": "Why does my deprecated function raise DeprecatedError instead of warning?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Something switched the deprecation to fatal. Check three places in order: the wrapper itself (as_exception=True on the @deprecated, deprecated_class, deprecated_instance, or deprecated_module call), the process-wide deprecate.AS_EXCEPTIONS attribute, which an application bootstrap or test fixture may set, and the DEPRECATE_AS_EXCEPTIONS environment variable, which seeds that attribute at import when set to 1, true, yes, or on. Precedence is monotonic: an explicit as_exception=True is always fatal, and as_exception=False means not fatal by default but still yields to a True global, so a strict CI run cannot be opted out of by the library that declared the deprecation. To locate the source, print deprecate.AS_EXCEPTIONS at the failing call site and read get_deprecation_config(the_wrapper).as_exception for the wrapper's own value."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why does as_exception ignore num_warns and raise even with stream=None?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Both are intended. num_warns budgets messages; a gate that stopped refusing after the first call would let a caller retrying inside except DeprecatedError straight through, so a fatal deprecation bypasses the budget, raises on every call, and leaves the warn counters untouched. stream=None silences the message, not the lifecycle state: the raise is the gate, and letting an unrelated cosmetic setting switch it off would be a trap in CI. The one switch that does suppress a fatal deprecation is skip_if, because a wrapper turned off by configuration is not a deprecation at that moment. For whole modules there is a flip side: a fatal deprecated_module raises on every public attribute access, including attribute-walking tools such as pytest collection, Sphinx autodoc, pickle, and copy, so expect those to stop at the module rather than skip it."
+          }
         }
       ]
     }
@@ -1890,6 +1906,28 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#my-deprecated-function-raises-deprecatederror-instead-of-warning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        My deprecated function raises DeprecatedError instead of warning
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-does-as_exception-ignore-num_warns-and-raise-even-with-streamnone" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why does as_exception ignore num_warns, and raise even with stream=None?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#still-stuck" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2549,6 +2587,28 @@
     <span class="md-ellipsis">
       
         TypeError: &lt;obj&gt; is wrapped in a deprecation proxy and cannot be pickled directly
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#my-deprecated-function-raises-deprecatederror-instead-of-warning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        My deprecated function raises DeprecatedError instead of warning
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-does-as_exception-ignore-num_warns-and-raise-even-with-streamnone" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why does as_exception ignore num_warns, and raise even with stream=None?
       
     </span>
   </a>
@@ -4313,6 +4373,14 @@
 <p><strong>Q:</strong> I get <code>TypeError: ... is wrapped in a deprecation proxy and cannot be pickled directly</code> when passing a <code>deprecated_instance</code> proxy to <code>pickle.dumps</code>, <code>multiprocessing</code>, or <code>joblib</code>.</p>
 <p><strong>A:</strong> This error was raised in older versions (before <a href="https://github.com/Borda/pyDeprecate/pull/212">PR #212</a>). Since PR #212, <code>pickle.dumps(proxy)</code> works for <code>deprecated_instance</code> proxies: the proxy is reconstructed on unpickle with deprecation semantics preserved. If you still see this error on a <code>deprecated_instance</code> proxy, upgrade pyDeprecate. Two remaining caveats: (1) the <code>stream</code> callable must be picklable by reference — if you passed a lambda or closure as <code>stream</code>, use <code>stream=None</code> or <code>stream=warnings.warn</code> instead; (2) <code>deprecated_class</code> proxies raise <code>PicklingError</code> in the common pattern where the decorated class name is replaced by the proxy — use <code>copy.deepcopy</code> for class aliases instead.</p>
 <hr />
+<h2 id="my-deprecated-function-raises-deprecatederror-instead-of-warning">My deprecated function raises <code>DeprecatedError</code> instead of warning<a class="headerlink" href="#my-deprecated-function-raises-deprecatederror-instead-of-warning" title="Permanent link">🔗</a></h2>
+<p><strong>Q:</strong> A call that used to emit a <code>FutureWarning</code> now raises <code>deprecate.DeprecatedError</code>. Nothing in my code changed.</p>
+<p><strong>A:</strong> Something switched the deprecation to fatal. Three places to check, in order: the wrapper itself (<code>as_exception=True</code> on the <code>@deprecated</code> / <code>deprecated_class</code> / <code>deprecated_instance</code> / <code>deprecated_module</code> call), the process-wide <code>deprecate.AS_EXCEPTIONS</code> attribute (an application bootstrap or a test fixture may set it), and the <code>DEPRECATE_AS_EXCEPTIONS</code> environment variable, which seeds that attribute at import when set to <code>1</code>, <code>true</code>, <code>yes</code>, or <code>on</code>. Precedence is monotonic, so <code>as_exception=False</code> on the wrapper does <strong>not</strong> escape a <code>True</code> global — that is deliberate, so a strict CI run cannot be opted out of by the library that declared the deprecation. To find the source, print <code>deprecate.AS_EXCEPTIONS</code> and <code>os.environ.get("DEPRECATE_AS_EXCEPTIONS")</code> at the failing call site, and read <code>get_deprecation_config(the_wrapper).as_exception</code> for the wrapper's own value.</p>
+<hr />
+<h2 id="why-does-as_exception-ignore-num_warns-and-raise-even-with-streamnone">Why does <code>as_exception</code> ignore <code>num_warns</code>, and raise even with <code>stream=None</code>?<a class="headerlink" href="#why-does-as_exception-ignore-num_warns-and-raise-even-with-streamnone" title="Permanent link">🔗</a></h2>
+<p><strong>Q:</strong> I set <code>num_warns=1</code> expecting one exception, or <code>stream=None</code> expecting silence, but every call to my fatal deprecation still raises.</p>
+<p><strong>A:</strong> Both are intended. <code>num_warns</code> budgets <em>messages</em>; a gate that stopped refusing after the first call would let a caller retrying inside <code>except DeprecatedError</code> straight through, so a fatal deprecation bypasses the budget and raises on every call, leaving the warn counters untouched. <code>stream=None</code> silences the message, not the lifecycle state — the raise is the gate, and making an unrelated cosmetic setting switch it off would be a trap in CI. The one switch that does suppress a fatal deprecation is <code>skip_if</code>: a wrapper turned off by configuration is not a deprecation at that moment. Note the flip side for whole modules: a fatal <code>deprecated_module</code> raises on every public attribute access, which includes attribute-walking tools such as pytest collection, Sphinx autodoc, <code>pickle</code>, and <code>copy</code> — expect those to stop at the module rather than skip it. pyDeprecate's own audit is unaffected — <code>find_deprecation_wrappers()</code> and the <code>pydeprecate</code> CLI read the module's <code>__dict__</code> instead of going through attribute access, so a fatal module is still discovered and reported normally.</p>
+<hr />
 <h2 id="still-stuck">Still stuck?<a class="headerlink" href="#still-stuck" title="Permanent link">🔗</a></h2>
 <div class="admonition question">
 <p class="admonition-title">Open a GitHub issue</p>
@@ -4340,7 +4408,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="September 22, 2026 09:11:18 UTC">2026-09-22</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="September 30, 2026 18:08:09 UTC">2026-09-30</span>
   </span>
 
     
