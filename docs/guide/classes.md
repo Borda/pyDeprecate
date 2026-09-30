@@ -1005,9 +1005,7 @@ LegacyTrainingConfig 2.0
 
 ## Type annotations and static analysis
 
-`deprecated_class()` and `deprecated_instance()` both return a proxy object rather than a class. Annotate that proxy with `DeprecationProxy`, the public protocol describing it.
-
-`DeprecationProxy[T]` is generic in the type you get back when you call the proxy, but `deprecated_class` and `deprecated_instance` return the concrete proxy in every call shape — mypy has nothing to infer `T` from on its own. A caller who wants the target type at a specific site annotates it there:
+At runtime `deprecated_class()` returns a proxy; to type checkers it returns the class you passed in. The call form `deprecated_class(...)(BrandColor)` is typed `type[BrandColor]` — the same type checkers already give the `@deprecated_class(...)` decorator form, which they read as the class statement — so both forms agree:
 
 ```python
 from enum import Enum
@@ -1020,35 +1018,36 @@ class BrandColor(Enum):
     BLUE = 2
 
 
-# DEPRECATED API — `WidgetColor` was the original name; the source class keeps a private
-# name because the proxy, not the class, is what callers import
-class _LegacyWidgetColor(Enum):
-    RED = 1
-    BLUE = 2
-
-
-# explicit annotation — so `WidgetColor(1)` below is known to produce a `BrandColor`
-WidgetColor: DeprecationProxy[BrandColor] = deprecated_class(target=BrandColor, deprecated_in="1.0", remove_in="2.0")(
-    _LegacyWidgetColor
-)
+# DEPRECATED API — `WidgetColor` was the original name; wrapping the replacement types the alias as `type[BrandColor]`
+WidgetColor = deprecated_class(target=BrandColor, deprecated_in="1.0", remove_in="2.0")(BrandColor)
 
 print(WidgetColor(1) is BrandColor.RED)  # warns: FutureWarning
+print(isinstance(BrandColor.BLUE, WidgetColor))
 print(isinstance(WidgetColor, DeprecationProxy))
 ```
 
 <details>
-  <summary>Output: <code>WidgetColor(1) is BrandColor.RED; isinstance(WidgetColor, DeprecationProxy)</code></summary>
+  <summary>Output: <code>WidgetColor(1) is BrandColor.RED; isinstance(BrandColor.BLUE, WidgetColor); isinstance(WidgetColor, DeprecationProxy)</code></summary>
 
 ```
+True
 True
 True
 ```
 
 </details>
 
-Every call shape — functional or decorator — returns the concrete `_DeprecatedProxy` type at runtime; that is deliberate, not an oversight. The concrete type keeps the proxy's forwarded dunders (`int()`, `with`, `await`) visible to type checkers, which the narrower protocol would hide. Annotate the assignment explicitly, as above, when you want the target type to flow into call sites; otherwise leave the annotation off and `DeprecationProxy` remains the type to reach for whenever you do annotate.
+What type-checks against the alias, and what does not:
 
-One thing to watch in the functional form: the warning names the class you wrapped, not the variable you assigned it to — the example above reports `` `_LegacyWidgetColor` ``. Give the source class the name your callers know, or pass `message_template` to write the message yourself.
+- **Checks as the class:** `isinstance(x, WidgetColor)` and `issubclass(...)` narrow to `BrandColor`; `WidgetColor(1)`, member and attribute access, and passing the alias where a `type[BrandColor]` is expected all type-check — the proxy forwards each of them to the class at runtime.
+- **Not a type:** the alias is a variable, so `def paint(color: WidgetColor)` is rejected by every type checker, and mypy also rejects `class Child(WidgetColor)`. Annotate with the replacement class — it is what callers migrate to — or use the decorator form, whose name is a class statement.
+- **Old names are flagged:** names the wrapped class does not have — old keyword arguments renamed through `args_mapping`, old attributes redirected through `attrs_mapping` — are reported as `call-arg` / `attr-defined` errors, as they already were for the decorator form. To keep such call sites type-checking during the migration window, keep the old names in a legacy class body (decorator form), or type the alias as `cast(DeprecationProxy[Config], deprecated_class(...)(Config))` — calls and attributes become permissive, at the cost of `isinstance` against the alias no longer type-checking.
+- **Legacy source class:** the static type is the class you pass in, not `target`. Wrapping a separate legacy class types `Alias(...)` as that legacy class even though the runtime returns a `target` instance — keep its body mirroring the replacement.
+- **Proxy-only attributes** such as `__wrapped__` and `__deprecation_config__` are invisible on `type[BrandColor]`: read them with `get_deprecation_config(WidgetColor)` or `inspect.unwrap(WidgetColor)`, or `cast(DeprecationProxy[Any], WidgetColor)` at the one site that needs them.
+
+`DeprecationProxy[T]` remains the annotation for `deprecated_instance()` proxies, where `T` is the type calling the proxy produces.
+
+One thing to watch in the functional form: the warning names the class you wrapped, not the variable you assigned it to — the example above reports `` `BrandColor` ``. Wrap a source class named the way your callers know it, or pass `message_template` to write the message yourself.
 
 !!! warning "`isinstance` only"
 
@@ -1105,7 +1104,7 @@ Objects with no introspectable signature — a plain `dict` wrapped by `deprecat
 
 ### PEP 702 static checkers
 
-A `typing_extensions.deprecated` / `warnings.deprecated` decorator stacked directly above `@deprecated_class(...)` — with `category=None` and a string-literal message, as described in [Functions → Static type checkers](functions.md#static-type-checkers-pep-702) — makes mypy flag every use of the old class name. pyright does not: it applies the class decorator's return type, sees the proxy instance, and never reaches the PEP 702 marker. Since mypy ignores a class decorator's return type, keep the old class's body mirroring the replacement's constructor and methods so mypy type-checks calls against the right signature.
+A `typing_extensions.deprecated` / `warnings.deprecated` decorator stacked directly above `@deprecated_class(...)` — with `category=None` and a string-literal message, as described in [Functions → Static type checkers](functions.md#static-type-checkers-pep-702) — makes mypy and pyright flag every use of the old class name. Both see the old class itself — mypy ignores a class decorator's return type, and pyright follows `deprecated_class`'s, which is the decorated class — so keep the old class's body mirroring the replacement's constructor and methods so calls type-check against the right signature.
 
 The PEP 702 decorator writes its message onto the proxy, never onto the replacement class — the class callers are migrating *to* stays unmarked. The message travels with `copy.copy`, `copy.deepcopy`, and `pickle` round-trips of the alias; after `del alias.__deprecated__` the attribute reads as missing rather than falling through to the wrapped class.
 

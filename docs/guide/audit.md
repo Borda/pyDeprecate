@@ -280,6 +280,10 @@ pep702_only_function [callable]: Use `pep702_target` instead.
 
 A subclass of a PEP 702-deprecated class is not listed, nor is an instance of one (a ready-made callable object): each reaches `__deprecated__` only through the class and is not itself deprecated. For the same reason a class lists only the PEP 702 markers it defines itself — methods inherited from a library base (a pydantic `BaseModel`, say) belong to that library and are not repeated under every subclass. A class decorated with the default warning category is one row, not three: the decorator also installs `__new__` and `__init_subclass__` on it with the same message, and the class row already covers them. A symbol imported from another top-level package — `from pydantic.deprecated.tools import parse_obj_as`, say — is the dependency's deprecation, so the scan leaves it out even with `recursive=False`; a symbol whose `__module__` is unknown stays listed under the module that exposes it.
 
+The scan sees only runtime objects, so a PEP 702 decorator on an individual `@overload` is invisible to it: overload stubs are replaced by the implementation and never become module or class members. Static checkers still flag calls that match that overload.
+
+The `pydeprecate` CLI intentionally has no `--include-pep702` flag: its gates evaluate pyDeprecate schedule metadata (`deprecated_in`, `remove_in`, a replacement) that PEP 702 rows lack, so list those symbols with the Python API instead.
+
 ### CLI usage
 
 All audit functions are also available from the command line via six subcommands (`check`, `expiry`, `policy`, `chains`, `all`, `status`). See the [CLI Reference](cli.md) for the full guide including flags and exit codes; the CI workflow is in [Enforcing the policy in CI](#enforcing-the-policy-in-ci).

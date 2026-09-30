@@ -1091,7 +1091,7 @@ True
 
 `deprecated_class()` and `deprecated_instance()` return a proxy, not a class. Annotate it with the public `DeprecationProxy` protocol instead of reaching for a private name.
 
-`DeprecationProxy[T]` is generic in what calling the proxy produces, but `deprecated_class` and `deprecated_instance` return the concrete proxy in every call shape — mypy does not infer `T` from `target=` on its own. A caller who wants the target type at a specific site annotates it there: `Old: DeprecationProxy[NewCls] = deprecated_class(target=NewCls, deprecated_in="1.0", remove_in="2.0")(_OldSource)`. Keeping the concrete `_DeprecatedProxy` return type everywhere else is deliberate — it keeps the proxy's forwarded dunders (`int()`, `with`, `await`) visible to type checkers, which the narrower protocol would hide.
+`deprecated_class` keeps the decorated class's own static type: `Old = deprecated_class(target=NewCls, deprecated_in="1.0", remove_in="2.0")(NewCls)` is typed `type[NewCls]`, like the decorator form, so `isinstance`/`issubclass`, construction and attribute access type-check. `DeprecationProxy[T]` annotates `deprecated_instance` proxies; for a class alias use `get_deprecation_config(Old)` or `cast(DeprecationProxy[Any], Old)` to reach proxy-only attributes.
 
 Every proxy also carries `__wrapped__` (the source object) and `__signature__` (the source's signature), so `inspect.unwrap`, `inspect.signature`, Sphinx autodoc, and IDEs resolve through the proxy to the real thing. Reading either attribute emits no warning.
 

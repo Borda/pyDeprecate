@@ -604,6 +604,8 @@ reportDeprecated = "error"
 
 Since `v0.14`, `@deprecated` and `deprecated_callable()` keep the decorated callable's own type and the package ships a `py.typed` marker, so type checkers see the real signature and name the symbol correctly in the diagnostic. For class aliases see [Classes → Type annotations and static analysis](classes.md#type-annotations-and-static-analysis); to list symbols deprecated with the PEP 702 decorator alone, see [`include_pep702`](audit.md#pep-702-only-deprecations).
 
+That static type is the *source's* type, and a callable object is not preserved at runtime: decorating a `functools.lru_cache` / `functools.cache` object returns a plain function, so `cache_clear()` and `cache_info()` are gone even though type checkers still offer them. Deprecate the underlying function and put the cache on top (`@functools.lru_cache` above `@deprecated(...)`) — the cache attributes then exist, but a cache hit never reaches the wrapper, so the warning fires only on a miss. Callable objects without a `__name__`, such as `functools.partial`, are rejected at decoration time; wrap those with `deprecated_instance()`.
+
 ## See also
 
 - [Use Cases overview](use-cases.md) — start here for a guided tour of all deprecation patterns
