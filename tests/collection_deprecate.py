@@ -136,6 +136,7 @@ _DEPRS_CASE_TGT_MODE_ARGS: dict[str, Any] = {"deprecated_in": "1.2", "remove_in"
 _DEPRS_CASE_TGT_MODE_INF_ARGS: dict[str, Any] = {"deprecated_in": "1.2", "remove_in": "2.0", "num_warns": -1}
 _DEPRS_CASE_STD_ARGS: dict[str, Any] = {"deprecated_in": "1.0", "remove_in": "2.0"}
 _DEPRS_CASE_STD_INF_ARGS: dict[str, Any] = {"deprecated_in": "1.0", "remove_in": "2.0", "num_warns": -1}
+_DEPRS_CASE_FATAL_ARGS: dict[str, Any] = {"deprecated_in": "1.0", "remove_in": "2.0", "as_exception": True}
 
 # Shared deprecated_class() instances — used as both decorator and factory form in
 # form-equivalence and fixture groups below; defined here so all usages reference the
@@ -2886,10 +2887,9 @@ def make_deprecated_hostile_signature_instance() -> Any:  # noqa: ANN401
 # ---------------------------------------------------------------------------------------------------------
 # Fatal deprecations (``as_exception``) — Ft-14.  Each wrapper below keeps the DEFAULT ``num_warns=1`` unless
 # the scenario needs otherwise, because the budget-bypass contract (a fatal deprecation raises on every call,
-# never once) is only observable with a finite budget.
+# never once) is only observable with a finite budget.  ``_DEPRS_CASE_FATAL_ARGS`` lives in the top
+# constants block alongside the other shared version-kwargs constants.
 # ---------------------------------------------------------------------------------------------------------
-
-_DEPRS_CASE_FATAL_ARGS: dict[str, Any] = {"deprecated_in": "1.0", "remove_in": "2.0", "as_exception": True}
 
 
 @deprecated(target=base_sum_kwargs, **_DEPRS_CASE_FATAL_ARGS)
@@ -2939,6 +2939,19 @@ class FatalLegacyWidget:
     """Class whose deprecation is fatal — any attribute access or instantiation raises."""
 
     DEFAULT_SIZE = 3
+
+    def __init__(self, size: int = 1) -> None:
+        """Store the widget size."""
+        self.size = size
+
+
+@deprecated(**_DEPRS_CASE_FATAL_ARGS)
+class FatalLegacyWidgetViaFrontDoor:
+    """Class-source fatal deprecation applied through the ``@deprecated`` front door.
+
+    Not ``deprecated_class`` directly — exercises the ``as_exception`` forwarding in
+    :func:`deprecate.deprecation._packing_class_source`.
+    """
 
     def __init__(self, size: int = 1) -> None:
         """Store the widget size."""

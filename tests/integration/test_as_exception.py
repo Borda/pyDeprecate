@@ -23,6 +23,7 @@ from deprecate import (
 from tests import collection_modules
 from tests.collection_deprecate import (
     FatalLegacyWidget,
+    FatalLegacyWidgetViaFrontDoor,
     decorated_args_fatal,
     decorated_async_fatal,
     decorated_remap_fatal,
@@ -195,6 +196,17 @@ class TestFatalProxyAndModule:
         """
         with assert_no_warnings(), pytest.raises(DeprecatedError):
             FatalLegacyWidget(2)
+
+    def test_front_door_class_source_instantiation_raises(self) -> None:
+        """A class decorated via the ``@deprecated`` front door, not ``deprecated_class`` directly, also raises.
+
+        The front door dispatches a class source to ``deprecated_class`` and forwards every shared argument,
+        including ``as_exception``. This fixture uses ``@deprecated(...)`` on the class instead of
+        ``deprecated_class(...)``, so a regression that drops ``as_exception`` from that forwarding call would
+        not be caught by any test that only exercises ``deprecated_class`` directly.
+        """
+        with pytest.raises(DeprecatedError):
+            FatalLegacyWidgetViaFrontDoor(2)
 
     def test_class_attribute_access_raises_every_time(self) -> None:
         """Reading an attribute off the fatal class proxy raises on each access, not only the first.

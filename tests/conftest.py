@@ -78,12 +78,16 @@ def _iter_wrapper_states(module: object) -> list[object]:
     return found
 
 
-#: Fixture modules that must not be imported by ``--doctest-modules`` collection.  ``fatal_utils`` is a
-#: whole-module deprecation with ``as_exception=True``: every public attribute access raises
-#: ``DeprecatedError``, and pytest's own collection probes module attributes (``pytestmark``, ``__test__``),
-#: so importing it here would abort collection.  The tests that need it import it inside the test body.
+#: Fixture modules that must not be *directly collected* as a test module by ``--doctest-modules``.
+#: ``fatal_utils`` is a whole-module deprecation with ``as_exception=True``: every non-underscore
+#: attribute access raises ``DeprecatedError`` (the module's ``__getattribute__`` exempts only names
+#: starting with ``_``, so ``__test__`` is already safe, but public ``pytestmark`` is not). Direct
+#: collection makes pytest read ``pytestmark`` off the module itself, which raises and aborts
+#: collection. Importing the module from a test file — as ``tests/integration/test_as_exception.py``
+#: does at module scope — is unaffected, since pytest never probes an imported symbol's own attributes.
 #: This is the fatal-module contract working as designed, not a workaround — any attribute-walking tool
-#: (pytest, Sphinx autodoc, pickle) hits the same wall, which ``docs/troubleshooting.md`` documents.
+#: (pytest's direct collection, Sphinx autodoc, pickle) hits the same wall, which ``docs/troubleshooting.md``
+#: documents.
 collect_ignore = ["collection_modules/fatal_utils.py"]
 
 
