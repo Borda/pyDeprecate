@@ -123,19 +123,41 @@ def _pep702_message(obj: Any) -> Optional[str]:  # noqa: ANN401
     return message if isinstance(message, str) else None
 
 
-def _scan_pep702(obj: Any, module_name: str, qualified_name: str) -> Optional[DeprecationWrapperInfo]:  # noqa: ANN401
-    """Emit a ``pep702`` result for the first PEP 702-only callable behind ``obj`` (peeking through descriptors)."""
+def _descriptor_kind(obj: Any) -> Optional[str]:  # noqa: ANN401
+    """Return the descriptor kind that API-type classification distinguishes, or ``None`` for any other member."""
+    if isinstance(obj, classmethod):
+        return "classmethod"
+    if isinstance(obj, staticmethod):
+        return "staticmethod"
+    return None
+
+
+def _scan_pep702(
+    obj: Any,  # noqa: ANN401
+    module_name: str,
+    qualified_name: str,
+    *,
+    member_name: Optional[str] = None,
+) -> Optional[DeprecationWrapperInfo]:
+    """Emit a row for the first PEP 702-only callable behind ``obj`` (peeking through descriptors).
+
+    ``api_type`` names the shape exactly as for a pyDeprecate wrapper (``callable``, ``class``, ``class method``,
+    ``staticmethod``, ...); the mechanism is marked by ``pep702_message``, which is a string here (possibly empty) and
+    ``None`` on every pyDeprecate row.
+
+    """
     messages = map(_pep702_message, _descriptor_underlying_callables(obj))
     message = next((item for item in messages if item is not None), None)
     if message is None:
         return None
-    return DeprecationWrapperInfo(
+    info = DeprecationWrapperInfo(
         module=module_name,
         function=qualified_name,
         deprecated_info=DeprecationConfig(name=qualified_name.rsplit(".", 1)[-1]),
-        api_type="pep702",
         pep702_message=message,
     )
+    api_type = _classify_wrapper_api_type(obj, info, member_name=member_name, descriptor_kind=_descriptor_kind(obj))
+    return replace(info, api_type=api_type)
 
 
 def _descriptor_underlying_callables(obj: Any) -> tuple[Any, ...]:  # noqa: ANN401
@@ -192,7 +214,7 @@ def _scan_class_member(
 ) -> Optional[DeprecationWrapperInfo]:
     """Scan one class member for pyDeprecate metadata, peeking through its descriptor."""
     if isinstance(obj, (classmethod, staticmethod)):
-        kind = "classmethod" if isinstance(obj, classmethod) else "staticmethod"
+        kind = _descriptor_kind(obj)
         return _scan_callable(obj.__func__, module_name, qualified, member_name=attr_name, descriptor_kind=kind)
     if isinstance(obj, property):
         _prop_accessor = next(
@@ -283,7 +305,7 @@ def _scan_class(
         qualified = f"{cls_name}.{attr_name}"
         result = _scan_class_member(obj, module_name, qualified, attr_name)
         if result is None and pep702_candidate:
-            result = _scan_pep702(obj, module_name, qualified)
+            result = _scan_pep702(obj, module_name, qualified, member_name=attr_name)
         if result is not None:
             results.append(result)
     return results
@@ -508,9 +530,12 @@ def find_deprecation_wrappers(
             ``recursive=False`` package scan a re-export is attributed to the package itself, so it stays).
             ``None`` (default) excludes nothing.
         include_pep702: If True, also report functions, classes, methods and property getters deprecated **only**
-            with ``warnings.deprecated`` / ``typing_extensions.deprecated`` (PEP 702), as rows with
-            ``api_type="pep702"`` whose ``pep702_message`` holds the decorator's message. Such objects carry no
-            version schedule, so ``deprecated_info`` is empty and ``empty_deprecated_in`` is True. A class member is
+            with ``warnings.deprecated`` / ``typing_extensions.deprecated`` (PEP 702). Their rows classify
+            ``api_type`` by shape like any other row (``callable``, ``class``, ``class method``, ...) and hold the
+            decorator's message in ``pep702_message`` — a string, possibly empty, where every pyDeprecate row has
+            ``None``. Such objects carry no version schedule, so ``deprecated_info`` is empty and
+            ``empty_deprecated_in`` is True; drop them (``pep702_message is not None``) before feeding the rows to
+            schedule-based checks. A class member is
             reported only on the class that defines it, never again under a subclass, and the ``__new__`` /
             ``__init_subclass__`` hooks the decorator installs on a class are covered by the class row. A module-level
             symbol whose ``__module__`` lies in another top-level package (a deprecated helper imported from a

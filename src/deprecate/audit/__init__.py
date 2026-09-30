@@ -32,7 +32,8 @@ codebase. All are designed to be called from pytest or a CI script against an im
 
 **PEP 702 discovery** (:func:`~deprecate.audit.find_deprecation_wrappers`):
     Pass ``include_pep702=True`` to include symbols deprecated only with ``warnings.deprecated`` or
-    ``typing_extensions.deprecated``. These rows have ``api_type="pep702"`` and no version schedule; the default
+    ``typing_extensions.deprecated``. These rows keep a shape ``api_type``, carry the decorator's message in
+    ``pep702_message`` (``None`` on every pyDeprecate row) and have no version schedule; the default
     scan remains unchanged, and pyDeprecate wrappers with a PEP 702 decorator stacked on top remain regular wrapper
     rows. See the `PEP 702 stacking guidance
     <https://borda.github.io/pyDeprecate/guide/functions/#static-type-checkers-pep-702>`_.

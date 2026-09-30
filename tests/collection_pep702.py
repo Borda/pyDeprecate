@@ -8,21 +8,24 @@ else).
 
 Two groups live here:
 
-| Fixture                           | Decorators                                             | Audit reports it as  |
-| --------------------------------- | ------------------------------------------------------ | -------------------- |
-| ``stacked_callable``              | PEP 702 (``category=None``) over ``@deprecated``       | pyDeprecate wrapper  |
-| ``StackedAlias``                  | PEP 702 (``category=None``) over ``@deprecated_class`` | pyDeprecate proxy    |
-| ``StackedMembers.*``              | PEP 702 (``category=None``) over ``@deprecated``       | pyDeprecate wrappers |
-| ``pep702_only_function``          | PEP 702 only                                           | ``pep702`` (opt-in)  |
-| ``pep702_empty_message``          | PEP 702 only, with an empty message                    | ``pep702`` (opt-in)  |
-| ``Pep702OnlyClass``               | PEP 702 only                                           | ``pep702`` (opt-in)  |
-| ``Pep702OnlySubclass``            | none — inherits ``__deprecated__`` (MRO)               | never reported       |
-| ``Pep702DefaultCategoryClass``    | PEP 702 only, default category                         | one ``pep702`` row   |
-| ``Pep702DefaultCategorySubclass`` | none — inherits the class hooks (MRO)                  | never reported       |
-| ``Pep702CallableClass``           | PEP 702 only, on a callable class                      | ``pep702`` (opt-in)  |
-| ``pep702_callable_instance``      | none — an instance of ``Pep702CallableClass``          | never reported       |
-| ``Pep702LibrarySubclass``         | none — inherits PEP 702 methods (MRO)                  | never reported       |
-| ``Pep702OnlyMembers.*``           | PEP 702 only, on a method and a property getter        | ``pep702`` (opt-in)  |
+| Fixture                           | Decorators                                             | Audit reports it as   |
+| --------------------------------- | ------------------------------------------------------ | --------------------- |
+| ``stacked_callable``              | PEP 702 (``category=None``) over ``@deprecated``       | pyDeprecate wrapper   |
+| ``StackedAlias``                  | PEP 702 (``category=None``) over ``@deprecated_class`` | pyDeprecate proxy     |
+| ``StackedMembers.*``              | PEP 702 (``category=None``) over ``@deprecated``       | pyDeprecate wrappers  |
+| ``pep702_only_function``          | PEP 702 only                                           | ``callable`` (opt-in) |
+| ``pep702_empty_message``          | PEP 702 only, with an empty message                    | ``callable`` (opt-in) |
+| ``Pep702OnlyClass``               | PEP 702 only                                           | ``class`` (opt-in)    |
+| ``Pep702OnlySubclass``            | none — inherits ``__deprecated__`` (MRO)               | never reported        |
+| ``Pep702DefaultCategoryClass``    | PEP 702 only, default category                         | one ``class`` row     |
+| ``Pep702DefaultCategorySubclass`` | none — inherits the class hooks (MRO)                  | never reported        |
+| ``Pep702CallableClass``           | PEP 702 only, on a callable class                      | ``class`` (opt-in)    |
+| ``pep702_callable_instance``      | none — an instance of ``Pep702CallableClass``          | never reported        |
+| ``Pep702LibrarySubclass``         | none — inherits PEP 702 methods (MRO)                  | never reported        |
+| ``Pep702OnlyMembers.*``           | PEP 702 only, on methods and a property getter         | member rows (opt-in)  |
+
+Opt-in rows (``include_pep702=True``) classify ``api_type`` by shape like any other row and carry the decorator's
+message in ``pep702_message``, which is ``None`` on every pyDeprecate row.
 
 Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 
@@ -193,6 +196,12 @@ class Pep702OnlyMembers:
 
     def _ordinary(self) -> None:
         """Private member without a marker must remain absent from the audit report."""
+
+    @staticmethod
+    @typing_extensions.deprecated("Use `pep702_target` instead.", category=None)
+    def old_static(x: int) -> int:
+        """Legacy static helper deprecated for static checkers only — its row reads as a ``staticmethod``."""
+        return x
 
     @property
     @typing_extensions.deprecated("Read `value` instead.")

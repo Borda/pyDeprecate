@@ -89,24 +89,26 @@ class TestFindDeprecationWrappersPep702:
         }
 
     def test_opt_in_reports_pep702_only_objects(self) -> None:
-        """With ``include_pep702=True`` every PEP 702-only function, class, method and property getter is listed.
+        """With ``include_pep702=True`` every PEP 702-only symbol is listed, its ``api_type`` naming its shape.
 
         A maintainer wants one audit listing of every live deprecation, including symbols that only carry the
-        stdlib-style decorator. A subclass that merely inherits ``__deprecated__`` through the MRO is not itself
-        deprecated and must not appear.
+        stdlib-style decorator, grouped by shape like any other row (a report groups ``class`` and ``class method``
+        rows, whatever decorator produced them); ``pep702_message`` alone marks the mechanism. A subclass that merely
+        inherits ``__deprecated__`` through the MRO is not itself deprecated and must not appear.
 
         """
         infos = find_deprecation_wrappers(pep702_module, recursive=False, include_pep702=True)
-        assert {info.function for info in infos if info.api_type == "pep702"} == {
-            "pep702_only_function",
-            "pep702_empty_message",
-            "Pep702OnlyClass",
-            "Pep702DefaultCategoryClass",
-            "Pep702CallableClass",
-            "Pep702OnlyMembers.old_method",
-            "Pep702OnlyMembers._old_method",
-            "Pep702OnlyMembers._old_value",
-            "Pep702OnlyMembers.old_value",
+        assert {(info.function, info.api_type) for info in infos if info.pep702_message is not None} == {
+            ("pep702_only_function", "callable"),
+            ("pep702_empty_message", "callable"),
+            ("Pep702OnlyClass", "class"),
+            ("Pep702DefaultCategoryClass", "class"),
+            ("Pep702CallableClass", "class"),
+            ("Pep702OnlyMembers.old_method", "class method"),
+            ("Pep702OnlyMembers._old_method", "class method"),
+            ("Pep702OnlyMembers._old_value", "class method"),
+            ("Pep702OnlyMembers.old_value", "class method"),
+            ("Pep702OnlyMembers.old_static", "staticmethod"),
         }
 
     @pytest.mark.parametrize(
@@ -192,7 +194,7 @@ class TestFindDeprecationWrappersPep702:
 
         """
         infos = find_deprecation_wrappers(targets_module, recursive=False, include_pep702=True)
-        assert sorted(info.function for info in infos if info.api_type == "pep702") == [
+        assert sorted(info.function for info in infos if info.pep702_message is not None) == [
             "Pep702LibraryBase._iter_legacy",
             "Pep702LibraryBase.export_legacy",
         ]
@@ -206,7 +208,7 @@ class TestFindDeprecationWrappersPep702:
         """
         infos = find_deprecation_wrappers(pep702_module, recursive=False, include_pep702=True)
         rows = [info for info in infos if info.function == "pep702_empty_message"]
-        assert [(info.api_type, info.pep702_message) for info in rows] == [("pep702", "")]
+        assert [(info.api_type, info.pep702_message) for info in rows] == [("callable", "")]
 
     def test_pep702_row_carries_message_and_no_schedule(self) -> None:
         """A PEP 702 row exposes the decorator's message and reports the missing version schedule.

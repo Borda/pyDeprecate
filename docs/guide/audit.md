@@ -54,6 +54,7 @@ Use these utilities to verify that a deprecated wrapper is correctly configured:
 - `chain_type` — chain classification used when reporting deprecation chains, such as `TARGET` or `STACKED`
 - `empty_deprecated_in` — `True` when `deprecated_in` is absent or empty; useful in CI to surface wrappers with no version annotation
 - `api_type` — inferred API kind for report generation (e.g. `callable`, `args`, `class`, `dataclass attributes`, `class method`); excluded from `repr()` to keep snapshot tests stable
+- `pep702_message` — `None` for every pyDeprecate wrapper; on a row that `find_deprecation_wrappers(..., include_pep702=True)` reports for a symbol deprecated only with `warnings.deprecated`, the decorator's message (a string, possibly empty) — such rows have no versions, so `empty_deprecated_in` is `True` (see [PEP 702-only deprecations](#pep-702-only-deprecations)); excluded from `repr()`
 
 ### Validating a single function
 
@@ -246,7 +247,7 @@ Self-references: 0
 
 ### PEP 702-only deprecations
 
-A symbol deprecated with `warnings.deprecated` / `typing_extensions.deprecated` alone carries no pyDeprecate metadata, so the default scan skips it — that keeps `check`, `expiry`, and `policy` results unchanged for projects that mix both decorators. Pass `include_pep702=True` to list those symbols too. Each appears as a row with `api_type="pep702"` and the decorator's message in `pep702_message`; its `deprecated_info` holds no versions (`empty_deprecated_in` is `True`), because PEP 702 records none. A pyDeprecate wrapper with a PEP 702 decorator stacked on top — the [static-checker pattern](functions.md#static-type-checkers-pep-702) — stays a regular row with its full schedule.
+A symbol deprecated with `warnings.deprecated` / `typing_extensions.deprecated` alone carries no pyDeprecate metadata, so the default scan skips it — that keeps `check`, `expiry`, and `policy` results unchanged for projects that mix both decorators. Pass `include_pep702=True` to list those symbols too. Each appears as a row whose `api_type` names its shape exactly as for any other row (`callable`, `class`, `class method`, `staticmethod`, ...) and whose `pep702_message` holds the decorator's message — a string, possibly empty, where every pyDeprecate row has `None` — so `row.pep702_message is not None` picks these rows out. Their `deprecated_info` holds no versions, because PEP 702 records none, so `empty_deprecated_in` is always `True`: before feeding an opt-in scan to your own `empty_deprecated_in`, expiry, or report filters, drop the rows where `row.pep702_message is not None`. A pyDeprecate wrapper with a PEP 702 decorator stacked on top — the [static-checker pattern](functions.md#static-type-checkers-pep-702) — stays a regular row with its full schedule.
 
 ```python
 from deprecate import find_deprecation_wrappers
@@ -254,23 +255,24 @@ from tests import collection_pep702
 
 rows = find_deprecation_wrappers(collection_pep702, include_pep702=True)
 for row in rows:
-    if row.api_type == "pep702":
-        print(f"{row.function}: {row.pep702_message or '<empty message>'}")
+    if row.pep702_message is not None:
+        print(f"{row.function} [{row.api_type}]: {row.pep702_message or '<empty message>'}")
 ```
 
 <details>
-  <summary>Output: <code>row.function, row.pep702_message</code></summary>
+  <summary>Output: <code>row.function, row.api_type, row.pep702_message</code></summary>
 
 ```
-Pep702CallableClass: Use `pep702_target` instead.
-Pep702DefaultCategoryClass: Use `Pep702StaticTarget` instead.
-Pep702OnlyClass: Use `Pep702StaticTarget` instead.
-Pep702OnlyMembers._old_method: Use the public method instead.
-Pep702OnlyMembers._old_value: Use the public value instead.
-Pep702OnlyMembers.old_method: Use `pep702_target` instead.
-Pep702OnlyMembers.old_value: Read `value` instead.
-pep702_empty_message: <empty message>
-pep702_only_function: Use `pep702_target` instead.
+Pep702CallableClass [class]: Use `pep702_target` instead.
+Pep702DefaultCategoryClass [class]: Use `Pep702StaticTarget` instead.
+Pep702OnlyClass [class]: Use `Pep702StaticTarget` instead.
+Pep702OnlyMembers._old_method [class method]: Use the public method instead.
+Pep702OnlyMembers._old_value [class method]: Use the public value instead.
+Pep702OnlyMembers.old_method [class method]: Use `pep702_target` instead.
+Pep702OnlyMembers.old_static [staticmethod]: Use `pep702_target` instead.
+Pep702OnlyMembers.old_value [class method]: Read `value` instead.
+pep702_empty_message [callable]: <empty message>
+pep702_only_function [callable]: Use `pep702_target` instead.
 ```
 
 </details>

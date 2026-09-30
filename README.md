@@ -1567,7 +1567,7 @@ The `DeprecationWrapperInfo` dataclass contains:
 - `self_reference`: True if target points to the same function (self-reference)
 - `no_effect`: True if wrapper has zero impact (self-reference, empty mapping, or all identity)
 - `empty_deprecated_in`: True if `deprecated_in` is absent (CI misconfiguration signal — missing introductory version metadata)
-- `pep702_message`: the PEP 702 decorator's message on a row found with `find_deprecation_wrappers(..., include_pep702=True)` for a symbol deprecated only with `warnings.deprecated` (`api_type="pep702"`); empty for pyDeprecate wrappers
+- `pep702_message`: `None` for pyDeprecate wrappers; on a row found with `find_deprecation_wrappers(..., include_pep702=True)` for a symbol deprecated only with `warnings.deprecated`, the decorator's message (a string, possibly empty) — such a row keeps a shape `api_type` (`callable`, `class`, `class method`, ...) and has no versions
 
 <details>
 <summary><b>Validating a Single Function</b></summary>
