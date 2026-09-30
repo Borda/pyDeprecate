@@ -29,7 +29,7 @@ from deprecate.routine import deprecated_callable
 if TYPE_CHECKING:
     from deprecate.proxy import _DeprecatedProxy
 
-_SourceT = TypeVar("_SourceT")
+_SourceT = TypeVar("_SourceT", bound=Union[Callable[..., Any], classmethod, staticmethod, property, cached_property])
 
 
 class _FrontDoorDecorator(Protocol):

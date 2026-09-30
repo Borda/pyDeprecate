@@ -4,6 +4,8 @@
 
 ### Added
 
+- **Opt-in audit discovery for PEP 702-only deprecations.** `find_deprecation_wrappers(..., include_pep702=True)` lists symbols marked only with `warnings.deprecated` or `typing_extensions.deprecated`; the default scan and existing audit gates remain unchanged. ([#237](https://github.com/Borda/pyDeprecate/pull/237))
+- **Static callable typing for deprecation decorators.** `@deprecated` and `deprecated_callable()` now reject non-callable inputs in static checks while preserving supported callable and descriptor types. ([#237](https://github.com/Borda/pyDeprecate/pull/237))
 - **Fatal deprecations — `as_exception=True` and process-wide strict mode.** All deprecation entry points can raise `DeprecatedError` instead of warning; `deprecate.AS_EXCEPTIONS` and the import-time `DEPRECATE_AS_EXCEPTIONS` environment setting enable strict mode globally. Fatal warning paths ignore `num_warns` and `stream=None`, respect `skip_if`, and stop callable execution or forwarding. Proxy operations that never warn remain silent; ordinary descriptor getters can execute before the fatal error. `as_exception` is keyword-only and the last parameter on every public entry point (`deprecated`, `deprecated_callable`, `deprecated_class`, `deprecated_instance`, `deprecated_module`), so future additions never shift existing positional usage. ([#236](https://github.com/Borda/pyDeprecate/pull/236))
 - **Module warning budgets — `deprecated_module(..., num_warns=...)`.** Module deprecations can now cap warning delivery across all public attribute accesses: `0` delivers none, a positive `N` delivers exactly `N`, and the default `-1` preserves unlimited delivery without taking the budget lock. ([#233](https://github.com/Borda/pyDeprecate/pull/233))
 
@@ -14,6 +16,8 @@
 ### Removed
 
 ### Fixed
+
+- **Setting or deleting PEP 702 metadata on a deprecated proxy stays local to the proxy.** Assigning `__deprecated__` keeps the marker on the proxy, and deleting it no longer forwards deletion to the wrapped object, including read-only proxies with `skip_if` enabled. ([#237](https://github.com/Borda/pyDeprecate/pull/237))
 
 ______________________________________________________________________
 

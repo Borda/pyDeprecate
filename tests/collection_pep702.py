@@ -14,6 +14,7 @@ Two groups live here:
 | ``StackedAlias``         | PEP 702 (``category=None``) over ``@deprecated_class``   | pyDeprecate wrapper (proxy)  |
 | ``StackedMembers.*``     | PEP 702 (``category=None``) over ``@deprecated`` members | pyDeprecate wrappers         |
 | ``pep702_only_function`` | PEP 702 only                                            | ``pep702`` (opt-in)          |
+| ``pep702_empty_message`` | PEP 702 only, with an empty message                     | ``pep702`` (opt-in)          |
 | ``Pep702OnlyClass``      | PEP 702 only                                            | ``pep702`` (opt-in)          |
 | ``Pep702OnlySubclass``   | none — inherits ``__deprecated__`` through the MRO       | never reported               |
 | ``Pep702OnlyMembers.*``  | PEP 702 only, on a method and a property getter         | ``pep702`` (opt-in)          |
@@ -100,6 +101,11 @@ def pep702_only_function(x: int) -> int:
     return x
 
 
+@typing_extensions.deprecated("", category=None)
+def pep702_empty_message() -> None:
+    """Keep an empty but valid PEP 702 marker visible to the audit scanner."""
+
+
 @typing_extensions.deprecated("Use `Pep702StaticTarget` instead.", category=None)
 class Pep702OnlyClass:
     """Class deprecated with the PEP 702 decorator only.
@@ -121,6 +127,19 @@ class Pep702OnlyMembers:
     def old_method(self, x: int) -> int:
         """Legacy method deprecated for static checkers only."""
         return x
+
+    @typing_extensions.deprecated("Use the public method instead.", category=None)
+    def _old_method(self) -> None:
+        """Private PEP 702 method still needs an audit row while it remains live."""
+
+    @property
+    @typing_extensions.deprecated("Use the public value instead.", category=None)
+    def _old_value(self) -> int:
+        """Private property getter carrying a PEP 702 marker."""
+        return 1
+
+    def _ordinary(self) -> None:
+        """Private member without a marker must remain absent from the audit report."""
 
     @property
     @typing_extensions.deprecated("Read `value` instead.")

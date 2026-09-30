@@ -61,8 +61,8 @@ from deprecate.utils import _get_signature, _unwrap_descriptor_target
 # Lives here (not in _dispatch) because only the ``wrapped_fn`` closures below read/write it.
 _cycle_detection: ContextVar[Optional[set[int]]] = ContextVar("_cycle_detection", default=None)
 
-#: Decorated source type: the wrapper keeps the source's calling signature, so type checkers and IDEs see it unchanged.
-_SourceT = TypeVar("_SourceT")
+#: Decorated source type: preserve callable/descriptor signatures while rejecting non-callable values statically.
+_SourceT = TypeVar("_SourceT", bound=Union[Callable[..., Any], classmethod, staticmethod, property, cached_property])
 
 
 def _packing_descriptor(  # noqa: C901 — property-path guards (fget/fset/fdel validation + TypeError raises) are one coherent story; splitting further adds indirection without reducing real complexity

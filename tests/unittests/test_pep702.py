@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any, Callable
 import pytest
 
 import tests.collection_pep702 as pep702_fixtures
+from deprecate import deprecated, deprecated_callable
 
 
 class TestStackedPep702Runtime:
@@ -49,3 +50,8 @@ if TYPE_CHECKING:
     pep702_fixtures.StackedMembers().legacy_method(1)  # type: ignore[deprecated]
     _ = pep702_fixtures.StackedMembers().legacy_value  # type: ignore[deprecated]
     pep702_fixtures.StackedMembers.legacy_static(1)  # type: ignore[deprecated]
+
+    # Invalid non-callable sources must be rejected statically as well as at decoration time.
+    # warn_unused_ignores makes either line fail when its decorator's type variable becomes unbounded.
+    deprecated(deprecated_in="1.0", remove_in="2.0")(42)  # type: ignore[call-overload]
+    deprecated_callable(deprecated_in="1.0", remove_in="2.0")(42)  # type: ignore[type-var]

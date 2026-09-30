@@ -1351,6 +1351,22 @@ class TestPEP702ProxyStackingRegression:
         proxy.__deprecated__ = "Use `new_list` instead."
         assert object.__getattribute__(proxy, "__deprecated__") == "Use `new_list` instead."
 
+    def test_pep702_marker_delete_ignores_read_only_and_skip_if(self) -> None:
+        """Deleting proxy metadata leaves the wrapped object unchanged under skip and read-only settings.
+
+        A static checker decorator may remove its own marker during cleanup. The proxy must delete its local marker
+        without forwarding the deletion to the read-only list it wraps.
+
+        """
+        proxy = make_deprecated_instance_skip_if_true_read_only()
+        wrapped = proxy.__wrapped__
+        before = list(wrapped)
+
+        del proxy.__deprecated__
+
+        assert "__deprecated__" not in vars(proxy)
+        assert wrapped == before
+
 
 class TestCombinedArgAttrsMapping:
     """Single ``deprecated_class()`` call combining ``args_mapping`` and ``attrs_mapping``.

@@ -2764,7 +2764,7 @@ def make_deprecated_with_args_mapping_on_class_default_target() -> Any:  # noqa:
 def make_deprecated_on_non_callable_source() -> Any:  # noqa: ANN401
     """Apply ``@deprecated`` to a plain object — raises ``TypeError`` naming ``deprecated_instance``."""
     # Intentionally passing a non-callable source to prove the dispatcher's runtime TypeError guard fires.
-    return deprecated(**_DEPRS_CASE_STD_ARGS)(object())  # type: ignore[arg-type]
+    return deprecated(**_DEPRS_CASE_STD_ARGS)(object())  # type: ignore[call-overload]
 
 
 class _CallableWithoutName:

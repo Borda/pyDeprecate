@@ -99,7 +99,8 @@ def _pep702_message(obj: Any) -> Optional[str]:  # noqa: ANN401
 
 def _scan_pep702(obj: Any, module_name: str, qualified_name: str) -> Optional[DeprecationWrapperInfo]:  # noqa: ANN401
     """Emit a ``pep702`` result for the first PEP 702-only callable behind ``obj`` (peeking through descriptors)."""
-    message = next(filter(None, map(_pep702_message, _descriptor_underlying_callables(obj))), None)
+    messages = map(_pep702_message, _descriptor_underlying_callables(obj))
+    message = next((item for item in messages if item is not None), None)
     if message is None:
         return None
     return DeprecationWrapperInfo(
@@ -205,10 +206,16 @@ def _scan_class(
     except (AttributeError, TypeError):
         return results
     for attr_name, obj in members:
-        # Skip private/dunder members that are *not* themselves deprecated. Deprecated private or dunder
-        # members (e.g. a deprecated ``_legacy`` method or ``__eq__``) still carry ``__deprecation_config__``
-        # and must be surfaced so they can expire — only ``__init__`` is exempt.
-        if attr_name.startswith("_") and attr_name != "__init__" and not _member_has_deprecation_meta(obj):
+        # Private members with either deprecation marker stay visible to an opt-in audit.
+        if (
+            attr_name.startswith("_")
+            and attr_name != "__init__"
+            and not _member_has_deprecation_meta(obj)
+            and not (
+                include_pep702
+                and any(_pep702_message(member) is not None for member in _descriptor_underlying_callables(obj))
+            )
+        ):
             continue
         qualified = f"{cls_name}.{attr_name}"
         result = _scan_class_member(obj, module_name, qualified, attr_name)

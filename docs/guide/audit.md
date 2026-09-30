@@ -255,7 +255,7 @@ from tests import collection_pep702
 rows = find_deprecation_wrappers(collection_pep702, include_pep702=True)
 for row in rows:
     if row.api_type == "pep702":
-        print(f"{row.function}: {row.pep702_message}")
+        print(f"{row.function}: {row.pep702_message or '<empty message>'}")
 ```
 
 <details>
@@ -263,8 +263,11 @@ for row in rows:
 
 ```
 Pep702OnlyClass: Use `Pep702StaticTarget` instead.
+Pep702OnlyMembers._old_method: Use the public method instead.
+Pep702OnlyMembers._old_value: Use the public value instead.
 Pep702OnlyMembers.old_method: Use `pep702_target` instead.
 Pep702OnlyMembers.old_value: Read `value` instead.
+pep702_empty_message: <empty message>
 pep702_only_function: Use `pep702_target` instead.
 ```
 

@@ -30,6 +30,13 @@ codebase. All are designed to be called from pytest or a CI script against an im
 **Report generation** (:func:`~deprecate.audit.generate_deprecation_table`):
     Generate a docs-friendly markdown summary from wrapper metadata.
 
+**PEP 702 discovery** (:func:`~deprecate.audit.find_deprecation_wrappers`):
+    Pass ``include_pep702=True`` to include symbols deprecated only with ``warnings.deprecated`` or
+    ``typing_extensions.deprecated``. These rows have ``api_type="pep702"`` and no version schedule; the default
+    scan remains unchanged, and pyDeprecate wrappers with a PEP 702 decorator stacked on top remain regular wrapper
+    rows. See the `PEP 702 stacking guidance
+    <https://borda.github.io/pyDeprecate/guide/functions/#static-type-checkers-pep-702>`_.
+
 The package is split by concern — ``_wrappers`` (single-wrapper inspection), ``_scan`` (discovery and the
 chain/mapping filters), ``_lifecycle`` (version arithmetic and expiry), ``_policy`` (governance rules), ``_report``
 (markdown output) — and this module re-exports the public surface, so ``deprecate.audit.<name>`` is the only path to

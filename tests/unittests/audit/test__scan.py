@@ -98,10 +98,24 @@ class TestFindDeprecationWrappersPep702:
         infos = find_deprecation_wrappers(pep702_module, recursive=False, include_pep702=True)
         assert {info.function for info in infos if info.api_type == "pep702"} == {
             "pep702_only_function",
+            "pep702_empty_message",
             "Pep702OnlyClass",
             "Pep702OnlyMembers.old_method",
+            "Pep702OnlyMembers._old_method",
+            "Pep702OnlyMembers._old_value",
             "Pep702OnlyMembers.old_value",
         }
+
+    def test_empty_pep702_message_is_reported(self) -> None:
+        """An empty PEP 702 message remains a real marker in the audit report.
+
+        A library can use the empty string with the standard decorator. The scanner must retain that row even though
+        the message is false in a Boolean context.
+
+        """
+        infos = find_deprecation_wrappers(pep702_module, recursive=False, include_pep702=True)
+        rows = [info for info in infos if info.function == "pep702_empty_message"]
+        assert [(info.api_type, info.pep702_message) for info in rows] == [("pep702", "")]
 
     def test_pep702_row_carries_message_and_no_schedule(self) -> None:
         """A PEP 702 row exposes the decorator's message and reports the missing version schedule.
