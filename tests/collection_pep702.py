@@ -22,7 +22,7 @@ Two groups live here:
 | ``Pep702CallableClass``           | PEP 702 only, on a callable class                      | ``class`` (opt-in)    |
 | ``pep702_callable_instance``      | none — an instance of ``Pep702CallableClass``          | never reported        |
 | ``Pep702LibrarySubclass``         | none — inherits PEP 702 methods (MRO)                  | never reported        |
-| ``Pep702OnlyMembers.*``           | PEP 702 only, on methods and a property getter         | member rows (opt-in)  |
+| ``Pep702OnlyMembers.*``           | PEP 702 only, on methods and property accessors        | member rows (opt-in)  |
 
 Opt-in rows (``include_pep702=True``) classify ``api_type`` by shape like any other row and carry the decorator's
 message in ``pep702_message``, which is ``None`` on every pyDeprecate row.
@@ -32,6 +32,7 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 """
 
 import warnings
+from functools import cached_property
 from typing import Any
 
 import typing_extensions
@@ -202,6 +203,12 @@ class Pep702OnlyMembers:
     def old_static(x: int) -> int:
         """Legacy static helper deprecated for static checkers only — its row reads as a ``staticmethod``."""
         return x
+
+    @cached_property
+    @typing_extensions.deprecated("Compute the total from `value` instead.", category=None)
+    def old_total(self) -> int:
+        """Legacy cached aggregate — the PEP 702 marker sits on the function ``cached_property`` wraps."""
+        return 1
 
     @property
     @typing_extensions.deprecated("Read `value` instead.")

@@ -17,7 +17,12 @@ from unittest import mock
 import pytest
 
 from deprecate import DeprecatedError, TargetMode, deprecated, deprecated_callable
-from tests.collection_deprecate import depr_pow_args, depr_pow_skip_if_true_false, make_positional_docstring_wrapper
+from tests.collection_deprecate import (
+    DescriptorSourcesHolder,
+    depr_pow_args,
+    depr_pow_skip_if_true_false,
+    make_positional_docstring_wrapper,
+)
 from tests.collection_pep702 import stacked_callable
 from tests.collection_targets import Palette
 
@@ -138,5 +143,10 @@ if TYPE_CHECKING:
     assert_type(depr_pow_args(2.0, 3.0), float)
     assert_type(depr_pow_skip_if_true_false(2.0, c1=3.0), float)
     assert_type(stacked_callable(1), int)
+    # Descriptor sources keep their descriptor type too, so member reads and calls stay typed through either spelling.
+    assert_type(DescriptorSourcesHolder().legacy_value, int)
+    assert_type(DescriptorSourcesHolder().legacy_cached, int)
+    assert_type(DescriptorSourcesHolder.legacy_factory(1), int)
+    assert_type(DescriptorSourcesHolder.legacy_helper(1), int)
     # A class source is wrapped in a proxy at runtime but keeps its own static type, exactly like `deprecated_class`.
     assert_type(deprecated(deprecated_in="1.0", remove_in="2.0")(Palette), type[Palette])

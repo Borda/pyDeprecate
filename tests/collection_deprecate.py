@@ -42,7 +42,7 @@ Decorator-form equivalents (same deprecated_class config as Wrapped* — for par
 from collections.abc import AsyncIterator, Iterator
 from dataclasses import dataclass
 from enum import Enum
-from functools import partial
+from functools import cached_property, partial
 from types import SimpleNamespace
 from typing import Any, Callable
 from warnings import catch_warnings, simplefilter, warn
@@ -2983,3 +2983,36 @@ def make_positional_docstring_wrapper(decorator: Callable, options: tuple[Any, .
     return decorator(TargetMode.NOTIFY, "1.0", "2.0", None, 1, None, None, None, False, *options, as_exception=fatal)(
         double_value
     )
+
+
+class DescriptorSourcesHolder:
+    """Descriptor sources wrapped in outer order (decorator above the descriptor) by both decorator spellings.
+
+    ``tests/unittests/test_deprecation.py`` pins, statically only, that each wrapper keeps the descriptor's own type,
+    so reads and calls through the deprecated member stay typed ``int`` instead of widening to ``Any``.
+
+    """
+
+    @deprecated_callable(**_DEPRS_CASE_STD_ARGS)  # type: ignore[prop-decorator]
+    @property
+    def legacy_value(self) -> int:
+        """Deprecated read-only property."""
+        return 1
+
+    @deprecated(**_DEPRS_CASE_STD_ARGS)  # type: ignore[prop-decorator]
+    @cached_property
+    def legacy_cached(self) -> int:
+        """Deprecated cached property."""
+        return 2
+
+    @deprecated_callable(**_DEPRS_CASE_STD_ARGS)
+    @classmethod
+    def legacy_factory(cls, x: int) -> int:
+        """Deprecated classmethod."""
+        return x
+
+    @deprecated(**_DEPRS_CASE_STD_ARGS)
+    @staticmethod
+    def legacy_helper(x: int) -> int:
+        """Deprecated staticmethod."""
+        return x

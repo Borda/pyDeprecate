@@ -80,12 +80,12 @@ class TestFindDeprecationWrappersPep702:
 
         """
         infos = find_deprecation_wrappers(pep702_module, recursive=False)
-        assert {info.function for info in infos} == {
-            "stacked_callable",
-            "StackedAlias",
-            "StackedMembers.legacy_method",
-            "StackedMembers.legacy_value",
-            "StackedMembers.legacy_static",
+        assert {(info.function, info.pep702_message) for info in infos} == {
+            ("stacked_callable", None),
+            ("StackedAlias", None),
+            ("StackedMembers.legacy_method", None),
+            ("StackedMembers.legacy_value", None),
+            ("StackedMembers.legacy_static", None),
         }
 
     def test_opt_in_reports_pep702_only_objects(self) -> None:
@@ -109,7 +109,20 @@ class TestFindDeprecationWrappersPep702:
             ("Pep702OnlyMembers._old_value", "class method"),
             ("Pep702OnlyMembers.old_value", "class method"),
             ("Pep702OnlyMembers.old_static", "staticmethod"),
+            ("Pep702OnlyMembers.old_total", "class method"),
         }
+
+    @pytest.mark.parametrize("marker", [None, pytest.param(b"Use `pep702_target` instead.", id="bytes")])
+    def test_non_string_marker_is_not_reported(self, marker: object, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A ``__deprecated__`` that is not a string is not a PEP 702 marker and yields no row.
+
+        PEP 702 records the message as a string. Code that clears the marker by assigning ``None``, or a tool that
+        stores some other object under the same name, must not make the symbol look deprecated to an opt-in audit.
+
+        """
+        monkeypatch.setattr(pep702_module.pep702_only_function, "__deprecated__", marker)
+        infos = find_deprecation_wrappers(pep702_module, recursive=False, include_pep702=True)
+        assert [info.function for info in infos if info.function == "pep702_only_function"] == []
 
     @pytest.mark.parametrize(
         ("class_name", "expected"),
@@ -234,7 +247,9 @@ class TestFindDeprecationWrappersPep702:
         """
         infos = find_deprecation_wrappers(pep702_module, recursive=False, include_pep702=True)
         rows = [info for info in infos if info.function == "stacked_callable"]
-        assert [(row.api_type, row.deprecated_info.remove_in) for row in rows] == [("callable", "2.0")]
+        assert [(row.api_type, row.deprecated_info.remove_in, row.pep702_message) for row in rows] == [
+            ("callable", "2.0", None)
+        ]
 
 
 class TestFindDeprecationWrappersReexport:
@@ -287,6 +302,42 @@ class TestFindDeprecationWrappersReexport:
         results = find_deprecation_wrappers(mod)
 
         assert len([r for r in results if r.function in ("canonical", "alias")]) == 1
+
+    def test_pep702_reexport_attributed_to_defining_module(self) -> None:
+        """A PEP 702-only function or class re-exported by a sibling module is reported once, where it is defined.
+
+        A package commonly surfaces its deprecated helpers through ``__init__``. An opt-in audit must list each one
+        under the module that defines it and skip the re-export, or a recursive scan counts it twice and the row
+        points at a module whose source does not contain the decorator.
+
+        """
+        importer = types.ModuleType("tests.pep702_reexport")
+        vars(importer).update(
+            pep702_only_function=pep702_module.pep702_only_function,
+            Pep702OnlyClass=pep702_module.Pep702OnlyClass,
+        )
+        reexported = find_deprecation_wrappers(importer, include_pep702=True)
+        defining = find_deprecation_wrappers(pep702_module, recursive=False, include_pep702=True)
+        names = ("pep702_only_function", "Pep702OnlyClass")
+        assert (reexported, [(r.module, r.function) for r in defining if r.function in names]) == (
+            [],
+            [("tests.collection_pep702", "Pep702OnlyClass"), ("tests.collection_pep702", "pep702_only_function")],
+        )
+
+    def test_pep702_alias_counted_once(self) -> None:
+        """One PEP 702-only object bound under two names in its own module is reported once.
+
+        ``old_name = new_name``-style aliases are common while a rename settles. Identity-based dedup must collapse
+        both bindings on the PEP 702 path exactly as it does for pyDeprecate wrappers.
+
+        """
+        mod = types.ModuleType(pep702_module.__name__)
+        vars(mod).update(
+            pep702_only_function=pep702_module.pep702_only_function,
+            pep702_only_alias=pep702_module.pep702_only_function,
+        )
+        infos = find_deprecation_wrappers(mod, include_pep702=True)
+        assert len(infos) == 1
 
 
 class TestFindDeprecationWrappersClassScan:

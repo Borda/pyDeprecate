@@ -270,6 +270,7 @@ Pep702OnlyMembers._old_method [class method]: Use the public method instead.
 Pep702OnlyMembers._old_value [class method]: Use the public value instead.
 Pep702OnlyMembers.old_method [class method]: Use `pep702_target` instead.
 Pep702OnlyMembers.old_static [staticmethod]: Use `pep702_target` instead.
+Pep702OnlyMembers.old_total [class method]: Compute the total from `value` instead.
 Pep702OnlyMembers.old_value [class method]: Read `value` instead.
 pep702_empty_message [callable]: <empty message>
 pep702_only_function [callable]: Use `pep702_target` instead.
