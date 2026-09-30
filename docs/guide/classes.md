@@ -1107,7 +1107,7 @@ Objects with no introspectable signature — a plain `dict` wrapped by `deprecat
 
 A `typing_extensions.deprecated` / `warnings.deprecated` decorator stacked directly above `@deprecated_class(...)` — with `category=None` and a string-literal message, as described in [Functions → Static type checkers](functions.md#static-type-checkers-pep-702) — makes mypy flag every use of the old class name. pyright does not: it applies the class decorator's return type, sees the proxy instance, and never reaches the PEP 702 marker. Since mypy ignores a class decorator's return type, keep the old class's body mirroring the replacement's constructor and methods so mypy type-checks calls against the right signature.
 
-The PEP 702 decorator writes its message onto the proxy, never onto the replacement class — the class callers are migrating *to* stays unmarked. A `copy.deepcopy` or `pickle` round-trip of the alias restores pyDeprecate's own rendered message in place of the PEP 702 one; type checkers never see that runtime value.
+The PEP 702 decorator writes its message onto the proxy, never onto the replacement class — the class callers are migrating *to* stays unmarked. The message travels with `copy.copy`, `copy.deepcopy`, and `pickle` round-trips of the alias; after `del alias.__deprecated__` the attribute reads as missing rather than falling through to the wrapped class.
 
 ```python
 import typing_extensions

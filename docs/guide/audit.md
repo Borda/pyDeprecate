@@ -262,6 +262,8 @@ for row in rows:
   <summary>Output: <code>row.function, row.pep702_message</code></summary>
 
 ```
+Pep702CallableClass: Use `pep702_target` instead.
+Pep702DefaultCategoryClass: Use `Pep702StaticTarget` instead.
 Pep702OnlyClass: Use `Pep702StaticTarget` instead.
 Pep702OnlyMembers._old_method: Use the public method instead.
 Pep702OnlyMembers._old_value: Use the public value instead.
@@ -273,7 +275,7 @@ pep702_only_function: Use `pep702_target` instead.
 
 </details>
 
-A subclass of a PEP 702-deprecated class is not listed: it inherits `__deprecated__` through the MRO but is not itself deprecated.
+A subclass of a PEP 702-deprecated class is not listed, nor is an instance of one (a ready-made callable object): each reaches `__deprecated__` only through the class and is not itself deprecated. For the same reason a class lists only the PEP 702 markers it defines itself — methods inherited from a library base (a pydantic `BaseModel`, say) belong to that library and are not repeated under every subclass. A class decorated with the default warning category is one row, not three: the decorator also installs `__new__` and `__init_subclass__` on it with the same message, and the class row already covers them. A symbol imported from another top-level package — `from pydantic.deprecated.tools import parse_obj_as`, say — is the dependency's deprecation, so the scan leaves it out even with `recursive=False`; a symbol whose `__module__` is unknown stays listed under the module that exposes it.
 
 ### CLI usage
 

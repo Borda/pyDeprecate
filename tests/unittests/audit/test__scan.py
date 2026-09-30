@@ -10,6 +10,7 @@ import pytest
 import tests.collection_deprecate as col
 import tests.collection_misconfigured as clean_module
 import tests.collection_pep702 as pep702_module
+import tests.collection_targets as targets_module
 from deprecate import (
     TargetMode,
     deprecated,
@@ -100,11 +101,101 @@ class TestFindDeprecationWrappersPep702:
             "pep702_only_function",
             "pep702_empty_message",
             "Pep702OnlyClass",
+            "Pep702DefaultCategoryClass",
+            "Pep702CallableClass",
             "Pep702OnlyMembers.old_method",
             "Pep702OnlyMembers._old_method",
             "Pep702OnlyMembers._old_value",
             "Pep702OnlyMembers.old_value",
         }
+
+    @pytest.mark.parametrize(
+        ("class_name", "expected"),
+        [
+            pytest.param("Pep702DefaultCategoryClass", ["Pep702DefaultCategoryClass"], id="default-category-class"),
+            pytest.param("Pep702DefaultCategorySubclass", [], id="default-category-subclass"),
+            pytest.param("Pep702LibrarySubclass", [], id="library-base-subclass"),
+        ],
+    )
+    def test_class_reports_only_its_own_markers(self, class_name: str, expected: list[str]) -> None:
+        """A class contributes rows only for PEP 702 markers it defines itself.
+
+        The decorator's default category installs ``__new__`` and ``__init_subclass__`` on the class it decorates and
+        stamps both with the class's message, so a naive member walk lists one deprecated class three times, and its
+        undecorated subclass twice. A project model built on a library base (pydantic's ``BaseModel`` is the real-world
+        case) inherits every PEP 702-deprecated method of that base, public and private; those are the library's
+        deprecations and must not be repeated once per project subclass.
+
+        """
+        infos = find_deprecation_wrappers(pep702_module, recursive=False, include_pep702=True)
+        assert [info.function for info in infos if info.function.split(".")[0] == class_name] == expected
+
+    def test_instance_of_deprecated_class_not_reported(self) -> None:
+        """A module-level instance of a PEP 702-deprecated callable class is not a deprecation of its own.
+
+        Libraries often expose a ready-made callable object (a default parser, a shared client) built from a class.
+        When only the class is deprecated, the instance reaches ``__deprecated__`` through its type alone; reporting it
+        would list the same deprecation twice, once under a name nobody decorated.
+
+        """
+        infos = find_deprecation_wrappers(pep702_module, recursive=False, include_pep702=True)
+        names = [
+            info.function for info in infos if info.function in ("Pep702CallableClass", "pep702_callable_instance")
+        ]
+        assert names == ["Pep702CallableClass"]
+
+    @pytest.mark.parametrize(
+        "module_attrs",
+        [
+            pytest.param({}, id="module"),
+            pytest.param({"__path__": []}, id="package-non-recursive"),
+        ],
+    )
+    def test_foreign_package_import_not_reported(self, module_attrs: dict[str, list[str]]) -> None:
+        """A PEP 702-only symbol imported from another top-level package is left to that package.
+
+        Importing a deprecated helper from a dependency (``from pydantic.deprecated.tools import parse_obj_as``) is
+        routine; a row for it under the importing module is noise the project can neither expire nor remove. The filter
+        holds even when re-exports are not being attributed elsewhere (a package scanned with ``recursive=False``), and
+        it covers PEP 702 rows only: a pyDeprecate wrapper imported the same way keeps its row, as before.
+
+        """
+        consumer = types.ModuleType("consumer_app")
+        vars(consumer).update(
+            module_attrs,
+            pep702_only_function=pep702_module.pep702_only_function,
+            Pep702OnlyClass=pep702_module.Pep702OnlyClass,
+            stacked_callable=pep702_module.stacked_callable,
+        )
+        infos = find_deprecation_wrappers(consumer, recursive=False, include_pep702=True)
+        assert [(info.module, info.function) for info in infos] == [("consumer_app", "stacked_callable")]
+
+    def test_unknown_defining_module_is_kept(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A PEP 702-only symbol with no known defining module stays in the report of the module exposing it.
+
+        Callables built dynamically (``exec``, some extension modules) can carry ``__module__ = None``. The scanner
+        then cannot tell a foreign import from a local definition, so it keeps the row rather than silently drop a live
+        deprecation.
+
+        """
+        monkeypatch.setattr(pep702_module.pep702_only_function, "__module__", None)
+        consumer = types.ModuleType("consumer_app")
+        consumer.pep702_only_function = pep702_module.pep702_only_function  # type: ignore[attr-defined]
+        infos = find_deprecation_wrappers(consumer, include_pep702=True)
+        assert [(info.module, info.function) for info in infos] == [("consumer_app", "pep702_only_function")]
+
+    def test_inherited_markers_reported_on_defining_class(self) -> None:
+        """PEP 702 methods of a base class are reported once, on the base, in the module that defines it.
+
+        Moving the rows off the subclass must not lose them: an audit of the library's own module still lists each
+        deprecated method, private ones included, under the class that owns it.
+
+        """
+        infos = find_deprecation_wrappers(targets_module, recursive=False, include_pep702=True)
+        assert sorted(info.function for info in infos if info.api_type == "pep702") == [
+            "Pep702LibraryBase._iter_legacy",
+            "Pep702LibraryBase.export_legacy",
+        ]
 
     def test_empty_pep702_message_is_reported(self) -> None:
         """An empty PEP 702 message remains a real marker in the audit report.

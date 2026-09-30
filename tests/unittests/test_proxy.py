@@ -52,6 +52,7 @@ from tests.collection_deprecate import (
     ProxyCallableWithArgsMapping,
     ProxyClassWithArgsExtra,
     WarnOnlyColorEnum,
+    _AstFunctionalColorEnum,
     ast_breadcrumb_source_dict,
     depr_ast_breadcrumb_dict,
     depr_read_only_attrs_list,
@@ -60,6 +61,7 @@ from tests.collection_deprecate import (
     make_deprecated_class_skip_if_non_bool,
     make_deprecated_class_skip_if_true,
     make_deprecated_hostile_signature_instance,
+    make_deprecated_instance_over_marked_object,
     make_deprecated_instance_skip_if_true_read_only,
     pep702_proxy_stacked,
 )
@@ -207,7 +209,7 @@ class TestProxyWarnBehavior:
         """
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
-            ProxyArgsRemapForArgWarnMessage(old_key=5)  # deprecated kwarg via ARGS_REMAP
+            ProxyArgsRemapForArgWarnMessage(old_key=5)  # type: ignore[call-arg]  # deprecated kwarg via ARGS_REMAP
         future_warnings = [w for w in caught if issubclass(w.category, FutureWarning)]
         assert future_warnings, "Expected FutureWarning from ARGS_REMAP path"
         assert future_warnings[0].filename.endswith("test_proxy.py")
@@ -799,7 +801,7 @@ class TestArgsMapping:
         """TargetMode.ARGS_REMAP path emits old -> new arg names in the warning message."""
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
-            ProxyArgsRemapForArgWarnMessage(old_key=5)
+            ProxyArgsRemapForArgWarnMessage(old_key=5)  # type: ignore[call-arg]
         assert len(caught) >= 1
         msg = str(caught[0].message)
         assert "old_key" in msg
@@ -854,7 +856,7 @@ class TestArgsExtra:
             warnings.simplefilter("ignore", FutureWarning)
             instance = ProxyClassWithArgsExtra(new_key=7)
         assert instance.new_key == 7
-        assert instance.injected == "from-extra"
+        assert instance.injected == "from-extra"  # type: ignore[attr-defined]
 
     def test_merged_after_args_mapping_rename(self) -> None:
         """args_extra is applied after args_mapping renames kwargs."""
@@ -870,7 +872,7 @@ class TestArgsExtra:
             )(WithInjected)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", FutureWarning)
-            instance = proxy(old_key=11)
+            instance = proxy(old_key=11)  # type: ignore[call-arg]
         assert instance.new_key == 11
         assert instance.injected == "extra"
 
@@ -1146,7 +1148,7 @@ class TestProxyArgsMappingBehavior:
     def test_auto_args_remap_warns_on_old_arg(self) -> None:
         """Proxy with args_mapping and no explicit target warns when old arg name is used."""
         with pytest.warns(FutureWarning):
-            ProxyArgsRemapAuto(old_key=1)
+            ProxyArgsRemapAuto(old_key=1)  # type: ignore[call-arg]
 
     def test_auto_args_remap_silent_on_new_arg(self) -> None:
         """Proxy with args_mapping and no explicit target does NOT warn when new arg name is used."""
@@ -1158,7 +1160,7 @@ class TestProxyArgsMappingBehavior:
     def test_callable_target_with_args_mapping_warns_on_old_arg(self) -> None:
         """Proxy forwarding to callable target warns per old arg name when present in kwargs."""
         with pytest.warns(FutureWarning):
-            ProxyCallableWithArgsMapping(old_key=1)
+            ProxyCallableWithArgsMapping(old_key=1)  # type: ignore[call-arg]
 
     def test_callable_target_with_args_mapping_warns_on_new_arg(self) -> None:
         """Proxy forwarding to callable target always warns (class deprecated) even with new arg name."""
@@ -1366,6 +1368,45 @@ class TestPEP702ProxyStackingRegression:
 
         assert "__deprecated__" not in vars(proxy)
         assert wrapped == before
+
+    def test_deleted_marker_reads_as_missing(self) -> None:
+        """After ``del proxy.__deprecated__`` the marker reads as missing, never as the wrapped object's own marker.
+
+        A tool that removes the proxy's PEP 702 marker and then probes for it must see ``AttributeError`` — falling
+        through to the wrapped object would report *its* marker as the proxy's, and a second ``del`` must fail the
+        same way it does on any object whose attribute is already gone.
+
+        """
+        proxy = make_deprecated_instance_over_marked_object()
+        del proxy.__deprecated__
+
+        with pytest.raises(AttributeError):
+            _ = proxy.__deprecated__
+        with pytest.raises(AttributeError):
+            del proxy.__deprecated__
+
+    @pytest.mark.parametrize(
+        "duplicate",
+        [
+            pytest.param(copy.copy, id="copy"),
+            pytest.param(copy.deepcopy, id="deepcopy"),
+            pytest.param(lambda obj: pickle.loads(pickle.dumps(obj)), id="pickle"),  # noqa: S301
+        ],
+    )
+    def test_copy_keeps_user_set_marker(self, duplicate: Callable[[Any], Any]) -> None:
+        """A PEP 702 message written onto the proxy survives copy, deepcopy, and a pickle round-trip.
+
+        A library stacks a PEP 702 decorator over a deprecated alias, and later code copies or pickles that alias
+        (config snapshots, multiprocessing). The duplicate must carry the message the author wrote, not a freshly
+        rendered pyDeprecate message that silently replaces it.
+
+        """
+        proxy = make_deprecated_instance_over_marked_object()
+        proxy.__deprecated__ = "Use `new_settings` instead."
+
+        duplicated = duplicate(proxy)
+
+        assert object.__getattribute__(duplicated, "__deprecated__") == "Use `new_settings` instead."
 
 
 class TestCombinedArgAttrsMapping:
@@ -2119,7 +2160,7 @@ class TestAttrsMappingCombinations:
         assert meta.attrs_mapping == {"color": "colour"}
         # Runtime ignores the mapping entirely: the alias is not redirected to ``colour``.
         with pytest.raises(AttributeError):
-            _ = proxy.color
+            _ = proxy.color  # type: ignore[attr-defined]
 
     def test_attrs_remap_without_attrs_mapping_warns_at_decoration(self) -> None:
         """``target=TargetMode.ATTRS_REMAP`` without ``attrs_mapping`` emits a UserWarning at decoration time.
@@ -2287,7 +2328,7 @@ class TestDataclassAutoExpand:
         instances returned by the callable target are plain dataclass objects.
         """
         with pytest.warns(FutureWarning):
-            _ = DepAutoExpandDC.old_field  # class-proxy access, not instance attr
+            _ = DepAutoExpandDC.old_field  # type: ignore[attr-defined]  # class-proxy access, not instance attr
 
     def test_auto_expanded_keys_recorded_on_deprecated_meta(self) -> None:
         """``args_mapping_auto_expanded`` on ``__deprecation_config__`` lists the auto-copied key.
@@ -2527,7 +2568,7 @@ class TestPositionalOnlyForwarding:
         """
         with pytest.warns(FutureWarning):
             instance = DepPositionalOnlyImmutable(old_val=3)  # type: ignore[call-arg]
-        assert instance.new_val == 3
+        assert instance.new_val == 3  # type: ignore[attr-defined]
 
     def test_constructor_derivation_runs(self) -> None:
         """State derived inside the constructor reflects the remapped value.
@@ -3425,22 +3466,45 @@ _ast_class_proxy = cast(DeprecationProxy[Any], DeprecatedColorEnum)
 
 
 if TYPE_CHECKING:
-    # `deprecated_class` returns the concrete `_DeprecatedProxy` in every call shape — no overloads, no
-    # target-driven narrowing. Pinned statically because the runtime object is the same either way: a
-    # regression that silently widened the return type to `Any` would leave every runtime test passing.
-    # mypy analyses this block (always true for a type checker) but the interpreter never executes it,
-    # so the calls construct nothing and emit no warnings.
+    # `deprecated_class` keeps the decorated class's own static type, so the call form is typed exactly like the
+    # decorator form (which type checkers read as the class statement). Pinned statically because the runtime object
+    # is a `_DeprecatedProxy` either way: a regression back to the proxy type, or a widening to `Any`, would leave
+    # every runtime test passing. mypy analyses this block (always true for a type checker) but the interpreter never
+    # executes it, so the calls construct nothing and emit no warnings.
     # NOTE: `[tool.mypy] mypy_path = "src"` is what makes these bite — without it `deprecate` is
     # unresolvable from `tests/**`, `ignore_missing_imports` turns every symbol into `Any`, and
     # `assert_type` degrades to a silent no-op that passes against any signature whatsoever.
     from typing_extensions import assert_type
 
-    assert_type(DeprecatedColorEnumFunctional, _DeprecatedProxy)
-    assert_type(DeprecatedPaletteFunctionalFallback, _DeprecatedProxy)
-    # A caller who wants the target type at a specific site annotates it there; the proxy satisfies the
-    # public Protocol structurally, so no cast is needed.
-    _typed_alias: DeprecationProxy[ColorEnum] = DeprecatedColorEnumFunctional
-    assert_type(_typed_alias(1), ColorEnum)
+    # The static type is the class passed in — the legacy source class when it differs from `target`.
+    assert_type(DeprecatedColorEnumFunctional, type[_AstFunctionalColorEnum])
+    assert_type(DeprecatedPaletteFunctionalFallback, type[Palette])
+    # The uses a proxy-typed alias broke downstream: `isinstance`/`issubclass` narrowing, construction, and handing the
+    # alias on wherever a class object is expected.
+    _any_object: object = Palette()
+    if isinstance(_any_object, DeprecatedPaletteFunctionalFallback):
+        assert_type(_any_object, Palette)
+    _any_class: type = Palette
+    if issubclass(_any_class, DeprecatedPaletteFunctionalFallback):
+        assert_type(_any_class, type[Palette])
+    assert_type(DeprecatedPaletteFunctionalFallback(), Palette)
+    _alias_as_class: type[Palette] = DeprecatedPaletteFunctionalFallback
+    # Stacking over a class-typed alias keeps the class type; a class built with `type(name, bases, ns)` stays a plain
+    # `type` (a `type[_T] -> type[_T]` signature would infer `type[Never]` there); an object already typed as a proxy
+    # keeps the concrete proxy type.
+    assert_type(
+        deprecated_class(deprecated_in="1.0", remove_in="2.0")(DeprecatedPaletteFunctionalFallback), type[Palette]
+    )
+    assert_type(deprecated_class(deprecated_in="1.0", remove_in="2.0")(type("_Dynamic", (), {})), type)
+    assert_type(deprecated_class(deprecated_in="1.0", remove_in="2.0")(_ast_class_proxy), _DeprecatedProxy)
+
+    # Decorator form: the alias is a class statement, so it is also valid in annotations and as a base class.
+    # A call-form alias is a variable, which no type checker accepts in a type expression.
+    def _accepts_legacy(config: DeprecatedColorDataClass) -> DeprecatedColorDataClass:
+        return config
+
+    class _LegacySubclass(DeprecatedColorDataClass):
+        pass
 
 
 class TestProxyAstFriendliness:

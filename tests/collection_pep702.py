@@ -8,27 +8,33 @@ else).
 
 Two groups live here:
 
-| Fixture                  | Decorators                                              | Audit reports it as          |
-| ------------------------ | ------------------------------------------------------- | ---------------------------- |
-| ``stacked_callable``     | PEP 702 (``category=None``) over ``@deprecated``         | pyDeprecate wrapper          |
-| ``StackedAlias``         | PEP 702 (``category=None``) over ``@deprecated_class``   | pyDeprecate wrapper (proxy)  |
-| ``StackedMembers.*``     | PEP 702 (``category=None``) over ``@deprecated`` members | pyDeprecate wrappers         |
-| ``pep702_only_function`` | PEP 702 only                                            | ``pep702`` (opt-in)          |
-| ``pep702_empty_message`` | PEP 702 only, with an empty message                     | ``pep702`` (opt-in)          |
-| ``Pep702OnlyClass``      | PEP 702 only                                            | ``pep702`` (opt-in)          |
-| ``Pep702OnlySubclass``   | none — inherits ``__deprecated__`` through the MRO       | never reported               |
-| ``Pep702OnlyMembers.*``  | PEP 702 only, on a method and a property getter         | ``pep702`` (opt-in)          |
+| Fixture                           | Decorators                                             | Audit reports it as  |
+| --------------------------------- | ------------------------------------------------------ | -------------------- |
+| ``stacked_callable``              | PEP 702 (``category=None``) over ``@deprecated``       | pyDeprecate wrapper  |
+| ``StackedAlias``                  | PEP 702 (``category=None``) over ``@deprecated_class`` | pyDeprecate proxy    |
+| ``StackedMembers.*``              | PEP 702 (``category=None``) over ``@deprecated``       | pyDeprecate wrappers |
+| ``pep702_only_function``          | PEP 702 only                                           | ``pep702`` (opt-in)  |
+| ``pep702_empty_message``          | PEP 702 only, with an empty message                    | ``pep702`` (opt-in)  |
+| ``Pep702OnlyClass``               | PEP 702 only                                           | ``pep702`` (opt-in)  |
+| ``Pep702OnlySubclass``            | none — inherits ``__deprecated__`` (MRO)               | never reported       |
+| ``Pep702DefaultCategoryClass``    | PEP 702 only, default category                         | one ``pep702`` row   |
+| ``Pep702DefaultCategorySubclass`` | none — inherits the class hooks (MRO)                  | never reported       |
+| ``Pep702CallableClass``           | PEP 702 only, on a callable class                      | ``pep702`` (opt-in)  |
+| ``pep702_callable_instance``      | none — an instance of ``Pep702CallableClass``          | never reported       |
+| ``Pep702LibrarySubclass``         | none — inherits PEP 702 methods (MRO)                  | never reported       |
+| ``Pep702OnlyMembers.*``           | PEP 702 only, on a method and a property getter        | ``pep702`` (opt-in)  |
 
 Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 
 """
 
+import warnings
 from typing import Any
 
 import typing_extensions
 
 from deprecate import deprecated, deprecated_class, void
-from tests.collection_targets import Pep702StaticTarget, pep702_target
+from tests.collection_targets import Pep702LibraryBase, Pep702StaticTarget, pep702_target
 
 #: Shared schedule for every stacked wrapper here; ``num_warns=-1`` so runtime tests never depend on call order.
 _DEPRS_CASE_STACKED_ARGS: dict[str, Any] = {"deprecated_in": "1.0", "remove_in": "2.0", "num_warns": -1}
@@ -118,6 +124,53 @@ class Pep702OnlyClass:
 
 class Pep702OnlySubclass(Pep702OnlyClass):
     """Subclass that is NOT itself deprecated — ``__deprecated__`` reaches it only through the MRO."""
+
+
+@typing_extensions.deprecated("Use `Pep702StaticTarget` instead.")
+class Pep702DefaultCategoryClass:
+    """Class deprecated with the decorator's default ``DeprecationWarning`` category — the common spelling.
+
+    With a category set, the decorator also installs ``__new__`` and ``__init_subclass__`` on the class and stamps both
+    with the class's own message. An audit must list the class once, not those two hooks as extra deprecated members.
+
+    """
+
+
+# Subclassing a default-category class runs the installed ``__init_subclass__``, which warns; silence that one warning
+# so importing this fixture module stays quiet like every other fixture here.
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore", DeprecationWarning)
+
+    class Pep702DefaultCategorySubclass(Pep702DefaultCategoryClass):
+        """Undecorated subclass — the hooks and ``__deprecated__`` reach it only through the MRO."""
+
+
+@typing_extensions.deprecated("Use `pep702_target` instead.", category=None)
+class Pep702CallableClass:
+    """Callable class deprecated with the PEP 702 decorator only — the type behind a ready-made function object."""
+
+    def __call__(self, x: int) -> int:
+        """Apply the legacy transformation."""
+        return x
+
+
+#: Ready-made callable a library exposes, built from the deprecated class. The instance is not deprecated itself:
+#: ``__deprecated__`` reaches it only through its type, just as a subclass reaches it only through the MRO.
+pep702_callable_instance = Pep702CallableClass()
+
+
+class Pep702LibrarySubclass(Pep702LibraryBase):
+    """Project model built on a library base whose methods are PEP 702-deprecated; it deprecates nothing itself.
+
+    The inherited ``export_legacy`` and ``_iter_legacy`` are the library's deprecations. Listing them here would repeat
+    them once per project subclass — the pydantic ``BaseModel`` case, where a one-field model used to yield a row for
+    every deprecated base method.
+
+    """
+
+    def export(self) -> dict[str, Any]:
+        """Project's own, non-deprecated replacement API."""
+        return {}
 
 
 class Pep702OnlyMembers:

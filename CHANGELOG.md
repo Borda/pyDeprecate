@@ -17,7 +17,7 @@
 
 ### Fixed
 
-- **Setting or deleting PEP 702 metadata on a deprecated proxy stays local to the proxy.** Assigning `__deprecated__` keeps the marker on the proxy, and deleting it no longer forwards deletion to the wrapped object, including read-only proxies with `skip_if` enabled. ([#237](https://github.com/Borda/pyDeprecate/pull/237))
+- **Setting or deleting PEP 702 metadata on a deprecated proxy stays local to the proxy.** Assigning `__deprecated__` keeps the marker on the proxy, and deleting it no longer forwards deletion to the wrapped object, including read-only proxies with `skip_if` enabled. After deletion, reading `__deprecated__` raises `AttributeError` instead of returning the wrapped object's marker, and `copy.copy`, `copy.deepcopy`, and `pickle` keep a PEP 702 message written onto the proxy instead of re-rendering pyDeprecate's own. ([#237](https://github.com/Borda/pyDeprecate/pull/237))
 
 ______________________________________________________________________
 

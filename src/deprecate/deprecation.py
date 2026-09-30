@@ -19,24 +19,25 @@ import inspect
 import warnings
 from dataclasses import dataclass
 from functools import cached_property
-from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Protocol, TypeVar, Union, cast, overload
+from typing import Any, Callable, Literal, Optional, Protocol, Union, cast, overload
 
 from deprecate._dispatch import _reject_non_callable_source
 from deprecate._types import TargetMode
 from deprecate.messaging import _resolve_message_template_alias, _validate_message_template, deprecation_warning
-from deprecate.routine import deprecated_callable
-
-if TYPE_CHECKING:
-    from deprecate.proxy import _DeprecatedProxy
-
-_SourceT = TypeVar("_SourceT", bound=Union[Callable[..., Any], classmethod, staticmethod, property, cached_property])
+from deprecate.proxy import _ClassT
+from deprecate.routine import _SourceT, deprecated_callable
 
 
 class _FrontDoorDecorator(Protocol):
-    """Decorator returned by :func:`deprecated`: a class becomes a proxy, any other source keeps its own type."""
+    """Decorator returned by :func:`deprecated`: every source keeps its own static type.
+
+    A class is wrapped in a proxy at runtime but stays typed as that class, exactly like
+    :func:`~deprecate.proxy.deprecated_class`; any other source keeps its own callable or descriptor type.
+
+    """
 
     @overload
-    def __call__(self, source: type[Any]) -> "_DeprecatedProxy": ...
+    def __call__(self, source: _ClassT) -> _ClassT: ...
 
     @overload
     def __call__(self, source: _SourceT) -> _SourceT: ...

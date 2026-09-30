@@ -43,6 +43,7 @@ from collections.abc import AsyncIterator, Iterator
 from dataclasses import dataclass
 from enum import Enum
 from functools import partial
+from types import SimpleNamespace
 from typing import Any, Callable
 from warnings import catch_warnings, simplefilter, warn
 
@@ -1275,14 +1276,15 @@ class _AstFunctionalColorEnum(Enum):
 
 
 # functional/assignment form — the same wrapping the decorator form above performs, spelled as an
-# assignment. Both shapes return the concrete `_DeprecatedProxy`; `tests/unittests/test_proxy.py` pins
-# that statically and exercises the runtime forwarding here.
+# assignment. Both shapes build a `_DeprecatedProxy` at runtime and keep the wrapped class's own static type
+# (here the private source, not `target`); `tests/unittests/test_proxy.py` pins that statically and exercises the
+# runtime forwarding here.
 DeprecatedColorEnumFunctional = deprecated_class(target=ColorEnum, stream=None, **_DEPRS_CASE_STD_INF_ARGS)(
     _AstFunctionalColorEnum
 )
 
-# same functional form with no class `target` — the proxy still forwards, and the concrete return type keeps
-# the forwarded dunders (`int()`, `with`, `await`) visible to type checkers
+# same functional form with no class `target` — the proxy still forwards, and the alias is typed `type[Palette]`,
+# so `isinstance`/`issubclass` checks against it type-check
 DeprecatedPaletteFunctionalFallback = deprecated_class(stream=None, **_DEPRS_CASE_STD_INF_ARGS)(Palette)
 
 
@@ -2683,6 +2685,17 @@ def make_deprecated_instance_skip_if_true_read_only() -> Any:  # noqa: ANN401
 
     """
     return deprecated_instance([1, 2], name="legacy_list", skip_if=True, read_only=True, **_DEPRS_CASE_STD_ARGS)
+
+
+def make_deprecated_instance_over_marked_object() -> Any:  # noqa: ANN401
+    """Wrap an object that carries its own ``__deprecated__`` marker in a fresh ``deprecated_instance`` proxy.
+
+    The proxy keeps its own ``__deprecated__`` as metadata; the wrapped object's marker must never leak through it —
+    not after the proxy's marker is deleted, and not through copies. Built fresh per call so tests can mutate it.
+
+    """
+    marked = SimpleNamespace(__deprecated__="wrapped object's own marker")
+    return deprecated_instance(marked, name="legacy_settings", stream=None, **_DEPRS_CASE_STD_ARGS)
 
 
 def make_deprecated_on_fresh_function_warn_only() -> Any:  # noqa: ANN401

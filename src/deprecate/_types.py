@@ -647,14 +647,14 @@ class DeprecationProxy(Protocol, Generic[_T_co]):
 
     !!! note "Static-typing scope"
         This Protocol is the type to *annotate* against; it is not what the public functions declare as their
-        return type. ``deprecated_class`` and ``deprecated_instance`` return the concrete
-        :class:`~deprecate.proxy._DeprecatedProxy`, whose forwarded dunders (``int()``, ``with``, ``await``, ...)
-        a narrow Protocol would hide from type checkers. No call shape narrows to ``DeprecationProxy[T]`` on its
-        own, so to let the target type flow into call sites, annotate the one site that needs it —
-        ``OldCls: DeprecationProxy[NewCls] = deprecated_class(target=NewCls, ...)(OldClsDef)``. The decorator form
-        ``@deprecated_class(target=NewCls, ...)`` is typed as the raw source class because mypy does not rebind a
-        class definition to an instance return type; annotating it would require returning a real class
-        instead of a proxy.
+        return type. ``deprecated_instance`` returns the concrete :class:`~deprecate.proxy._DeprecatedProxy`, whose
+        forwarded dunders (``int()``, ``with``, ``await``, ...) a narrow Protocol would hide from type checkers;
+        annotate an instance proxy as ``DeprecationProxy[T]`` to name the type calling it produces.
+        ``deprecated_class`` keeps the decorated class's own static type instead — both
+        ``deprecated_class(target=NewCls, ...)(NewCls)`` and the ``@deprecated_class(...)`` decorator form are typed
+        as that class — so a class alias is not assignable to ``DeprecationProxy``. To reach the proxy-only
+        attributes of a class alias statically, use :func:`get_deprecation_config`, or
+        ``cast(DeprecationProxy[Any], OldCls)`` at the one site that needs them.
 
     !!! warning "``isinstance`` only"
         This is a *data* Protocol (it declares attributes, not just methods), so only ``isinstance`` is
@@ -674,14 +674,16 @@ class DeprecationProxy(Protocol, Generic[_T_co]):
         >>> OldColor.__wrapped__ is OldColor.__wrapped__  # breadcrumb back to the source class
         True
 
-        An explicit annotation on the assignment is what gives mypy the target type — spelled out as
-        ``DeprecationProxy[NewColor]``, ``OldColorAlias(1)`` is typed as ``NewColor``:
+        An instance proxy is where the type parameter pays off — spelled out as ``DeprecationProxy[NewColor]``,
+        calling the proxy is typed as producing a ``NewColor``:
 
-        >>> _decorator = deprecated_class(target=NewColor, deprecated_in="1.0", remove_in="2.0", stream=None)
-        >>> class _OldColorSource:
-        ...     pass
-        >>> OldColorAlias: DeprecationProxy[NewColor] = _decorator(_OldColorSource)
-        >>> isinstance(OldColorAlias(1), NewColor)
+        >>> from deprecate import deprecated_instance
+        >>> def make_color(code: int) -> NewColor:
+        ...     return NewColor(code)
+        >>> legacy_factory: DeprecationProxy[NewColor] = deprecated_instance(
+        ...     make_color, name="legacy_factory", deprecated_in="1.0", remove_in="2.0", stream=None
+        ... )
+        >>> isinstance(legacy_factory(1), NewColor)
         True
 
     """
