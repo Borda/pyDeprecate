@@ -197,10 +197,11 @@ def deprecated_callable(  # noqa: C901
     args_mapping: Optional[dict[str, Optional[str]]] = None,
     args_extra: Optional[dict[str, Any]] = None,
     skip_if: Union[bool, Callable] = False,
-    as_exception: Optional[bool] = None,
     update_docstring: bool = False,
     docstring_style: Literal["auto", "rst", "mkdocs", "markdown"] = "auto",
     template_mgs: Optional[str] = None,
+    *,
+    as_exception: Optional[bool] = None,
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Decorate a function/method with warning message and forward calls to target — the strict callable form.
 
@@ -314,7 +315,6 @@ def deprecated_callable(  # noqa: C901
             method forwarding detected at decoration time via ``__qualname__`` comparison). Skipped silently
             when the target's qualname prefix names a class absent from the target's module globals.
 
-    Raises:
         TypeError: If skip_if is a callable that doesn't return a bool.
         TypeError: If arguments in args_mapping don't exist in target function and target doesn't accept **kwargs.
 

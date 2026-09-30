@@ -723,6 +723,8 @@ This pattern is useful when a migration is only active for some environments or 
 
 A warning is a request; sometimes you need a refusal. `as_exception=True` raises `DeprecatedError` instead of emitting the warning — the same rendered message, but the call stops: the replacement target is never invoked and the source body never runs (so `TargetMode.NOTIFY` and `TargetMode.ARGS_REMAP` stop instead of falling through). It is the middle step of the warn → raise → delete lifecycle, available on `@deprecated`, `deprecated_callable()`, `deprecated_class()`, `deprecated_instance()`, and `deprecated_module()`.
 
+For proxies, fatal mode applies only to operations that would warn. Ordinary attribute writes and attributes outside `attrs_mapping` remain silent. Without `attrs_mapping`, a successful attribute lookup can execute a property getter or another descriptor before `DeprecatedError` is raised; getter side effects may already have occurred. Fatal deprecation is a migration control, not an authorization boundary. See [class and object fatal deprecations](https://borda.github.io/pyDeprecate/stable/guide/classes.html#fatal-deprecations) for the access rules.
+
 Two behaviours differ from the warning path and are deliberate: a fatal deprecation ignores `num_warns` and raises on **every** call (a budget that stopped raising after the first call would be a gate with a hole in it), and `stream=None` silences only the message, never the raise. `skip_if` still suppresses everything, fatal included.
 
 <details>
@@ -762,7 +764,7 @@ DeprecatedError
 
 </details>
 
-With a forwarding `target=new_encode` the raised message names the replacement exactly as the warning would (`… in favor of `mypkg.new_encode\`\`), but the target is still never called.
+With a forwarding `target=new_encode` the raised message names the replacement exactly as the warning would (`` … in favor of `mypkg.new_encode` ``), but the target is still never called.
 
 Flip every deprecation at once with the process-wide switch — `deprecate.AS_EXCEPTIONS`, seeded at import from the `DEPRECATE_AS_EXCEPTIONS` environment variable (`1`, `true`, `yes`, or `on`):
 

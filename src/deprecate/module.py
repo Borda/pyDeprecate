@@ -91,7 +91,7 @@ def _config_identity(config: DeprecationConfig) -> tuple[Any, ...]:
     requests the *same* deprecation (a safe silent no-op) or a *different* one (a reconfiguration
     that must be reported rather than silently dropped).  Only fields a caller controls are
     compared: the redirect ``target`` (or the :attr:`~deprecate._types.TargetMode.NOTIFY` sentinel),
-    both version strings, the per-attribute mapping, and the fully-rendered warning message (which
+    both version strings, the per-attribute mapping, fatal mode, and the fully-rendered warning message (which
     already folds in the caller's ``message_template`` argument).  The runtime ``stream`` callable is
     intentionally excluded — a differing ``stream`` alone does not constitute a configuration
     difference.
@@ -109,7 +109,14 @@ def _config_identity(config: DeprecationConfig) -> tuple[Any, ...]:
     # An empty dict normalizes to None (truthiness check, not `is not None`): an empty mapping is
     # semantically identical to no mapping, so `{}` and `None` must not read as a config difference.
     frozen_mapping = frozenset(attrs_mapping.items()) if attrs_mapping else None
-    return (config.target, config.deprecated_in, config.remove_in, frozen_mapping, config.message_template)
+    return (
+        config.target,
+        config.deprecated_in,
+        config.remove_in,
+        frozen_mapping,
+        config.message_template,
+        config.as_exception,
+    )
 
 
 def _emit_module_warning(

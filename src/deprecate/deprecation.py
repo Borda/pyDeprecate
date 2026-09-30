@@ -157,10 +157,11 @@ def deprecated(
     args_mapping: Optional[dict[str, Optional[str]]] = None,
     args_extra: Optional[dict[str, Any]] = None,
     skip_if: Union[bool, Callable] = False,
-    as_exception: Optional[bool] = None,
     update_docstring: bool = False,
     docstring_style: Literal["auto", "rst", "mkdocs", "markdown"] = "auto",
     template_mgs: Optional[str] = None,
+    *,
+    as_exception: Optional[bool] = None,
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Deprecate a function, method, or class — the friendly front door.
 

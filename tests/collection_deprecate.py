@@ -2953,3 +2953,10 @@ fatal_legacy_settings = deprecated_instance({"threshold": 0.5}, name="fatal_lega
 async def decorated_async_fatal(x: int) -> int:
     """Async source with a fatal deprecation — awaiting the coroutine raises before the target runs."""
     return x * 2
+
+
+def make_positional_docstring_wrapper(decorator: Callable, options: tuple[Any, ...], fatal: bool = False) -> Callable:
+    """Build a wrapper using the established positional docstring options and keyword fatal mode."""
+    return decorator(TargetMode.NOTIFY, "1.0", "2.0", None, 1, None, None, None, False, *options, as_exception=fatal)(
+        double_value
+    )

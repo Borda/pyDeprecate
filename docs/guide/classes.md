@@ -1105,7 +1105,11 @@ Objects with no introspectable signature — a plain `dict` wrapped by `deprecat
 
 ## Fatal deprecations
 
-`as_exception=True` works on `deprecated_class()` and `deprecated_instance()` exactly as it does on the callable forms — see [Fatal deprecations](functions.md#fatal-deprecations) for the full contract. On a proxy, every access that would warn raises `DeprecatedError` instead: instantiation, attribute reads and writes, item access, calls, and the arithmetic/conversion dunders. Structural probes stay silent because they never warned either — `isinstance`, `issubclass`, `repr`, `str`, equality, ordering, and `len` are transparent by design, so a debugger or a duck-typing check does not trip the gate. A failed `hasattr` probe also stays quiet (the attribute is resolved before the warning fires), but a *successful* one raises, since that is a real use of the deprecated attribute.
+`as_exception=True` works on `deprecated_class()` and `deprecated_instance()` as it does on the callable forms — see [Fatal deprecations](functions.md#fatal-deprecations) for the full contract. On a proxy, every operation that would warn raises `DeprecatedError` instead: instantiation, warning-producing attribute reads, item access, calls, and data-use arithmetic/conversion dunders. Writes to names listed in `attrs_mapping` also raise before the mapped write. Ordinary attribute writes and reads/writes of names outside an active `attrs_mapping` remain silent; constructor-only `TargetMode.ARGS_REMAP` does not make attribute access fatal.
+
+Structural probes stay silent because they never warned either — `isinstance`, `issubclass`, `repr`, `str`, equality, ordering, and `len` are transparent by design. Without `attrs_mapping`, a missing attribute makes `hasattr` return `False` silently; a successful non-dunder lookup on a warning-producing path raises `DeprecatedError`, which `hasattr` does not swallow. With `attrs_mapping`, a listed name raises before lookup even if missing, while unlisted names stay silent whether present or missing.
+
+Fatal deprecation is a migration control, not an authorization boundary. Without `attrs_mapping`, attribute lookup resolves the value before the fatal warning path: a property getter or another descriptor can execute and produce side effects before `DeprecatedError` is raised. If that getter raises its own exception, it propagates before the fatal path is reached. Mapped attribute reads reach the fatal path before resolving the mapped descriptor.
 
 ## See also
 

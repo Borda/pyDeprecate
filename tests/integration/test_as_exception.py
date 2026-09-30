@@ -20,6 +20,7 @@ from deprecate import (
     deprecated,
     find_deprecation_wrappers,
 )
+from tests import collection_modules
 from tests.collection_deprecate import (
     FatalLegacyWidget,
     decorated_args_fatal,
@@ -33,6 +34,7 @@ from tests.collection_deprecate import (
     fatal_legacy_settings,
     wrapped_sum,
 )
+from tests.collection_modules import fatal_utils
 from tests.collection_targets import base_sum_kwargs, double_value, identity_value
 
 _VERSION_ARGS: dict[str, Any] = {"deprecated_in": "1.0", "remove_in": "2.0"}
@@ -166,8 +168,6 @@ class TestFatalCallable:
         lists deprecations blow up on the very deprecations it is meant to report. It reads `__dict__`, so the
         fatal module is discovered like any other — this locks that in.
         """
-        from tests import collection_modules
-
         found = {info.module for info in find_deprecation_wrappers(collection_modules, recursive=True)}
         assert "tests.collection_modules.fatal_utils" in found
 
@@ -232,8 +232,6 @@ class TestFatalProxyAndModule:
         Whole-module deprecation is normally `num_warns=-1` (warn on every access); fatal mode turns the same
         surface into a hard stop, which is how an author retires a module before deleting the file.
         """
-        from tests.collection_modules import fatal_utils
-
         with assert_no_warnings(), pytest.raises(DeprecatedError):
             _ = fatal_utils.WIDGET_LIMIT
 
