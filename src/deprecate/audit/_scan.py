@@ -132,24 +132,27 @@ def _descriptor_kind(obj: Any) -> Optional[str]:  # noqa: ANN401
     return None
 
 
-def _scan_pep702(
+def _descriptor_pep702_message(obj: Any) -> Optional[str]:  # noqa: ANN401
+    """Return the message of the first PEP 702-only callable behind ``obj``, peeking through descriptors."""
+    messages = map(_pep702_message, _descriptor_underlying_callables(obj))
+    return next((item for item in messages if item is not None), None)
+
+
+def _pep702_row(
     obj: Any,  # noqa: ANN401
     module_name: str,
     qualified_name: str,
+    message: str,
     *,
     member_name: Optional[str] = None,
-) -> Optional[DeprecationWrapperInfo]:
-    """Emit a row for the first PEP 702-only callable behind ``obj`` (peeking through descriptors).
+) -> DeprecationWrapperInfo:
+    """Build the row for ``obj``, whose PEP 702 ``message`` the caller already looked up once.
 
     ``api_type`` names the shape exactly as for a pyDeprecate wrapper (``callable``, ``class``, ``class method``,
     ``staticmethod``, ...); the mechanism is marked by ``pep702_message``, which is a string here (possibly empty) and
     ``None`` on every pyDeprecate row.
 
     """
-    messages = map(_pep702_message, _descriptor_underlying_callables(obj))
-    message = next((item for item in messages if item is not None), None)
-    if message is None:
-        return None
     info = DeprecationWrapperInfo(
         module=module_name,
         function=qualified_name,
@@ -290,22 +293,20 @@ def _scan_class(
     except (AttributeError, TypeError):
         return results
     for attr_name, obj in members:
-        pep702_candidate = attr_name in pep702_names
+        # Looked up once per owned member; the private-member gate and the row below share it.
+        pep702_message = _descriptor_pep702_message(obj) if attr_name in pep702_names else None
         # Private members with either deprecation marker stay visible to an opt-in audit.
         if (
             attr_name.startswith("_")
             and attr_name != "__init__"
             and not _member_has_deprecation_meta(obj)
-            and not (
-                pep702_candidate
-                and any(_pep702_message(member) is not None for member in _descriptor_underlying_callables(obj))
-            )
+            and pep702_message is None
         ):
             continue
         qualified = f"{cls_name}.{attr_name}"
         result = _scan_class_member(obj, module_name, qualified, attr_name)
-        if result is None and pep702_candidate:
-            result = _scan_pep702(obj, module_name, qualified, member_name=attr_name)
+        if result is None and pep702_message is not None:
+            result = _pep702_row(obj, module_name, qualified, pep702_message, member_name=attr_name)
         if result is not None:
             results.append(result)
     return results
@@ -395,15 +396,15 @@ def _scan_module_member(
         result = _scan_callable(obj, mod_name, name)
         return [result] if result is not None else []
     results: list[DeprecationWrapperInfo] = []
-    pep702_result = _scan_pep702(obj, mod_name, name) if include_pep702 else None
+    pep702_message = _descriptor_pep702_message(obj) if include_pep702 else None
     # A PEP 702 symbol imported from another top-level package is that package's deprecation; drop it whatever the
     # re-export attribution mode (pyDeprecate rows above keep their long-standing behaviour).
     if (
-        pep702_result is not None
+        pep702_message is not None
         and not _defined_in_other_package(obj, mod_name)
         and _claim_wrapper(obj, mod_name, attribute_to_defining_module, seen)
     ):
-        results.append(pep702_result)
+        results.append(_pep702_row(obj, mod_name, name, pep702_message))
     if include_members and inspect.isclass(obj) and getattr(obj, "__module__", None) == mod_name:
         results.extend(_scan_class(obj, mod_name, name, include_pep702=include_pep702))
     return results
