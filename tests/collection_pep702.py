@@ -24,6 +24,8 @@ Two groups live here:
 | ``Pep702LibrarySubclass``         | none — inherits PEP 702 methods (MRO)                  | never reported        |
 | ``Pep702OnlyMembers.*``           | PEP 702 only, on methods and property accessors        | member rows (opt-in)  |
 | ``Pep702OnlyMembersAlias``        | none — a second name bound to ``Pep702OnlyMembers``    | never reported twice  |
+| ``Pep702MixedMembers.*``          | PEP 702 only + plain pyDeprecate member                | member rows (opt-in)  |
+| ``Pep702AliasFirst``              | none — alias sorting before ``Pep702MixedMembers``     | class name owns rows  |
 
 Opt-in rows (``include_pep702=True``) classify ``api_type`` by shape like any other row and carry the decorator's
 message in ``pep702_message``, which is ``None`` on every pyDeprecate row.
@@ -221,3 +223,21 @@ class Pep702OnlyMembers:
 #: Second public name for the same class: a library keeps a short alias beside the canonical name. The class owns one
 #: set of members, so an opt-in audit must list each PEP 702-deprecated member once, not once per binding.
 Pep702OnlyMembersAlias = Pep702OnlyMembers
+
+
+class Pep702MixedMembers:
+    """Class holding one PEP 702-only member and one pyDeprecate member, bound under a second name that sorts first."""
+
+    @typing_extensions.deprecated("Use `pep702_target` instead.", category=None)
+    def old_pep702(self) -> None:
+        """Legacy method deprecated for static checkers only."""
+
+    @deprecated(**_DEPRS_CASE_STACKED_ARGS)
+    def old_wrapped(self, x: int) -> int:
+        """Legacy method deprecated with pyDeprecate — its row appears under every binding of the class."""
+        return x
+
+
+#: Alias whose name sorts *before* the class name, so alphabetical scan order meets the alias first. The PEP 702 member
+#: rows must still land under ``Pep702MixedMembers``, while the pyDeprecate member row appears under both names.
+Pep702AliasFirst = Pep702MixedMembers

@@ -85,6 +85,8 @@ class TestFindDeprecationWrappersPep702:
             ("StackedMembers.legacy_method", None),
             ("StackedMembers.legacy_value", None),
             ("StackedMembers.legacy_static", None),
+            ("Pep702MixedMembers.old_wrapped", None),
+            ("Pep702AliasFirst.old_wrapped", None),
         }
 
     def test_opt_in_reports_pep702_only_objects(self) -> None:
@@ -109,6 +111,7 @@ class TestFindDeprecationWrappersPep702:
             ("Pep702OnlyMembers.old_value", "class method"),
             ("Pep702OnlyMembers.old_static", "staticmethod"),
             ("Pep702OnlyMembers.old_total", "class method"),
+            ("Pep702MixedMembers.old_pep702", "class method"),
         }
 
     @pytest.mark.parametrize("marker", [None, pytest.param(b"Use `pep702_target` instead.", id="bytes")])
@@ -155,6 +158,28 @@ class TestFindDeprecationWrappersPep702:
         infos = find_deprecation_wrappers(pep702_module, recursive=False, include_pep702=True)
         names = [info.function for info in infos if info.function.endswith(".old_method")]
         assert names == ["Pep702OnlyMembers.old_method"]
+
+    def test_class_alias_sorting_first_does_not_take_the_pep702_rows(self) -> None:
+        """The binding named like the class owns its PEP 702 member rows, even when an alias sorts before it.
+
+        A library exposes ``Report = CsvReportWriter``: scan order is alphabetical, so the short alias is met first.
+        Someone searching the report for ``CsvReportWriter.*`` must still find the rows, so the class's own name wins.
+
+        """
+        infos = find_deprecation_wrappers(pep702_module, recursive=False, include_pep702=True)
+        names = [info.function for info in infos if info.function.endswith(".old_pep702")]
+        assert names == ["Pep702MixedMembers.old_pep702"]
+
+    def test_class_alias_keeps_pydeprecate_member_rows_under_each_name(self) -> None:
+        """A class bound under two names reports its pyDeprecate member rows once per binding, as it always has.
+
+        Only the PEP 702 rows are claimed once per class. Skipping the whole member scan for an already-claimed class
+        would silently drop the second binding's pyDeprecate rows and shift every gate built on the default scan.
+
+        """
+        infos = find_deprecation_wrappers(pep702_module, recursive=False)
+        names = sorted(info.function for info in infos if info.function.endswith(".old_wrapped"))
+        assert names == ["Pep702AliasFirst.old_wrapped", "Pep702MixedMembers.old_wrapped"]
 
     def test_instance_of_deprecated_class_not_reported(self) -> None:
         """A module-level instance of a PEP 702-deprecated callable class is not a deprecation of its own.

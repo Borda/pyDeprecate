@@ -383,14 +383,19 @@ def _claim_wrapper(
     return True
 
 
-def _claim_class_members(cls: Any, seen: set[int]) -> bool:  # noqa: ANN401
+def _claim_class_members(cls: Any, name: str, seen: set[int], canonical: frozenset[int]) -> bool:  # noqa: ANN401
     """Return True — and mark ``cls`` seen — the first time its own PEP 702 member rows are scanned.
 
-    One class bound under two names in a module (``ShortName = LongName``) owns one set of members; the first name
-    scanned reports their PEP 702 rows and later bindings skip them, as :func:`_claim_wrapper` does for a top-level
-    symbol. The negative id keeps this claim apart from the class-row claim, which is keyed on ``id(cls)`` itself.
+    One class bound under two names in a module (``ShortName = LongName``) owns one set of members, reported once, as
+    :func:`_claim_wrapper` does for a top-level symbol. The binding named like the class (``cls.__name__``) wins, so
+    the rows read ``LongName.*`` whatever the alphabetical scan order; a class with no such binding in the module
+    (every public name is an alias) falls back to the first name scanned. ``canonical`` holds the ``id`` of every class
+    that has a binding named like itself. The negative id keeps this claim apart from the class-row claim, which is
+    keyed on ``id(cls)`` itself.
 
     """
+    if name != cls.__name__ and id(cls) in canonical:
+        return False
     key = -id(cls)
     if key in seen:
         return False
@@ -407,6 +412,7 @@ def _scan_module_member(
     attribute_to_defining_module: bool,
     seen: set[int],
     include_pep702: bool = False,
+    canonical_classes: frozenset[int] = frozenset(),
 ) -> list[DeprecationWrapperInfo]:
     """Scan one module member for deprecated wrappers or nested class members."""
     if name.startswith("_") or inspect.ismodule(obj):
@@ -429,9 +435,9 @@ def _scan_module_member(
     if include_members and inspect.isclass(obj) and getattr(obj, "__module__", None) == mod_name:
         # Only the PEP 702 rows are claimed once per class: pyDeprecate member rows keep their long-standing
         # one-per-binding behaviour, so the default scan and every gate built on it stay unchanged.
-        results.extend(
-            _scan_class(obj, mod_name, name, include_pep702=include_pep702 and _claim_class_members(obj, seen))
-        )
+        # (_scan_class must still run for every binding — it emits those pyDeprecate rows.)
+        claimed = include_pep702 and _claim_class_members(obj, name, seen, canonical_classes)
+        results.extend(_scan_class(obj, mod_name, name, include_pep702=claimed))
     return results
 
 
@@ -468,6 +474,10 @@ def _scan_module(
         return results
 
     mod_name = mod.__name__ if hasattr(mod, "__name__") else str(mod)
+    # Classes with a public binding named like themselves: that binding owns their PEP 702 member rows, not an alias.
+    canonical_classes = frozenset(
+        id(obj) for name, obj in members if not name.startswith("_") and inspect.isclass(obj) and name == obj.__name__
+    )
     for name, obj in members:
         results.extend(
             _scan_module_member(
@@ -478,6 +488,7 @@ def _scan_module(
                 attribute_to_defining_module=attribute_to_defining_module,
                 seen=seen,
                 include_pep702=include_pep702,
+                canonical_classes=canonical_classes,
             )
         )
     return results
@@ -563,7 +574,10 @@ def find_deprecation_wrappers(
             ``empty_deprecated_in`` is True; drop them (``pep702_message is not None``) before feeding the rows to
             schedule-based checks. A class member is
             reported only on the class that defines it, never again under a subclass, and the ``__new__`` /
-            ``__init_subclass__`` hooks the decorator installs on a class are covered by the class row. A module-level
+            ``__init_subclass__`` hooks the decorator installs on a class are covered by the class row. A class bound
+            under a second name (``ShortName = LongName``) lists its own PEP 702 members once, under the binding named
+            like the class (``LongName``; the first name scanned when no binding is), while its pyDeprecate member
+            rows still appear under each name. A module-level
             symbol whose ``__module__`` lies in another top-level package (a deprecated helper imported from a
             dependency) is left out; one with an unknown ``__module__`` is kept. A pyDeprecate wrapper with a PEP 702
             decorator stacked on top is always a regular row. ``False`` (default) keeps every audit gate built on

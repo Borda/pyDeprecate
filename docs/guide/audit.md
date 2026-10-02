@@ -265,6 +265,7 @@ for row in rows:
 ```
 Pep702CallableClass [class]: Use `pep702_target` instead.
 Pep702DefaultCategoryClass [class]: Use `Pep702StaticTarget` instead.
+Pep702MixedMembers.old_pep702 [class method]: Use `pep702_target` instead.
 Pep702OnlyClass [class]: Use `Pep702StaticTarget` instead.
 Pep702OnlyMembers._old_method [class method]: Use the public method instead.
 Pep702OnlyMembers._old_value [class method]: Use the public value instead.
@@ -278,7 +279,7 @@ pep702_only_function [callable]: Use `pep702_target` instead.
 
 </details>
 
-A subclass of a PEP 702-deprecated class is not listed, nor is an instance of one (a ready-made callable object): each reaches `__deprecated__` only through the class and is not itself deprecated. For the same reason a class lists only the PEP 702 markers it defines itself — methods inherited from a library base (a pydantic `BaseModel`, say) belong to that library and are not repeated under every subclass. A class decorated with the default warning category is one row, not three: the decorator also installs `__new__` and `__init_subclass__` on it with the same message, and the class row already covers them. A symbol imported from another top-level package — `from pydantic.deprecated.tools import parse_obj_as`, say — is the dependency's deprecation, so the scan leaves it out even with `recursive=False`; a symbol whose `__module__` is unknown stays listed under the module that exposes it. A class bound under a second name (`ShortName = LongName`) lists its own PEP 702 members once, under the first name scanned; the pyDeprecate rows of such a class are unchanged and still appear under each name.
+A subclass of a PEP 702-deprecated class is not listed, nor is an instance of one (a ready-made callable object): each reaches `__deprecated__` only through the class and is not itself deprecated. For the same reason a class lists only the PEP 702 markers it defines itself — methods inherited from a library base (a pydantic `BaseModel`, say) belong to that library and are not repeated under every subclass. A class decorated with the default warning category is one row, not three: the decorator also installs `__new__` and `__init_subclass__` on it with the same message, and the class row already covers them. A symbol imported from another top-level package — `from pydantic.deprecated.tools import parse_obj_as`, say — is the dependency's deprecation, so the scan leaves it out even with `recursive=False`; a symbol whose `__module__` is unknown stays listed under the module that exposes it. A class bound under a second name (`ShortName = LongName`) lists its own PEP 702 members once, under the binding named like the class (`LongName`, even when the alias sorts first; the first name scanned when no binding has the class's own name); the pyDeprecate rows of such a class are unchanged and still appear under each name.
 
 The scan sees only runtime objects, so a PEP 702 decorator on an individual `@overload` is invisible to it: overload stubs are replaced by the implementation and never become module or class members. Static checkers still flag calls that match that overload.
 
