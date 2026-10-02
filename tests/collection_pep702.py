@@ -23,6 +23,7 @@ Two groups live here:
 | ``pep702_callable_instance``      | none — an instance of ``Pep702CallableClass``          | never reported        |
 | ``Pep702LibrarySubclass``         | none — inherits PEP 702 methods (MRO)                  | never reported        |
 | ``Pep702OnlyMembers.*``           | PEP 702 only, on methods and property accessors        | member rows (opt-in)  |
+| ``Pep702OnlyMembersAlias``        | none — a second name bound to ``Pep702OnlyMembers``    | never reported twice  |
 
 Opt-in rows (``include_pep702=True``) classify ``api_type`` by shape like any other row and carry the decorator's
 message in ``pep702_message``, which is ``None`` on every pyDeprecate row.
@@ -215,3 +216,8 @@ class Pep702OnlyMembers:
     def old_value(self) -> int:
         """Legacy property — PEP 702 can only decorate the getter, since a ``property`` rejects new attributes."""
         return 1
+
+
+#: Second public name for the same class: a library keeps a short alias beside the canonical name. The class owns one
+#: set of members, so an opt-in audit must list each PEP 702-deprecated member once, not once per binding.
+Pep702OnlyMembersAlias = Pep702OnlyMembers

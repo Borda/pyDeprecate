@@ -383,6 +383,21 @@ def _claim_wrapper(
     return True
 
 
+def _claim_class_members(cls: Any, seen: set[int]) -> bool:  # noqa: ANN401
+    """Return True — and mark ``cls`` seen — the first time its own PEP 702 member rows are scanned.
+
+    One class bound under two names in a module (``ShortName = LongName``) owns one set of members; the first name
+    scanned reports their PEP 702 rows and later bindings skip them, as :func:`_claim_wrapper` does for a top-level
+    symbol. The negative id keeps this claim apart from the class-row claim, which is keyed on ``id(cls)`` itself.
+
+    """
+    key = -id(cls)
+    if key in seen:
+        return False
+    seen.add(key)
+    return True
+
+
 def _scan_module_member(
     obj: Any,  # noqa: ANN401
     *,
@@ -412,7 +427,11 @@ def _scan_module_member(
     ):
         results.append(_pep702_row(obj, mod_name, name, pep702_message))
     if include_members and inspect.isclass(obj) and getattr(obj, "__module__", None) == mod_name:
-        results.extend(_scan_class(obj, mod_name, name, include_pep702=include_pep702))
+        # Only the PEP 702 rows are claimed once per class: pyDeprecate member rows keep their long-standing
+        # one-per-binding behaviour, so the default scan and every gate built on it stay unchanged.
+        results.extend(
+            _scan_class(obj, mod_name, name, include_pep702=include_pep702 and _claim_class_members(obj, seen))
+        )
     return results
 
 

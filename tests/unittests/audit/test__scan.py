@@ -144,6 +144,18 @@ class TestFindDeprecationWrappersPep702:
         infos = find_deprecation_wrappers(pep702_module, recursive=False, include_pep702=True)
         assert [info.function for info in infos if info.function.split(".")[0] == class_name] == expected
 
+    def test_class_alias_reports_members_once(self) -> None:
+        """A class bound under two names lists each PEP 702-deprecated member once, under the first name scanned.
+
+        A library that exposes ``ShortName = LongName`` still has one class and one set of members. Top-level PEP 702
+        symbols are already de-duplicated by identity; without the same treatment of class members the opt-in audit
+        would list every deprecated method twice, once per name, and inflate any count a CI gate builds on it.
+
+        """
+        infos = find_deprecation_wrappers(pep702_module, recursive=False, include_pep702=True)
+        names = [info.function for info in infos if info.function.endswith(".old_method")]
+        assert names == ["Pep702OnlyMembers.old_method"]
+
     def test_instance_of_deprecated_class_not_reported(self) -> None:
         """A module-level instance of a PEP 702-deprecated callable class is not a deprecation of its own.
 
