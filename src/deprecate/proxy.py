@@ -1577,9 +1577,13 @@ _ClassOrProxy = Union[type, "_DeprecatedProxy", DeprecationProxy[Any]]
 #: ``type`` where the ``type[_T] -> type[_T]`` spelling would infer ``type[Never]``.
 _ClassT = TypeVar("_ClassT", bound=type)
 
+#: Replacement class passed as ``deprecated_class(target=...)``: the alias is statically that class.
+_NewT = TypeVar("_NewT")
+_NewT_co = TypeVar("_NewT_co", covariant=True)
+
 
 class _ClassDecorator(Protocol):
-    """Decorator returned by :func:`deprecated_class`: a class keeps its own static type, a proxy stays a proxy.
+    """Decorator returned by :func:`deprecated_class` when no replacement class is given: the source keeps its type.
 
     At runtime every input comes back wrapped in a :class:`_DeprecatedProxy`. For a class input the static type stays
     ``type[Cls]`` because the proxy is a truthful stand-in for it — ``isinstance`` (``__instancecheck__``), subclassing
@@ -1596,6 +1600,68 @@ class _ClassDecorator(Protocol):
     def __call__(self, cls: Union["_DeprecatedProxy", DeprecationProxy[Any]]) -> "_DeprecatedProxy": ...
 
 
+class _RedirectDecorator(Protocol[_NewT_co]):
+    """Decorator returned by :func:`deprecated_class` for ``target=NewCls``: the alias is typed as the target class.
+
+    A redirecting proxy does not stand in for the class it wraps — ``isinstance``, construction, and attribute access
+    all resolve against *target*, so ``deprecated_class(target=NewCls)(OldCls)`` is statically ``type[NewCls]``, never
+    ``type[OldCls]`` (``OldCls`` instances are not instances of the alias).  The wrapped class is not part of the result
+    type, so it may be any class — including a bare ``type`` — and need not be related to *target*.  An already-wrapped
+    proxy (stacking) keeps its concrete proxy type.
+
+    """
+
+    @overload
+    def __call__(self, cls: type) -> type[_NewT_co]: ...
+
+    @overload
+    def __call__(self, cls: Union["_DeprecatedProxy", DeprecationProxy[Any]]) -> "_DeprecatedProxy": ...
+
+
+@overload
+def deprecated_class(
+    *,
+    deprecated_in: str = "",
+    remove_in: str = "",
+    num_warns: int = 1,
+    stream: Optional[Callable[..., None]] = deprecation_warning,
+    message_template: Optional[str] = None,
+    args_mapping: Optional[dict[str, Optional[str]]] = None,
+    args_extra: Optional[dict[str, Any]] = None,
+    attrs_mapping: Optional[dict[str, Optional[str]]] = None,
+    skip_if: Union[bool, Callable[[], bool]] = False,
+    update_docstring: bool = False,
+    docstring_style: Literal["auto", "rst", "mkdocs", "markdown"] = "auto",
+    template_mgs: Optional[str] = None,
+    as_exception: Optional[bool] = None,
+    _misconfigured_override: bool = False,
+    _stacklevel_extra: int = 0,
+) -> _ClassDecorator: ...
+
+
+@overload
+def deprecated_class(
+    target: type[_NewT],
+    *,
+    deprecated_in: str = "",
+    remove_in: str = "",
+    num_warns: int = 1,
+    stream: Optional[Callable[..., None]] = deprecation_warning,
+    message_template: Optional[str] = None,
+    args_mapping: Optional[dict[str, Optional[str]]] = None,
+    args_extra: Optional[dict[str, Any]] = None,
+    attrs_mapping: Optional[dict[str, Optional[str]]] = None,
+    skip_if: Union[bool, Callable[[], bool]] = False,
+    update_docstring: bool = False,
+    docstring_style: Literal["auto", "rst", "mkdocs", "markdown"] = "auto",
+    template_mgs: Optional[str] = None,
+    as_exception: Optional[bool] = None,
+    _misconfigured_override: bool = False,
+    _stacklevel_extra: int = 0,
+) -> _RedirectDecorator[_NewT]: ...
+
+
+@overload
 def deprecated_class(
     target: Any = None,  # noqa: ANN401
     *,
@@ -1614,7 +1680,28 @@ def deprecated_class(
     as_exception: Optional[bool] = None,
     _misconfigured_override: bool = False,
     _stacklevel_extra: int = 0,
-) -> _ClassDecorator:
+) -> _ClassDecorator: ...
+
+
+def deprecated_class(
+    target: Any = None,
+    *,
+    deprecated_in: str = "",
+    remove_in: str = "",
+    num_warns: int = 1,
+    stream: Optional[Callable[..., None]] = deprecation_warning,
+    message_template: Optional[str] = None,
+    args_mapping: Optional[dict[str, Optional[str]]] = None,
+    args_extra: Optional[dict[str, Any]] = None,
+    attrs_mapping: Optional[dict[str, Optional[str]]] = None,
+    skip_if: Union[bool, Callable[[], bool]] = False,
+    update_docstring: bool = False,
+    docstring_style: Literal["auto", "rst", "mkdocs", "markdown"] = "auto",
+    template_mgs: Optional[str] = None,
+    as_exception: Optional[bool] = None,
+    _misconfigured_override: bool = False,
+    _stacklevel_extra: int = 0,
+) -> Union[_ClassDecorator, _RedirectDecorator[Any]]:
     r"""Decorator factory for deprecating class definitions with optional target redirection.
 
     Apply ``@deprecated_class(...)`` to an Enum or dataclass to wrap the class in a
@@ -1716,12 +1803,16 @@ def deprecated_class(
 
     Returns:
         A decorator that wraps the class in a :class:`~deprecate.proxy._DeprecatedProxy`, which satisfies the public
-        :class:`~deprecate._types.DeprecationProxy` Protocol at runtime.  Statically, a decorated class keeps its own
-        type: ``deprecated_class(target=NewCls, ...)(NewCls)`` is typed ``type[NewCls]``, the same type checkers
-        already infer for the ``@deprecated_class(...)`` decorator form.  ``isinstance``/``issubclass`` checks,
-        construction, and attribute access therefore type-check against the wrapped class, which the proxy forwards
-        to at runtime.  The static type is the class passed in, not *target*: wrapping a separate legacy class types
-        the alias as that legacy class.  Stacking over an existing proxy keeps the concrete proxy type.
+        :class:`~deprecate._types.DeprecationProxy` Protocol at runtime.  Statically, the alias is typed as the class
+        the proxy forwards to: with a class *target*, ``deprecated_class(target=NewCls, ...)(OldCls)`` is
+        ``type[NewCls]`` whichever class is wrapped, so ``isinstance``/``issubclass`` checks, construction, and
+        attribute access type-check against the replacement.  Without a class *target* (``args_mapping`` /
+        ``attrs_mapping`` only, a :class:`~deprecate._types.TargetMode` member, or none) the alias keeps the wrapped
+        class's own type, ``type[OldCls]``.  Stacking over an existing proxy keeps the concrete proxy type.  The
+        ``@deprecated_class(...)`` decorator form is read by type checkers as the class statement itself.  Static
+        typing models the steady state: with ``skip_if`` the wrapped class is served while skipped, so it must stay
+        compatible with *target*.  A ``**options`` dict of type ``dict[str, Any]`` hides whether *target* is passed,
+        so the type checker cannot pick a result and infers ``Any`` — spell the keywords out to keep the precise type.
 
     Note:
         **Subclassing (PEP 560)**: the proxy implements ``__mro_entries__`` so
@@ -1835,8 +1926,9 @@ def deprecated_class(
             object.__setattr__(proxy, "__doc__", shim.__doc__)
         return proxy
 
-    # The runtime result is always a proxy; the protocol types a class input as that class (see ``_ClassDecorator``).
-    return cast(_ClassDecorator, decorator)
+    # The runtime result is always a proxy; the overloads type it statically as the target class, or as the wrapped
+    # class when nothing is redirected (see ``_RedirectDecorator`` / ``_ClassDecorator``).
+    return cast(Union[_ClassDecorator, _RedirectDecorator[Any]], decorator)
 
 
 def deprecated_instance(

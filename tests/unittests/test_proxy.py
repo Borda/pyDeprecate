@@ -20,6 +20,7 @@ from deprecate._types import TargetMode
 from deprecate.deprecation import deprecated
 from deprecate.proxy import _DeprecatedProxy, deprecated_class, deprecated_instance
 from tests.collection_deprecate import (
+    _DEPRS_CASE_STD_INF_ARGS,
     DepAutoExpandDC,
     DepAutoExpandInitFalseDC,
     DepAutoExpandOverriddenInitDC,
@@ -52,7 +53,6 @@ from tests.collection_deprecate import (
     ProxyCallableWithArgsMapping,
     ProxyClassWithArgsExtra,
     WarnOnlyColorEnum,
-    _AstFunctionalColorEnum,
     ast_breadcrumb_source_dict,
     depr_ast_breadcrumb_dict,
     depr_read_only_attrs_list,
@@ -1407,6 +1407,48 @@ class TestPEP702ProxyStackingRegression:
         duplicated = duplicate(proxy)
 
         assert object.__getattribute__(duplicated, "__deprecated__") == "Use `new_settings` instead."
+
+    @pytest.mark.parametrize(
+        "duplicate",
+        [
+            pytest.param(copy.copy, id="copy"),
+            pytest.param(copy.deepcopy, id="deepcopy"),
+            pytest.param(lambda obj: pickle.loads(pickle.dumps(obj)), id="pickle"),  # noqa: S301
+        ],
+    )
+    def test_copy_keeps_deleted_marker_deleted(self, duplicate: Callable[[Any], Any]) -> None:
+        """A proxy whose PEP 702 marker was deleted stays marker-less after copy, deepcopy, and a pickle round-trip.
+
+        A static-checker decorator removes its marker during cleanup, and later code copies or pickles the alias. The
+        duplicate must not re-add a freshly rendered ``__deprecated__`` that the author deliberately removed, nor
+        expose the wrapped object's own marker in its place.
+
+        """
+        proxy = make_deprecated_instance_over_marked_object()
+        del proxy.__deprecated__
+
+        duplicated = duplicate(proxy)
+
+        assert "__deprecated__" not in vars(duplicated)
+        with pytest.raises(AttributeError):
+            _ = duplicated.__deprecated__
+
+    def test_legacy_payload_renders_default_marker(self) -> None:
+        """A pickle payload written before the marker was recorded rebuilds a proxy with the default message.
+
+        Pickles stored by an older release carry only ``(cfg, dep, doc)``; loading one must still give a proxy whose
+        ``__deprecated__`` is the rendered default message, not a missing attribute and not the wrapped object's own
+        marker. The payload is built from the current ``__reduce_ex__`` result with the marker argument dropped.
+
+        """
+        proxy = make_deprecated_instance_over_marked_object()
+        reconstructor, args = proxy.__reduce_ex__(2)[:2]
+
+        rebuilt = reconstructor(*args[:3])
+
+        marker = object.__getattribute__(rebuilt, "__deprecated__")
+        assert marker == object.__getattribute__(proxy, "__deprecated__")
+        assert marker != "wrapped object's own marker"
 
 
 class TestCombinedArgAttrsMapping:
@@ -3466,21 +3508,19 @@ _ast_class_proxy = cast(DeprecationProxy[Any], DeprecatedColorEnum)
 
 
 if TYPE_CHECKING:
-    # `deprecated_class` keeps the decorated class's own static type, so the call form is typed exactly like the
-    # decorator form (which type checkers read as the class statement). Pinned statically because the runtime object
-    # is a `_DeprecatedProxy` either way: a regression back to the proxy type, or a widening to `Any`, would leave
-    # every runtime test passing. mypy analyses this block (always true for a type checker) but the interpreter never
-    # executes it, so the calls construct nothing and emit no warnings.
+    # The static type of a `deprecated_class` alias follows what the proxy forwards to at runtime. Pinned statically
+    # because the runtime object is a `_DeprecatedProxy` either way: a regression back to the proxy type, or a widening
+    # to `Any`, would leave every runtime test passing. mypy analyses this block (always true for a type checker) but
+    # the interpreter never executes it, so the calls construct nothing and emit no warnings.
     # NOTE: `[tool.mypy] mypy_path = "src"` is what makes these bite — without it `deprecate` is
     # unresolvable from `tests/**`, `ignore_missing_imports` turns every symbol into `Any`, and
     # `assert_type` degrades to a silent no-op that passes against any signature whatsoever.
     from typing_extensions import assert_type
 
-    # The static type is the class passed in — the legacy source class when it differs from `target`.
-    assert_type(DeprecatedColorEnumFunctional, type[_AstFunctionalColorEnum])
+    # Without a replacement class the alias stands in for the wrapped class and keeps its own type.
     assert_type(DeprecatedPaletteFunctionalFallback, type[Palette])
-    # Using a proxy-typed alias breaks downstream: `isinstance`/`issubclass` narrowing, construction, and handing the
-    # alias on wherever a class object is expected.
+    # Using a proxy-typed alias would break downstream: `isinstance`/`issubclass` narrowing, construction, and handing
+    # the alias on wherever a class object is expected.
     _any_object: object = Palette()
     if isinstance(_any_object, DeprecatedPaletteFunctionalFallback):
         assert_type(_any_object, Palette)
@@ -3488,7 +3528,24 @@ if TYPE_CHECKING:
     if issubclass(_any_class, DeprecatedPaletteFunctionalFallback):
         assert_type(_any_class, type[Palette])
     assert_type(DeprecatedPaletteFunctionalFallback(), Palette)
-    _alias_as_class: type[Palette] = DeprecatedPaletteFunctionalFallback
+    # With `target=NewCls` the alias is the target: the proxy resolves `isinstance`, construction and attribute access
+    # against it, so the private source it wraps never shows up in the type (its instances are not instances of it).
+    assert_type(DeprecatedColorEnumFunctional, type[ColorEnum])
+    if isinstance(_any_object, DeprecatedColorEnumFunctional):
+        assert_type(_any_object, ColorEnum)
+    assert_type(DeprecatedColorEnumFunctional(1), ColorEnum)
+    # The wrapped class does not matter for the result: a bare `type` (built with `type(name, bases, ns)`) is accepted
+    # and the alias is still the target. Stacking another alias or a proxy-typed object is accepted as well.
+    assert_type(
+        deprecated_class(target=Palette, deprecated_in="1.0", remove_in="2.0")(type("_Dynamic", (), {})), type[Palette]
+    )
+    assert_type(
+        deprecated_class(target=Palette, deprecated_in="1.0", remove_in="2.0")(DeprecatedColorEnumFunctional),
+        type[Palette],
+    )
+    assert_type(
+        deprecated_class(target=Palette, deprecated_in="1.0", remove_in="2.0")(_ast_class_proxy), _DeprecatedProxy
+    )
     # Stacking over a class-typed alias keeps the class type; a class built with `type(name, bases, ns)` stays a plain
     # `type` (a `type[_T] -> type[_T]` signature would infer `type[Never]` there); an object already typed as a proxy
     # keeps the concrete proxy type.
@@ -3497,6 +3554,11 @@ if TYPE_CHECKING:
     )
     assert_type(deprecated_class(deprecated_in="1.0", remove_in="2.0")(type("_Dynamic", (), {})), type)
     assert_type(deprecated_class(deprecated_in="1.0", remove_in="2.0")(_ast_class_proxy), _DeprecatedProxy)
+    # `skip_if` cannot be modelled: the steady-state target type is used, so a source that is served while skipped
+    # must stay compatible with it. Unpacking a `dict[str, Any]` hides whether `target` is supplied, so the overload
+    # cannot be chosen and the result falls back to `Any` — spell the version kwargs out to keep the precise type.
+    assert_type(deprecated_class(target=Palette, skip_if=True, stream=None)(Palette), type[Palette])
+    assert_type(deprecated_class(stream=None, **_DEPRS_CASE_STD_INF_ARGS), Any)
 
     # Decorator form: the alias is a class statement, so it is also valid in annotations and as a base class.
     # A call-form alias is a variable, which no type checker accepts in a type expression.

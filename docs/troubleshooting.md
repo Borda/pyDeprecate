@@ -1792,9 +1792,9 @@ Both deprecated names forward to the same non-deprecated implementation with no 
 
 **Q:** What type do type checkers see for the result of `deprecated_class(...)` and `deprecated_instance(...)`, and what should I annotate against?
 
-**A:** A class alias keeps the wrapped class's own type; an instance proxy is annotated with the public `DeprecationProxy`.
+**A:** A class alias is typed as the class it forwards to; an instance proxy is annotated with the public `DeprecationProxy`.
 
-`deprecated_class` is typed to return the class you pass in: `RetryConfig = deprecated_class(target=RetryPolicy, ...)(RetryPolicy)` is `type[RetryPolicy]`, so it needs no annotation and `isinstance(x, RetryConfig)` narrows to `RetryPolicy`. `deprecated_instance` returns a proxy — annotate it with `DeprecationProxy` (never the private `_DeprecatedProxy`), spelled `DeprecationProxy[T]` when calling the proxy produces a `T`:
+`deprecated_class` is typed to return its `target`: `RetryConfig = deprecated_class(target=RetryPolicy, ...)(RetryPolicy)` is `type[RetryPolicy]`, so it needs no annotation and `isinstance(x, RetryConfig)` narrows to `RetryPolicy`. Without a class `target` (`args_mapping` / `attrs_mapping` only) the alias keeps the wrapped class's own type. `deprecated_instance` returns a proxy — annotate it with `DeprecationProxy` (never the private `_DeprecatedProxy`), spelled `DeprecationProxy[T]` when calling the proxy produces a `T`:
 
 ```python
 from dataclasses import dataclass
@@ -1843,11 +1843,11 @@ The class alias is still a proxy at runtime — `isinstance(RetryConfig, Depreca
 
 **Q:** After upgrading pyDeprecate, mypy reports new errors around `deprecated_class` aliases that used to pass. What changed?
 
-**A:** Releases before `v0.14` shipped no type information, so type checkers treated every pyDeprecate object as `Any`. Since `v0.14` the package ships `py.typed`, and a deprecated class alias is typed as the class it wraps — both `deprecated_class(...)(Cls)` and `@deprecated_class(...)` give `type[Cls]`. The errors that can surface, and their fixes:
+**A:** Releases before `v0.14` shipped no type information, so type checkers treated every pyDeprecate object as `Any`. Since `v0.14` the package ships `py.typed`, and a deprecated class alias is typed as the class it forwards to — `deprecated_class(target=New, ...)(Cls)` gives `type[New]`, and without a class `target` it gives `type[Cls]`; the `@deprecated_class(...)` decorator form is read as the class statement. The errors that can surface, and their fixes:
 
-- **`[assignment]` on `Old: DeprecationProxy[New] = deprecated_class(...)(Cls)`** — the alias is `type[Cls]`, not a proxy type. Drop the annotation; to get the replacement's type, wrap the replacement itself: `Old = deprecated_class(target=New, ...)(New)`.
+- **`[assignment]` on `Old: DeprecationProxy[New] = deprecated_class(target=New, ...)(Cls)`** — the alias is `type[New]`, not a proxy type. Drop the annotation; the alias already has the replacement's type.
 - **`[attr-defined]` on `Old.__wrapped__` or `Old.__deprecation_config__`** — proxy-only attributes are invisible on the class type. Use `get_deprecation_config(Old)`, `inspect.unwrap(Old)`, or `cast(DeprecationProxy[Any], Old)`.
-- **`[call-arg]` / `[attr-defined]` on an old keyword or attribute name** that the alias still accepts through `args_mapping` / `attrs_mapping` — the wrapped class does not declare the old name, exactly as the decorator form has always reported. Keep the old names in a legacy class body, or type the alias as `cast(DeprecationProxy[New], deprecated_class(...)(New))`: calls and attributes become permissive, but `isinstance` against the alias no longer type-checks.
+- **`[call-arg]` / `[attr-defined]` on an old keyword or attribute name** that the alias still accepts through `args_mapping` / `attrs_mapping` — the alias's class (the `target`, or the wrapped class without one) does not declare the old name, exactly as the decorator form has always reported. Keep the old names in a legacy class body, or type the alias as `cast(DeprecationProxy[New], deprecated_class(...)(New))`: calls and attributes become permissive, but `isinstance` against the alias no longer type-checks.
 - **`[valid-type]` on `def f(x: Old)`** (and, in mypy, `class Child(Old)`) — a call-form alias is a variable, and no type checker accepts a variable as a type. Annotate or subclass the replacement class, or use the decorator form, whose name is a class statement.
 
 See [Classes → Type annotations and static analysis](guide/classes.md#type-annotations-and-static-analysis).

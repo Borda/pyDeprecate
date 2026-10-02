@@ -1005,7 +1005,7 @@ LegacyTrainingConfig 2.0
 
 ## Type annotations and static analysis
 
-At runtime `deprecated_class()` returns a proxy; to type checkers it returns the class you passed in. The call form `deprecated_class(...)(BrandColor)` is typed `type[BrandColor]` — the same type checkers already give the `@deprecated_class(...)` decorator form, which they read as the class statement — so both forms agree:
+At runtime `deprecated_class()` returns a proxy; to type checkers it returns the class the proxy forwards to. The call form `deprecated_class(target=BrandColor, ...)(WidgetColor)` is typed `type[BrandColor]` whichever class it wraps, so the alias checks against the replacement. The `@deprecated_class(...)` decorator form is different: type checkers read it as the class statement itself, so the name stays the decorated class:
 
 ```python
 from enum import Enum
@@ -1018,7 +1018,7 @@ class BrandColor(Enum):
     BLUE = 2
 
 
-# DEPRECATED API — `WidgetColor` was the original name; wrapping the replacement types the alias as `type[BrandColor]`
+# DEPRECATED API — `WidgetColor` was the original name; `target=BrandColor` types the alias as `type[BrandColor]`
 WidgetColor = deprecated_class(target=BrandColor, deprecated_in="1.0", remove_in="2.0")(BrandColor)
 
 print(WidgetColor(1) is BrandColor.RED)  # warns: FutureWarning
@@ -1042,7 +1042,8 @@ What type-checks against the alias, and what does not:
 - **Checks as the class:** `isinstance(x, WidgetColor)` and `issubclass(...)` narrow to `BrandColor`; `WidgetColor(1)`, member and attribute access, and passing the alias where a `type[BrandColor]` is expected all type-check — the proxy forwards each of them to the class at runtime.
 - **Not a type:** the alias is a variable, so `def paint(color: WidgetColor)` is rejected by every type checker, and mypy also rejects `class Child(WidgetColor)`. Annotate with the replacement class — it is what callers migrate to — or use the decorator form, whose name is a class statement.
 - **Old names are flagged:** names the wrapped class does not have — old keyword arguments renamed through `args_mapping`, old attributes redirected through `attrs_mapping` — are reported as `call-arg` / `attr-defined` errors, as they already were for the decorator form. To keep such call sites type-checking during the migration window, keep the old names in a legacy class body (decorator form), or type the alias as `cast(DeprecationProxy[Config], deprecated_class(...)(Config))` — calls and attributes become permissive, at the cost of `isinstance` against the alias no longer type-checking.
-- **Legacy source class:** the static type is the class you pass in, not `target`. Wrapping a separate legacy class types `Alias(...)` as that legacy class even though the runtime returns a `target` instance — keep its body mirroring the replacement.
+- **The target decides the type:** with `target=BrandColor` the alias is `type[BrandColor]` whichever class you wrap — a separate legacy class included, so `WidgetColor(...)` is typed as the `BrandColor` instance the runtime returns. Without a class `target` (`args_mapping` / `attrs_mapping` only) the alias keeps the wrapped class's own type. With `skip_if` the wrapped class is served while the condition holds; the type models the steady state, so keep the wrapped class compatible with `target`.
+- **Unpacked options hide `target`:** `deprecated_class(**options)` with `options: dict[str, Any]` may or may not supply `target`, so the type checker cannot choose and infers `Any`. Spell `deprecated_in` / `remove_in` out as keywords to keep the precise type.
 - **Proxy-only attributes** such as `__wrapped__` and `__deprecation_config__` are invisible on `type[BrandColor]`: read them with `get_deprecation_config(WidgetColor)` or `inspect.unwrap(WidgetColor)`, or `cast(DeprecationProxy[Any], WidgetColor)` at the one site that needs them.
 
 `DeprecationProxy[T]` remains the annotation for `deprecated_instance()` proxies, where `T` is the type calling the proxy produces.

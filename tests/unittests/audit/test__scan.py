@@ -24,7 +24,6 @@ from deprecate.audit import (
 )
 from deprecate.audit._scan import _member_has_deprecation_meta, _scan_class
 from deprecate.proxy import _DeprecatedProxy, deprecated_class
-from tests.collection_targets import PositionalOnlyTarget
 
 
 class _SideEffectScanModule:
@@ -683,7 +682,7 @@ class TestValidateMappingCompatibility:
                 args_mapping={"old_val": None},
                 deprecated_in="1.0",
                 remove_in="2.0",
-            )(PositionalOnlyTarget)
+            )(targets_module.PositionalOnlyTarget)
 
         info = validate_deprecation_wrapper(proxy)
         assert info.args_mapping_positional_only == [], (

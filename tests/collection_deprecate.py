@@ -1276,16 +1276,20 @@ class _AstFunctionalColorEnum(Enum):
 
 
 # functional/assignment form — the same wrapping the decorator form above performs, spelled as an
-# assignment. Both shapes build a `_DeprecatedProxy` at runtime and keep the wrapped class's own static type
-# (here the private source, not `target`); `tests/unittests/test_proxy.py` pins that statically and exercises the
-# runtime forwarding here.
-DeprecatedColorEnumFunctional = deprecated_class(target=ColorEnum, stream=None, **_DEPRS_CASE_STD_INF_ARGS)(
-    _AstFunctionalColorEnum
-)
+# assignment. Both shapes build a `_DeprecatedProxy` at runtime. With a class `target` the alias is typed as that
+# target (`type[ColorEnum]`, not the private source it wraps) because it resolves `isinstance`/construction against
+# the target; `tests/unittests/test_proxy.py` pins that statically and exercises the runtime forwarding here.
+# The version kwargs are spelled out rather than unpacked from `_DEPRS_CASE_STD_INF_ARGS`: a `dict[str, Any]` splat
+# could carry `target`, so type checkers cannot pick an overload and fall back to `Any` (also pinned there).
+DeprecatedColorEnumFunctional = deprecated_class(
+    target=ColorEnum, deprecated_in="1.0", remove_in="2.0", num_warns=-1, stream=None
+)(_AstFunctionalColorEnum)
 
 # same functional form with no class `target` — the proxy still forwards, and the alias is typed `type[Palette]`,
 # so `isinstance`/`issubclass` checks against it type-check
-DeprecatedPaletteFunctionalFallback = deprecated_class(stream=None, **_DEPRS_CASE_STD_INF_ARGS)(Palette)
+DeprecatedPaletteFunctionalFallback = deprecated_class(deprecated_in="1.0", remove_in="2.0", num_warns=-1, stream=None)(
+    Palette
+)
 
 
 @deprecated_class(target=NewDataClass, **_DEPRS_CASE_STD_INF_ARGS)
