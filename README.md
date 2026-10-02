@@ -262,7 +262,7 @@ Most alternatives emit a deprecation notice. pyDeprecate is for migrations where
 - **Testing Helpers**: Built-in tools like `assert_no_warnings()` ensure your deprecations are testable and deterministic.
 - **Class/Instance Proxy**: Deprecate entire classes, Enums, dataclasses, and module-level objects with transparent proxy wrappers (`deprecated_class`, `deprecated_instance`).
 - **CI/Audit Tools**: Validate wrapper configuration, and — when installed with the `pyDeprecate[audit]` extra — enforce removal deadlines (PEP 440) and detect deprecated-to-deprecated chains.
-- **Static Type-Checker Signals**: Native PEP 702 static diagnostics come from `warnings.deprecated`. For projects that need both static-checker hints and runtime call-forwarding, `warnings.deprecated` (for the static signal) and pyDeprecate's `@deprecated` (for forwarding) can be applied separately to the same function.
+- **Static Type-Checker Signals**: Native PEP 702 static diagnostics come from `warnings.deprecated` — type checkers recognise that decorator by name only. For both static-checker hints and runtime call-forwarding, stack `@warnings.deprecated("literal message", category=None)` directly above pyDeprecate's `@deprecated(...)`; `category=None` keeps the runtime warning pyDeprecate-only. The package ships `py.typed` and keeps decorated signatures intact for type checkers, and `find_deprecation_wrappers(..., include_pep702=True)` also lists symbols deprecated with the PEP 702 decorator alone.
 - **Decorator Stacking**: Stack `@deprecated` decorators for multi-version migrations — rename arguments across releases (`ARGS_REMAP + ARGS_REMAP`), then deprecate the whole function when a complete replacement arrives (`ARGS_REMAP + NOTIFY`). Unsupported combinations warn at decoration time.
 - **Sphinx Plugin**: Ships a Sphinx autodoc extension (`deprecate.docstring.sphinx_ext`) so `_DeprecatedProxy` objects are documented with their injected deprecation notice instead of rendering as opaque aliases.
 - **MkDocs Plugin**: Ships a Griffe extension (`deprecate.docstring.griffe_ext`) for mkdocstrings so runtime-injected `!!! warning` admonitions are visible in MkDocs-generated API docs.
@@ -1089,9 +1089,9 @@ True
 <details>
 <summary>Example: annotating with <code>DeprecationProxy</code> and reading proxy breadcrumbs</summary>
 
-`deprecated_class()` and `deprecated_instance()` return a proxy, not a class. Annotate it with the public `DeprecationProxy` protocol instead of reaching for a private name.
+`deprecated_instance()` returns a proxy. Annotate it with the public `DeprecationProxy` protocol instead of reaching for a private name.
 
-`DeprecationProxy[T]` is generic in what calling the proxy produces, but `deprecated_class` and `deprecated_instance` return the concrete proxy in every call shape — mypy does not infer `T` from `target=` on its own. A caller who wants the target type at a specific site annotates it there: `Old: DeprecationProxy[NewCls] = deprecated_class(target=NewCls, deprecated_in="1.0", remove_in="2.0")(_OldSource)`. Keeping the concrete `_DeprecatedProxy` return type everywhere else is deliberate — it keeps the proxy's forwarded dunders (`int()`, `with`, `await`) visible to type checkers, which the narrower protocol would hide.
+`deprecated_class` types a call-form alias as the class it forwards to: `Old = deprecated_class(target=NewCls, deprecated_in="1.0", remove_in="2.0")(OldCls)` is `type[NewCls]` whichever class it wraps, so `isinstance`/`issubclass`, construction and attribute access type-check against the replacement; with no class `target` (`args_mapping` / `attrs_mapping` only) it keeps the wrapped class's own type, and the decorator form is read as the class statement by mypy (pyright applies the decorator's return type, `type[NewCls]` with a class `target`). `DeprecationProxy[T]` annotates `deprecated_instance` proxies; for a class alias use `get_deprecation_config(Old)` or `cast(DeprecationProxy[Any], Old)` to reach proxy-only attributes.
 
 Every proxy also carries `__wrapped__` (the source object) and `__signature__` (the source's signature), so `inspect.unwrap`, `inspect.signature`, Sphinx autodoc, and IDEs resolve through the proxy to the real thing. Reading either attribute emits no warning.
 
@@ -1567,6 +1567,7 @@ The `DeprecationWrapperInfo` dataclass contains:
 - `self_reference`: True if target points to the same function (self-reference)
 - `no_effect`: True if wrapper has zero impact (self-reference, empty mapping, or all identity)
 - `empty_deprecated_in`: True if `deprecated_in` is absent (CI misconfiguration signal — missing introductory version metadata)
+- `pep702_message`: `None` for pyDeprecate wrappers; on a row found with `find_deprecation_wrappers(..., include_pep702=True)` for a symbol deprecated only with `warnings.deprecated`, the decorator's message (a string, possibly empty) — such a row keeps a shape `api_type` (`callable`, `class`, `class method`, ...) and has no versions
 
 <details>
 <summary><b>Validating a Single Function</b></summary>

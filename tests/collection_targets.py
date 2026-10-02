@@ -12,6 +12,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable, Optional
 
+import typing_extensions
+
 
 def raise_pow(base: float, coef: float) -> float:
     """Compute base**coef while emitting a UserWarning — used to test assert_no_warnings."""
@@ -260,16 +262,53 @@ class _Pep702ProxyTarget:
     ``typing_extensions.deprecated`` was applied on top of the ``deprecated_class``
     proxy wrapper.
 
-    Underscore-prefixed so :func:`deprecate.find_deprecation_wrappers` skips it: the
-    outer PEP 702 wrapper forwards its ``__deprecated__ = msg`` assignment through the
-    proxy's ``__setattr__`` onto this wrapped class, leaving a plain string on the
-    class attribute that would otherwise crash the audit walker.
+    The outer PEP 702 wrapper's ``__deprecated__ = msg`` assignment lands on the proxy itself, never on this class —
+    the regression test asserts this class's own ``__dict__`` stays free of ``__deprecated__``.
 
     """
 
     def value(self) -> int:
         """Return a stable sentinel value used by the B1b regression test."""
         return 42
+
+
+class Pep702StaticTarget:
+    """Replacement class a PEP 702-stacked ``deprecated_class`` alias forwards to.
+
+    A library renames ``LegacyReader`` to ``Pep702StaticTarget`` and marks the old name for both runtime warnings
+    (pyDeprecate) and static checkers (``typing_extensions.deprecated`` stacked on top).  The replacement itself must
+    stay un-deprecated: a type checker or ``inspect`` reading ``__deprecated__`` on it must find nothing.
+
+    """
+
+    def __init__(self, value: int = 0) -> None:
+        """Store the value the alias forwards through construction."""
+        self.value = value
+
+    def doubled(self) -> int:
+        """Return twice the stored value so call forwarding through the alias is observable."""
+        return self.value * 2
+
+
+class Pep702LibraryBase:
+    """Stand-in for a third-party base class whose own methods carry PEP 702 markers.
+
+    A project builds its models on a library base (a validation or ORM base, say) whose authors deprecated a few
+    methods with ``typing_extensions.deprecated``. Auditing the project with ``include_pep702=True`` must list those
+    methods on this defining class only, never again under each project subclass that merely inherits them — public
+    or private.
+
+    """
+
+    @typing_extensions.deprecated("Use `export` instead.")
+    def export_legacy(self) -> dict[str, Any]:
+        """Legacy export the library deprecated for its callers."""
+        return {}
+
+    @typing_extensions.deprecated("Iterate `fields` instead.", category=None)
+    def _iter_legacy(self) -> list[str]:
+        """Private library helper deprecated together with the public API."""
+        return []
 
 
 def timing_wrapper(func: Callable) -> Callable:

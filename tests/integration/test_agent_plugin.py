@@ -157,6 +157,8 @@ _SKILL_SKIP_TOKENS = frozenset(
         "convert",
         "keep",
         "warnings.warn",
+        "warnings.deprecated",
+        "typing_extensions.deprecated",
         "pyDeprecate",
         "deprecate",
         "deprecate.__version__",

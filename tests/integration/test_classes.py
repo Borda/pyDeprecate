@@ -191,7 +191,7 @@ class TestDeprecatedEnums:
     def test_enum_self_argument_mapping(self) -> None:
         """Test argument mapping when deprecating within the same enum."""
         with pytest.warns(FutureWarning):
-            assert SelfMappedEnum(old_value="alpha") is SelfMappedEnum.ALPHA
+            assert SelfMappedEnum(old_value="alpha") is SelfMappedEnum.ALPHA  # type: ignore[call-arg]
 
 
 class TestDeprecatedDataclasses:

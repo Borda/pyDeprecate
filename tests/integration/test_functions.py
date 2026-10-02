@@ -430,7 +430,7 @@ class TestErrorHandling:
     def test_incomplete_missing_arg(self) -> None:
         """Test missing required argument."""
         with pytest.raises(TypeError, match="missing 1 required positional argument: 'b'"):
-            depr_pow_args(2)
+            depr_pow_args(2)  # type: ignore[call-arg]
 
     def test_incomplete_missing_target(self) -> None:
         """Test missing argument in target."""

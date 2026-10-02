@@ -1005,9 +1005,7 @@ LegacyTrainingConfig 2.0
 
 ## Type annotations and static analysis
 
-`deprecated_class()` and `deprecated_instance()` both return a proxy object rather than a class. Annotate that proxy with `DeprecationProxy`, the public protocol describing it.
-
-`DeprecationProxy[T]` is generic in the type you get back when you call the proxy, but `deprecated_class` and `deprecated_instance` return the concrete proxy in every call shape — mypy has nothing to infer `T` from on its own. A caller who wants the target type at a specific site annotates it there:
+At runtime `deprecated_class()` returns a proxy; to type checkers it returns the class the proxy forwards to. The call form `deprecated_class(target=BrandColor, ...)(WidgetColor)` is typed `type[BrandColor]` whichever class it wraps, so the alias checks against the replacement. The `@deprecated_class(...)` decorator form is checker-dependent: mypy ignores a class decorator's return type, so the name stays the decorated class, while pyright applies it, so with a class `target` the name is `type[BrandColor]` there:
 
 ```python
 from enum import Enum
@@ -1020,35 +1018,37 @@ class BrandColor(Enum):
     BLUE = 2
 
 
-# DEPRECATED API — `WidgetColor` was the original name; the source class keeps a private
-# name because the proxy, not the class, is what callers import
-class _LegacyWidgetColor(Enum):
-    RED = 1
-    BLUE = 2
-
-
-# explicit annotation — so `WidgetColor(1)` below is known to produce a `BrandColor`
-WidgetColor: DeprecationProxy[BrandColor] = deprecated_class(target=BrandColor, deprecated_in="1.0", remove_in="2.0")(
-    _LegacyWidgetColor
-)
+# DEPRECATED API — `WidgetColor` was the original name; `target=BrandColor` types the alias as `type[BrandColor]`
+WidgetColor = deprecated_class(target=BrandColor, deprecated_in="1.0", remove_in="2.0")(BrandColor)
 
 print(WidgetColor(1) is BrandColor.RED)  # warns: FutureWarning
+print(isinstance(BrandColor.BLUE, WidgetColor))
 print(isinstance(WidgetColor, DeprecationProxy))
 ```
 
 <details>
-  <summary>Output: <code>WidgetColor(1) is BrandColor.RED; isinstance(WidgetColor, DeprecationProxy)</code></summary>
+  <summary>Output: <code>WidgetColor(1) is BrandColor.RED; isinstance(BrandColor.BLUE, WidgetColor); isinstance(WidgetColor, DeprecationProxy)</code></summary>
 
 ```
+True
 True
 True
 ```
 
 </details>
 
-Every call shape — functional or decorator — returns the concrete `_DeprecatedProxy` type at runtime; that is deliberate, not an oversight. The concrete type keeps the proxy's forwarded dunders (`int()`, `with`, `await`) visible to type checkers, which the narrower protocol would hide. Annotate the assignment explicitly, as above, when you want the target type to flow into call sites; otherwise leave the annotation off and `DeprecationProxy` remains the type to reach for whenever you do annotate.
+What type-checks against the alias, and what does not:
 
-One thing to watch in the functional form: the warning names the class you wrapped, not the variable you assigned it to — the example above reports `` `_LegacyWidgetColor` ``. Give the source class the name your callers know, or pass `message_template` to write the message yourself.
+- **Checks as the class:** `isinstance(x, WidgetColor)` and `issubclass(...)` narrow to `BrandColor`; `WidgetColor(1)`, member and attribute access, and passing the alias where a `type[BrandColor]` is expected all type-check — the proxy forwards each of them to the class at runtime.
+- **Not a type:** the alias is a variable, so `def paint(color: WidgetColor)` is rejected by every type checker, and mypy also rejects `class Child(WidgetColor)`. Annotate with the replacement class — it is what callers migrate to — or (in mypy) use the decorator form, whose name is a class statement.
+- **Old names are flagged:** names the wrapped class does not have — old keyword arguments renamed through `args_mapping`, old attributes redirected through `attrs_mapping` — are reported as `call-arg` / `attr-defined` errors, as they already were for the decorator form. To keep such call sites type-checking during the migration window, keep the old names in a legacy class body (decorator form), or type the alias as `cast(DeprecationProxy[Config], deprecated_class(...)(Config))` — calls and attributes become permissive, at the cost of `isinstance` against the alias no longer type-checking.
+- **The target decides the type:** with `target=BrandColor` the alias is `type[BrandColor]` whichever class you wrap — a separate legacy class included, so `WidgetColor(...)` is typed as the `BrandColor` instance the runtime returns. Without a class `target` (`args_mapping` / `attrs_mapping` only) the alias keeps the wrapped class's own type. With `skip_if` the wrapped class is served while the condition holds; the type models the steady state, so keep the wrapped class compatible with `target`.
+- **The `@deprecated` front door is not target-typed:** it cannot see `target` statically, so a class decorated with `@deprecated(target=BrandColor, ...)` stays typed as the wrapped class even though the runtime proxy forwards to `BrandColor`. Use `deprecated_class(target=BrandColor, ...)` to get `type[BrandColor]`.
+- **Proxy-only attributes** such as `__wrapped__` and `__deprecation_config__` are invisible on `type[BrandColor]`: read them with `get_deprecation_config(WidgetColor)` or `inspect.unwrap(WidgetColor)`, or `cast(DeprecationProxy[Any], WidgetColor)` at the one site that needs them.
+
+`DeprecationProxy[T]` remains the annotation for `deprecated_instance()` proxies, where `T` is the type calling the proxy produces.
+
+One thing to watch in the functional form: the warning names the class you wrapped, not the variable you assigned it to — the example above reports `` `BrandColor` ``. Wrap a source class named the way your callers know it, or pass `message_template` to write the message yourself.
 
 !!! warning "`isinstance` only"
 
@@ -1102,6 +1102,46 @@ RetryConfig
 </details>
 
 Objects with no introspectable signature — a plain `dict` wrapped by `deprecated_instance()`, for instance — get `__signature__ = None` instead of an error. Wrapping never fails because the source cannot be introspected.
+
+### PEP 702 static checkers
+
+A `typing_extensions.deprecated` / `warnings.deprecated` decorator stacked directly above `@deprecated_class(...)` — with `category=None` and a string-literal message, as described in [Functions → Static type checkers](functions.md#static-type-checkers-pep-702) — makes mypy and pyright flag every use of the old class name. With a class `target`, what each checker infers for that name differs: mypy ignores a class decorator's return type, so the name stays the old class statement, while pyright applies `deprecated_class`'s return type, so the name is `type[ReportWriter]` (the replacement in the example below). Keep the old class's body mirroring the replacement's constructor and methods so mypy type-checks calls against the right signature; pyright already checks them against the replacement.
+
+The PEP 702 decorator writes its message onto the proxy, never onto the replacement class — the class callers are migrating *to* stays unmarked. The message travels with `copy.copy`, `copy.deepcopy`, and `pickle` round-trips of the alias; after `del alias.__deprecated__` the attribute reads as missing rather than falling through to the wrapped class.
+
+```python
+import typing_extensions
+
+from deprecate import deprecated_class
+
+
+# NEW API — the renamed writer
+class ReportWriter:
+    def __init__(self, path: str = "") -> None:
+        self.path = path
+
+
+# DEPRECATED API — flagged by mypy, forwarded with a warning at runtime
+@typing_extensions.deprecated("Use `ReportWriter` instead.", category=None)
+@deprecated_class(target=ReportWriter, deprecated_in="1.2", remove_in="2.0")
+class CsvReportWriter:
+    def __init__(self, path: str = "") -> None:
+        self.path = path
+
+
+print(CsvReportWriter("out.csv").path)  # warns: FutureWarning
+print("__deprecated__" in vars(ReportWriter))
+```
+
+<details>
+  <summary>Output: <code>CsvReportWriter("out.csv").path; "__deprecated__" in vars(ReportWriter)</code></summary>
+
+```
+out.csv
+False
+```
+
+</details>
 
 ## Fatal deprecations
 

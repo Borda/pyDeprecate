@@ -1790,15 +1790,15 @@ Both deprecated names forward to the same non-deprecated implementation with no 
 
 ## How do I type-annotate the object returned by `deprecated_class` / `deprecated_instance`?
 
-**Q:** mypy reports the result of `deprecated_class(...)` as `_DeprecatedProxy`, a private name. What is the supported type to annotate against?
+**Q:** What type do type checkers see for the result of `deprecated_class(...)` and `deprecated_instance(...)`, and what should I annotate against?
 
-**A:** Import `DeprecationProxy` from `deprecate`.
+**A:** A class alias is typed as the class it forwards to; an instance proxy is annotated with the public `DeprecationProxy`.
 
-`DeprecationProxy[T]` is generic in the type produced by calling the proxy, but `deprecated_class` and `deprecated_instance` return the concrete proxy in every call shape — there is nothing for mypy to infer `T` from on its own. Annotate the assignment explicitly at the call site instead:
+`deprecated_class` is typed to return its `target`: `RetryConfig = deprecated_class(target=RetryPolicy, ...)(RetryPolicy)` is `type[RetryPolicy]`, so it needs no annotation and `isinstance(x, RetryConfig)` narrows to `RetryPolicy`. Without a class `target` (`args_mapping` / `attrs_mapping` only) the alias keeps the wrapped class's own type. `deprecated_instance` returns a proxy — annotate it with `DeprecationProxy` (never the private `_DeprecatedProxy`), spelled `DeprecationProxy[T]` when calling the proxy produces a `T`:
 
 ```python
 from dataclasses import dataclass
-from deprecate import DeprecationProxy, deprecated_class
+from deprecate import DeprecationProxy, deprecated_class, deprecated_instance
 
 
 @dataclass
@@ -1806,33 +1806,51 @@ class RetryPolicy:
     attempts: int
 
 
-@dataclass
-class _LegacyRetryConfig:
-    attempts: int
+# class alias — typed `type[RetryPolicy]`, no annotation needed
+RetryConfig = deprecated_class(target=RetryPolicy, deprecated_in="1.4", remove_in="2.0")(RetryPolicy)
 
 
-# explicit annotation — so `RetryConfig(3)` is typed `RetryPolicy`
-RetryConfig: DeprecationProxy[RetryPolicy] = deprecated_class(target=RetryPolicy, deprecated_in="1.4", remove_in="2.0")(
-    _LegacyRetryConfig
+def default_policy() -> RetryPolicy:
+    return RetryPolicy(3)
+
+
+# instance proxy — annotated with the public protocol, so `legacy_default()` is typed `RetryPolicy`
+legacy_default: DeprecationProxy[RetryPolicy] = deprecated_instance(
+    default_policy, name="legacy_default", deprecated_in="1.4", remove_in="2.0"
 )
 
 print(isinstance(RetryConfig(3), RetryPolicy))  # warns: FutureWarning
+print(legacy_default().attempts)  # warns: FutureWarning
 ```
 
 <details>
-  <summary>Output: <code>isinstance(RetryConfig(3), RetryPolicy)</code></summary>
+  <summary>Output: <code>isinstance(RetryConfig(3), RetryPolicy); legacy_default().attempts</code></summary>
 
 ```
 True
+3
 ```
 
 </details>
 
-Every call shape — functional or decorator — returns the concrete `_DeprecatedProxy` type at runtime, deliberately: it keeps the forwarded dunders (`int()`, `with`, `await`) visible, which the narrower protocol would hide. You can still *annotate* any of them as `DeprecationProxy`, or as `DeprecationProxy[T]` when you want the target type to flow into call sites.
+The class alias is still a proxy at runtime — `isinstance(RetryConfig, DeprecationProxy)` is `True` — but its proxy-only attributes (`__wrapped__`, `__deprecation_config__`) are invisible on `type[RetryPolicy]`. Read them with `get_deprecation_config(RetryConfig)` or `inspect.unwrap(RetryConfig)`, or `cast(DeprecationProxy[Any], RetryConfig)` at the one site that needs them. See [Classes → Type annotations and static analysis](guide/classes.md#type-annotations-and-static-analysis) for what else type-checks against an alias.
 
 !!! warning "`issubclass` raises `TypeError`"
 
     `DeprecationProxy` declares attributes (`__wrapped__`, `__deprecated__`), which makes it a *data* protocol. Python supports only `isinstance` for those: `isinstance(obj, DeprecationProxy)` works, `issubclass(SomeType, DeprecationProxy)` raises `TypeError: Protocols with non-method members don't support issubclass()`. This is a CPython rule for every runtime-checkable protocol with non-method members, not a pyDeprecate restriction.
+
+## mypy reports errors on deprecated class aliases after upgrading
+
+**Q:** After upgrading pyDeprecate, mypy reports new errors around `deprecated_class` aliases that used to pass. What changed?
+
+**A:** Releases before `v0.14` shipped no type information, so type checkers treated every pyDeprecate object as `Any`. Since `v0.14` the package ships `py.typed`, and a deprecated class alias is typed as the class it forwards to — `deprecated_class(target=New, ...)(Cls)` gives `type[New]`, and without a class `target` it gives `type[Cls]`; the `@deprecated_class(...)` decorator form is read as the class statement by mypy, while pyright applies the decorator's return type (`type[New]` with a class `target`). The errors that can surface, and their fixes:
+
+- **`[assignment]` on `Old: DeprecationProxy[New] = deprecated_class(target=New, ...)(Cls)`** — the alias is `type[New]`, not a proxy type. Drop the annotation; the alias already has the replacement's type.
+- **`[attr-defined]` on `Old.__wrapped__` or `Old.__deprecation_config__`** — proxy-only attributes are invisible on the class type. Use `get_deprecation_config(Old)`, `inspect.unwrap(Old)`, or `cast(DeprecationProxy[Any], Old)`.
+- **`[call-arg]` / `[attr-defined]` on an old keyword or attribute name** that the alias still accepts through `args_mapping` / `attrs_mapping` — the alias's class (the `target`, or the wrapped class without one) does not declare the old name, exactly as the decorator form has always reported. Keep the old names in a legacy class body, or type the alias as `cast(DeprecationProxy[New], deprecated_class(...)(New))`: calls and attributes become permissive, but `isinstance` against the alias no longer type-checks.
+- **`[valid-type]` on `def f(x: Old)`** (and, in mypy, `class Child(Old)`) — a call-form alias is a variable, and no type checker accepts a variable as a type. Annotate or subclass the replacement class, or (in mypy) use the decorator form, whose name is a class statement.
+
+See [Classes → Type annotations and static analysis](guide/classes.md#type-annotations-and-static-analysis).
 
 ## Sphinx / my IDE shows `(*args, **kwargs)` instead of my deprecated class's real signature
 
@@ -2140,6 +2158,14 @@ ______________________________________________________________________
 **Q:** I set `num_warns=1` expecting one exception, or `stream=None` expecting silence, but every call to my fatal deprecation still raises.
 
 **A:** Both are intended. `num_warns` budgets *messages*; a gate that stopped refusing after the first call would let a caller retrying inside `except DeprecatedError` straight through, so a fatal deprecation bypasses the budget and raises on every call, leaving the warn counters untouched. `stream=None` silences the message, not the lifecycle state — the raise is the gate, and making an unrelated cosmetic setting switch it off would be a trap in CI. The one switch that does suppress a fatal deprecation is `skip_if`: a wrapper turned off by configuration is not a deprecation at that moment. Note the flip side for whole modules: a fatal `deprecated_module` raises on every public attribute access, which includes attribute-walking tools such as pytest collection, Sphinx autodoc, `pickle`, and `copy` — expect those to stop at the module rather than skip it. pyDeprecate's own audit is unaffected — `find_deprecation_wrappers()` and the `pydeprecate` CLI read the module's `__dict__` instead of going through attribute access, so a fatal module is still discovered and reported normally.
+
+______________________________________________________________________
+
+## Why don't mypy, pyright, or my IDE flag functions deprecated with pyDeprecate?
+
+**Q:** My deprecated function warns at runtime, but the editor shows no strikethrough and `mypy` / `pyright` report nothing when I call it.
+
+**A:** Type checkers recognise a deprecation only when the decorator is literally `warnings.deprecated` (Python 3.13+) or `typing_extensions.deprecated` — they match the decorator by name, so no runtime decorator (pyDeprecate's included) can make them see it. Stack the PEP 702 decorator directly above pyDeprecate's: `@warnings.deprecated("Use `new_name` instead.", category=None)` over `@deprecated(...)`. Keep `category=None` (otherwise every call warns twice), write the message as a string literal (mypy silently ignores a constant or f-string), and import the module rather than the name so pyDeprecate's `deprecated` is not shadowed. mypy only reports it with `enable_error_code = ["deprecated"]`, pyright in CI with `reportDeprecated = "error"`. Over `@deprecated_class(...)`, both mypy and pyright flag the old class name. See [Functions → Static type checkers](guide/functions.md#static-type-checkers-pep-702).
 
 ______________________________________________________________________
 

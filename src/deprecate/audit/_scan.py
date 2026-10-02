@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     pass
 
 from deprecate._properties import _DeprecatedProperty
-from deprecate._types import _has_deprecation_meta, get_deprecation_config
+from deprecate._types import DeprecationConfig, _has_deprecation_meta, get_deprecation_config
 from deprecate.audit._wrappers import (
     DeprecationWrapperInfo,
     _classify_wrapper_api_type,
@@ -72,6 +72,97 @@ def _scan_callable(
     return None
 
 
+def _own_attribute(obj: Any, name: str) -> Any:  # noqa: ANN401
+    """Return ``name`` from ``obj``'s own ``__dict__`` — never through its type or MRO — or ``None`` when absent.
+
+    ``object.__getattribute__`` reads the namespace without running a foreign ``__getattr__`` hook, keeping the scan
+    free of dynamic side effects; builtins and ``__slots__`` instances have no ``__dict__`` and so own nothing.
+
+    Examples:
+        >>> class Base:
+        ...     marker = "on the class"
+        >>> _own_attribute(Base, "marker"), _own_attribute(Base(), "marker")
+        ('on the class', None)
+        >>> _own_attribute(len, "marker") is None
+        True
+
+    """
+    try:
+        namespace = object.__getattribute__(obj, "__dict__")
+    except AttributeError:
+        return None
+    return namespace.get(name)
+
+
+def _pep702_message(obj: Any) -> Optional[str]:  # noqa: ANN401
+    """Return the message of an object deprecated only by ``warnings.deprecated``/``typing_extensions.deprecated``.
+
+    PEP 702 records nothing but the message string on ``__deprecated__``. An object that also carries pyDeprecate
+    metadata (the documented stacking pattern) is a pyDeprecate wrapper and yields ``None`` here. Every object is
+    checked on its own ``__dict__`` only, so neither a subclass that inherits ``__deprecated__`` through the MRO nor an
+    instance that reaches it through its deprecated class is reported.
+
+    Examples:
+        >>> import typing_extensions
+        >>> @typing_extensions.deprecated("Use `new_func` instead.")
+        ... def old_func() -> None: ...
+        >>> _pep702_message(old_func)
+        'Use `new_func` instead.'
+        >>> @typing_extensions.deprecated("Use `NewCallable` instead.", category=None)
+        ... class OldCallable:
+        ...     def __call__(self) -> None: ...
+        >>> _pep702_message(OldCallable), _pep702_message(OldCallable())
+        ('Use `NewCallable` instead.', None)
+        >>> _pep702_message(len) is None
+        True
+
+    """
+    if not callable(obj) or _has_deprecation_meta(obj):
+        return None
+    message = _own_attribute(obj, "__deprecated__")
+    return message if isinstance(message, str) else None
+
+
+def _descriptor_kind(obj: Any) -> Optional[str]:  # noqa: ANN401
+    """Return the descriptor kind that API-type classification distinguishes, or ``None`` for any other member."""
+    if isinstance(obj, classmethod):
+        return "classmethod"
+    if isinstance(obj, staticmethod):
+        return "staticmethod"
+    return None
+
+
+def _descriptor_pep702_message(obj: Any) -> Optional[str]:  # noqa: ANN401
+    """Return the message of the first PEP 702-only callable behind ``obj``, peeking through descriptors."""
+    messages = map(_pep702_message, _descriptor_underlying_callables(obj))
+    return next((item for item in messages if item is not None), None)
+
+
+def _pep702_row(
+    obj: Any,  # noqa: ANN401
+    module_name: str,
+    qualified_name: str,
+    message: str,
+    *,
+    member_name: Optional[str] = None,
+) -> DeprecationWrapperInfo:
+    """Build the row for ``obj``, whose PEP 702 ``message`` the caller already looked up once.
+
+    ``api_type`` names the shape exactly as for a pyDeprecate wrapper (``callable``, ``class``, ``class method``,
+    ``staticmethod``, ...); the mechanism is marked by ``pep702_message``, which is a string here (possibly empty) and
+    ``None`` on every pyDeprecate row.
+
+    """
+    info = DeprecationWrapperInfo(
+        module=module_name,
+        function=qualified_name,
+        deprecated_info=DeprecationConfig(name=qualified_name.rsplit(".", 1)[-1]),
+        pep702_message=message,
+    )
+    api_type = _classify_wrapper_api_type(obj, info, member_name=member_name, descriptor_kind=_descriptor_kind(obj))
+    return replace(info, api_type=api_type)
+
+
 def _descriptor_underlying_callables(obj: Any) -> tuple[Any, ...]:  # noqa: ANN401
     """Return the underlying callable(s) from a descriptor, or a 1-tuple of *obj* for plain callables.
 
@@ -118,46 +209,110 @@ def _member_has_deprecation_meta(obj: Any) -> bool:  # noqa: ANN401
     return any(_has_deprecation_meta(c) for c in _descriptor_underlying_callables(obj))
 
 
-def _scan_class(cls: Any, module_name: str, cls_name: str) -> list[DeprecationWrapperInfo]:  # noqa: ANN401
-    """Scan class members, peeking through descriptors."""
+def _member_is_deprecated(obj: Any, pep702_message: Optional[str]) -> bool:  # noqa: ANN401
+    """Return whether a class member carries either deprecation marker, so a private member stays in the scan.
+
+    Args:
+        obj: The raw class member (possibly a descriptor).
+        pep702_message: The member's own PEP 702 message, already looked up by the caller, or ``None`` when it has
+            none or the scan did not opt in to PEP 702.
+
+    """
+    return _member_has_deprecation_meta(obj) or pep702_message is not None
+
+
+def _scan_class_member(
+    obj: Any,  # noqa: ANN401
+    module_name: str,
+    qualified: str,
+    attr_name: str,
+) -> Optional[DeprecationWrapperInfo]:
+    """Scan one class member for pyDeprecate metadata, peeking through its descriptor."""
+    if isinstance(obj, (classmethod, staticmethod)):
+        kind = _descriptor_kind(obj)
+        return _scan_callable(obj.__func__, module_name, qualified, member_name=attr_name, descriptor_kind=kind)
+    if isinstance(obj, property):
+        _prop_accessor = next(
+            (c for c in _descriptor_underlying_callables(obj) if _has_deprecation_meta(c)),
+            None,
+        )
+        if _prop_accessor is None:
+            return None
+        result = _scan_callable(_prop_accessor, module_name, qualified, member_name=attr_name)
+        # Inner-order ``@property @deprecated``: a *plain* ``property`` (not ``_DeprecatedProperty``)
+        # whose ``fget`` is deprecation-wrapped. Only ``fget`` warns; any setter/deleter rebound
+        # afterwards is built from the plain ``property`` base and stays silent. Flag every such
+        # wrapper (getter-only included) since the canonical form is outer ``@deprecated(...) @property``.
+        if (
+            result is not None
+            and not isinstance(obj, _DeprecatedProperty)
+            and obj.fget is not None
+            and _has_deprecation_meta(obj.fget)
+        ):
+            result = replace(result, inner_order_property=True)
+        return result
+    if isinstance(obj, cached_property):
+        return _scan_callable(obj.func, module_name, qualified, member_name=attr_name)
+    return _scan_callable(obj, module_name, qualified, member_name=attr_name)
+
+
+#: Hooks ``warnings.deprecated`` / ``typing_extensions.deprecated`` install on a class they decorate with a warning
+#: category (the default), each stamped with the class's own message; the class row already reports that deprecation.
+_PEP702_CLASS_HOOKS = frozenset({"__new__", "__init_subclass__"})
+
+
+def _pep702_member_names(cls: Any) -> frozenset[str]:  # noqa: ANN401
+    """Return the names of the members ``cls`` defines itself that may carry their own PEP 702 marker.
+
+    Static member listing walks the whole MRO, so without this filter a subclass would repeat every PEP 702-deprecated
+    method of its bases (a one-field pydantic model yields a row per deprecated ``BaseModel`` method). Inherited members
+    are reported on the class that defines them. When ``cls`` is itself PEP 702-deprecated, the ``__new__`` and
+    ``__init_subclass__`` hooks the decorator installed are left out too.
+
+    Examples:
+        >>> import typing_extensions
+        >>> @typing_extensions.deprecated("Use `NewCls` instead.")
+        ... class OldCls: ...
+        >>> {"__new__", "__init_subclass__", "__deprecated__"} <= set(vars(OldCls))
+        True
+        >>> {"__new__", "__init_subclass__"} & _pep702_member_names(OldCls)
+        set()
+
+    """
+    names = frozenset(vars(cls))
+    return names - _PEP702_CLASS_HOOKS if _pep702_message(cls) is not None else names
+
+
+def _scan_class(
+    cls: Any,  # noqa: ANN401
+    module_name: str,
+    cls_name: str,
+    include_pep702: bool = False,
+) -> list[DeprecationWrapperInfo]:
+    """Scan class members, peeking through descriptors.
+
+    With ``include_pep702`` a PEP 702 marker counts only on a member the class defines itself (see
+    :func:`_pep702_member_names`); pyDeprecate rows keep covering inherited members either way, so the opt-in scan is
+    always a superset of the default one.
+
+    """
     results: list[DeprecationWrapperInfo] = []
     try:
         members = _getmembers_static_compat(cls)
+        # Ownership first: only these names are ever probed for a PEP 702 marker, so an opt-in scan never inspects the
+        # dozens of members every class inherits from ``object`` and its bases.
+        pep702_names = _pep702_member_names(cls) if include_pep702 else frozenset()
     except (AttributeError, TypeError):
         return results
     for attr_name, obj in members:
-        # Skip private/dunder members that are *not* themselves deprecated. Deprecated private or dunder
-        # members (e.g. a deprecated ``_legacy`` method or ``__eq__``) still carry ``__deprecation_config__``
-        # and must be surfaced so they can expire — only ``__init__`` is exempt.
-        if attr_name.startswith("_") and attr_name != "__init__" and not _member_has_deprecation_meta(obj):
+        # Looked up once per owned member; the private-member gate and the row below share it.
+        pep702_message = _descriptor_pep702_message(obj) if attr_name in pep702_names else None
+        if attr_name.startswith("_") and attr_name != "__init__" and not _member_is_deprecated(obj, pep702_message):
             continue
         qualified = f"{cls_name}.{attr_name}"
-        result: Optional[DeprecationWrapperInfo] = None
-        if isinstance(obj, (classmethod, staticmethod)):
-            kind = "classmethod" if isinstance(obj, classmethod) else "staticmethod"
-            result = _scan_callable(obj.__func__, module_name, qualified, member_name=attr_name, descriptor_kind=kind)
-        elif isinstance(obj, property):
-            _prop_accessor = next(
-                (c for c in _descriptor_underlying_callables(obj) if _has_deprecation_meta(c)),
-                None,
-            )
-            if _prop_accessor is not None:
-                result = _scan_callable(_prop_accessor, module_name, qualified, member_name=attr_name)
-                # Inner-order ``@property @deprecated``: a *plain* ``property`` (not ``_DeprecatedProperty``)
-                # whose ``fget`` is deprecation-wrapped. Only ``fget`` warns; any setter/deleter rebound
-                # afterwards is built from the plain ``property`` base and stays silent. Flag every such
-                # wrapper (getter-only included) since the canonical form is outer ``@deprecated(...) @property``.
-                if (
-                    result is not None
-                    and not isinstance(obj, _DeprecatedProperty)
-                    and obj.fget is not None
-                    and _has_deprecation_meta(obj.fget)
-                ):
-                    result = replace(result, inner_order_property=True)
-        elif isinstance(obj, cached_property):
-            result = _scan_callable(obj.func, module_name, qualified, member_name=attr_name)
-        else:
-            result = _scan_callable(obj, module_name, qualified, member_name=attr_name)
+        result = _scan_class_member(obj, module_name, qualified, attr_name)
+        if result is None and pep702_message is not None:
+            result = _pep702_row(obj, module_name, qualified, pep702_message, member_name=attr_name)
         if result is not None:
             results.append(result)
     return results
@@ -185,6 +340,24 @@ def _same_top_package(mod_a: str, mod_b: str) -> bool:
     return mod_a.split(".")[0] == mod_b.split(".")[0]
 
 
+def _defined_in_other_package(obj: Any, mod_name: str) -> bool:  # noqa: ANN401
+    """Return True when ``obj`` names a defining module outside the top-level package of ``mod_name``.
+
+    Gates PEP 702-only rows: importing a deprecated helper from a dependency is routine, and that deprecation belongs to
+    the dependency. A missing or non-string ``__module__`` cannot be attributed anywhere, so it never counts as foreign.
+
+    Examples:
+        >>> import json
+        >>> _defined_in_other_package(json.dumps, "my_package.utils")
+        True
+        >>> _defined_in_other_package(json.dumps, "json.decoder")
+        False
+
+    """
+    defining_module = getattr(obj, "__module__", None)
+    return isinstance(defining_module, str) and not _same_top_package(defining_module, mod_name)
+
+
 def _should_skip_reexported_wrapper(
     obj: Any,  # noqa: ANN401
     mod_name: str,
@@ -197,6 +370,39 @@ def _should_skip_reexported_wrapper(
     return defining_module is not None and defining_module != mod_name and _same_top_package(defining_module, mod_name)
 
 
+def _claim_wrapper(
+    obj: Any,  # noqa: ANN401
+    mod_name: str,
+    attribute_to_defining_module: bool,
+    seen: set[int],
+) -> bool:
+    """Return True — and mark ``obj`` seen — when this module is where ``obj`` should be reported."""
+    if _should_skip_reexported_wrapper(obj, mod_name, attribute_to_defining_module) or id(obj) in seen:
+        return False
+    seen.add(id(obj))
+    return True
+
+
+def _claim_class_members(cls: Any, name: str, seen: set[int], canonical: frozenset[int]) -> bool:  # noqa: ANN401
+    """Return True — and mark ``cls`` seen — the first time its own PEP 702 member rows are scanned.
+
+    One class bound under two names in a module (``ShortName = LongName``) owns one set of members, reported once, as
+    :func:`_claim_wrapper` does for a top-level symbol. The binding named like the class (``cls.__name__``) wins, so
+    the rows read ``LongName.*`` whatever the alphabetical scan order; a class with no such binding in the module
+    (every public name is an alias) falls back to the first name scanned. ``canonical`` holds the ``id`` of every class
+    that has a binding named like itself. The negative id keeps this claim apart from the class-row claim, which is
+    keyed on ``id(cls)`` itself.
+
+    """
+    if name != cls.__name__ and id(cls) in canonical:
+        return False
+    key = -id(cls)
+    if key in seen:
+        return False
+    seen.add(key)
+    return True
+
+
 def _scan_module_member(
     obj: Any,  # noqa: ANN401
     *,
@@ -205,21 +411,34 @@ def _scan_module_member(
     include_members: bool,
     attribute_to_defining_module: bool,
     seen: set[int],
+    include_pep702: bool = False,
+    canonical_classes: frozenset[int] = frozenset(),
 ) -> list[DeprecationWrapperInfo]:
     """Scan one module member for deprecated wrappers or nested class members."""
     if name.startswith("_") or inspect.ismodule(obj):
         return []
     if _has_deprecation_meta(obj):
-        if _should_skip_reexported_wrapper(obj, mod_name, attribute_to_defining_module):
+        if not _claim_wrapper(obj, mod_name, attribute_to_defining_module, seen):
             return []
-        if id(obj) in seen:
-            return []
-        seen.add(id(obj))
         result = _scan_callable(obj, mod_name, name)
         return [result] if result is not None else []
+    results: list[DeprecationWrapperInfo] = []
+    pep702_message = _descriptor_pep702_message(obj) if include_pep702 else None
+    # A PEP 702 symbol imported from another top-level package is that package's deprecation; drop it whatever the
+    # re-export attribution mode (pyDeprecate rows above keep their long-standing behaviour).
+    if (
+        pep702_message is not None
+        and not _defined_in_other_package(obj, mod_name)
+        and _claim_wrapper(obj, mod_name, attribute_to_defining_module, seen)
+    ):
+        results.append(_pep702_row(obj, mod_name, name, pep702_message))
     if include_members and inspect.isclass(obj) and getattr(obj, "__module__", None) == mod_name:
-        return _scan_class(obj, mod_name, name)
-    return []
+        # Only the PEP 702 rows are claimed once per class: pyDeprecate member rows keep their long-standing
+        # one-per-binding behaviour, so the default scan and every gate built on it stay unchanged.
+        # (_scan_class must still run for every binding — it emits those pyDeprecate rows.)
+        claimed = include_pep702 and _claim_class_members(obj, name, seen, canonical_classes)
+        results.extend(_scan_class(obj, mod_name, name, include_pep702=claimed))
+    return results
 
 
 def _scan_module(
@@ -228,6 +447,7 @@ def _scan_module(
     include_members: bool,
     seen: set[int],
     attribute_to_defining_module: bool = True,
+    include_pep702: bool = False,
 ) -> list[DeprecationWrapperInfo]:
     """Scan a single module for deprecated functions and class members.
 
@@ -254,6 +474,10 @@ def _scan_module(
         return results
 
     mod_name = mod.__name__ if hasattr(mod, "__name__") else str(mod)
+    # Classes with a public binding named like themselves: that binding owns their PEP 702 member rows, not an alias.
+    canonical_classes = frozenset(
+        id(obj) for name, obj in members if not name.startswith("_") and inspect.isclass(obj) and name == obj.__name__
+    )
     for name, obj in members:
         results.extend(
             _scan_module_member(
@@ -263,6 +487,8 @@ def _scan_module(
                 include_members=include_members,
                 attribute_to_defining_module=attribute_to_defining_module,
                 seen=seen,
+                include_pep702=include_pep702,
+                canonical_classes=canonical_classes,
             )
         )
     return results
@@ -317,6 +543,7 @@ def find_deprecation_wrappers(
     include_members: bool = True,
     *,
     exclude: Optional[Sequence[str]] = None,
+    include_pep702: bool = False,
 ) -> list[DeprecationWrapperInfo]:
     """Scan a module or package for deprecated wrappers and validate them.
 
@@ -339,6 +566,22 @@ def find_deprecation_wrappers(
             reported ``module`` matches is included (on a
             ``recursive=False`` package scan a re-export is attributed to the package itself, so it stays).
             ``None`` (default) excludes nothing.
+        include_pep702: If True, also report functions, classes, methods and property getters deprecated **only**
+            with ``warnings.deprecated`` / ``typing_extensions.deprecated`` (PEP 702). Their rows classify
+            ``api_type`` by shape like any other row (``callable``, ``class``, ``class method``, ...) and hold the
+            decorator's message in ``pep702_message`` — a string, possibly empty, where every pyDeprecate row has
+            ``None``. Such objects carry no version schedule, so ``deprecated_info`` is empty and
+            ``empty_deprecated_in`` is True; drop them (``pep702_message is not None``) before feeding the rows to
+            schedule-based checks. A class member is
+            reported only on the class that defines it, never again under a subclass, and the ``__new__`` /
+            ``__init_subclass__`` hooks the decorator installs on a class are covered by the class row. A class bound
+            under a second name (``ShortName = LongName``) lists its own PEP 702 members once, under the binding named
+            like the class (``LongName``; the first name scanned when no binding is), while its pyDeprecate member
+            rows still appear under each name. A module-level
+            symbol whose ``__module__`` lies in another top-level package (a deprecated helper imported from a
+            dependency) is left out; one with an unknown ``__module__`` is kept. A pyDeprecate wrapper with a PEP 702
+            decorator stacked on top is always a regular row. ``False`` (default) keeps every audit gate built on
+            this scan unchanged.
 
     Returns:
         List of :class:`~deprecate.audit.DeprecationWrapperInfo` dataclasses, one per deprecated wrapper found.
@@ -400,6 +643,7 @@ def find_deprecation_wrappers(
             include_members=include_members,
             seen=seen,
             attribute_to_defining_module=not (_is_package and not recursive),
+            include_pep702=include_pep702,
         )
     )
 
@@ -407,7 +651,9 @@ def find_deprecation_wrappers(
     if recursive and _is_package:
         try:
             for submod in _walk_submodules(module, patterns):
-                results.extend(_scan_module(submod, include_members=include_members, seen=seen))
+                results.extend(
+                    _scan_module(submod, include_members=include_members, seen=seen, include_pep702=include_pep702)
+                )
         except (OSError, ImportError) as exc:
             # ``_walk_submodules`` already warns per broken submodule import; this catches the walk itself failing
             # (unreadable package dir, a member scan triggering an import) — keep what was found, say why it stopped.

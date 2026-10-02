@@ -1,6 +1,6 @@
 {
   "name": "pydeprecate",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "compatible_package_version": ">=0.11",
   "description": "Suggest supported pyDeprecate conversions, add API deprecations, and prune compatibility due by a release version.",
   "author": {

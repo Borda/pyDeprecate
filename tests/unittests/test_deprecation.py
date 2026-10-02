@@ -11,12 +11,20 @@ loudly and cheaply without depending on the full machinery.
 import inspect
 import warnings
 from collections.abc import Callable
+from typing import TYPE_CHECKING
 from unittest import mock
 
 import pytest
 
 from deprecate import DeprecatedError, TargetMode, deprecated, deprecated_callable
-from tests.collection_deprecate import make_positional_docstring_wrapper
+from tests.collection_deprecate import (
+    DescriptorSourcesHolder,
+    depr_pow_args,
+    depr_pow_skip_if_true_false,
+    make_positional_docstring_wrapper,
+)
+from tests.collection_pep702 import stacked_callable
+from tests.collection_targets import Palette
 
 
 class TestFrontDoorDispatchForwarding:
@@ -124,3 +132,21 @@ def test_positional_docstring_options(decorator: Callable, options: tuple) -> No
     assert "deprecated" in wrapper.__doc__.lower()
     with pytest.raises(DeprecatedError, match="legacy message" if len(options) > 2 else "deprecated"):
         wrapper(3)
+
+
+if TYPE_CHECKING:
+    # `deprecated()` and `deprecated_callable()` keep the decorated callable's own type, so type checkers and IDEs see
+    # the real signature (and the real name in PEP 702 diagnostics) instead of `(...) -> Any`. Pinned statically:
+    # a regression back to `Callable[..., Any]` would leave every runtime test passing. Never executed at runtime.
+    from typing_extensions import assert_type
+
+    assert_type(depr_pow_args(2.0, 3.0), float)
+    assert_type(depr_pow_skip_if_true_false(2.0, c1=3.0), float)
+    assert_type(stacked_callable(1), int)
+    # Descriptor sources keep their descriptor type too, so member reads and calls stay typed through either spelling.
+    assert_type(DescriptorSourcesHolder().legacy_value, int)
+    assert_type(DescriptorSourcesHolder().legacy_cached, int)
+    assert_type(DescriptorSourcesHolder.legacy_factory(1), int)
+    assert_type(DescriptorSourcesHolder.legacy_helper(1), int)
+    # A class source is wrapped in a proxy at runtime but keeps its own static type, exactly like `deprecated_class`.
+    assert_type(deprecated(deprecated_in="1.0", remove_in="2.0")(Palette), type[Palette])

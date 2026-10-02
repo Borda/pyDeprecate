@@ -42,7 +42,8 @@ Decorator-form equivalents (same deprecated_class config as Wrapped* — for par
 from collections.abc import AsyncIterator, Iterator
 from dataclasses import dataclass
 from enum import Enum
-from functools import partial
+from functools import cached_property, partial
+from types import SimpleNamespace
 from typing import Any, Callable
 from warnings import catch_warnings, simplefilter, warn
 
@@ -1275,15 +1276,20 @@ class _AstFunctionalColorEnum(Enum):
 
 
 # functional/assignment form — the same wrapping the decorator form above performs, spelled as an
-# assignment. Both shapes return the concrete `_DeprecatedProxy`; `tests/unittests/test_proxy.py` pins
-# that statically and exercises the runtime forwarding here.
-DeprecatedColorEnumFunctional = deprecated_class(target=ColorEnum, stream=None, **_DEPRS_CASE_STD_INF_ARGS)(
-    _AstFunctionalColorEnum
-)
+# assignment. Both shapes build a `_DeprecatedProxy` at runtime. With a class `target` the alias is typed as that
+# target (`type[ColorEnum]`, not the private source it wraps) because it resolves `isinstance`/construction against
+# the target; `tests/unittests/test_proxy.py` pins that statically and exercises the runtime forwarding here.
+# The version kwargs are spelled out rather than unpacked from `_DEPRS_CASE_STD_INF_ARGS`: a `dict[str, Any]` splat
+# could carry `target`, so type checkers cannot pick an overload and fall back to `Any` (also pinned there).
+DeprecatedColorEnumFunctional = deprecated_class(
+    target=ColorEnum, deprecated_in="1.0", remove_in="2.0", num_warns=-1, stream=None
+)(_AstFunctionalColorEnum)
 
-# same functional form with no class `target` — the proxy still forwards, and the concrete return type keeps
-# the forwarded dunders (`int()`, `with`, `await`) visible to type checkers
-DeprecatedPaletteFunctionalFallback = deprecated_class(stream=None, **_DEPRS_CASE_STD_INF_ARGS)(Palette)
+# same functional form with no class `target` — the proxy still forwards, and the alias is typed `type[Palette]`,
+# so `isinstance`/`issubclass` checks against it type-check
+DeprecatedPaletteFunctionalFallback = deprecated_class(deprecated_in="1.0", remove_in="2.0", num_warns=-1, stream=None)(
+    Palette
+)
 
 
 @deprecated_class(target=NewDataClass, **_DEPRS_CASE_STD_INF_ARGS)
@@ -1659,17 +1665,14 @@ def pep702_stacked(x: int) -> int:
 # ========== PEP 702 stacking regression fixture (B1b — deprecated_class proxy) ==========
 # ``typing_extensions.deprecated`` stacked OUTSIDE pyDeprecate's ``deprecated_class``
 # proxy wrapper.  The inner ``deprecated_class(...)`` returns a ``_DeprecatedProxy``
-# instance whose ``__deprecated__`` slot lives in the proxy instance ``__dict__``
-# (set via ``object.__setattr__``) and is read back via ``object.__getattribute__``.
+# instance whose configuration lives on ``__deprecation_config__``.
 #
-# PEP 702's outer wrapper assigns ``arg.__deprecated__ = msg`` on the proxy.  That
-# attribute set routes through the proxy's forwarding ``__setattr__``, which calls
-# ``setattr(self._get_active(), "__deprecated__", msg)`` — landing on the wrapped
-# class, not on the proxy's own instance ``__dict__``.  As a result, the proxy's
-# ``object.__getattribute__(self, "__deprecated__")`` reads in ``_dep`` and ``__call__``
-# still resolve to the original ``DeprecationConfig`` and instantiation survives.
+# PEP 702's outer wrapper assigns ``arg.__deprecated__ = msg`` on the proxy.  The
+# proxy's ``__setattr__`` stores that message on the proxy itself — never forwarding it
+# to ``_Pep702ProxyTarget`` — so the configuration survives and the wrapped class is
+# not marked deprecated.
 #
-# This fixture is the B1b regression guard against re-introducing a clobber path.
+# This fixture is the B1b regression guard against re-introducing a clobber or leak path.
 # Both intermediate bindings are underscore-prefixed so audit walkers do not probe
 # the PEP 702-wrapped plain function as a pyDeprecate target.
 _pep702_proxy_inner = deprecated_class(deprecated_in="0.8", remove_in="1.0")(_Pep702ProxyTarget)
@@ -2688,6 +2691,17 @@ def make_deprecated_instance_skip_if_true_read_only() -> Any:  # noqa: ANN401
     return deprecated_instance([1, 2], name="legacy_list", skip_if=True, read_only=True, **_DEPRS_CASE_STD_ARGS)
 
 
+def make_deprecated_instance_over_marked_object() -> Any:  # noqa: ANN401
+    """Wrap an object that carries its own ``__deprecated__`` marker in a fresh ``deprecated_instance`` proxy.
+
+    The proxy keeps its own ``__deprecated__`` as metadata; the wrapped object's marker must never leak through it —
+    not after the proxy's marker is deleted, and not through copies. Built fresh per call so tests can mutate it.
+
+    """
+    marked = SimpleNamespace(__deprecated__="wrapped object's own marker")
+    return deprecated_instance(marked, name="legacy_settings", stream=None, **_DEPRS_CASE_STD_ARGS)
+
+
 def make_deprecated_on_fresh_function_warn_only() -> Any:  # noqa: ANN401
     """Apply bare ``@deprecated`` (no target, no mapping) to a function — AUTO resolves to ``NOTIFY``.
 
@@ -2767,7 +2781,7 @@ def make_deprecated_with_args_mapping_on_class_default_target() -> Any:  # noqa:
 def make_deprecated_on_non_callable_source() -> Any:  # noqa: ANN401
     """Apply ``@deprecated`` to a plain object — raises ``TypeError`` naming ``deprecated_instance``."""
     # Intentionally passing a non-callable source to prove the dispatcher's runtime TypeError guard fires.
-    return deprecated(**_DEPRS_CASE_STD_ARGS)(object())  # type: ignore[arg-type]
+    return deprecated(**_DEPRS_CASE_STD_ARGS)(object())  # type: ignore[type-var]
 
 
 class _CallableWithoutName:
@@ -2973,3 +2987,36 @@ def make_positional_docstring_wrapper(decorator: Callable, options: tuple[Any, .
     return decorator(TargetMode.NOTIFY, "1.0", "2.0", None, 1, None, None, None, False, *options, as_exception=fatal)(
         double_value
     )
+
+
+class DescriptorSourcesHolder:
+    """Descriptor sources wrapped in outer order (decorator above the descriptor) by both decorator spellings.
+
+    ``tests/unittests/test_deprecation.py`` pins, statically only, that each wrapper keeps the descriptor's own type,
+    so reads and calls through the deprecated member stay typed ``int`` instead of widening to ``Any``.
+
+    """
+
+    @deprecated_callable(**_DEPRS_CASE_STD_ARGS)  # type: ignore[prop-decorator]
+    @property
+    def legacy_value(self) -> int:
+        """Deprecated read-only property."""
+        return 1
+
+    @deprecated(**_DEPRS_CASE_STD_ARGS)  # type: ignore[prop-decorator]
+    @cached_property
+    def legacy_cached(self) -> int:
+        """Deprecated cached property."""
+        return 2
+
+    @deprecated_callable(**_DEPRS_CASE_STD_ARGS)
+    @classmethod
+    def legacy_factory(cls, x: int) -> int:
+        """Deprecated classmethod."""
+        return x
+
+    @deprecated(**_DEPRS_CASE_STD_ARGS)
+    @staticmethod
+    def legacy_helper(x: int) -> int:
+        """Deprecated staticmethod."""
+        return x

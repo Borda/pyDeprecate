@@ -4,16 +4,22 @@
 
 ### Added
 
+- **Opt-in audit discovery for PEP 702-only deprecations.** `find_deprecation_wrappers(..., include_pep702=True)` lists symbols marked only with `warnings.deprecated` or `typing_extensions.deprecated`. Each row keeps a shape `api_type` (`callable`, `class`, `class method`, `staticmethod`, ...) like any other row, and carries the decorator's message in the new `DeprecationWrapperInfo.pep702_message` field, which is `None` on every pyDeprecate row. Only symbols the scanned package defines are listed: no inherited class members, no `__new__`/`__init_subclass__` hooks the decorator installs, no instances of a deprecated class, a class bound under a second name lists its PEP 702 member rows once, under the binding named like the class (its pyDeprecate member rows still appear under each name), and no imports from other top-level packages. The default scan and existing audit gates remain unchanged. ([#237](https://github.com/Borda/pyDeprecate/pull/237))
+- **Static callable typing for deprecation decorators.** `@deprecated` and `deprecated_callable()` now reject non-callable inputs in static checks while preserving supported callable and descriptor types. ([#237](https://github.com/Borda/pyDeprecate/pull/237))
 - **Fatal deprecations — `as_exception=True` and process-wide strict mode.** All deprecation entry points can raise `DeprecatedError` instead of warning; `deprecate.AS_EXCEPTIONS` and the import-time `DEPRECATE_AS_EXCEPTIONS` environment setting enable strict mode globally. Fatal warning paths ignore `num_warns` and `stream=None`, respect `skip_if`, and stop callable execution or forwarding. Proxy operations that never warn remain silent; ordinary descriptor getters can execute before the fatal error. `as_exception` is keyword-only and the last parameter on every public entry point (`deprecated`, `deprecated_callable`, `deprecated_class`, `deprecated_instance`, `deprecated_module`), so future additions never shift existing positional usage. ([#236](https://github.com/Borda/pyDeprecate/pull/236))
 - **Module warning budgets — `deprecated_module(..., num_warns=...)`.** Module deprecations can now cap warning delivery across all public attribute accesses: `0` delivers none, a positive `N` delivers exactly `N`, and the default `-1` preserves unlimited delivery without taking the budget lock. ([#233](https://github.com/Borda/pyDeprecate/pull/233))
 
 ### Changed
+
+- **The package ships type information (`py.typed`); decorated callables and classes keep their own static type.** Type checkers previously saw every pyDeprecate object as `Any`. Now `@deprecated` / `deprecated_callable()` keep the decorated callable's or descriptor's type, and a `deprecated_class(...)` call-form alias is typed as the class it forwards to — `type[New]` for `deprecated_class(target=New, ...)(Cls)`, `type[Cls]` when there is no class `target` (the `@deprecated_class(...)` decorator form stays the class statement in mypy, while pyright applies the decorator's return type, so it is `type[New]` there when a class `target` is given) — while remaining a proxy at runtime, so `isinstance`/`issubclass` against the alias, construction, and attribute access type-check. The `Old: DeprecationProxy[New] = deprecated_class(...)(Cls)` annotation recipe no longer type-checks; `DeprecationProxy[T]` stays the annotation for `deprecated_instance()` proxies. Call-form aliases now report old names accepted only through `args_mapping` / `attrs_mapping` (`call-arg` / `attr-defined`), as the decorator form already did. ([#237](https://github.com/Borda/pyDeprecate/pull/237))
 
 ### Deprecated
 
 ### Removed
 
 ### Fixed
+
+- **Setting or deleting PEP 702 metadata on a deprecated proxy stays local to the proxy.** Assigning `__deprecated__` keeps the marker on the proxy, and deleting it no longer forwards deletion to the wrapped object, including read-only proxies with `skip_if` enabled. After deletion, reading `__deprecated__` raises `AttributeError` instead of returning the wrapped object's marker, and `copy.copy`, `copy.deepcopy`, and `pickle` keep a PEP 702 message written onto the proxy instead of re-rendering pyDeprecate's own. ([#237](https://github.com/Borda/pyDeprecate/pull/237))
 
 ______________________________________________________________________
 

@@ -552,6 +552,60 @@ Python already turns warnings into exceptions: `-W error::FutureWarning` or `PYT
 2. **Non-warnings streams** — a wrapper with `stream=logging.warning` never reaches the warnings machinery, so no filter can make it fail.
 3. **Per-symbol promotion** — ship one deprecation as fatal while the rest keep warning.
 
+## Static type checkers (PEP 702)
+
+mypy, pyright, and IDEs flag a deprecated symbol only when its decorator is literally `warnings.deprecated` (Python 3.13+) or its backport `typing_extensions.deprecated` — they recognise the decorator by name, not by what it does at runtime. `@deprecated` from pyDeprecate is invisible to them. To get the strikethrough in the editor *and* pyDeprecate's forwarding and warning, stack the PEP 702 decorator directly above pyDeprecate's:
+
+```python
+import typing_extensions  # on Python 3.13+: `import warnings` and `@warnings.deprecated(...)`
+
+from deprecate import deprecated
+
+
+# NEW API — the renamed helper
+def fetch_orders(customer_id: int) -> list:
+    return [customer_id]
+
+
+# DEPRECATED API — struck through by type checkers, forwarded with a warning at runtime
+@typing_extensions.deprecated("Use `fetch_orders` instead.", category=None)
+@deprecated(target=fetch_orders, deprecated_in="1.4", remove_in="2.0")
+def get_orders(customer_id: int) -> list: ...
+
+
+print(get_orders(7))  # warns: FutureWarning
+```
+
+<details>
+  <summary>Output: <code>get_orders(7)</code></summary>
+
+```
+[7]
+```
+
+</details>
+
+Four rules make the pair work:
+
+- **`category=None`.** The PEP 702 decorator then only marks the symbol for type checkers; without it, every call emits a second `DeprecationWarning` next to pyDeprecate's `FutureWarning`.
+- **A string-literal message.** mypy silently ignores a message held in a constant or built with an f-string; pyright still flags the symbol but drops the text.
+- **Directly above `@deprecated(...)`.** Inside `@staticmethod` / `@classmethod`, and above the outer-order `@deprecated(...) @property` (mypy asks for `# type: ignore[prop-decorator]` on that line, as it does for any decorator above `@property`). Placed *under* `@property`, pyright misses it.
+- **Import the module, not the name.** `from typing_extensions import deprecated` shadows pyDeprecate's `deprecated`; write `@typing_extensions.deprecated(...)` or `@warnings.deprecated(...)`.
+
+IDEs strike the symbol through as soon as the decorator is there. To fail CI on new uses, turn the diagnostic into an error — mypy leaves it off by default:
+
+```toml
+[tool.mypy]
+enable_error_code = ["deprecated"]
+
+[tool.pyright]
+reportDeprecated = "error"
+```
+
+Since `v0.14`, `@deprecated` and `deprecated_callable()` keep the decorated callable's own type and the package ships a `py.typed` marker, so type checkers see the real signature and name the symbol correctly in the diagnostic. For class aliases see [Classes → Type annotations and static analysis](classes.md#type-annotations-and-static-analysis); to list symbols deprecated with the PEP 702 decorator alone, see [`include_pep702`](audit.md#pep-702-only-deprecations).
+
+That static type is the *source's* type, and a callable object is not preserved at runtime: decorating a `functools.lru_cache` / `functools.cache` object returns a plain function, so `cache_clear()` and `cache_info()` are gone even though type checkers still offer them. Deprecate the underlying function and put the cache on top (`@functools.lru_cache` above `@deprecated(...)`) — the cache attributes then exist, but a cache hit never reaches the wrapper, so the warning fires only on a miss. Callable objects without a `__name__`, such as `functools.partial`, are rejected at decoration time; wrap those with `deprecated_instance()`.
+
 ## See also
 
 - [Use Cases overview](use-cases.md) — start here for a guided tour of all deprecation patterns

@@ -39,7 +39,7 @@ import types
 import warnings
 from collections.abc import Iterator
 from dataclasses import replace
-from typing import Any, Callable, Literal, Optional, SupportsIndex, Union, cast
+from typing import Any, Callable, Literal, Optional, Protocol, SupportsIndex, TypeVar, Union, cast, overload
 
 from deprecate._dispatch import _split_positional_only_kwargs
 from deprecate._fatal import DeprecatedError, _resolve_as_exception
@@ -767,6 +767,10 @@ class _DeprecatedProxy:
         wrapped so that calling them raises :class:`AttributeError` instead of mutating the underlying object.
 
         """
+        # ``__deprecated__`` is proxy metadata (see ``__setattr__``); reaching here means it was deleted from the
+        # proxy, so report it missing instead of falling through to the wrapped object's own marker.
+        if name == "__deprecated__":
+            raise AttributeError(name)
         # Half-initialised instance guard (``cls.__new__(cls)`` during copy/pickle reconstruction): the ``_cfg``
         # property raises AttributeError when ``__config`` is missing, which Python routes back into __getattr__ —
         # touching ``self._cfg`` here again would mutually recurse (property ↔ __getattr__) into RecursionError.
@@ -813,10 +817,17 @@ class _DeprecatedProxy:
         When ``attrs_mapping`` is configured and the attribute name is a deprecated alias, emits a warning and
         redirects the write to the canonical attribute name.
 
+        ``__deprecated__`` is proxy metadata, not wrapped-object state: it is stored on the proxy itself, ahead of the
+        ``skip_if`` pass-through and the read-only guard, so a PEP 702 decorator stacked on the proxy never marks the
+        wrapped (replacement) object deprecated.
+
         Raises:
             AttributeError: If the proxy is in read-only mode.
 
         """
+        if name == "__deprecated__":
+            object.__setattr__(self, name, value)
+            return
         # skip_if active — write straight to the wrapped source; no warning, redirect, or read-only guard.
         if self._shall_skip():
             setattr(self._cfg.obj, name, value)
@@ -842,12 +853,16 @@ class _DeprecatedProxy:
         """Forward attribute deletion to the active object, raising in read-only mode.
 
         When ``attrs_mapping`` is configured and the attribute name is a deprecated alias, emits a warning and
-        redirects the deletion to the canonical attribute name.
+        redirects the deletion to the canonical attribute name. ``__deprecated__`` is deleted from the proxy itself,
+        mirroring :meth:`~deprecate.proxy._DeprecatedProxy.__setattr__`.
 
         Raises:
             AttributeError: If the proxy is in read-only mode.
 
         """
+        if name == "__deprecated__":
+            object.__delattr__(self, name)
+            return
         # skip_if active — delete straight on the wrapped source; no warning, redirect, or read-only guard.
         if self._shall_skip():
             delattr(self._cfg.obj, name)
@@ -1024,9 +1039,16 @@ class _DeprecatedProxy:
     # deprecation travels with the object so a copied deprecated config keeps warning during
     # the migration window. The wrapped object is copied per the respective protocol; the
     # frozen DeprecationConfig metadata is preserved; the warn-budget counters are snapshotted.
+    # The live ``__deprecated__`` marker travels as-is — a PEP 702 message written onto the proxy
+    # survives, and a deleted marker stays deleted (see ``_pep702_marker_state``).
     # Both reconstruction paths bypass ``__init__``, so they re-establish the AST breadcrumbs
     # explicitly against the object the new proxy actually serves — see ``_set_ast_breadcrumbs``.
     # ------------------------------------------------------------------
+
+    def _pep702_marker_state(self) -> tuple[Any, ...]:
+        """Return the proxy's live ``__deprecated__`` as ``(value,)``, or ``()`` when it was deleted from the proxy."""
+        own = object.__getattribute__(self, "__dict__")
+        return (own["__deprecated__"],) if "__deprecated__" in own else ()
 
     def __copy__(self) -> "_DeprecatedProxy":
         """Return a new proxy wrapping a shallow copy of the wrapped object.
@@ -1037,7 +1059,8 @@ class _DeprecatedProxy:
         """
         cfg = self._cfg
         new_cfg = replace(cfg, obj=copy.copy(cfg.obj), warned_args=dict(cfg.warned_args), lock=threading.Lock())
-        return _reconstruct_proxy(new_cfg, self._dep, object.__getattribute__(self, "__dict__").get("__doc__"))
+        doc = object.__getattribute__(self, "__dict__").get("__doc__")
+        return _reconstruct_proxy(new_cfg, self._dep, doc, self._pep702_marker_state())
 
     def __deepcopy__(self, memo: dict[int, Any]) -> "_DeprecatedProxy":
         """Return a new proxy deep-copying the wrapped object (and any instance target).
@@ -1053,9 +1076,7 @@ class _DeprecatedProxy:
         new_dep = copy.deepcopy(self._dep, memo)
         object.__setattr__(new, "_DeprecatedProxy__config", new_cfg)
         object.__setattr__(new, "__deprecation_config__", new_dep)
-        object.__setattr__(
-            new, "__deprecated__", _render_static_deprecation_message(new_dep, new_dep.name, new_dep.name)
-        )
+        _restore_pep702_marker(new, new_dep, copy.deepcopy(self._pep702_marker_state(), memo))
         doc = object.__getattribute__(self, "__dict__").get("__doc__")
         if doc is not None:
             object.__setattr__(new, "__doc__", doc)
@@ -1085,7 +1106,7 @@ class _DeprecatedProxy:
 
         """
         doc = object.__getattribute__(self, "__dict__").get("__doc__")
-        return (_reconstruct_proxy, (self._cfg, self._dep, doc))
+        return (_reconstruct_proxy, (self._cfg, self._dep, doc, self._pep702_marker_state()))
 
     # ------------------------------------------------------------------
     # Type protocol — supports isinstance/issubclass against a proxy
@@ -1126,8 +1147,8 @@ class _DeprecatedProxy:
         a concrete type is reached. Defensive cycle guard breaks the loop on the unlikely case of a circular stack so
         this dunder never blocks.
 
-        Raises ``TypeError`` (mirroring the builtin) when the active object is an instance rather than a type — using an
-        *instance* proxy as the second argument to ``isinstance`` is a misuse. Returns ``False`` only on a circular
+        Raises ``TypeError`` (mirroring the builtin) when the active object is an instance rather than a type — using
+        an *instance* proxy as the second argument to ``isinstance`` is a misuse. Returns ``False`` only on a circular
         proxy stack.
 
         """
@@ -1269,10 +1290,29 @@ def _proxy_call_with_positional_split(
     return ctor(*args, **mapped_kwargs)
 
 
+def _restore_pep702_marker(
+    proxy: "_DeprecatedProxy", dep: DeprecationConfig, marker: Optional[tuple[Any, ...]]
+) -> None:
+    """Re-attach ``__deprecated__`` to a rebuilt proxy from the state carried by a copy or pickle.
+
+    Args:
+        proxy: The half-built proxy (state attached via ``object.__setattr__``).
+        dep: Frozen deprecation metadata used to render the default message.
+        marker: ``(value,)`` to carry the original's live marker, ``()`` when the original had it deleted, or
+            ``None`` — a pickle payload from a release that did not record the marker — to render the default.
+
+    """
+    if marker is None:
+        object.__setattr__(proxy, "__deprecated__", _render_static_deprecation_message(dep, dep.name, dep.name))
+    elif marker:
+        object.__setattr__(proxy, "__deprecated__", marker[0])
+
+
 def _reconstruct_proxy(
     cfg: _ProxyConfig,
     dep: DeprecationConfig,
     doc: Optional[str],
+    pep702_marker: Optional[tuple[Any, ...]] = None,
 ) -> "_DeprecatedProxy":
     """Rebuild a :class:`_DeprecatedProxy` from its config dataclasses without re-running ``__init__``.
 
@@ -1292,12 +1332,14 @@ def _reconstruct_proxy(
         dep: Frozen deprecation metadata (shared or copied by the caller as appropriate).
         doc: Instance-level ``__doc__`` mirrored from the wrapped object, or ``None`` when the
             original proxy carried no instance docstring.
+        pep702_marker: The original's live ``__deprecated__`` state — see :func:`_restore_pep702_marker`.
+            Defaults to ``None`` so pickles written without it still load with the rendered message.
 
     """
     proxy = _DeprecatedProxy.__new__(_DeprecatedProxy)
     object.__setattr__(proxy, "_DeprecatedProxy__config", cfg)
     object.__setattr__(proxy, "__deprecation_config__", dep)
-    object.__setattr__(proxy, "__deprecated__", _render_static_deprecation_message(dep, dep.name, dep.name))
+    _restore_pep702_marker(proxy, dep, pep702_marker)
     if doc is not None:
         object.__setattr__(proxy, "__doc__", doc)
     proxy._set_ast_breadcrumbs(cfg.obj)
@@ -1379,11 +1421,11 @@ def _resolve_proxy_target(
 ) -> "tuple[Any, Optional[dict[str, Optional[str]]], list[str], bool]":
     """Resolve the unset factory default (``None``) against the configured mappings.
 
-    Only ``None`` — the ``deprecated_class`` default, meaning "no explicit target" — auto-resolves: a mapping present
-    selects :attr:`~deprecate._types.TargetMode.ARGS_REMAP` / :attr:`~deprecate._types.TargetMode.ATTRS_REMAP` (or the
-    wrapped object itself when dataclass auto-expand activated both surfaces); no mapping keeps ``None`` (warn-on-access
-    proxy).  An **explicit** ``TargetMode.NOTIFY`` is a deliberate caller choice and is never overridden — with
-    ``attrs_mapping`` present the pair is contradictory, so dataclass auto-expand is skipped and the flag in the
+    Only ``None`` — the ``deprecated_class`` default, meaning "no explicit target" — auto-resolves: a mapping
+    present selects :attr:`~deprecate._types.TargetMode.ARGS_REMAP` / :attr:`~deprecate._types.TargetMode.ATTRS_REMAP`
+    (or the wrapped object itself when dataclass auto-expand activated both surfaces); no mapping keeps ``None`` (warn-
+    on-access proxy).  An **explicit** ``TargetMode.NOTIFY`` is a deliberate caller choice and is never overridden —
+    with ``attrs_mapping`` present the pair is contradictory, so dataclass auto-expand is skipped and the flag in the
     returned tuple tells the proxy to ignore the mapping at runtime (the validators emit the misconfig ``UserWarning``).
 
     Returns ``(resolved_target, args_mapping, auto_expanded_keys, explicit_notify_attrs)``.
@@ -1530,7 +1572,78 @@ def _build_proxy_warn_msg(
 #: public spelling of a proxy, so annotating with it and passing it back in has to work too.
 _ClassOrProxy = Union[type, "_DeprecatedProxy", DeprecationProxy[Any]]
 
+#: Class object decorated by :func:`deprecated_class` (or the ``@deprecated`` front door): an identity signature over
+#: the class object keeps ``type[Cls]`` intact, and a bare ``type`` (e.g. built with ``type(name, bases, ns)``) stays
+#: ``type`` where the ``type[_T] -> type[_T]`` spelling would infer ``type[Never]``.
+_ClassT = TypeVar("_ClassT", bound=type)
 
+#: Replacement class passed as ``deprecated_class(target=...)``: the alias is statically that class.
+_NewT = TypeVar("_NewT")
+_NewT_co = TypeVar("_NewT_co", covariant=True)
+
+
+class _ClassDecorator(Protocol):
+    """Decorator returned by :func:`deprecated_class` when no replacement class is given: the source keeps its type.
+
+    At runtime every input comes back wrapped in a :class:`_DeprecatedProxy`. For a class input the static type stays
+    ``type[Cls]`` because the proxy is a truthful stand-in for it — ``isinstance`` (``__instancecheck__``),
+    subclassing (``__mro_entries__``), construction, and attribute access all forward to the class — and it matches
+    what type checkers (mypy, which ignores a class decorator's return type) infer for the ``@deprecated_class(...)``
+    decorator form. An already-wrapped proxy (stacking) keeps its concrete proxy type.
+
+    """
+
+    @overload
+    def __call__(self, cls: _ClassT) -> _ClassT: ...
+
+    @overload
+    def __call__(self, cls: Union["_DeprecatedProxy", DeprecationProxy[Any]]) -> "_DeprecatedProxy": ...
+
+
+class _RedirectDecorator(Protocol[_NewT_co]):
+    """Decorator returned by :func:`deprecated_class` for ``target=NewCls``: the alias is typed as the target class.
+
+    A redirecting proxy does not stand in for the class it wraps — ``isinstance``, construction, and attribute access
+    all resolve against *target*, so ``deprecated_class(target=NewCls)(OldCls)`` is statically ``type[NewCls]``, never
+    ``type[OldCls]`` (``OldCls`` instances are not instances of the alias).  The wrapped class is not part of the result
+    type, so it may be any class — including a bare ``type`` — and need not be related to *target*.  An already-
+    wrapped proxy (stacking) keeps its concrete proxy type.
+
+    """
+
+    @overload
+    def __call__(self, cls: type) -> type[_NewT_co]: ...
+
+    @overload
+    def __call__(self, cls: Union["_DeprecatedProxy", DeprecationProxy[Any]]) -> "_DeprecatedProxy": ...
+
+
+# Typing fix: with a class ``target`` the proxy forwards ``isinstance``, construction and attribute access to *target*,
+# not to the wrapped class, so ``deprecated_class(target=New)(Old)`` must be ``type[New]`` — not ``type[Old]``, which
+# would claim ``Old`` instances satisfy the alias. Calls without a class ``target`` match the ``target: Any`` overload.
+@overload
+def deprecated_class(
+    target: type[_NewT],
+    *,
+    deprecated_in: str = "",
+    remove_in: str = "",
+    num_warns: int = 1,
+    stream: Optional[Callable[..., None]] = deprecation_warning,
+    message_template: Optional[str] = None,
+    args_mapping: Optional[dict[str, Optional[str]]] = None,
+    args_extra: Optional[dict[str, Any]] = None,
+    attrs_mapping: Optional[dict[str, Optional[str]]] = None,
+    skip_if: Union[bool, Callable[[], bool]] = False,
+    update_docstring: bool = False,
+    docstring_style: Literal["auto", "rst", "mkdocs", "markdown"] = "auto",
+    template_mgs: Optional[str] = None,
+    as_exception: Optional[bool] = None,
+    _misconfigured_override: bool = False,
+    _stacklevel_extra: int = 0,
+) -> _RedirectDecorator[_NewT]: ...
+
+
+@overload
 def deprecated_class(
     target: Any = None,  # noqa: ANN401
     *,
@@ -1549,7 +1662,29 @@ def deprecated_class(
     as_exception: Optional[bool] = None,
     _misconfigured_override: bool = False,
     _stacklevel_extra: int = 0,
-) -> Callable[[_ClassOrProxy], "_DeprecatedProxy"]:
+) -> _ClassDecorator:
+    pass
+
+
+def deprecated_class(
+    target: Any = None,
+    *,
+    deprecated_in: str = "",
+    remove_in: str = "",
+    num_warns: int = 1,
+    stream: Optional[Callable[..., None]] = deprecation_warning,
+    message_template: Optional[str] = None,
+    args_mapping: Optional[dict[str, Optional[str]]] = None,
+    args_extra: Optional[dict[str, Any]] = None,
+    attrs_mapping: Optional[dict[str, Optional[str]]] = None,
+    skip_if: Union[bool, Callable[[], bool]] = False,
+    update_docstring: bool = False,
+    docstring_style: Literal["auto", "rst", "mkdocs", "markdown"] = "auto",
+    template_mgs: Optional[str] = None,
+    as_exception: Optional[bool] = None,
+    _misconfigured_override: bool = False,
+    _stacklevel_extra: int = 0,
+) -> Union[_ClassDecorator, _RedirectDecorator[Any]]:
     r"""Decorator factory for deprecating class definitions with optional target redirection.
 
     Apply ``@deprecated_class(...)`` to an Enum or dataclass to wrap the class in a
@@ -1651,10 +1786,17 @@ def deprecated_class(
 
     Returns:
         A decorator that wraps the class in a :class:`~deprecate.proxy._DeprecatedProxy`, which satisfies the public
-        :class:`~deprecate._types.DeprecationProxy` Protocol.  The concrete proxy type is returned in every form,
-        deliberately: it is what keeps the forwarded dunders (``int()``, ``with``, ``await``) visible to type
-        checkers, which the narrow Protocol would hide.  To let the target type flow into call sites, annotate the
-        one site that needs it — ``Old: DeprecationProxy[NewCls] = deprecated_class(target=NewCls, ...)(_OldSource)``.
+        :class:`~deprecate._types.DeprecationProxy` Protocol at runtime.  Statically, the alias is typed as the class
+        the proxy forwards to: with a class *target*, ``deprecated_class(target=NewCls, ...)(OldCls)`` is
+        ``type[NewCls]`` whichever class is wrapped, so ``isinstance``/``issubclass`` checks, construction, and
+        attribute access type-check against the replacement.  Without a class *target* (``args_mapping`` /
+        ``attrs_mapping`` only, a :class:`~deprecate._types.TargetMode` member, or none) the alias keeps the wrapped
+        class's own type, ``type[OldCls]``.  Stacking over an existing proxy keeps the concrete proxy type.  mypy
+        reads the ``@deprecated_class(...)`` decorator form as the class statement itself, while pyright applies the
+        decorator's return type (``type[NewCls]`` with a class *target*).  Static
+        typing models the steady state: with ``skip_if`` the wrapped class is served while skipped, so it must stay
+        compatible with *target*.  A ``**options`` dict of type ``dict[str, Any]`` hides whether *target* is passed,
+        so the type checker cannot pick a result and infers ``Any`` — spell the keywords out to keep the precise type.
 
     Note:
         **Subclassing (PEP 560)**: the proxy implements ``__mro_entries__`` so
@@ -1768,7 +1910,9 @@ def deprecated_class(
             object.__setattr__(proxy, "__doc__", shim.__doc__)
         return proxy
 
-    return decorator
+    # The runtime result is always a proxy; the overloads type it statically as the target class, or as the wrapped
+    # class when nothing is redirected (see ``_RedirectDecorator`` / ``_ClassDecorator``).
+    return cast(Union[_ClassDecorator, _RedirectDecorator[Any]], decorator)
 
 
 def deprecated_instance(

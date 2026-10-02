@@ -9,6 +9,8 @@ import pytest
 
 import tests.collection_deprecate as col
 import tests.collection_misconfigured as clean_module
+import tests.collection_pep702 as pep702_module
+import tests.collection_targets as targets_module
 from deprecate import (
     TargetMode,
     deprecated,
@@ -22,7 +24,6 @@ from deprecate.audit import (
 )
 from deprecate.audit._scan import _member_has_deprecation_meta, _scan_class
 from deprecate.proxy import _DeprecatedProxy, deprecated_class
-from tests.collection_targets import PositionalOnlyTarget
 
 
 class _SideEffectScanModule:
@@ -64,6 +65,227 @@ class TestFindDeprecationWrappersWarningBudget:
         # Budget should be untouched — scanning must not consume it
         with pytest.warns(FutureWarning):
             proxy.get("x")  # triggers __getattr__ → _warn() → should still fire
+
+
+class TestFindDeprecationWrappersPep702:
+    """Opt-in discovery of objects deprecated only with the PEP 702 decorator (``include_pep702=True``)."""
+
+    def test_default_scan_reports_only_pydeprecate_wrappers(self) -> None:
+        """Without the opt-in, PEP 702-only objects stay out of the report and every gate built on it.
+
+        A project mixing pyDeprecate and ``warnings.deprecated`` must see no change in ``check``/``expiry``/``policy``
+        results: PEP 702-only objects carry no version schedule, so reporting them by default would flip
+        ``empty_deprecated_in`` and ``message-required`` gates for code that was never scheduled with pyDeprecate.
+
+        """
+        infos = find_deprecation_wrappers(pep702_module, recursive=False)
+        assert {(info.function, info.pep702_message) for info in infos} == {
+            ("stacked_callable", None),
+            ("StackedAlias", None),
+            ("StackedMembers.legacy_method", None),
+            ("StackedMembers.legacy_value", None),
+            ("StackedMembers.legacy_static", None),
+            ("Pep702MixedMembers.old_wrapped", None),
+            ("Pep702AliasFirst.old_wrapped", None),
+        }
+
+    def test_opt_in_reports_pep702_only_objects(self) -> None:
+        """With ``include_pep702=True`` every PEP 702-only symbol is listed, its ``api_type`` naming its shape.
+
+        A maintainer wants one audit listing of every live deprecation, including symbols that only carry the
+        stdlib-style decorator, grouped by shape like any other row (a report groups ``class`` and ``class method``
+        rows, whatever decorator produced them); ``pep702_message`` alone marks the mechanism. A subclass that merely
+        inherits ``__deprecated__`` through the MRO is not itself deprecated and must not appear.
+
+        """
+        infos = find_deprecation_wrappers(pep702_module, recursive=False, include_pep702=True)
+        assert {(info.function, info.api_type) for info in infos if info.pep702_message is not None} == {
+            ("pep702_only_function", "callable"),
+            ("pep702_empty_message", "callable"),
+            ("Pep702OnlyClass", "class"),
+            ("Pep702DefaultCategoryClass", "class"),
+            ("Pep702CallableClass", "class"),
+            ("Pep702OnlyMembers.old_method", "class method"),
+            ("Pep702OnlyMembers._old_method", "class method"),
+            ("Pep702OnlyMembers._old_value", "class method"),
+            ("Pep702OnlyMembers.old_value", "class method"),
+            ("Pep702OnlyMembers.old_static", "staticmethod"),
+            ("Pep702OnlyMembers.old_total", "class method"),
+            ("Pep702MixedMembers.old_pep702", "class method"),
+        }
+
+    @pytest.mark.parametrize("marker", [None, pytest.param(b"Use `pep702_target` instead.", id="bytes")])
+    def test_non_string_marker_is_not_reported(self, marker: object, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A ``__deprecated__`` that is not a string is not a PEP 702 marker and yields no row.
+
+        PEP 702 records the message as a string. Code that clears the marker by assigning ``None``, or a tool that
+        stores some other object under the same name, must not make the symbol look deprecated to an opt-in audit.
+
+        """
+        monkeypatch.setattr(pep702_module.pep702_only_function, "__deprecated__", marker)
+        infos = find_deprecation_wrappers(pep702_module, recursive=False, include_pep702=True)
+        assert [info.function for info in infos if info.function == "pep702_only_function"] == []
+
+    @pytest.mark.parametrize(
+        ("class_name", "expected"),
+        [
+            pytest.param("Pep702DefaultCategoryClass", ["Pep702DefaultCategoryClass"], id="default-category-class"),
+            pytest.param("Pep702DefaultCategorySubclass", [], id="default-category-subclass"),
+            pytest.param("Pep702LibrarySubclass", [], id="library-base-subclass"),
+        ],
+    )
+    def test_class_reports_only_its_own_markers(self, class_name: str, expected: list[str]) -> None:
+        """A class contributes rows only for PEP 702 markers it defines itself.
+
+        The decorator's default category installs ``__new__`` and ``__init_subclass__`` on the class it decorates and
+        stamps both with the class's message, so a naive member walk lists one deprecated class three times, and its
+        undecorated subclass twice. A project model built on a library base (pydantic's ``BaseModel`` is the real-world
+        case) inherits every PEP 702-deprecated method of that base, public and private; those are the library's
+        deprecations and must not be repeated once per project subclass.
+
+        """
+        infos = find_deprecation_wrappers(pep702_module, recursive=False, include_pep702=True)
+        assert [info.function for info in infos if info.function.split(".")[0] == class_name] == expected
+
+    def test_class_alias_reports_members_once(self) -> None:
+        """A class bound under two names lists each PEP 702-deprecated member once, under the first name scanned.
+
+        A library that exposes ``ShortName = LongName`` still has one class and one set of members. Top-level PEP 702
+        symbols are already de-duplicated by identity; without the same treatment of class members the opt-in audit
+        would list every deprecated method twice, once per name, and inflate any count a CI gate builds on it.
+
+        """
+        infos = find_deprecation_wrappers(pep702_module, recursive=False, include_pep702=True)
+        names = [info.function for info in infos if info.function.endswith(".old_method")]
+        assert names == ["Pep702OnlyMembers.old_method"]
+
+    def test_class_alias_sorting_first_does_not_take_the_pep702_rows(self) -> None:
+        """The binding named like the class owns its PEP 702 member rows, even when an alias sorts before it.
+
+        A library exposes ``Report = CsvReportWriter``: scan order is alphabetical, so the short alias is met first.
+        Someone searching the report for ``CsvReportWriter.*`` must still find the rows, so the class's own name wins.
+
+        """
+        infos = find_deprecation_wrappers(pep702_module, recursive=False, include_pep702=True)
+        names = [info.function for info in infos if info.function.endswith(".old_pep702")]
+        assert names == ["Pep702MixedMembers.old_pep702"]
+
+    def test_class_alias_keeps_pydeprecate_member_rows_under_each_name(self) -> None:
+        """A class bound under two names reports its pyDeprecate member rows once per binding, as it always has.
+
+        Only the PEP 702 rows are claimed once per class. Skipping the whole member scan for an already-claimed class
+        would silently drop the second binding's pyDeprecate rows and shift every gate built on the default scan.
+
+        """
+        infos = find_deprecation_wrappers(pep702_module, recursive=False)
+        names = sorted(info.function for info in infos if info.function.endswith(".old_wrapped"))
+        assert names == ["Pep702AliasFirst.old_wrapped", "Pep702MixedMembers.old_wrapped"]
+
+    def test_instance_of_deprecated_class_not_reported(self) -> None:
+        """A module-level instance of a PEP 702-deprecated callable class is not a deprecation of its own.
+
+        Libraries often expose a ready-made callable object (a default parser, a shared client) built from a class.
+        When only the class is deprecated, the instance reaches ``__deprecated__`` through its type alone; reporting it
+        would list the same deprecation twice, once under a name nobody decorated.
+
+        """
+        infos = find_deprecation_wrappers(pep702_module, recursive=False, include_pep702=True)
+        names = [
+            info.function for info in infos if info.function in ("Pep702CallableClass", "pep702_callable_instance")
+        ]
+        assert names == ["Pep702CallableClass"]
+
+    @pytest.mark.parametrize(
+        "module_attrs",
+        [
+            pytest.param({}, id="module"),
+            pytest.param({"__path__": []}, id="package-non-recursive"),
+        ],
+    )
+    def test_foreign_package_import_not_reported(self, module_attrs: dict[str, list[str]]) -> None:
+        """A PEP 702-only symbol imported from another top-level package is left to that package.
+
+        Importing a deprecated helper from a dependency (``from pydantic.deprecated.tools import parse_obj_as``) is
+        routine; a row for it under the importing module is noise the project can neither expire nor remove. The filter
+        holds even when re-exports are not being attributed elsewhere (a package scanned with ``recursive=False``), and
+        it covers PEP 702 rows only: a pyDeprecate wrapper imported the same way keeps its row, as before.
+
+        """
+        consumer = types.ModuleType("consumer_app")
+        vars(consumer).update(
+            module_attrs,
+            pep702_only_function=pep702_module.pep702_only_function,
+            Pep702OnlyClass=pep702_module.Pep702OnlyClass,
+            stacked_callable=pep702_module.stacked_callable,
+        )
+        infos = find_deprecation_wrappers(consumer, recursive=False, include_pep702=True)
+        assert [(info.module, info.function) for info in infos] == [("consumer_app", "stacked_callable")]
+
+    def test_unknown_defining_module_is_kept(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A PEP 702-only symbol with no known defining module stays in the report of the module exposing it.
+
+        Callables built dynamically (``exec``, some extension modules) can carry ``__module__ = None``. The scanner
+        then cannot tell a foreign import from a local definition, so it keeps the row rather than silently drop a live
+        deprecation.
+
+        """
+        monkeypatch.setattr(pep702_module.pep702_only_function, "__module__", None)
+        consumer = types.ModuleType("consumer_app")
+        consumer.pep702_only_function = pep702_module.pep702_only_function  # type: ignore[attr-defined]
+        infos = find_deprecation_wrappers(consumer, include_pep702=True)
+        assert [(info.module, info.function) for info in infos] == [("consumer_app", "pep702_only_function")]
+
+    def test_inherited_markers_reported_on_defining_class(self) -> None:
+        """PEP 702 methods of a base class are reported once, on the base, in the module that defines it.
+
+        Moving the rows off the subclass must not lose them: an audit of the library's own module still lists each
+        deprecated method, private ones included, under the class that owns it.
+
+        """
+        infos = find_deprecation_wrappers(targets_module, recursive=False, include_pep702=True)
+        assert sorted(info.function for info in infos if info.pep702_message is not None) == [
+            "Pep702LibraryBase._iter_legacy",
+            "Pep702LibraryBase.export_legacy",
+        ]
+
+    def test_empty_pep702_message_is_reported(self) -> None:
+        """An empty PEP 702 message remains a real marker in the audit report.
+
+        A library can use the empty string with the standard decorator. The scanner must retain that row even though
+        the message is false in a Boolean context.
+
+        """
+        infos = find_deprecation_wrappers(pep702_module, recursive=False, include_pep702=True)
+        rows = [info for info in infos if info.function == "pep702_empty_message"]
+        assert [(info.api_type, info.pep702_message) for info in rows] == [("callable", "")]
+
+    def test_pep702_row_carries_message_and_no_schedule(self) -> None:
+        """A PEP 702 row exposes the decorator's message and reports the missing version schedule.
+
+        The message is the only metadata a PEP 702 decorator records; the empty ``deprecated_in`` tells a CI filter
+        that this symbol has no removal plan pyDeprecate could enforce.
+
+        """
+        infos = find_deprecation_wrappers(pep702_module, recursive=False, include_pep702=True)
+        row = next(info for info in infos if info.function == "pep702_only_function")
+        assert (row.module, row.pep702_message, row.empty_deprecated_in) == (
+            "tests.collection_pep702",
+            "Use `pep702_target` instead.",
+            True,
+        )
+
+    def test_stacked_wrapper_stays_a_pydeprecate_row(self) -> None:
+        """A pyDeprecate wrapper with a PEP 702 decorator stacked on top is reported once, with its full schedule.
+
+        Stacking is the documented static-checker pattern; it must not demote the wrapper to a schedule-less PEP 702
+        row or report it twice.
+
+        """
+        infos = find_deprecation_wrappers(pep702_module, recursive=False, include_pep702=True)
+        rows = [info for info in infos if info.function == "stacked_callable"]
+        assert [(row.api_type, row.deprecated_info.remove_in, row.pep702_message) for row in rows] == [
+            ("callable", "2.0", None)
+        ]
 
 
 class TestFindDeprecationWrappersReexport:
@@ -116,6 +338,42 @@ class TestFindDeprecationWrappersReexport:
         results = find_deprecation_wrappers(mod)
 
         assert len([r for r in results if r.function in ("canonical", "alias")]) == 1
+
+    def test_pep702_reexport_attributed_to_defining_module(self) -> None:
+        """A PEP 702-only function or class re-exported by a sibling module is reported once, where it is defined.
+
+        A package commonly surfaces its deprecated helpers through ``__init__``. An opt-in audit must list each one
+        under the module that defines it and skip the re-export, or a recursive scan counts it twice and the row
+        points at a module whose source does not contain the decorator.
+
+        """
+        importer = types.ModuleType("tests.pep702_reexport")
+        vars(importer).update(
+            pep702_only_function=pep702_module.pep702_only_function,
+            Pep702OnlyClass=pep702_module.Pep702OnlyClass,
+        )
+        reexported = find_deprecation_wrappers(importer, include_pep702=True)
+        defining = find_deprecation_wrappers(pep702_module, recursive=False, include_pep702=True)
+        names = ("pep702_only_function", "Pep702OnlyClass")
+        assert (reexported, [(r.module, r.function) for r in defining if r.function in names]) == (
+            [],
+            [("tests.collection_pep702", "Pep702OnlyClass"), ("tests.collection_pep702", "pep702_only_function")],
+        )
+
+    def test_pep702_alias_counted_once(self) -> None:
+        """One PEP 702-only object bound under two names in its own module is reported once.
+
+        ``old_name = new_name``-style aliases are common while a rename settles. Identity-based dedup must collapse
+        both bindings on the PEP 702 path exactly as it does for pyDeprecate wrappers.
+
+        """
+        mod = types.ModuleType(pep702_module.__name__)
+        vars(mod).update(
+            pep702_only_function=pep702_module.pep702_only_function,
+            pep702_only_alias=pep702_module.pep702_only_function,
+        )
+        infos = find_deprecation_wrappers(mod, include_pep702=True)
+        assert len(infos) == 1
 
 
 class TestFindDeprecationWrappersClassScan:
@@ -461,7 +719,7 @@ class TestValidateMappingCompatibility:
                 args_mapping={"old_val": None},
                 deprecated_in="1.0",
                 remove_in="2.0",
-            )(PositionalOnlyTarget)
+            )(targets_module.PositionalOnlyTarget)
 
         info = validate_deprecation_wrapper(proxy)
         assert info.args_mapping_positional_only == [], (

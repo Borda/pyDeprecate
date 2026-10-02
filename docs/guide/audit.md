@@ -54,6 +54,7 @@ Use these utilities to verify that a deprecated wrapper is correctly configured:
 - `chain_type` — chain classification used when reporting deprecation chains, such as `TARGET` or `STACKED`
 - `empty_deprecated_in` — `True` when `deprecated_in` is absent or empty; useful in CI to surface wrappers with no version annotation
 - `api_type` — inferred API kind for report generation (e.g. `callable`, `args`, `class`, `dataclass attributes`, `class method`); excluded from `repr()` to keep snapshot tests stable
+- `pep702_message` — `None` for every pyDeprecate wrapper; on a row that `find_deprecation_wrappers(..., include_pep702=True)` reports for a symbol deprecated only with `warnings.deprecated`, the decorator's message (a string, possibly empty) — such rows have no versions, so `empty_deprecated_in` is `True` (see [PEP 702-only deprecations](#pep-702-only-deprecations)); excluded from `repr()`
 
 ### Validating a single function
 
@@ -243,6 +244,46 @@ Self-references: 0
 ```
 
 </details>
+
+### PEP 702-only deprecations
+
+A symbol deprecated with `warnings.deprecated` / `typing_extensions.deprecated` alone carries no pyDeprecate metadata, so the default scan skips it — that keeps `check`, `expiry`, and `policy` results unchanged for projects that mix both decorators. Pass `include_pep702=True` to list those symbols too. Each appears as a row whose `api_type` names its shape exactly as for any other row (`callable`, `class`, `class method`, `staticmethod`, ...) and whose `pep702_message` holds the decorator's message — a string, possibly empty, where every pyDeprecate row has `None` — so `row.pep702_message is not None` picks these rows out. Their `deprecated_info` holds no versions, because PEP 702 records none, so `empty_deprecated_in` is always `True`: before feeding an opt-in scan to your own `empty_deprecated_in`, expiry, or report filters, drop the rows where `row.pep702_message is not None`. A pyDeprecate wrapper with a PEP 702 decorator stacked on top — the [static-checker pattern](functions.md#static-type-checkers-pep-702) — stays a regular row with its full schedule.
+
+```python
+from deprecate import find_deprecation_wrappers
+from tests import collection_pep702
+
+rows = find_deprecation_wrappers(collection_pep702, include_pep702=True)
+for row in rows:
+    if row.pep702_message is not None:
+        print(f"{row.function} [{row.api_type}]: {row.pep702_message or '<empty message>'}")
+```
+
+<details>
+  <summary>Output: <code>row.function, row.api_type, row.pep702_message</code></summary>
+
+```
+Pep702CallableClass [class]: Use `pep702_target` instead.
+Pep702DefaultCategoryClass [class]: Use `Pep702StaticTarget` instead.
+Pep702MixedMembers.old_pep702 [class method]: Use `pep702_target` instead.
+Pep702OnlyClass [class]: Use `Pep702StaticTarget` instead.
+Pep702OnlyMembers._old_method [class method]: Use the public method instead.
+Pep702OnlyMembers._old_value [class method]: Use the public value instead.
+Pep702OnlyMembers.old_method [class method]: Use `pep702_target` instead.
+Pep702OnlyMembers.old_static [staticmethod]: Use `pep702_target` instead.
+Pep702OnlyMembers.old_total [class method]: Compute the total from `value` instead.
+Pep702OnlyMembers.old_value [class method]: Read `value` instead.
+pep702_empty_message [callable]: <empty message>
+pep702_only_function [callable]: Use `pep702_target` instead.
+```
+
+</details>
+
+A subclass of a PEP 702-deprecated class is not listed, nor is an instance of one (a ready-made callable object): each reaches `__deprecated__` only through the class and is not itself deprecated. For the same reason a class lists only the PEP 702 markers it defines itself — methods inherited from a library base (a pydantic `BaseModel`, say) belong to that library and are not repeated under every subclass. A class decorated with the default warning category is one row, not three: the decorator also installs `__new__` and `__init_subclass__` on it with the same message, and the class row already covers them. A symbol imported from another top-level package — `from pydantic.deprecated.tools import parse_obj_as`, say — is the dependency's deprecation, so the scan leaves it out even with `recursive=False`; a symbol whose `__module__` is unknown stays listed under the module that exposes it. A class bound under a second name (`ShortName = LongName`) lists its own PEP 702 members once, under the binding named like the class (`LongName`, even when the alias sorts first; the first name scanned when no binding has the class's own name); the pyDeprecate rows of such a class are unchanged and still appear under each name.
+
+The scan sees only runtime objects, so a PEP 702 decorator on an individual `@overload` is invisible to it: overload stubs are replaced by the implementation and never become module or class members. Static checkers still flag calls that match that overload.
+
+The `pydeprecate` CLI intentionally has no `--include-pep702` flag: its gates evaluate pyDeprecate schedule metadata (`deprecated_in`, `remove_in`, a replacement) that PEP 702 rows lack, so list those symbols with the Python API instead.
 
 ### CLI usage
 

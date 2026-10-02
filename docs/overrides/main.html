@@ -490,7 +490,15 @@
           "name": "How do I type-annotate the object returned by deprecated_class or deprecated_instance?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Import DeprecationProxy from deprecate rather than annotating against the private _DeprecatedProxy. DeprecationProxy[T] is generic in the type produced by calling the proxy, but deprecated_class and deprecated_instance return the concrete proxy in every call shape, so there is no form mypy can infer T from automatically. Annotate the assignment explicitly where you want the target type: Old: DeprecationProxy[New] = deprecated_class(target=New, ...)(_OldSource), so Old(...) is known to produce a New. Every call shape keeps the concrete _DeprecatedProxy return type at runtime when left unannotated, deliberately: the concrete type keeps the proxy's forwarded dunders such as int(), with and await visible, which the narrow protocol would hide. DeprecationProxy remains the type to annotate against. DeprecationProxy is a data protocol: isinstance(obj, DeprecationProxy) works, but issubclass(SomeType, DeprecationProxy) raises TypeError, as it does for every runtime-checkable protocol with non-method members."
+            "text": "A class alias is typed as the class it forwards to: deprecated_class(target=New, ...)(Old) is typed type[New] whichever class it wraps, so it needs no annotation and isinstance(x, Old) narrows to New. Without a class target (args_mapping or attrs_mapping only) the alias keeps the wrapped class's own type, and the @deprecated_class decorator form is read as the class statement by mypy, while pyright applies the decorator's return type (type[New] with a class target). deprecated_instance returns a proxy; annotate it with the public DeprecationProxy imported from deprecate, never the private _DeprecatedProxy, spelled DeprecationProxy[T] when calling the proxy produces a T. A class alias is still a proxy at runtime, but its proxy-only attributes such as __wrapped__ and __deprecation_config__ are invisible on the class type; read them with get_deprecation_config(Old), inspect.unwrap(Old), or cast(DeprecationProxy[Any], Old). DeprecationProxy is a data protocol: isinstance(obj, DeprecationProxy) works, but issubclass(SomeType, DeprecationProxy) raises TypeError, as it does for every runtime-checkable protocol with non-method members."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why does mypy report errors on deprecated class aliases after upgrading?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Releases before v0.14 shipped no type information, so type checkers treated every pyDeprecate object as Any. Since v0.14 the package ships py.typed and a deprecated class alias is typed as the class it forwards to: deprecated_class(target=New, ...)(Cls) is type[New], without a class target it is type[Cls], and the decorator form is read as the class statement by mypy (pyright applies the decorator's return type). An assignment error on Old: DeprecationProxy[New] = deprecated_class(target=New, ...)(Cls) means the alias is now type[New]: drop the annotation, the alias already has the replacement's type. An attr-defined error on Old.__wrapped__ or Old.__deprecation_config__ means a proxy-only attribute: use get_deprecation_config(Old), inspect.unwrap(Old), or cast(DeprecationProxy[Any], Old). A call-arg or attr-defined error on an old keyword or attribute name accepted through args_mapping or attrs_mapping means the alias's class (the target, or the wrapped class without one) does not declare that name, as the decorator form has always reported: keep the old names in a legacy class body, or cast the alias to DeprecationProxy[New] to make calls and attributes permissive, at the cost of isinstance against the alias no longer type-checking. A valid-type error on def f(x: Old) means a call-form alias is a variable, which no type checker accepts as a type: annotate with the replacement class or, in mypy, use the decorator form."
           }
         },
         {
@@ -515,6 +523,14 @@
           "acceptedAnswer": {
             "@type": "Answer",
             "text": "Both are intended. num_warns budgets messages; a gate that stopped refusing after the first call would let a caller retrying inside except DeprecatedError straight through, so a fatal deprecation bypasses the budget, raises on every call, and leaves the warn counters untouched. stream=None silences the message, not the lifecycle state: the raise is the gate, and letting an unrelated cosmetic setting switch it off would be a trap in CI. The one switch that does suppress a fatal deprecation is skip_if, because a wrapper turned off by configuration is not a deprecation at that moment. For whole modules there is a flip side: a fatal deprecated_module raises on every public attribute access, including attribute-walking tools such as pytest collection, Sphinx autodoc, pickle, and copy, so expect those to stop at the module rather than skip it."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why don't mypy, pyright, or my IDE flag functions deprecated with pyDeprecate?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Type checkers recognise a deprecation only when the decorator is literally warnings.deprecated (Python 3.13+) or typing_extensions.deprecated; they match the decorator by name, so no runtime decorator, pyDeprecate's included, can make them see it. Stack the PEP 702 decorator directly above pyDeprecate's: warnings.deprecated(\"Use new_name instead.\", category=None) over deprecated(...). Keep category=None, otherwise every call warns twice; write the message as a string literal, because mypy silently ignores a constant or f-string; and import the module rather than the name so pyDeprecate's deprecated is not shadowed. mypy only reports it with enable_error_code = [\"deprecated\"], pyright in CI with reportDeprecated = \"error\". Over deprecated_class(...), both mypy and pyright flag the old class name."
           }
         }
       ]
