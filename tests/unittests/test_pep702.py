@@ -53,5 +53,5 @@ if TYPE_CHECKING:
 
     # Invalid non-callable sources must be rejected statically as well as at decoration time.
     # warn_unused_ignores makes either line fail when its decorator's type variable becomes unbounded.
-    deprecated(deprecated_in="1.0", remove_in="2.0")(42)  # type: ignore[call-overload]
+    deprecated(deprecated_in="1.0", remove_in="2.0")(42)  # type: ignore[type-var]
     deprecated_callable(deprecated_in="1.0", remove_in="2.0")(42)  # type: ignore[type-var]

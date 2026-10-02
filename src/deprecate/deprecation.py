@@ -19,12 +19,11 @@ import inspect
 import warnings
 from dataclasses import dataclass
 from functools import cached_property
-from typing import Any, Callable, Literal, Optional, Protocol, Union, cast, overload
+from typing import Any, Callable, Literal, Optional, Protocol, Union, cast
 
 from deprecate._dispatch import _reject_non_callable_source
 from deprecate._types import TargetMode
 from deprecate.messaging import _resolve_message_template_alias, _validate_message_template, deprecation_warning
-from deprecate.proxy import _ClassT
 from deprecate.routine import _SourceT, deprecated_callable
 
 
@@ -36,10 +35,6 @@ class _FrontDoorDecorator(Protocol):
 
     """
 
-    @overload
-    def __call__(self, source: _ClassT) -> _ClassT: ...
-
-    @overload
     def __call__(self, source: _SourceT) -> _SourceT: ...
 
 

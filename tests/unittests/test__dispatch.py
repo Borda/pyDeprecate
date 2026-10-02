@@ -1209,7 +1209,7 @@ class TestBareDecoratorGuard:
             return x
 
         with pytest.raises(TypeError, match="must be called with parentheses"):
-            old(5)  # type: ignore[call-overload]  # bare decorator rebinds ``old`` to the packing decorator
+            old(5)  # type: ignore[type-var]  # bare decorator rebinds ``old`` to the packing decorator
 
     def test_helper_accepts_plain_callable(self) -> None:
         """The guard helper is a no-op for an ordinary callable so correct decoration is never disturbed."""

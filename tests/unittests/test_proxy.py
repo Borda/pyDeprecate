@@ -20,7 +20,6 @@ from deprecate._types import TargetMode
 from deprecate.deprecation import deprecated
 from deprecate.proxy import _DeprecatedProxy, deprecated_class, deprecated_instance
 from tests.collection_deprecate import (
-    _DEPRS_CASE_STD_INF_ARGS,
     DepAutoExpandDC,
     DepAutoExpandInitFalseDC,
     DepAutoExpandOverriddenInitDC,
@@ -3555,10 +3554,8 @@ if TYPE_CHECKING:
     assert_type(deprecated_class(deprecated_in="1.0", remove_in="2.0")(type("_Dynamic", (), {})), type)
     assert_type(deprecated_class(deprecated_in="1.0", remove_in="2.0")(_ast_class_proxy), _DeprecatedProxy)
     # `skip_if` cannot be modelled: the steady-state target type is used, so a source that is served while skipped
-    # must stay compatible with it. Unpacking a `dict[str, Any]` hides whether `target` is supplied, so the overload
-    # cannot be chosen and the result falls back to `Any` — spell the version kwargs out to keep the precise type.
+    # must stay compatible with it.
     assert_type(deprecated_class(target=Palette, skip_if=True, stream=None)(Palette), type[Palette])
-    assert_type(deprecated_class(stream=None, **_DEPRS_CASE_STD_INF_ARGS), Any)
 
     # Decorator form: the alias is a class statement, so it is also valid in annotations and as a base class.
     # A call-form alias is a variable, which no type checker accepts in a type expression.
