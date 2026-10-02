@@ -3479,7 +3479,7 @@ if TYPE_CHECKING:
     # The static type is the class passed in — the legacy source class when it differs from `target`.
     assert_type(DeprecatedColorEnumFunctional, type[_AstFunctionalColorEnum])
     assert_type(DeprecatedPaletteFunctionalFallback, type[Palette])
-    # The uses a proxy-typed alias broke downstream: `isinstance`/`issubclass` narrowing, construction, and handing the
+    # Using a proxy-typed alias breaks downstream: `isinstance`/`issubclass` narrowing, construction, and handing the
     # alias on wherever a class object is expected.
     _any_object: object = Palette()
     if isinstance(_any_object, DeprecatedPaletteFunctionalFallback):
