@@ -1,6 +1,7 @@
 """Unit tests for private helpers in :mod:`deprecate.audit._report`."""
 
 import warnings
+from typing import Any
 
 import tests.collection_misconfigured as clean_module
 from deprecate.audit._report import _format_report_target
@@ -20,7 +21,7 @@ class TestFormatReportProxyTarget:
         from inside the audit tooling.
         """
         final_cls = type("FinalApi", (), {})
-        mid = deprecated_class(target=final_cls, deprecated_in="1.0", remove_in="2.0")(type("MidApi", (), {}))
+        mid: Any = deprecated_class(target=final_cls, deprecated_in="1.0", remove_in="2.0")(type("MidApi", (), {}))
         old = deprecated_class(target=mid, deprecated_in="1.0", remove_in="2.0")(type("OldApi", (), {}))
         target = object.__getattribute__(old, "__deprecation_config__").target
 
