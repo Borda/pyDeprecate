@@ -1620,7 +1620,7 @@ class _RedirectDecorator(Protocol[_NewT_co]):
 
 # Typing fix: with a class ``target`` the proxy forwards ``isinstance``, construction and attribute access to *target*,
 # not to the wrapped class, so ``deprecated_class(target=New)(Old)`` must be ``type[New]`` — not ``type[Old]``, which
-# would claim ``Old`` instances satisfy the alias. Calls without a class ``target`` fall through to the overload below.
+# would claim ``Old`` instances satisfy the alias. Calls without a class ``target`` match the ``target: Any`` overload.
 @overload
 def deprecated_class(
     target: type[_NewT],
