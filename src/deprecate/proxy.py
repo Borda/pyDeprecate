@@ -1588,8 +1588,8 @@ class _ClassDecorator(Protocol):
     At runtime every input comes back wrapped in a :class:`_DeprecatedProxy`. For a class input the static type stays
     ``type[Cls]`` because the proxy is a truthful stand-in for it — ``isinstance`` (``__instancecheck__``), subclassing
     (``__mro_entries__``), construction, and attribute access all forward to the class — and it matches what type
-    checkers already infer for the ``@deprecated_class(...)`` decorator form, which ignores a class decorator's return
-    type. An already-wrapped proxy (stacking) keeps its concrete proxy type.
+    checkers (mypy, which ignores a class decorator's return type) infer for the ``@deprecated_class(...)`` decorator
+    form. An already-wrapped proxy (stacking) keeps its concrete proxy type.
 
     """
 
@@ -1808,8 +1808,9 @@ def deprecated_class(
         ``type[NewCls]`` whichever class is wrapped, so ``isinstance``/``issubclass`` checks, construction, and
         attribute access type-check against the replacement.  Without a class *target* (``args_mapping`` /
         ``attrs_mapping`` only, a :class:`~deprecate._types.TargetMode` member, or none) the alias keeps the wrapped
-        class's own type, ``type[OldCls]``.  Stacking over an existing proxy keeps the concrete proxy type.  The
-        ``@deprecated_class(...)`` decorator form is read by type checkers as the class statement itself.  Static
+        class's own type, ``type[OldCls]``.  Stacking over an existing proxy keeps the concrete proxy type.  mypy
+        reads the ``@deprecated_class(...)`` decorator form as the class statement itself, while pyright applies the
+        decorator's return type (``type[NewCls]`` with a class *target*).  Static
         typing models the steady state: with ``skip_if`` the wrapped class is served while skipped, so it must stay
         compatible with *target*.  A ``**options`` dict of type ``dict[str, Any]`` hides whether *target* is passed,
         so the type checker cannot pick a result and infers ``Any`` — spell the keywords out to keep the precise type.
