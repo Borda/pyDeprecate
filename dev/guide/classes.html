@@ -95,7 +95,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-06-15",
-  "dateModified": "2026-09-30"
+  "dateModified": "2026-10-02"
 }
 </script>
 
@@ -769,6 +769,17 @@
     <span class="md-ellipsis">
       
         Breadcrumbs for documentation and IDE tools
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pep-702-static-checkers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PEP 702 static checkers
       
     </span>
   </a>
@@ -1771,6 +1782,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#pep-702-static-checkers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PEP 702 static checkers
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2700,8 +2722,7 @@
 </details>
 
 <h2 id="type-annotations-and-static-analysis">Type annotations and static analysis<a class="headerlink" href="#type-annotations-and-static-analysis" title="Permanent link">🔗</a></h2>
-<p><code>deprecated_class()</code> and <code>deprecated_instance()</code> both return a proxy object rather than a class. Annotate that proxy with <code>DeprecationProxy</code>, the public protocol describing it.</p>
-<p><code>DeprecationProxy[T]</code> is generic in the type you get back when you call the proxy, but <code>deprecated_class</code> and <code>deprecated_instance</code> return the concrete proxy in every call shape — mypy has nothing to infer <code>T</code> from on its own. A caller who wants the target type at a specific site annotates it there:</p>
+<p>At runtime <code>deprecated_class()</code> returns a proxy; to type checkers it returns the class the proxy forwards to. The call form <code>deprecated_class(target=BrandColor, ...)(WidgetColor)</code> is typed <code>type[BrandColor]</code> whichever class it wraps, so the alias checks against the replacement. The <code>@deprecated_class(...)</code> decorator form is checker-dependent: mypy ignores a class decorator's return type, so the name stays the decorated class, while pyright applies it, so with a class <code>target</code> the name is <code>type[BrandColor]</code> there:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-45-1" name="__codelineno-45-1" href="#__codelineno-45-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">enum</span><span class="w"> </span><span class="kn">import</span> <span class="n">Enum</span>
 <a id="__codelineno-45-2" name="__codelineno-45-2" href="#__codelineno-45-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">DeprecationProxy</span><span class="p">,</span> <span class="n">deprecated_class</span>
 <a id="__codelineno-45-3" name="__codelineno-45-3" href="#__codelineno-45-3"></a>
@@ -2712,32 +2733,34 @@
 <a id="__codelineno-45-8" name="__codelineno-45-8" href="#__codelineno-45-8"></a>    <span class="n">BLUE</span> <span class="o">=</span> <span class="mi">2</span>
 <a id="__codelineno-45-9" name="__codelineno-45-9" href="#__codelineno-45-9"></a>
 <a id="__codelineno-45-10" name="__codelineno-45-10" href="#__codelineno-45-10"></a>
-<a id="__codelineno-45-11" name="__codelineno-45-11" href="#__codelineno-45-11"></a><span class="c1"># DEPRECATED API — `WidgetColor` was the original name; the source class keeps a private</span>
-<a id="__codelineno-45-12" name="__codelineno-45-12" href="#__codelineno-45-12"></a><span class="c1"># name because the proxy, not the class, is what callers import</span>
-<a id="__codelineno-45-13" name="__codelineno-45-13" href="#__codelineno-45-13"></a><span class="k">class</span><span class="w"> </span><span class="nc">_LegacyWidgetColor</span><span class="p">(</span><span class="n">Enum</span><span class="p">):</span>
-<a id="__codelineno-45-14" name="__codelineno-45-14" href="#__codelineno-45-14"></a>    <span class="n">RED</span> <span class="o">=</span> <span class="mi">1</span>
-<a id="__codelineno-45-15" name="__codelineno-45-15" href="#__codelineno-45-15"></a>    <span class="n">BLUE</span> <span class="o">=</span> <span class="mi">2</span>
-<a id="__codelineno-45-16" name="__codelineno-45-16" href="#__codelineno-45-16"></a>
-<a id="__codelineno-45-17" name="__codelineno-45-17" href="#__codelineno-45-17"></a>
-<a id="__codelineno-45-18" name="__codelineno-45-18" href="#__codelineno-45-18"></a><span class="c1"># explicit annotation — so `WidgetColor(1)` below is known to produce a `BrandColor`</span>
-<a id="__codelineno-45-19" name="__codelineno-45-19" href="#__codelineno-45-19"></a><span class="n">WidgetColor</span><span class="p">:</span> <span class="n">DeprecationProxy</span><span class="p">[</span><span class="n">BrandColor</span><span class="p">]</span> <span class="o">=</span> <span class="n">deprecated_class</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">BrandColor</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">"1.0"</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">"2.0"</span><span class="p">)(</span>
-<a id="__codelineno-45-20" name="__codelineno-45-20" href="#__codelineno-45-20"></a>    <span class="n">_LegacyWidgetColor</span>
-<a id="__codelineno-45-21" name="__codelineno-45-21" href="#__codelineno-45-21"></a><span class="p">)</span>
-<a id="__codelineno-45-22" name="__codelineno-45-22" href="#__codelineno-45-22"></a>
-<a id="__codelineno-45-23" name="__codelineno-45-23" href="#__codelineno-45-23"></a><span class="nb">print</span><span class="p">(</span><span class="n">WidgetColor</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="ow">is</span> <span class="n">BrandColor</span><span class="o">.</span><span class="n">RED</span><span class="p">)</span>  <span class="c1"># warns: FutureWarning</span>
-<a id="__codelineno-45-24" name="__codelineno-45-24" href="#__codelineno-45-24"></a><span class="nb">print</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">WidgetColor</span><span class="p">,</span> <span class="n">DeprecationProxy</span><span class="p">))</span>
+<a id="__codelineno-45-11" name="__codelineno-45-11" href="#__codelineno-45-11"></a><span class="c1"># DEPRECATED API — `WidgetColor` was the original name; `target=BrandColor` types the alias as `type[BrandColor]`</span>
+<a id="__codelineno-45-12" name="__codelineno-45-12" href="#__codelineno-45-12"></a><span class="n">WidgetColor</span> <span class="o">=</span> <span class="n">deprecated_class</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">BrandColor</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">"1.0"</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">"2.0"</span><span class="p">)(</span><span class="n">BrandColor</span><span class="p">)</span>
+<a id="__codelineno-45-13" name="__codelineno-45-13" href="#__codelineno-45-13"></a>
+<a id="__codelineno-45-14" name="__codelineno-45-14" href="#__codelineno-45-14"></a><span class="nb">print</span><span class="p">(</span><span class="n">WidgetColor</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="ow">is</span> <span class="n">BrandColor</span><span class="o">.</span><span class="n">RED</span><span class="p">)</span>  <span class="c1"># warns: FutureWarning</span>
+<a id="__codelineno-45-15" name="__codelineno-45-15" href="#__codelineno-45-15"></a><span class="nb">print</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">BrandColor</span><span class="o">.</span><span class="n">BLUE</span><span class="p">,</span> <span class="n">WidgetColor</span><span class="p">))</span>
+<a id="__codelineno-45-16" name="__codelineno-45-16" href="#__codelineno-45-16"></a><span class="nb">print</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">WidgetColor</span><span class="p">,</span> <span class="n">DeprecationProxy</span><span class="p">))</span>
 </code></pre></div>
 <details>
-  <summary>Output: <code>WidgetColor(1) is BrandColor.RED; isinstance(WidgetColor, DeprecationProxy)</code></summary>
+  <summary>Output: <code>WidgetColor(1) is BrandColor.RED; isinstance(BrandColor.BLUE, WidgetColor); isinstance(WidgetColor, DeprecationProxy)</code></summary>
 
 <div class="highlight"><pre><span></span><code><a id="__codelineno-46-1" name="__codelineno-46-1" href="#__codelineno-46-1"></a>True
 <a id="__codelineno-46-2" name="__codelineno-46-2" href="#__codelineno-46-2"></a>True
+<a id="__codelineno-46-3" name="__codelineno-46-3" href="#__codelineno-46-3"></a>True
 </code></pre></div>
 
 </details>
 
-<p>Every call shape — functional or decorator — returns the concrete <code>_DeprecatedProxy</code> type at runtime; that is deliberate, not an oversight. The concrete type keeps the proxy's forwarded dunders (<code>int()</code>, <code>with</code>, <code>await</code>) visible to type checkers, which the narrower protocol would hide. Annotate the assignment explicitly, as above, when you want the target type to flow into call sites; otherwise leave the annotation off and <code>DeprecationProxy</code> remains the type to reach for whenever you do annotate.</p>
-<p>One thing to watch in the functional form: the warning names the class you wrapped, not the variable you assigned it to — the example above reports <code>`_LegacyWidgetColor`</code>. Give the source class the name your callers know, or pass <code>message_template</code> to write the message yourself.</p>
+<p>What type-checks against the alias, and what does not:</p>
+<ul>
+<li><strong>Checks as the class:</strong> <code>isinstance(x, WidgetColor)</code> and <code>issubclass(...)</code> narrow to <code>BrandColor</code>; <code>WidgetColor(1)</code>, member and attribute access, and passing the alias where a <code>type[BrandColor]</code> is expected all type-check — the proxy forwards each of them to the class at runtime.</li>
+<li><strong>Not a type:</strong> the alias is a variable, so <code>def paint(color: WidgetColor)</code> is rejected by every type checker, and mypy also rejects <code>class Child(WidgetColor)</code>. Annotate with the replacement class — it is what callers migrate to — or (in mypy) use the decorator form, whose name is a class statement.</li>
+<li><strong>Old names are flagged:</strong> names the wrapped class does not have — old keyword arguments renamed through <code>args_mapping</code>, old attributes redirected through <code>attrs_mapping</code> — are reported as <code>call-arg</code> / <code>attr-defined</code> errors, as they already were for the decorator form. To keep such call sites type-checking during the migration window, keep the old names in a legacy class body (decorator form), or type the alias as <code>cast(DeprecationProxy[Config], deprecated_class(...)(Config))</code> — calls and attributes become permissive, at the cost of <code>isinstance</code> against the alias no longer type-checking.</li>
+<li><strong>The target decides the type:</strong> with <code>target=BrandColor</code> the alias is <code>type[BrandColor]</code> whichever class you wrap — a separate legacy class included, so <code>WidgetColor(...)</code> is typed as the <code>BrandColor</code> instance the runtime returns. Without a class <code>target</code> (<code>args_mapping</code> / <code>attrs_mapping</code> only) the alias keeps the wrapped class's own type. With <code>skip_if</code> the wrapped class is served while the condition holds; the type models the steady state, so keep the wrapped class compatible with <code>target</code>.</li>
+<li><strong>The <code>@deprecated</code> front door is not target-typed:</strong> it cannot see <code>target</code> statically, so a class decorated with <code>@deprecated(target=BrandColor, ...)</code> stays typed as the wrapped class even though the runtime proxy forwards to <code>BrandColor</code>. Use <code>deprecated_class(target=BrandColor, ...)</code> to get <code>type[BrandColor]</code>.</li>
+<li><strong>Proxy-only attributes</strong> such as <code>__wrapped__</code> and <code>__deprecation_config__</code> are invisible on <code>type[BrandColor]</code>: read them with <code>get_deprecation_config(WidgetColor)</code> or <code>inspect.unwrap(WidgetColor)</code>, or <code>cast(DeprecationProxy[Any], WidgetColor)</code> at the one site that needs them.</li>
+</ul>
+<p><code>DeprecationProxy[T]</code> remains the annotation for <code>deprecated_instance()</code> proxies, where <code>T</code> is the type calling the proxy produces.</p>
+<p>One thing to watch in the functional form: the warning names the class you wrapped, not the variable you assigned it to — the example above reports <code>`BrandColor`</code>. Wrap a source class named the way your callers know it, or pass <code>message_template</code> to write the message yourself.</p>
 <div class="admonition warning">
 <p class="admonition-title"><code>isinstance</code> only</p>
 <p><code>DeprecationProxy</code> declares attributes, not just methods, which makes it a <em>data</em> protocol. <code>isinstance(obj, DeprecationProxy)</code> works, but <code>issubclass(SomeType, DeprecationProxy)</code> raises <code>TypeError</code> — as it does for every runtime-checkable protocol with non-method members.</p>
@@ -2800,6 +2823,40 @@
 </details>
 
 <p>Objects with no introspectable signature — a plain <code>dict</code> wrapped by <code>deprecated_instance()</code>, for instance — get <code>__signature__ = None</code> instead of an error. Wrapping never fails because the source cannot be introspected.</p>
+<h3 id="pep-702-static-checkers">PEP 702 static checkers<a class="headerlink" href="#pep-702-static-checkers" title="Permanent link">🔗</a></h3>
+<p>A <code>typing_extensions.deprecated</code> / <code>warnings.deprecated</code> decorator stacked directly above <code>@deprecated_class(...)</code> — with <code>category=None</code> and a string-literal message, as described in <a href="functions.html#static-type-checkers-pep-702">Functions → Static type checkers</a> — makes mypy and pyright flag every use of the old class name. With a class <code>target</code>, what each checker infers for that name differs: mypy ignores a class decorator's return type, so the name stays the old class statement, while pyright applies <code>deprecated_class</code>'s return type, so the name is <code>type[ReportWriter]</code> (the replacement in the example below). Keep the old class's body mirroring the replacement's constructor and methods so mypy type-checks calls against the right signature; pyright already checks them against the replacement.</p>
+<p>The PEP 702 decorator writes its message onto the proxy, never onto the replacement class — the class callers are migrating <em>to</em> stays unmarked. The message travels with <code>copy.copy</code>, <code>copy.deepcopy</code>, and <code>pickle</code> round-trips of the alias; after <code>del alias.__deprecated__</code> the attribute reads as missing rather than falling through to the wrapped class.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-49-1" name="__codelineno-49-1" href="#__codelineno-49-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">typing_extensions</span>
+<a id="__codelineno-49-2" name="__codelineno-49-2" href="#__codelineno-49-2"></a>
+<a id="__codelineno-49-3" name="__codelineno-49-3" href="#__codelineno-49-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated_class</span>
+<a id="__codelineno-49-4" name="__codelineno-49-4" href="#__codelineno-49-4"></a>
+<a id="__codelineno-49-5" name="__codelineno-49-5" href="#__codelineno-49-5"></a>
+<a id="__codelineno-49-6" name="__codelineno-49-6" href="#__codelineno-49-6"></a><span class="c1"># NEW API — the renamed writer</span>
+<a id="__codelineno-49-7" name="__codelineno-49-7" href="#__codelineno-49-7"></a><span class="k">class</span><span class="w"> </span><span class="nc">ReportWriter</span><span class="p">:</span>
+<a id="__codelineno-49-8" name="__codelineno-49-8" href="#__codelineno-49-8"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-49-9" name="__codelineno-49-9" href="#__codelineno-49-9"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">path</span> <span class="o">=</span> <span class="n">path</span>
+<a id="__codelineno-49-10" name="__codelineno-49-10" href="#__codelineno-49-10"></a>
+<a id="__codelineno-49-11" name="__codelineno-49-11" href="#__codelineno-49-11"></a>
+<a id="__codelineno-49-12" name="__codelineno-49-12" href="#__codelineno-49-12"></a><span class="c1"># DEPRECATED API — flagged by mypy, forwarded with a warning at runtime</span>
+<a id="__codelineno-49-13" name="__codelineno-49-13" href="#__codelineno-49-13"></a><span class="nd">@typing_extensions</span><span class="o">.</span><span class="n">deprecated</span><span class="p">(</span><span class="s2">"Use `ReportWriter` instead."</span><span class="p">,</span> <span class="n">category</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+<a id="__codelineno-49-14" name="__codelineno-49-14" href="#__codelineno-49-14"></a><span class="nd">@deprecated_class</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">ReportWriter</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">"1.2"</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">"2.0"</span><span class="p">)</span>
+<a id="__codelineno-49-15" name="__codelineno-49-15" href="#__codelineno-49-15"></a><span class="k">class</span><span class="w"> </span><span class="nc">CsvReportWriter</span><span class="p">:</span>
+<a id="__codelineno-49-16" name="__codelineno-49-16" href="#__codelineno-49-16"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-49-17" name="__codelineno-49-17" href="#__codelineno-49-17"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">path</span> <span class="o">=</span> <span class="n">path</span>
+<a id="__codelineno-49-18" name="__codelineno-49-18" href="#__codelineno-49-18"></a>
+<a id="__codelineno-49-19" name="__codelineno-49-19" href="#__codelineno-49-19"></a>
+<a id="__codelineno-49-20" name="__codelineno-49-20" href="#__codelineno-49-20"></a><span class="nb">print</span><span class="p">(</span><span class="n">CsvReportWriter</span><span class="p">(</span><span class="s2">"out.csv"</span><span class="p">)</span><span class="o">.</span><span class="n">path</span><span class="p">)</span>  <span class="c1"># warns: FutureWarning</span>
+<a id="__codelineno-49-21" name="__codelineno-49-21" href="#__codelineno-49-21"></a><span class="nb">print</span><span class="p">(</span><span class="s2">"__deprecated__"</span> <span class="ow">in</span> <span class="nb">vars</span><span class="p">(</span><span class="n">ReportWriter</span><span class="p">))</span>
+</code></pre></div>
+<details>
+  <summary>Output: <code>CsvReportWriter("out.csv").path; "__deprecated__" in vars(ReportWriter)</code></summary>
+
+<div class="highlight"><pre><span></span><code><a id="__codelineno-50-1" name="__codelineno-50-1" href="#__codelineno-50-1"></a>out.csv
+<a id="__codelineno-50-2" name="__codelineno-50-2" href="#__codelineno-50-2"></a>False
+</code></pre></div>
+
+</details>
+
 <h2 id="fatal-deprecations">Fatal deprecations<a class="headerlink" href="#fatal-deprecations" title="Permanent link">🔗</a></h2>
 <p><code>as_exception=True</code> works on <code>deprecated_class()</code> and <code>deprecated_instance()</code> as it does on the callable forms — see <a href="functions.html#fatal-deprecations">Fatal deprecations</a> for the full contract. On a proxy, every operation that would warn raises <code>DeprecatedError</code> instead: instantiation, warning-producing attribute reads, item access, calls, and data-use arithmetic/conversion dunders. Writes to names listed in <code>attrs_mapping</code> also raise before the mapped write. Ordinary attribute writes and reads/writes of names outside an active <code>attrs_mapping</code> remain silent; constructor-only <code>TargetMode.ARGS_REMAP</code> does not make attribute access fatal.</p>
 <p>Structural probes stay silent because they never warned either — <code>isinstance</code>, <code>issubclass</code>, <code>repr</code>, <code>str</code>, equality, ordering, and <code>len</code> are transparent by design. Without <code>attrs_mapping</code>, a missing attribute makes <code>hasattr</code> return <code>False</code> silently; a successful non-dunder lookup on a warning-producing path raises <code>DeprecatedError</code>, which <code>hasattr</code> does not swallow. With <code>attrs_mapping</code>, a listed name raises before lookup even if missing, while unlisted names stay silent whether present or missing.</p>
@@ -2838,7 +2895,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="September 30, 2026 18:08:09 UTC">2026-09-30</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 2, 2026 20:54:50 UTC">2026-10-02</span>
   </span>
 
     

@@ -35,6 +35,8 @@ Advanced patterns: injecting a deprecation notice into the docstring at import t
 
 ## Quick decision table
 
+To include symbols deprecated only with `warnings.deprecated` or `typing_extensions.deprecated` in an audit, pass `include_pep702=True` to `find_deprecation_wrappers()`; the default scan stays unchanged. For static-checker warnings alongside runtime forwarding, see [Functions → Static type checkers (PEP 702)](functions.md#static-type-checkers-pep-702).
+
 | Scenario                                      | Where to look                                                                                         |
 | --------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | Rename a function or method                   | [Functions → Simple forwarding](functions.md#simple-function-forwarding)                              |
@@ -56,6 +58,8 @@ Advanced patterns: injecting a deprecation notice into the docstring at import t
 | Deprecate a `@classmethod` or `@staticmethod` | [Advanced → Class/static methods](advanced.md#class-methods-and-static-methods)                       |
 | Deprecate a generator function                | [Advanced → Generators](advanced.md#deprecating-generator-functions)                                  |
 | Deprecate an entire module                    | [Modules](modules.md)                                                                                 |
+| Static-checker warnings alongside runtime     | [Functions → Static type checkers (PEP 702)](functions.md#static-type-checkers-pep-702)               |
+| Audit PEP 702-only symbols                    | [Audit → PEP 702-only deprecations](audit.md#pep-702-only-deprecations)                               |
 
 ## See also
 

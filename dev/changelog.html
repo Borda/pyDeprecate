@@ -92,7 +92,7 @@
   "mainEntityOfPage": { "@type": "WebPage", "@id": "https://borda.github.io/pyDeprecate/stable/changelog.html" },
   "author": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda" },
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
-  "dateModified": "2026-09-30"
+  "dateModified": "2026-10-02"
 }
 </script>
 
@@ -2798,13 +2798,21 @@
 <h2 id="unreleased-2026-mm-dd">[UnReleased] - 2026-MM-DD<a class="headerlink" href="#unreleased-2026-mm-dd" title="Permanent link">🔗</a></h2>
 <h3 id="added">Added<a class="headerlink" href="#added" title="Permanent link">🔗</a></h3>
 <ul>
+<li><strong>Opt-in audit discovery for PEP 702-only deprecations.</strong> <code>find_deprecation_wrappers(..., include_pep702=True)</code> lists symbols marked only with <code>warnings.deprecated</code> or <code>typing_extensions.deprecated</code>. Each row keeps a shape <code>api_type</code> (<code>callable</code>, <code>class</code>, <code>class method</code>, <code>staticmethod</code>, ...) like any other row, and carries the decorator's message in the new <code>DeprecationWrapperInfo.pep702_message</code> field, which is <code>None</code> on every pyDeprecate row. Only symbols the scanned package defines are listed: no inherited class members, no <code>__new__</code>/<code>__init_subclass__</code> hooks the decorator installs, no instances of a deprecated class, a class bound under a second name lists its PEP 702 member rows once, under the binding named like the class (its pyDeprecate member rows still appear under each name), and no imports from other top-level packages. The default scan and existing audit gates remain unchanged. (<a href="https://github.com/Borda/pyDeprecate/pull/237">#237</a>)</li>
+<li><strong>Static callable typing for deprecation decorators.</strong> <code>@deprecated</code> and <code>deprecated_callable()</code> now reject non-callable inputs in static checks while preserving supported callable and descriptor types. (<a href="https://github.com/Borda/pyDeprecate/pull/237">#237</a>)</li>
 <li><strong>Fatal deprecations — <code>as_exception=True</code> and process-wide strict mode.</strong> All deprecation entry points can raise <code>DeprecatedError</code> instead of warning; <code>deprecate.AS_EXCEPTIONS</code> and the import-time <code>DEPRECATE_AS_EXCEPTIONS</code> environment setting enable strict mode globally. Fatal warning paths ignore <code>num_warns</code> and <code>stream=None</code>, respect <code>skip_if</code>, and stop callable execution or forwarding. Proxy operations that never warn remain silent; ordinary descriptor getters can execute before the fatal error. <code>as_exception</code> is keyword-only and the last parameter on every public entry point (<code>deprecated</code>, <code>deprecated_callable</code>, <code>deprecated_class</code>, <code>deprecated_instance</code>, <code>deprecated_module</code>), so future additions never shift existing positional usage. (<a href="https://github.com/Borda/pyDeprecate/pull/236">#236</a>)</li>
 <li><strong>Module warning budgets — <code>deprecated_module(..., num_warns=...)</code>.</strong> Module deprecations can now cap warning delivery across all public attribute accesses: <code>0</code> delivers none, a positive <code>N</code> delivers exactly <code>N</code>, and the default <code>-1</code> preserves unlimited delivery without taking the budget lock. (<a href="https://github.com/Borda/pyDeprecate/pull/233">#233</a>)</li>
 </ul>
 <h3 id="changed">Changed<a class="headerlink" href="#changed" title="Permanent link">🔗</a></h3>
+<ul>
+<li><strong>The package ships type information (<code>py.typed</code>); decorated callables and classes keep their own static type.</strong> Type checkers previously saw every pyDeprecate object as <code>Any</code>. Now <code>@deprecated</code> / <code>deprecated_callable()</code> keep the decorated callable's or descriptor's type, and a <code>deprecated_class(...)</code> call-form alias is typed as the class it forwards to — <code>type[New]</code> for <code>deprecated_class(target=New, ...)(Cls)</code>, <code>type[Cls]</code> when there is no class <code>target</code> (the <code>@deprecated_class(...)</code> decorator form stays the class statement in mypy, while pyright applies the decorator's return type, so it is <code>type[New]</code> there when a class <code>target</code> is given) — while remaining a proxy at runtime, so <code>isinstance</code>/<code>issubclass</code> against the alias, construction, and attribute access type-check. The <code>Old: DeprecationProxy[New] = deprecated_class(...)(Cls)</code> annotation recipe no longer type-checks; <code>DeprecationProxy[T]</code> stays the annotation for <code>deprecated_instance()</code> proxies. Call-form aliases now report old names accepted only through <code>args_mapping</code> / <code>attrs_mapping</code> (<code>call-arg</code> / <code>attr-defined</code>), as the decorator form already did. (<a href="https://github.com/Borda/pyDeprecate/pull/237">#237</a>)</li>
+</ul>
 <h3 id="deprecated">Deprecated<a class="headerlink" href="#deprecated" title="Permanent link">🔗</a></h3>
 <h3 id="removed">Removed<a class="headerlink" href="#removed" title="Permanent link">🔗</a></h3>
 <h3 id="fixed">Fixed<a class="headerlink" href="#fixed" title="Permanent link">🔗</a></h3>
+<ul>
+<li><strong>Setting or deleting PEP 702 metadata on a deprecated proxy stays local to the proxy.</strong> Assigning <code>__deprecated__</code> keeps the marker on the proxy, and deleting it no longer forwards deletion to the wrapped object, including read-only proxies with <code>skip_if</code> enabled. After deletion, reading <code>__deprecated__</code> raises <code>AttributeError</code> instead of returning the wrapped object's marker, and <code>copy.copy</code>, <code>copy.deepcopy</code>, and <code>pickle</code> keep a PEP 702 message written onto the proxy instead of re-rendering pyDeprecate's own. (<a href="https://github.com/Borda/pyDeprecate/pull/237">#237</a>)</li>
+</ul>
 <hr />
 <h2 id="0130-2026-09-18-pep-702-metadata-deprecation-policy-lint-the-coding-agent-plugin">[0.13.0] — 2026-09-18 — PEP 702 metadata, deprecation policy lint, &amp; the coding-agent plugin<a class="headerlink" href="#0130-2026-09-18-pep-702-metadata-deprecation-policy-lint-the-coding-agent-plugin" title="Permanent link">🔗</a></h2>
 <h3 id="added_1">Added<a class="headerlink" href="#added_1" title="Permanent link">🔗</a></h3>
@@ -3204,7 +3212,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="September 30, 2026 18:08:09 UTC">2026-09-30</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 2, 2026 20:54:50 UTC">2026-10-02</span>
   </span>
 
     

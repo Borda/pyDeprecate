@@ -448,7 +448,15 @@
           "name": "How do I type-annotate the object returned by deprecated_class or deprecated_instance?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Import DeprecationProxy from deprecate rather than annotating against the private _DeprecatedProxy. DeprecationProxy[T] is generic in the type produced by calling the proxy, but deprecated_class and deprecated_instance return the concrete proxy in every call shape, so there is no form mypy can infer T from automatically. Annotate the assignment explicitly where you want the target type: Old: DeprecationProxy[New] = deprecated_class(target=New, ...)(_OldSource), so Old(...) is known to produce a New. Every call shape keeps the concrete _DeprecatedProxy return type at runtime when left unannotated, deliberately: the concrete type keeps the proxy's forwarded dunders such as int(), with and await visible, which the narrow protocol would hide. DeprecationProxy remains the type to annotate against. DeprecationProxy is a data protocol: isinstance(obj, DeprecationProxy) works, but issubclass(SomeType, DeprecationProxy) raises TypeError, as it does for every runtime-checkable protocol with non-method members."
+            "text": "A class alias is typed as the class it forwards to: deprecated_class(target=New, ...)(Old) is typed type[New] whichever class it wraps, so it needs no annotation and isinstance(x, Old) narrows to New. Without a class target (args_mapping or attrs_mapping only) the alias keeps the wrapped class's own type, and the @deprecated_class decorator form is read as the class statement by mypy, while pyright applies the decorator's return type (type[New] with a class target). deprecated_instance returns a proxy; annotate it with the public DeprecationProxy imported from deprecate, never the private _DeprecatedProxy, spelled DeprecationProxy[T] when calling the proxy produces a T. A class alias is still a proxy at runtime, but its proxy-only attributes such as __wrapped__ and __deprecation_config__ are invisible on the class type; read them with get_deprecation_config(Old), inspect.unwrap(Old), or cast(DeprecationProxy[Any], Old). DeprecationProxy is a data protocol: isinstance(obj, DeprecationProxy) works, but issubclass(SomeType, DeprecationProxy) raises TypeError, as it does for every runtime-checkable protocol with non-method members."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why does mypy report errors on deprecated class aliases after upgrading?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Releases before v0.14 shipped no type information, so type checkers treated every pyDeprecate object as Any. Since v0.14 the package ships py.typed and a deprecated class alias is typed as the class it forwards to: deprecated_class(target=New, ...)(Cls) is type[New], without a class target it is type[Cls], and the decorator form is read as the class statement by mypy (pyright applies the decorator's return type). An assignment error on Old: DeprecationProxy[New] = deprecated_class(target=New, ...)(Cls) means the alias is now type[New]: drop the annotation, the alias already has the replacement's type. An attr-defined error on Old.__wrapped__ or Old.__deprecation_config__ means a proxy-only attribute: use get_deprecation_config(Old), inspect.unwrap(Old), or cast(DeprecationProxy[Any], Old). A call-arg or attr-defined error on an old keyword or attribute name accepted through args_mapping or attrs_mapping means the alias's class (the target, or the wrapped class without one) does not declare that name, as the decorator form has always reported: keep the old names in a legacy class body, or cast the alias to DeprecationProxy[New] to make calls and attributes permissive, at the cost of isinstance against the alias no longer type-checking. A valid-type error on def f(x: Old) means a call-form alias is a variable, which no type checker accepts as a type: annotate with the replacement class or, in mypy, use the decorator form."
           }
         },
         {
@@ -473,6 +481,14 @@
           "acceptedAnswer": {
             "@type": "Answer",
             "text": "Both are intended. num_warns budgets messages; a gate that stopped refusing after the first call would let a caller retrying inside except DeprecatedError straight through, so a fatal deprecation bypasses the budget, raises on every call, and leaves the warn counters untouched. stream=None silences the message, not the lifecycle state: the raise is the gate, and letting an unrelated cosmetic setting switch it off would be a trap in CI. The one switch that does suppress a fatal deprecation is skip_if, because a wrapper turned off by configuration is not a deprecation at that moment. For whole modules there is a flip side: a fatal deprecated_module raises on every public attribute access, including attribute-walking tools such as pytest collection, Sphinx autodoc, pickle, and copy, so expect those to stop at the module rather than skip it."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why don't mypy, pyright, or my IDE flag functions deprecated with pyDeprecate?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Type checkers recognise a deprecation only when the decorator is literally warnings.deprecated (Python 3.13+) or typing_extensions.deprecated; they match the decorator by name, so no runtime decorator, pyDeprecate's included, can make them see it. Stack the PEP 702 decorator directly above pyDeprecate's: warnings.deprecated(\"Use new_name instead.\", category=None) over deprecated(...). Keep category=None, otherwise every call warns twice; write the message as a string literal, because mypy silently ignores a constant or f-string; and import the module rather than the name so pyDeprecate's deprecated is not shadowed. mypy only reports it with enable_error_code = [\"deprecated\"], pyright in CI with reportDeprecated = \"error\". Over deprecated_class(...), both mypy and pyright flag the old class name."
           }
         }
       ]
@@ -1763,6 +1779,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#mypy-reports-errors-on-deprecated-class-aliases-after-upgrading" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        mypy reports errors on deprecated class aliases after upgrading
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#sphinx-my-ide-shows-args-kwargs-instead-of-my-deprecated-classs-real-signature" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1921,6 +1948,17 @@
     <span class="md-ellipsis">
       
         Why does as_exception ignore num_warns, and raise even with stream=None?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-dont-mypy-pyright-or-my-ide-flag-functions-deprecated-with-pydeprecate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why don't mypy, pyright, or my IDE flag functions deprecated with pyDeprecate?
       
     </span>
   </a>
@@ -2451,6 +2489,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#mypy-reports-errors-on-deprecated-class-aliases-after-upgrading" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        mypy reports errors on deprecated class aliases after upgrading
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#sphinx-my-ide-shows-args-kwargs-instead-of-my-deprecated-classs-real-signature" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2609,6 +2658,17 @@
     <span class="md-ellipsis">
       
         Why does as_exception ignore num_warns, and raise even with stream=None?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-dont-mypy-pyright-or-my-ide-flag-functions-deprecated-with-pydeprecate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why don't mypy, pyright, or my IDE flag functions deprecated with pyDeprecate?
       
     </span>
   </a>
@@ -4117,11 +4177,11 @@
 </code></pre></div>
 <p>Both deprecated names forward to the same non-deprecated implementation with no cycle.</p>
 <h2 id="how-do-i-type-annotate-the-object-returned-by-deprecated_class-deprecated_instance">How do I type-annotate the object returned by <code>deprecated_class</code> / <code>deprecated_instance</code>?<a class="headerlink" href="#how-do-i-type-annotate-the-object-returned-by-deprecated_class-deprecated_instance" title="Permanent link">🔗</a></h2>
-<p><strong>Q:</strong> mypy reports the result of <code>deprecated_class(...)</code> as <code>_DeprecatedProxy</code>, a private name. What is the supported type to annotate against?</p>
-<p><strong>A:</strong> Import <code>DeprecationProxy</code> from <code>deprecate</code>.</p>
-<p><code>DeprecationProxy[T]</code> is generic in the type produced by calling the proxy, but <code>deprecated_class</code> and <code>deprecated_instance</code> return the concrete proxy in every call shape — there is nothing for mypy to infer <code>T</code> from on its own. Annotate the assignment explicitly at the call site instead:</p>
+<p><strong>Q:</strong> What type do type checkers see for the result of <code>deprecated_class(...)</code> and <code>deprecated_instance(...)</code>, and what should I annotate against?</p>
+<p><strong>A:</strong> A class alias is typed as the class it forwards to; an instance proxy is annotated with the public <code>DeprecationProxy</code>.</p>
+<p><code>deprecated_class</code> is typed to return its <code>target</code>: <code>RetryConfig = deprecated_class(target=RetryPolicy, ...)(RetryPolicy)</code> is <code>type[RetryPolicy]</code>, so it needs no annotation and <code>isinstance(x, RetryConfig)</code> narrows to <code>RetryPolicy</code>. Without a class <code>target</code> (<code>args_mapping</code> / <code>attrs_mapping</code> only) the alias keeps the wrapped class's own type. <code>deprecated_instance</code> returns a proxy — annotate it with <code>DeprecationProxy</code> (never the private <code>_DeprecatedProxy</code>), spelled <code>DeprecationProxy[T]</code> when calling the proxy produces a <code>T</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-93-1" name="__codelineno-93-1" href="#__codelineno-93-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
-<a id="__codelineno-93-2" name="__codelineno-93-2" href="#__codelineno-93-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">DeprecationProxy</span><span class="p">,</span> <span class="n">deprecated_class</span>
+<a id="__codelineno-93-2" name="__codelineno-93-2" href="#__codelineno-93-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">DeprecationProxy</span><span class="p">,</span> <span class="n">deprecated_class</span><span class="p">,</span> <span class="n">deprecated_instance</span>
 <a id="__codelineno-93-3" name="__codelineno-93-3" href="#__codelineno-93-3"></a>
 <a id="__codelineno-93-4" name="__codelineno-93-4" href="#__codelineno-93-4"></a>
 <a id="__codelineno-93-5" name="__codelineno-93-5" href="#__codelineno-93-5"></a><span class="nd">@dataclass</span>
@@ -4129,31 +4189,46 @@
 <a id="__codelineno-93-7" name="__codelineno-93-7" href="#__codelineno-93-7"></a>    <span class="n">attempts</span><span class="p">:</span> <span class="nb">int</span>
 <a id="__codelineno-93-8" name="__codelineno-93-8" href="#__codelineno-93-8"></a>
 <a id="__codelineno-93-9" name="__codelineno-93-9" href="#__codelineno-93-9"></a>
-<a id="__codelineno-93-10" name="__codelineno-93-10" href="#__codelineno-93-10"></a><span class="nd">@dataclass</span>
-<a id="__codelineno-93-11" name="__codelineno-93-11" href="#__codelineno-93-11"></a><span class="k">class</span><span class="w"> </span><span class="nc">_LegacyRetryConfig</span><span class="p">:</span>
-<a id="__codelineno-93-12" name="__codelineno-93-12" href="#__codelineno-93-12"></a>    <span class="n">attempts</span><span class="p">:</span> <span class="nb">int</span>
+<a id="__codelineno-93-10" name="__codelineno-93-10" href="#__codelineno-93-10"></a><span class="c1"># class alias — typed `type[RetryPolicy]`, no annotation needed</span>
+<a id="__codelineno-93-11" name="__codelineno-93-11" href="#__codelineno-93-11"></a><span class="n">RetryConfig</span> <span class="o">=</span> <span class="n">deprecated_class</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">RetryPolicy</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">"1.4"</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">"2.0"</span><span class="p">)(</span><span class="n">RetryPolicy</span><span class="p">)</span>
+<a id="__codelineno-93-12" name="__codelineno-93-12" href="#__codelineno-93-12"></a>
 <a id="__codelineno-93-13" name="__codelineno-93-13" href="#__codelineno-93-13"></a>
-<a id="__codelineno-93-14" name="__codelineno-93-14" href="#__codelineno-93-14"></a>
-<a id="__codelineno-93-15" name="__codelineno-93-15" href="#__codelineno-93-15"></a><span class="c1"># explicit annotation — so `RetryConfig(3)` is typed `RetryPolicy`</span>
-<a id="__codelineno-93-16" name="__codelineno-93-16" href="#__codelineno-93-16"></a><span class="n">RetryConfig</span><span class="p">:</span> <span class="n">DeprecationProxy</span><span class="p">[</span><span class="n">RetryPolicy</span><span class="p">]</span> <span class="o">=</span> <span class="n">deprecated_class</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">RetryPolicy</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">"1.4"</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">"2.0"</span><span class="p">)(</span>
-<a id="__codelineno-93-17" name="__codelineno-93-17" href="#__codelineno-93-17"></a>    <span class="n">_LegacyRetryConfig</span>
-<a id="__codelineno-93-18" name="__codelineno-93-18" href="#__codelineno-93-18"></a><span class="p">)</span>
-<a id="__codelineno-93-19" name="__codelineno-93-19" href="#__codelineno-93-19"></a>
-<a id="__codelineno-93-20" name="__codelineno-93-20" href="#__codelineno-93-20"></a><span class="nb">print</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">RetryConfig</span><span class="p">(</span><span class="mi">3</span><span class="p">),</span> <span class="n">RetryPolicy</span><span class="p">))</span>  <span class="c1"># warns: FutureWarning</span>
+<a id="__codelineno-93-14" name="__codelineno-93-14" href="#__codelineno-93-14"></a><span class="k">def</span><span class="w"> </span><span class="nf">default_policy</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">RetryPolicy</span><span class="p">:</span>
+<a id="__codelineno-93-15" name="__codelineno-93-15" href="#__codelineno-93-15"></a>    <span class="k">return</span> <span class="n">RetryPolicy</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+<a id="__codelineno-93-16" name="__codelineno-93-16" href="#__codelineno-93-16"></a>
+<a id="__codelineno-93-17" name="__codelineno-93-17" href="#__codelineno-93-17"></a>
+<a id="__codelineno-93-18" name="__codelineno-93-18" href="#__codelineno-93-18"></a><span class="c1"># instance proxy — annotated with the public protocol, so `legacy_default()` is typed `RetryPolicy`</span>
+<a id="__codelineno-93-19" name="__codelineno-93-19" href="#__codelineno-93-19"></a><span class="n">legacy_default</span><span class="p">:</span> <span class="n">DeprecationProxy</span><span class="p">[</span><span class="n">RetryPolicy</span><span class="p">]</span> <span class="o">=</span> <span class="n">deprecated_instance</span><span class="p">(</span>
+<a id="__codelineno-93-20" name="__codelineno-93-20" href="#__codelineno-93-20"></a>    <span class="n">default_policy</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">"legacy_default"</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">"1.4"</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">"2.0"</span>
+<a id="__codelineno-93-21" name="__codelineno-93-21" href="#__codelineno-93-21"></a><span class="p">)</span>
+<a id="__codelineno-93-22" name="__codelineno-93-22" href="#__codelineno-93-22"></a>
+<a id="__codelineno-93-23" name="__codelineno-93-23" href="#__codelineno-93-23"></a><span class="nb">print</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">RetryConfig</span><span class="p">(</span><span class="mi">3</span><span class="p">),</span> <span class="n">RetryPolicy</span><span class="p">))</span>  <span class="c1"># warns: FutureWarning</span>
+<a id="__codelineno-93-24" name="__codelineno-93-24" href="#__codelineno-93-24"></a><span class="nb">print</span><span class="p">(</span><span class="n">legacy_default</span><span class="p">()</span><span class="o">.</span><span class="n">attempts</span><span class="p">)</span>  <span class="c1"># warns: FutureWarning</span>
 </code></pre></div>
 <details>
-  <summary>Output: <code>isinstance(RetryConfig(3), RetryPolicy)</code></summary>
+  <summary>Output: <code>isinstance(RetryConfig(3), RetryPolicy); legacy_default().attempts</code></summary>
 
 <div class="highlight"><pre><span></span><code><a id="__codelineno-94-1" name="__codelineno-94-1" href="#__codelineno-94-1"></a>True
+<a id="__codelineno-94-2" name="__codelineno-94-2" href="#__codelineno-94-2"></a>3
 </code></pre></div>
 
 </details>
 
-<p>Every call shape — functional or decorator — returns the concrete <code>_DeprecatedProxy</code> type at runtime, deliberately: it keeps the forwarded dunders (<code>int()</code>, <code>with</code>, <code>await</code>) visible, which the narrower protocol would hide. You can still <em>annotate</em> any of them as <code>DeprecationProxy</code>, or as <code>DeprecationProxy[T]</code> when you want the target type to flow into call sites.</p>
+<p>The class alias is still a proxy at runtime — <code>isinstance(RetryConfig, DeprecationProxy)</code> is <code>True</code> — but its proxy-only attributes (<code>__wrapped__</code>, <code>__deprecation_config__</code>) are invisible on <code>type[RetryPolicy]</code>. Read them with <code>get_deprecation_config(RetryConfig)</code> or <code>inspect.unwrap(RetryConfig)</code>, or <code>cast(DeprecationProxy[Any], RetryConfig)</code> at the one site that needs them. See <a href="guide/classes.html#type-annotations-and-static-analysis">Classes → Type annotations and static analysis</a> for what else type-checks against an alias.</p>
 <div class="admonition warning">
 <p class="admonition-title"><code>issubclass</code> raises <code>TypeError</code></p>
 <p><code>DeprecationProxy</code> declares attributes (<code>__wrapped__</code>, <code>__deprecated__</code>), which makes it a <em>data</em> protocol. Python supports only <code>isinstance</code> for those: <code>isinstance(obj, DeprecationProxy)</code> works, <code>issubclass(SomeType, DeprecationProxy)</code> raises <code>TypeError: Protocols with non-method members don't support issubclass()</code>. This is a CPython rule for every runtime-checkable protocol with non-method members, not a pyDeprecate restriction.</p>
 </div>
+<h2 id="mypy-reports-errors-on-deprecated-class-aliases-after-upgrading">mypy reports errors on deprecated class aliases after upgrading<a class="headerlink" href="#mypy-reports-errors-on-deprecated-class-aliases-after-upgrading" title="Permanent link">🔗</a></h2>
+<p><strong>Q:</strong> After upgrading pyDeprecate, mypy reports new errors around <code>deprecated_class</code> aliases that used to pass. What changed?</p>
+<p><strong>A:</strong> Releases before <code>v0.14</code> shipped no type information, so type checkers treated every pyDeprecate object as <code>Any</code>. Since <code>v0.14</code> the package ships <code>py.typed</code>, and a deprecated class alias is typed as the class it forwards to — <code>deprecated_class(target=New, ...)(Cls)</code> gives <code>type[New]</code>, and without a class <code>target</code> it gives <code>type[Cls]</code>; the <code>@deprecated_class(...)</code> decorator form is read as the class statement by mypy, while pyright applies the decorator's return type (<code>type[New]</code> with a class <code>target</code>). The errors that can surface, and their fixes:</p>
+<ul>
+<li><strong><code>[assignment]</code> on <code>Old: DeprecationProxy[New] = deprecated_class(target=New, ...)(Cls)</code></strong> — the alias is <code>type[New]</code>, not a proxy type. Drop the annotation; the alias already has the replacement's type.</li>
+<li><strong><code>[attr-defined]</code> on <code>Old.__wrapped__</code> or <code>Old.__deprecation_config__</code></strong> — proxy-only attributes are invisible on the class type. Use <code>get_deprecation_config(Old)</code>, <code>inspect.unwrap(Old)</code>, or <code>cast(DeprecationProxy[Any], Old)</code>.</li>
+<li><strong><code>[call-arg]</code> / <code>[attr-defined]</code> on an old keyword or attribute name</strong> that the alias still accepts through <code>args_mapping</code> / <code>attrs_mapping</code> — the alias's class (the <code>target</code>, or the wrapped class without one) does not declare the old name, exactly as the decorator form has always reported. Keep the old names in a legacy class body, or type the alias as <code>cast(DeprecationProxy[New], deprecated_class(...)(New))</code>: calls and attributes become permissive, but <code>isinstance</code> against the alias no longer type-checks.</li>
+<li><strong><code>[valid-type]</code> on <code>def f(x: Old)</code></strong> (and, in mypy, <code>class Child(Old)</code>) — a call-form alias is a variable, and no type checker accepts a variable as a type. Annotate or subclass the replacement class, or (in mypy) use the decorator form, whose name is a class statement.</li>
+</ul>
+<p>See <a href="guide/classes.html#type-annotations-and-static-analysis">Classes → Type annotations and static analysis</a>.</p>
 <h2 id="sphinx-my-ide-shows-args-kwargs-instead-of-my-deprecated-classs-real-signature">Sphinx / my IDE shows <code>(*args, **kwargs)</code> instead of my deprecated class's real signature<a class="headerlink" href="#sphinx-my-ide-shows-args-kwargs-instead-of-my-deprecated-classs-real-signature" title="Permanent link">🔗</a></h2>
 <p><strong>Q:</strong> Autodoc renders the proxy rather than the wrapped class, or <code>inspect.signature()</code> on a deprecated alias returns something useless. How do I reach the original?</p>
 <p><strong>A:</strong> Every proxy carries two breadcrumbs pointing back at what it wraps, and reading either one emits <strong>no</strong> deprecation warning — documentation builds and IDE hovers stay quiet:</p>
@@ -4381,6 +4456,10 @@
 <p><strong>Q:</strong> I set <code>num_warns=1</code> expecting one exception, or <code>stream=None</code> expecting silence, but every call to my fatal deprecation still raises.</p>
 <p><strong>A:</strong> Both are intended. <code>num_warns</code> budgets <em>messages</em>; a gate that stopped refusing after the first call would let a caller retrying inside <code>except DeprecatedError</code> straight through, so a fatal deprecation bypasses the budget and raises on every call, leaving the warn counters untouched. <code>stream=None</code> silences the message, not the lifecycle state — the raise is the gate, and making an unrelated cosmetic setting switch it off would be a trap in CI. The one switch that does suppress a fatal deprecation is <code>skip_if</code>: a wrapper turned off by configuration is not a deprecation at that moment. Note the flip side for whole modules: a fatal <code>deprecated_module</code> raises on every public attribute access, which includes attribute-walking tools such as pytest collection, Sphinx autodoc, <code>pickle</code>, and <code>copy</code> — expect those to stop at the module rather than skip it. pyDeprecate's own audit is unaffected — <code>find_deprecation_wrappers()</code> and the <code>pydeprecate</code> CLI read the module's <code>__dict__</code> instead of going through attribute access, so a fatal module is still discovered and reported normally.</p>
 <hr />
+<h2 id="why-dont-mypy-pyright-or-my-ide-flag-functions-deprecated-with-pydeprecate">Why don't mypy, pyright, or my IDE flag functions deprecated with pyDeprecate?<a class="headerlink" href="#why-dont-mypy-pyright-or-my-ide-flag-functions-deprecated-with-pydeprecate" title="Permanent link">🔗</a></h2>
+<p><strong>Q:</strong> My deprecated function warns at runtime, but the editor shows no strikethrough and <code>mypy</code> / <code>pyright</code> report nothing when I call it.</p>
+<p><strong>A:</strong> Type checkers recognise a deprecation only when the decorator is literally <code>warnings.deprecated</code> (Python 3.13+) or <code>typing_extensions.deprecated</code> — they match the decorator by name, so no runtime decorator (pyDeprecate's included) can make them see it. Stack the PEP 702 decorator directly above pyDeprecate's: <code>@warnings.deprecated("Use</code>new_name<code>instead.", category=None)</code> over <code>@deprecated(...)</code>. Keep <code>category=None</code> (otherwise every call warns twice), write the message as a string literal (mypy silently ignores a constant or f-string), and import the module rather than the name so pyDeprecate's <code>deprecated</code> is not shadowed. mypy only reports it with <code>enable_error_code = ["deprecated"]</code>, pyright in CI with <code>reportDeprecated = "error"</code>. Over <code>@deprecated_class(...)</code>, both mypy and pyright flag the old class name. See <a href="guide/functions.html#static-type-checkers-pep-702">Functions → Static type checkers</a>.</p>
+<hr />
 <h2 id="still-stuck">Still stuck?<a class="headerlink" href="#still-stuck" title="Permanent link">🔗</a></h2>
 <div class="admonition question">
 <p class="admonition-title">Open a GitHub issue</p>
@@ -4408,7 +4487,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="September 30, 2026 18:08:09 UTC">2026-09-30</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 2, 2026 20:54:50 UTC">2026-10-02</span>
   </span>
 
     

@@ -95,7 +95,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-06-15",
-  "dateModified": "2026-09-30"
+  "dateModified": "2026-10-02"
 }
 </script>
 
@@ -683,6 +683,17 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#static-type-checkers-pep-702" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Static type checkers (PEP 702)
+      
+    </span>
+  </a>
   
 </li>
       
@@ -1634,6 +1645,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#static-type-checkers-pep-702" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Static type checkers (PEP 702)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#see-also" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2235,6 +2257,50 @@
 <li><strong>Non-warnings streams</strong> — a wrapper with <code>stream=logging.warning</code> never reaches the warnings machinery, so no filter can make it fail.</li>
 <li><strong>Per-symbol promotion</strong> — ship one deprecation as fatal while the rest keep warning.</li>
 </ol>
+<h2 id="static-type-checkers-pep-702">Static type checkers (PEP 702)<a class="headerlink" href="#static-type-checkers-pep-702" title="Permanent link">🔗</a></h2>
+<p>mypy, pyright, and IDEs flag a deprecated symbol only when its decorator is literally <code>warnings.deprecated</code> (Python 3.13+) or its backport <code>typing_extensions.deprecated</code> — they recognise the decorator by name, not by what it does at runtime. <code>@deprecated</code> from pyDeprecate is invisible to them. To get the strikethrough in the editor <em>and</em> pyDeprecate's forwarding and warning, stack the PEP 702 decorator directly above pyDeprecate's:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">typing_extensions</span>  <span class="c1"># on Python 3.13+: `import warnings` and `@warnings.deprecated(...)`</span>
+<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>
+<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
+<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a>
+<a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a>
+<a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a><span class="c1"># NEW API — the renamed helper</span>
+<a id="__codelineno-25-7" name="__codelineno-25-7" href="#__codelineno-25-7"></a><span class="k">def</span><span class="w"> </span><span class="nf">fetch_orders</span><span class="p">(</span><span class="n">customer_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">:</span>
+<a id="__codelineno-25-8" name="__codelineno-25-8" href="#__codelineno-25-8"></a>    <span class="k">return</span> <span class="p">[</span><span class="n">customer_id</span><span class="p">]</span>
+<a id="__codelineno-25-9" name="__codelineno-25-9" href="#__codelineno-25-9"></a>
+<a id="__codelineno-25-10" name="__codelineno-25-10" href="#__codelineno-25-10"></a>
+<a id="__codelineno-25-11" name="__codelineno-25-11" href="#__codelineno-25-11"></a><span class="c1"># DEPRECATED API — struck through by type checkers, forwarded with a warning at runtime</span>
+<a id="__codelineno-25-12" name="__codelineno-25-12" href="#__codelineno-25-12"></a><span class="nd">@typing_extensions</span><span class="o">.</span><span class="n">deprecated</span><span class="p">(</span><span class="s2">"Use `fetch_orders` instead."</span><span class="p">,</span> <span class="n">category</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+<a id="__codelineno-25-13" name="__codelineno-25-13" href="#__codelineno-25-13"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">fetch_orders</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">"1.4"</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">"2.0"</span><span class="p">)</span>
+<a id="__codelineno-25-14" name="__codelineno-25-14" href="#__codelineno-25-14"></a><span class="k">def</span><span class="w"> </span><span class="nf">get_orders</span><span class="p">(</span><span class="n">customer_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">:</span> <span class="o">...</span>
+<a id="__codelineno-25-15" name="__codelineno-25-15" href="#__codelineno-25-15"></a>
+<a id="__codelineno-25-16" name="__codelineno-25-16" href="#__codelineno-25-16"></a>
+<a id="__codelineno-25-17" name="__codelineno-25-17" href="#__codelineno-25-17"></a><span class="nb">print</span><span class="p">(</span><span class="n">get_orders</span><span class="p">(</span><span class="mi">7</span><span class="p">))</span>  <span class="c1"># warns: FutureWarning</span>
+</code></pre></div>
+<details>
+  <summary>Output: <code>get_orders(7)</code></summary>
+
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>[7]
+</code></pre></div>
+
+</details>
+
+<p>Four rules make the pair work:</p>
+<ul>
+<li><strong><code>category=None</code>.</strong> The PEP 702 decorator then only marks the symbol for type checkers; without it, every call emits a second <code>DeprecationWarning</code> next to pyDeprecate's <code>FutureWarning</code>.</li>
+<li><strong>A string-literal message.</strong> mypy silently ignores a message held in a constant or built with an f-string; pyright still flags the symbol but drops the text.</li>
+<li><strong>Directly above <code>@deprecated(...)</code>.</strong> Inside <code>@staticmethod</code> / <code>@classmethod</code>, and above the outer-order <code>@deprecated(...) @property</code> (mypy asks for <code># type: ignore[prop-decorator]</code> on that line, as it does for any decorator above <code>@property</code>). Placed <em>under</em> <code>@property</code>, pyright misses it.</li>
+<li><strong>Import the module, not the name.</strong> <code>from typing_extensions import deprecated</code> shadows pyDeprecate's <code>deprecated</code>; write <code>@typing_extensions.deprecated(...)</code> or <code>@warnings.deprecated(...)</code>.</li>
+</ul>
+<p>IDEs strike the symbol through as soon as the decorator is there. To fail CI on new uses, turn the diagnostic into an error — mypy leaves it off by default:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="k">[tool.mypy]</span>
+<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a><span class="n">enable_error_code</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"deprecated"</span><span class="p">]</span>
+<a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a>
+<a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a><span class="k">[tool.pyright]</span>
+<a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a><span class="n">reportDeprecated</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"error"</span>
+</code></pre></div>
+<p>Since <code>v0.14</code>, <code>@deprecated</code> and <code>deprecated_callable()</code> keep the decorated callable's own type and the package ships a <code>py.typed</code> marker, so type checkers see the real signature and name the symbol correctly in the diagnostic. For class aliases see <a href="classes.html#type-annotations-and-static-analysis">Classes → Type annotations and static analysis</a>; to list symbols deprecated with the PEP 702 decorator alone, see <a href="audit.html#pep-702-only-deprecations"><code>include_pep702</code></a>.</p>
+<p>That static type is the <em>source's</em> type, and a callable object is not preserved at runtime: decorating a <code>functools.lru_cache</code> / <code>functools.cache</code> object returns a plain function, so <code>cache_clear()</code> and <code>cache_info()</code> are gone even though type checkers still offer them. Deprecate the underlying function and put the cache on top (<code>@functools.lru_cache</code> above <code>@deprecated(...)</code>) — the cache attributes then exist, but a cache hit never reaches the wrapper, so the warning fires only on a miss. Callable objects without a <code>__name__</code>, such as <code>functools.partial</code>, are rejected at decoration time; wrap those with <code>deprecated_instance()</code>.</p>
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">🔗</a></h2>
 <ul>
 <li><a href="use-cases.html">Use Cases overview</a> — start here for a guided tour of all deprecation patterns</li>
@@ -2271,7 +2337,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="September 30, 2026 18:08:09 UTC">2026-09-30</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 2, 2026 20:54:50 UTC">2026-10-02</span>
   </span>
 
     
