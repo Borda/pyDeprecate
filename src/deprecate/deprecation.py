@@ -30,8 +30,10 @@ from deprecate.routine import _SourceT, deprecated_callable
 class _FrontDoorDecorator(Protocol):
     """Decorator returned by :func:`deprecated`: every source keeps its own static type.
 
-    A class is wrapped in a proxy at runtime but stays typed as that class, exactly like
-    :func:`~deprecate.proxy.deprecated_class`; any other source keeps its own callable or descriptor type.
+    A class is wrapped in a proxy at runtime but stays typed as that class, like
+    :func:`~deprecate.proxy.deprecated_class` without a class ``target``; any other source keeps its own callable or
+    descriptor type. The decorator cannot see ``target``, so ``@deprecated(target=NewCls)`` on a class is *not* typed as
+    ``type[NewCls]`` — use ``deprecated_class(target=NewCls, ...)`` for that.
 
     """
 

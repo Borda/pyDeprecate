@@ -650,11 +650,12 @@ class DeprecationProxy(Protocol, Generic[_T_co]):
         return type. ``deprecated_instance`` returns the concrete :class:`~deprecate.proxy._DeprecatedProxy`, whose
         forwarded dunders (``int()``, ``with``, ``await``, ...) a narrow Protocol would hide from type checkers;
         annotate an instance proxy as ``DeprecationProxy[T]`` to name the type calling it produces.
-        ``deprecated_class`` keeps the decorated class's own static type instead — both
-        ``deprecated_class(target=NewCls, ...)(NewCls)`` and the ``@deprecated_class(...)`` decorator form are typed
-        as that class — so a class alias is not assignable to ``DeprecationProxy``. To reach the proxy-only
-        attributes of a class alias statically, use :func:`get_deprecation_config`, or
-        ``cast(DeprecationProxy[Any], OldCls)`` at the one site that needs them.
+        ``deprecated_class`` types a class alias as a class instead: ``deprecated_class(target=NewCls, ...)(OldCls)``
+        is ``type[NewCls]`` whichever class it wraps, and without a class ``target`` the alias keeps the wrapped
+        class's own type. The ``@deprecated_class(...)`` decorator form is read as the class statement by mypy, while
+        pyright applies the same return type as the call form. A class alias is therefore not assignable to
+        ``DeprecationProxy``. To reach the proxy-only attributes of a class alias statically, use
+        :func:`get_deprecation_config`, or ``cast(DeprecationProxy[Any], OldCls)`` at the one site that needs them.
 
     !!! warning "``isinstance`` only"
         This is a *data* Protocol (it declares attributes, not just methods), so only ``isinstance`` is
