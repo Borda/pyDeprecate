@@ -1680,7 +1680,8 @@ def deprecated_class(
     as_exception: Optional[bool] = None,
     _misconfigured_override: bool = False,
     _stacklevel_extra: int = 0,
-) -> _ClassDecorator: ...
+) -> _ClassDecorator:
+    pass
 
 
 def deprecated_class(
