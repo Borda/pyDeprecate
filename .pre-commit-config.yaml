@@ -22,7 +22,7 @@ repos:
         files: ^(src/deprecate/__about__\.py|plugins/pydeprecate/.*/(plugin\.json|SKILL\.md))$
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c # v6.0.0
+    rev: v6.0.0 # v6.0.0
     hooks:
       - id: end-of-file-fixer
       - id: trailing-whitespace
@@ -36,7 +36,7 @@ repos:
       - id: detect-private-key
 
   - repo: https://github.com/rbubley/mirrors-prettier
-    rev: 9337a74165b178ae2c766f60bee7252a0f06f3e8 # v3.9.5
+    rev: v3.9.9 # v3.9.5
     hooks:
       - id: prettier
         files: \.(html|yml|yaml|toml)
@@ -45,14 +45,14 @@ repos:
         args: ["--print-width=120"]
 
   - repo: https://github.com/codespell-project/codespell
-    rev: 2ccb47ff45ad361a21071a7eedda4c37e6ae8c5a # v2.4.2
+    rev: v2.4.3 # v2.4.2
     hooks:
       - id: codespell
         additional_dependencies: [tomli]
         #args: ["--write-changes"] # uncomment if you want to get automatic fixing
 
   - repo: https://github.com/PyCQA/docformatter
-    rev: 0032269a0e65c068af9cd86c9a8859a0ddd568d6 # v1.7.8
+    rev: v1.7.8 # v1.7.8
     hooks:
       - id: docformatter
         # python3.10: wheel/compat issue prevents running the hook under 3.12+; revisit after next rev bump
@@ -67,7 +67,7 @@ repos:
         exclude: ^tests/
 
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: d2823d321df3af8f878f7ee3414dc94d037145b9 # v2.1.0
+    rev: v2.4.0 # v2.1.0
     hooks:
       - id: mypy
         name: typing
@@ -75,7 +75,7 @@ repos:
         exclude: ^demo-.* # exclude demo doc folders
 
   - repo: https://github.com/executablebooks/mdformat
-    rev: 82912cdaea4fb830f751504486a7879c70526547 # 1.0.0
+    rev: 1.0.0 # 1.0.0
     hooks:
       - id: mdformat
         name: mdformat (general)
@@ -104,7 +104,7 @@ repos:
           - mdformat_frontmatter
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: c59bba8fb259db0fec2bbb77ad8ba51ea7341b56 # v0.15.20
+    rev: v0.16.10 # v0.15.20
     hooks:
       # try to fix what is possible
       - id: ruff-check
@@ -113,11 +113,11 @@ repos:
       - id: ruff-format
 
   - repo: https://github.com/tox-dev/pyproject-fmt
-    rev: 0c8c15d8fe996493035be407c5cf4a288cf6bf8e # v2.25.1
+    rev: v2.30.1 # v2.25.1
     hooks:
       - id: pyproject-fmt
         additional_dependencies: [tox]
   - repo: https://github.com/abravalheri/validate-pyproject
-    rev: 4b2e70d08cb2ccd26d1fba73588de41c7a5d50b7 # v0.25
+    rev: '0.26' # v0.25
     hooks:
       - id: validate-pyproject
