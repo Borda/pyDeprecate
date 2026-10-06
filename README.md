@@ -772,6 +772,8 @@ Flip every deprecation at once with the process-wide switch — `deprecate.AS_EX
 DEPRECATE_AS_EXCEPTIONS=1 pytest   # every pyDeprecate deprecation your code triggers now fails the run
 ```
 
+For one stretch of code only, `with deprecate.as_exceptions():` sets the switch and restores the previous value on exit, also when the block raises; `as_exceptions(False)` exempts a block from a strict run. The scope is process-wide, not per thread or task.
+
 Precedence is **monotonic**: an explicit `as_exception=True` is always fatal, while `as_exception=False` means "not fatal by default" and still yields to a `True` global — so a consumer's strict run cannot be opted out of by the library that declared the deprecation.
 
 > [!TIP]

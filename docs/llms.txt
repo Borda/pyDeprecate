@@ -323,7 +323,7 @@ message-required = true
 | Deprecate entire module | `deprecated_module(deprecated_in=..., remove_in=...)` — `module_name` optional; auto-detected from caller `__name__`; Mode 2 (with `target=new_module`) for redirect |
 | Also flag it in IDEs / mypy / pyright | stack `@warnings.deprecated("Use `new_func` instead.", category=None)` directly above `@deprecated(...)` — string-literal message; see Agent Notes: PEP 702 stacking |
 | List symbols deprecated with PEP 702 alone | `find_deprecation_wrappers(pkg, include_pep702=True)` — those rows have `pep702_message is not None` (shape `api_type`, no versions) |
-| Make a deprecation fatal (refuse the call) | `as_exception=True` on any entry point, or `DEPRECATE_AS_EXCEPTIONS=1` / `deprecate.AS_EXCEPTIONS = True` process-wide |
+| Make a deprecation fatal (refuse the call) | `as_exception=True` on any entry point, or `DEPRECATE_AS_EXCEPTIONS=1` / `deprecate.AS_EXCEPTIONS = True` process-wide, or `with deprecate.as_exceptions():` for one block (restores the previous value; `as_exceptions(False)` exempts a block; process-wide, not per thread) |
 | CI expiry check | `validate_deprecation_expiry(...)` or `pydeprecate all src/` |
 | CI deprecation-policy check | `validate_deprecation_policy(...)` or `pydeprecate policy src/` — `pydeprecate all` reports violations but never fails on them |
 | CI positional-only compat check | `validate_mapping_compatibility(module)` |
