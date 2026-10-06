@@ -1,6 +1,6 @@
 # Changelog
 
-## [UnReleased] - 2026-MM-DD
+## [0.14.0] — 2026-10-06 — Fatal deprecations, PEP 702 static-checker support, & module warning budgets
 
 ### Added
 
@@ -12,10 +12,6 @@
 ### Changed
 
 - **The package ships type information (`py.typed`); decorated callables and classes keep their own static type.** Type checkers previously saw every pyDeprecate object as `Any`. Now `@deprecated` / `deprecated_callable()` keep the decorated callable's or descriptor's type, and a `deprecated_class(...)` call-form alias is typed as the class it forwards to — `type[New]` for `deprecated_class(target=New, ...)(Cls)`, `type[Cls]` when there is no class `target` (the `@deprecated_class(...)` decorator form stays the class statement in mypy, while pyright applies the decorator's return type, so it is `type[New]` there when a class `target` is given) — while remaining a proxy at runtime, so `isinstance`/`issubclass` against the alias, construction, and attribute access type-check. The `Old: DeprecationProxy[New] = deprecated_class(...)(Cls)` annotation recipe no longer type-checks; `DeprecationProxy[T]` stays the annotation for `deprecated_instance()` proxies. Call-form aliases now report old names accepted only through `args_mapping` / `attrs_mapping` (`call-arg` / `attr-defined`), as the decorator form already did. ([#237](https://github.com/Borda/pyDeprecate/pull/237))
-
-### Deprecated
-
-### Removed
 
 ### Fixed
 
