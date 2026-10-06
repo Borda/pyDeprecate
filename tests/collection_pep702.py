@@ -26,6 +26,8 @@ Two groups live here:
 | ``Pep702OnlyMembersAlias``        | none — a second name bound to ``Pep702OnlyMembers``    | never reported twice  |
 | ``Pep702MixedMembers.*``          | PEP 702 only + plain pyDeprecate member                | member rows (opt-in)  |
 | ``Pep702AliasFirst``              | none — alias sorting before ``Pep702MixedMembers``     | class name owns rows  |
+| ``Pep702ExplicitHooks``           | PEP 702 only, hooks deprecated explicitly              | class + hook rows     |
+| ``Pep702ForeignMember``           | PEP 702 only, one member aliases a foreign callable    | own member row only   |
 
 Opt-in rows (``include_pep702=True``) classify ``api_type`` by shape like any other row and carry the decorator's
 message in ``pep702_message``, which is ``None`` on every pyDeprecate row.
@@ -241,3 +243,48 @@ class Pep702MixedMembers:
 #: Alias whose name sorts *before* the class name, so alphabetical scan order meets the alias first. The PEP 702 member
 #: rows must still land under ``Pep702MixedMembers``, while the pyDeprecate member row appears under both names.
 Pep702AliasFirst = Pep702MixedMembers
+
+
+@typing_extensions.deprecated("Use `Pep702StaticTarget` instead.", category=None)
+class Pep702ExplicitHooks:
+    """Class with ``category=None`` whose ``__new__`` and ``__init_subclass__`` carry their own PEP 702 messages.
+
+    The ``category=None`` decorator installs no hooks of its own.
+
+    Both hooks are real, separately deprecated members and each needs its own audit row, unlike the hooks the decorator
+    installs under a default category, which only repeat the class's message.
+
+    """
+
+    @typing_extensions.deprecated("Build through `Pep702StaticTarget` instead.", category=None)
+    def __new__(cls) -> "Pep702ExplicitHooks":
+        """Deprecated constructor hook."""
+        return super().__new__(cls)
+
+    @typing_extensions.deprecated("Do not subclass; use `Pep702StaticTarget`.", category=None)
+    def __init_subclass__(cls, **kwargs: object) -> None:
+        """Deprecated subclassing hook."""
+        super().__init_subclass__(**kwargs)
+
+
+@typing_extensions.deprecated("Use `pep702_target` instead.", category=None)
+def _pep702_foreign_helper() -> None:
+    """Deprecated helper that another top-level package defines and this module merely exposes."""
+
+
+# Pretend a dependency defined the helper: the scan attributes a PEP 702 marker to the callable's defining package.
+_pep702_foreign_helper.__module__ = "foreign_pkg.helpers"
+
+
+class Pep702ForeignMember:
+    """Class re-exposing a dependency's deprecated helper as a member next to a genuinely local PEP 702 method.
+
+    The dependency's deprecation belongs to the dependency, so only ``local_old`` earns a row here.
+
+    """
+
+    alias = staticmethod(_pep702_foreign_helper)
+
+    @typing_extensions.deprecated("Use `pep702_target` instead.", category=None)
+    def local_old(self) -> None:
+        """Legacy method this package deprecates itself."""

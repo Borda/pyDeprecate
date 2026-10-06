@@ -267,7 +267,8 @@ def _pep702_member_names(cls: Any) -> frozenset[str]:  # noqa: ANN401
     Static member listing walks the whole MRO, so without this filter a subclass would repeat every PEP 702-deprecated
     method of its bases (a one-field pydantic model yields a row per deprecated ``BaseModel`` method). Inherited members
     are reported on the class that defines them. When ``cls`` is itself PEP 702-deprecated, the ``__new__`` and
-    ``__init_subclass__`` hooks the decorator installed are left out too.
+    ``__init_subclass__`` hooks the decorator installed are left out too: they carry the class's own message. A hook
+    with a message of its own, as on a ``category=None`` class that deprecates it explicitly, stays in.
 
     Examples:
         >>> import typing_extensions
@@ -277,10 +278,44 @@ def _pep702_member_names(cls: Any) -> frozenset[str]:  # noqa: ANN401
         True
         >>> {"__new__", "__init_subclass__"} & _pep702_member_names(OldCls)
         set()
+        >>> @typing_extensions.deprecated("Use `NewCls` instead.", category=None)
+        ... class OwnHook:
+        ...     @typing_extensions.deprecated("Do not subclass.", category=None)
+        ...     def __init_subclass__(cls, **kwargs): ...
+        >>> sorted({"__new__", "__init_subclass__"} & _pep702_member_names(OwnHook))
+        ['__init_subclass__']
 
     """
-    names = frozenset(vars(cls))
-    return names - _PEP702_CLASS_HOOKS if _pep702_message(cls) is not None else names
+    members = vars(cls)
+    names = frozenset(members)
+    class_message = _pep702_message(cls)
+    if class_message is None:
+        return names
+    installed = {
+        name for name in _PEP702_CLASS_HOOKS & names if _descriptor_pep702_message(members[name]) == class_message
+    }
+    return names - installed
+
+
+def _member_defined_in_other_package(obj: Any, module_name: str) -> bool:  # noqa: ANN401
+    """Return True when the PEP 702-deprecated callable behind class member ``obj`` is defined in another package.
+
+    A class can re-expose a dependency's deprecated helper (``alias = staticmethod(helper)``); that deprecation belongs
+    to the dependency, exactly as for a module-level import (see :func:`_defined_in_other_package`).
+
+    Examples:
+        >>> import json
+        >>> import typing_extensions
+        >>> @typing_extensions.deprecated("Use `new` instead.", category=None)
+        ... def old() -> None: ...
+        >>> _member_defined_in_other_package(staticmethod(old), "json.decoder")
+        True
+        >>> _member_defined_in_other_package(staticmethod(old), __name__)
+        False
+
+    """
+    owner = next((c for c in _descriptor_underlying_callables(obj) if _pep702_message(c) is not None), None)
+    return owner is not None and _defined_in_other_package(owner, module_name)
 
 
 def _scan_class(
@@ -307,6 +342,8 @@ def _scan_class(
     for attr_name, obj in members:
         # Looked up once per owned member; the private-member gate and the row below share it.
         pep702_message = _descriptor_pep702_message(obj) if attr_name in pep702_names else None
+        if pep702_message is not None and _member_defined_in_other_package(obj, module_name):
+            pep702_message = None
         if attr_name.startswith("_") and attr_name != "__init__" and not _member_is_deprecated(obj, pep702_message):
             continue
         qualified = f"{cls_name}.{attr_name}"

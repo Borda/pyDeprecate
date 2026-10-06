@@ -104,6 +104,10 @@ class TestFindDeprecationWrappersPep702:
             ("pep702_empty_message", "callable"),
             ("Pep702OnlyClass", "class"),
             ("Pep702DefaultCategoryClass", "class"),
+            ("Pep702ExplicitHooks", "class"),
+            ("Pep702ExplicitHooks.__init_subclass__", "classmethod"),
+            ("Pep702ExplicitHooks.__new__", "staticmethod"),
+            ("Pep702ForeignMember.local_old", "class method"),
             ("Pep702CallableClass", "class"),
             ("Pep702OnlyMembers.old_method", "class method"),
             ("Pep702OnlyMembers._old_method", "class method"),
@@ -146,6 +150,35 @@ class TestFindDeprecationWrappersPep702:
         """
         infos = find_deprecation_wrappers(pep702_module, recursive=False, include_pep702=True)
         assert [info.function for info in infos if info.function.split(".")[0] == class_name] == expected
+
+    def test_explicit_hook_markers_are_reported(self) -> None:
+        """A class that deprecates its own ``__new__`` and ``__init_subclass__`` keeps a row for each hook.
+
+        With the decorator's default category those two hooks are installed by the decorator and only repeat the class's
+        message, so the scan leaves them out. A ``category=None`` class gets no installed hooks: any hook it carries was
+        deprecated on purpose, with its own message, and dropping it would hide a live deprecation from the audit.
+
+        """
+        infos = find_deprecation_wrappers(pep702_module, recursive=False, include_pep702=True)
+        rows = {info.function: info.pep702_message for info in infos if info.function.startswith("Pep702ExplicitHooks")}
+        assert rows == {
+            "Pep702ExplicitHooks": "Use `Pep702StaticTarget` instead.",
+            "Pep702ExplicitHooks.__new__": "Build through `Pep702StaticTarget` instead.",
+            "Pep702ExplicitHooks.__init_subclass__": "Do not subclass; use `Pep702StaticTarget`.",
+        }
+
+    def test_foreign_member_alias_not_reported(self) -> None:
+        """A dependency's PEP 702 callable exposed as a class member is left to that dependency.
+
+        A project class that keeps ``alias = staticmethod(dependency_helper)`` re-exposes someone else's deprecation. As
+        with a module-level import, a row for it is noise the project can neither expire nor remove, while a method the
+        project deprecates itself on the same class keeps its row.
+
+        """
+        infos = find_deprecation_wrappers(pep702_module, recursive=False, include_pep702=True)
+        assert [info.function for info in infos if info.function.startswith("Pep702ForeignMember")] == [
+            "Pep702ForeignMember.local_old"
+        ]
 
     def test_class_alias_reports_members_once(self) -> None:
         """A class bound under two names lists each PEP 702-deprecated member once, under the first name scanned.

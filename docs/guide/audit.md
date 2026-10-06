@@ -265,6 +265,10 @@ for row in rows:
 ```
 Pep702CallableClass [class]: Use `pep702_target` instead.
 Pep702DefaultCategoryClass [class]: Use `Pep702StaticTarget` instead.
+Pep702ExplicitHooks [class]: Use `Pep702StaticTarget` instead.
+Pep702ExplicitHooks.__init_subclass__ [classmethod]: Do not subclass; use `Pep702StaticTarget`.
+Pep702ExplicitHooks.__new__ [staticmethod]: Build through `Pep702StaticTarget` instead.
+Pep702ForeignMember.local_old [class method]: Use `pep702_target` instead.
 Pep702MixedMembers.old_pep702 [class method]: Use `pep702_target` instead.
 Pep702OnlyClass [class]: Use `Pep702StaticTarget` instead.
 Pep702OnlyMembers._old_method [class method]: Use the public method instead.
