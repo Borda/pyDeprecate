@@ -1,5 +1,7 @@
 # pyDeprecate
 
+![pyDeprecate — navigate API transitions smoothly without the chaos or crashes](docs/assets/images/banner-pydeprecate.webp)
+
 **Deprecate Python APIs without breaking existing callers.**
 
 Use pyDeprecate when you renamed a function, moved a class, or retired an argument but still need old user code to work during the migration window. A single decorator can emit a clear warning, forward the call to the new implementation, remap old argument names, and expose metadata that CI audit tools can enforce when the removal deadline arrives.
