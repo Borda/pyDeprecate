@@ -1,5 +1,13 @@
 # Changelog
 
+## [UnReleased] - 2026-MM-DD
+
+### Added
+
+- **Scoped fatal deprecations — `as_exceptions()` context manager.** `with deprecate.as_exceptions():` sets `deprecate.AS_EXCEPTIONS` for one block and restores the previous value on exit, including when the block raises, so nested scopes compose; `as_exceptions(False)` exempts a block from a strict run, while a wrapper's own `as_exception=True` stays fatal. Also usable as a decorator on synchronous functions. The scope is process-wide, not per thread or task, and a non-`bool` flag raises `TypeError`.
+
+______________________________________________________________________
+
 ## [0.14.0] — 2026-10-06 — Fatal deprecations, PEP 702 static-checker support, & module warning budgets
 
 ### Added

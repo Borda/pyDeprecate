@@ -83,7 +83,7 @@ Complete Documentation:
 """
 
 from deprecate.__about__ import *  # noqa: F403
-from deprecate._fatal import DeprecatedError, _env_as_exceptions
+from deprecate._fatal import DeprecatedError, _env_as_exceptions, as_exceptions
 
 # Opt-in strict ``property`` replacement: ``from deprecate import property`` shadows the builtin
 # in the importing module only, rejecting inner-order ``@property @deprecated`` at class-body time.
@@ -138,6 +138,7 @@ __all__ = [
     "TableStyle",
     "TargetMode",
     "VersionBump",
+    "as_exceptions",
     "assert_no_warnings",
     "deprecated",
     "deprecated_callable",

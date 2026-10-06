@@ -542,6 +542,38 @@ The `legacy_checksum` was deprecated since v1.0. It will be removed in v2.0.
 DEPRECATE_AS_EXCEPTIONS=1 pytest
 ```
 
+To make deprecations fatal for one stretch of code only, use the `as_exceptions()` context manager. It sets `deprecate.AS_EXCEPTIONS` on entry and restores the previous value on exit, also when the block raises, so nested scopes compose. `as_exceptions(False)` does the reverse and exempts a block from a strict run. It also works as a decorator.
+
+```python
+from deprecate import DeprecatedError, TargetMode, as_exceptions, deprecated
+
+
+@deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0", num_warns=-1)
+def legacy_total(a: int, b: int) -> int:
+    return a + b
+
+
+try:
+    with as_exceptions():
+        legacy_total(1, 2)
+except DeprecatedError as err:
+    print(err)
+
+print(legacy_total(1, 2))  # warns: FutureWarning
+```
+
+<details>
+  <summary>Output: <code>legacy_total(1, 2)</code> inside and after the block</summary>
+
+```
+The `legacy_total` was deprecated since v1.0. It will be removed in v2.0.
+3
+```
+
+</details>
+
+The scope is process-wide, not local to a thread or an `asyncio` task: code running concurrently with the block sees the same setting, and scopes from several threads or tasks that overlap out of order can restore a stale value. As a decorator it only covers plain synchronous functions — an `async def` or generator function returns before its body runs, so the scope closes first. Like `deprecate.AS_EXCEPTIONS` itself, it is the consumer's switch (an application or test suite); library code should not use `as_exceptions(False)` to escape a caller's strict run.
+
 Precedence is **monotonic**: an explicit `as_exception=True` is always fatal, and `as_exception=False` means "not fatal by default" but still yields to a `True` global. A consumer's strict run therefore cannot be opted out of by the library that declared the deprecation, while an author can still promote one symbol ahead of the rest.
 
 ### When to prefer `-W error` instead

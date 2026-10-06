@@ -7,7 +7,7 @@ deprecation raise on every call rather than once, and the interaction with `skip
 """
 
 import logging
-from typing import Any
+from typing import Any, Callable
 
 import pytest
 
@@ -16,6 +16,7 @@ from deprecate import (
     AS_EXCEPTIONS,
     DeprecatedError,
     TargetMode,
+    as_exceptions,
     assert_no_warnings,
     deprecated,
     find_deprecation_wrappers,
@@ -312,3 +313,96 @@ class TestGlobalSwitch:
         monkeypatch.setattr(deprecate, "AS_EXCEPTIONS", True)
         with pytest.raises(DeprecatedError):
             warn_only(2)
+
+
+class TestScopedSwitch:
+    """The `as_exceptions()` context manager that flips the global switch for one block and restores it."""
+
+    @pytest.fixture
+    def warn_only(self, monkeypatch: pytest.MonkeyPatch) -> Callable[[int], int]:
+        """A wrapper that defers to the global and warns on every call, with the global pinned off."""
+        monkeypatch.setattr(deprecate, "AS_EXCEPTIONS", False)
+        return deprecated(target=double_value, **_VERSION_ARGS, num_warns=-1)(identity_value)
+
+    def test_block_is_fatal_and_warnings_return_after(self, warn_only: Callable[[int], int]) -> None:
+        """Inside the block a deferring wrapper raises; after the block it warns again.
+
+        This is the scoped strict section: a test or a bootstrap step wants every deprecation inside one
+        stretch of code to fail loudly, then the rest of the run continues on plain warnings.
+        """
+        with as_exceptions(), pytest.raises(DeprecatedError):
+            warn_only(2)
+        assert deprecate.AS_EXCEPTIONS is False
+        with pytest.warns(FutureWarning):
+            assert warn_only(2) == 4
+
+    def test_disabled_block_warns_under_a_true_global(
+        self, warn_only: Callable[[int], int], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """`as_exceptions(False)` exempts a block from strict mode and restores `True` afterwards.
+
+        A consumer running with `DEPRECATE_AS_EXCEPTIONS=1` may still need one known-deprecated section — a
+        legacy import path during bootstrap — to proceed with warnings instead of failing.
+        """
+        monkeypatch.setattr(deprecate, "AS_EXCEPTIONS", True)
+        with as_exceptions(False), pytest.warns(FutureWarning):
+            warn_only(2)
+        assert deprecate.AS_EXCEPTIONS is True
+
+    def test_restores_previous_value_when_the_block_raises(self, warn_only: Callable[[int], int]) -> None:
+        """The previous value comes back even when the block exits with an exception.
+
+        Without a `finally`-style restore, the first `DeprecatedError` escaping the block would leave the whole
+        process in strict mode, turning every later warning into a failure far from the cause.
+        """
+        with pytest.raises(DeprecatedError), as_exceptions():
+            warn_only(2)
+        assert deprecate.AS_EXCEPTIONS is False
+
+    def test_nested_blocks_restore_in_order(self, warn_only: Callable[[int], int]) -> None:
+        """An inner `as_exceptions(False)` inside an outer `as_exceptions()` restores the outer state on exit.
+
+        Helpers that open their own scope get composed inside callers that already opened one; each exit must
+        put back exactly what its own entry found, not a hard-coded default.
+        """
+        with as_exceptions():
+            with as_exceptions(False):
+                assert deprecate.AS_EXCEPTIONS is False
+            assert deprecate.AS_EXCEPTIONS is True
+        assert deprecate.AS_EXCEPTIONS is False
+
+    def test_explicit_wrapper_true_still_raises_in_a_disabled_block(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A wrapper's own `as_exception=True` stays fatal inside `as_exceptions(False)` — precedence is monotonic.
+
+        The scope only moves the global default; it must not become a back door that lets a caller silence a
+        symbol its author already promoted to fatal.
+        """
+        monkeypatch.setattr(deprecate, "AS_EXCEPTIONS", False)
+        with as_exceptions(False), pytest.raises(DeprecatedError):
+            decorated_sum_fatal(2, 3)
+
+    @pytest.mark.parametrize("enabled", ["1", 1, None])
+    def test_rejects_a_non_bool_flag(self, enabled: object) -> None:
+        """A non-`bool` `enabled` raises `TypeError` instead of being silently ignored.
+
+        The global switch only honours real booleans, so `as_exceptions("1")` copied from the environment
+        variable spelling would otherwise open a block that looks strict but changes nothing.
+        """
+        with pytest.raises(TypeError, match="enabled"), as_exceptions(enabled):  # type: ignore[arg-type]
+            pass
+
+    def test_works_as_a_decorator(self, warn_only: Callable[[int], int]) -> None:
+        """Decorating a function with `@as_exceptions()` makes each of its calls a strict section.
+
+        Test helpers and entry points are often easier to mark once than to wrap in a `with` block, and the
+        scope must reopen on every call rather than only the first.
+        """
+
+        @as_exceptions()
+        def _strict_call() -> int:
+            return warn_only(2)
+
+        for _ in range(2):
+            with pytest.raises(DeprecatedError):
+                _strict_call()
+        assert deprecate.AS_EXCEPTIONS is False
