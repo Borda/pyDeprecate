@@ -15,7 +15,9 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 
 import os
 import sys
-from typing import Optional
+from collections.abc import Iterator
+from contextlib import contextmanager
+from typing import Any, Optional
 
 #: Environment variable read once at import to seed ``deprecate.AS_EXCEPTIONS``.  The prefix matches the
 #: package's other environment variable, ``DEPRECATE_DOCSTRING_STYLE``.
@@ -119,3 +121,59 @@ def _resolve_as_exception(as_exception: Optional[bool]) -> bool:
 
     """
     return as_exception is True or _global_as_exceptions()
+
+
+@contextmanager
+def as_exceptions(enabled: bool = True) -> Iterator[None]:
+    """Make deprecations fatal for one block of code, then restore the previous global setting.
+
+    Sets ``deprecate.AS_EXCEPTIONS`` to ``enabled`` on entry and puts back the value it found on exit, also when
+    the block raises, so nested scopes compose.  ``as_exceptions(False)`` exempts a block from a strict run
+    (e.g. one seeded by ``DEPRECATE_AS_EXCEPTIONS=1``).  Precedence stays monotonic: a wrapper's own
+    ``as_exception=True`` raises inside an ``as_exceptions(False)`` block too.  Like the global itself, this is
+    the consumer's switch (an application or a test suite), not something library code should set.
+
+    Also usable as a decorator, but only on plain synchronous functions: an ``async def`` or generator function
+    returns before its body runs, so the scope would close first and have no effect.
+
+    The switch is a plain package attribute, so the scope is process-wide — not local to a thread or an
+    ``asyncio`` task.  Code running concurrently with the block sees the same setting, and scopes opened from
+    several threads or tasks that overlap out of order can restore a stale value.
+
+    Args:
+        enabled: Value of ``deprecate.AS_EXCEPTIONS`` inside the block.
+
+    Raises:
+        TypeError: If ``enabled`` is not a ``bool``.
+
+    Yields:
+        Nothing; the block runs with the switch set.
+
+    Examples:
+        >>> import deprecate
+        >>> from deprecate import DeprecatedError, TargetMode, deprecated
+        >>> @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0", num_warns=-1)
+        ... def legacy_total(a: int, b: int) -> int:
+        ...     return a + b
+        >>> _restore = deprecate.AS_EXCEPTIONS  # this doctest assumes the global is off; put it back afterwards
+        >>> deprecate.AS_EXCEPTIONS = False
+        >>> with as_exceptions():
+        ...     legacy_total(1, 2)
+        Traceback (most recent call last):
+        ...
+        deprecate._fatal.DeprecatedError: The `legacy_total` was deprecated since v1.0. It will be removed in v2.0.
+        >>> deprecate.AS_EXCEPTIONS
+        False
+        >>> deprecate.AS_EXCEPTIONS = _restore
+
+    """
+    if not isinstance(enabled, bool):
+        # the global ignores non-bool values, so accepting one would open a block that silently changes nothing
+        raise TypeError(f"`enabled` must be a bool, got {type(enabled).__name__}")
+    package: Any = sys.modules["deprecate"]  # the package's own attribute; typed Any to set it without a cycle
+    previous = getattr(package, "AS_EXCEPTIONS", _ENV_DEFAULT)
+    package.AS_EXCEPTIONS = enabled
+    try:
+        yield
+    finally:
+        package.AS_EXCEPTIONS = previous
