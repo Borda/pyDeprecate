@@ -4,11 +4,14 @@ export NO_MKDOCS_2_WARNING := true
 
 .PHONY: demo-sphinx demo-mkdocs docs-serve docs-build docs-tests install-docs install-tests
 
+# uv-created virtualenvs ship without pip; fall back to `uv pip` there
+PIP := $(shell python3 -m pip --version >/dev/null 2>&1 && echo "python3 -m pip" || echo "uv pip")
+
 install-docs:
-	python3 -m pip install -e ".[audit,cli]" -q -r docs/requirements.txt -r demo-docs/sphinx/requirements.txt -r demo-docs/mkdocs/requirements.txt
+	$(PIP) install -e ".[audit,cli]" -q -r docs/requirements.txt -r demo-docs/sphinx/requirements.txt -r demo-docs/mkdocs/requirements.txt
 
 install-tests:
-	python3 -m pip install -e ".[audit,cli]" -q -r tests/requirements.txt
+	$(PIP) install -e ".[audit,cli]" -q -r tests/requirements.txt
 
 demo-sphinx:
 	cd demo-docs/sphinx && make html SPHINXBUILD="python3 -m sphinx"
