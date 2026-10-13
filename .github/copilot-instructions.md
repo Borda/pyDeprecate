@@ -4,7 +4,7 @@
 >
 > **For coding standards and contribution workflow**, see [CONTRIBUTING.md](CONTRIBUTING.md). **For agent behavioral rules**, see [AGENTS.md](../AGENTS.md). This file provides Copilot-specific guidance for understanding and working with the codebase.
 
-For pull request or changed-code reviews, use the [code-review skill](skills/code-review/SKILL.md). It owns the specialist review process, evidence requirements, recommendations, quality scores, and GitHub-hosted capability boundaries; do not apply implementation or commit workflows to a read-only review.
+For pull request or changed-code reviews, use the [code-review skill](skills/code-review/SKILL.md). Keep reviews read-only; implementation and commit workflows do not apply.
 
 ## Project Overview
 

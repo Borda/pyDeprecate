@@ -159,11 +159,7 @@ If no issue exists, open one first to discuss the change before implementing it.
 
 ### Reviewing PRs
 
-Use the [code-review skill](skills/code-review/SKILL.md) as the shared review process for contributors and agents. It defines independent specialist perspectives, project-specific checks, evidence validation, and the structured review summary (recommendation, completeness, quality scores, risks, and actionable findings).
-
-Repository-wide implementation standards in this guide and `AGENTS.md` remain authoritative; the skill centralizes review procedure rather than duplicating those standards. Reviews are read-only. Human reviewers retain responsibility for merge decisions; Copilot's narrative recommendation is not itself a GitHub approval.
-
-GitHub-hosted Copilot discovers the skill under `.github/skills/code-review/` from the PR head branch. Verify actual use through skill/MCP attributions on comments and the linked review-session logs. MCP access, review effort, automatic re-reviews, and optional Copilot approvals depend on repository and organization settings; adding this skill does not enable those settings. See [GitHub's code-review documentation](https://docs.github.com/en/copilot/how-tos/use-copilot-agents/use-code-review?tool=webui#mcp-servers-and-agent-skills) for the current host contract.
+Use the [code-review skill](skills/code-review/SKILL.md) for specialist checks, evidence validation, and actionable findings. Reviews are read-only; this guide and `AGENTS.md` retain the implementation standards. Review recommendations are advisory, not GitHub approval actions.
 
 ## ✅ Tests and Quality Assurance
 
