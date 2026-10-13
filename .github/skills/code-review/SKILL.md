@@ -45,4 +45,6 @@ Use safe existing checks only when execution is available and permitted; no auto
 - **Assessment:** recommendation, completeness, and material risks in the host's supported format. Where a conversational summary is available, use Approve / Minor Suggestions / Request Changes / Block, or Assessment incomplete; include code/testing/documentation quality and overall risk scores (1–5) with brief reasons. Use not applicable/not assessed honestly; scores never cancel a serious defect.
 - **Coverage:** checked/incomplete/not-applicable perspectives, actual execution evidence, and missing context. State plainly when no actionable issues are found; do not invent findings or imply an exhaustive safety guarantee.
 
+Use GitHub's suggestion format for specific code improvements. Acknowledge good work and be pragmatic.
+
 Suggestions must be small and evidence-backed; do not apply them. Recommendations are advisory, not approval actions or merge gates.
