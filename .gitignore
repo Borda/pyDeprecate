@@ -174,3 +174,6 @@ docs/demo-sphinx/*
 !docs/demo-sphinx/index.html
 docs/demo-mkdocs/*
 !docs/demo-mkdocs/index.html
+
+# local raw brand dump; committed copy lives in .github/branding/
+branding-raw/
