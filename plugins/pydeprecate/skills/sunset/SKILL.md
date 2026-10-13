@@ -63,7 +63,7 @@ For block-scoped fatal handling, use `deprecate.as_exceptions()` to enable the p
 ```python
 import deprecate
 
-
+if hasattr(deprecate, "as_exceptions"):
 if hasattr(deprecate, "as_exceptions"):
     with deprecate.as_exceptions():
         # Run the application or test code that should reject deprecations.

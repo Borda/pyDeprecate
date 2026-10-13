@@ -548,7 +548,7 @@ To make deprecations fatal for one stretch of code only, use the `as_exceptions(
 from deprecate import DeprecatedError, as_exceptions, deprecated
 
 
-# NEW/FUTURE API — replacement that calculates the total
+# NEW API — replacement that calculates the total
 def calculate_total(a: int, b: int) -> int:
     return a + b
 
