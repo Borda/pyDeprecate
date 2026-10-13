@@ -56,6 +56,30 @@ For properties, descriptors, async/generators, modules or stacked wrappers, read
 
 A deprecation that is past polite warning can refuse the call instead: `as_exception=True` (since 0.14; no equivalent on 0.11-0.13) raises `DeprecatedError` carrying the same message, never invokes the target and never runs the source body. Use it as the warn -> raise -> delete middle step, one release before removal, and record in the changelog that the symbol now raises. It ignores `num_warns` (every call raises) and is not silenced by `stream=None`; `skip_if` still suppresses it. The process-wide `deprecate.AS_EXCEPTIONS` (seeded from `DEPRECATE_AS_EXCEPTIONS`) is the consumer's switch, not the library's: do not set it in library code. When the user only wants every `FutureWarning` to fail their run, point at `-W error::FutureWarning` instead.
 
+For block-scoped fatal handling, use `deprecate.as_exceptions()` to enable the process-wide switch for a block, or `deprecate.as_exceptions(False)` to exempt a block from a strict run. Both restore the previous value on exit, including exceptions, and nested scopes compose; an explicit wrapper `as_exception=True` remains fatal inside a disabled scope. The setting is process-wide, so concurrent code observes it and overlapping scopes can restore a stale value. As a decorator, it supports plain synchronous functions only; an `async def` or generator function returns before its body runs.
+
+`as_exceptions()` is an UnReleased helper: check whether the installed `deprecate` module provides it before using it, and do not assign it a release number until one is published. On an installed release that has `deprecate.AS_EXCEPTIONS` but not the helper, preserve the previous value with `try/finally`:
+
+```python
+import deprecate
+
+
+if hasattr(deprecate, "as_exceptions"):
+    with deprecate.as_exceptions():
+        # Run the application or test code that should reject deprecations.
+        pass
+elif hasattr(deprecate, "AS_EXCEPTIONS"):
+    _previous = deprecate.AS_EXCEPTIONS
+    deprecate.AS_EXCEPTIONS = True
+    try:
+        # Run the application or test code that should reject deprecations.
+        pass
+    finally:
+        deprecate.AS_EXCEPTIONS = _previous
+else:
+    raise RuntimeError("This pyDeprecate version does not support fatal deprecations.")
+```
+
 Provide migration guidance through the replacement/mapping and, when needed, `message_template` (since 0.12; `template_mgs` on 0.11). Verify supported template fields rather than inventing a `message=` argument.
 
 Type checkers and IDEs flag a deprecation only through `warnings.deprecated` (Python 3.13+) or `typing_extensions.deprecated`; pyDeprecate's decorators stay invisible to them on every release. When the user also wants an editor strikethrough or a mypy/pyright gate, stack `@warnings.deprecated("Use new_name instead.", category=None)` directly above the pyDeprecate decorator: keep `category=None` (otherwise every call warns twice), write the message as a string literal (mypy ignores constants and f-strings), and import the module rather than the name so pyDeprecate's `deprecated` is not shadowed. Over `deprecated_class` both mypy and pyright flag the alias, and before 0.14 the marker leaked onto the replacement class. To list symbols deprecated with that decorator alone, use `find_deprecation_wrappers(..., include_pep702=True)` (since 0.14; no equivalent on 0.11-0.13); those rows carry no versions and are the ones with `row.pep702_message is not None`, so keep them out of expiry and policy decisions.

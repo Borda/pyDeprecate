@@ -12,6 +12,7 @@ import pytest
 
 from deprecate import (
     TargetMode,
+    as_exceptions,
     deprecated,
     deprecated_class,
     deprecated_instance,
@@ -169,6 +170,7 @@ _SKILL_SKIP_TOKENS = frozenset(
 _SKILL_CALLABLES = {
     fn.__name__: fn
     for fn in (
+        as_exceptions,
         deprecated,
         deprecated_class,
         deprecated_instance,

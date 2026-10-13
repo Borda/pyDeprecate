@@ -192,6 +192,8 @@ That's it! All calls to `addition()` are automatically forwarded to `compute_sum
 >
 > When `target=<callable>` is set, pyDeprecate intercepts the call **before** the body executes — the body is dead code under normal forwarding. **Exception**: if `skip_if` evaluates `True` at call time, the source body runs as the fallback, so keep a working implementation when combining `target=<callable>` with `skip_if`.
 
+On the development line, `with deprecate.as_exceptions():` makes pyDeprecate deprecations fatal for one block and restores the previous setting afterward; see [fatal deprecations](https://borda.github.io/pyDeprecate/dev/guide/functions.html#the-global-switch) for scope limits and migration details.
+
 ## 🗺 API at a Glance
 
 Not sure which API to reach for? Start here.

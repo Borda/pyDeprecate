@@ -545,12 +545,24 @@ DEPRECATE_AS_EXCEPTIONS=1 pytest
 To make deprecations fatal for one stretch of code only, use the `as_exceptions()` context manager. It sets `deprecate.AS_EXCEPTIONS` on entry and restores the previous value on exit, also when the block raises, so nested scopes compose. `as_exceptions(False)` does the reverse and exempts a block from a strict run. It also works as a decorator.
 
 ```python
-from deprecate import DeprecatedError, TargetMode, as_exceptions, deprecated
+from deprecate import DeprecatedError, as_exceptions, deprecated
 
 
-@deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0", num_warns=-1)
-def legacy_total(a: int, b: int) -> int:
+# NEW/FUTURE API — replacement that calculates the total
+def calculate_total(a: int, b: int) -> int:
     return a + b
+
+
+# DEPRECATED API — `legacy_total` now forwards to `calculate_total`
+@deprecated(
+    target=calculate_total,
+    deprecated_in="1.0",
+    remove_in="2.0",
+    message_template="Use `calculate_total` instead.",
+    num_warns=-1,
+)
+def legacy_total(a: int, b: int) -> int:
+    pass
 
 
 try:
@@ -566,7 +578,7 @@ print(legacy_total(1, 2))  # warns: FutureWarning
   <summary>Output: <code>legacy_total(1, 2)</code> inside and after the block</summary>
 
 ```
-The `legacy_total` was deprecated since v1.0. It will be removed in v2.0.
+Use `calculate_total` instead.
 3
 ```
 
