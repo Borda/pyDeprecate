@@ -159,30 +159,11 @@ If no issue exists, open one first to discuss the change before implementing it.
 
 ### Reviewing PRs
 
-When reviewing pull requests, provide structured, actionable feedback:
+Use the [code-review skill](skills/code-review/SKILL.md) as the shared review process for contributors and agents. It defines independent specialist perspectives, project-specific checks, evidence validation, and the structured review summary (recommendation, completeness, quality scores, risks, and actionable findings).
 
-**Overall Assessment:**
+Repository-wide implementation standards in this guide and `AGENTS.md` remain authoritative; the skill centralizes review procedure rather than duplicating those standards. Reviews are read-only. Human reviewers retain responsibility for merge decisions; Copilot's narrative recommendation is not itself a GitHub approval.
 
-- 🟢 **Approve** — Ready to merge
-- 🟡 **Minor Suggestions** — Improvements recommended but not blocking
-- 🟠 **Request Changes** — Significant issues must be addressed
-- 🔴 **Block** — Critical issues require major rework
-
-**Review Checklist:**
-
-- [ ] Clear description and linked issue
-- [ ] Tests cover happy path, failure cases, and edge cases
-- [ ] Code quality (correctness, idioms, type hints)
-- [ ] Documentation (docstrings for public APIs)
-- [ ] No breaking changes or runtime dependencies
-- [ ] CI checks pass
-
-**Provide Actionable Feedback:**
-
-- Explain **why** something is a problem, not just **what**
-- Distinguish blocking issues from nice-to-haves
-- Use GitHub's suggestion format for specific code improvements
-- Acknowledge good work and be pragmatic
+GitHub-hosted Copilot discovers the skill under `.github/skills/code-review/` from the PR head branch. Verify actual use through skill/MCP attributions on comments and the linked review-session logs. MCP access, review effort, automatic re-reviews, and optional Copilot approvals depend on repository and organization settings; adding this skill does not enable those settings. See [GitHub's code-review documentation](https://docs.github.com/en/copilot/how-tos/use-copilot-agents/use-code-review?tool=webui#mcp-servers-and-agent-skills) for the current host contract.
 
 ## ✅ Tests and Quality Assurance
 
@@ -393,6 +374,8 @@ pyDeprecate/
 │       └── audit/                  # One test__<module>.py per audit submodule (_wrappers, _scan, _lifecycle, _policy, _report)
 ├── .github/
 │   ├── scripts/                # Pre-commit helper scripts (plugin compat-floor check)
+│   ├── skills/
+│   │   └── code-review/SKILL.md # Shared specialist review process for GitHub-hosted and local agents
 │   ├── workflows/              # CI/CD pipelines
 │   └── *.md                    # Documentation and guidelines
 ├── pyproject.toml              # Project config (ruff, mypy, pytest)
