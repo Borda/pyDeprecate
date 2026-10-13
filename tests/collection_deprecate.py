@@ -2905,6 +2905,8 @@ def make_deprecated_hostile_signature_instance() -> Any:  # noqa: ANN401
 # constants block alongside the other shared version-kwargs constants.
 # ---------------------------------------------------------------------------------------------------------
 
+scoped_switch_warn_only = deprecated(target=double_value, **_DEPRS_CASE_STD_INF_ARGS)(identity_value)
+
 
 @deprecated(target=base_sum_kwargs, **_DEPRS_CASE_FATAL_ARGS)
 def decorated_sum_fatal(a: int, b: int = 5) -> int:

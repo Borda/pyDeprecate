@@ -34,6 +34,7 @@ from tests.collection_deprecate import (
     decorated_sum_fatal_opt_out,
     decorated_sum_fatal_skipped,
     fatal_legacy_settings,
+    scoped_switch_warn_only,
     wrapped_sum,
 )
 from tests.collection_modules import fatal_utils
@@ -322,7 +323,7 @@ class TestScopedSwitch:
     def warn_only(self, monkeypatch: pytest.MonkeyPatch) -> Callable[[int], int]:
         """A wrapper that defers to the global and warns on every call, with the global pinned off."""
         monkeypatch.setattr(deprecate, "AS_EXCEPTIONS", False)
-        return deprecated(target=double_value, **_VERSION_ARGS, num_warns=-1)(identity_value)
+        return scoped_switch_warn_only
 
     def test_block_is_fatal_and_warnings_return_after(self, warn_only: Callable[[int], int]) -> None:
         """Inside the block a deferring wrapper raises; after the block it warns again.
