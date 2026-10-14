@@ -1,11 +1,35 @@
 """Regression tests for setup.py packaging consistency."""
 
 import re
+import runpy
+import sys
 from pathlib import Path
+from unittest.mock import Mock, patch
 
 _ROOT = Path(__file__).parent.parent.parent
 _README = _ROOT / "README.md"
 _SETUP = _ROOT / "setup.py"
+
+
+def test_long_description_resolves_brand_images() -> None:
+    """Resolve both banner variants in the package description without rewriting unrelated links.
+
+    PyPI renders the packaged README without the repository's relative URL base. The dark source and light fallback
+    must therefore point to the same release as the package while preserving the author's external profile link.
+
+    """
+    builder = Mock()
+    with patch.dict(sys.modules, {"setuptools": builder}):
+        namespace = runpy.run_path(str(_SETUP))
+
+    builder.setup.assert_called_once()
+    description = builder.setup.call_args.kwargs["long_description"]
+    about = namespace["ABOUT"]
+    brand_url = f"{about.__source_code__}/raw/v{about.__version__}/docs/assets/brand"
+    assert f'srcset="{brand_url}/banner-dark.svg"' in description
+    assert f'src="{brand_url}/banner-light.svg"' in description
+    assert '"docs/assets/brand/' not in description
+    assert "[Jiri Borovec](https://github.com/Borda)" in description
 
 
 def _parse_readme_image_files() -> set[str]:
