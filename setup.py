@@ -11,7 +11,7 @@ from setuptools import find_packages, setup
 
 _PATH_ROOT = os.path.realpath(os.path.dirname(__file__))
 _PATH_SOURCE = os.path.join(_PATH_ROOT, "src")
-_README_IMAGE_FILES = ("demo-docs-mkdocs.png", "demo-docs-sphinx.png")
+_README_IMAGE_FILES = ("banner-pydeprecate.webp", "demo-docs-mkdocs.png", "demo-docs-sphinx.png")
 
 
 def _load_py_module(fname: str, pkg: str = "deprecate") -> Any:  # noqa: ANN401

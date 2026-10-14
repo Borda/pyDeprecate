@@ -159,30 +159,7 @@ If no issue exists, open one first to discuss the change before implementing it.
 
 ### Reviewing PRs
 
-When reviewing pull requests, provide structured, actionable feedback:
-
-**Overall Assessment:**
-
-- 🟢 **Approve** — Ready to merge
-- 🟡 **Minor Suggestions** — Improvements recommended but not blocking
-- 🟠 **Request Changes** — Significant issues must be addressed
-- 🔴 **Block** — Critical issues require major rework
-
-**Review Checklist:**
-
-- [ ] Clear description and linked issue
-- [ ] Tests cover happy path, failure cases, and edge cases
-- [ ] Code quality (correctness, idioms, type hints)
-- [ ] Documentation (docstrings for public APIs)
-- [ ] No breaking changes or runtime dependencies
-- [ ] CI checks pass
-
-**Provide Actionable Feedback:**
-
-- Explain **why** something is a problem, not just **what**
-- Distinguish blocking issues from nice-to-haves
-- Use GitHub's suggestion format for specific code improvements
-- Acknowledge good work and be pragmatic
+Use the [code-review skill](skills/code-review/SKILL.md) for specialist checks, evidence validation, and actionable findings. Reviews are read-only; this guide and `AGENTS.md` retain the implementation standards. Review recommendations are advisory, not GitHub approval actions.
 
 ## ✅ Tests and Quality Assurance
 
@@ -393,6 +370,7 @@ pyDeprecate/
 │       └── audit/                  # One test__<module>.py per audit submodule (_wrappers, _scan, _lifecycle, _policy, _report)
 ├── .github/
 │   ├── scripts/                # Pre-commit helper scripts (plugin compat-floor check)
+│   ├── skills/code-review/     # Shared specialist review process for GitHub-hosted and local agents
 │   ├── workflows/              # CI/CD pipelines
 │   └── *.md                    # Documentation and guidelines
 ├── pyproject.toml              # Project config (ruff, mypy, pytest)

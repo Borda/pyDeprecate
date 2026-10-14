@@ -4,6 +4,8 @@
 >
 > **For coding standards and contribution workflow**, see [CONTRIBUTING.md](CONTRIBUTING.md). **For agent behavioral rules**, see [AGENTS.md](../AGENTS.md). This file provides Copilot-specific guidance for understanding and working with the codebase.
 
+For pull request or changed-code reviews, use the [code-review skill](skills/code-review/SKILL.md). Keep reviews read-only; implementation and commit workflows do not apply.
+
 ## Project Overview
 
 pyDeprecate is a lightweight Python library (Python 3.9+) for decorator-based deprecation of functions, methods, and classes with automatic call forwarding. **Zero runtime dependencies** by design.
@@ -89,18 +91,6 @@ See [CONTRIBUTING.md: Test Requirements](CONTRIBUTING.md#-tests-and-quality-assu
 
 For code examples and patterns (deprecation wrappers, argument renaming, testing without warnings), see [CONTRIBUTING.md: Common Patterns](CONTRIBUTING.md#common-patterns).
 
-## PR Review Guidelines
-
-When reviewing PRs, use the structured format in [CONTRIBUTING.md: Reviewing PRs](CONTRIBUTING.md#reviewing-prs) to ensure consistent, actionable feedback.
-
-Quick checklist:
-
-- Overall recommendation (🟢 Approve / 🟡 Minor Suggestions / 🟠 Request Changes / 🔴 Block)
-- Completeness check (description, issue link, tests, docs, CI)
-- Quality scores (code/testing/documentation: n/5)
-- Risk assessment (breaking changes, performance, compatibility, architecture)
-- Specific suggestions (inline with GitHub suggestion format)
-
 > [!NOTE]
 >
 > **Anchor Links**: GitHub strips emojis from section headers and then converts the remaining text to lowercase-with-dashes. For headers like `## 🚀 Quick Start`, the emoji is removed and the space after it becomes the leading dash, so the anchor is `#-quick-start`. Subsections without emojis (e.g., `### Reviewing PRs`) become `#reviewing-prs` (no dash prefix). All links in this repository follow this convention and are correct.
@@ -124,6 +114,6 @@ All checks must pass before merge.
 
 - **Contribution workflow** → [CONTRIBUTING.md](CONTRIBUTING.md)
 - **Agent behavioral rules** → [AGENTS.md](../AGENTS.md)
-- **PR review guidelines** → [CONTRIBUTING.md: Reviewing PRs](CONTRIBUTING.md#reviewing-prs)
+- **PR review process** → [Code-review skill](skills/code-review/SKILL.md)
 - **Security reporting** → [SECURITY.md](SECURITY.md)
 - **Code of Conduct** → [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
