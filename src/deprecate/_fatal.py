@@ -13,11 +13,13 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 
 """
 
+import inspect
 import os
 import sys
-from collections.abc import Iterator
-from contextlib import contextmanager
-from typing import Any, Optional
+from contextlib import ContextDecorator
+from typing import Any, Callable, Optional, TypeVar
+
+_F = TypeVar("_F", bound=Callable[..., Any])
 
 #: Environment variable read once at import to seed ``deprecate.AS_EXCEPTIONS``.  The prefix matches the
 #: package's other environment variable, ``DEPRECATE_DOCSTRING_STYLE``.
@@ -123,8 +125,42 @@ def _resolve_as_exception(as_exception: Optional[bool]) -> bool:
     return as_exception is True or _global_as_exceptions()
 
 
-@contextmanager
-def as_exceptions(enabled: bool = True) -> Iterator[None]:
+class _ScopedSwitch(ContextDecorator):
+    """Context manager and function decorator returned by :func:`as_exceptions`.
+
+    A class rather than a ``@contextmanager`` generator so that decorating a function whose body would run after the
+    scope has closed fails at decoration time instead of silently doing nothing.
+
+    """
+
+    def __init__(self, enabled: bool) -> None:
+        self._enabled = enabled
+        self._previous: list[Any] = []  # one saved value per open entry, so a reused instance unwinds in order
+
+    def _recreate_cm(self) -> "_ScopedSwitch":
+        # a fresh instance per decorated call: a recursive or concurrent call then saves and restores its own value
+        return _ScopedSwitch(self._enabled)
+
+    def __call__(self, func: _F) -> _F:
+        if inspect.iscoroutinefunction(func) or inspect.isgeneratorfunction(func) or inspect.isasyncgenfunction(func):
+            name = getattr(func, "__qualname__", repr(func))
+            raise TypeError(
+                f"`as_exceptions` cannot decorate `{name}`: its body runs after the scope would have closed;"
+                " use `with as_exceptions():` inside the body instead"
+            )
+        return super().__call__(func)
+
+    def __enter__(self) -> None:
+        package: Any = sys.modules["deprecate"]  # the package's own attribute; typed Any to set it without a cycle
+        self._previous.append(getattr(package, "AS_EXCEPTIONS", _ENV_DEFAULT))
+        package.AS_EXCEPTIONS = self._enabled
+
+    def __exit__(self, *exc_info: object) -> None:
+        package: Any = sys.modules["deprecate"]
+        package.AS_EXCEPTIONS = self._previous.pop()
+
+
+def as_exceptions(enabled: bool = True) -> _ScopedSwitch:
     """Make deprecations fatal for one block of code, then restore the previous global setting.
 
     Sets ``deprecate.AS_EXCEPTIONS`` to ``enabled`` on entry and puts back the value it found on exit, also when
@@ -133,21 +169,25 @@ def as_exceptions(enabled: bool = True) -> Iterator[None]:
     ``as_exception=True`` raises inside an ``as_exceptions(False)`` block too.  Like the global itself, this is
     the consumer's switch (an application or a test suite), not something library code should set.
 
-    Also usable as a decorator, but only on plain synchronous functions: an ``async def`` or generator function
-    returns before its body runs, so the scope would close first and have no effect.
+    Also usable as a decorator, but only on plain synchronous functions: an ``async def``, generator or
+    async-generator function is rejected with a :class:`TypeError` at decoration time, because its body runs after
+    the scope would have closed.  Use ``with as_exceptions():`` inside such a body instead.
 
     The switch is a plain package attribute, so the scope is process-wide — not local to a thread or an
     ``asyncio`` task.  Code running concurrently with the block sees the same setting, and scopes opened from
-    several threads or tasks that overlap out of order can restore a stale value.
+    different threads or tasks that overlap out of order can leave the switch in the wrong state for the rest of
+    the process (for example ``True`` after both scopes have closed).  Do not hold a scope across an ``await`` in
+    concurrent code.
 
     Args:
         enabled: Value of ``deprecate.AS_EXCEPTIONS`` inside the block.
 
-    Raises:
-        TypeError: If ``enabled`` is not a ``bool``.
+    Returns:
+        A scope usable in a ``with`` statement or as a decorator for a synchronous function.
 
-    Yields:
-        Nothing; the block runs with the switch set.
+    Raises:
+        TypeError: If ``enabled`` is not a ``bool`` — raised by the call itself, so a bare ``@as_exceptions``
+            (without parentheses) fails at decoration instead of silently returning a wrapper.
 
     Examples:
         >>> import deprecate
@@ -164,16 +204,15 @@ def as_exceptions(enabled: bool = True) -> Iterator[None]:
         deprecate._fatal.DeprecatedError: The `legacy_total` was deprecated since v1.0. It will be removed in v2.0.
         >>> deprecate.AS_EXCEPTIONS
         False
+        >>> as_exceptions("1")
+        Traceback (most recent call last):
+        ...
+        TypeError: `enabled` must be a bool, got str
         >>> deprecate.AS_EXCEPTIONS = _restore
 
     """
     if not isinstance(enabled, bool):
         # the global ignores non-bool values, so accepting one would open a block that silently changes nothing
-        raise TypeError(f"`enabled` must be a bool, got {type(enabled).__name__}")
-    package: Any = sys.modules["deprecate"]  # the package's own attribute; typed Any to set it without a cycle
-    previous = getattr(package, "AS_EXCEPTIONS", _ENV_DEFAULT)
-    package.AS_EXCEPTIONS = enabled
-    try:
-        yield
-    finally:
-        package.AS_EXCEPTIONS = previous
+        hint = "; use `@as_exceptions()` with parentheses" if callable(enabled) else ""
+        raise TypeError(f"`enabled` must be a bool, got {type(enabled).__name__}{hint}")
+    return _ScopedSwitch(enabled)

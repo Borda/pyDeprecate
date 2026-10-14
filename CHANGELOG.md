@@ -4,7 +4,7 @@
 
 ### Added
 
-- **Scoped fatal deprecations — `as_exceptions()` context manager.** `with deprecate.as_exceptions():` sets `deprecate.AS_EXCEPTIONS` for one block and restores the previous value on exit, including when the block raises, so nested scopes compose; `as_exceptions(False)` exempts a block from a strict run, while a wrapper's own `as_exception=True` stays fatal. Also usable as a decorator on synchronous functions. The scope is process-wide, not per thread or task, and a non-`bool` flag raises `TypeError`. ([#240](https://github.com/Borda/pyDeprecate/pull/240))
+- **Scoped fatal deprecations — `as_exceptions()` context manager.** `with deprecate.as_exceptions():` sets `deprecate.AS_EXCEPTIONS` for one block and restores the previous value on exit, including when the block raises, so nested scopes compose; `as_exceptions(False)` exempts a block from a strict run, while a wrapper's own `as_exception=True` stays fatal. Also usable as a decorator on synchronous functions; `async def`, generator and async-generator functions are rejected with `TypeError` at decoration. The scope is process-wide, not per thread or task, so overlapping scopes from different threads or tasks can leave the switch in the wrong state, and a non-`bool` flag (including a bare `@as_exceptions`) raises `TypeError` at the call. ([#240](https://github.com/Borda/pyDeprecate/pull/240))
 
 ______________________________________________________________________
 
