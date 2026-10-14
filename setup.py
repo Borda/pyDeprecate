@@ -11,7 +11,7 @@ from setuptools import find_packages, setup
 
 _PATH_ROOT = os.path.realpath(os.path.dirname(__file__))
 _PATH_SOURCE = os.path.join(_PATH_ROOT, "src")
-_README_IMAGE_FILES = ("banner-pydeprecate.webp", "demo-docs-mkdocs.png", "demo-docs-sphinx.png")
+_README_IMAGE_FILES = ("path-illustration.webp", "demo-docs-mkdocs.png", "demo-docs-sphinx.png")
 
 
 def _load_py_module(fname: str, pkg: str = "deprecate") -> Any:  # noqa: ANN401
@@ -28,7 +28,7 @@ def _load_readme_description(path_dir: str, codebase_url: str, version: str) -> 
     """Load readme as description.
 
     >>> _load_readme_description(_PATH_ROOT, "",  "")
-    '# pyDeprecate...'
+    '<picture>...'
 
     """
     path_readme = os.path.join(path_dir, "README.md")
@@ -42,6 +42,8 @@ def _load_readme_description(path_dir: str, codebase_url: str, version: str) -> 
             f"(docs/assets/images/{image})",
             f"({github_source_url}/docs/assets/images/{image})",
         )
+    # brand assets are referenced from HTML <picture> attributes, not markdown parentheses
+    text = text.replace('"docs/assets/brand/', f'"{github_source_url}/docs/assets/brand/')
     text = text.replace(".github/", f"{github_source_url}/.github/")
 
     # codecov badge
