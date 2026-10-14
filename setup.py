@@ -28,7 +28,7 @@ def _load_readme_description(path_dir: str, codebase_url: str, version: str) -> 
     """Load readme as description.
 
     >>> _load_readme_description(_PATH_ROOT, "",  "")
-    '# pyDeprecate...'
+    '<picture>...'
 
     """
     path_readme = os.path.join(path_dir, "README.md")
