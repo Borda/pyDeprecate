@@ -59,7 +59,7 @@ ______________________________________________________________________
   - [Detecting Deprecation Chains](#detecting-deprecation-chains)
 - [🧪 Testing Deprecated Code](#testing-deprecated-code)
 - [🔧 Troubleshooting](#troubleshooting)
-- [🏷️ Show that you use pyDeprecate](#show-that-you-use-pydeprecate)
+- [🏷️ Show that you use pyDeprecate](#-show-that-you-use-pydeprecate)
 - [🤝 Contributing](#contributing)
 
 </details>

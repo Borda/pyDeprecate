@@ -350,7 +350,7 @@ pyDeprecate/
 │       └── skills/                        # Shared sunset and prune skills
 ├── docs/
 │   ├── assets/
-│   │   ├── brand/              # Curated brand subset (logos, icons, banners, social card) used by the site and README; full kit lives in the wiki
+│   │   ├── brand/              # Curated brand subset (logos, icons, PNG touch icon, banners, social card) used by the site and README; full kit lives in the wiki
 │   │   └── images/             # README and docs screenshots and path illustration
 │   └── guide/
 │       ├── migration.md        # Source-version upgrade paths assembled from compatibility deltas

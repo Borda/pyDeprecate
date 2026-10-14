@@ -16,7 +16,7 @@ Use the light logo on light backgrounds and the dark logo on dark backgrounds: [
 
 ## Mark
 
-![pyDeprecate mark](assets/brand/mark.svg){ width="160" }
+<img src="assets/brand/mark.svg" alt="pyDeprecate mark" width="160">
 
 The icon-only mark works on both light and dark backgrounds: [`mark.svg`](assets/brand/mark.svg).
 
@@ -31,7 +31,7 @@ The icon-only mark works on both light and dark backgrounds: [`mark.svg`](assets
 | Asset            | File                                                                                                | Use                                   |
 | ---------------- | --------------------------------------------------------------------------------------------------- | ------------------------------------- |
 | Favicon          | [`favicon.svg`](assets/brand/favicon.svg)                                                           | Browser tab icon of this site         |
-| Apple touch icon | [`apple-touch-icon.svg`](assets/brand/apple-touch-icon.svg)                                         | iOS home-screen icon                  |
+| Apple touch icon | [`apple-touch-icon.png`](assets/brand/apple-touch-icon.png)                                         | iOS home-screen icon                  |
 | Avatar           | [`avatar.svg`](assets/brand/avatar.svg)                                                             | Profile picture                       |
 | Social card      | [`social-preview.png`](assets/brand/social-preview.png) · [`.svg`](assets/brand/social-preview.svg) | Link previews (Open Graph, X/Twitter) |
 

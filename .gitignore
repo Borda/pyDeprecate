@@ -175,5 +175,5 @@ docs/demo-sphinx/*
 docs/demo-mkdocs/*
 !docs/demo-mkdocs/index.html
 
-# local raw brand dump; committed copy lives in .github/branding/
+# local raw brand dump; committed copy lives in docs/assets/brand/
 branding-raw/
