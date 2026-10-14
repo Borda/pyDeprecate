@@ -3,6 +3,8 @@
 {% block extrahead %}
 {{ super() }}
 
+<link rel="apple-touch-icon" href="{{ config.site_url.rstrip('/') }}/assets/brand/apple-touch-icon.png" />
+
 {% if page %}
 <!-- Open Graph meta tags -->
 <meta property="og:type" content="{% if page.file.src_path == 'index.md' %}website{% else %}article{% endif %}" />
@@ -10,15 +12,15 @@
 <meta property="og:description" content="{{ page.meta.description | d(config.site_description, true) }}" />
 <meta property="og:url" content="{{ page.canonical_url }}" />
 <meta property="og:site_name" content="{{ config.site_name }}" />
-<meta property="og:image" content="{{ config.site_url.rstrip('/') }}/assets/images/demo-docs-mkdocs.png" />
-<meta property="og:image:alt" content="pyDeprecate documentation" />
-<meta property="og:image:width" content="1280" />
-<meta property="og:image:height" content="640" />
+<meta property="og:image" content="{{ config.site_url.rstrip('/') }}/assets/brand/social-preview.png" />
+<meta property="og:image:alt" content="pyDeprecate — seamless API migration" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
 <meta property="og:locale" content="en_US" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="{% if page.file.src_path == 'index.md' %}pyDeprecate — Python Deprecation Decorator Library{% else %}{{ page.title }} — pyDeprecate{% endif %}" />
 <meta name="twitter:description" content="{{ page.meta.description | d(config.site_description, true) }}" />
-<meta name="twitter:image" content="{{ config.site_url.rstrip('/') }}/assets/images/demo-docs-mkdocs.png" />
+<meta name="twitter:image" content="{{ config.site_url.rstrip('/') }}/assets/brand/social-preview.png" />
 <meta name="twitter:image:alt" content="pyDeprecate documentation" />
 
 <!-- JSON-LD structured data -->
@@ -547,7 +549,7 @@
   "description": {{ page.meta.description | d(config.site_description, true) | tojson }},
   "url": {{ page.canonical_url | tojson }},
   "mainEntityOfPage": { "@type": "WebPage", "@id": {{ page.canonical_url | tojson }} },
-  "image": "{{ config.site_url.rstrip('/') }}/assets/images/demo-docs-mkdocs.png",
+  "image": "{{ config.site_url.rstrip('/') }}/assets/brand/social-preview.png",
   "author": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda", "image": "https://avatars.githubusercontent.com/u/6035284", "sameAs": ["https://github.com/Borda", "https://www.linkedin.com/in/jiraborovec", "https://orcid.org/0000-0001-7246-8758"] },
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] }{% if page.meta.git_creation_date_localized %},

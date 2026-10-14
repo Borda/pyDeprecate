@@ -1,6 +1,9 @@
-# pyDeprecate
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/brand/banner-dark.svg">
+  <img alt="pyDeprecate — seamless API migration" src="docs/assets/brand/banner-light.svg">
+</picture>
 
-![pyDeprecate — navigate API transitions smoothly without the chaos or crashes](docs/assets/images/banner-pydeprecate.webp)
+# pyDeprecate
 
 **Deprecate Python APIs without breaking existing callers.**
 
@@ -56,11 +59,14 @@ ______________________________________________________________________
   - [Detecting Deprecation Chains](#detecting-deprecation-chains)
 - [🧪 Testing Deprecated Code](#testing-deprecated-code)
 - [🔧 Troubleshooting](#troubleshooting)
+- [🏷️ Show that you use pyDeprecate](#-show-that-you-use-pydeprecate)
 - [🤝 Contributing](#contributing)
 
 </details>
 
 ## 📖 Overview
+
+![pyDeprecate — navigate API transitions smoothly without the chaos or crashes](docs/assets/images/path-illustration.webp)
 
 The common case is moving functionality across modules, packages, or public API names without breaking callers immediately. You keep the old entry point temporarily, show users what changed, and forward them to the replacement until the old name can be removed.
 
@@ -2474,6 +2480,16 @@ True
 **Cause:** pyDeprecate resolves the target path from `target.__module__` and `target.__qualname__` at decoration time — not at call time. If the target is imported via an alias or re-export at the point where `@deprecated` is applied, the stored path reflects the alias, not the canonical location.
 
 **Solution:** Import the target from its canonical module location before applying `@deprecated`. The deprecation notice will then show the fully-qualified path where the function actually lives.
+
+## 🏷️ Show that you use pyDeprecate
+
+If your project uses pyDeprecate, let others know that it has a clear deprecation path: callers get a warning, a forwarded call, and a removal deadline instead of a sudden break. Add the badge to your README:
+
+[![API migration by pyDeprecate](https://img.shields.io/badge/API%20migration%20by-pyDeprecate-EAA238?labelColor=%232E6893)](https://github.com/Borda/pyDeprecate)
+
+```markdown
+[![API migration by pyDeprecate](https://img.shields.io/badge/API%20migration%20by-pyDeprecate-EAA238?labelColor=%232E6893)](https://github.com/Borda/pyDeprecate)
+```
 
 ## 🤝 Contributing
 

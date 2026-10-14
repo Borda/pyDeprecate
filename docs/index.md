@@ -6,9 +6,9 @@ description: >-
   Python 3.9+.
 ---
 
-# pyDeprecate
+![pyDeprecate — seamless API migration](assets/brand/banner-light.svg#only-light) ![pyDeprecate — seamless API migration](assets/brand/banner-dark.svg#only-dark)
 
-![pyDeprecate — navigate API transitions smoothly without the chaos or crashes](assets/images/banner-pydeprecate.webp)
+# pyDeprecate
 
 **Author:** [Jiri Borovec](https://github.com/Borda) · **License:** Apache 2.0 · **Python:** 3.9+ · **Install:** `pip install pyDeprecate` · **Import:** `from deprecate import deprecated` · **PyPI:** https://pypi.org/project/pyDeprecate/
 
@@ -17,6 +17,8 @@ Every time you rename a function or retire an argument, you end up writing the s
 > **pyDeprecate has broad PyPI usage**. For current download statistics, see [pepy.tech](https://pepy.tech/project/pyDeprecate).
 >
 > **Read:** [Mastering API Deprecation in Python — the pain points and how pyDeprecate can help](https://medium.com/codex/mastering-api-deprecation-in-python-the-pain-points-and-how-pydeprecate-can-help-1dbfd90e2b62) — CodeX / Medium
+
+![pyDeprecate — navigate API transitions smoothly without the chaos or crashes](assets/images/path-illustration.webp)
 
 ```python
 from deprecate import deprecated
@@ -149,7 +151,18 @@ _Positioning guide reviewed for pyDeprecate v0.12.0, August 2026. This is not a 
 - [Compare Python Deprecation Tools](guide/compare-python-deprecation-tools.md) — detailed feature matrix against `warnings.warn`, `deprecation`, `wrapt`, and `warnings.deprecated`.
 - [Agent Recipes](guide/agent-recipes.md) — copy-paste patterns for AI coding assistants.
 - [Troubleshooting](troubleshooting.md) — common errors and how to fix them.
+- [Brand](brand.md) — logos, colors, banners, and the "API migration by pyDeprecate" badge.
 - [Sphinx demo](demo-sphinx/index.html) · [MkDocs demo](demo-mkdocs/index.html) — live rendered output.
+
+## Show that you use pyDeprecate
+
+If your project uses pyDeprecate, let others know that it has a clear deprecation path: callers get a warning, a forwarded call, and a removal deadline instead of a sudden break. Add the badge to your README:
+
+[![API migration by pyDeprecate](https://img.shields.io/badge/API%20migration%20by-pyDeprecate-EAA238?labelColor=%232E6893)](https://github.com/Borda/pyDeprecate)
+
+```markdown
+[![API migration by pyDeprecate](https://img.shields.io/badge/API%20migration%20by-pyDeprecate-EAA238?labelColor=%232E6893)](https://github.com/Borda/pyDeprecate)
+```
 
 ## Compatibility and fit
 

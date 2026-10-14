@@ -1,3 +1,34 @@
+/* pyDeprecate brand palette: ink header, route-blue links, redirect-gold accent */
+:root,
+[data-md-color-scheme="default"] {
+  --md-primary-fg-color: #1b2330;
+  --md-primary-fg-color--light: #3b5370;
+  --md-primary-fg-color--dark: #10151e;
+  --md-primary-bg-color: #f7f9fc;
+  --md-primary-bg-color--light: #c9d4e2;
+  --md-accent-fg-color: #b8730a;
+  --md-accent-fg-color--transparent: rgb(184 115 10 / 10%);
+  --md-typeset-a-color: #2e6893;
+}
+
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: #10151e;
+  --md-primary-fg-color--light: #3b5370;
+  --md-primary-fg-color--dark: #0a0e14;
+  --md-primary-bg-color: #f7f9fc;
+  --md-primary-bg-color--light: #9fb3c8;
+  --md-default-bg-color: #161b24;
+  --md-default-bg-color--light: rgb(22 27 36 / 54%);
+  --md-default-bg-color--lighter: rgb(22 27 36 / 26%);
+  --md-default-bg-color--lightest: rgb(22 27 36 / 7%);
+  --md-code-bg-color: #1e2530;
+  --md-footer-bg-color: #10151e;
+  --md-footer-bg-color--dark: #0a0e14;
+  --md-accent-fg-color: #eaa238;
+  --md-accent-fg-color--transparent: rgb(234 162 56 / 10%);
+  --md-typeset-a-color: #4c94cb;
+}
+
 .md-content .md-typeset a {
   text-decoration: underline;
   text-underline-offset: 0.12em;
@@ -9,4 +40,10 @@
 
 .md-footer .md-copyright {
   color: #8a8a8a;
+}
+
+/* header logo: the mark is drawn for a dark ground, give it room */
+.md-header__button.md-logo img {
+  height: 1.6rem;
+  width: auto;
 }
