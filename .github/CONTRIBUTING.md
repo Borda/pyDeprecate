@@ -370,8 +370,7 @@ pyDeprecate/
 │       └── audit/                  # One test__<module>.py per audit submodule (_wrappers, _scan, _lifecycle, _policy, _report)
 ├── .github/
 │   ├── scripts/                # Pre-commit helper scripts (plugin compat-floor check)
-│   ├── skills/
-│   │   └── code-review/SKILL.md # Shared specialist review process for GitHub-hosted and local agents
+│   ├── skills/code-review/ # Shared specialist review process for GitHub-hosted and local agents
 │   ├── workflows/              # CI/CD pipelines
 │   └── *.md                    # Documentation and guidelines
 ├── pyproject.toml              # Project config (ruff, mypy, pytest)
