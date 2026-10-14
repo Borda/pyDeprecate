@@ -576,7 +576,7 @@ with as_exceptions(False):  # exempt this call, so the output holds even under D
 ```
 
 <details>
-  <summary>Output: <code>legacy_total(1, 2)</code> inside and after the block</summary>
+  <summary>Output: <code>legacy_total(1, 2)</code> in the strict block, then in the exempt block</summary>
 
 ```
 Use `calculate_total` instead.
