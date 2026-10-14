@@ -39,6 +39,7 @@ Decorator-form equivalents (same deprecated_class config as Wrapped* — for par
 
 """
 
+import logging
 from collections.abc import AsyncIterator, Iterator
 from dataclasses import dataclass
 from enum import Enum
@@ -2905,7 +2906,29 @@ def make_deprecated_hostile_signature_instance() -> Any:  # noqa: ANN401
 # constants block alongside the other shared version-kwargs constants.
 # ---------------------------------------------------------------------------------------------------------
 
-scoped_switch_warn_only = deprecated(target=double_value, **_DEPRS_CASE_STD_INF_ARGS)(identity_value)
+depr_scoped_switch_warn_only = deprecated(target=double_value, **_DEPRS_CASE_STD_INF_ARGS)(identity_value)
+
+#: Callable deprecation routed through ``logging.warning`` instead of the warnings machinery; defers to the global.
+depr_scoped_switch_log_stream = deprecated(
+    target=TargetMode.NOTIFY, stream=logging.warning, **_DEPRS_CASE_STD_INF_ARGS
+)(identity_value)
+
+
+@deprecated_class(**_DEPRS_CASE_STD_INF_ARGS)
+class DeprecatedScopedSwitchWidget:
+    """Class whose deprecation defers to the global switch — it warns until a scope makes it fatal."""
+
+    DEFAULT_SIZE = 3
+
+    def __init__(self, size: int = 1) -> None:
+        """Store the widget size."""
+        self.size = size
+
+
+#: Instance deprecation that defers to the global switch — reading a key warns until a scope makes it fatal.
+depr_scoped_switch_settings = deprecated_instance(
+    {"threshold": 0.5}, name="depr_scoped_switch_settings", **_DEPRS_CASE_STD_INF_ARGS
+)
 
 
 @deprecated(target=base_sum_kwargs, **_DEPRS_CASE_FATAL_ARGS)

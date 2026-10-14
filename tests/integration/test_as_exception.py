@@ -23,6 +23,7 @@ from deprecate import (
 )
 from tests import collection_modules
 from tests.collection_deprecate import (
+    DeprecatedScopedSwitchWidget,
     FatalLegacyWidget,
     FatalLegacyWidgetViaFrontDoor,
     decorated_args_fatal,
@@ -33,12 +34,21 @@ from tests.collection_deprecate import (
     decorated_sum_fatal_notify,
     decorated_sum_fatal_opt_out,
     decorated_sum_fatal_skipped,
+    depr_scoped_switch_log_stream,
+    depr_scoped_switch_settings,
+    depr_scoped_switch_warn_only,
     fatal_legacy_settings,
-    scoped_switch_warn_only,
     wrapped_sum,
 )
-from tests.collection_modules import fatal_utils
-from tests.collection_targets import base_sum_kwargs, double_value, identity_value
+from tests.collection_modules import fatal_utils, old_stats
+from tests.collection_targets import (
+    async_gen_target,
+    async_target,
+    base_sum_kwargs,
+    double_value,
+    gen_target,
+    identity_value,
+)
 
 _VERSION_ARGS: dict[str, Any] = {"deprecated_in": "1.0", "remove_in": "2.0"}
 
@@ -320,10 +330,14 @@ class TestScopedSwitch:
     """The `as_exceptions()` context manager that flips the global switch for one block and restores it."""
 
     @pytest.fixture
-    def warn_only(self, monkeypatch: pytest.MonkeyPatch) -> Callable[[int], int]:
-        """A wrapper that defers to the global and warns on every call, with the global pinned off."""
+    def global_off(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Pin the process-wide switch off, so a scope is the only thing that can make a deprecation fatal."""
         monkeypatch.setattr(deprecate, "AS_EXCEPTIONS", False)
-        return scoped_switch_warn_only
+
+    @pytest.fixture
+    def warn_only(self, global_off: None) -> Callable[[int], int]:
+        """A wrapper that defers to the global and warns on every call, with the global pinned off."""
+        return depr_scoped_switch_warn_only
 
     def test_block_is_fatal_and_warnings_return_after(self, warn_only: Callable[[int], int]) -> None:
         """Inside the block a deferring wrapper raises; after the block it warns again.
@@ -407,3 +421,142 @@ class TestScopedSwitch:
             with pytest.raises(DeprecatedError):
                 _strict_call()
         assert deprecate.AS_EXCEPTIONS is False
+
+    @pytest.mark.parametrize("enabled", ["1", 1, None])
+    def test_decorator_with_a_non_bool_flag_fails_at_decoration(self, enabled: object, global_off: None) -> None:
+        """`@as_exceptions("1")` raises when the decorator is built, before the function is ever called.
+
+        A flag copied from the environment-variable spelling would otherwise decorate cleanly and only fail on
+        the first call of the decorated function, far from the typo — or never, if that call sits on a rare path.
+        """
+        with pytest.raises(TypeError, match="enabled"):
+
+            @as_exceptions(enabled)  # type: ignore[arg-type]
+            def _never_decorated() -> int:
+                return 0
+
+        assert deprecate.AS_EXCEPTIONS is False
+
+    def test_bare_decorator_without_parentheses_fails_at_decoration(self, global_off: None) -> None:
+        """`@as_exceptions` with no parentheses is rejected with a pointer to the right spelling.
+
+        Without the guard the function becomes the `enabled` flag and the name is rebound to a scope object, so
+        calling it runs nothing at all — a strict test that looks armed but silently executes no body.
+        """
+        with pytest.raises(TypeError, match="parentheses"):
+
+            @as_exceptions  # type: ignore[arg-type]
+            def _forgot_parentheses(x: int) -> int:
+                return x
+
+        assert deprecate.AS_EXCEPTIONS is False
+
+    @pytest.mark.parametrize(
+        "target",
+        [
+            pytest.param(async_target, id="coroutine"),
+            pytest.param(gen_target, id="generator"),
+            pytest.param(async_gen_target, id="async-generator"),
+        ],
+    )
+    def test_decorator_rejects_functions_whose_body_runs_after_the_scope(
+        self, target: Callable[..., Any], global_off: None
+    ) -> None:
+        """Decorating a coroutine, generator or async generator function raises `TypeError` at decoration.
+
+        Calling such a function only builds an object; its body runs later, after the scope has closed. Letting
+        it through would make `@as_exceptions()` on a pytest-asyncio test pass green without strict mode.
+        """
+        with pytest.raises(TypeError, match="with as_exceptions"):
+            as_exceptions()(target)
+        assert deprecate.AS_EXCEPTIONS is False
+
+    @pytest.mark.parametrize(
+        "access",
+        [
+            pytest.param(lambda: depr_scoped_switch_warn_only(2), id="callable"),
+            pytest.param(lambda: DeprecatedScopedSwitchWidget(2), id="class-instantiation"),
+            pytest.param(lambda: DeprecatedScopedSwitchWidget.DEFAULT_SIZE, id="class-attribute"),
+            pytest.param(lambda: depr_scoped_switch_settings["threshold"], id="instance-item"),
+            pytest.param(lambda: old_stats.mean([1.0, 3.0]), id="module-attribute"),
+            pytest.param(lambda: depr_scoped_switch_log_stream(2), id="non-warnings-stream"),
+        ],
+    )
+    def test_scope_reaches_every_deprecation_entry_point(self, access: Callable[[], Any], global_off: None) -> None:
+        """A scope turns deprecations fatal on every entry point, not only on plain `@deprecated` callables.
+
+        Class proxies, instance proxies, whole-module wrappers and wrappers routed through `logging.warning`
+        each resolve the switch on their own emission path; a strict section that only covered callables would
+        let the others keep warning inside a block the caller believes is strict.
+        """
+        with as_exceptions(), pytest.raises(DeprecatedError):
+            access()
+
+    def test_out_of_order_overlap_leaves_a_stale_value(self, global_off: None) -> None:
+        """Two scopes that exit in the opposite order of entry leave the switch on after both have closed.
+
+        This pins the documented process-wide limitation: thread A opens a scope, thread B opens `False`, A
+        closes, B closes — B restores the `True` it saw when A had already changed the switch. The interleaving
+        is driven by hand so the outcome is deterministic instead of depending on thread timing.
+        """
+        first, second = as_exceptions(), as_exceptions(False)
+        first.__enter__()
+        second.__enter__()
+        first.__exit__(None, None, None)
+        second.__exit__(None, None, None)
+        assert deprecate.AS_EXCEPTIONS is True
+
+    def test_one_scope_object_can_be_entered_twice(self, global_off: None) -> None:
+        """Re-entering the same scope object unwinds in order and ends on the original value.
+
+        Helpers that keep `scope = as_exceptions()` at module level and reuse it from nested callers must not
+        have the inner exit overwrite the saved value of the outer one.
+        """
+        scope = as_exceptions()
+        with scope, scope:
+            inside = deprecate.AS_EXCEPTIONS
+        assert (inside, deprecate.AS_EXCEPTIONS) == (True, False)
+
+    @pytest.mark.parametrize("prior", ["strict", None, True])
+    def test_prior_value_is_restored_verbatim(self, prior: object, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Whatever the attribute held before the block — even a non-`bool` — is put back unchanged.
+
+        Test suites and bootstrap code assign the attribute directly, sometimes with a value the switch itself
+        ignores; the scope must hand back exactly that object rather than normalising it to a `bool`.
+        """
+        monkeypatch.setattr(deprecate, "AS_EXCEPTIONS", prior)
+        with as_exceptions():
+            pass
+        assert deprecate.AS_EXCEPTIONS is prior
+
+    def test_deleted_attribute_comes_back_as_the_import_time_value(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A scope opened after `deprecate.AS_EXCEPTIONS` was deleted restores the import-time value.
+
+        The attribute is plain module state and `monkeypatch.delattr` or cleanup code can remove it; the scope
+        must neither crash on entry nor leave the attribute missing afterwards.
+        """
+        monkeypatch.delattr(deprecate, "AS_EXCEPTIONS")
+        with as_exceptions():
+            pass
+        assert deprecate.AS_EXCEPTIONS is AS_EXCEPTIONS
+
+    def test_restores_when_the_block_exits_with_a_base_exception(self, global_off: None) -> None:
+        """A `KeyboardInterrupt` leaving the block still restores the previous value.
+
+        Ctrl-C during a strict section of a long test run is the realistic non-`Exception` exit; leaving the
+        process strict afterwards would turn every later warning in the session into a failure.
+        """
+        with pytest.raises(KeyboardInterrupt), as_exceptions():
+            raise KeyboardInterrupt
+        assert deprecate.AS_EXCEPTIONS is False
+
+    def test_enabling_under_an_already_true_global_changes_nothing(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """`as_exceptions(True)` under a `True` global leaves the switch `True` inside and after the block.
+
+        Library test helpers open a strict scope unconditionally; running them under a CI job that already set
+        `DEPRECATE_AS_EXCEPTIONS=1` must not flip anything off on exit.
+        """
+        monkeypatch.setattr(deprecate, "AS_EXCEPTIONS", True)
+        with as_exceptions():
+            inside = deprecate.AS_EXCEPTIONS
+        assert (inside, deprecate.AS_EXCEPTIONS) == (True, True)
