@@ -1,4 +1,4 @@
-"""Fatal-deprecation switch: the public :class:`DeprecatedError` plus the global ``AS_EXCEPTIONS`` resolution.
+"""Fatal deprecations: :class:`DeprecatedError`, the global switch and the scoped :func:`as_exceptions`.
 
 A deprecation can be promoted from a warning to a raised :class:`DeprecatedError`, either per wrapper
 (``as_exception=True``) or process-wide (``deprecate.AS_EXCEPTIONS`` / the ``DEPRECATE_AS_EXCEPTIONS``
@@ -99,8 +99,9 @@ def _resolve_as_exception(as_exception: Optional[bool]) -> bool:
 
     An explicit ``True`` always makes the wrapper fatal, so an author can promote one symbol ahead of the
     rest.  An explicit ``False`` means "not fatal by default" and still yields to a ``True`` global, so a
-    consumer running with ``DEPRECATE_AS_EXCEPTIONS=1`` gets a strict mode that no upstream wrapper can opt
-    out of.  ``None`` (the default) simply follows the global.
+    consumer running with ``DEPRECATE_AS_EXCEPTIONS=1`` gets a strict mode that no wrapper's own
+    ``as_exception=False`` can opt out of (only the consumer's own :func:`as_exceptions` scope can).  ``None``
+    (the default) simply follows the global.
 
     Args:
         as_exception: The wrapper's configured value, or ``None`` to defer to the global.

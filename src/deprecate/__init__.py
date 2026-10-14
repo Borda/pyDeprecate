@@ -20,6 +20,11 @@ Core Components:
       raises :class:`TypeError` when applied to a class
     - :func:`~deprecate.utils.void`: Silences IDE and mypy warnings about unused parameters in deprecated stubs
 
+**Fatal deprecations** (:mod:`deprecate._fatal`):
+    - :class:`~deprecate._fatal.DeprecatedError`: Raised instead of a warning when a deprecation is fatal
+    - :func:`~deprecate._fatal.as_exceptions`: Context manager and decorator that makes deprecations fatal for one
+      block of code and restores the previous ``deprecate.AS_EXCEPTIONS`` setting on exit
+
 **Audit** (:mod:`deprecate.audit`):
     - :func:`~deprecate.audit.validate_deprecation_wrapper`: Validate a single wrapper's configuration
     - :func:`~deprecate.audit.find_deprecation_wrappers`: Scan a package for all deprecated wrappers
