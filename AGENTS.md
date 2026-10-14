@@ -12,6 +12,10 @@
 
 When a proposed feature conflicts with simplicity, complexity wins only when robustness or flexibility requires it.
 
+## 👀 Code Review
+
+For pull request or changed-code reviews, follow the [code-review skill](.github/skills/code-review/SKILL.md). Keep reviews read-only; implementation, dependency installation, commits, and PR creation require a separate implementation task. Project-wide coding and documentation invariants below remain applicable review criteria.
+
 ## ⚓ Before Any Work: Anchor with Repository Context
 
 > [!IMPORTANT]
@@ -165,7 +169,7 @@ This file provides quick reference for agents. For complete, authoritative guide
 - **Coding standards** → [Contributing: Coding Standards](.github/CONTRIBUTING.md#-coding-standards)
 - **Testing requirements** → [Contributing: Tests and Quality](.github/CONTRIBUTING.md#-tests-and-quality-assurance)
 - **PR process** → [Contributing: Pull Requests](.github/CONTRIBUTING.md#-pull-requests)
-- **PR review guidelines** → [Contributing: Reviewing PRs](.github/CONTRIBUTING.md#reviewing-prs)
+- **PR review process** → [Code-review skill](.github/skills/code-review/SKILL.md)
 - **Security reporting** → [Security Policy](.github/SECURITY.md)
 - **Community guidelines** → [Code of Conduct](.github/CODE_OF_CONDUCT.md)
 - **Documentation site** → [Contributing: Documentation Site](.github/CONTRIBUTING.md#-documentation-site)
