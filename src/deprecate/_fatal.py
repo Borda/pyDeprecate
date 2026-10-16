@@ -143,7 +143,12 @@ class _ScopedSwitch(ContextDecorator):
         return _ScopedSwitch(self._enabled)
 
     def __call__(self, func: _F) -> _F:
-        if inspect.iscoroutinefunction(func) or inspect.isgeneratorfunction(func) or inspect.isasyncgenfunction(func):
+        if any(
+            inspect.iscoroutinefunction(candidate)
+            or inspect.isgeneratorfunction(candidate)
+            or inspect.isasyncgenfunction(candidate)
+            for candidate in (func, inspect.unwrap(func))
+        ):
             name = getattr(func, "__qualname__", repr(func))
             raise TypeError(
                 f"`as_exceptions` cannot decorate `{name}`: its body runs after the scope would have closed;"
