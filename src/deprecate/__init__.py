@@ -20,6 +20,11 @@ Core Components:
       raises :class:`TypeError` when applied to a class
     - :func:`~deprecate.utils.void`: Silences IDE and mypy warnings about unused parameters in deprecated stubs
 
+**Fatal deprecations** (:mod:`deprecate._fatal`):
+    - :class:`~deprecate._fatal.DeprecatedError`: Raised instead of a warning when a deprecation is fatal
+    - :func:`~deprecate._fatal.as_exceptions`: Context manager and decorator that makes deprecations fatal for one
+      block of code and restores the previous ``deprecate.AS_EXCEPTIONS`` setting on exit
+
 **Audit** (:mod:`deprecate.audit`):
     - :func:`~deprecate.audit.validate_deprecation_wrapper`: Validate a single wrapper's configuration
     - :func:`~deprecate.audit.find_deprecation_wrappers`: Scan a package for all deprecated wrappers
@@ -83,7 +88,7 @@ Complete Documentation:
 """
 
 from deprecate.__about__ import *  # noqa: F403
-from deprecate._fatal import DeprecatedError, _env_as_exceptions
+from deprecate._fatal import DeprecatedError, _env_as_exceptions, as_exceptions
 
 # Opt-in strict ``property`` replacement: ``from deprecate import property`` shadows the builtin
 # in the importing module only, rejecting inner-order ``@property @deprecated`` at class-body time.
@@ -138,6 +143,7 @@ __all__ = [
     "TableStyle",
     "TargetMode",
     "VersionBump",
+    "as_exceptions",
     "assert_no_warnings",
     "deprecated",
     "deprecated_callable",

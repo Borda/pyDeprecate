@@ -12,6 +12,7 @@ import pytest
 
 from deprecate import (
     TargetMode,
+    as_exceptions,
     deprecated,
     deprecated_class,
     deprecated_instance,
@@ -169,6 +170,7 @@ _SKILL_SKIP_TOKENS = frozenset(
 _SKILL_CALLABLES = {
     fn.__name__: fn
     for fn in (
+        as_exceptions,
         deprecated,
         deprecated_class,
         deprecated_instance,
@@ -228,3 +230,29 @@ def test_skill_docs_reference_real_api() -> None:
             unresolved += [f"{skill_path.name}:{p}" for p in _call_form_problems(callee, args)]
 
     assert not unresolved, f"SKILL.md references identifiers not found in the installed API: {unresolved}"
+
+
+_PYTHON_FENCE_RE = re.compile(r"^```python\n(.*?)^```", re.DOTALL | re.MULTILINE)
+
+
+def _uncompilable_fences(body: str) -> list[str]:
+    """Describe every Python fence in a Markdown body that is not syntactically valid Python."""
+    problems: list[str] = []
+    for index, code in enumerate(_PYTHON_FENCE_RE.findall(body)):
+        try:
+            compile(code, f"fence {index}", "exec")
+        except SyntaxError as err:
+            problems.append(f"fence {index}: {err.msg} (line {err.lineno})")
+    return problems
+
+
+@pytest.mark.parametrize("skill_path", [pytest.param(path, id=path.parent.name) for path in _SKILL_PATHS])
+def test_skill_python_fences_compile(skill_path: Path) -> None:
+    """Every Python fence in an agent-facing SKILL.md is syntactically valid.
+
+    Agents copy these snippets verbatim into a consumer's code. A duplicated `if` line once shipped a fallback
+    snippet that raised `IndentationError` on `compile()`, and no other check reads fence bodies: the identifier
+    guard above only matches backticked tokens, and the docs example runner does not cover `plugins/`.
+    """
+    problems = _uncompilable_fences(skill_path.read_text(encoding="utf-8"))
+    assert not problems, f"{skill_path.name} has Python fences that do not compile: {problems}"

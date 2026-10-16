@@ -200,6 +200,8 @@ That's it! All calls to `addition()` are automatically forwarded to `compute_sum
 >
 > When `target=<callable>` is set, pyDeprecate intercepts the call **before** the body executes — the body is dead code under normal forwarding. **Exception**: if `skip_if` evaluates `True` at call time, the source body runs as the fallback, so keep a working implementation when combining `target=<callable>` with `skip_if`.
 
+On the development line, `with deprecate.as_exceptions():` makes pyDeprecate deprecations fatal for one block and restores the previous setting afterward; see [fatal deprecations](https://borda.github.io/pyDeprecate/dev/guide/functions.html#the-global-switch) for scope limits and migration details.
+
 ## 🗺 API at a Glance
 
 Not sure which API to reach for? Start here.
@@ -780,7 +782,9 @@ Flip every deprecation at once with the process-wide switch — `deprecate.AS_EX
 DEPRECATE_AS_EXCEPTIONS=1 pytest   # every pyDeprecate deprecation your code triggers now fails the run
 ```
 
-Precedence is **monotonic**: an explicit `as_exception=True` is always fatal, while `as_exception=False` means "not fatal by default" and still yields to a `True` global — so a consumer's strict run cannot be opted out of by the library that declared the deprecation.
+For one stretch of code only, `with deprecate.as_exceptions():` sets the switch and restores the previous value on exit, also when the block raises; `as_exceptions(False)` exempts a block from a strict run. The scope is process-wide, not per thread or task: overlapping scopes from different threads or tasks can leave the switch in the wrong state for the rest of the process, and the decorator form rejects `async def` and generator functions with `TypeError`.
+
+Precedence is **monotonic**: an explicit `as_exception=True` is always fatal, while `as_exception=False` means "not fatal by default" and still yields to a `True` global — so a wrapper's own `as_exception=False` cannot opt a consumer's strict run out; only the consumer's own `as_exceptions(False)` scope or `AS_EXCEPTIONS` setting can.
 
 > [!TIP]
 >

@@ -1,4 +1,4 @@
-"""Fatal-deprecation switch: the public :class:`DeprecatedError` plus the global ``AS_EXCEPTIONS`` resolution.
+"""Fatal deprecations: :class:`DeprecatedError`, the global switch and the scoped :func:`as_exceptions`.
 
 A deprecation can be promoted from a warning to a raised :class:`DeprecatedError`, either per wrapper
 (``as_exception=True``) or process-wide (``deprecate.AS_EXCEPTIONS`` / the ``DEPRECATE_AS_EXCEPTIONS``
@@ -13,9 +13,13 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 
 """
 
+import inspect
 import os
 import sys
-from typing import Optional
+from contextlib import ContextDecorator
+from typing import Any, Callable, Optional, TypeVar
+
+_F = TypeVar("_F", bound=Callable[..., Any])
 
 #: Environment variable read once at import to seed ``deprecate.AS_EXCEPTIONS``.  The prefix matches the
 #: package's other environment variable, ``DEPRECATE_DOCSTRING_STYLE``.
@@ -95,8 +99,9 @@ def _resolve_as_exception(as_exception: Optional[bool]) -> bool:
 
     An explicit ``True`` always makes the wrapper fatal, so an author can promote one symbol ahead of the
     rest.  An explicit ``False`` means "not fatal by default" and still yields to a ``True`` global, so a
-    consumer running with ``DEPRECATE_AS_EXCEPTIONS=1`` gets a strict mode that no upstream wrapper can opt
-    out of.  ``None`` (the default) simply follows the global.
+    consumer running with ``DEPRECATE_AS_EXCEPTIONS=1`` gets a strict mode that no wrapper's own
+    ``as_exception=False`` can opt out of (only the consumer's own :func:`as_exceptions` scope can).  ``None``
+    (the default) simply follows the global.
 
     Args:
         as_exception: The wrapper's configured value, or ``None`` to defer to the global.
@@ -119,3 +124,101 @@ def _resolve_as_exception(as_exception: Optional[bool]) -> bool:
 
     """
     return as_exception is True or _global_as_exceptions()
+
+
+class _ScopedSwitch(ContextDecorator):
+    """Context manager and function decorator returned by :func:`as_exceptions`.
+
+    A class rather than a ``@contextmanager`` generator so that decorating a function whose body would run after the
+    scope has closed fails at decoration time instead of silently doing nothing.
+
+    """
+
+    def __init__(self, enabled: bool) -> None:
+        self._enabled = enabled
+        self._previous: list[Any] = []  # one saved value per open entry, so a reused instance unwinds in order
+
+    def _recreate_cm(self) -> "_ScopedSwitch":
+        # a fresh instance per decorated call: a recursive or concurrent call then saves and restores its own value
+        return _ScopedSwitch(self._enabled)
+
+    def __call__(self, func: _F) -> _F:
+        if any(
+            inspect.iscoroutinefunction(candidate)
+            or inspect.isgeneratorfunction(candidate)
+            or inspect.isasyncgenfunction(candidate)
+            for candidate in (func, inspect.unwrap(func))
+        ):
+            name = getattr(func, "__qualname__", repr(func))
+            raise TypeError(
+                f"`as_exceptions` cannot decorate `{name}`: its body runs after the scope would have closed;"
+                " use `with as_exceptions():` inside the body instead"
+            )
+        return super().__call__(func)
+
+    def __enter__(self) -> None:
+        package: Any = sys.modules["deprecate"]  # the package's own attribute; typed Any to set it without a cycle
+        self._previous.append(getattr(package, "AS_EXCEPTIONS", _ENV_DEFAULT))
+        package.AS_EXCEPTIONS = self._enabled
+
+    def __exit__(self, *exc_info: object) -> None:
+        package: Any = sys.modules["deprecate"]
+        package.AS_EXCEPTIONS = self._previous.pop()
+
+
+def as_exceptions(enabled: bool = True) -> _ScopedSwitch:
+    """Make deprecations fatal for one block of code, then restore the previous global setting.
+
+    Sets ``deprecate.AS_EXCEPTIONS`` to ``enabled`` on entry and puts back the value it found on exit, also when
+    the block raises, so nested scopes compose.  ``as_exceptions(False)`` exempts a block from a strict run
+    (e.g. one seeded by ``DEPRECATE_AS_EXCEPTIONS=1``).  Precedence stays monotonic: a wrapper's own
+    ``as_exception=True`` raises inside an ``as_exceptions(False)`` block too.  Like the global itself, this is
+    the consumer's switch (an application or a test suite), not something library code should set.
+
+    Also usable as a decorator, but only on plain synchronous functions: an ``async def``, generator or
+    async-generator function is rejected with a :class:`TypeError` at decoration time, because its body runs after
+    the scope would have closed.  Use ``with as_exceptions():`` inside such a body instead.
+
+    The switch is a plain package attribute, so the scope is process-wide — not local to a thread or an
+    ``asyncio`` task.  Code running concurrently with the block sees the same setting, and scopes opened from
+    different threads or tasks that overlap out of order can leave the switch in the wrong state for the rest of
+    the process (for example ``True`` after both scopes have closed).  Do not hold a scope across an ``await`` in
+    concurrent code.
+
+    Args:
+        enabled: Value of ``deprecate.AS_EXCEPTIONS`` inside the block.
+
+    Returns:
+        A scope usable in a ``with`` statement or as a decorator for a synchronous function.
+
+    Raises:
+        TypeError: If ``enabled`` is not a ``bool`` — raised by the call itself, so a bare ``@as_exceptions``
+            (without parentheses) fails at decoration instead of silently returning a wrapper.
+
+    Examples:
+        >>> import deprecate
+        >>> from deprecate import DeprecatedError, TargetMode, deprecated
+        >>> @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0", num_warns=-1)
+        ... def legacy_total(a: int, b: int) -> int:
+        ...     return a + b
+        >>> _restore = deprecate.AS_EXCEPTIONS  # this doctest assumes the global is off; put it back afterwards
+        >>> deprecate.AS_EXCEPTIONS = False
+        >>> with as_exceptions():
+        ...     legacy_total(1, 2)
+        Traceback (most recent call last):
+        ...
+        deprecate._fatal.DeprecatedError: The `legacy_total` was deprecated since v1.0. It will be removed in v2.0.
+        >>> deprecate.AS_EXCEPTIONS
+        False
+        >>> as_exceptions("1")
+        Traceback (most recent call last):
+        ...
+        TypeError: `enabled` must be a bool, got str
+        >>> deprecate.AS_EXCEPTIONS = _restore
+
+    """
+    if not isinstance(enabled, bool):
+        # the global ignores non-bool values, so accepting one would open a block that silently changes nothing
+        hint = "; use `@as_exceptions()` with parentheses" if callable(enabled) else ""
+        raise TypeError(f"`enabled` must be a bool, got {type(enabled).__name__}{hint}")
+    return _ScopedSwitch(enabled)

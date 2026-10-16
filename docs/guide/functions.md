@@ -542,7 +542,52 @@ The `legacy_checksum` was deprecated since v1.0. It will be removed in v2.0.
 DEPRECATE_AS_EXCEPTIONS=1 pytest
 ```
 
-Precedence is **monotonic**: an explicit `as_exception=True` is always fatal, and `as_exception=False` means "not fatal by default" but still yields to a `True` global. A consumer's strict run therefore cannot be opted out of by the library that declared the deprecation, while an author can still promote one symbol ahead of the rest.
+To make deprecations fatal for one stretch of code only, use the `as_exceptions()` context manager. It sets `deprecate.AS_EXCEPTIONS` on entry and restores the previous value on exit, also when the block raises, so nested scopes compose. `as_exceptions(False)` does the reverse and exempts a block from a strict run. It also works as a decorator.
+
+```python
+from deprecate import DeprecatedError, as_exceptions, deprecated
+
+
+# NEW API — replacement that calculates the total
+def calculate_total(a: int, b: int) -> int:
+    return a + b
+
+
+# DEPRECATED API — `legacy_total` now forwards to `calculate_total`
+@deprecated(
+    target=calculate_total,
+    deprecated_in="1.0",
+    remove_in="2.0",
+    message_template="Use `calculate_total` instead.",
+    num_warns=-1,
+)
+def legacy_total(a: int, b: int) -> int:
+    pass
+
+
+try:
+    with as_exceptions():
+        legacy_total(1, 2)
+except DeprecatedError as err:
+    print(err)
+
+with as_exceptions(False):  # exempt this call, so the output holds even under DEPRECATE_AS_EXCEPTIONS=1
+    print(legacy_total(1, 2))  # warns: FutureWarning
+```
+
+<details>
+  <summary>Output: <code>legacy_total(1, 2)</code> in the strict block, then in the exempt block</summary>
+
+```
+Use `calculate_total` instead.
+3
+```
+
+</details>
+
+The scope is process-wide, not local to a thread or an `asyncio` task: code running concurrently with the block sees the same setting, and scopes opened from different threads or tasks that overlap out of order can leave the switch in the wrong state for the rest of the process (for example `True` after both scopes closed), so do not hold a scope across an `await` in concurrent code. As a decorator it only covers plain synchronous functions: decorating an `async def`, generator or async-generator function raises `TypeError`, because its body would run after the scope closed — use `with as_exceptions():` inside the body instead. A non-`bool` flag, including a bare `@as_exceptions` without parentheses, raises `TypeError` at the call. Like `deprecate.AS_EXCEPTIONS` itself, it is the consumer's switch (an application or test suite); library code should not use `as_exceptions(False)` to escape a caller's strict run.
+
+Precedence is **monotonic**: an explicit `as_exception=True` is always fatal, and `as_exception=False` means "not fatal by default" but still yields to a `True` global. A wrapper's own `as_exception=False` therefore cannot opt a consumer's strict run out; only the consumer's own `as_exceptions(False)` scope or `AS_EXCEPTIONS` setting can, while an author can still promote one symbol ahead of the rest.
 
 ### When to prefer `-W error` instead
 
