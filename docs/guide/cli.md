@@ -136,6 +136,8 @@ pydeprecate status tests --version 1.2
 
 A bare `pydeprecate policy src/mypackage` therefore runs a recursive scan, exits `1` on violations, and applies both default-on rules below (`--min-grace=0.3`, `--message-required=True`) — unless the project's `pyproject.toml` says otherwise (see [Project configuration in `pyproject.toml`](#project-configuration-in-pyprojecttoml)).
 
+Flags and the path may come in any order: `pydeprecate check --exit-zero src/mypackage` scans `src/mypackage`, which is the order a [pre-commit hook](audit.md#pre-commit-integration) produces from its `args`. Each run takes one path — a second positional path, or a short flag such as `-r src/mypackage`, would reach a boolean option, and any non-boolean value there exits `2` (`` `--recursive` expects True or False ``) rather than scanning something you did not name.
+
 There is intentionally no `--include-pep702` flag: every subcommand evaluates pyDeprecate schedule metadata (`deprecated_in`, `remove_in`, a replacement) that symbols deprecated only with `warnings.deprecated` lack. List those with the Python API — `find_deprecation_wrappers(..., include_pep702=True)`, see [PEP 702-only deprecations](audit.md#pep-702-only-deprecations).
 
 ### Policy rule flags

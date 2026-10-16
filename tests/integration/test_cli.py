@@ -468,6 +468,49 @@ class TestCliSubcommands:
         assert result.returncode == 0
 
 
+class TestCliPreCommitArgs:
+    """Tests for argument orders a pre-commit hook produces (``entry`` + ``args``, no filenames)."""
+
+    def test_exit_zero_before_path_scans_path(self, tmp_path: Path) -> None:
+        """``check --exit-zero <pkg>`` scans ``<pkg>`` and reports its findings without failing.
+
+        A hook config ``args: [check, --exit-zero, src/mypkg]`` puts the flag first. The run must scan the named
+        package — the header names it and the invalid mapping is reported — instead of binding the path to
+        ``--exit-zero`` and scanning the current directory with exit 0.
+
+        """
+        pkg = _make_pkg(tmp_path, content=_MYPKG_INIT_INVALID)
+        result = _run_cli("check", "--exit-zero", str(pkg), env=_cli_env(COLUMNS="500"), cwd=tmp_path)
+        assert result.returncode == 0, result.stderr
+        assert f"Scanning: {pkg}" in result.stdout
+        assert "nonexistent" in result.stdout
+
+    def test_norecursive_before_path_scans_path(self, tmp_path: Path) -> None:
+        """``check --norecursive <pkg>`` scans ``<pkg>`` top-level only instead of exiting 2.
+
+        Fire reads the token after a bare negated flag as its value and then cannot consume it; the CLI rewrites
+        the flag so the order of flags and path does not matter.
+
+        """
+        pkg = _make_pkg(tmp_path, content=_MYPKG_INIT_INVALID)
+        result = _run_cli("check", "--norecursive", str(pkg), env=_cli_env(COLUMNS="500"), cwd=tmp_path)
+        assert result.returncode == 1, result.stderr
+        assert f"Scanning: {pkg}" in result.stdout
+
+    def test_second_path_exits_two(self, tmp_path: Path) -> None:
+        """Two positional paths exit 2 instead of scanning only the first one.
+
+        The second path used to bind to ``recursive`` and the run exited 0 having scanned one package; a hook
+        listing several packages in ``args`` needs one hook entry per package.
+
+        """
+        pkg_a = _make_pkg(tmp_path, name="pkg_a")
+        pkg_b = _make_pkg(tmp_path, name="pkg_b", content=_MYPKG_INIT_INVALID)
+        result = _run_cli("check", str(pkg_a), str(pkg_b), cwd=tmp_path)
+        assert result.returncode == 2
+        assert "expects True or False" in result.stderr
+
+
 class TestCliArgumentValidation:
     """Unknown or misspelled flags and version auto-detection must fail safe, never silently mislead."""
 

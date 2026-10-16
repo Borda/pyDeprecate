@@ -1058,6 +1058,86 @@ class TestCliEntryPoint:
         assert exc_info.value.code == 2
 
 
+class TestCliBoolFlags:
+    """Tests for boolean flags placed anywhere in the argument list (e.g. by a pre-commit hook's ``args``)."""
+
+    @pytest.mark.parametrize(
+        ("argv", "expected"),
+        [
+            pytest.param(["check", "--exit-zero", "some_module"], {"exit_zero": True}, id="dash-before-path"),
+            pytest.param(["check", "--exit_zero", "some_module"], {"exit_zero": True}, id="underscore-before-path"),
+            pytest.param(["check", "--norecursive", "some_module"], {"recursive": False}, id="negated-before-path"),
+            pytest.param(["check", "--recursive", "some_module"], {"recursive": True}, id="plain-before-path"),
+            pytest.param(["check", "--noexit-zero", "some_module"], {"exit_zero": False}, id="negated-dash"),
+            pytest.param(["check", "--exit-zero", "False", "some_module"], {"exit_zero": False}, id="explicit-value"),
+            pytest.param(["check", "some_module", "--exit-zero"], {"exit_zero": True}, id="trailing-flag"),
+            pytest.param(["--exit-zero", "some_module"], {"exit_zero": True}, id="implicit-check"),
+        ],
+    )
+    def test_flag_before_path_keeps_path(self, argv: list[str], expected: dict[str, bool]) -> None:
+        """A bare boolean flag never consumes the path that follows it.
+
+        A pre-commit hook builds its command as ``entry + args``, so a config such as ``args: [--exit-zero,
+        src/mypkg]`` puts the flag before the path. Fire treats the token after a bare flag as the flag's value,
+        which used to bind ``exit_zero='src/mypkg'`` and silently scan the current directory instead.
+
+        """
+        with (
+            patch("sys.argv", ["pydeprecate", *argv]),
+            patch("deprecate._cli.cmd_check", autospec=True, return_value=0) as mock_check,
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            cli()
+        assert exc_info.value.code == 0
+        args, kwargs = mock_check.call_args
+        bound = inspect.signature(cmd_check).bind(*args, **kwargs).arguments
+        assert bound["path"] == "some_module"
+        assert {key: bound[key] for key in expected} == expected
+
+    def test_status_include_members_before_path(self) -> None:
+        """The ``status`` subcommand's ``--noinclude-members`` flag is normalized like the shared flags.
+
+        Every ``bool`` parameter of the dispatched subcommand is covered, not a fixed list of flag names, so a
+        subcommand-specific switch placed before the path does not swallow it either.
+
+        """
+        with (
+            patch("sys.argv", ["pydeprecate", "status", "--noinclude-members", "some_module"]),
+            patch("deprecate._cli.cmd_status", autospec=True, return_value=0) as mock_status,
+            pytest.raises(SystemExit),
+        ):
+            cli()
+        args, kwargs = mock_status.call_args
+        bound = inspect.signature(cmd_status).bind(*args, **kwargs).arguments
+        assert (bound["path"], bound["include_members"]) == ("some_module", False)
+
+    @pytest.mark.parametrize(
+        "argv",
+        [
+            pytest.param(["check", "pkg_a", "pkg_b"], id="second-path-overflows-into-recursive"),
+            pytest.param(["check", "-r", "some_module"], id="short-flag-swallows-path"),
+            pytest.param(["check", "some_module", "--exit-zero=yes"], id="non-bool-value"),
+        ],
+    )
+    def test_non_bool_value_exits_two(self, argv: list[str], capsys: pytest.CaptureFixture[str]) -> None:
+        """A non-boolean value reaching a boolean parameter is a usage error, not a silently truthy setting.
+
+        Positional overflow (``check pkg_a pkg_b`` binds ``recursive='pkg_b'``) and short flags (``-r pkg``) are
+        not rewritten by the flag normalizer; without this guard the stray token would make the run pass while
+        scanning something other than what the user named.
+
+        """
+        with (
+            patch("sys.argv", ["pydeprecate", *argv]),
+            patch("deprecate._cli.cmd_check", autospec=True, return_value=0) as mock_check,
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            cli()
+        assert exc_info.value.code == 2
+        mock_check.assert_not_called()
+        assert "expects True or False" in capsys.readouterr().err
+
+
 # ---------------------------------------------------------------------------
 # _auto_detect_version (package helper)
 # ---------------------------------------------------------------------------

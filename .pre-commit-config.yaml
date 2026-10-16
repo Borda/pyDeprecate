@@ -21,6 +21,12 @@ repos:
         # run when the package version, a plugin manifest, or any plugin skill doc changes
         files: ^(src/deprecate/__about__\.py|plugins/pydeprecate/.*/(plugin\.json|SKILL\.md))$
 
+  - repo: https://github.com/pre-commit/pre-commit
+    rev: v4.7.0
+    hooks:
+      # schema check for the hook manifest other projects consume via `repo: https://github.com/Borda/pyDeprecate`
+      - id: validate_manifest
+
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:

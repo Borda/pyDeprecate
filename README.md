@@ -1798,6 +1798,29 @@ pydeprecate status tests --version 1.2
 
 `tests/` contains pyDeprecate's own deprecation fixtures — useful as a live demo without needing your own package. Note: `expiry` and `chains` (run as part of `all`) require an importable package name rather than a plain directory path.
 
+**Pre-commit hook** — catch deprecation problems locally before you push. The scan imports your package, so run the hook in your development environment:
+
+```yaml
+# .pre-commit-config.yaml
+repos:
+  - repo: local
+    hooks:
+      - id: pydeprecate
+        name: pydeprecate
+        entry: pydeprecate check src/mypackage
+        language: system # spelled `unsupported` since pre-commit 4.4
+        pass_filenames: false
+        types: [python]
+        require_serial: true
+```
+
+```bash
+pre-commit run pydeprecate              # when a Python file is staged
+pre-commit run pydeprecate --all-files  # regardless of what is staged
+```
+
+Packages that import without third-party dependencies can use the shipped hook instead (`repo: https://github.com/Borda/pyDeprecate`, `id: pydeprecate`, from the first release after `v0.14.0`); see the [pre-commit section of the audit guide](https://borda.github.io/pyDeprecate/stable/guide/audit#pre-commit-integration) for both recipes and the isolated-environment caveat.
+
 **Example: catching a deprecated-to-deprecated chain**
 
 ```

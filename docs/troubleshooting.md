@@ -2137,6 +2137,21 @@ The scan results are complete for every module that imported successfully; only 
 
 ______________________________________________________________________
 
+## My pydeprecate pre-commit hook passes but misses deprecations
+
+**Q:** I added the `pydeprecate` pre-commit hook and it always passes, but `pydeprecate check` in my virtual environment reports problems. Why?
+
+**A:** The remote hook (`repo: https://github.com/Borda/pyDeprecate`) runs in an isolated environment that pre-commit builds for it. That environment holds pyDeprecate and its CLI dependencies, but not your package's runtime dependencies. The scan imports your package, so every submodule that imports a missing dependency is skipped with `UserWarning: audit: skipped <module>`, and pre-commit hides the output of a hook that passes.
+
+Two fixes:
+
+- Run a local hook (`repo: local`, `language: system`, `entry: pydeprecate check src/mypackage`) so the scan uses your development environment — the recommended setup for any package with runtime dependencies.
+- Keep the remote hook and list your dependencies in `additional_dependencies`. The list replaces the hook's own, so repeat `fire>=0.6.0`, `rich>=13.0.0`, and `packaging>=20.0` in it — without `packaging`, `expiry` and the `min-grace` policy rule are skipped with a warning instead of failing.
+
+Both recipes are in the [audit guide](guide/audit.md#pre-commit-integration).
+
+______________________________________________________________________
+
 ## TypeError: `<obj>` is wrapped in a deprecation proxy and cannot be pickled directly
 
 **Q:** I get `TypeError: ... is wrapped in a deprecation proxy and cannot be pickled directly` when passing a `deprecated_instance` proxy to `pickle.dumps`, `multiprocessing`, or `joblib`.

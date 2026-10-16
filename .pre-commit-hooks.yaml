@@ -1,0 +1,23 @@
+# pre-commit hook manifest — lets other projects run the pyDeprecate CLI as a hook:
+#   repos: [{ repo: https://github.com/Borda/pyDeprecate, rev: <tag>, hooks: [{ id: pydeprecate }] }]
+# The scan imports the scanned package, so this isolated hook environment only works for packages whose imports
+# resolve without their own runtime dependencies; see the "Pre-commit Integration" section of docs/guide/audit.md.
+- id: pydeprecate
+  name: pydeprecate
+  description: Audit `@deprecated` wrappers (misconfiguration, expired removals, chains) with the pyDeprecate CLI.
+  entry: pydeprecate
+  # default subcommand; a user `args` list replaces this, and `pydeprecate <path>` still runs `check` (implicit shim)
+  args: [check]
+  language: python
+  # the CLI scans importable packages/directories, never individual files: run on the whole project when any
+  # Python file changes, in a single process
+  pass_filenames: false
+  types: [python]
+  require_serial: true
+  # `pip install .` skips extras — mirror the `cli` and `audit` extras of setup.py here; a user
+  # `additional_dependencies` list replaces this one, so it must repeat these entries
+  additional_dependencies:
+    - "fire>=0.6.0"
+    - "rich>=13.0.0"
+    - "packaging>=20.0"
+    - "tomli>=2.0; python_version<'3.11'"
