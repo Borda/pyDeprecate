@@ -376,6 +376,7 @@ pyDeprecate/
 │   ├── skills/code-review/     # Shared specialist review process for GitHub-hosted and local agents
 │   ├── workflows/              # CI/CD pipelines
 │   └── *.md                    # Documentation and guidelines
+├── .pre-commit-hooks.yaml      # pre-commit hook manifest consumers reference as `id: pydeprecate`
 ├── pyproject.toml              # Project config (ruff, mypy, pytest)
 └── setup.py                    # Package setup
 ```

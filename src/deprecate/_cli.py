@@ -18,6 +18,7 @@ Subcommands:
 import contextlib
 import functools
 import importlib.util
+import inspect
 import sys
 from collections.abc import Callable, Sequence
 from pathlib import Path
@@ -1293,6 +1294,84 @@ def _ensure_utf8_streams() -> None:
                 stream.reconfigure(encoding="utf-8")
 
 
+_BOOL_LITERALS = frozenset({"True", "False", "true", "false"})
+
+
+def _bool_params(fn: Callable[..., int]) -> frozenset[str]:
+    """Return the names of the CLI-visible parameters of *fn* annotated as ``bool``.
+
+    Underscore-prefixed parameters are internal (``cmd_all`` plumbing) and never typed on the command line.
+
+    Examples:
+        >>> sorted(_bool_params(cmd_check))
+        ['exit_zero', 'recursive']
+
+    """
+    return frozenset(
+        name
+        for name, param in inspect.signature(fn).parameters.items()
+        if param.annotation is bool and not name.startswith("_")
+    )
+
+
+def _normalize_bool_flags(argv: list[str], bool_params: frozenset[str]) -> list[str]:
+    """Rewrite bare boolean flags into the explicit ``--name=True``/``--name=False`` form.
+
+    Fire reads the token after a bare flag as the flag's value unless that token is itself a flag, so
+    ``check --exit-zero src/pkg`` binds ``exit_zero='src/pkg'`` and scans the current directory. A pre-commit hook
+    builds its command as ``entry + args``, which puts such flags before the path by default. The explicit form binds
+    correctly in any position. ``--name``, ``--no<name>`` and dash or underscore spellings are recognised; a flag
+    already followed by a literal ``True``/``False`` (``--exit-zero False``) is left alone, and so is everything after
+    a ``--`` separator.
+
+    Args:
+        argv: Arguments after the subcommand name.
+        bool_params: Names of the subcommand's ``bool`` parameters, from :func:`_bool_params`.
+
+    Returns:
+        A new argument list with every bare boolean flag made explicit.
+
+    Examples:
+        >>> _normalize_bool_flags(["--exit-zero", "src/pkg", "--norecursive"], frozenset({"exit_zero", "recursive"}))
+        ['--exit_zero=True', 'src/pkg', '--recursive=False']
+        >>> _normalize_bool_flags(["--exit-zero", "False", "src/pkg"], frozenset({"exit_zero"}))
+        ['--exit-zero', 'False', 'src/pkg']
+
+    """
+    result: list[str] = []
+    for idx, arg in enumerate(argv):
+        if arg == "--":
+            return result + argv[idx:]
+        name = arg[2:].replace("-", "_") if arg.startswith("--") and "=" not in arg else ""
+        value = True
+        if name not in bool_params and name.startswith("no") and name[2:] in bool_params:
+            name, value = name[2:], False
+        next_arg = argv[idx + 1] if idx + 1 < len(argv) else None
+        if name in bool_params and next_arg not in _BOOL_LITERALS:
+            result.append(f"--{name}={value}")
+        else:
+            result.append(arg)
+    return result
+
+
+def _non_bool_flag_error(fn: Callable[..., int], args: tuple[object, ...], kwargs: dict[str, object]) -> Optional[str]:
+    """Return a usage error when a non-boolean value reached one of *fn*'s ``bool`` parameters, else ``None``.
+
+    :func:`_normalize_bool_flags` cannot catch every stray token: a second positional path overflows into ``recursive``
+    and a short flag (``-r src/pkg``) swallows the path. Without this check either would bind a truthy string and the
+    run would pass while scanning something other than what the user named.
+
+    """
+    bound = inspect.signature(fn).bind_partial(*args, **kwargs).arguments
+    for name in sorted(_bool_params(fn)):
+        if name in bound and not isinstance(bound[name], bool):
+            return (
+                f"`--{name.replace('_', '-')}` expects True or False, got {bound[name]!r}. Pass one path per run and "
+                f"put it before the flags, or spell the flag explicitly (`--{name.replace('_', '-')}=True`)."
+            )
+    return None
+
+
 def cli() -> None:
     """CLI entry point for pydeprecate.
 
@@ -1308,6 +1387,11 @@ def cli() -> None:
     treated as that subcommand by the implicit-``check`` shim. Scan such a path explicitly, e.g.
     ``pydeprecate check ./check``, so the leading token is the subcommand and the path is its argument.
 
+    Boolean flags may appear before or after the path (``check --exit-zero src/pkg`` scans ``src/pkg``): bare flags
+    are rewritten to their explicit form before Fire parses them, and any non-boolean value that still reaches a
+    boolean parameter — a second positional path, or a short flag such as ``-r src/pkg`` — exits 2 instead of being
+    taken as a truthy setting.
+
     """
     _ensure_utf8_streams()
     try:
@@ -1315,10 +1399,19 @@ def cli() -> None:
     except ImportError:
         sys.exit("The 'pydeprecate' CLI requires the 'fire' package.\nInstall it with: pip install 'pyDeprecate[cli]'")
 
-    subcommands = {"check", "expiry", "policy", "chains", "all", "status"}
+    commands: dict[str, Callable[..., int]] = {
+        "check": cmd_check,
+        "expiry": cmd_expiry,
+        "policy": cmd_policy,
+        "chains": cmd_chains,
+        "all": cmd_all,
+        "status": cmd_status,
+    }
     argv = sys.argv[1:]
-    if argv and argv[0] not in subcommands and argv[0] not in {"-h", "--help"}:
+    if argv and argv[0] not in commands and argv[0] not in {"-h", "--help"}:
         argv = ["check", *argv]
+    if argv and argv[0] in commands:
+        argv = [argv[0], *_normalize_bool_flags(argv[1:], _bool_params(commands[argv[0]]))]
 
     exit_code: Optional[int] = None
 
@@ -1326,29 +1419,25 @@ def cli() -> None:
         """Record the cmd_* return code without returning it into the Fire trace.
 
         Returning the int would make Fire print it and treat it as a further component to consume arguments against;
-        returning ``None`` keeps the output clean and lets Fire finish its trace.
+        returning ``None`` keeps the output clean and lets Fire finish its trace. A non-boolean value bound to a boolean
+        parameter is reported and recorded as exit 2 without running the subcommand.
 
         """
 
         @functools.wraps(fn)
         def wrapper(*args: object, **kwargs: object) -> None:
             nonlocal exit_code
+            error = _non_bool_flag_error(fn, args, kwargs)
+            if error is not None:
+                _print(error, stderr=True)
+                exit_code = 2
+                return
             exit_code = fn(*args, **kwargs)
 
         return wrapper
 
     try:
-        fire.Fire(
-            {
-                "check": _capture(cmd_check),
-                "expiry": _capture(cmd_expiry),
-                "policy": _capture(cmd_policy),
-                "chains": _capture(cmd_chains),
-                "all": _capture(cmd_all),
-                "status": _capture(cmd_status),
-            },
-            command=argv,
-        )
+        fire.Fire({name: _capture(fn) for name, fn in commands.items()}, command=argv)
     except Exception as exc:  # SystemExit is BaseException — Fire's own exits pass through untouched
         # Prefix the exception type so an exception with an empty message still produces a non-blank stderr
         # line (bare ``str(exc)`` on such exceptions exited 1 with nothing printed).

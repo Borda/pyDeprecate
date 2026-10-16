@@ -721,9 +721,67 @@ Unlike `validate_deprecation_expiry` or `validate_deprecation_chains`, a positio
 
 ## Pre-commit Integration
 
-!!! info "Coming soon"
+A [pre-commit](https://pre-commit.com/) hook gives a fast local signal before you push, without running the test suite or waiting for CI. The scan imports your package to read its wrappers, so the hook has to run where your package and its runtime dependencies are importable — which decides which of the two recipes below fits.
 
-    Native pre-commit hook support is planned. For now, run the validator directly via `pydeprecate` in your `Makefile` or CI step.
+**Recommended — a local hook in your development environment.** It runs the `pydeprecate` CLI you installed with `pip install 'pyDeprecate[audit,cli]'`, in the same environment your tests use, so every submodule imports exactly as it does at runtime:
+
+```yaml
+# .pre-commit-config.yaml
+repos:
+  - repo: local
+    hooks:
+      - id: pydeprecate
+        name: pydeprecate
+        entry: pydeprecate check src/mypackage
+        language: system # spelled `unsupported` since pre-commit 4.4; `system` still works
+        pass_filenames: false # the CLI scans packages, not individual files
+        types: [python] # runs only when a Python file is staged
+        require_serial: true
+
+ci:
+  skip: [pydeprecate] # pre-commit.ci has no project environment to import from
+```
+
+**Remote hook — packages that import without third-party dependencies.** pyDeprecate ships a hook manifest, so you can reference the repository directly (available from the first release after `v0.14.0`):
+
+```yaml
+# .pre-commit-config.yaml
+repos:
+  - repo: https://github.com/Borda/pyDeprecate
+    rev: <first release after v0.14.0> # the first tag shipping the hook
+    hooks:
+      - id: pydeprecate
+        args: [check, src/mypackage] # default: `check` on the repository root
+```
+
+pre-commit installs this hook into its own isolated environment, which holds pyDeprecate and the CLI dependencies but none of your package's runtime dependencies. Add them with `additional_dependencies` — and because that list *replaces* the hook's own, repeat the CLI dependencies in it:
+
+```yaml
+# .pre-commit-config.yaml
+repos:
+  - repo: https://github.com/Borda/pyDeprecate
+    rev: <first release after v0.14.0>
+    hooks:
+      - id: pydeprecate
+        args: [check, src/mypackage]
+        additional_dependencies: ["fire>=0.6.0", "rich>=13.0.0", "packaging>=20.0", numpy, requests]
+```
+
+!!! warning "A missing dependency can pass silently"
+
+    A submodule that fails to import is skipped with a `UserWarning: audit: skipped <module>` and the scan carries on (see [Troubleshooting](../troubleshooting.md)). pre-commit hides the output of a hook that passes, so a missing dependency in the isolated environment leaves those modules unaudited with no visible failure. Prefer the local hook whenever your package has runtime dependencies, and pin `rev` to the pyDeprecate release your project depends on.
+
+Run it on demand:
+
+```bash
+# Get a clear signal before pushing (runs when a Python file is staged):
+pre-commit run pydeprecate
+
+# Or check regardless of what is staged:
+pre-commit run pydeprecate --all-files
+```
+
+The hook ignores the staged file names and scans the whole package each time: pyDeprecate resolves wrappers through importable modules, never single files. Pass any subcommand and flag through `args`, in any order — `args: [check, --exit-zero, src/mypackage]` reports without blocking while you clear a backlog. For `expiry` or `all`, which also depend on the version in `pyproject.toml`, widen the trigger to `types_or: [python, toml]` so a version bump re-runs the check.
 
 The CLI provides six subcommands. Use `check` for wrapper config validation, `policy` to gate on your project's deprecation-governance rules, `all` to run every check in a single pass (and append a deprecation table), or `status` to generate a standalone markdown deprecation table without running any checks. See the [CLI Reference](cli.md) for full flag and exit-code documentation.
 
