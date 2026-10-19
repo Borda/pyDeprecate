@@ -320,7 +320,13 @@ pyDeprecate/
 │   ├── __about__.py            # Version and metadata
 │   ├── __init__.py             # Public API exports
 │   ├── __main__.py             # python -m deprecate entry point
-│   ├── _cli.py                 # CLI subcommands: check, expiry, policy, chains, all, status
+│   ├── _cli/                   # Internal CLI package (public Python API is deprecate.audit)
+│   │   ├── __init__.py         # cli() entry point: argv dispatch to the subcommands
+│   │   ├── argv.py             # UTF-8 streams, boolean-flag normalisation, argument binding
+│   │   ├── commands.py         # Subcommands: check, expiry, policy, chains, all, status
+│   │   ├── config.py           # [tool.pydeprecate] pyproject.toml config and flag-default resolution
+│   │   ├── report.py           # _print() and the rich/plain _Reporter output dispatch
+│   │   └── scan.py             # Path scanning: file, package or plain directory -> wrappers
 │   ├── _pkg.py                 # Version and path resolution helpers
 │   ├── _types.py               # Shared type definitions: DeprecationConfig, _ProxyConfig
 │   ├── deprecation.py          # Front door: deprecated() dispatcher (functions/methods -> routine, classes -> proxy)
@@ -443,7 +449,7 @@ Tests live in `tests/` and follow a **three-layer separation**:
 >
 > Failing to do this causes the corresponding generated test file(s) under `tests/docs/` or `tests/integration/test_readme.py` to fail in CI. Enumerating specific files here goes stale as soon as a new doc example is added — grep for the fixture module's import if in doubt.
 
-**`unittests/`** — Tests import private symbols directly (e.g. `_raise_warn`, `_parse_version`) and use mocking/monkeypatching to stay isolated from external state. Each file mirrors a source module (`deprecation.py`, `docstring/inject.py`, `utils.py`), and a source subpackage becomes a test subpackage with one file per submodule — `unittests/audit/test__policy.py` for `deprecate/audit/_policy.py`; private symbols of the `audit/` subpackage are imported from their defining submodule (`deprecate.audit._policy`), never from the package root.
+**`unittests/`** — Tests import private symbols directly (e.g. `_raise_warn`, `_parse_version`) and use mocking/monkeypatching to stay isolated from external state. Each file mirrors a source module (`deprecation.py`, `docstring/inject.py`, `utils.py`), and a source subpackage becomes a test subpackage with one file per submodule — `unittests/audit/test__policy.py` for `deprecate/audit/_policy.py`; private symbols of the `audit/` subpackage are imported from their defining submodule (`deprecate.audit._policy`), never from the package root. The internal `_cli/` package follows the same import rule, and a `patch()` targets the submodule that looks the name up at call time (`deprecate._cli.scan.find_deprecation_wrappers`, not `deprecate._cli.find_deprecation_wrappers`). The `cmd_*` subcommands are bound twice: a test of `cli()` dispatch patches `deprecate._cli.cmd_check`, while a test that runs the real `cmd_all` patches `deprecate._cli.commands.cmd_status`. A patch on the wrong binding may leave the test green while it runs the real code.
 
 > [!IMPORTANT]
 >
