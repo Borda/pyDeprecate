@@ -1196,7 +1196,8 @@ def cmd_status(
     """Print a markdown deprecation status table to stdout.
 
     Scans the target package for deprecated wrappers and renders their lifecycle
-    status as a Markdown table. Standalone — runs no checks, exits 0 (2 only for a malformed ``--exclude``).
+    status as a Markdown table. Standalone — runs no checks, exits 0 (1 when the path holds two or more
+    top-level packages, 2 for a malformed ``--exclude``).
     When ``--output`` is given, the table is also written to that file.
 
     Args:
@@ -1234,8 +1235,9 @@ def cmd_status(
         _print(f"Invalid style {style!r}; falling back to 'compact'. Expected one of: {valid}.", stderr=True)
         table_style = TableStyle.COMPACT
 
-    # Never resolve the importable module name eagerly: status "always exits 0" (it is not a
-    # pass/fail gate), so a plain directory without ``__init__.py`` — which ``check`` scans fine and
+    # Never resolve the importable module name eagerly: status is not a pass/fail gate (it exits
+    # non-zero only for a multi-package root or a malformed ``--exclude``), so a plain directory
+    # without ``__init__.py`` — which ``check`` scans fine and
     # for which ``_wrappers`` is already supplied by ``cmd_all`` — must not raise here. ``_safe_module_name``
     # falls back to the raw path, used only as table metadata for version resolution.
     module_name = _safe_module_name(path)

@@ -799,7 +799,7 @@ pydeprecate all src/your_package
 # policy — exits 1 if any deprecation breaks a governance rule (gate on it separately from `all`)
 pydeprecate policy src/your_package
 
-# status — standalone deprecation status table only (no checks, always exits 0)
+# status — standalone deprecation status table only (no checks, not a pass/fail gate)
 pydeprecate status src/your_package
 
 # Advisory-only: always exit 0, report issues without blocking

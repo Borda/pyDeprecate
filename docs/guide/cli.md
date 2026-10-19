@@ -191,7 +191,9 @@ Policy: min-grace=0.3 (pyproject.toml)  message-required=True (built-in)
 | `policy`   | No violations; or only a skipped `min-grace` rule                        | Policy violations found (and `--exit-zero` not set)                   | Malformed rule value or `--exclude` (flag or `pyproject.toml`)                |
 | `chains`   | No chains                                                                | Deprecated-to-deprecated chains found                                 | Malformed `--exclude`                                                         |
 | `all`      | All checks clean, or only policy violations (table always appended)      | Any hard error above (`packaging` missing → skips expiry, no failure) | Malformed `--version` when `packaging` is available, or malformed `--exclude` |
-| `status`   | Always — status table is not a pass/fail gate                            | —                                                                     | Malformed `--exclude`                                                         |
+| `status`   | Table rendered — status is not a pass/fail gate                          | Path holds two or more top-level packages                             | Malformed `--exclude`                                                         |
+
+Every subcommand that scans a directory exits `1` with `contains multiple packages (…)` when that directory holds two or more top-level packages — even with `--exit-zero` — so pass the package sub-directory instead. Every subcommand exits `2` for an internal `--_*` option. `check`, `policy` and `chains` also exit `2` for a boolean flag given a value other than `true`/`false`/`1`/`0` and for a second positional path; on `expiry`, `all` and `status` such a stray token binds `--version` instead.
 
 Policy violations are the one finding `all` reports without acting on: they never move `all` from `0` to `1`. Give `policy` its own CI step when you want the build to fail on them.
 
