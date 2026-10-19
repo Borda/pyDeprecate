@@ -762,12 +762,14 @@ repos:
     rev: v0.15.0
     hooks:
       - id: pydeprecate-check
-        additional_dependencies: ["pyDeprecate[cli,audit]"]
+        additional_dependencies: ["pyDeprecate[cli,audit]", numpy, requests] # the hook's own entry first, then your package's runtime dependencies
 ```
 
 !!! warning "A missing dependency can pass silently"
 
     A submodule that fails to import is skipped with a `UserWarning: audit: skipped <module>` and the scan carries on (see [Troubleshooting](../troubleshooting.md)). pre-commit hides the output of a hook that passes, so a missing dependency in the isolated environment leaves those modules unaudited with no visible failure. Prefer the local hook whenever your package has runtime dependencies, and pin `rev` to the pyDeprecate release your project depends on.
+
+The isolated environment separates dependencies, not trust: like the local hook, it imports your package and runs its import-time code with your user's permissions. When the hook runs on checkouts you do not trust, such as pull requests from forks in CI, run it without secrets or privileged credentials.
 
 Run it on demand using the configured hook ID: `pydeprecate` for the local recipe or `pydeprecate-check` for either remote recipe. The commands below use the local ID:
 
