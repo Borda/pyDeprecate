@@ -6,7 +6,9 @@
   name: pydeprecate
   description: Audit `@deprecated` wrappers (misconfiguration, expired removals, chains) with the pyDeprecate CLI.
   entry: pydeprecate
-  # default subcommand; a user `args` list replaces this, and `pydeprecate <path>` still runs `check` (implicit shim)
+  # default subcommand; a user `args` list replaces this, and `pydeprecate <path>` still runs `check` (implicit shim).
+  # With no path, `check` resolves a src-layout project or a root holding a single package; a root holding several
+  # packages (e.g. `mypkg/` plus `tests/`) fails loudly, so pass the package path: `args: [check, mypkg]`
   args: [check]
   language: python
   # the CLI scans importable packages/directories, never individual files: run on the whole project when any

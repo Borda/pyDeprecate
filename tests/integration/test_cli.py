@@ -485,30 +485,55 @@ class TestCliPreCommitArgs:
         assert f"Scanning: {pkg}" in result.stdout
         assert "nonexistent" in result.stdout
 
-    def test_norecursive_before_path_scans_path(self, tmp_path: Path) -> None:
+    @pytest.mark.parametrize(
+        ("flags", "exit_code", "submodule_reported"),
+        [
+            pytest.param(("--norecursive",), 0, False, id="norecursive-skips-submodule"),
+            pytest.param((), 1, True, id="default-scans-submodule"),
+        ],
+    )
+    def test_norecursive_before_path_scans_path(
+        self, tmp_path: Path, flags: tuple[str, ...], exit_code: int, submodule_reported: bool
+    ) -> None:
         """``check --norecursive <pkg>`` scans ``<pkg>`` top-level only instead of exiting 2.
 
         Fire reads the token after a bare negated flag as its value and then cannot consume it; the CLI rewrites
-        the flag so the order of flags and path does not matter.
+        the flag so the order of flags and path does not matter. The package root is valid while its submodule
+        holds an invalid wrapper, so the flag is observable: the submodule finding is absent under
+        ``--norecursive`` and present (exit 1) on the default recursive scan.
 
         """
-        pkg = _make_pkg(tmp_path, content=_MYPKG_INIT_INVALID)
-        result = _run_cli("check", "--norecursive", str(pkg), env=_cli_env(COLUMNS="500"), cwd=tmp_path)
-        assert result.returncode == 1, result.stderr
+        pkg = _make_pkg(tmp_path)
+        (pkg / "sub.py").write_text(_MYPKG_INIT_INVALID)
+        result = _run_cli("check", *flags, str(pkg), env=_cli_env(COLUMNS="500"), cwd=tmp_path)
+        assert result.returncode == exit_code, result.stderr
         assert f"Scanning: {pkg}" in result.stdout
+        assert ("nonexistent" in result.stdout) is submodule_reported
 
-    def test_second_path_exits_two(self, tmp_path: Path) -> None:
-        """Two positional paths exit 2 instead of scanning only the first one.
+    @pytest.mark.parametrize(
+        ("args", "flag"),
+        [
+            pytest.param(("{a}", "{b}"), "--recursive", id="second-path-overflows-into-recursive"),
+            pytest.param(("-r", "{b}"), "--recursive", id="short-flag-swallows-path"),
+            pytest.param(("{a}", "--exit-zero=yes"), "--exit-zero", id="non-bool-value"),
+        ],
+    )
+    def test_non_bool_value_exits_two(self, tmp_path: Path, args: tuple[str, ...], flag: str) -> None:
+        """A stray token reaching a boolean flag exits 2 without scanning anything.
 
         The second path used to bind to ``recursive`` and the run exited 0 having scanned one package; a hook
-        listing several packages in ``args`` needs one hook entry per package.
+        listing several packages in ``args`` needs one hook entry per package. Short ``-r <path>`` and a
+        non-boolean ``--exit-zero=yes`` hit the same guard. It must fire before any scan output, so a hook never
+        reports a pass or findings for a run it should have rejected.
 
         """
         pkg_a = _make_pkg(tmp_path, name="pkg_a")
         pkg_b = _make_pkg(tmp_path, name="pkg_b", content=_MYPKG_INIT_INVALID)
-        result = _run_cli("check", str(pkg_a), str(pkg_b), cwd=tmp_path)
-        assert result.returncode == 2
-        assert "expects True or False" in result.stderr
+        argv = [arg.format(a=pkg_a, b=pkg_b) for arg in args]
+        result = _run_cli("check", *argv, env=_cli_env(COLUMNS="500"), cwd=tmp_path)
+        assert result.returncode == 2, result.stderr
+        assert flag in result.stderr
+        assert "Scanning:" not in result.stdout
 
 
 class TestCliArgumentValidation:
@@ -559,3 +584,161 @@ class TestCliArgumentValidation:
         result = _run_cli("expiry", "mypkg", env=env, cwd=decoy)
         assert "9.9.9" not in result.stdout + result.stderr
         assert result.returncode == 0
+
+
+class TestCliBoolLiteralValues:
+    """Boolean flags take ``True``/``False``/``1``/``0`` in any case, as a separate token or after ``=``."""
+
+    @pytest.mark.parametrize(
+        ("literal", "returncode"),
+        [
+            pytest.param("0", 1, id="zero-gates"),
+            pytest.param("false", 1, id="lowercase-false-gates"),
+            pytest.param("False", 1, id="capitalised-false-gates"),
+            pytest.param("1", 0, id="one-passes"),
+            pytest.param("true", 0, id="lowercase-true-passes"),
+        ],
+    )
+    def test_expiry_exit_zero_literal_is_the_flag_value(self, tmp_path: Path, literal: str, returncode: int) -> None:
+        """``expiry <pkg> --version 9.0 --exit-zero <literal>`` applies the literal to ``--exit-zero``.
+
+        The package holds one wrapper due for removal in ``9.0``. A literal such as ``0`` used to stay a free token
+        that bound to ``version``, so the expiry check compared against version ``0`` and exited 0 although the
+        wrapper was expired and ``--exit-zero 0`` asked for the gating exit code.
+
+        """
+        pkg = _make_pkg(tmp_path)
+        result = _run_cli("expiry", str(pkg), "--version", "9.0", "--exit-zero", literal, cwd=tmp_path)
+        assert result.returncode == returncode, result.stderr
+        assert "1 expired wrapper(s) found." in result.stdout
+
+
+# Inert project-root file: it sits beside the packages but must never be imported by a package-root scan.
+_SETUP_PY_INERT = "# placeholder for a project-root setup script\n"
+
+
+def _make_flat_root(tmp_path: Path, *package_names: str) -> Path:
+    """Create a project root holding the named invalid-wrapper packages beside an inert ``setup.py``.
+
+    A package named ``tests`` is created empty, the way a flat-layout project keeps its test suite importable.
+    """
+    for name in package_names:
+        _make_pkg(tmp_path, name=name, content="" if name == "tests" else _MYPKG_INIT_INVALID)
+    (tmp_path / "setup.py").write_text(_SETUP_PY_INERT)
+    return tmp_path
+
+
+class TestCliPackageRootScan:
+    """A no-path scan from a project root resolves one package, and never silently audits nothing."""
+
+    @pytest.mark.parametrize("subcommand", ["check", "policy", "status", "all"])
+    def test_multi_package_root_fails_loudly(self, tmp_path: Path, subcommand: str) -> None:
+        """``pydeprecate <subcommand>`` at a root with two packages exits non-zero and names both.
+
+        The shipped pre-commit hook runs ``pydeprecate check`` with no path. At a flat-layout root holding ``mypkg/``
+        and ``tests/`` the scan used to fall back to the top-level ``*.py`` files, import only ``setup.py`` and
+        report "No deprecated callables found." with exit 0 — a green hook that audited nothing.
+
+        """
+        root = _make_flat_root(tmp_path, "mypkg", "tests")
+        result = _run_cli(subcommand, cwd=root)
+        assert result.returncode != 0
+        assert "contains multiple packages (mypkg, tests)" in result.stderr
+        assert "No deprecated callables found." not in result.stdout
+
+    def test_single_package_root_still_reports(self, tmp_path: Path) -> None:
+        """``pydeprecate check`` at a root with exactly one package scans it and reports its findings.
+
+        The no-path default has to keep resolving the lone package of a flat-layout project root, or a hook
+        configured with ``args: [check]`` could not audit anything.
+
+        """
+        root = _make_flat_root(tmp_path, "mypkg")
+        result = _run_cli("check", env=_cli_env(COLUMNS="500"), cwd=root)
+        assert result.returncode == 1, result.stderr
+        assert "nonexistent" in result.stdout
+
+    def test_plain_directory_without_packages_exits_zero(self, tmp_path: Path) -> None:
+        """``pydeprecate check`` in a directory with no package keeps scanning its top-level modules.
+
+        Only two or more packages are ambiguous. A scripts directory with no ``__init__.py`` has nothing to choose
+        between, so the top-level-module fallback still applies and a clean directory exits 0.
+
+        """
+        (tmp_path / "plain_script.py").write_text("VALUE = 1\n")
+        result = _run_cli("check", cwd=tmp_path)
+        assert result.returncode == 0, result.stderr
+
+
+class TestCliPolicyMessageRequiredFlag:
+    """``policy --message-required`` binds like the other boolean flags, wherever it sits beside the path."""
+
+    @pytest.mark.parametrize(
+        ("flag", "header"),
+        [
+            pytest.param("--message-required", "message-required=True (flag)", id="bare"),
+            pytest.param("--nomessage-required", "message-required=False (flag)", id="negated"),
+        ],
+    )
+    def test_flag_before_path_scans_path(self, tmp_path: Path, flag: str, header: str) -> None:
+        """``policy <flag> <pkg>`` scans ``<pkg>`` and reports the flag as the rule's source.
+
+        Before the flag was normalized, ``policy --message-required src/pkg`` bound the path to the flag and exited
+        2 with ``Invalid message_required value``, while ``policy src/pkg --message-required`` worked.
+
+        """
+        pkg = _make_pkg(tmp_path)
+        result = _run_cli("policy", flag, str(pkg), env=_cli_env(COLUMNS="500"), cwd=tmp_path)
+        assert result.returncode == 0, result.stderr
+        assert f"Scanning: {pkg}" in result.stdout
+        assert header in result.stdout
+
+    def test_omitted_flag_keeps_pyproject_value(self, tmp_path: Path) -> None:
+        """A flag placed before the path leaves an omitted ``--message-required`` to ``[tool.pydeprecate.policy]``.
+
+        Normalizing boolean flags must not turn the omitted ``message_required`` into a typed value, or the project's
+        declared policy would silently stop applying whenever another boolean flag is on the command line.
+
+        """
+        pkg = _make_pkg(tmp_path)
+        (tmp_path / "pyproject.toml").write_text("[tool.pydeprecate.policy]\nmessage-required = false\n")
+        result = _run_cli("policy", "--exit-zero", str(pkg), cwd=tmp_path)
+        assert result.returncode == 0, result.stderr
+        assert "message-required=False (pyproject.toml)" in result.stdout
+
+
+class TestCliAttachedBoolLiterals:
+    """``--flag=value`` accepts the same boolean spellings as ``--flag value`` instead of exiting 2."""
+
+    @pytest.mark.parametrize(
+        ("spelling", "returncode"),
+        [
+            pytest.param("--exit-zero=true", 0, id="lowercase-true"),
+            pytest.param("--exit-zero=1", 0, id="one"),
+            pytest.param("--exit-zero=0", 1, id="zero"),
+            pytest.param("--exit-zero=false", 1, id="lowercase-false"),
+        ],
+    )
+    def test_attached_literal_sets_exit_zero(self, tmp_path: Path, spelling: str, returncode: int) -> None:
+        """``check <pkg> --exit-zero=<literal>`` honours the literal on a package with an invalid mapping.
+
+        Before the CLI validated boolean flags, ``--exit-zero=true``, ``=1`` and ``=0`` bound a truthy or falsy value
+        and worked; the first guard version exited 2 for them. A CI config written for the old behaviour keeps
+        working only if the lowercase and numeric spellings still reach the flag as booleans.
+
+        """
+        pkg = _make_pkg(tmp_path, content=_MYPKG_INIT_INVALID)
+        result = _run_cli("check", str(pkg), spelling, cwd=tmp_path)
+        assert result.returncode == returncode, result.stderr
+
+    def test_unrecognised_spelling_still_exits_two(self, tmp_path: Path) -> None:
+        """``check <pkg> --exit-zero=yes`` exits 2 because only true/false/1/0 are boolean spellings.
+
+        Anything else would bind a truthy string and make the run pass, which is the silent failure the guard exists
+        to stop.
+
+        """
+        pkg = _make_pkg(tmp_path)
+        result = _run_cli("check", str(pkg), "--exit-zero=yes", cwd=tmp_path)
+        assert result.returncode == 2
+        assert "expects True or False" in result.stderr
