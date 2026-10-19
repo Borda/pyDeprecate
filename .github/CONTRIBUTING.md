@@ -376,7 +376,8 @@ pyDeprecate/
 │   ├── integration/                # End-to-end tests via the public API
 │   │   └── test_agent_plugin.py    # Codex/Claude plugin catalog and manifest parity
 │   └── unittests/                  # Focused tests for private/internal helpers
-│       └── audit/                  # One test__<module>.py per audit submodule (_wrappers, _scan, _lifecycle, _policy, _report)
+│       ├── audit/                  # One test__<module>.py per audit submodule (_wrappers, _scan, _lifecycle, _policy, _report)
+│       └── cli/                    # One test_<module>.py per _cli submodule; test_cli.py covers cli() in __init__.py
 ├── .github/
 │   ├── scripts/                # Pre-commit helper scripts (plugin compat-floor check)
 │   ├── skills/code-review/     # Shared specialist review process for GitHub-hosted and local agents
@@ -449,7 +450,7 @@ Tests live in `tests/` and follow a **three-layer separation**:
 >
 > Failing to do this causes the corresponding generated test file(s) under `tests/docs/` or `tests/integration/test_readme.py` to fail in CI. Enumerating specific files here goes stale as soon as a new doc example is added — grep for the fixture module's import if in doubt.
 
-**`unittests/`** — Tests import private symbols directly (e.g. `_raise_warn`, `_parse_version`) and use mocking/monkeypatching to stay isolated from external state. Each file mirrors a source module (`deprecation.py`, `docstring/inject.py`, `utils.py`), and a source subpackage becomes a test subpackage with one file per submodule — `unittests/audit/test__policy.py` for `deprecate/audit/_policy.py`; private symbols of the `audit/` subpackage are imported from their defining submodule (`deprecate.audit._policy`), never from the package root. The internal `_cli/` package follows the same import rule, and a `patch()` targets the submodule that looks the name up at call time (`deprecate._cli.scan.find_deprecation_wrappers`, not `deprecate._cli.find_deprecation_wrappers`). The `cmd_*` subcommands are bound twice: a test of `cli()` dispatch patches `deprecate._cli.cmd_check`, while a test that runs the real `cmd_all` patches `deprecate._cli.commands.cmd_status`. A patch on the wrong binding may leave the test green while it runs the real code.
+**`unittests/`** — Tests import private symbols directly (e.g. `_raise_warn`, `_parse_version`) and use mocking/monkeypatching to stay isolated from external state. Each file mirrors a source module (`deprecation.py`, `docstring/inject.py`, `utils.py`), and a source subpackage becomes a test subpackage with one file per submodule — `unittests/audit/test__policy.py` for `deprecate/audit/_policy.py`; private symbols of the `audit/` subpackage are imported from their defining submodule (`deprecate.audit._policy`), never from the package root. The internal `_cli/` package maps to `unittests/cli/` (`test_commands.py` for `_cli/commands.py`, `test_cli.py` for the `cli()` entry point in `_cli/__init__.py`), with wrapper fixtures shared by several of those files kept in `cli/_helpers.py`. It follows the same import rule, and a `patch()` targets the submodule that looks the name up at call time (`deprecate._cli.scan.find_deprecation_wrappers`, not `deprecate._cli.find_deprecation_wrappers`). The `cmd_*` subcommands are bound twice: a test of `cli()` dispatch patches `deprecate._cli.cmd_check`, while a test that runs the real `cmd_all` patches `deprecate._cli.commands.cmd_status`. A patch on the wrong binding may leave the test green while it runs the real code.
 
 > [!IMPORTANT]
 >
