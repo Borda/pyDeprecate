@@ -1237,7 +1237,6 @@ class TestCliBoolFlags:
     @pytest.mark.parametrize(
         "argv",
         [
-            pytest.param(["check", "pkg_a", "pkg_b"], id="second-path-overflows-into-recursive"),
             pytest.param(["check", "-r", "some_module"], id="short-flag-swallows-path"),
             pytest.param(["check", "some_module", "--exit-zero=yes"], id="non-bool-value"),
         ],
@@ -1245,9 +1244,9 @@ class TestCliBoolFlags:
     def test_non_bool_value_exits_two(self, argv: list[str], capsys: pytest.CaptureFixture[str]) -> None:
         """A non-boolean value reaching a boolean parameter is a usage error, not a silently truthy setting.
 
-        Positional overflow (``check pkg_a pkg_b`` binds ``recursive='pkg_b'``) and short flags (``-r pkg``) are
-        not rewritten by the flag normalizer; without this guard the stray token would make the run pass while
-        scanning something other than what the user named.
+        Short flags (``-r pkg``) are not rewritten by the flag normalizer, and an explicit non-boolean value
+        can still reach a boolean option. Without this guard a stray value could make the run pass while scanning
+        something other than what the user named.
 
         """
         with (
@@ -1263,6 +1262,30 @@ class TestCliBoolFlags:
         assert "even if you did not type" in err
         assert "prefer long flags" in err
         assert "put it before the flags" not in err
+
+    @pytest.mark.parametrize("subcommand", ["check", "chains"])
+    @pytest.mark.parametrize(
+        "flags",
+        [pytest.param((), id="defaults"), pytest.param(("--norecursive", "--noexit-zero"), id="explicit-booleans")],
+    )
+    def test_extra_path_rejected_before_dispatch(
+        self, subcommand: str, flags: tuple[str, ...], capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Explicit boolean flags never let a second path bind to a different option.
+
+        Both flags are already bound, so Fire formerly put pkg_b into exclude and dispatched the command.
+        The CLI must reject that invocation without calling the command or scanning pkg_a.
+
+        """
+        with (
+            patch("sys.argv", ["pydeprecate", subcommand, *flags, "pkg_a", "pkg_b"]),
+            patch(f"deprecate._cli.cmd_{subcommand}", autospec=True, return_value=0) as mock_command,
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            cli()
+        assert exc_info.value.code == 2
+        mock_command.assert_not_called()
+        assert "one path per run" in capsys.readouterr().err
 
 
 _CHECK_BOOL_PARAMS = frozenset({"exit_zero", "recursive"})

@@ -513,7 +513,7 @@ class TestCliPreCommitArgs:
     @pytest.mark.parametrize(
         ("args", "flag"),
         [
-            pytest.param(("{a}", "{b}"), "--recursive", id="second-path-overflows-into-recursive"),
+            pytest.param(("{a}", "{b}"), "one path per run", id="second-path-rejected-before-binding"),
             pytest.param(("-r", "{b}"), "--recursive", id="short-flag-swallows-path"),
             pytest.param(("{a}", "--exit-zero=yes"), "--exit-zero", id="non-bool-value"),
         ],
@@ -523,7 +523,7 @@ class TestCliPreCommitArgs:
 
         The second path used to bind to ``recursive`` and the run exited 0 having scanned one package; a hook
         listing several packages in ``args`` needs one hook entry per package. Short ``-r <path>`` and a
-        non-boolean ``--exit-zero=yes`` hit the same guard. It must fire before any scan output, so a hook never
+        non-boolean ``--exit-zero=yes`` must also fail before any scan output, so a hook never
         reports a pass or findings for a run it should have rejected.
 
         """
@@ -533,6 +533,37 @@ class TestCliPreCommitArgs:
         result = _run_cli("check", *argv, env=_cli_env(COLUMNS="500"), cwd=tmp_path)
         assert result.returncode == 2, result.stderr
         assert flag in result.stderr
+        assert "Scanning:" not in result.stdout
+
+    @pytest.mark.parametrize("subcommand", ["check", "chains"])
+    def test_explicit_flags_do_not_hide_second_path(self, tmp_path: Path, subcommand: str) -> None:
+        """Two package paths remain a usage error when both boolean options are explicit.
+
+        A hook listing two packages must not treat the second package as an exclusion after Fire skips the
+        already-bound recursive and exit-zero slots. Reject the invocation before importing either package.
+
+        """
+        pkg_a = _make_pkg(tmp_path, name="pkg_a")
+        pkg_b = _make_pkg(tmp_path, name="pkg_b", content=_MYPKG_INIT_INVALID)
+        result = _run_cli(subcommand, "--norecursive", "--noexit-zero", str(pkg_a), str(pkg_b), cwd=tmp_path)
+        assert result.returncode == 2, result
+        assert "Scanning:" not in result.stdout
+        assert "nonexistent" not in result.stdout
+
+    @pytest.mark.parametrize("option", ["--no-wrappers", "--no_wrappers", "-no-wrappers"])
+    def test_negated_private_option_does_not_skip_scan(self, tmp_path: Path, option: str) -> None:
+        """Private wrapper injection cannot be selected through Fire's negated aliases.
+
+        An invalid package normally fails its audit. A negated private option used to inject False as the
+        prescanned wrapper list and turn that same audit into an empty successful scan.
+
+        """
+        pkg = _make_pkg(tmp_path, content=_MYPKG_INIT_INVALID)
+        control = _run_cli("check", str(pkg), cwd=tmp_path)
+        assert control.returncode == 1, control
+        assert "nonexistent" in control.stdout
+        result = _run_cli("check", str(pkg), option, cwd=tmp_path)
+        assert result.returncode == 2, result
         assert "Scanning:" not in result.stdout
 
 
@@ -642,7 +673,7 @@ class TestCliPackageRootScan:
         """
         root = _make_flat_root(tmp_path, "mypkg", "tests")
         result = _run_cli(subcommand, cwd=root)
-        assert result.returncode != 0
+        assert result.returncode == 1
         assert "contains multiple packages (mypkg, tests)" in result.stderr
         assert "No deprecated callables found." not in result.stdout
 

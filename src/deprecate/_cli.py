@@ -1420,9 +1420,9 @@ def _normalize_bool_flags(argv: list[str], bool_params: frozenset[str]) -> list[
 def _non_bool_flag_error(fn: Callable[..., int], args: tuple[object, ...], kwargs: dict[str, object]) -> Optional[str]:
     """Return a usage error when a non-boolean value reached one of *fn*'s ``bool`` parameters, else ``None``.
 
-    :func:`_normalize_bool_flags` cannot catch every stray token: a second positional path overflows into ``recursive``
-    and a short flag (``-r src/pkg``) swallows the path. Without this check either would bind a truthy string and the
-    run would pass while scanning something other than what the user named.
+    :func:`_normalize_bool_flags` leaves short flags (``-r src/pkg``) and unrecognised explicit values untouched.
+    Without this check they could bind truthy strings and let the run pass while scanning something other than what the
+    user named. Positional overflow is rejected separately by the CLI adapter before command dispatch.
 
     """
     signature = inspect.signature(fn)
@@ -1445,11 +1445,12 @@ def _non_bool_flag_error(fn: Callable[..., int], args: tuple[object, ...], kwarg
 
 
 def _internal_option(argv: Sequence[str]) -> Optional[str]:
-    """Return the first underscore-prefixed long option in *argv* before a ``--`` separator, else ``None``.
+    """Return the first private option or its Fire negation before a ``--`` separator, else ``None``.
 
     Underscore-prefixed parameters of a ``cmd_*`` function (``_advisory``, ``_wrappers``, ``_config``) are in-process
     plumbing for ``cmd_all``, but Fire exposes every keyword-only parameter as a flag. Typing one would bind a string
-    to a parameter nothing validates (``policy pkg --_advisory=yes`` made the run advisory).
+    to a parameter nothing validates (``policy pkg --_advisory=yes`` made the run advisory). Fire strips leading
+    hyphens and changes remaining hyphens to underscores, so ``--no-wrappers`` also targets ``_wrappers``.
 
     Examples:
         >>> _internal_option(["policy", "pkg", "--_advisory=yes"])
@@ -1461,9 +1462,42 @@ def _internal_option(argv: Sequence[str]) -> Optional[str]:
     for arg in argv:
         if arg == "--":
             return None
-        if arg.startswith("--_"):
-            return arg.partition("=")[0]
+        if arg.startswith("-"):
+            option = arg.partition("=")[0]
+            name = option.lstrip("-").replace("-", "_")
+            if name.startswith("_") or name.startswith("no_"):
+                return option
     return None
+
+
+def _cli_signature(fn: Callable[..., int]) -> inspect.Signature:
+    """Expose path and version as positional operands and keep public options keyword-only."""
+    signature = inspect.signature(fn)
+    positional = [param for name, param in signature.parameters.items() if name in {"path", "version"}]
+    if not positional:
+        return signature
+    options = [
+        param.replace(kind=inspect.Parameter.KEYWORD_ONLY)
+        for name, param in signature.parameters.items()
+        if name not in {"path", "version"} and not name.startswith("_")
+    ]
+    # Fire can dispatch before reporting leftover operands, so capture overflow for rejection before scanning.
+    return signature.replace(
+        parameters=[*positional, inspect.Parameter("_extra_paths", inspect.Parameter.VAR_POSITIONAL), *options]
+    )
+
+
+def _bind_cli_arguments(
+    fn: Callable[..., int], signature: inspect.Signature, args: tuple[object, ...], kwargs: dict[str, object]
+) -> Union[inspect.BoundArguments, str]:
+    """Bind CLI arguments and reject overflow or invalid booleans before invoking the command."""
+    bound = signature.bind(*args, **kwargs)
+    if "_extra_paths" in signature.parameters:
+        if bound.arguments.pop("_extra_paths", ()):
+            return "Pass one path per run; options other than path and version require flags."
+        bound.apply_defaults()
+    error = _non_bool_flag_error(fn, bound.args, bound.kwargs)
+    return error if error is not None else bound
 
 
 def cli() -> None:
@@ -1483,9 +1517,10 @@ def cli() -> None:
 
     Boolean flags may appear before or after the path (``check --exit-zero src/pkg`` scans ``src/pkg``): bare flags
     are rewritten to their explicit form before Fire parses them, and any non-boolean value that still reaches a
-    boolean parameter — a second positional path, or a short flag such as ``-r src/pkg`` — exits 2 instead of being
-    taken as a truthy setting. An option starting with an underscore (``--_advisory``) is internal plumbing between
-    subcommands, never a command-line flag, and exits 2 before Fire sees it.
+    boolean parameter, such as a short flag's value (``-r src/pkg``), exits 2 instead of being
+    taken as a truthy setting. Only the path and optional version accept positional values; extra paths exit 2 before
+    scanning. Internal options and their negated aliases (``--_advisory``, ``--no-wrappers``) exit 2 before Fire sees
+    them. Direct calls to the ``cmd_*`` functions retain their original signatures.
 
     """
     _ensure_utf8_streams()
@@ -1518,21 +1553,24 @@ def cli() -> None:
         """Record the cmd_* return code without returning it into the Fire trace.
 
         Returning the int would make Fire print it and treat it as a further component to consume arguments against;
-        returning ``None`` keeps the output clean and lets Fire finish its trace. A non-boolean value bound to a boolean
-        parameter is reported and recorded as exit 2 without running the subcommand.
+        returning ``None`` keeps the output clean and lets Fire finish its trace. Expose only path and version as
+        positional parameters, public options as keyword-only, and capture overflow to reject it before scanning. A non-
+        boolean value bound to a boolean parameter also records exit 2 without running the subcommand.
 
         """
+        cli_signature = _cli_signature(fn)
 
         @functools.wraps(fn)
         def wrapper(*args: object, **kwargs: object) -> None:
             nonlocal exit_code
-            error = _non_bool_flag_error(fn, args, kwargs)
-            if error is not None:
-                _print(error, stderr=True)
+            bound = _bind_cli_arguments(fn, cli_signature, args, kwargs)
+            if isinstance(bound, str):
+                _print(bound, stderr=True)
                 exit_code = 2
                 return
-            exit_code = fn(*args, **kwargs)
+            exit_code = fn(*bound.args, **bound.kwargs)
 
+        wrapper.__signature__ = cli_signature  # type: ignore[attr-defined]
         return wrapper
 
     try:
