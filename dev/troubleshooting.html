@@ -410,6 +410,22 @@
         },
         {
           "@type": "Question",
+          "name": "Why does my pydeprecate pre-commit hook pass but miss deprecations?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "The remote hook (repo: https://github.com/Borda/pyDeprecate) runs in an isolated environment that holds pyDeprecate and its CLI dependencies but not your package's runtime dependencies. The scan imports your package, so each submodule importing a missing dependency is skipped with UserWarning 'audit: skipped <module>', and pre-commit hides the output of a passing hook. Run a local hook instead (repo: local, language: system, entry: pydeprecate check) so the scan uses your development environment, or list your dependencies in additional_dependencies, starting with the hook's own \"pyDeprecate[cli,audit]\" entry (pyDeprecate's cli and audit extras) and then appending yours, because that list replaces the hook's own."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why does my pydeprecate pre-commit hook fail with 'contains multiple packages'?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "With no path in args, the hook looks for a single package under src/, then at the repository root. A root holding two or more top-level packages (for example mypkg/ and tests/) is ambiguous, so pyDeprecate exits non-zero with 'contains multiple packages (mypkg, tests)' instead of scanning nothing and passing. Src-layout repositories and single-package roots resolve on their own. For a multi-package repository, name the package in the hook args, e.g. args: [mypkg]. The same error applies to policy, status and all."
+          }
+        },
+        {
+          "@type": "Question",
           "name": "Why does pickle.dumps raise TypeError on a deprecated_instance proxy?",
           "acceptedAnswer": {
             "@type": "Answer",
@@ -1958,6 +1974,28 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#my-pydeprecate-pre-commit-hook-passes-but-misses-deprecations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        My pydeprecate pre-commit hook passes but misses deprecations
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#my-pydeprecate-pre-commit-hook-fails-contains-multiple-packages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        My pydeprecate pre-commit hook fails: contains multiple packages
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#typeerror-obj-is-wrapped-in-a-deprecation-proxy-and-cannot-be-pickled-directly" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2688,6 +2726,28 @@
     <span class="md-ellipsis">
       
         UserWarning: audit: skipped &lt;module&gt; during a recursive scan
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#my-pydeprecate-pre-commit-hook-passes-but-misses-deprecations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        My pydeprecate pre-commit hook passes but misses deprecations
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#my-pydeprecate-pre-commit-hook-fails-contains-multiple-packages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        My pydeprecate pre-commit hook fails: contains multiple packages
       
     </span>
   </a>
@@ -4507,6 +4567,24 @@
 </code></pre></div>
 <p>The scan results are complete for every module that imported successfully; only the named submodule is missing. Investigate and fix that submodule (or accept the gap if the failure is expected, e.g. an optional dependency) — one broken submodule no longer kills the CI gate, but its deprecations are not audited until it imports cleanly.</p>
 <hr />
+<h2 id="my-pydeprecate-pre-commit-hook-passes-but-misses-deprecations">My pydeprecate pre-commit hook passes but misses deprecations<a class="headerlink" href="#my-pydeprecate-pre-commit-hook-passes-but-misses-deprecations" title="Permanent link">🔗</a></h2>
+<p><strong>Q:</strong> I added the <code>pydeprecate</code> pre-commit hook and it always passes, but <code>pydeprecate check</code> in my virtual environment reports problems. Why?</p>
+<p><strong>A:</strong> The remote hook (<code>repo: https://github.com/Borda/pyDeprecate</code>) runs in an isolated environment that pre-commit builds for it. That environment holds pyDeprecate and its CLI dependencies, but not your package's runtime dependencies. The scan imports your package, so every submodule that imports a missing dependency is skipped with <code>UserWarning: audit: skipped &lt;module&gt;</code>, and pre-commit hides the output of a hook that passes.</p>
+<p>Two fixes:</p>
+<ul>
+<li>Run a local hook (<code>repo: local</code>, <code>language: system</code>, <code>entry: pydeprecate check</code>) so the scan uses your development environment — the recommended setup for any package with runtime dependencies.</li>
+<li>Keep the remote hook and list your dependencies in <code>additional_dependencies</code>. The list replaces the hook's own, so start it with the hook's <code>"pyDeprecate[cli,audit]"</code> entry (pyDeprecate's <code>cli</code> and <code>audit</code> extras, which pip resolves to the hook's own checkout) and then append yours — without the <code>audit</code> extra, <code>packaging</code> is missing, so <code>expiry</code> and the <code>min-grace</code> policy rule are skipped with a warning instead of failing, and without <code>tomli</code> on Python 3.9–3.10 <code>[tool.pydeprecate]</code> settings are ignored.</li>
+</ul>
+<p>Both recipes are in the <a href="guide/audit.html#pre-commit-integration">audit guide</a>.</p>
+<hr />
+<h2 id="my-pydeprecate-pre-commit-hook-fails-contains-multiple-packages">My pydeprecate pre-commit hook fails: contains multiple packages<a class="headerlink" href="#my-pydeprecate-pre-commit-hook-fails-contains-multiple-packages" title="Permanent link">🔗</a></h2>
+<p><strong>Q:</strong> The <code>pydeprecate</code> pre-commit hook fails with <code>contains multiple packages (mypkg, tests)</code> and a non-zero exit. What should I change?</p>
+<p><strong>A:</strong> With no path in <code>args</code>, the hook looks for a single package under <code>src/</code>, then at the repository root. A root that holds two or more top-level packages (here <code>mypkg/</code> and <code>tests/</code>) is ambiguous, so pyDeprecate stops with an error instead of scanning nothing and passing. Src-layout repositories and single-package roots resolve on their own. For a multi-package repository, name the package to audit in the hook <code>args</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-109-1" name="__codelineno-109-1" href="#__codelineno-109-1"></a><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pydeprecate-check</span>
+<a id="__codelineno-109-2" name="__codelineno-109-2" href="#__codelineno-109-2"></a><span class="w">  </span><span class="nt">args</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">mypkg</span><span class="p p-Indicator">]</span>
+</code></pre></div>
+<p>The same error applies to <code>policy</code>, <code>status</code> and <code>all</code>; see the <a href="guide/audit.html#pre-commit-integration">audit guide</a>.</p>
+<hr />
 <h2 id="typeerror-obj-is-wrapped-in-a-deprecation-proxy-and-cannot-be-pickled-directly">TypeError: <code>&lt;obj&gt;</code> is wrapped in a deprecation proxy and cannot be pickled directly<a class="headerlink" href="#typeerror-obj-is-wrapped-in-a-deprecation-proxy-and-cannot-be-pickled-directly" title="Permanent link">🔗</a></h2>
 <p><strong>Q:</strong> I get <code>TypeError: ... is wrapped in a deprecation proxy and cannot be pickled directly</code> when passing a <code>deprecated_instance</code> proxy to <code>pickle.dumps</code>, <code>multiprocessing</code>, or <code>joblib</code>.</p>
 <p><strong>A:</strong> This error was raised in older versions (before <a href="https://github.com/Borda/pyDeprecate/pull/212">PR #212</a>). Since PR #212, <code>pickle.dumps(proxy)</code> works for <code>deprecated_instance</code> proxies: the proxy is reconstructed on unpickle with deprecation semantics preserved. If you still see this error on a <code>deprecated_instance</code> proxy, upgrade pyDeprecate. Two remaining caveats: (1) the <code>stream</code> callable must be picklable by reference — if you passed a lambda or closure as <code>stream</code>, use <code>stream=None</code> or <code>stream=warnings.warn</code> instead; (2) <code>deprecated_class</code> proxies raise <code>PicklingError</code> in the common pattern where the decorated class name is replaced by the proxy — use <code>copy.deepcopy</code> for class aliases instead.</p>
@@ -4550,7 +4628,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 16, 2026 08:52:09 UTC">2026-10-16</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 19, 2026 17:15:43 UTC">2026-10-19</span>
   </span>
 
     

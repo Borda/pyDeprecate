@@ -2137,6 +2137,36 @@ The scan results are complete for every module that imported successfully; only 
 
 ______________________________________________________________________
 
+## My pydeprecate pre-commit hook passes but misses deprecations
+
+**Q:** I added the `pydeprecate` pre-commit hook and it always passes, but `pydeprecate check` in my virtual environment reports problems. Why?
+
+**A:** The remote hook (`repo: https://github.com/Borda/pyDeprecate`) runs in an isolated environment that pre-commit builds for it. That environment holds pyDeprecate and its CLI dependencies, but not your package's runtime dependencies. The scan imports your package, so every submodule that imports a missing dependency is skipped with `UserWarning: audit: skipped <module>`, and pre-commit hides the output of a hook that passes.
+
+Two fixes:
+
+- Run a local hook (`repo: local`, `language: system`, `entry: pydeprecate check`) so the scan uses your development environment — the recommended setup for any package with runtime dependencies.
+- Keep the remote hook and list your dependencies in `additional_dependencies`. The list replaces the hook's own, so start it with the hook's `"pyDeprecate[cli,audit]"` entry (pyDeprecate's `cli` and `audit` extras, which pip resolves to the hook's own checkout) and then append yours — without the `audit` extra, `packaging` is missing, so `expiry` and the `min-grace` policy rule are skipped with a warning instead of failing, and without `tomli` on Python 3.9–3.10 `[tool.pydeprecate]` settings are ignored.
+
+Both recipes are in the [audit guide](guide/audit.md#pre-commit-integration).
+
+______________________________________________________________________
+
+## My pydeprecate pre-commit hook fails: contains multiple packages
+
+**Q:** The `pydeprecate` pre-commit hook fails with `contains multiple packages (mypkg, tests)` and a non-zero exit. What should I change?
+
+**A:** With no path in `args`, the hook looks for a single package under `src/`, then at the repository root. A root that holds two or more top-level packages (here `mypkg/` and `tests/`) is ambiguous, so pyDeprecate stops with an error instead of scanning nothing and passing. Src-layout repositories and single-package roots resolve on their own. For a multi-package repository, name the package to audit in the hook `args`:
+
+```yaml
+- id: pydeprecate-check
+  args: [mypkg]
+```
+
+The same error applies to `policy`, `status` and `all`; see the [audit guide](guide/audit.md#pre-commit-integration).
+
+______________________________________________________________________
+
 ## TypeError: `<obj>` is wrapped in a deprecation proxy and cannot be pickled directly
 
 **Q:** I get `TypeError: ... is wrapped in a deprecation proxy and cannot be pickled directly` when passing a `deprecated_instance` proxy to `pickle.dumps`, `multiprocessing`, or `joblib`.

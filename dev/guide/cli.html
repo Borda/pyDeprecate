@@ -100,7 +100,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-04-29",
-  "dateModified": "2026-10-02"
+  "dateModified": "2026-10-19"
 }
 </script>
 
@@ -1702,6 +1702,7 @@
 </tbody>
 </table>
 <p>A bare <code>pydeprecate policy src/mypackage</code> therefore runs a recursive scan, exits <code>1</code> on violations, and applies both default-on rules below (<code>--min-grace=0.3</code>, <code>--message-required=True</code>) — unless the project's <code>pyproject.toml</code> says otherwise (see <a href="#project-configuration-in-pyprojecttoml">Project configuration in <code>pyproject.toml</code></a>).</p>
+<p>Flags and the path may come in any order: <code>pydeprecate check --exit-zero src/mypackage</code> scans <code>src/mypackage</code>, which is the order a <a href="audit.html#pre-commit-integration">pre-commit hook</a> produces from its <code>args</code>. Boolean flags accept <code>true</code>, <code>false</code>, <code>1</code> or <code>0</code> (case-insensitive) as <code>--flag value</code> or <code>--flag=value</code>, and the negated form attaches directly: <code>--norecursive</code>, not <code>--no-recursive</code>. Each run takes one path. For <code>check</code>, <code>policy</code> and <code>chains</code>, a second positional path exits <code>2</code> with "Pass one path per run". A short flag such as <code>-r src/mypackage</code>, or a boolean value other than <code>true</code>/<code>false</code>/<code>1</code>/<code>0</code>, exits <code>2</code> with a message that the flag expects True or False (use long flags and an explicit <code>--flag=True|False</code>) rather than scanning something you did not name. For <code>expiry</code>, <code>all</code> and <code>status</code>, a second positional argument binds <code>--version</code> instead. Private <code>--_*</code> options (for example <code>--_advisory</code>) are not part of the CLI and exit <code>2</code>.</p>
 <p>There is intentionally no <code>--include-pep702</code> flag: every subcommand evaluates pyDeprecate schedule metadata (<code>deprecated_in</code>, <code>remove_in</code>, a replacement) that symbols deprecated only with <code>warnings.deprecated</code> lack. List those with the Python API — <code>find_deprecation_wrappers(..., include_pep702=True)</code>, see <a href="audit.html#pep-702-only-deprecations">PEP 702-only deprecations</a>.</p>
 <h3 id="policy-rule-flags">Policy rule flags<a class="headerlink" href="#policy-rule-flags" title="Permanent link">🔗</a></h3>
 <p>These two are specific to <code>policy</code> — one flag per rule, switched off with <code>--min-grace=None</code> and <code>--message-required=False</code>. The <em>Default</em> column is the built-in value; a <code>[tool.pydeprecate.policy]</code> table in <code>pyproject.toml</code> replaces it, and a typed flag beats both.</p>
@@ -1796,12 +1797,13 @@
 </tr>
 <tr>
 <td><code>status</code></td>
-<td>Always — status table is not a pass/fail gate</td>
-<td>—</td>
+<td>Table rendered — status is not a pass/fail gate</td>
+<td>Path holds two or more top-level packages</td>
 <td>Malformed <code>--exclude</code></td>
 </tr>
 </tbody>
 </table>
+<p>Every subcommand that scans a directory exits <code>1</code> with <code>contains multiple packages (…)</code> when that directory holds two or more top-level packages — even with <code>--exit-zero</code> — so pass the package sub-directory instead. Every subcommand exits <code>2</code> for an internal <code>--_*</code> option. <code>check</code>, <code>policy</code> and <code>chains</code> also exit <code>2</code> for a boolean flag given a value other than <code>true</code>/<code>false</code>/<code>1</code>/<code>0</code> and for a second positional path; on <code>expiry</code>, <code>all</code> and <code>status</code> such a stray token binds <code>--version</code> instead.</p>
 <p>Policy violations are the one finding <code>all</code> reports without acting on: they never move <code>all</code> from <code>0</code> to <code>1</code>. Give <code>policy</code> its own CI step when you want the build to fail on them.</p>
 <p>Unknown or misspelled flags are never silently ignored: any unconsumed argument (e.g. <code>pydeprecate expiry mypackage --verison 2.0</code>) exits <code>2</code> with a <code>Could not consume arg: --verison</code> diagnostic from the underlying argument parser.</p>
 <h2 id="ci-recipes">CI recipes<a class="headerlink" href="#ci-recipes" title="Permanent link">🔗</a></h2>
@@ -1844,7 +1846,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 2, 2026 20:54:50 UTC">2026-10-02</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 19, 2026 17:15:43 UTC">2026-10-19</span>
   </span>
 
     
