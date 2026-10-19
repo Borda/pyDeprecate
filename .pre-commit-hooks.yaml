@@ -1,0 +1,82 @@
+# pre-commit hook manifest — lets other projects run the pyDeprecate CLI as a hook:
+#   repos: [{ repo: https://github.com/Borda/pyDeprecate, rev: <tag>, hooks: [{ id: pydeprecate-check }] }]
+# One hook per CLI subcommand (as ruff-pre-commit does): the subcommand sits in `entry`, so `args` carries only
+# flags and, when needed, the package path, in any order, e.g. `args: [--exit-zero]`.
+# With no path, the scan picks the single package under `src/`, else the single package at the repository root;
+# pass the path only for another location or for a root holding several packages (e.g. `mypkg/` plus `tests/`),
+# which otherwise fails loudly: `args: [mypkg]`.
+# The scan imports the scanned package, so this isolated hook environment only works for packages whose imports
+# resolve without their own runtime dependencies; see the "Pre-commit Integration" section of docs/guide/audit.md.
+# Settings repeated on every hook:
+# - `pass_filenames: false`, `types: [python]`, `require_serial: true`: the CLI scans importable
+#   packages/directories, never individual files, so run once on the whole project when any Python file changes
+# - `additional_dependencies`: `pip install .` skips extras, so request the `cli` and `audit` extras of setup.py by
+#   name; pip binds the name to the `.` checkout pre-commit installs, so no other release is fetched. A user
+#   `additional_dependencies` list replaces this one, so it must start with the same entry
+
+- id: pydeprecate-check
+  name: pydeprecate check
+  description: Validate `@deprecated` wrapper configuration (invalid argument mappings, no-effect wrappers, chains).
+  entry: pydeprecate check
+  language: python
+  args: []
+  pass_filenames: false
+  types: [python]
+  require_serial: true
+  additional_dependencies: ["pyDeprecate[cli,audit]"]
+
+- id: pydeprecate-policy
+  name: pydeprecate policy
+  description: Check `@deprecated` wrappers against deprecation-governance policy rules.
+  entry: pydeprecate policy
+  language: python
+  args: []
+  pass_filenames: false
+  types: [python]
+  require_serial: true
+  additional_dependencies: ["pyDeprecate[cli,audit]"]
+
+- id: pydeprecate-expiry
+  name: pydeprecate expiry
+  description: Flag `@deprecated` wrappers that have passed their scheduled removal version.
+  entry: pydeprecate expiry
+  language: python
+  args: []
+  pass_filenames: false
+  types: [python]
+  require_serial: true
+  additional_dependencies: ["pyDeprecate[cli,audit]"]
+
+- id: pydeprecate-chains
+  name: pydeprecate chains
+  description: Detect `@deprecated` wrappers whose target is itself deprecated.
+  entry: pydeprecate chains
+  language: python
+  args: []
+  pass_filenames: false
+  types: [python]
+  require_serial: true
+  additional_dependencies: ["pyDeprecate[cli,audit]"]
+
+- id: pydeprecate-all
+  name: pydeprecate all
+  description: Run the check, expiry, policy and chains audits in a single scan.
+  entry: pydeprecate all
+  language: python
+  args: []
+  pass_filenames: false
+  types: [python]
+  require_serial: true
+  additional_dependencies: ["pyDeprecate[cli,audit]"]
+
+# Short alias
+- id: pydeprecate
+  name: pydeprecate check (alias)
+  description: Alias of `pydeprecate-check`.
+  entry: pydeprecate check
+  language: python
+  args: []
+  pass_filenames: false
+  types: [python]
+  require_serial: true
+  additional_dependencies: ["pyDeprecate[cli,audit]"]

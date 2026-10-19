@@ -136,6 +136,8 @@ pydeprecate status tests --version 1.2
 
 A bare `pydeprecate policy src/mypackage` therefore runs a recursive scan, exits `1` on violations, and applies both default-on rules below (`--min-grace=0.3`, `--message-required=True`) — unless the project's `pyproject.toml` says otherwise (see [Project configuration in `pyproject.toml`](#project-configuration-in-pyprojecttoml)).
 
+Flags and the path may come in any order: `pydeprecate check --exit-zero src/mypackage` scans `src/mypackage`, which is the order a [pre-commit hook](audit.md#pre-commit-integration) produces from its `args`. Boolean flags accept `true`, `false`, `1` or `0` (case-insensitive) as `--flag value` or `--flag=value`, and the negated form attaches directly: `--norecursive`, not `--no-recursive`. Each run takes one path. For `check`, `policy` and `chains`, a second positional path exits `2` with "Pass one path per run". A short flag such as `-r src/mypackage`, or a boolean value other than `true`/`false`/`1`/`0`, exits `2` with a message that the flag expects True or False (use long flags and an explicit `--flag=True|False`) rather than scanning something you did not name. For `expiry`, `all` and `status`, a second positional argument binds `--version` instead. Private `--_*` options (for example `--_advisory`) are not part of the CLI and exit `2`.
+
 There is intentionally no `--include-pep702` flag: every subcommand evaluates pyDeprecate schedule metadata (`deprecated_in`, `remove_in`, a replacement) that symbols deprecated only with `warnings.deprecated` lack. List those with the Python API — `find_deprecation_wrappers(..., include_pep702=True)`, see [PEP 702-only deprecations](audit.md#pep-702-only-deprecations).
 
 ### Policy rule flags
@@ -189,7 +191,9 @@ Policy: min-grace=0.3 (pyproject.toml)  message-required=True (built-in)
 | `policy`   | No violations; or only a skipped `min-grace` rule                        | Policy violations found (and `--exit-zero` not set)                   | Malformed rule value or `--exclude` (flag or `pyproject.toml`)                |
 | `chains`   | No chains                                                                | Deprecated-to-deprecated chains found                                 | Malformed `--exclude`                                                         |
 | `all`      | All checks clean, or only policy violations (table always appended)      | Any hard error above (`packaging` missing → skips expiry, no failure) | Malformed `--version` when `packaging` is available, or malformed `--exclude` |
-| `status`   | Always — status table is not a pass/fail gate                            | —                                                                     | Malformed `--exclude`                                                         |
+| `status`   | Table rendered — status is not a pass/fail gate                          | Path holds two or more top-level packages                             | Malformed `--exclude`                                                         |
+
+Every subcommand that scans a directory exits `1` with `contains multiple packages (…)` when that directory holds two or more top-level packages — even with `--exit-zero` — so pass the package sub-directory instead. Every subcommand exits `2` for an internal `--_*` option. `check`, `policy` and `chains` also exit `2` for a boolean flag given a value other than `true`/`false`/`1`/`0` and for a second positional path; on `expiry`, `all` and `status` such a stray token binds `--version` instead.
 
 Policy violations are the one finding `all` reports without acting on: they never move `all` from `0` to `1`. Give `policy` its own CI step when you want the build to fail on them.
 

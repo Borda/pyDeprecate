@@ -18,21 +18,22 @@ Subcommands:
 import contextlib
 import functools
 import importlib.util
+import inspect
 import sys
 from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any, NamedTuple, Optional, Union
 
 from deprecate._pkg import (
     _auto_detect_version,
     _ConfigReadError,
-    _find_child_packages,
     _is_package_dir,
     _iter_pyproject_paths,
     _managed_sys_path,
     _read_pydeprecate_config,
     _resolve_module_name,
     _safe_module_name,
+    _select_child_package,
 )
 from deprecate.audit import (
     DeprecationWrapperInfo,
@@ -130,7 +131,8 @@ def _scan_path(
     """Scan a directory or importable module/package name for deprecated wrappers.
 
     File paths are not accepted because ``find_deprecation_wrappers()`` expects an importable module or package name,
-    not a filesystem path.
+    not a filesystem path. A directory holding two or more packages is ambiguous and raises ``ValueError`` instead of
+    scanning one of them or falling back to its top-level modules; a directory holding no package keeps that fallback.
 
     """
     pth: Path = Path(path)
@@ -141,9 +143,9 @@ def _scan_path(
                 Path(path).resolve().name, recursive=recursive, include_members=include_members, exclude=exclude
             )
         # Flat src-layout or project root: find package in direct children or src/ subdir.
-        child_pkgs = _find_child_packages(pth)
-        if len(child_pkgs) == 1:
-            return _scan_path(str(child_pkgs[0]), recursive=recursive, include_members=include_members, exclude=exclude)
+        child_pkg = _select_child_package(path)
+        if child_pkg is not None:
+            return _scan_path(str(child_pkg), recursive=recursive, include_members=include_members, exclude=exclude)
         return _scan_directory(path, include_members=include_members, exclude=exclude)
     if pth.is_file():
         raise ValueError(
@@ -529,6 +531,9 @@ class _FromPyproject:
 
 _FROM_PYPROJECT = _FromPyproject()
 _ConfigFlag = Union[str, int, float, bool, None, Sequence[str], _FromPyproject]
+#: A boolean flag that ``pyproject.toml`` may set: a ``bool`` when typed, :data:`_FROM_PYPROJECT` when omitted. Unlike
+#: the wider :data:`_ConfigFlag` it marks the parameter as boolean for :func:`_bool_params`.
+_ConfigBool = Union[bool, _FromPyproject]
 #: A loaded ``[tool.pydeprecate]`` table (known keys only) and the ``pyproject.toml`` it came from.
 _Config = tuple[dict[str, Any], Optional[str]]
 #: Built-in value per policy rule, used when neither a flag nor ``[tool.pydeprecate.policy]`` sets it — the same
@@ -929,7 +934,7 @@ def cmd_policy(
     recursive: bool = True,
     exit_zero: bool = False,
     min_grace: _ConfigFlag = _FROM_PYPROJECT,
-    message_required: _ConfigFlag = _FROM_PYPROJECT,
+    message_required: _ConfigBool = _FROM_PYPROJECT,
     exclude: _ConfigFlag = _FROM_PYPROJECT,
     *,
     _wrappers: Optional[list[DeprecationWrapperInfo]] = None,
@@ -1191,7 +1196,8 @@ def cmd_status(
     """Print a markdown deprecation status table to stdout.
 
     Scans the target package for deprecated wrappers and renders their lifecycle
-    status as a Markdown table. Standalone — runs no checks, exits 0 (2 only for a malformed ``--exclude``).
+    status as a Markdown table. Standalone — runs no checks, exits 0 (1 when the path holds two or more
+    top-level packages, 2 for a malformed ``--exclude``).
     When ``--output`` is given, the table is also written to that file.
 
     Args:
@@ -1229,8 +1235,9 @@ def cmd_status(
         _print(f"Invalid style {style!r}; falling back to 'compact'. Expected one of: {valid}.", stderr=True)
         table_style = TableStyle.COMPACT
 
-    # Never resolve the importable module name eagerly: status "always exits 0" (it is not a
-    # pass/fail gate), so a plain directory without ``__init__.py`` — which ``check`` scans fine and
+    # Never resolve the importable module name eagerly: status is not a pass/fail gate (it exits
+    # non-zero only for a multi-package root or a malformed ``--exclude``), so a plain directory
+    # without ``__init__.py`` — which ``check`` scans fine and
     # for which ``_wrappers`` is already supplied by ``cmd_all`` — must not raise here. ``_safe_module_name``
     # falls back to the raw path, used only as table metadata for version resolution.
     module_name = _safe_module_name(path)
@@ -1293,6 +1300,206 @@ def _ensure_utf8_streams() -> None:
                 stream.reconfigure(encoding="utf-8")
 
 
+#: Spellings accepted as a boolean value after a boolean flag, keyed by lower-cased text. Fire only parses the
+#: capitalised ``True``/``False``; any other spelling would bind as a ``str``/``int`` (``--exit-zero=true``) or be
+#: read as the next positional argument (``--exit-zero 0``), so :func:`_normalize_bool_flags` rewrites them first.
+_BOOL_LITERALS: dict[str, bool] = {"true": True, "false": False, "1": True, "0": False}
+
+
+class _BoolFlag(NamedTuple):
+    """A boolean flag recognised in one argument.
+
+    ``name`` is the parameter name, ``value`` the boolean it sets, and ``takes_next`` whether a ``true``/``false``/
+    ``1``/``0`` token that follows is that flag's value.
+
+    """
+
+    name: str
+    value: bool
+    takes_next: bool
+
+
+def _bool_params(fn: Callable[..., int]) -> frozenset[str]:
+    """Return the names of the CLI-visible parameters of *fn* annotated as ``bool`` or :data:`_ConfigBool`.
+
+    :data:`_ConfigBool` is a ``bool`` whose omitted value comes from ``pyproject.toml`` (``policy``'s
+    ``message_required``); the other :data:`_ConfigFlag` parameters (``min_grace``, ``exclude``) are not booleans.
+    Underscore-prefixed parameters are internal (``cmd_all`` plumbing) and never typed on the command line:
+    :func:`cli` rejects such an option before Fire parses it (see :func:`_internal_option`).
+
+    Examples:
+        >>> sorted(_bool_params(cmd_check))
+        ['exit_zero', 'recursive']
+        >>> sorted(_bool_params(cmd_policy))
+        ['exit_zero', 'message_required', 'recursive']
+
+    """
+    return frozenset(
+        name
+        for name, param in inspect.signature(fn).parameters.items()
+        if param.annotation in (bool, _ConfigBool) and not name.startswith("_")
+    )
+
+
+def _match_bool_flag(arg: str, bool_params: frozenset[str]) -> Optional[_BoolFlag]:
+    """Recognise *arg* as a boolean flag of the subcommand, or return ``None`` to leave it untouched.
+
+    Examples:
+        >>> _match_bool_flag("--exit-zero", frozenset({"exit_zero"}))
+        _BoolFlag(name='exit_zero', value=True, takes_next=True)
+        >>> _match_bool_flag("--noexit-zero", frozenset({"exit_zero"}))
+        _BoolFlag(name='exit_zero', value=False, takes_next=False)
+        >>> _match_bool_flag("--exit-zero=FALSE", frozenset({"exit_zero"}))
+        _BoolFlag(name='exit_zero', value=False, takes_next=False)
+        >>> _match_bool_flag("--exit-zero=yes", frozenset({"exit_zero"})) is None
+        True
+
+    """
+    if not arg.startswith("--"):
+        return None
+    flag, has_value, attached = arg[2:].partition("=")
+    name = flag.replace("-", "_")
+    if has_value:
+        literal = _BOOL_LITERALS.get(attached.lower())
+        return _BoolFlag(name, literal, False) if name in bool_params and literal is not None else None
+    if name in bool_params:
+        return _BoolFlag(name, True, True)
+    if name.startswith("no") and name[2:] in bool_params:
+        return _BoolFlag(name[2:], False, False)
+    return None
+
+
+def _normalize_bool_flags(argv: list[str], bool_params: frozenset[str]) -> list[str]:
+    """Rewrite boolean flags into the explicit ``--name=True``/``--name=False`` form.
+
+    Fire reads the token after a bare flag as the flag's value unless that token is itself a flag, so
+    ``check --exit-zero src/pkg`` binds ``exit_zero='src/pkg'`` and scans the current directory. A pre-commit hook
+    builds its command as ``entry + args``, which puts such flags before the path by default. The explicit form binds
+    correctly in any position. Two flag forms are recognised, each with a dash or underscore in ``<name>``: ``--name``
+    and ``--no<name>``, where ``no`` attaches directly to the name (``--norecursive``, ``--noexit-zero``). The spaced
+    ``--no-recursive`` and ``--no_recursive`` are not recognised and reach Fire unchanged. A value is accepted as
+    ``true``, ``false``, ``1`` or ``0`` in any case, either attached (``--exit-zero=false``) or as the next token
+    (``--exit-zero 0``, which is consumed); ``--no<name>`` never consumes the next token. Any other value is left for
+    :func:`_non_bool_flag_error` to reject, and everything after a ``--`` separator is left untouched.
+
+    Args:
+        argv: Arguments after the subcommand name.
+        bool_params: Names of the subcommand's ``bool`` parameters, from :func:`_bool_params`.
+
+    Returns:
+        A new argument list with every boolean flag made explicit.
+
+    Examples:
+        >>> _normalize_bool_flags(["--exit-zero", "src/pkg", "--norecursive"], frozenset({"exit_zero", "recursive"}))
+        ['--exit_zero=True', 'src/pkg', '--recursive=False']
+        >>> _normalize_bool_flags(["--exit-zero", "false", "src/pkg"], frozenset({"exit_zero"}))
+        ['--exit_zero=False', 'src/pkg']
+        >>> _normalize_bool_flags(["--no-recursive", "src/pkg"], frozenset({"recursive"}))
+        ['--no-recursive', 'src/pkg']
+
+    """
+    result: list[str] = []
+    idx = 0
+    while idx < len(argv):
+        arg = argv[idx]
+        idx += 1
+        if arg == "--":
+            return [*result, arg, *argv[idx:]]
+        flag = _match_bool_flag(arg, bool_params)
+        if flag is None:
+            result.append(arg)
+            continue
+        value = flag.value
+        if flag.takes_next and idx < len(argv) and argv[idx].lower() in _BOOL_LITERALS:
+            value = _BOOL_LITERALS[argv[idx].lower()]
+            idx += 1
+        result.append(f"--{flag.name}={value}")
+    return result
+
+
+def _non_bool_flag_error(fn: Callable[..., int], args: tuple[object, ...], kwargs: dict[str, object]) -> Optional[str]:
+    """Return a usage error when a non-boolean value reached one of *fn*'s ``bool`` parameters, else ``None``.
+
+    :func:`_normalize_bool_flags` leaves short flags (``-r src/pkg``) and unrecognised explicit values untouched.
+    Without this check they could bind truthy strings and let the run pass while scanning something other than what the
+    user named. Positional overflow is rejected separately by the CLI adapter before command dispatch.
+
+    """
+    signature = inspect.signature(fn)
+    bound = signature.bind_partial(*args, **kwargs).arguments
+    for name in sorted(_bool_params(fn)):
+        # Fire passes omitted positional parameters through as their defaults, so a flag left to ``pyproject.toml``
+        # arrives as the sentinel default object — never typed by the user, so never a stray value.
+        if (
+            name in bound
+            and bound[name] is not signature.parameters[name].default
+            and not isinstance(bound[name], bool)
+        ):
+            flag = name.replace("_", "-")
+            return (
+                f"`--{flag}` expects True or False, got {bound[name]!r}. A second path, a short flag's argument, or a "
+                f"spelling other than True/False can land here even if you did not type `--{flag}`. Pass one path per "
+                f"run, prefer long flags, and write explicit values as `--{flag}=True` or `--{flag}=False`."
+            )
+    return None
+
+
+def _internal_option(argv: Sequence[str]) -> Optional[str]:
+    """Return the first private option or its Fire negation before a ``--`` separator, else ``None``.
+
+    Underscore-prefixed parameters of a ``cmd_*`` function (``_advisory``, ``_wrappers``, ``_config``) are in-process
+    plumbing for ``cmd_all``, but Fire exposes every keyword-only parameter as a flag. Typing one would bind a string
+    to a parameter nothing validates (``policy pkg --_advisory=yes`` made the run advisory). Fire strips leading
+    hyphens and changes remaining hyphens to underscores, so ``--no-wrappers`` also targets ``_wrappers``.
+
+    Examples:
+        >>> _internal_option(["policy", "pkg", "--_advisory=yes"])
+        '--_advisory'
+        >>> _internal_option(["check", "pkg", "--", "--_advisory"]) is None
+        True
+
+    """
+    for arg in argv:
+        if arg == "--":
+            return None
+        if arg.startswith("-"):
+            option = arg.partition("=")[0]
+            name = option.lstrip("-").replace("-", "_")
+            if name.startswith("_") or name.startswith("no_"):
+                return option
+    return None
+
+
+def _cli_signature(fn: Callable[..., int]) -> inspect.Signature:
+    """Expose path and version as positional operands and keep public options keyword-only."""
+    signature = inspect.signature(fn)
+    positional = [param for name, param in signature.parameters.items() if name in {"path", "version"}]
+    if not positional:
+        return signature
+    options = [
+        param.replace(kind=inspect.Parameter.KEYWORD_ONLY)
+        for name, param in signature.parameters.items()
+        if name not in {"path", "version"} and not name.startswith("_")
+    ]
+    # Fire can dispatch before reporting leftover operands, so capture overflow for rejection before scanning.
+    return signature.replace(
+        parameters=[*positional, inspect.Parameter("_extra_paths", inspect.Parameter.VAR_POSITIONAL), *options]
+    )
+
+
+def _bind_cli_arguments(
+    fn: Callable[..., int], signature: inspect.Signature, args: tuple[object, ...], kwargs: dict[str, object]
+) -> Union[inspect.BoundArguments, str]:
+    """Bind CLI arguments and reject overflow or invalid booleans before invoking the command."""
+    bound = signature.bind(*args, **kwargs)
+    if "_extra_paths" in signature.parameters:
+        if bound.arguments.pop("_extra_paths", ()):
+            return "Pass one path per run; options other than path and version require flags."
+        bound.apply_defaults()
+    error = _non_bool_flag_error(fn, bound.args, bound.kwargs)
+    return error if error is not None else bound
+
+
 def cli() -> None:
     """CLI entry point for pydeprecate.
 
@@ -1308,6 +1515,13 @@ def cli() -> None:
     treated as that subcommand by the implicit-``check`` shim. Scan such a path explicitly, e.g.
     ``pydeprecate check ./check``, so the leading token is the subcommand and the path is its argument.
 
+    Boolean flags may appear before or after the path (``check --exit-zero src/pkg`` scans ``src/pkg``): bare flags
+    are rewritten to their explicit form before Fire parses them, and any non-boolean value that still reaches a
+    boolean parameter, such as a short flag's value (``-r src/pkg``), exits 2 instead of being
+    taken as a truthy setting. Only the path and optional version accept positional values; extra paths exit 2 before
+    scanning. Internal options and their negated aliases (``--_advisory``, ``--no-wrappers``) exit 2 before Fire sees
+    them. Direct calls to the ``cmd_*`` functions retain their original signatures.
+
     """
     _ensure_utf8_streams()
     try:
@@ -1315,10 +1529,23 @@ def cli() -> None:
     except ImportError:
         sys.exit("The 'pydeprecate' CLI requires the 'fire' package.\nInstall it with: pip install 'pyDeprecate[cli]'")
 
-    subcommands = {"check", "expiry", "policy", "chains", "all", "status"}
+    commands: dict[str, Callable[..., int]] = {
+        "check": cmd_check,
+        "expiry": cmd_expiry,
+        "policy": cmd_policy,
+        "chains": cmd_chains,
+        "all": cmd_all,
+        "status": cmd_status,
+    }
     argv = sys.argv[1:]
-    if argv and argv[0] not in subcommands and argv[0] not in {"-h", "--help"}:
+    if argv and argv[0] not in commands and argv[0] not in {"-h", "--help"}:
         argv = ["check", *argv]
+    internal = _internal_option(argv)
+    if internal is not None:
+        _print(f"Unknown option `{internal}`: options starting with an underscore are internal.", stderr=True)
+        sys.exit(2)
+    if argv and argv[0] in commands:
+        argv = [argv[0], *_normalize_bool_flags(argv[1:], _bool_params(commands[argv[0]]))]
 
     exit_code: Optional[int] = None
 
@@ -1326,29 +1553,28 @@ def cli() -> None:
         """Record the cmd_* return code without returning it into the Fire trace.
 
         Returning the int would make Fire print it and treat it as a further component to consume arguments against;
-        returning ``None`` keeps the output clean and lets Fire finish its trace.
+        returning ``None`` keeps the output clean and lets Fire finish its trace. Expose only path and version as
+        positional parameters, public options as keyword-only, and capture overflow to reject it before scanning. A non-
+        boolean value bound to a boolean parameter also records exit 2 without running the subcommand.
 
         """
+        cli_signature = _cli_signature(fn)
 
         @functools.wraps(fn)
         def wrapper(*args: object, **kwargs: object) -> None:
             nonlocal exit_code
-            exit_code = fn(*args, **kwargs)
+            bound = _bind_cli_arguments(fn, cli_signature, args, kwargs)
+            if isinstance(bound, str):
+                _print(bound, stderr=True)
+                exit_code = 2
+                return
+            exit_code = fn(*bound.args, **bound.kwargs)
 
+        wrapper.__signature__ = cli_signature  # type: ignore[attr-defined]
         return wrapper
 
     try:
-        fire.Fire(
-            {
-                "check": _capture(cmd_check),
-                "expiry": _capture(cmd_expiry),
-                "policy": _capture(cmd_policy),
-                "chains": _capture(cmd_chains),
-                "all": _capture(cmd_all),
-                "status": _capture(cmd_status),
-            },
-            command=argv,
-        )
+        fire.Fire({name: _capture(fn) for name, fn in commands.items()}, command=argv)
     except Exception as exc:  # SystemExit is BaseException — Fire's own exits pass through untouched
         # Prefix the exception type so an exception with an empty message still produces a non-blank stderr
         # line (bare ``str(exc)`` on such exceptions exited 1 with nothing printed).

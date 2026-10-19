@@ -5,6 +5,15 @@
 ### Added
 
 - **Scoped fatal deprecations — `as_exceptions()` context manager.** `with deprecate.as_exceptions():` sets `deprecate.AS_EXCEPTIONS` for one block and restores the previous value on exit, including when the block raises, so nested scopes compose; `as_exceptions(False)` exempts a block from a strict run, while a wrapper's own `as_exception=True` stays fatal. Also usable as a decorator on synchronous functions; `async def`, generator and async-generator functions are rejected with `TypeError` at decoration. The scope is process-wide, not per thread or task, so overlapping scopes from different threads or tasks can leave the switch in the wrong state, and a non-`bool` flag (including a bare `@as_exceptions`) raises `TypeError` at the call. ([#240](https://github.com/Borda/pyDeprecate/pull/240))
+- **pre-commit hooks.** The repository now ships `.pre-commit-hooks.yaml`, so other projects can run the CLI as a hook (`repo: https://github.com/Borda/pyDeprecate`) without wrapping it in a `repo: local` entry. There is one hook id per subcommand — `pydeprecate-check`, `pydeprecate-policy`, `pydeprecate-expiry`, `pydeprecate-chains`, `pydeprecate-all`, plus `pydeprecate` as an alias of `pydeprecate-check` — so `args` only carries flags, plus the package path when it is not under `src/`. The scan imports the audited package, so packages with runtime dependencies should keep a local hook; the audit guide covers both recipes. ([#243](https://github.com/Borda/pyDeprecate/pull/243))
+
+### Changed
+
+- **Stricter CLI argument handling.** A boolean flag now accepts only `true`, `false`, `1` or `0` (case-insensitive) in both `--flag value` and `--flag=value` forms, and any other value exits `2`; a second positional path for `check`, `policy` or `chains`, and private `--_*` options such as `--_advisory`, exit `2` as well. Scanning a directory that holds several top-level packages (for example a repository root with `mypkg/` and `tests/`) now fails with a non-zero exit and a "contains multiple packages" error instead of passing silently on an empty scan; src-layout and single-package roots resolve as before. ([#243](https://github.com/Borda/pyDeprecate/pull/243))
+
+### Fixed
+
+- **Boolean flags before the path.** A boolean flag placed before the path (`pydeprecate check --exit-zero src/mypackage`) no longer swallows the path, and `policy --message-required` / `--nomessage-required` now work before the path too instead of exiting `2`. ([#243](https://github.com/Borda/pyDeprecate/pull/243))
 
 ______________________________________________________________________
 

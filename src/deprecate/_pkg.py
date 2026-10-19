@@ -370,6 +370,31 @@ def _find_child_packages(pth: Path) -> list[Path]:
     return [c for c in pth.iterdir() if c.is_dir() and _is_package_dir(c)]
 
 
+def _select_child_package(path: str) -> Optional[Path]:
+    """Return the single package directory under *path*, or ``None`` when it holds no package.
+
+    Two or more packages are ambiguous — a flat-layout root such as ``mypkg/`` plus ``tests/`` — and raise instead of
+    guessing, so a caller never audits one package, or nothing, while the user believes the whole root was checked.
+
+    Args:
+        path: Directory to search, as the user passed it (quoted in the error message).
+
+    Returns:
+        The package directory, or ``None`` when neither ``src/`` nor *path* directly contains one.
+
+    Raises:
+        ValueError: If *path* contains two or more package directories.
+
+    """
+    child_pkgs = _find_child_packages(Path(path))
+    if len(child_pkgs) > 1:
+        names = ", ".join(sorted(c.name for c in child_pkgs))
+        raise ValueError(
+            f"Directory {path!r} contains multiple packages ({names}). Pass the specific package sub-directory instead."
+        )
+    return child_pkgs[0] if child_pkgs else None
+
+
 @contextmanager
 def _managed_sys_path(path: str) -> Generator[None, None, None]:
     """Context manager that prepends the import root to ``sys.path`` and restores it after scanning.
@@ -430,15 +455,9 @@ def _resolve_module_name(path: str) -> str:
         if _is_package_dir(pth):
             return pth.resolve().name
         # Flat src-layout or project root: find package in direct children or src/ subdir.
-        child_pkgs = _find_child_packages(pth)
-        if len(child_pkgs) == 1:
-            return child_pkgs[0].name
-        if len(child_pkgs) > 1:
-            names = ", ".join(sorted(c.name for c in child_pkgs))
-            raise ValueError(
-                f"Directory {path!r} contains multiple packages ({names}). "
-                "Pass the specific package sub-directory instead."
-            )
+        child_pkg = _select_child_package(path)
+        if child_pkg is not None:
+            return child_pkg.name
         raise ValueError(
             f"Plain directories without '__init__.py' are not supported for expiry or chain checks: {path!r}. "
             "Use an importable package layout with '__init__.py', or pass an importable module name instead."

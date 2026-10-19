@@ -4,7 +4,7 @@ import importlib.metadata
 import inspect
 import sys
 import types
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from pathlib import Path
 from typing import Optional
 from unittest.mock import MagicMock, patch
@@ -15,10 +15,14 @@ import deprecate
 from deprecate._cli import (
     _FROM_PYPROJECT,
     _POLICY_DEFAULTS,
+    _bool_params,
     _ConfigFlag,
     _ensure_utf8_streams,
+    _internal_option,
+    _normalize_bool_flags,
     _print,
     _Reporter,
+    _scan_path,
     cli,
     cmd_all,
     cmd_chains,
@@ -1056,6 +1060,502 @@ class TestCliEntryPoint:
         ):
             cli()
         assert exc_info.value.code == 2
+
+
+class TestCliBoolFlags:
+    """Tests for boolean flags placed anywhere in the argument list (e.g. by a pre-commit hook's ``args``)."""
+
+    @pytest.mark.parametrize(
+        ("argv", "expected"),
+        [
+            pytest.param(["check", "--exit-zero", "some_module"], {"exit_zero": True}, id="dash-before-path"),
+            pytest.param(["check", "--exit_zero", "some_module"], {"exit_zero": True}, id="underscore-before-path"),
+            pytest.param(["check", "--norecursive", "some_module"], {"recursive": False}, id="negated-before-path"),
+            pytest.param(["check", "--recursive", "some_module"], {"recursive": True}, id="plain-before-path"),
+            pytest.param(["check", "--noexit-zero", "some_module"], {"exit_zero": False}, id="negated-dash"),
+            pytest.param(["check", "--exit-zero", "False", "some_module"], {"exit_zero": False}, id="explicit-value"),
+            pytest.param(["check", "--exit-zero", "false", "some_module"], {"exit_zero": False}, id="lowercase-false"),
+            pytest.param(["check", "--exit-zero", "true", "some_module"], {"exit_zero": True}, id="lowercase-true"),
+            pytest.param(["check", "--exit-zero", "0", "some_module"], {"exit_zero": False}, id="zero-value"),
+            pytest.param(["check", "--recursive", "1", "some_module"], {"recursive": True}, id="one-value"),
+            pytest.param(
+                ["check", "--exit-zero=true", "some_module"], {"exit_zero": True}, id="attached-lowercase-true"
+            ),
+            pytest.param(["check", "--exit-zero=1", "some_module"], {"exit_zero": True}, id="attached-one"),
+            pytest.param(["check", "--exit-zero=0", "some_module"], {"exit_zero": False}, id="attached-zero"),
+            pytest.param(["check", "--recursive=FALSE", "some_module"], {"recursive": False}, id="attached-uppercase"),
+            pytest.param(["check", "some_module", "--exit-zero"], {"exit_zero": True}, id="trailing-flag"),
+            pytest.param(["--exit-zero", "some_module"], {"exit_zero": True}, id="implicit-check"),
+        ],
+    )
+    def test_flag_before_path_keeps_path(self, argv: list[str], expected: dict[str, bool]) -> None:
+        """A bare boolean flag never consumes the path that follows it.
+
+        A pre-commit hook builds its command as ``entry + args``, so a config such as ``args: [--exit-zero,
+        src/mypkg]`` puts the flag before the path. Fire treats the token after a bare flag as the flag's value,
+        which used to bind ``exit_zero='src/mypkg'`` and silently scan the current directory instead.
+
+        """
+        with (
+            patch("sys.argv", ["pydeprecate", *argv]),
+            patch("deprecate._cli.cmd_check", autospec=True, return_value=0) as mock_check,
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            cli()
+        assert exc_info.value.code == 0
+        args, kwargs = mock_check.call_args
+        bound = inspect.signature(cmd_check).bind(*args, **kwargs).arguments
+        assert bound["path"] == "some_module"
+        assert {key: bound[key] for key in expected} == expected
+
+    @pytest.mark.parametrize(
+        ("literal", "expected"),
+        [
+            pytest.param("0", False, id="zero"),
+            pytest.param("1", True, id="one"),
+            pytest.param("false", False, id="lowercase-false"),
+            pytest.param("TRUE", True, id="uppercase-true"),
+        ],
+    )
+    def test_value_token_does_not_leak_into_version(self, literal: str, expected: bool) -> None:
+        """A boolean literal after ``--exit-zero`` is the flag's value, not the ``version`` positional.
+
+        A CI step ``pydeprecate expiry pkg --exit-zero 0`` meant ``exit_zero=False``; when the ``0`` stayed a free
+        token it bound to ``version`` instead, which the boolean guard never inspects, so the expiry gate compared
+        against version ``0`` and silently passed.
+
+        """
+        with (
+            patch("sys.argv", ["pydeprecate", "expiry", "some_module", "--exit-zero", literal]),
+            patch("deprecate._cli.cmd_expiry", autospec=True, return_value=0) as mock_expiry,
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            cli()
+        assert exc_info.value.code == 0
+        args, kwargs = mock_expiry.call_args
+        bound = inspect.signature(cmd_expiry).bind(*args, **kwargs).arguments
+        assert (bound["path"], bound["exit_zero"], bound["version"]) == ("some_module", expected, None)
+
+    @pytest.mark.parametrize(
+        ("argv", "expected"),
+        [
+            pytest.param(["--message-required", "some_module"], True, id="bare-before-path"),
+            pytest.param(["--nomessage-required", "some_module"], False, id="negated-before-path"),
+            pytest.param(["--message_required", "false", "some_module"], False, id="explicit-false-before-path"),
+            pytest.param(["some_module", "--message-required"], True, id="trailing-flag"),
+            pytest.param(["some_module"], _FROM_PYPROJECT, id="omitted-keeps-pyproject-sentinel"),
+        ],
+    )
+    def test_policy_message_required_in_any_order(self, argv: list[str], expected: object) -> None:
+        """``policy --message-required <path>`` scans ``<path>``; an omitted flag still defers to ``pyproject.toml``.
+
+        ``message_required`` is typed as a config-backed boolean rather than a plain ``bool``, so the normalizer
+        used to skip it: Fire bound the path to the flag (``policy --message-required src/pkg`` exited 2) and
+        ``--nomessage-required`` before the path left both tokens unconsumed. The omitted case must keep the
+        sentinel default, otherwise the ``[tool.pydeprecate.policy]`` value could never apply.
+
+        """
+        with (
+            patch("sys.argv", ["pydeprecate", "policy", *argv]),
+            patch("deprecate._cli.cmd_policy", autospec=True, return_value=0) as mock_policy,
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            cli()
+        assert exc_info.value.code == 0
+        args, kwargs = mock_policy.call_args
+        bound = inspect.signature(cmd_policy).bind(*args, **kwargs).arguments
+        assert (bound["path"], bound["message_required"]) == ("some_module", expected)
+
+    @pytest.mark.parametrize(
+        ("subcommand", "command", "argv", "expected"),
+        [
+            pytest.param("all", cmd_all, ["--exit-zero", "0", "some_module"], {"exit_zero": False}, id="all-zero"),
+            pytest.param(
+                "all",
+                cmd_all,
+                ["--norecursive", "--exit-zero", "some_module"],
+                {"recursive": False, "exit_zero": True},
+                id="all-two-flags",
+            ),
+            pytest.param(
+                "chains", cmd_chains, ["--norecursive", "some_module"], {"recursive": False}, id="chains-negated"
+            ),
+            pytest.param(
+                "expiry",
+                cmd_expiry,
+                ["--recursive", "0", "--exit-zero", "some_module"],
+                {"recursive": False, "exit_zero": True},
+                id="expiry-two-flags",
+            ),
+            pytest.param(
+                "policy",
+                cmd_policy,
+                ["--exit-zero", "--nomessage-required", "some_module"],
+                {"exit_zero": True, "message_required": False},
+                id="policy-two-flags",
+            ),
+        ],
+    )
+    def test_every_subcommand_binds_flags_before_path(
+        self, subcommand: str, command: Callable[..., int], argv: list[str], expected: dict[str, bool]
+    ) -> None:
+        """Flags placed before the path bind to their own parameters for ``all``, ``chains``, ``expiry``, ``policy``.
+
+        The normalizer derives its flag set from each subcommand's own signature, so a subcommand-specific
+        parameter list (``policy``'s ``message_required``, ``expiry``'s ``version`` slot) must not shift the path
+        or a value into the wrong parameter.
+
+        """
+        with (
+            patch("sys.argv", ["pydeprecate", subcommand, *argv]),
+            patch(f"deprecate._cli.cmd_{subcommand}", autospec=True, return_value=0) as mock_command,
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            cli()
+        assert exc_info.value.code == 0
+        args, kwargs = mock_command.call_args
+        bound = inspect.signature(command).bind(*args, **kwargs).arguments
+        assert {key: bound[key] for key in ("path", *expected)} == {"path": "some_module", **expected}
+
+    def test_status_include_members_before_path(self) -> None:
+        """The ``status`` subcommand's ``--noinclude-members`` flag is normalized like the shared flags.
+
+        Every ``bool`` parameter of the dispatched subcommand is covered, not a fixed list of flag names, so a
+        subcommand-specific switch placed before the path does not swallow it either.
+
+        """
+        with (
+            patch("sys.argv", ["pydeprecate", "status", "--noinclude-members", "some_module"]),
+            patch("deprecate._cli.cmd_status", autospec=True, return_value=0) as mock_status,
+            pytest.raises(SystemExit),
+        ):
+            cli()
+        args, kwargs = mock_status.call_args
+        bound = inspect.signature(cmd_status).bind(*args, **kwargs).arguments
+        assert (bound["path"], bound["include_members"]) == ("some_module", False)
+
+    @pytest.mark.parametrize(
+        "argv",
+        [
+            pytest.param(["check", "-r", "some_module"], id="short-flag-swallows-path"),
+            pytest.param(["check", "some_module", "--exit-zero=yes"], id="non-bool-value"),
+        ],
+    )
+    def test_non_bool_value_exits_two(self, argv: list[str], capsys: pytest.CaptureFixture[str]) -> None:
+        """A non-boolean value reaching a boolean parameter is a usage error, not a silently truthy setting.
+
+        Short flags (``-r pkg``) are not rewritten by the flag normalizer, and an explicit non-boolean value
+        can still reach a boolean option. Without this guard a stray value could make the run pass while scanning
+        something other than what the user named.
+
+        """
+        with (
+            patch("sys.argv", ["pydeprecate", *argv]),
+            patch("deprecate._cli.cmd_check", autospec=True, return_value=0) as mock_check,
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            cli()
+        assert exc_info.value.code == 2
+        mock_check.assert_not_called()
+        err = " ".join(capsys.readouterr().err.split())  # the Rich console wraps long lines at the terminal width
+        assert "expects True or False" in err
+        assert "even if you did not type" in err
+        assert "prefer long flags" in err
+        assert "put it before the flags" not in err
+
+    @pytest.mark.parametrize("subcommand", ["check", "chains"])
+    @pytest.mark.parametrize(
+        "flags",
+        [pytest.param((), id="defaults"), pytest.param(("--norecursive", "--noexit-zero"), id="explicit-booleans")],
+    )
+    def test_extra_path_rejected_before_dispatch(
+        self, subcommand: str, flags: tuple[str, ...], capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Explicit boolean flags never let a second path bind to a different option.
+
+        Both flags are already bound, so Fire formerly put pkg_b into exclude and dispatched the command.
+        The CLI must reject that invocation without calling the command or scanning pkg_a.
+
+        """
+        with (
+            patch("sys.argv", ["pydeprecate", subcommand, *flags, "pkg_a", "pkg_b"]),
+            patch(f"deprecate._cli.cmd_{subcommand}", autospec=True, return_value=0) as mock_command,
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            cli()
+        assert exc_info.value.code == 2
+        mock_command.assert_not_called()
+        assert "one path per run" in capsys.readouterr().err
+
+
+_CHECK_BOOL_PARAMS = frozenset({"exit_zero", "recursive"})
+
+
+class TestNormalizeBoolFlags:
+    """Table-driven tests of ``_normalize_bool_flags``, the argv rewrite that runs before Fire parses a subcommand."""
+
+    @pytest.mark.parametrize(
+        ("argv", "expected"),
+        [
+            pytest.param([], [], id="empty-argv"),
+            pytest.param(["pkg"], ["pkg"], id="path-only"),
+            pytest.param(
+                ["--exit-zero", "--norecursive", "pkg"],
+                ["--exit_zero=True", "--recursive=False", "pkg"],
+                id="two-flags-before-path",
+            ),
+            pytest.param(
+                ["pkg", "--exit_zero", "--recursive"],
+                ["pkg", "--exit_zero=True", "--recursive=True"],
+                id="two-flags-after-path",
+            ),
+            pytest.param(
+                ["--exit-zero", "0", "--recursive", "false", "pkg"],
+                ["--exit_zero=False", "--recursive=False", "pkg"],
+                id="two-valued-flags",
+            ),
+            pytest.param(
+                ["--exit-zero", "yes", "pkg"], ["--exit_zero=True", "yes", "pkg"], id="non-literal-stays-free"
+            ),
+            pytest.param(["--exit-zero", "--", "0"], ["--exit_zero=True", "--", "0"], id="separator-is-not-a-value"),
+            pytest.param(["--", "--exit-zero", "0"], ["--", "--exit-zero", "0"], id="after-separator-untouched"),
+            pytest.param(
+                ["--norecursive", "false", "pkg"], ["--recursive=False", "false", "pkg"], id="negation-takes-no-value"
+            ),
+            pytest.param(["--exit-zero=yes", "pkg"], ["--exit-zero=yes", "pkg"], id="attached-non-literal-untouched"),
+            pytest.param(["--exit-zero=None"], ["--exit-zero=None"], id="attached-none-untouched"),
+            pytest.param(["--verbose", "0"], ["--verbose", "0"], id="unknown-flag-untouched"),
+            pytest.param(["--no-recursive", "pkg"], ["--no-recursive", "pkg"], id="dashed-negation-not-recognised"),
+            pytest.param(["-r", "pkg"], ["-r", "pkg"], id="short-flag-untouched"),
+        ],
+    )
+    def test_rewrites_check_argv(self, argv: list[str], expected: list[str]) -> None:
+        """Boolean flags become ``--name=True|False`` wherever they sit; everything else is left for Fire or the guard.
+
+        The rewrite is what lets a pre-commit hook put a flag before the path; any argument it does not recognise
+        must pass through byte for byte so Fire still reports typos and the guard still rejects stray values.
+
+        """
+        assert _normalize_bool_flags(argv, _CHECK_BOOL_PARAMS) == expected
+
+    @pytest.mark.parametrize(
+        ("spelling", "expected"),
+        [
+            pytest.param("true", True, id="true"),
+            pytest.param("True", True, id="capital-true"),
+            pytest.param("TRUE", True, id="upper-true"),
+            pytest.param("1", True, id="one"),
+            pytest.param("false", False, id="false"),
+            pytest.param("False", False, id="capital-false"),
+            pytest.param("FALSE", False, id="upper-false"),
+            pytest.param("0", False, id="zero"),
+        ],
+    )
+    def test_literal_spellings_as_separate_token(self, spelling: str, expected: bool) -> None:
+        """A literal after a bare flag is consumed as its value: ``--exit-zero 0`` is ``exit_zero=False``.
+
+        Left as a free token, ``0`` would bind to the next positional parameter of the subcommand — ``version`` for
+        ``expiry`` — where nothing validates it.
+
+        """
+        assert _normalize_bool_flags(["--exit-zero", spelling, "pkg"], _CHECK_BOOL_PARAMS) == [
+            f"--exit_zero={expected}",
+            "pkg",
+        ]
+
+    @pytest.mark.parametrize(
+        ("spelling", "expected"),
+        [
+            pytest.param("true", True, id="true"),
+            pytest.param("True", True, id="capital-true"),
+            pytest.param("TRUE", True, id="upper-true"),
+            pytest.param("1", True, id="one"),
+            pytest.param("false", False, id="false"),
+            pytest.param("False", False, id="capital-false"),
+            pytest.param("FALSE", False, id="upper-false"),
+            pytest.param("0", False, id="zero"),
+        ],
+    )
+    def test_literal_spellings_attached(self, spelling: str, expected: bool) -> None:
+        """``--exit-zero=<literal>`` accepts the same spellings and is rewritten to Fire's capitalised form.
+
+        Fire parses only ``True``/``False`` as booleans, so ``=true`` would reach the subcommand as a string and
+        ``=1`` as an integer.
+
+        """
+        assert _normalize_bool_flags([f"--exit-zero={spelling}", "pkg"], _CHECK_BOOL_PARAMS) == [
+            f"--exit_zero={expected}",
+            "pkg",
+        ]
+
+    def test_underscore_prefixed_parameters_are_not_flags(self) -> None:
+        """``--_advisory`` is not rewritten even though ``cmd_policy._advisory`` is annotated ``bool``.
+
+        Underscore parameters are ``cmd_all`` plumbing; the normalizer must leave them alone so the CLI boundary can
+        reject them instead of treating a typed ``--_advisory`` as a user flag.
+
+        """
+        argv = ["--_advisory", "--_advisory=True", "pkg"]
+        assert _normalize_bool_flags(argv, _bool_params(cmd_policy)) == argv
+
+
+class TestBoolParams:
+    """Contract of ``_bool_params`` across every subcommand: which parameters are command-line boolean flags."""
+
+    @pytest.mark.parametrize(
+        ("command", "expected"),
+        [
+            pytest.param(cmd_check, {"exit_zero", "recursive"}, id="check"),
+            pytest.param(cmd_expiry, {"exit_zero", "recursive"}, id="expiry"),
+            pytest.param(cmd_policy, {"exit_zero", "message_required", "recursive"}, id="policy"),
+            pytest.param(cmd_chains, {"exit_zero", "recursive"}, id="chains"),
+            pytest.param(cmd_all, {"exit_zero", "recursive"}, id="all"),
+            pytest.param(cmd_status, {"include_members", "recursive"}, id="status"),
+        ],
+    )
+    def test_cli_visible_boolean_flags(self, command: Callable[..., int], expected: set[str]) -> None:
+        """Each subcommand exposes exactly its documented boolean flags to the normalizer and the guard.
+
+        A flag missing here is order-dependent on the command line (the path after it is swallowed) and escapes the
+        exit-2 guard; ``message_required`` is the case that was missed when it was typed as a config-backed flag.
+
+        """
+        assert _bool_params(command) == frozenset(expected)
+
+    @pytest.mark.parametrize(
+        ("command", "hidden"),
+        [
+            pytest.param(cmd_expiry, "_version_explicit", id="expiry"),
+            pytest.param(cmd_policy, "_advisory", id="policy"),
+            pytest.param(cmd_status, "_version_explicit", id="status"),
+        ],
+    )
+    def test_underscore_boolean_is_not_a_flag(self, command: Callable[..., int], hidden: str) -> None:
+        """A ``bool``-annotated underscore parameter stays out of the flag set.
+
+        ``cmd_all`` passes ``_advisory=True`` and ``_version_explicit`` to its siblings in process; they are not
+        part of the command-line surface, so the filter on the leading underscore is what keeps them out.
+
+        """
+        assert inspect.signature(command).parameters[hidden].annotation is bool
+        assert hidden not in _bool_params(command)
+
+    @pytest.mark.parametrize(
+        ("command", "other_flag"),
+        [
+            pytest.param(cmd_policy, "min_grace", id="min-grace"),
+            pytest.param(cmd_policy, "exclude", id="policy-exclude"),
+            pytest.param(cmd_check, "exclude", id="check-exclude"),
+        ],
+    )
+    def test_config_backed_non_boolean_flags_are_excluded(self, command: Callable[..., int], other_flag: str) -> None:
+        """Config-backed flags that are not booleans (``min_grace``, ``exclude``) are never treated as boolean.
+
+        They share the ``pyproject.toml`` sentinel default with ``message_required`` but take strings, numbers or
+        lists, so rewriting ``--exclude pkg`` into ``--exclude=True`` would break them.
+
+        """
+        assert other_flag in inspect.signature(command).parameters
+        assert other_flag not in _bool_params(command)
+
+
+class TestInternalOptionRejection:
+    """Underscore-prefixed parameters are in-process plumbing and are rejected at the command line."""
+
+    @pytest.mark.parametrize(
+        "option",
+        [
+            pytest.param("--_advisory=yes", id="non-bool-value"),
+            pytest.param("--_advisory=True", id="bool-value"),
+            pytest.param("--_advisory", id="bare"),
+        ],
+    )
+    def test_internal_option_exits_two(self, option: str, capsys: pytest.CaptureFixture[str]) -> None:
+        """``policy pkg --_advisory=<anything>`` exits 2 without running the subcommand.
+
+        Fire exposes the keyword-only ``_advisory`` of ``cmd_policy`` as a flag, so a typed value used to reach it
+        unvalidated and silently turned a gating policy run into an advisory one with the same exit semantics.
+
+        """
+        with (
+            patch("sys.argv", ["pydeprecate", "policy", "some_module", option]),
+            patch("deprecate._cli.cmd_policy", autospec=True, return_value=0) as mock_policy,
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            cli()
+        assert exc_info.value.code == 2
+        mock_policy.assert_not_called()
+        assert "--_advisory" in capsys.readouterr().err
+
+    @pytest.mark.parametrize(
+        ("argv", "expected"),
+        [
+            pytest.param(["check", "pkg"], None, id="no-underscore-option"),
+            pytest.param(["check", "pkg", "--_wrappers=x"], "--_wrappers", id="attached-value"),
+            pytest.param(["--_config", "check"], "--_config", id="before-subcommand"),
+            pytest.param(["check", "pkg", "--", "--_advisory"], None, id="after-separator-is-data"),
+            pytest.param(["check", "pkg", "--exit-zero", "_literal"], None, id="underscore-value-is-not-an-option"),
+        ],
+    )
+    def test_internal_option_detection(self, argv: list[str], expected: Optional[str]) -> None:
+        """Only an underscore-prefixed long option before a ``--`` separator counts as an internal option.
+
+        A value that merely starts with an underscore, and everything after ``--``, is user data and must not be
+        refused.
+
+        """
+        assert _internal_option(argv) == expected
+
+    @patch("deprecate._cli.cmd_status", return_value=0)
+    @patch("deprecate._cli._check_expiry_for_callables", return_value=[])
+    @patch("deprecate._cli.find_deprecation_wrappers", return_value=[_POLICY_VIOLATION])
+    def test_all_stays_advisory(
+        self, mock_find: MagicMock, mock_expiry: MagicMock, mock_status: MagicMock, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """``all pkg`` still runs its policy pass in advisory mode and exits 0 despite a violation.
+
+        ``cmd_all`` passes ``_advisory=True`` in process, which the command-line rejection must not disturb: the
+        violation prints as a warning with the advisory trailer and does not gate the run.
+
+        """
+        with (
+            patch("sys.argv", ["pydeprecate", "all", "some_module", "--version=2.0"]),
+            patch("deprecate._cli._Reporter._HAS_RICH", False),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            cli()
+        captured = capsys.readouterr()
+        assert exc_info.value.code == 0
+        assert "[WARNING] Found deprecation policy violations:" in captured.out
+        assert "(advisory here — run `pydeprecate policy` to gate on it)" in captured.out
+
+
+class TestScanPath:
+    """Tests for ``_scan_path`` resolving a package from a project-root directory."""
+
+    def test_multiple_child_packages_raise(self, tmp_path: Path) -> None:
+        """A directory holding two packages raises ``ValueError`` naming both instead of scanning neither.
+
+        A flat-layout root with ``mypkg/`` and ``tests/`` used to fall through to the top-level-module scan, which
+        imports only ``setup.py``-style files, so ``pydeprecate check`` reported a clean run on an unscanned project.
+
+        """
+        for name in ("mypkg", "tests"):
+            (tmp_path / name).mkdir()
+            (tmp_path / name / "__init__.py").write_text("")
+        with pytest.raises(ValueError, match=r"contains multiple packages \(mypkg, tests\)"):
+            _scan_path(str(tmp_path))
+
+    def test_directory_without_packages_scans_top_level_modules(self, tmp_path: Path) -> None:
+        """A plain directory with no package keeps the top-level-module scan and finds no wrappers in a clean one.
+
+        Only an ambiguous choice between several packages is an error; a scripts directory has nothing to choose.
+
+        """
+        (tmp_path / "plain_script.py").write_text("VALUE = 1\n")
+        with patch("deprecate._cli._scan_directory", return_value=[]) as mock_scan:
+            assert _scan_path(str(tmp_path)) == []
+        mock_scan.assert_called_once()
 
 
 # ---------------------------------------------------------------------------

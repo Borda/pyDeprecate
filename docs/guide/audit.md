@@ -721,9 +721,67 @@ Unlike `validate_deprecation_expiry` or `validate_deprecation_chains`, a positio
 
 ## Pre-commit Integration
 
-!!! info "Coming soon"
+A [pre-commit](https://pre-commit.com/) hook gives a fast local signal before you push, without running the test suite or waiting for CI. The scan imports your package to read its wrappers, so the hook has to run where your package and its runtime dependencies are importable — which decides which of the two recipes below fits.
 
-    Native pre-commit hook support is planned. For now, run the validator directly via `pydeprecate` in your `Makefile` or CI step.
+**Recommended — a local hook in your development environment.** It runs the `pydeprecate` CLI you installed with `pip install 'pyDeprecate[audit,cli]'`, in the same environment your tests use, so every submodule imports exactly as it does at runtime:
+
+```yaml
+# .pre-commit-config.yaml
+repos:
+  - repo: local
+    hooks:
+      - id: pydeprecate
+        name: pydeprecate
+        entry: pydeprecate check # add the package path if it is not under src/
+        language: system # spelled `unsupported` since pre-commit 4.4; `system` still works
+        pass_filenames: false # the CLI scans packages, not individual files
+        types: [python] # runs only when a Python file is staged
+        require_serial: true
+
+ci:
+  skip: [pydeprecate] # pre-commit.ci has no project environment to import from
+```
+
+**Remote hook — packages that import without third-party dependencies.** pyDeprecate ships a hook manifest, so you can reference the repository directly (available from `v0.15.0`):
+
+```yaml
+# .pre-commit-config.yaml
+repos:
+  - repo: https://github.com/Borda/pyDeprecate
+    rev: v0.15.0 # the first tag shipping the hook
+    hooks:
+      - id: pydeprecate-check # finds the package under src/; add `args: [mypkg]` for any other location
+```
+
+pre-commit installs this hook into its own isolated environment, which holds pyDeprecate and the CLI dependencies but none of your package's runtime dependencies. Add them with `additional_dependencies` — and because that list *replaces* the hook's own, start it with the hook's own `"pyDeprecate[cli,audit]"` entry (pyDeprecate's `cli` and `audit` extras, which pip resolves to the hook's own checkout), then append yours. Without it the `pydeprecate` entry point lacks its CLI dependencies, and Python 3.9–3.10 cannot read `[tool.pydeprecate]` from `pyproject.toml`:
+
+```yaml
+# .pre-commit-config.yaml
+repos:
+  - repo: https://github.com/Borda/pyDeprecate
+    rev: v0.15.0
+    hooks:
+      - id: pydeprecate-check
+        additional_dependencies: ["pyDeprecate[cli,audit]", numpy, requests] # the hook's own entry first, then your package's runtime dependencies
+```
+
+!!! warning "A missing dependency can pass silently"
+
+    A submodule that fails to import is skipped with a `UserWarning: audit: skipped <module>` and the scan carries on (see [Troubleshooting](../troubleshooting.md)). pre-commit hides the output of a hook that passes, so a missing dependency in the isolated environment leaves those modules unaudited with no visible failure. Prefer the local hook whenever your package has runtime dependencies, and pin `rev` to the pyDeprecate release your project depends on.
+
+The isolated environment separates dependencies, not trust: like the local hook, it imports your package and runs its import-time code with your user's permissions. When the hook runs on checkouts you do not trust, such as pull requests from forks in CI, run it without secrets or privileged credentials.
+
+Run it on demand using the configured hook ID: `pydeprecate` for the local recipe or `pydeprecate-check` for either remote recipe. The commands below use the local ID:
+
+```bash
+# Get a clear signal before pushing (runs when a Python file is staged):
+pre-commit run pydeprecate
+
+# Or check regardless of what is staged:
+pre-commit run pydeprecate --all-files
+```
+
+The hook ignores the staged file names and scans the whole package each time: pyDeprecate resolves wrappers through importable modules, never single files. With no path in `args`, the hook audits the single package under `src/`, or else the single package at the repository root, so src-layout and single-package repositories need no `args`. A root holding two or more top-level packages (for example `mypkg/` and `tests/`) fails with a non-zero exit and `contains multiple packages (mypkg, tests)` rather than passing on an empty scan, so such repositories must name the package in `args`, e.g. `args: [mypkg]`. Each subcommand has its own hook id, with the subcommand already in the hook's `entry`: `pydeprecate-check`, `pydeprecate-policy`, `pydeprecate-expiry`, `pydeprecate-chains` and `pydeprecate-all`, plus `pydeprecate` as an alias of `pydeprecate-check`. Pass flags and the path through `args`, in any order — `args: [--exit-zero]` reports without blocking while you clear a backlog. Every subcommand reads `[tool.pydeprecate]`, and `expiry` and `all` also read the version from `pyproject.toml`, so to re-run the hook when only `pyproject.toml` changes, override both filters on the hook: `types: [file]` together with `files: '(\.py|(^|/)pyproject\.toml)$'`. The manifest's `types: [python]` would otherwise stay in force, and pre-commit needs a file to match every filter, so a `pyproject.toml`-only commit would skip the hook.
 
 The CLI provides six subcommands. Use `check` for wrapper config validation, `policy` to gate on your project's deprecation-governance rules, `all` to run every check in a single pass (and append a deprecation table), or `status` to generate a standalone markdown deprecation table without running any checks. See the [CLI Reference](cli.md) for full flag and exit-code documentation.
 
@@ -741,7 +799,7 @@ pydeprecate all src/your_package
 # policy — exits 1 if any deprecation breaks a governance rule (gate on it separately from `all`)
 pydeprecate policy src/your_package
 
-# status — standalone deprecation status table only (no checks, always exits 0)
+# status — standalone deprecation status table only (no checks, not a pass/fail gate)
 pydeprecate status src/your_package
 
 # Advisory-only: always exit 0, report issues without blocking
