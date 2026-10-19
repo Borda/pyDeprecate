@@ -769,7 +769,7 @@ repos:
 
     A submodule that fails to import is skipped with a `UserWarning: audit: skipped <module>` and the scan carries on (see [Troubleshooting](../troubleshooting.md)). pre-commit hides the output of a hook that passes, so a missing dependency in the isolated environment leaves those modules unaudited with no visible failure. Prefer the local hook whenever your package has runtime dependencies, and pin `rev` to the pyDeprecate release your project depends on.
 
-Run it on demand:
+Run it on demand using the configured hook ID: `pydeprecate` for the local recipe or `pydeprecate-check` for either remote recipe. The commands below use the local ID:
 
 ```bash
 # Get a clear signal before pushing (runs when a Python file is staged):
