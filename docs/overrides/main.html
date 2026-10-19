@@ -452,7 +452,7 @@
           "name": "Why does my pydeprecate pre-commit hook pass but miss deprecations?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "The remote hook (repo: https://github.com/Borda/pyDeprecate) runs in an isolated environment that holds pyDeprecate and its CLI dependencies but not your package's runtime dependencies. The scan imports your package, so each submodule importing a missing dependency is skipped with UserWarning 'audit: skipped <module>', and pre-commit hides the output of a passing hook. Run a local hook instead (repo: local, language: system, entry: pydeprecate check src/mypackage) so the scan uses your development environment, or list your dependencies in additional_dependencies, starting with the hook's own \"pyDeprecate[cli,audit]\" entry (pyDeprecate's cli and audit extras) and then appending yours, because that list replaces the hook's own."
+            "text": "The remote hook (repo: https://github.com/Borda/pyDeprecate) runs in an isolated environment that holds pyDeprecate and its CLI dependencies but not your package's runtime dependencies. The scan imports your package, so each submodule importing a missing dependency is skipped with UserWarning 'audit: skipped <module>', and pre-commit hides the output of a passing hook. Run a local hook instead (repo: local, language: system, entry: pydeprecate check) so the scan uses your development environment, or list your dependencies in additional_dependencies, starting with the hook's own \"pyDeprecate[cli,audit]\" entry (pyDeprecate's cli and audit extras) and then appending yours, because that list replaces the hook's own."
           }
         },
         {
@@ -460,7 +460,7 @@
           "name": "Why does my pydeprecate pre-commit hook fail with 'contains multiple packages'?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "The hook's default args: [check] scans the repository root. A root holding two or more top-level packages (for example mypkg/ and tests/) is ambiguous, so pyDeprecate exits non-zero with 'contains multiple packages (mypkg, tests)' instead of scanning nothing and passing. Src-layout repositories and single-package roots resolve on their own. For a multi-package repository, name the package in the hook args, e.g. args: [check, mypkg]. The same error applies to policy, status and all."
+            "text": "With no path in args, the hook looks for a single package under src/, then at the repository root. A root holding two or more top-level packages (for example mypkg/ and tests/) is ambiguous, so pyDeprecate exits non-zero with 'contains multiple packages (mypkg, tests)' instead of scanning nothing and passing. Src-layout repositories and single-package roots resolve on their own. For a multi-package repository, name the package in the hook args, e.g. args: [mypkg]. The same error applies to policy, status and all."
           }
         },
         {

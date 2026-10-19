@@ -1807,7 +1807,7 @@ repos:
     hooks:
       - id: pydeprecate
         name: pydeprecate
-        entry: pydeprecate check src/mypackage
+        entry: pydeprecate check # add the package path if it is not under src/
         language: system # spelled `unsupported` since pre-commit 4.4
         pass_filenames: false
         types: [python]
@@ -1819,7 +1819,7 @@ pre-commit run pydeprecate              # when a Python file is staged
 pre-commit run pydeprecate --all-files  # regardless of what is staged
 ```
 
-Packages that import without third-party dependencies can use the shipped hook instead (`repo: https://github.com/Borda/pyDeprecate`, `id: pydeprecate`, from the first release after `v0.14.0`); see the [pre-commit section of the audit guide](https://borda.github.io/pyDeprecate/stable/guide/audit#pre-commit-integration) for both recipes and the isolated-environment caveat.
+Packages that import without third-party dependencies can use the shipped hook instead (`repo: https://github.com/Borda/pyDeprecate`, `id: pydeprecate-check`, from the first release after `v0.14.0`; one hook id per subcommand); see the [pre-commit section of the audit guide](https://borda.github.io/pyDeprecate/stable/guide/audit#pre-commit-integration) for both recipes and the isolated-environment caveat.
 
 **Example: catching a deprecated-to-deprecated chain**
 

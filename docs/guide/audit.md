@@ -732,7 +732,7 @@ repos:
     hooks:
       - id: pydeprecate
         name: pydeprecate
-        entry: pydeprecate check src/mypackage
+        entry: pydeprecate check # add the package path if it is not under src/
         language: system # spelled `unsupported` since pre-commit 4.4; `system` still works
         pass_filenames: false # the CLI scans packages, not individual files
         types: [python] # runs only when a Python file is staged
@@ -750,8 +750,7 @@ repos:
   - repo: https://github.com/Borda/pyDeprecate
     rev: <first release after v0.14.0> # the first tag shipping the hook
     hooks:
-      - id: pydeprecate
-        args: [check, src/mypackage] # default: `check` on the repository root (src-layout or single-package only)
+      - id: pydeprecate-check # finds the package under src/; add `args: [mypkg]` for any other location
 ```
 
 pre-commit installs this hook into its own isolated environment, which holds pyDeprecate and the CLI dependencies but none of your package's runtime dependencies. Add them with `additional_dependencies` — and because that list *replaces* the hook's own, start it with the hook's own `"pyDeprecate[cli,audit]"` entry (pyDeprecate's `cli` and `audit` extras, which pip resolves to the hook's own checkout), then append yours. Without it the `pydeprecate` entry point lacks its CLI dependencies, and Python 3.9–3.10 cannot read `[tool.pydeprecate]` from `pyproject.toml`:
@@ -762,8 +761,7 @@ repos:
   - repo: https://github.com/Borda/pyDeprecate
     rev: <first release after v0.14.0>
     hooks:
-      - id: pydeprecate
-        args: [check, src/mypackage]
+      - id: pydeprecate-check
         additional_dependencies: ["pyDeprecate[cli,audit]"]
 ```
 
@@ -781,7 +779,7 @@ pre-commit run pydeprecate
 pre-commit run pydeprecate --all-files
 ```
 
-The hook ignores the staged file names and scans the whole package each time: pyDeprecate resolves wrappers through importable modules, never single files. The default `args: [check]` scans the repository root, which works for src-layout and single-package repositories. A root holding two or more top-level packages (for example `mypkg/` and `tests/`) fails with a non-zero exit and `contains multiple packages (mypkg, tests)` rather than passing on an empty scan, so such repositories must name the package in `args`, e.g. `args: [check, mypkg]`. Pass any subcommand and flag through `args`, in any order — `args: [check, --exit-zero, src/mypackage]` reports without blocking while you clear a backlog. Every subcommand reads `[tool.pydeprecate]`, and `expiry` and `all` also read the version from `pyproject.toml`, so to re-run the hook when only `pyproject.toml` changes, override both filters on the hook: `types: [file]` together with `files: '(\.py|(^|/)pyproject\.toml)$'`. The manifest's `types: [python]` would otherwise stay in force, and pre-commit needs a file to match every filter, so a `pyproject.toml`-only commit would skip the hook.
+The hook ignores the staged file names and scans the whole package each time: pyDeprecate resolves wrappers through importable modules, never single files. With no path in `args`, the hook audits the single package under `src/`, or else the single package at the repository root, so src-layout and single-package repositories need no `args`. A root holding two or more top-level packages (for example `mypkg/` and `tests/`) fails with a non-zero exit and `contains multiple packages (mypkg, tests)` rather than passing on an empty scan, so such repositories must name the package in `args`, e.g. `args: [mypkg]`. Each subcommand has its own hook id, with the subcommand already in the hook's `entry`: `pydeprecate-check`, `pydeprecate-policy`, `pydeprecate-expiry`, `pydeprecate-chains` and `pydeprecate-all`, plus `pydeprecate` as an alias of `pydeprecate-check`. Pass flags and the path through `args`, in any order — `args: [--exit-zero]` reports without blocking while you clear a backlog. Every subcommand reads `[tool.pydeprecate]`, and `expiry` and `all` also read the version from `pyproject.toml`, so to re-run the hook when only `pyproject.toml` changes, override both filters on the hook: `types: [file]` together with `files: '(\.py|(^|/)pyproject\.toml)$'`. The manifest's `types: [python]` would otherwise stay in force, and pre-commit needs a file to match every filter, so a `pyproject.toml`-only commit would skip the hook.
 
 The CLI provides six subcommands. Use `check` for wrapper config validation, `policy` to gate on your project's deprecation-governance rules, `all` to run every check in a single pass (and append a deprecation table), or `status` to generate a standalone markdown deprecation table without running any checks. See the [CLI Reference](cli.md) for full flag and exit-code documentation.
 

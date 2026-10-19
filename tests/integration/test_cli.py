@@ -474,9 +474,9 @@ class TestCliPreCommitArgs:
     def test_exit_zero_before_path_scans_path(self, tmp_path: Path) -> None:
         """``check --exit-zero <pkg>`` scans ``<pkg>`` and reports its findings without failing.
 
-        A hook config ``args: [check, --exit-zero, src/mypkg]`` puts the flag first. The run must scan the named
-        package — the header names it and the invalid mapping is reported — instead of binding the path to
-        ``--exit-zero`` and scanning the current directory with exit 0.
+        A ``pydeprecate-check`` hook config ``args: [--exit-zero, src/mypkg]`` puts the flag first. The run must
+        scan the named package — the header names it and the invalid mapping is reported — instead of binding the
+        path to ``--exit-zero`` and scanning the current directory with exit 0.
 
         """
         pkg = _make_pkg(tmp_path, content=_MYPKG_INIT_INVALID)
@@ -681,7 +681,7 @@ class TestCliPackageRootScan:
         """``pydeprecate check`` at a root with exactly one package scans it and reports its findings.
 
         The no-path default has to keep resolving the lone package of a flat-layout project root, or a hook
-        configured with ``args: [check]`` could not audit anything.
+        configured with no ``args`` could not audit anything.
 
         """
         root = _make_flat_root(tmp_path, "mypkg")
