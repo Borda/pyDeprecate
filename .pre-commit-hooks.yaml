@@ -16,10 +16,7 @@
   pass_filenames: false
   types: [python]
   require_serial: true
-  # `pip install .` skips extras — mirror the `cli` and `audit` extras of setup.py here; a user
-  # `additional_dependencies` list replaces this one, so it must repeat these entries
-  additional_dependencies:
-    - "fire>=0.6.0"
-    - "rich>=13.0.0"
-    - "packaging>=20.0"
-    - "tomli>=2.0; python_version<'3.11'"
+  # `pip install .` skips extras, so request the `cli` and `audit` extras of setup.py by name; pip binds the
+  # name to the `.` checkout pre-commit installs, so no other release is fetched. A user `additional_dependencies`
+  # list replaces this one, so it must start with the same entry
+  additional_dependencies: ["pyDeprecate[cli,audit]"]

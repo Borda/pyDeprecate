@@ -452,7 +452,7 @@
           "name": "Why does my pydeprecate pre-commit hook pass but miss deprecations?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "The remote hook (repo: https://github.com/Borda/pyDeprecate) runs in an isolated environment that holds pyDeprecate and its CLI dependencies but not your package's runtime dependencies. The scan imports your package, so each submodule importing a missing dependency is skipped with UserWarning 'audit: skipped <module>', and pre-commit hides the output of a passing hook. Run a local hook instead (repo: local, language: system, entry: pydeprecate check src/mypackage) so the scan uses your development environment, or list your dependencies in additional_dependencies, copying the full list from the hook manifest (fire>=0.6.0, rich>=13.0.0, packaging>=20.0, and the conditional \"tomli>=2.0; python_version<'3.11'\") and then appending yours, because that list replaces the hook's own."
+            "text": "The remote hook (repo: https://github.com/Borda/pyDeprecate) runs in an isolated environment that holds pyDeprecate and its CLI dependencies but not your package's runtime dependencies. The scan imports your package, so each submodule importing a missing dependency is skipped with UserWarning 'audit: skipped <module>', and pre-commit hides the output of a passing hook. Run a local hook instead (repo: local, language: system, entry: pydeprecate check src/mypackage) so the scan uses your development environment, or list your dependencies in additional_dependencies, starting with the hook's own \"pyDeprecate[cli,audit]\" entry (pyDeprecate's cli and audit extras) and then appending yours, because that list replaces the hook's own."
           }
         },
         {

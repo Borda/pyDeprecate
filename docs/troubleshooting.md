@@ -2146,7 +2146,7 @@ ______________________________________________________________________
 Two fixes:
 
 - Run a local hook (`repo: local`, `language: system`, `entry: pydeprecate check src/mypackage`) so the scan uses your development environment — the recommended setup for any package with runtime dependencies.
-- Keep the remote hook and list your dependencies in `additional_dependencies`. The list replaces the hook's own, so copy the full list from the hook's `.pre-commit-hooks.yaml` (`fire>=0.6.0`, `rich>=13.0.0`, `packaging>=20.0`, and the quoted conditional `"tomli>=2.0; python_version<'3.11'"`) and then append yours — without `packaging`, `expiry` and the `min-grace` policy rule are skipped with a warning instead of failing, and without `tomli` on Python 3.9–3.10 `[tool.pydeprecate]` settings are ignored.
+- Keep the remote hook and list your dependencies in `additional_dependencies`. The list replaces the hook's own, so start it with the hook's `"pyDeprecate[cli,audit]"` entry (pyDeprecate's `cli` and `audit` extras, which pip resolves to the hook's own checkout) and then append yours — without the `audit` extra, `packaging` is missing, so `expiry` and the `min-grace` policy rule are skipped with a warning instead of failing, and without `tomli` on Python 3.9–3.10 `[tool.pydeprecate]` settings are ignored.
 
 Both recipes are in the [audit guide](guide/audit.md#pre-commit-integration).
 

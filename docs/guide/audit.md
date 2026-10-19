@@ -754,7 +754,7 @@ repos:
         args: [check, src/mypackage] # default: `check` on the repository root (src-layout or single-package only)
 ```
 
-pre-commit installs this hook into its own isolated environment, which holds pyDeprecate and the CLI dependencies but none of your package's runtime dependencies. Add them with `additional_dependencies` — and because that list *replaces* the hook's own, copy the full `additional_dependencies` list from the hook's `.pre-commit-hooks.yaml` first, then append yours. That includes the conditional `tomli` entry, without which Python 3.9–3.10 cannot read `[tool.pydeprecate]` from `pyproject.toml`:
+pre-commit installs this hook into its own isolated environment, which holds pyDeprecate and the CLI dependencies but none of your package's runtime dependencies. Add them with `additional_dependencies` — and because that list *replaces* the hook's own, start it with the hook's own `"pyDeprecate[cli,audit]"` entry (pyDeprecate's `cli` and `audit` extras, which pip resolves to the hook's own checkout), then append yours. Without it the `pydeprecate` entry point lacks its CLI dependencies, and Python 3.9–3.10 cannot read `[tool.pydeprecate]` from `pyproject.toml`:
 
 ```yaml
 # .pre-commit-config.yaml
@@ -764,7 +764,7 @@ repos:
     hooks:
       - id: pydeprecate
         args: [check, src/mypackage]
-        additional_dependencies: ["fire>=0.6.0", "rich>=13.0.0", "packaging>=20.0", "tomli>=2.0; python_version<'3.11'", numpy, requests]
+        additional_dependencies: ["pyDeprecate[cli,audit]"]
 ```
 
 !!! warning "A missing dependency can pass silently"
