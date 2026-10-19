@@ -742,13 +742,13 @@ ci:
   skip: [pydeprecate] # pre-commit.ci has no project environment to import from
 ```
 
-**Remote hook — packages that import without third-party dependencies.** pyDeprecate ships a hook manifest, so you can reference the repository directly (available from the first release after `v0.14.0`):
+**Remote hook — packages that import without third-party dependencies.** pyDeprecate ships a hook manifest, so you can reference the repository directly (available from `v0.15.0`):
 
 ```yaml
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/Borda/pyDeprecate
-    rev: <first release after v0.14.0> # the first tag shipping the hook
+    rev: v0.15.0 # the first tag shipping the hook
     hooks:
       - id: pydeprecate-check # finds the package under src/; add `args: [mypkg]` for any other location
 ```
@@ -759,7 +759,7 @@ pre-commit installs this hook into its own isolated environment, which holds pyD
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/Borda/pyDeprecate
-    rev: <first release after v0.14.0>
+    rev: v0.15.0
     hooks:
       - id: pydeprecate-check
         additional_dependencies: ["pyDeprecate[cli,audit]"]
