@@ -524,8 +524,8 @@ jobs:
   policy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
       - run: pip install -e . 'pyDeprecate[audit,cli]'
@@ -829,8 +829,8 @@ jobs:
   audit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
       - run: pip install -e . # your package and its runtime dependencies
@@ -849,14 +849,14 @@ jobs:
           install: false # already installed by the previous step
 ```
 
-| Input        | Default | Meaning                                                                                                                                                                                                                           |
-| ------------ | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `subcommand` | `all`   | One of `check`, `expiry`, `policy`, `chains`, `all`, `status`; any other value fails the step with exit code `2`.                                                                                                                 |
-| `path`       | empty   | Package directory or importable module name, relative to the workspace. Empty lets the CLI pick the single package under `src/`, else the single package at the repository root.                                                  |
-| `args`       | empty   | Extra CLI flags, split with shell-style quoting, e.g. `--exclude='mypackage.tests,*._legacy*' --version 2.0`. Backslashes are escape characters, so quote Windows paths or use `/`.                                               |
-| `exit-zero`  | `false` | Report findings without failing the step (`--exit-zero`); not valid with `status`.                                                                                                                                                |
-| `install`    | `true`  | Install `pyDeprecate[cli,audit]` from the action's own ref into the job's Python.                                                                                                                                                 |
-| `summary`    | `false` | Append a markdown deprecation status table to the job summary. Subcommands other than `status` run one extra `status` scan, repeating the long-form `--exclude`, `--version` and `--recursive`/`--norecursive` flags from `args`. |
+| Input        | Default | Meaning                                                                                                                                                                                                                                                                                       |
+| ------------ | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `subcommand` | `all`   | One of `check`, `expiry`, `policy`, `chains`, `all`, `status`; any other value fails the step with exit code `2`.                                                                                                                                                                             |
+| `path`       | empty   | Package directory or importable module name, relative to the workspace. Empty lets the CLI pick the single package under `src/`, else the single package at the repository root.                                                                                                              |
+| `args`       | empty   | Extra CLI flags, split with shell-style quoting, e.g. `--exclude='mypackage.tests,*._legacy*' --version 2.0`. Backslashes are escape characters, so quote Windows paths or use `/`.                                                                                                           |
+| `exit-zero`  | `false` | Report findings without failing the step (`--exit-zero`); not valid with `status`.                                                                                                                                                                                                            |
+| `install`    | `true`  | Install `pyDeprecate[cli,audit]` from the action's own ref into the job's Python.                                                                                                                                                                                                             |
+| `summary`    | `false` | Append a markdown deprecation status table to the job summary. Subcommands other than `status` run one extra `status` scan, repeating the long-form `--exclude`, `--version` and `--recursive`/`--norecursive` flags from `args`. No summary is written when the CLI exits `2` (usage error). |
 
 The step finishes with the CLI's own exit code (see the table above), and a failing run adds an error annotation to the pull request's checks. The CLI has no "fail on warning" mode: advisory findings such as identity mappings never fail the step, and `exit-zero: true` turns hard errors into reports while you clear a backlog.
 
@@ -866,7 +866,7 @@ The step finishes with the CLI's own exit code (see the table above), and a fail
 
     A submodule that fails to import is skipped with a `UserWarning: audit: skipped <module>`, and `expiry` (also inside `all`) skips removal deadlines when it cannot detect your package version. The step still passes in both cases, but the action raises a warning annotation for each, so check the annotations whenever you change how the job installs your package. Pass `args: --version 2.0` when your version is not detectable from the installed package or `pyproject.toml`.
 
-The action imports your package and runs its import-time code, exactly like the CLI. Do not run it under `pull_request_target` on a checkout of the pull request's head, where untrusted code would run with the base repository's secrets and write token. The output of the scan cannot issue workflow commands: the action disables them while the CLI runs.
+The action imports your package and runs its import-time code, exactly like the CLI. Do not run it under `pull_request_target` on a checkout of the pull request's head, where untrusted code would run with the base repository's secrets and write token. Workflow commands printed during the scan are ignored, but this is not a sandbox: import-time code runs with the job's environment and can still write to the files behind `GITHUB_ENV`, `GITHUB_PATH` and `GITHUB_OUTPUT`.
 
 ## Testing Deprecated Code
 

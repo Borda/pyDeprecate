@@ -1825,8 +1825,8 @@ Packages that import without third-party dependencies can use the shipped hook i
 
 ```yaml
 steps:
-  - uses: actions/checkout@v4
-  - uses: actions/setup-python@v5
+  - uses: actions/checkout@v6
+  - uses: actions/setup-python@v7
     with:
       python-version: "3.11"
   - run: pip install -e .

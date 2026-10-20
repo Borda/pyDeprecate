@@ -25,7 +25,7 @@ inputs:
     default: ""
   args:
     description: >-
-      Extra CLI flags, split with shell-style quoting, e.g. `--exclude='mypkg.tests,*._legacy*' --version 2.0`.
+      Extra CLI flags, split with shell-style quoting, e.g. `--exclude='mypkg.tests,*._legacy*' --version 2.0`. Backslashes are escape characters: quote Windows paths or use `/`.
     required: false
     default: ""
   exit-zero:
