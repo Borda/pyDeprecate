@@ -51,6 +51,10 @@ SILENT_GAP_MARKERS = {
         "{count} module(s) could not be imported and were not audited; install your package's dependencies"
         " in this job before the pyDeprecate step"
     ),
+    "Cannot check expiry: version not resolved": (
+        "the package version could not be detected, so removal deadlines were not checked; install your"
+        " package in this job or pass `--version X.Y` through `args`"
+    ),
     "Could not resolve the current package version": (
         "the package version could not be detected, so removal deadlines were not checked; install your"
         " package in this job or pass `--version X.Y` through `args`"
