@@ -184,7 +184,7 @@ validate_deprecation_expiry("my_package", current_version="2.0")
 validate_deprecation_policy("my_package")
 ```
 
-`validate_deprecation_expiry` includes class members by default (`include_members=True`); recursive scans warn-and-skip submodules that fail to import (`UserWarning: audit: skipped <module>: <exc>`) instead of aborting.
+`validate_deprecation_expiry` includes class members by default (`include_members=True`); recursive scans warn-and-skip submodules that fail to import (`UserWarning: audit: skipped <module>: <exc>`) instead of aborting; the CLI also prints `pydeprecate gap: module not audited: <module>: <exc>` on stderr for each, regardless of the package's warnings filters.
 
 `validate_deprecation_policy` asks whether a deprecation was *scheduled* responsibly, not whether it was removed on time. Two rules: `min_grace="0.3"` (`remove_in` must be one clean single-component bump beyond `deprecated_in` — `1.2` → `1.5` or `2.0`, never `2.3` — at least this far; a coarser bump clears a finer window; spelled as a two-or-three-component dotted delta string (`"1.0"`, `"0.3"`, `"0.0.2"`; a bare `"1"` or a mixed `"1.2"` raises `ValueError`); `"1.0"` is the strict removals-only-at-a-major policy; an all-zero spelling (`"0.0"`) is a zero-count window — distance check off, but a clean bump of that unit or coarser is still required; disable with `None`). Every spelling normalizes to the strict `deprecate.audit.GraceWindow(count, unit)`, importable top-level as `from deprecate import GraceWindow, VersionBump`, or pass the spec alias `deprecate.audit.GraceWindowSpec` directly. `message_required=True` (the wrapper must provide migration guidance via `target`, a mapping, or a **custom** `message_template`; a deprecated module's auto-rendered default `message_template` does not count on its own, nor does a `deprecated_instance` with no `target`/mapping; disable with `False`). It never reads a current package version. Each message is prefixed with its rule slug — `[min-grace]`, `[message-required]`. Wrappers missing `deprecated_in`/`remove_in` are skipped, not flagged; an unparsable version emits a `UserWarning` per skip. Needs `packaging` (`pip install 'pyDeprecate[audit]'`).
 
@@ -194,6 +194,7 @@ The CLI accepts directory paths and resolves them to packages:
 
 ```bash
 pydeprecate all src/      # check + expiry + policy + chains; policy is ADVISORY here
+pydeprecate all src/ --output DEPRECATIONS.md   # also save the appended table
 pydeprecate policy src/   # the gate that actually fails on a policy violation
 ```
 

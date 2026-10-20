@@ -127,7 +127,7 @@ Warning: This wrapper configuration has zero impact!
 
 Every scanning function — `find_deprecation_wrappers()`, `validate_deprecation_expiry()`, `validate_deprecation_policy()`, `validate_deprecation_chains()`, `validate_mapping_compatibility()`, `generate_deprecation_table()` — accepts a keyword-only `exclude` list of glob patterns over full dotted module names (`exclude=["my_package.tests", "*._legacy*"]`). The scan itself never imports a matching package nor descends into it (another module in the package may still import it — its wrappers are filtered either way), and no wrapper reported under a matching module is returned — the way to keep test fixtures or a frozen legacy tree out of every audit. The CLI takes the same list from `--exclude` or from `exclude` under `[tool.pydeprecate]` in `pyproject.toml` ([details](cli.md#project-configuration-in-pyprojecttoml)).
 
-Recursive scans import every submodule, so module-level side effects run. A submodule that fails to import — for any exception, not just `ImportError` — is skipped with a `UserWarning` of the form `audit: skipped <module>: <exception>` and the scan continues, so one broken submodule cannot abort the whole CI gate.
+Recursive scans import every submodule, so module-level side effects run. A submodule that fails to import — for any exception, not just `ImportError` — is skipped with a `UserWarning` of the form `audit: skipped <module>: <exception>` and the scan continues, so one broken submodule cannot abort the whole CI gate. The CLI also prints a `pydeprecate gap: module not audited: <module>: <exception>` line on stderr for each skipped submodule, even when your package silences warnings.
 
 ```python
 from deprecate import find_deprecation_wrappers
@@ -864,7 +864,7 @@ The step finishes with the CLI's own exit code (see the table above), and a fail
 
 !!! warning "A green run can still have gaps"
 
-    A submodule that fails to import is skipped with a `UserWarning: audit: skipped <module>`, and `expiry` (also inside `all`) skips removal deadlines when it cannot detect your package version. The step still passes in both cases, but the action raises a warning annotation for each, so check the annotations whenever you change how the job installs your package. Pass `args: --version 2.0` when your version is not detectable from the installed package or `pyproject.toml`.
+    A submodule that fails to import is skipped with a `UserWarning: audit: skipped <module>`, and `expiry` (also inside `all`) skips removal deadlines when it cannot detect your package version. The step still passes in both cases, but the action counts the CLI's `pydeprecate gap:` stderr lines (printed even when your package silences warnings) and raises a warning annotation for each kind of gap, so check the annotations whenever you change how the job installs your package. Pass `args: --version 2.0` when your version is not detectable from the installed package or `pyproject.toml`.
 
 The action imports your package and runs its import-time code, exactly like the CLI. Do not run it under `pull_request_target` on a checkout of the pull request's head, where untrusted code would run with the base repository's secrets and write token. Workflow commands printed during the scan are ignored, but this is not a sandbox: import-time code runs with the job's environment and can still write to the files behind `GITHUB_ENV`, `GITHUB_PATH` and `GITHUB_OUTPUT`.
 

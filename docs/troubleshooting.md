@@ -2133,7 +2133,7 @@ ______________________________________________________________________
 UserWarning: audit: skipped my_package.legacy_ext: RuntimeError('optional native extension not built')
 ```
 
-The scan results are complete for every module that imported successfully; only the named submodule is missing. Investigate and fix that submodule (or accept the gap if the failure is expected, e.g. an optional dependency) — one broken submodule no longer kills the CI gate, but its deprecations are not audited until it imports cleanly.
+The scan results are complete for every module that imported successfully; only the named submodule is missing. Investigate and fix that submodule (or accept the gap if the failure is expected, e.g. an optional dependency) — one broken submodule no longer kills the CI gate, but its deprecations are not audited until it imports cleanly. The CLI also prints `pydeprecate gap: module not audited: <module>: <exception>` on stderr for each skipped submodule; that line appears even when your package installs a warnings filter that hides the `UserWarning`.
 
 ______________________________________________________________________
 

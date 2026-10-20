@@ -40,8 +40,10 @@ inputs:
     default: "true"
   summary:
     description: >-
-      Append a markdown deprecation status table to the job summary. Other subcommands run one extra `status` scan
-      that repeats the long-form `--exclude`, `--version` and `--recursive`/`--norecursive` flags from `args`.
+      Append a markdown deprecation status table to the job summary. `all` takes the table from its own run (reusing an
+      `--output` given in `args`); other subcommands, `status` included, run one extra `status` scan that repeats `path`
+      and the long-form `--exclude`, `--version` and `--recursive`/`--norecursive` flags from `args`, so give the
+      package path through `path`, not positionally in `args`. No summary is written when the CLI exits `2`.
     required: false
     default: "false"
 
