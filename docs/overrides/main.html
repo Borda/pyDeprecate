@@ -145,6 +145,14 @@
       "mainEntity": [
         {
           "@type": "Question",
+          "name": "Why did the GitHub Action skip my job summary?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Optional summaries preserve the CLI gate exit code. For all, or status with a user --output, the action appends the report only after the current CLI confirms writing it. Failed scans or writes can leave an older report in place; the action preserves it and skips the summary. Check stderr for scan, write or summary-startup errors. With install: false, an older CLI without the expected successful-write diagnostic may conservatively skip report reuse; use a compatible pyDeprecate version."
+          }
+        },
+        {
+          "@type": "Question",
           "name": "Why do I get UserWarning when applying @deprecated directly to a class?",
           "acceptedAnswer": {
             "@type": "Answer",

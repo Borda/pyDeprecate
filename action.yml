@@ -40,10 +40,12 @@ inputs:
     default: "true"
   summary:
     description: >-
-      Append a markdown deprecation status table to the job summary. `all` takes the table from its own run, as does
-      `status` when `args` carries `--output` (that file is reused); every other run adds one `status` scan that repeats `path`
-      and the long-form `--exclude`, `--version` and `--recursive`/`--norecursive` flags from `args`, so give the
-      package path through `path`, not positionally in `args`. No summary is written when the CLI exits `2`.
+      Append a markdown deprecation status table to the job summary. `all`, and `status` with `--output` in
+      `args`, reuse their report only after the CLI confirms writing it in the current run. `status` without
+      `--output` repeats its entire gate command in a separate scan. Other subcommands add a `status` scan that repeats
+      `path` and only the long-form `--exclude`, `--version` and `--recursive`/`--norecursive` flags from `args`;
+      for those subcommands, give the package through `path`, not positionally in `args`. Summary failures only
+      warn and preserve the gate result. No summary is written when the CLI exits `2`.
     required: false
     default: "false"
 

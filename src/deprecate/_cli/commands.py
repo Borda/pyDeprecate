@@ -1,5 +1,6 @@
 """Subcommand implementations for the CLI: ``check``, ``expiry``, ``policy``, ``chains``, ``all`` and ``status``."""
 
+import sys
 from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
@@ -674,6 +675,8 @@ def cmd_status(
         out_path = Path(output)
         out_path.parent.mkdir(parents=True, exist_ok=True)
         out_path.write_text(markdown, encoding="utf-8")
-        _print(f"→ Saved to: {out_path}", stderr=True)
+        # The action uses this receipt to avoid publishing an older report after a failed scan.
+        # Keep it unwrapped even on narrow terminals, and emit it only after the write completes.
+        print(f"→ Saved to: {out_path}", file=sys.stderr, flush=True)
 
     return 0

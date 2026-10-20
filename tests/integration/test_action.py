@@ -555,6 +555,132 @@ class TestActionInstall:
 class TestActionSummary:
     """The opt-in ``summary`` input that appends a deprecation status table to the job summary."""
 
+    @pytest.mark.parametrize(
+        ("path", "exit_code"),
+        [
+            pytest.param("tests.collection_chains", 0, id="passing-gate"),
+            pytest.param("tests.collection_misconfigured", 1, id="failing-gate"),
+        ],
+    )
+    def test_unstartable_rescan_preserves_gate_result(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+        path: str,
+        exit_code: int,
+    ) -> None:
+        """A summary subprocess that cannot start only warns after the real gate finishes.
+
+        A runner exhausts its process resources between the audit and optional status rescan. The operating-system
+        launch boundary fails, but a successful audit must stay successful and a failing audit must keep its code.
+        """
+        inputs = action_runner.read_inputs(
+            {
+                "PYDEPRECATE_ACTION_SUBCOMMAND": "check",
+                "PYDEPRECATE_ACTION_PATH": path,
+                "PYDEPRECATE_ACTION_SUMMARY": "true",
+            }
+        )
+
+        def fail_start(*args: object, **kwargs: object) -> None:
+            raise OSError("cannot start summary\n::error::untrusted")
+
+        monkeypatch.setattr(subprocess, "run", fail_start)
+        code = action_runner.run_gate(inputs, sys.executable, tmp_path / "table.md", {})
+        assert code == exit_code
+        assert (
+            "::warning title=pyDeprecate::could not start the summary scan: cannot start summary%0A::error::untrusted"
+        ) in capsys.readouterr().out
+
+    @pytest.mark.parametrize("subcommand", ["status", "all"])
+    def test_failed_scan_does_not_reuse_existing_report(self, tmp_path: Path, subcommand: str) -> None:
+        """A report from an earlier scan is not published when the current scan fails.
+
+        A persistent runner already has an output report, but the workflow mistakenly supplies a file as the scan
+        path. The failed scan must preserve the old file without presenting it as the current job's summary.
+        """
+        report = tmp_path / "report.md"
+        report.write_text("OLD REPORT\n", encoding="utf-8")
+        result = _run_action(
+            tmp_path,
+            subcommand=subcommand,
+            path="tests/collection_chains.py",
+            args=f"--output={shlex.quote(str(report))}",
+            summary="true",
+        )
+        assert result.returncode == 1, result.stdout + result.stderr
+        assert report.read_text(encoding="utf-8") == "OLD REPORT\n"
+        assert not _summary_path(tmp_path).exists()
+        assert "::warning title=pyDeprecate::the gate did not confirm writing its report" in result.stdout
+
+    def test_nested_report_does_not_confirm_failed_outer_report(self, tmp_path: Path) -> None:
+        """A nested scan's output receipt cannot validate the outer scan's existing report.
+
+        Importing the audited package runs another status scan that successfully saves a different report. The
+        package then fails to import, so the outer scan must not publish its old output using the nested receipt.
+        """
+        report = tmp_path / "report.md"
+        nested_report = tmp_path / "nested.md"
+        report.write_text("OLD REPORT\n", encoding="utf-8")
+        package = tmp_path / "nestedpkg"
+        package.mkdir()
+        (package / "__init__.py").write_text(
+            "from deprecate._cli.commands import cmd_status\n"
+            f"cmd_status('tests.collection_chains', output={str(nested_report)!r})\n"
+            "raise RuntimeError('outer scan unavailable')\n",
+            encoding="utf-8",
+        )
+        env = _runner_env(
+            tmp_path,
+            subcommand="status",
+            path="nestedpkg",
+            args=f"--output={shlex.quote(str(report))}",
+            summary="true",
+        )
+        env["PYTHONPATH"] = f"{tmp_path}{os.pathsep}{env['PYTHONPATH']}"
+        result = _run_runner(env)
+        assert result.returncode == 1, result.stdout + result.stderr
+        assert nested_report.exists()
+        assert "outer scan unavailable" in result.stderr
+        assert report.read_text(encoding="utf-8") == "OLD REPORT\n"
+        assert not _summary_path(tmp_path).exists()
+        assert "::warning title=pyDeprecate::the gate did not confirm writing its report" in result.stdout
+
+    def test_failed_all_report_write_does_not_reuse_existing_report(self, tmp_path: Path) -> None:
+        """A nonfatal output-write failure in all does not publish an older table.
+
+        The audit succeeds but the filesystem rejects its report write. Injecting that filesystem error in the child
+        isolates the case where exit zero does not establish that the requested output file was refreshed.
+        """
+        report = tmp_path / "report.md"
+        report.write_text("OLD REPORT\n", encoding="utf-8")
+        (tmp_path / "sitecustomize.py").write_text(
+            "import os\nfrom pathlib import Path\n"
+            "original_write = Path.write_text\n"
+            "def reject_report(self, *args, **kwargs):\n"
+            "    if str(self) == os.environ['TEST_REPORT_PATH']:\n"
+            "        raise OSError('report volume unavailable')\n"
+            "    return original_write(self, *args, **kwargs)\n"
+            "Path.write_text = reject_report\n",
+            encoding="utf-8",
+        )
+        env = _runner_env(
+            tmp_path,
+            subcommand="all",
+            path="tests.collection_chains",
+            args=f"--output={shlex.quote(str(report))} --version=1.0",
+            summary="true",
+            exit_zero="true",
+        )
+        env.update(TEST_REPORT_PATH=str(report), PYTHONPATH=f"{tmp_path}{os.pathsep}{env['PYTHONPATH']}")
+        result = _run_runner(env)
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "report volume unavailable" in result.stderr
+        assert report.read_text(encoding="utf-8") == "OLD REPORT\n"
+        assert not _summary_path(tmp_path).exists()
+        assert "::warning title=pyDeprecate::the gate did not confirm writing its report" in result.stdout
+
     def test_appends_status_table(self, tmp_path: Path) -> None:
         """``summary: true`` appends a markdown status table after the gate run, without changing its exit code.
 
@@ -819,6 +945,46 @@ class TestActionSummary:
 class TestActionOutputSafety:
     """Annotations and workflow-command handling around the scanned package's output."""
 
+    def test_unterminated_stdout_keeps_resume_command_separate(self, capfd: pytest.CaptureFixture[str]) -> None:
+        """The resume token starts on its own line even after unterminated child output.
+
+        An imported package prints a progress fragment and exits before finishing its line. A token appended to that
+        text is not a workflow command, so later annotations would remain disabled.
+        """
+        action_runner.run_cli([sys.executable, "-c", "import sys;sys.stdout.write('partial');sys.stdout.flush()"])
+        action_runner.annotate("error", "later annotation")
+        output = capfd.readouterr().out
+        token = _fence_token(output)
+        assert output.splitlines()[-3:] == ["partial", f"::{token}::", "::error title=pyDeprecate::later annotation"]
+
+    @pytest.mark.parametrize("phase", ["gate", "summary"])
+    def test_startup_stderr_uses_utf8(self, tmp_path: Path, phase: str) -> None:
+        """Child startup diagnostics retain non-ASCII text before the CLI normalizes its streams.
+
+        A job inherits a legacy standard-stream codec, and site initialization emits a diagnostic before cli() can
+        reconfigure stderr. Both the gate relay and a failed summary's warning must preserve that text exactly.
+        """
+        (tmp_path / "sitecustomize.py").write_text(
+            "import os,sys\n"
+            "if sys.argv[0] == '-m' and (os.environ['TEST_PHASE'] == 'gate' or 'status' in sys.argv):\n"
+            "    sys.stderr.write('startup café ' + os.environ['TEST_PRESERVED'] + '\\n')\n"
+            "    if os.environ['TEST_PHASE'] == 'summary':\n"
+            "        sys.exit('startup café ' + os.environ['TEST_PRESERVED'])\n",
+            encoding="utf-8",
+        )
+        env = _runner_env(tmp_path, subcommand="check", path="tests.collection_chains", summary="true")
+        env.update(
+            PYTHONIOENCODING="cp1252",
+            PYTHONPATH=f"{tmp_path}{os.pathsep}{env['PYTHONPATH']}",
+            TEST_PHASE=phase,
+            TEST_PRESERVED="sentinel",
+        )
+        result = _run_runner(env)
+        assert result.returncode == 0, result.stdout + result.stderr
+        diagnostic = result.stderr if phase == "gate" else result.stdout
+        assert "startup café sentinel" in diagnostic
+        assert "\ufffd" not in diagnostic
+
     def test_cli_output_stays_between_the_fence_tokens(self, tmp_path: Path) -> None:
         """Everything the audited package prints at import time lies between the stop and the resume token.
 
@@ -898,7 +1064,7 @@ class TestActionOutputSafety:
             action_runner.run_cli([str(tmp_path / argv_tail)])
         lines = capsys.readouterr().out.splitlines()
         token = _fence_token("\n".join(lines))
-        assert lines == [f"::stop-commands::{token}", f"::{token}::"]
+        assert lines == [f"::stop-commands::{token}", "", f"::{token}::"]
 
     def test_unstartable_cli_is_annotated_after_commands_resume(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
@@ -918,8 +1084,9 @@ class TestActionOutputSafety:
         token = re.fullmatch(r"::stop-commands::([0-9a-f]{32})", lines[0])
         assert code == 1
         assert token is not None
-        assert lines[1] == f"::{token.group(1)}::"
-        assert lines[2].startswith("::error title=pyDeprecate::could not start the pyDeprecate CLI with ")
+        assert lines[1] == ""
+        assert lines[2] == f"::{token.group(1)}::"
+        assert lines[3].startswith("::error title=pyDeprecate::could not start the pyDeprecate CLI with ")
 
     def test_commands_resume_when_relay_fails(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
@@ -936,7 +1103,7 @@ class TestActionOutputSafety:
         lines = capsys.readouterr().out.splitlines()
         token = re.fullmatch(r"::stop-commands::([0-9a-f]{32})", lines[0])
         assert token is not None
-        assert lines[1:] == [f"::{token.group(1)}::"]
+        assert lines[1:] == ["", f"::{token.group(1)}::"]
 
     def test_warns_when_version_undetected(self, tmp_path: Path) -> None:
         """A package whose version cannot be detected passes ``expiry`` with a warning annotation.
@@ -1067,7 +1234,9 @@ class TestActionOutputSafety:
         The runner's CLI process is terminated mid-scan (a runner shutting down, an OOM kill); the step result and its
         error annotation must use the shell convention instead of a negative return code.
         """
-        monkeypatch.setattr(action_runner, "run_cli", lambda argv: -15)
+        monkeypatch.setattr(
+            action_runner, "run_cli", lambda argv, report_file=None: action_runner.CliResult(-15, False)
+        )
         inputs = action_runner.read_inputs({"PYDEPRECATE_ACTION_SUBCOMMAND": "check"})
         code = action_runner.run_gate(inputs, sys.executable, None, {})
         assert code == 143
@@ -1086,7 +1255,7 @@ class TestActionOutputSafety:
                 "import os, signal; os.kill(os.getpid(), signal.SIGKILL)",
             ]
         )
-        assert action_runner.exit_status(returncode) == (137, "137 (killed by SIGKILL)")
+        assert action_runner.exit_status(returncode.returncode) == (137, "137 (killed by SIGKILL)")
 
     def test_package_output_is_not_counted_as_a_gap(self, tmp_path: Path) -> None:
         """Text the audited package prints itself raises no gap warning, even when it quotes a gap message.

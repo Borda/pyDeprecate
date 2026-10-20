@@ -1837,7 +1837,7 @@ steps:
       summary: true # optional: deprecation table in the job summary
 ```
 
-The step exits with the CLI's own code; `exit-zero: true` reports without failing, `args` passes extra flags, and `install: false` keeps the pyDeprecate version your job already installed. The GitHub Action section of the audit guide covers every input and caveat.
+The step exits with the CLI's own code; `exit-zero: true` reports without failing, `args` passes extra flags, and `install: false` keeps the pyDeprecate version your job already installed. Optional summary failures only warn and keep the gate result; an existing report is reused only when the current CLI run confirms writing it. The GitHub Action section of the audit guide covers every input and caveat.
 
 **Example: catching a deprecated-to-deprecated chain**
 

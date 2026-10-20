@@ -2204,3 +2204,11 @@ ______________________________________________________________________
 !!! question "Open a GitHub issue"
 
     If none of the above covers your situation, open an issue on [GitHub Issues](https://github.com/Borda/pyDeprecate/issues). Include the full traceback, the decorator call you used, and the Python and pyDeprecate versions (`pip show pyDeprecate`).
+
+______________________________________________________________________
+
+## Why did the GitHub Action skip my job summary?
+
+**Q:** The action ran with `summary: true`, but the job summary is absent or warns that the gate did not confirm writing its report.
+
+**A:** The summary is optional and never changes the gate's exit code. For `all` or `status` with a user `--output`, the runner requires the current CLI invocation's successful-write diagnostic before appending that report. A failed scan or report write can leave an older file in place; the action preserves it and skips the summary instead of presenting old results as current. Check the scan and write errors in stderr. A separate summary scan that cannot start or fails also produces a warning. With `install: false`, an older CLI that does not emit the expected diagnostic may conservatively skip report reuse; use a compatible pyDeprecate version.

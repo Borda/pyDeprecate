@@ -91,6 +91,8 @@ SILENT_GAP_MARKERS = {
 
 #: Trailing stderr lines of a failed summary re-scan quoted in its warning annotation.
 SUMMARY_ERROR_TAIL_LINES = 3
+#: Emitted only after the CLI successfully writes its report; an existing file may belong to an older run.
+REPORT_SAVED_PREFIX = "→ Saved to:"
 
 _TRUE_VALUES = ("true", "1")
 _FALSE_VALUES = ("false", "0")
@@ -109,6 +111,13 @@ class ExitStatus(NamedTuple):
 
     code: int
     description: str
+
+
+class CliResult(NamedTuple):
+    """Outcome of a CLI invocation, including whether it confirmed a successful report write."""
+
+    returncode: int
+    report_written: bool
 
 
 def exit_status(returncode: int) -> ExitStatus:
@@ -367,8 +376,8 @@ def install_package(action_path: Path, python: str) -> int:
     return pip.code
 
 
-def run_cli(argv: list[str]) -> int:
-    """Run the CLI with workflow commands disabled for its output; return its exit code.
+def run_cli(argv: list[str], report_file: Path | None = None) -> CliResult:
+    """Run the CLI with workflow commands disabled; return its exit code and report-write confirmation.
 
     The scan imports the audited package and prints strings taken from it, so its output must not be able to emit
     ``::error``/``::add-mask`` lines of its own. Its stderr is relayed line by line to count the CLI's gap lines —
@@ -385,32 +394,38 @@ def run_cli(argv: list[str]) -> int:
     counts = dict.fromkeys(SILENT_GAP_MARKERS, 0)
     print(f"::stop-commands::{token}", flush=True)
     try:
-        code = _relay_cli(argv, counts)
+        result = _relay_cli(argv, counts, report_file)
     finally:
-        print(f"::{token}::", flush=True)
+        # Child stdout may end mid-line; a resume token joined to that text is not a workflow command.
+        print(f"\n::{token}::", flush=True)
     annotate_gaps(counts)
-    return code
+    return result
 
 
-def _relay_cli(argv: list[str], counts: dict[str, int]) -> int:
-    """Start the CLI, relay its stderr while counting its gap lines per kind in ``counts``, and return its exit code."""
+def _relay_cli(argv: list[str], counts: dict[str, int], report_file: Path | None) -> CliResult:
+    """Relay CLI stderr, counting gap lines and recording successful report writes alongside its exit code."""
     try:
         # list argv, no shell: user-supplied `args` reach the CLI as separate tokens and are never parsed by a shell
-        process = subprocess.Popen(argv, stderr=subprocess.PIPE)  # noqa: S603
+        process = subprocess.Popen(  # noqa: S603
+            argv, stderr=subprocess.PIPE, env={**os.environ, "PYTHONIOENCODING": "utf-8"}
+        )
     except OSError as err:
         raise CliStartError(f"could not start the pyDeprecate CLI with {argv[0]}: {err}") from err
     with process:
         if process.stderr is None:  # unreachable with stderr=PIPE; keeps the type checker honest without assert
             raise RuntimeError("subprocess stderr pipe was not created")
+        report_written = False
         for raw_line in process.stderr:
             line = raw_line.decode("utf-8", errors="replace")
             sys.stderr.write(line)
             sys.stderr.flush()
+            # A nested scan can save another report while the intended outer scan subsequently fails.
+            report_written |= report_file is not None and line.rstrip("\r\n") == f"{REPORT_SAVED_PREFIX} {report_file}"
             for marker in counts:
                 # anchored at the line start: the audited package's own stderr output that merely mentions a gap
                 # message is not a gap line (a package that forges a whole gap line is not guarded against)
                 counts[marker] += line.startswith(f"{marker}:")
-        return process.wait()
+        return CliResult(process.wait(), report_written)
 
 
 def annotate_gaps(counts: dict[str, int]) -> None:
@@ -449,14 +464,19 @@ def write_summary(inputs: ActionInputs, python: str, summary_file: Path, env: di
     """
     # stderr is captured, never relayed: the re-scan imports the audited package, and its output would sit outside
     # the stop-commands fence; quoted in the annotation it is escaped and cannot issue a workflow command
-    result = subprocess.run(  # noqa: S603 — list argv, no shell; only arguments the gate run already took are passed
-        build_summary_argv(inputs, python, summary_file),
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.PIPE,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-    )
+    try:
+        result = subprocess.run(  # noqa: S603 — list argv, no shell; only gate arguments are forwarded
+            build_summary_argv(inputs, python, summary_file),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            encoding="utf-8",
+            errors="replace",
+            env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+            check=False,
+        )
+    except OSError as err:
+        annotate("warning", f"could not start the summary scan: {err}; skipping the job summary")
+        return
     scan = exit_status(result.returncode)
     if scan.code != 0:
         message = f"the summary scan `pydeprecate status` exited {scan.description}; skipping the job summary"
@@ -505,15 +525,21 @@ def run_gate(inputs: ActionInputs, python: str, summary_file: Path | None, env: 
     """Run the gate and, when given a ``summary_file`` path for the table, append the job summary after it."""
     gate_table_file = in_run_table_file(inputs, summary_file) if summary_file is not None else None
     try:
-        gate = exit_status(run_cli(build_cli_argv(inputs, python, gate_table_file)))
+        result = run_cli(build_cli_argv(inputs, python, gate_table_file), report_file=gate_table_file)
     except CliStartError as err:
         annotate("error", str(err))
         return 1
+    gate = exit_status(result.returncode)
     if gate.code != 0:
         annotate("error", f"pydeprecate {inputs.subcommand} exited {gate.description}")
     if summary_file is not None and gate.code != 2:
         if gate_table_file is not None:
-            append_summary(gate_table_file, env)
+            # Failed scans and advisory write failures in `all` can leave a previous report in place.
+            # Require this invocation's successful-write diagnostic, not timestamps or file existence.
+            if result.report_written:
+                append_summary(gate_table_file, env)
+            else:
+                annotate("warning", "the gate did not confirm writing its report; skipping the job summary")
         else:
             write_summary(inputs, python, summary_file, env)
     return gate.code
