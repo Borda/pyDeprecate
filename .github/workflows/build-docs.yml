@@ -5,7 +5,7 @@
 #
 #   Triggers (filtered at the workflow level):
 #     - push → main                                    → build + deploy to dev/
-#     - push → version-like tag (v1.2, 1.2.3, …)       → build + deploy to <tag>/ (and stable/ if highest)
+#     - push → version-like tag (v1.2, v1.2.3, …)      → build + deploy to <tag>/ (and stable/ if highest)
 #     - pull_request → main                            → build only (no deploy)
 #     - workflow_dispatch (tag, refresh_root_files inputs)
 #                                                      → build + deploy to <tag>/ (no set-default change)
@@ -49,9 +49,10 @@ on:
     # Version-like tags only — non-version tags (test, feature, etc.) are excluded at trigger level.
     # rc/dev/post tags that resemble semver (e.g. v1.2.3rc1) may still trigger a build but
     # will be excluded from deployment because they won't match RELEASE_TAG_PATTERN.
+    # The v prefix is required to match publish-pkg.yml (tags: ["v*"]): a tag without it would
+    # deploy docs for a release that never reaches PyPI.
     tags:
-      - "v[0-9]*.[0-9]*" # v1.2, v1.2.3 — optional lowercase v prefix
-      - "[0-9]*.[0-9]*" # 1.2, 1.2.3 — no v prefix
+      - "v[0-9]*.[0-9]*" # v1.2, v1.2.3
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -77,9 +78,9 @@ permissions:
 env:
   GH_PAGES_BRANCH: gh-pages
   PYTHON_DEFAULT: "3.13"
-  # Final release tags only — optional lowercase v prefix, two+ numeric segments.
-  # Accepted: v1.2, v1.2.3, 1.2.3    Rejected: v1.0.0rc1, 1.2.0.dev1, v1 (one segment), v1.2.3-final
-  RELEASE_TAG_PATTERN: '^v?[0-9]+(\.[0-9]+)+$'
+  # Final release tags only — required lowercase v prefix, two+ numeric segments.
+  # Accepted: v1.2, v1.2.3    Rejected: 1.2.3 (no v), v1.0.0rc1, v1.2.0.dev1, v1 (one segment), v1.2.3-final
+  RELEASE_TAG_PATTERN: '^v[0-9]+(\.[0-9]+)+$'
 
 defaults:
   run:
