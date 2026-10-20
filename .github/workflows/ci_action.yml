@@ -46,6 +46,10 @@ jobs:
           path: src/deprecate
           install: false
 
+      # Expected failure. This step only proves the action fails on misconfigured wrappers; it does not
+      # inspect why. The cause (exit code 1 plus the ::error annotation naming the misconfigured argument) is
+      # pinned by the pytest test test_misconfigured_package_fails_with_annotation in
+      # tests/integration/test_action.py, and by the exit-zero step below, which reruns the same inputs and must pass.
       - name: ❌ Misconfigured wrappers fail the step
         id: misconfigured
         continue-on-error: true

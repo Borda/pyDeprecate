@@ -8,7 +8,7 @@ pytest-asyncio >=1.4.0; python_version > "3.9"
 phmdoctest >=1.4.0
 typing_extensions  # PEP 702 stacking regression tests
 packaging  # required for version-comparison audit tests
-pyyaml  # parses action.yml and .pre-commit-hooks.yaml in the GitHub Action tests
+pyyaml >=6.0  # parses action.yml and .pre-commit-hooks.yaml in the GitHub Action tests
 
 # Docs extensions
 griffe  # for MKDocs
