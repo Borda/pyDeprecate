@@ -312,3 +312,40 @@ class TestBatchExpiryUnparsableVersion:
         with pytest.warns(UserWarning, match="unparsable"):
             expired = _check_expiry_for_callables([info], "2.0")
         assert expired == []
+
+
+# ---------------------------------------------------------------------------
+# _check_expiry_for_callables (audit helper)
+# ---------------------------------------------------------------------------
+
+
+class TestCheckExpiryForCallables:
+    """Tests for _check_expiry_for_callables helper (from deprecate.audit)."""
+
+    def test_no_remove_in_skipped(self) -> None:
+        """Wrappers without remove_in are silently skipped."""
+        results = [DeprecationWrapperInfo(module="mod", function="fn")]
+        expired = _check_expiry_for_callables(results, "2.0")
+        assert expired == []
+
+    def test_not_yet_expired(self) -> None:
+        """Wrapper with future remove_in is not expired."""
+        config = DeprecationConfig(deprecated_in="1.0", remove_in="3.0")
+        results = [DeprecationWrapperInfo(module="mod", function="fn", deprecated_info=config)]
+        expired = _check_expiry_for_callables(results, "2.0")
+        assert expired == []
+
+    def test_expired(self) -> None:
+        """Wrapper with remove_in <= current_version is reported."""
+        config = DeprecationConfig(deprecated_in="1.0", remove_in="2.0")
+        results = [DeprecationWrapperInfo(module="mod", function="fn", deprecated_info=config)]
+        expired = _check_expiry_for_callables(results, "2.0")
+        assert len(expired) == 1
+        assert "fn" in expired[0]
+
+    def test_invalid_remove_in_skipped(self) -> None:
+        """Wrappers with non-PEP-440 remove_in are silently skipped."""
+        config = DeprecationConfig(deprecated_in="1.0", remove_in="not-a-version")
+        results = [DeprecationWrapperInfo(module="mod", function="fn", deprecated_info=config)]
+        expired = _check_expiry_for_callables(results, "2.0")
+        assert expired == []
