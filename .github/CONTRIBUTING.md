@@ -374,16 +374,18 @@ pyDeprecate/
 │   ├── collection_docstrings.py    # Fixtures for update_docstring=True behaviour
 │   ├── collection_modules/         # Fixture modules for deprecated_module() integration tests
 │   ├── integration/                # End-to-end tests via the public API
+│   │   ├── test_action.py          # GitHub Action: runner subprocess runs and action.yml parity
 │   │   └── test_agent_plugin.py    # Codex/Claude plugin catalog and manifest parity
 │   └── unittests/                  # Focused tests for private/internal helpers
 │       ├── audit/                  # One test__<module>.py per audit submodule (_wrappers, _scan, _lifecycle, _policy, _report)
 │       └── cli/                    # One test_<module>.py per _cli submodule; test_cli.py covers cli() in __init__.py
 ├── .github/
-│   ├── scripts/                # Pre-commit helper scripts (plugin compat-floor check)
+│   ├── scripts/                # Self-contained helper scripts (plugin compat-floor check, GitHub Action runner)
 │   ├── skills/code-review/     # Shared specialist review process for GitHub-hosted and local agents
 │   ├── workflows/              # CI/CD pipelines
 │   └── *.md                    # Documentation and guidelines
 ├── .pre-commit-hooks.yaml      # pre-commit hook manifest: one hook id per CLI subcommand (`pydeprecate-check`, …)
+├── action.yml                  # Composite GitHub Action running the CLI; logic in `.github/scripts/action_runner.py`
 ├── pyproject.toml              # Project config (ruff, mypy, pytest)
 └── setup.py                    # Package setup
 ```

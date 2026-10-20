@@ -209,6 +209,8 @@ While you are bringing an existing codebase into line, run the gate advisory-fir
 pydeprecate policy src/mypackage --exit-zero
 ```
 
+On GitHub Actions the CLI also ships as a ready-made step, `uses: Borda/pyDeprecate@<tag>` with `subcommand`, `path`, `args`, `exit-zero`, `install` and `summary` inputs; the step exits with the CLI's own code. See the [GitHub Action](audit.md#github-action) section of the audit guide.
+
 ## Path formats
 
 All subcommands accept:

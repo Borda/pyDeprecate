@@ -540,6 +540,8 @@ jobs:
 
 `pydeprecate all` prints policy violations as a `[WARNING]` without failing, so the dedicated `policy` step is the one that blocks the merge. A one-off override never needs a config edit — `pydeprecate policy src/mypackage --min-grace=0.3` beats the table for that run only.
 
+The same two gates are available as a ready-made step: see [GitHub Action](#github-action) below.
+
 ## Detecting Deprecation Chains
 
 A deprecated wrapper whose `target` is itself another deprecated function creates a chain: callers get two deprecation notices instead of one, and the intermediate hop adds no value. `validate_deprecation_chains()` scans a module or package for exactly this pattern using purely metadata-based detection — no source-code inspection required.
@@ -813,6 +815,58 @@ pydeprecate check src/your_package --exit-zero
 | `0`       | No hard errors (or `--exit-zero` was set)                                                                |
 | `1`       | Hard error found: invalid arg mappings, chains, expired wrappers, or policy violations under `policy`    |
 | `2`       | A malformed setting: `--exclude`, or for `policy` a rule value, from a flag or from `[tool.pydeprecate]` |
+
+## GitHub Action
+
+pyDeprecate ships a composite GitHub Action (available from `v0.15.0`) that runs the CLI as a single workflow step. Like the local pre-commit hook, it runs in the job's own Python: the scan imports your package, so set up Python and install your project first, then add the action:
+
+```yaml
+# .github/workflows/deprecations.yml
+name: Deprecations
+on: [push, pull_request]
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e . # your package and its runtime dependencies
+
+      - name: Audit deprecations (policy advisory here)
+        uses: Borda/pyDeprecate@v0.15.0 # pin a release tag or a commit SHA
+        with:
+          path: src/mypackage
+          summary: true # add a deprecation status table to the job summary
+
+      - name: Enforce the deprecation policy
+        uses: Borda/pyDeprecate@v0.15.0
+        with:
+          subcommand: policy
+          path: src/mypackage
+          install: false # already installed by the previous step
+```
+
+| Input        | Default | Meaning                                                                                                                                                                                                                           |
+| ------------ | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `subcommand` | `all`   | One of `check`, `expiry`, `policy`, `chains`, `all`, `status`; any other value fails the step with exit code `2`.                                                                                                                 |
+| `path`       | empty   | Package directory or importable module name, relative to the workspace. Empty lets the CLI pick the single package under `src/`, else the single package at the repository root.                                                  |
+| `args`       | empty   | Extra CLI flags, split with shell-style quoting, e.g. `--exclude='mypackage.tests,*._legacy*' --version 2.0`. Backslashes are escape characters, so quote Windows paths or use `/`.                                               |
+| `exit-zero`  | `false` | Report findings without failing the step (`--exit-zero`); not valid with `status`.                                                                                                                                                |
+| `install`    | `true`  | Install `pyDeprecate[cli,audit]` from the action's own ref into the job's Python.                                                                                                                                                 |
+| `summary`    | `false` | Append a markdown deprecation status table to the job summary. Subcommands other than `status` run one extra `status` scan, repeating the long-form `--exclude`, `--version` and `--recursive`/`--norecursive` flags from `args`. |
+
+The step finishes with the CLI's own exit code (see the table above), and a failing run adds an error annotation to the pull request's checks. The CLI has no "fail on warning" mode: advisory findings such as identity mappings never fail the step, and `exit-zero: true` turns hard errors into reports while you clear a backlog.
+
+**The `uses:` ref pins the pyDeprecate version.** With the default `install: true` the action installs pyDeprecate from the same commit as the action itself, so `@v0.15.0` audits with 0.15.0. That install replaces whatever pyDeprecate version your job already had, for every later step too, and the action warns when it does. Pin the action to the release your project depends on, or install `pyDeprecate[audit,cli]` yourself and set `install: false`. Set `install: false` as well where `pip` is unavailable, such as a uv-managed virtual environment.
+
+!!! warning "A green run can still have gaps"
+
+    A submodule that fails to import is skipped with a `UserWarning: audit: skipped <module>`, and `expiry` (also inside `all`) skips removal deadlines when it cannot detect your package version. The step still passes in both cases, but the action raises a warning annotation for each, so check the annotations whenever you change how the job installs your package. Pass `args: --version 2.0` when your version is not detectable from the installed package or `pyproject.toml`.
+
+The action imports your package and runs its import-time code, exactly like the CLI. Do not run it under `pull_request_target` on a checkout of the pull request's head, where untrusted code would run with the base repository's secrets and write token. The output of the scan cannot issue workflow commands: the action disables them while the CLI runs.
 
 ## Testing Deprecated Code
 
