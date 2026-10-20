@@ -12,6 +12,41 @@ def _is_package_available(name: str) -> bool:
     return importlib.util.find_spec(name) is not None
 
 
+# Starts of the "gap lines": stderr lines ``<kind>: <detail>`` the CLI prints when a run passes without auditing
+# everything. CI wrappers (the GitHub Action) count the lines starting with each kind, so a gap line is written with
+# plain ``print`` — never through Rich, which wraps long lines at the terminal width — and it does not depend on the
+# warnings filters the audited package may install. Each kind stays one full literal: the Action's tests look every
+# kind up verbatim in this source.
+
+#: A module the scan could not import (or whose module-level code exited), so none of its wrappers were audited.
+_GAP_MODULE_NOT_AUDITED = "pydeprecate gap: module not audited"
+#: The package version could not be resolved, so removal deadlines were not checked.
+_GAP_VERSION_UNRESOLVED = "pydeprecate gap: version not resolved"
+#: The auto-detected package version is not a valid PEP 440 version, so removal deadlines were not checked.
+_GAP_VERSION_INVALID = "pydeprecate gap: version not PEP 440"
+#: The ``packaging`` library is missing, so version-based checks were skipped.
+_GAP_PACKAGING_MISSING = "pydeprecate gap: packaging missing"
+#: A plain-directory scan left the Python files in its subdirectories out.
+_GAP_NESTED_FILES = "pydeprecate gap: nested files not audited"
+
+
+def _print_gap(kind: str, detail: str) -> None:
+    """Print one gap line ``<kind>: <detail>`` to stderr, unwrapped; ``detail`` may continue on further lines.
+
+    Args:
+        kind: One of the ``_GAP_*`` constants, which starts the line.
+        detail: The human-readable message following the kind.
+
+    """
+    print(f"{kind}: {detail}", file=sys.stderr, flush=True)
+
+
+def _print_skipped_modules(skipped: dict[str, str]) -> None:
+    """Print one :data:`_GAP_MODULE_NOT_AUDITED` line per skipped module (``name: error repr``) to stderr."""
+    for module_name, reason in skipped.items():
+        _print_gap(_GAP_MODULE_NOT_AUDITED, f"{module_name}: {reason}")
+
+
 def _print(msg: str, *, stderr: bool = False) -> None:
     """Print a message, using Rich console when available.
 

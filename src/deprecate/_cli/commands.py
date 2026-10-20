@@ -16,7 +16,14 @@ from deprecate._cli.config import (
     _source_label,
     _validate_user_version,
 )
-from deprecate._cli.report import _print, _Reporter
+from deprecate._cli.report import (
+    _GAP_PACKAGING_MISSING,
+    _GAP_VERSION_INVALID,
+    _GAP_VERSION_UNRESOLVED,
+    _print,
+    _print_gap,
+    _Reporter,
+)
 from deprecate._cli.scan import _scan_path
 from deprecate._pkg import _auto_detect_version, _managed_sys_path, _resolve_module_name, _safe_module_name
 from deprecate.audit import (
@@ -57,10 +64,10 @@ def _do_expiry(
         return validate_deprecation_expiry(module_name, version, recursive=recursive, exclude=exclude)
     except ImportError as exc:
         if _is_missing_packaging_import_error(exc):
-            _print(
+            _print_gap(
+                _GAP_PACKAGING_MISSING,
                 "The 'expiry' subcommand requires the 'packaging' library.\n"
                 "Install it with: `pip install 'pyDeprecate[audit]'`",
-                stderr=True,
             )
             return None
         if getattr(exc, "name", None) is not None:
@@ -69,11 +76,11 @@ def _do_expiry(
             # failure.  Propagate so the caller gets the real error instead of the misleading
             # "Could not determine version" message.
             raise
-        _print(
+        _print_gap(
+            _GAP_VERSION_UNRESOLVED,
             "Could not determine the current package version automatically.\n"
             "Pass --version explicitly, or ensure the package is installed and importable.\n\n"
             f"Original error: {exc}",
-            stderr=True,
         )
         return None
     # other exceptions propagate to cli()'s top-level handler around fire.Fire
@@ -96,25 +103,25 @@ def _do_expiry_prescanned(wrappers: list[DeprecationWrapperInfo], version: Optio
 
     """
     if version is None:
-        _print("Cannot check expiry: version not resolved. Pass --version explicitly.", stderr=True)
+        _print_gap(_GAP_VERSION_UNRESOLVED, "Cannot check expiry: version not resolved. Pass --version explicitly.")
         return None
     try:
         return _check_expiry_for_callables(wrappers, version)
     except ImportError:
-        _print(
+        _print_gap(
+            _GAP_PACKAGING_MISSING,
             "The 'expiry' subcommand requires the 'packaging' library.\n"
             "Install it with: `pip install 'pyDeprecate[audit]'`",
-            stderr=True,
         )
         return None
     except ValueError:
         # Only an auto-detected version reaches here — an explicit one is rejected up front with exit 2.
         # A package whose own metadata version is not PEP 440 is not a usage error, so the check degrades
         # to an advisory skip rather than aborting the run with an unhandled parse failure.
-        _print(
+        _print_gap(
+            _GAP_VERSION_INVALID,
             f"Cannot check expiry: the auto-detected version `{version}` is not a valid PEP 440 version "
             "string. Pass `--version` explicitly for a definitive check.",
-            stderr=True,
         )
         return None
 
@@ -149,10 +156,10 @@ def _policy_violations_without_packaging(
 
     """
     skipped_rules = ", ".join(f"`{rule}`" for rule in _skipped_policy_rules(spec))
-    _print(
+    _print_gap(
+        _GAP_PACKAGING_MISSING,
         f"The `packaging` library is required for the {skipped_rules} policy rule; skipping it.\n"
         "Install it with: `pip install 'pyDeprecate[audit]'`",
-        stderr=True,
     )
     if not spec.message_required:
         return None
@@ -295,11 +302,11 @@ def cmd_expiry(
         # Standalone path: full scan + version auto-detect inside _do_expiry.
         resolved_version = version if version is not None else _auto_detect_version(_safe_module_name(path), path=path)
         if resolved_version is None and version is None:
-            _print(
+            _print_gap(
+                _GAP_VERSION_UNRESOLVED,
                 "Could not resolve the current package version automatically and no --version was given; "
                 "the expiry check runs without a resolved version and its result may be unreliable. "
                 "Pass --version explicitly for a definitive check.",
-                stderr=True,
             )
         _print_scan_header(path, resolved_version, user_provided=version_explicit, exclude=resolved_exclude)
         with _managed_sys_path(path):
@@ -477,6 +484,7 @@ def cmd_all(
     recursive: bool = True,
     exit_zero: bool = False,
     exclude: _ConfigFlag = _FROM_PYPROJECT,
+    output: Optional[str] = None,
 ) -> int:
     """Run all four checks then append a deprecation table.
 
@@ -501,6 +509,9 @@ def cmd_all(
             list (``--exclude='my_package.tests,*._legacy*'``); the scan itself never imports a matching package
             nor descends into it. Default: the ``exclude`` list of ``[tool.pydeprecate]`` in the nearest
             ``pyproject.toml``, else nothing.
+        output: Optional file path the appended deprecation table is also written to, as with ``status --output``,
+            so a CI job gets the table of the very scan it gated on. A failure to write it is reported like any
+            table-rendering failure and never changes the exit code.
 
     Returns:
         0 when the check, expiry, and chain gates pass or ``exit_zero`` is True; 1 when any of them finds a hard
@@ -563,6 +574,7 @@ def cmd_all(
             path,
             version=resolved_version,
             recursive=recursive,
+            output=output,
             _wrappers=wrappers,
             _version_explicit=version_explicit,
         )

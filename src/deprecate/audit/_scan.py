@@ -12,7 +12,8 @@ import inspect
 import pkgutil
 import warnings
 from collections.abc import Iterator, Sequence
-from contextlib import suppress
+from contextlib import contextmanager, suppress
+from contextvars import ContextVar
 from dataclasses import replace
 from functools import cached_property
 from typing import TYPE_CHECKING, Any, Optional, Union
@@ -551,6 +552,31 @@ def _is_excluded(modname: str, exclude: Sequence[str]) -> bool:
     return any(fnmatch.fnmatchcase(prefix, pattern) for prefix in prefixes for pattern in exclude)
 
 
+#: Submodules skipped for failing to import -> ``repr`` of the error, while :func:`_collect_skipped_modules` runs.
+_SKIPPED_MODULES: ContextVar[Optional[dict[str, str]]] = ContextVar("_SKIPPED_MODULES", default=None)
+
+
+@contextmanager
+def _collect_skipped_modules() -> Iterator[dict[str, str]]:
+    """Record every submodule a scan inside the block skips because importing it raised.
+
+    The ``audit: skipped`` warning is no reliable signal for a caller that must report the gap: the audited package
+    runs inside the scan and can silence it with its own filters (``warnings.filterwarnings("ignore")`` in its
+    ``__init__``), as can ``PYTHONWARNINGS=ignore``. This record bypasses :mod:`warnings` entirely, so the CLI can
+    always print it. The warning itself is still emitted for library callers.
+
+    Yields:
+        Mapping of skipped module name to the ``repr`` of its import error, filled while the block runs.
+
+    """
+    collected: dict[str, str] = {}
+    token = _SKIPPED_MODULES.set(collected)
+    try:
+        yield collected
+    finally:
+        _SKIPPED_MODULES.reset(token)
+
+
 def _walk_submodules(package: Any, exclude: Sequence[str]) -> Iterator[Any]:  # noqa: ANN401
     """Import and yield every submodule of *package* depth-first, never entering an excluded subtree.
 
@@ -558,7 +584,8 @@ def _walk_submodules(package: Any, exclude: Sequence[str]) -> Iterator[Any]:  # 
     neither imports an excluded package nor descends into it (the package's own imports may still load it). Submodule
     top-level code can raise anything at import time (``RuntimeError``, ``OSError``, ``KeyError`` from env lookups,
     ...), not just ``ImportError``. One broken submodule must not abort the whole scan — and with it every audit gate
-    built on top — so the failure is kept as a warning and the walk continues with the remaining submodules.
+    built on top — so the failure is kept as a warning (and recorded for an active :func:`_collect_skipped_modules`
+    block) and the walk continues with the remaining submodules.
 
     """
     for _finder, modname, ispkg in pkgutil.iter_modules(package.__path__, package.__name__ + "."):
@@ -567,6 +594,9 @@ def _walk_submodules(package: Any, exclude: Sequence[str]) -> Iterator[Any]:  # 
         try:
             submod = importlib.import_module(modname)
         except Exception as exc:
+            collected = _SKIPPED_MODULES.get()
+            if collected is not None:
+                collected.setdefault(modname, repr(exc))
             warnings.warn(f"audit: skipped {modname}: {exc!r}", stacklevel=3)
             continue
         yield submod
