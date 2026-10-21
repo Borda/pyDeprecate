@@ -55,6 +55,10 @@ GAP_DETAILS_SHOWN = 3
 
 _TRUE_VALUES = ("true", "1")
 _FALSE_VALUES = ("false", "0")
+#: ``args`` tokens that make the CLI print its help and exit 0 without scanning anything.
+_HELP_FLAGS = ("-h", "--help")
+#: Both spellings of the ``--report-json`` option (the CLI also takes the underscore form) that the runner owns.
+_REPORT_OPTION_PREFIXES = ("--report-json", "--report_json")
 #: Program a child interpreter runs to print the installed pyDeprecate's metadata version, or nothing when absent.
 _VERSION_QUERY = (
     "import importlib.metadata as m\n"
@@ -141,6 +145,27 @@ def _parse_bool(name: str, raw: str) -> bool:
     raise ValueError(f"input `{name}` must be true, false, 1 or 0, got {raw!r}")
 
 
+def _reserved_args_reason(arg: str) -> str | None:
+    """Return why the ``args`` input must not hand the argument ``arg`` to the CLI, or ``None`` when it may.
+
+    The runner appends ``--exit-zero`` and ``--report-json`` after ``args``; an argument that stops the CLI from seeing
+    them, ends its run without a scan or competes for the report file is refused instead of being silently dropped.
+
+    """
+    if arg == "--":
+        return (
+            "Fire reads every token after a `--` separator as one of its own flags, so the `--exit-zero` and report"
+            " options the action appends would be ignored"
+        )
+    if arg in _HELP_FLAGS:
+        return "the CLI would print its help and exit 0 without scanning anything, turning the gate green"
+    if arg.startswith(_REPORT_OPTION_PREFIXES):
+        return (
+            "the action passes its own `--report-json` to annotate gaps and fill the job summary; drop it from `args`"
+        )
+    return None
+
+
 def read_inputs(env: dict[str, str]) -> ActionInputs:
     """Read and validate every action input from ``env``.
 
@@ -156,6 +181,10 @@ def read_inputs(env: dict[str, str]) -> ActionInputs:
         args = tuple(shlex.split(_input(env, "args")))
     except ValueError as err:
         raise ValueError(f"input `args` cannot be split into arguments: {err}") from err
+    for arg in args:
+        reason = _reserved_args_reason(arg)
+        if reason is not None:
+            raise ValueError(f"input `args` must not contain {arg!r}: {reason}")
     path = _input(env, "path")
     if path.startswith("-"):
         # the CLI would parse it as an option (`--help` prints help and exits 0, scanning nothing), and a `--`
@@ -180,8 +209,9 @@ def read_inputs(env: dict[str, str]) -> ActionInputs:
 def build_cli_argv(inputs: ActionInputs, python: str, report_file: Path | None = None) -> list[str]:
     """Build the ``python -m deprecate`` command line for the gate run, writing its report to ``report_file``.
 
-    The report option goes last: the CLI keeps the last ``--report-json``, so one a user put in ``args`` cannot
-    divert the report away from the runner.
+    The runner's own options follow ``args``. :func:`read_inputs` has already refused the ``args`` tokens that would
+    break that — a ``--`` separator, which makes Fire read everything after it as its own flags, a help flag, and any
+    ``--report-json`` spelling — so the CLI always receives ``--exit-zero`` and the report option as written here.
 
     """
     argv = [python, "-m", "deprecate", inputs.subcommand]
@@ -289,6 +319,11 @@ def run_cli(argv: list[str]) -> int:
     ``::error``/``::add-mask`` lines of its own. Commands are resumed in a ``finally``, so a failure mid-run (Ctrl+C,
     an argument the operating system rejects) cannot leave them stopped for the rest of the step, where they would
     swallow every later annotation.
+
+    The fence covers the CLI process itself, not what it leaves behind: ``wait()`` returns when that direct child
+    exits, so a descendant process that the audited package started and left running still holds the inherited stdout.
+    Anything it writes after the resume token is read as workflow commands again. Stopping commands guards against the
+    scan's own output; it is not a sandbox for processes the scan spawns.
 
     Raises:
         CliStartError: The CLI process could not be started; raised once commands are resumed, so it can be annotated.

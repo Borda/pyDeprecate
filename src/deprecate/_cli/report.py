@@ -29,12 +29,15 @@ class _GapKind(str, Enum):
 
     """
 
-    #: A module the scan could not import (or whose module-level code exited), so none of its wrappers were audited.
+    #: A module the scan could not import (or whose module-level code exited), so none of its wrappers were audited;
+    #: also ``<package>.*`` when a recursive walk of a package stopped early, leaving its submodules unaudited.
     MODULE_NOT_AUDITED = "module not audited"
     #: The package version could not be resolved, so removal deadlines were not checked.
     VERSION_UNRESOLVED = "version not resolved"
     #: The auto-detected package version is not a valid PEP 440 version, so removal deadlines were not checked.
     VERSION_INVALID = "version not PEP 440"
+    #: A wrapper's ``remove_in`` is not a valid PEP 440 version, so its removal deadline was not checked.
+    REMOVE_IN_INVALID = "remove_in not PEP 440"
     #: The ``packaging`` library is missing, so version-based checks were skipped.
     PACKAGING_MISSING = "packaging missing"
     #: A plain-directory scan left the Python files in its subdirectories out.
@@ -48,6 +51,7 @@ _GAP_HINTS: dict[_GapKind, str] = {
     ),
     _GapKind.VERSION_UNRESOLVED: "install the scanned package in this environment or pass `--version X.Y`",
     _GapKind.VERSION_INVALID: "pass `--version X.Y` with a valid PEP 440 version",
+    _GapKind.REMOVE_IN_INVALID: "set the wrapper's `remove_in` to a valid PEP 440 version such as `2.0`",
     _GapKind.PACKAGING_MISSING: "install 'pyDeprecate[audit]' to enable version-based checks",
     _GapKind.NESTED_FILES: "scan an importable package (with `__init__.py` files) instead of a plain directory",
 }
@@ -89,6 +93,25 @@ def _record_run() -> Iterator[_RunRecord]:
         yield record
     finally:
         _RUN_RECORD.reset(token)
+
+
+@contextmanager
+def _ensure_run_record() -> Iterator[_RunRecord]:
+    """Yield the record of the current CLI run, or a private one when no run is being recorded.
+
+    Lets a caller read back what a nested ``cmd_*`` call recorded (the rendered table) whether it was started through
+    ``cli()`` or called directly, without hiding the outer run's record from ``--report-json``.
+
+    Yields:
+        The active run record, else a fresh one that is discarded when the block ends.
+
+    """
+    active = _RUN_RECORD.get()
+    if active is not None:
+        yield active
+        return
+    with _record_run() as record:
+        yield record
 
 
 def _run_active() -> bool:

@@ -17,6 +17,7 @@ from deprecate._cli.config import (
     _validate_user_version,
 )
 from deprecate._cli.report import (
+    _ensure_run_record,
     _GapKind,
     _print,
     _print_gap,
@@ -34,8 +35,9 @@ from deprecate.audit import (
     find_deprecation_wrappers,
     generate_deprecation_table,
 )
-from deprecate.audit._lifecycle import _check_expiry_for_callables, _get_package_version
+from deprecate.audit._lifecycle import _check_expiry_for_callables, _get_package_version, _parse_version
 from deprecate.audit._policy import _build_policy_spec, _check_policy_for_callables
+from deprecate.audit._wrappers import _format_subject
 
 if TYPE_CHECKING:
     from deprecate.audit._policy import _PolicySpec
@@ -48,6 +50,10 @@ def _do_expiry_prescanned(wrappers: list[DeprecationWrapperInfo], version: Optio
     explicit ``--version`` is validated up front (exit 2), so only an auto-detected version reaches here, and
     neither an unresolvable nor an unparsable one is a usage error the user can be blamed for, so the expiry gate
     is skipped with a message instead of failing the run.
+
+    A wrapper whose own ``remove_in`` is not PEP 440 is skipped by the check, which only warns about it. This
+    function also records each such wrapper as a :attr:`_GapKind.REMOVE_IN_INVALID` gap, since the warning can be
+    silenced by the audited package; the expired list and the exit code are unchanged.
 
     Args:
         wrappers: Pre-scanned wrapper list to compare against *version*.
@@ -62,7 +68,23 @@ def _do_expiry_prescanned(wrappers: list[DeprecationWrapperInfo], version: Optio
         _print_gap(_GapKind.VERSION_UNRESOLVED, "Cannot check expiry: version not resolved. Pass --version explicitly.")
         return None
     try:
-        return _check_expiry_for_callables(wrappers, version)
+        expired = _check_expiry_for_callables(wrappers, version)
+        # Reached only when the check itself ran, so an unusable `version` is reported once (below) and not again per
+        # wrapper. The audit layer only warns about a `remove_in` it skips; the gap is recorded here so it stays free
+        # of CLI imports.
+        for info in wrappers:
+            remove_in = info.deprecated_info.remove_in
+            if not remove_in:
+                continue
+            try:
+                _parse_version(remove_in)
+            except ValueError:
+                _print_gap(
+                    _GapKind.REMOVE_IN_INVALID,
+                    f"{_format_subject(info)} has `remove_in` `{remove_in}`, which is not a valid PEP 440 version "
+                    "string, so its removal deadline was not checked.",
+                )
+        return expired
     except ImportError:
         _print_gap(
             _GapKind.PACKAGING_MISSING,
@@ -80,6 +102,23 @@ def _do_expiry_prescanned(wrappers: list[DeprecationWrapperInfo], version: Optio
             "string. Pass `--version` explicitly for a definitive check.",
         )
         return None
+
+
+def _save_table(markdown: str, output: str) -> None:
+    """Write the rendered deprecation table to *output* (missing parent directories are created) and say so on stderr.
+
+    Args:
+        markdown: The rendered markdown table.
+        output: File path to write.
+
+    Raises:
+        OSError: When the directory cannot be created or the file cannot be written.
+
+    """
+    out_path = Path(output)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(markdown, encoding="utf-8")
+    _print(f"→ Saved to: {out_path}", stderr=True)
 
 
 def _skipped_policy_rules(spec: "_PolicySpec") -> list[str]:
@@ -229,9 +268,8 @@ def cmd_expiry(
             nor descends into it. Default: the ``exclude`` list of ``[tool.pydeprecate]`` in the nearest
             ``pyproject.toml``, else nothing.
         _wrappers: Pre-scanned wrapper list. When provided, skips the scan step and derives
-            expired wrappers via ``_do_expiry_prescanned``. Requires *version* to be
-            non-``None`` when set. Underscore prefix hides this parameter from the Fire CLI
-            (internal use by ``cmd_all`` only).
+            expired wrappers via ``_do_expiry_prescanned``. Underscore prefix hides this parameter from the
+            Fire CLI (internal use by ``cmd_all`` only).
         _version_explicit: Whether *version* is a value the user typed rather than one the caller
             auto-detected. ``cmd_all`` forwards its already-resolved version and passes ``False``
             when that version came from auto-detection, so a malformed *installed* version is never
@@ -239,10 +277,10 @@ def cmd_expiry(
             the Fire CLI (internal use by ``cmd_all`` only).
 
     Returns:
-        0 on success, when the ``packaging`` library is unavailable, or when an auto-detected version
-        turns out not to be valid PEP 440 (advisory — the check is skipped); 1 when expired wrappers
-        are found and ``exit_zero`` is False; 2 when a user-supplied ``--version`` is not a valid
-        PEP 440 version string or ``--exclude`` is malformed.
+        0 on success, when the ``packaging`` library is unavailable, when no version could be resolved (the gap
+        is printed and the check is skipped), or when an auto-detected version turns out not to be valid
+        PEP 440 (advisory — the check is skipped); 1 when expired wrappers are found and ``exit_zero`` is False;
+        2 when a user-supplied ``--version`` is not a valid PEP 440 version string or ``--exclude`` is malformed.
 
     """
     # Fire auto-converts numeric-looking strings (e.g. "1.0" → float); normalise to str.
@@ -466,8 +504,9 @@ def cmd_all(
             nor descends into it. Default: the ``exclude`` list of ``[tool.pydeprecate]`` in the nearest
             ``pyproject.toml``, else nothing.
         output: Optional file path the appended deprecation table is also written to, as with ``status --output``,
-            so a CI job gets the table of the very scan it gated on. A failure to write it is reported like any
-            table-rendering failure and never changes the exit code.
+            so a CI job gets the table of the very scan it gated on. A failure to write it is reported on stderr as
+            ``Could not write the deprecation table`` — apart from a failure to render the table — and never changes
+            the exit code.
 
     Returns:
         0 when the check, expiry, and chain gates pass or ``exit_zero`` is True; 1 when any of them finds a hard
@@ -525,17 +564,26 @@ def cmd_all(
 
     # The status table is a display artifact appended after the three gates. Render it defensively:
     # a table-rendering failure must never change the aggregate exit code the three checks produced.
-    try:
-        cmd_status(
-            path,
-            version=resolved_version,
-            recursive=recursive,
-            output=output,
-            _wrappers=wrappers,
-            _version_explicit=version_explicit,
-        )
-    except Exception as exc:
-        _print(f"Could not render the deprecation table: {exc}", stderr=True)
+    # ``output`` is not forwarded: ``cmd_status`` records the table it rendered and this function saves that, so a
+    # failure to write the file is told apart from one to render the table.
+    with _ensure_run_record() as run_record:
+        try:
+            cmd_status(
+                path,
+                version=resolved_version,
+                recursive=recursive,
+                output=None,
+                _wrappers=wrappers,
+                _version_explicit=version_explicit,
+            )
+        except Exception as exc:
+            _print(f"Could not render the deprecation table: {exc}", stderr=True)
+        else:
+            if output is not None and run_record.table is not None:
+                try:
+                    _save_table(run_record.table, output)
+                except OSError as exc:
+                    _print(f"Could not write the deprecation table to {output}: {exc}", stderr=True)
 
     has_errors = bool(check_code or expiry_code or chains_code)
     return 0 if not has_errors or exit_zero else 1
@@ -628,9 +676,6 @@ def cmd_status(
         _print(markdown)
 
     if output is not None:
-        out_path = Path(output)
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-        out_path.write_text(markdown, encoding="utf-8")
-        _print(f"→ Saved to: {out_path}", stderr=True)
+        _save_table(markdown, output)
 
     return 0

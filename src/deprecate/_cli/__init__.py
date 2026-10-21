@@ -42,6 +42,10 @@ _REPORT_OPTION = "--report-json"
 def _pop_report_option(argv: list[str]) -> Union[tuple[list[str], Optional[str]], str]:
     """Remove ``--report-json PATH`` / ``--report-json=PATH`` from *argv*; the last one wins, as for other flags.
 
+    The underscore spelling ``--report_json`` is read the same way, as Fire reads every other flag. An argument starting
+    with ``-`` after a bare ``--report-json`` is another option, not its value: the path is missing. Write such a path
+    as ``--report-json=-name``.
+
     Returns:
         The remaining arguments and the report path (``None`` when not given), or an error message when the option
         has no value. Arguments after a ``--`` separator are left untouched.
@@ -51,8 +55,16 @@ def _pop_report_option(argv: list[str]) -> Union[tuple[list[str], Optional[str]]
         (['check', 'src/pkg'], 'r.json')
         >>> _pop_report_option(["check", "--report-json=r.json"])
         (['check'], 'r.json')
+        >>> _pop_report_option(["check", "--report_json=r.json"])
+        (['check'], 'r.json')
+        >>> _pop_report_option(["check", "--report_json", "r.json"])
+        (['check'], 'r.json')
         >>> _pop_report_option(["check", "--report-json"])
         'Option `--report-json` needs a file path.'
+        >>> _pop_report_option(["check", "--report-json", "--exit-zero"])
+        'Option `--report-json` needs a file path.'
+        >>> _pop_report_option(["check", "--report-json=-name"])
+        (['check'], '-name')
 
     """
     remaining: list[str] = []
@@ -64,11 +76,11 @@ def _pop_report_option(argv: list[str]) -> Union[tuple[list[str], Optional[str]]
         if arg == "--":
             return [*remaining, arg, *argv[idx:]], path
         name, has_value, value = arg.partition("=")
-        if name != _REPORT_OPTION:
+        if name.replace("_", "-") != _REPORT_OPTION:
             remaining.append(arg)
             continue
         if not has_value:
-            if idx >= len(argv):
+            if idx >= len(argv) or argv[idx].startswith("-"):
                 return "Option `--report-json` needs a file path."
             value = argv[idx]
             idx += 1

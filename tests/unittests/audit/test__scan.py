@@ -1,9 +1,13 @@
 """Unit tests for private helpers in :mod:`deprecate.audit._scan`."""
 
 import dataclasses
+import pkgutil
 import types
 import warnings
+from collections.abc import Callable
 from functools import cached_property
+from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -22,7 +26,7 @@ from deprecate.audit import (
     find_deprecation_wrappers,
     validate_deprecation_wrapper,
 )
-from deprecate.audit._scan import _member_has_deprecation_meta, _scan_class
+from deprecate.audit._scan import _SKIPPED_MODULES, _collect_skipped_modules, _member_has_deprecation_meta, _scan_class
 from deprecate.proxy import _DeprecatedProxy, deprecated_class
 
 
@@ -407,6 +411,168 @@ class TestFindDeprecationWrappersReexport:
         )
         infos = find_deprecation_wrappers(mod, include_pep702=True)
         assert len(infos) == 1
+
+
+class TestCollectSkippedModules:
+    """_collect_skipped_modules records the parts of a recursive scan left unaudited, bypassing :mod:`warnings`."""
+
+    @pytest.fixture
+    def make_package(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Callable[[str, dict[str, str]], None]:
+        """Return a factory writing an importable package from ``{submodule name: source}`` and making it importable.
+
+        Each test passes its own package name, so a module cached in ``sys.modules`` by one test never leaks into
+        another; ``monkeypatch.syspath_prepend`` drops the import caches that would hide the new directory.
+        """
+
+        def _make(name: str, modules: dict[str, str]) -> None:
+            pkg = tmp_path / name
+            pkg.mkdir()
+            (pkg / "__init__.py").write_text("")
+            for module, source in modules.items():
+                (pkg / f"{module}.py").write_text(source)
+            monkeypatch.syspath_prepend(str(tmp_path))
+
+        return _make
+
+    def test_records_every_failing_submodule_with_repr(
+        self, make_package: Callable[[str, dict[str, str]], None]
+    ) -> None:
+        """Two submodules failing with different exceptions are both recorded under their dotted name with ``repr``.
+
+        A package with several optional-dependency submodules loses more than one at a time. The CLI prints one gap
+        line per entry, so every skipped module must appear, each carrying the exception type and message
+        (``repr``) rather than a bare message that hides the error class.
+
+        """
+        make_package(
+            "collskip_pair_pkg",
+            {"bad_a": 'raise RuntimeError("boom a")\n', "bad_b": 'raise OSError("boom b")\n', "good": "x = 1\n"},
+        )
+
+        with (
+            _collect_skipped_modules() as skipped,
+            pytest.warns(UserWarning, match=r"audit: skipped collskip_pair_pkg"),
+        ):
+            find_deprecation_wrappers("collskip_pair_pkg", recursive=True)
+
+        assert skipped == {
+            "collskip_pair_pkg.bad_a": "RuntimeError('boom a')",
+            "collskip_pair_pkg.bad_b": "OSError('boom b')",
+        }
+
+    def test_stopped_walk_recorded_under_package_wildcard(
+        self, make_package: Callable[[str, dict[str, str]], None]
+    ) -> None:
+        """A walk that stops early is recorded as ``<package>.*``, never as the package itself.
+
+        An unreadable package directory makes the recursive walk stop after the package's own wrappers were scanned,
+        leaving its submodules unaudited. The record must say so, but under the package name it would read as if the
+        package itself was not audited, so the key carries a ``.*`` suffix and the reason names the stopped walk.
+
+        """
+        make_package("collskip_walkstop_pkg", {})
+
+        with (
+            _collect_skipped_modules() as skipped,
+            patch.object(pkgutil, "iter_modules", side_effect=OSError("no walk")),
+            pytest.warns(UserWarning, match=r"audit: submodule walk of collskip_walkstop_pkg stopped early"),
+        ):
+            find_deprecation_wrappers("collskip_walkstop_pkg", recursive=True)
+
+        assert skipped == {"collskip_walkstop_pkg.*": "submodule walk stopped early: OSError('no walk')"}
+
+    def test_keeps_first_reason_for_a_repeated_module(
+        self, make_package: Callable[[str, dict[str, str]], None], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A module skipped twice in one block keeps the reason of its first failure.
+
+        A CLI run scans the package once, but a library caller can scan the same package twice inside one block. The
+        first failure is the root cause worth reporting; a later, possibly different error from the same module must
+        not overwrite it. The submodule reads its message from the environment, so the two imports fail differently.
+
+        """
+        make_package(
+            "collskip_repeat_pkg", {"bad": 'import os\nraise RuntimeError(os.environ["COLLSKIP_REPEAT_REASON"])\n'}
+        )
+
+        with _collect_skipped_modules() as skipped:
+            monkeypatch.setenv("COLLSKIP_REPEAT_REASON", "first")
+            with pytest.warns(UserWarning, match=r"audit: skipped collskip_repeat_pkg"):
+                find_deprecation_wrappers("collskip_repeat_pkg", recursive=True)
+            monkeypatch.setenv("COLLSKIP_REPEAT_REASON", "second")
+            with pytest.warns(UserWarning, match=r"audit: skipped collskip_repeat_pkg"):
+                find_deprecation_wrappers("collskip_repeat_pkg", recursive=True)
+
+        assert skipped == {"collskip_repeat_pkg.bad": "RuntimeError('first')"}
+
+    def test_nothing_recorded_outside_the_block(self, make_package: Callable[[str, dict[str, str]], None]) -> None:
+        """A scan outside any block records nothing, and a finished block's mapping no longer grows.
+
+        The collector is installed only for the duration of a CLI run; library users scanning on their own must not
+        accumulate state in a module-level container, and a mapping handed out earlier must stay frozen once its
+        block has exited.
+
+        """
+        make_package("collskip_outside_pkg", {"bad": 'raise RuntimeError("boom")\n'})
+        with _collect_skipped_modules() as finished:
+            pass
+
+        with pytest.warns(UserWarning, match=r"audit: skipped collskip_outside_pkg"):
+            find_deprecation_wrappers("collskip_outside_pkg", recursive=True)
+
+        assert finished == {}
+        assert _SKIPPED_MODULES.get() is None
+
+    def test_stopped_walk_outside_the_block_is_not_recorded(
+        self, make_package: Callable[[str, dict[str, str]], None]
+    ) -> None:
+        """A walk that stops early outside any block only warns; nothing is recorded and nothing raises.
+
+        The ``<package>.*`` record is written only when a collector is active, so library callers keep the plain
+        warning-only behavior.
+
+        """
+        make_package("collskip_outside_walk_pkg", {})
+
+        with (
+            patch.object(pkgutil, "iter_modules", side_effect=OSError("no walk")),
+            pytest.warns(UserWarning, match=r"audit: submodule walk of collskip_outside_walk_pkg stopped early"),
+        ):
+            find_deprecation_wrappers("collskip_outside_walk_pkg", recursive=True)
+
+        assert _SKIPPED_MODULES.get() is None
+
+    def test_collector_removed_after_an_exception(self) -> None:
+        """An exception escaping the block still removes the collector.
+
+        The CLI catches a crashing subcommand and keeps going to print the skipped modules; if the collector leaked
+        out of the failed block, a later scan in the same process would write into a dead run's mapping.
+
+        """
+        with pytest.raises(RuntimeError, match="inside the block"), _collect_skipped_modules():
+            raise RuntimeError("inside the block")
+
+        assert _SKIPPED_MODULES.get() is None
+
+    def test_nested_blocks_record_separately(self, make_package: Callable[[str, dict[str, str]], None]) -> None:
+        """Each block collects only what was skipped while it was the innermost one.
+
+        A package whose import runs the CLI again (the nested-run case) opens a block inside the outer run's block.
+        The inner scan's skips belong to the inner run, and the outer run's mapping must not pick them up, nor lose
+        its own skips recorded after the inner block exits.
+
+        """
+        make_package("collskip_inner_pkg", {"bad": 'raise RuntimeError("inner")\n'})
+        make_package("collskip_outer_pkg", {"bad": 'raise RuntimeError("outer")\n'})
+
+        with _collect_skipped_modules() as outer:
+            with _collect_skipped_modules() as inner, pytest.warns(UserWarning, match=r"collskip_inner_pkg"):
+                find_deprecation_wrappers("collskip_inner_pkg", recursive=True)
+            with pytest.warns(UserWarning, match=r"collskip_outer_pkg"):
+                find_deprecation_wrappers("collskip_outer_pkg", recursive=True)
+
+        assert inner == {"collskip_inner_pkg.bad": "RuntimeError('inner')"}
+        assert outer == {"collskip_outer_pkg.bad": "RuntimeError('outer')"}
 
 
 class TestFindDeprecationWrappersClassScan:
