@@ -1837,7 +1837,7 @@ steps:
       summary: true # optional: deprecation table in the job summary
 ```
 
-The step exits with the CLI's own code; `exit-zero: true` reports without failing, `args` passes extra flags, and `install: false` keeps the pyDeprecate version your job already installed. Optional summary failures only warn and keep the gate result; an existing report is reused only when the current CLI run confirms writing it. The GitHub Action section of the audit guide covers every input and caveat.
+The step exits with the CLI's own code, except that a `path` starting with `-` exits `2`, a failed install returns pip's exit code and a CLI that cannot start returns `1`; `exit-zero: true` reports without failing, `args` passes extra flags, and `install: false` keeps the pyDeprecate version your job already installed. Optional summary failures only warn and keep the gate result. When no report exists the gap annotations and the summary are skipped with a warning: an older pyDeprecate that predates `--report-json` (`install: false`) gives "no report is available", and a CLI crash gives "the gate wrote no report". The GitHub Action section of the audit guide covers every input and caveat.
 
 **Example: catching a deprecated-to-deprecated chain**
 

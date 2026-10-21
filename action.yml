@@ -6,6 +6,8 @@
 # All logic lives in `.github/scripts/action_runner.py`; inputs reach it only through `env:` (never interpolated into
 # the script), and `tests/integration/test_action.py` keeps inputs, defaults and env names in lockstep with it.
 # Gaps and the job-summary table come from the CLI's `--report-json` file, never from its console output.
+# The step exits with the CLI's code, except: a `path` starting with `-` exits 2, a failed install returns pip's exit
+# code, and a CLI that cannot start returns 1.
 name: pyDeprecate audit
 description: Validate @deprecated wrappers in CI - misconfigured mappings, chains, expired removals and policy rules.
 author: Jiri Borovec
@@ -21,7 +23,8 @@ inputs:
   path:
     description: >-
       Package directory or importable module name to scan, relative to the workspace. Empty lets the CLI find the
-      single package under `src/`, else the single package at the repository root.
+      single package under `src/`, else the single package at the repository root. A value starting with `-` fails
+      the step with exit code `2`; write such a directory as `./-name`.
     required: false
     default: ""
   args:
