@@ -802,7 +802,7 @@ pydeprecate check src/your_package --exit-zero
 
 ## GitHub Action
 
-pyDeprecate ships a composite GitHub Action (available from `v0.15.0`) that runs the CLI as a single workflow step. Like the local pre-commit hook, it runs in the job's own Python: the scan imports your package, so set up Python and install your project first, then add the action:
+pyDeprecate ships a composite GitHub Action (available from `v0.15.0`) that runs the CLI as a single workflow step. Like the local pre-commit hook, it runs in the job's own Python. The scan imports your package from the checkout, so the package itself needs no install, but every module's runtime dependencies must be importable: set up Python and install them first (the simplest way is installing the project), then add the action:
 
 ```yaml
 # .github/workflows/deprecations.yml
@@ -817,7 +817,7 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
-      - run: pip install -e . # your package and its runtime dependencies
+      - run: pip install -e . # pulls in the runtime dependencies the scanned modules import
 
       - name: Audit deprecations (policy advisory here)
         uses: Borda/pyDeprecate@v0.15.0 # pin a release tag or a commit SHA
