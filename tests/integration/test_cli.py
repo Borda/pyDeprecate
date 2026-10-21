@@ -1,6 +1,7 @@
 """Integration tests for the CLI — real subprocess invocations only."""
 
 import importlib.util
+import json
 import os
 import subprocess
 import sys
@@ -773,3 +774,133 @@ class TestCliAttachedBoolLiterals:
         result = _run_cli("check", str(pkg), "--exit-zero=yes", cwd=tmp_path)
         assert result.returncode == 2
         assert "expects True or False" in result.stderr
+
+
+class TestCliReportJson:
+    """``--report-json PATH`` writes one machine-readable record of the run: the status table and every gap."""
+
+    @pytest.mark.parametrize(
+        ("subcommand", "args"),
+        [
+            pytest.param("check", (), id="check"),
+            pytest.param("expiry", ("--version=1.0",), id="expiry"),
+            pytest.param("policy", (), id="policy"),
+            pytest.param("chains", (), id="chains"),
+            pytest.param("all", ("--version=1.0",), id="all"),
+            pytest.param("status", ("--version=1.0",), id="status"),
+        ],
+    )
+    def test_every_subcommand_writes_table_of_its_own_scan(
+        self, tmp_path: Path, subcommand: str, args: tuple[str, ...]
+    ) -> None:
+        """Each subcommand writes a report whose table lists the wrapper its own scan found.
+
+        A CI wrapper publishing a job summary after a single gate used to re-scan with ``status`` and guess the gate's
+        scope from its argv. The report must come from the very scan that gated, so every subcommand carries it.
+
+        """
+        pkg = _make_pkg(tmp_path)
+        report = tmp_path / "report.json"
+        result = _run_cli(subcommand, str(pkg), *args, f"--report-json={report}", cwd=tmp_path)
+        data = json.loads(report.read_text(encoding="utf-8"))
+        assert result.returncode in (0, 1), result.stderr
+        assert data["schema"] == 1
+        assert "old_fn" in data["table"]
+
+    def test_failing_gate_still_writes_report(self, tmp_path: Path) -> None:
+        """A gate that finds a hard error (exit 1) still writes its report, with the table of the failing scan.
+
+        Findings are exactly when a job summary matters most; a report written only on success would hide the table
+        of the failing run.
+
+        """
+        pkg = _make_pkg(tmp_path, content=_MYPKG_INIT_INVALID)
+        report = tmp_path / "report.json"
+        result = _run_cli("check", str(pkg), "--report-json", str(report), cwd=tmp_path)
+        assert result.returncode == 1
+        assert "old_fn" in json.loads(report.read_text(encoding="utf-8"))["table"]
+
+    def test_usage_error_writes_no_report(self, tmp_path: Path) -> None:
+        """A usage error (exit 2) writes no report, so a consumer never publishes a scan that did not run.
+
+        ``--version`` that is not PEP 440 stops the run before scanning; any report would describe nothing.
+
+        """
+        pkg = _make_pkg(tmp_path)
+        report = tmp_path / "report.json"
+        result = _run_cli("expiry", str(pkg), "--version=not-a-version", f"--report-json={report}", cwd=tmp_path)
+        assert result.returncode == 2
+        assert not report.exists()
+
+    def test_records_gaps_with_kind_and_hint(self, tmp_path: Path) -> None:
+        """A plain directory with nested files records a ``nested files not audited`` gap with a hint.
+
+        The human stderr line stays as before; the report adds the same gap as data, so CI tooling no longer has to
+        match stderr text to learn that part of the project was never audited.
+
+        """
+        plain = tmp_path / "plain"
+        (plain / "sub").mkdir(parents=True)
+        (plain / "mod.py").write_text("x = 1\n")
+        (plain / "sub" / "nested.py").write_text("y = 2\n")
+        report = tmp_path / "report.json"
+        result = _run_cli("check", str(plain), f"--report-json={report}", cwd=tmp_path)
+        gaps = json.loads(report.read_text(encoding="utf-8"))["gaps"]
+        assert [gap["kind"] for gap in gaps] == ["nested files not audited"]
+        assert gaps[0]["hint"]
+        assert "pydeprecate gap: nested files not audited: " in result.stderr
+
+    def test_records_skipped_submodule_gap(self, tmp_path: Path) -> None:
+        """A submodule that fails to import is recorded as a ``module not audited`` gap naming the module.
+
+        These gaps are printed only after the subcommand returns, so the report must be written after them, or the
+        most common gap of all would be missing from it.
+
+        """
+        pkg = _make_pkg(tmp_path)
+        (pkg / "broken.py").write_text("raise RuntimeError('boom')\n")
+        report = tmp_path / "report.json"
+        _run_cli("check", str(pkg), f"--report-json={report}", cwd=tmp_path)
+        gaps = json.loads(report.read_text(encoding="utf-8"))["gaps"]
+        assert [gap["kind"] for gap in gaps] == ["module not audited"]
+        assert gaps[0]["detail"].startswith("mypkg.broken: ")
+
+    def test_clean_scan_records_no_gap(self, tmp_path: Path) -> None:
+        """A fully audited package records an empty gap list, so consumers can tell "no gaps" from "unknown"."""
+        pkg = _make_pkg(tmp_path)
+        report = tmp_path / "report.json"
+        _run_cli("status", str(pkg), "--version=1.0", f"--report-json={report}", cwd=tmp_path)
+        assert json.loads(report.read_text(encoding="utf-8"))["gaps"] == []
+
+    def test_unwritable_report_keeps_exit_code(self, tmp_path: Path) -> None:
+        """A report path that cannot be written prints an advisory and keeps the gate's own exit code.
+
+        The report is a by-product for CI tooling; letting its failure turn a passing gate red (as ``status --output``
+        does for a report the user asked to see) would make the gate result depend on the summary.
+
+        """
+        pkg = _make_pkg(tmp_path)
+        result = _run_cli("check", str(pkg), f"--report-json={tmp_path}", cwd=tmp_path)
+        assert result.returncode == 0
+        assert "Could not write the JSON report" in result.stderr
+
+    def test_missing_value_exits_two(self, tmp_path: Path) -> None:
+        """A trailing ``--report-json`` without a path is a usage error, not a silently skipped report."""
+        pkg = _make_pkg(tmp_path)
+        result = _run_cli("check", str(pkg), "--report-json", cwd=tmp_path)
+        assert result.returncode == 2
+
+    def test_nested_run_writes_no_report(self, tmp_path: Path) -> None:
+        """A CLI run started from inside the audited package's import never writes the outer run's report.
+
+        The package's ``__init__`` calls the CLI entry point, which sees the outer ``sys.argv`` — including its
+        ``--report-json`` path — and exits the process before the outer scan finishes. A report from that nested run
+        would pass for the outer scan's, so only the outermost run may write one.
+
+        """
+        pkg = tmp_path / "reentrantpkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text("from deprecate._cli import cli\ncli()\n")
+        report = tmp_path / "report.json"
+        _run_cli("check", str(pkg), f"--report-json={report}", cwd=tmp_path)
+        assert not report.exists()

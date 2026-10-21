@@ -7,16 +7,19 @@ interpolated into script text), and the script:
 1. validates the inputs, failing with exit code ``2`` and an ``::error`` annotation on a bad value,
 2. optionally installs ``pyDeprecate[cli,audit]`` from that same checkout into the job's current Python, so the
    ``uses:`` ref pins the version — the same binding the pre-commit hook manifest uses,
-3. runs ``python -m deprecate <subcommand> [path] [args...]`` and returns its exit code unchanged,
-4. optionally appends a markdown deprecation status table to the job summary.
+3. runs ``python -m deprecate <subcommand> [path] [args...] --report-json=<file>`` and returns its exit code unchanged,
+4. raises one warning annotation per kind of gap the CLI recorded in that report, and optionally appends the report's
+   deprecation table — the table of the very scan that gated — to the job summary.
 
-Self-contained on purpose: it runs in the caller's environment before pyDeprecate may be installed, so it uses only
-the standard library and stays compatible with the package's oldest supported Python (3.9).
+Everything the runner knows about a run comes from the CLI's ``--report-json`` file, never from matching its console
+output. Self-contained on purpose: it runs in the caller's environment before pyDeprecate may be installed, so it uses
+only the standard library and stays compatible with the package's oldest supported Python (3.9).
 
 """
 
 from __future__ import annotations
 
+import json
 import os
 import secrets
 import shlex
@@ -26,9 +29,9 @@ import sys
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
-#: CLI subcommands the action accepts; mirrors the command map in ``deprecate._cli``.
+#: CLI subcommands the action accepts; mirrors the ``cmd_*`` functions of ``deprecate._cli.commands``.
 SUBCOMMANDS = ("check", "expiry", "policy", "chains", "all", "status")
 #: Extras installed with the package — the same ones ``.pre-commit-hooks.yaml`` requests.
 INSTALL_EXTRAS = ("cli", "audit")
@@ -43,56 +46,12 @@ INPUT_DEFAULTS = {
     "install": "true",
     "summary": "false",
 }
-#: Subcommands whose own run renders the status table and accepts ``--output``: ``summary`` reuses a user ``--output``
-#: given to such a gate run instead of scanning again; the other subcommands need a separate ``status`` run.
-IN_RUN_SUMMARY_SUBCOMMANDS = ("status", "all")
-#: Subcommands of :data:`IN_RUN_SUMMARY_SUBCOMMANDS` whose failure to write ``--output`` only prints an advisory, so the
-#: runner can hand them its own table file. ``status`` exits 1 on a failed write — right for a report the user asked
-#: for, wrong for the job summary — so it gets the table from a second ``status`` run (:func:`write_summary`) instead.
-ADVISORY_OUTPUT_SUBCOMMANDS = ("all",)
-#: Long flags of the gate's ``args`` that the summary's ``status`` re-scan forwards, so both scans see the same
-#: modules and version; every other flag is gate-specific and would make ``status`` reject the call. Only these
-#: long forms are repeated: a positional path or version in ``args``, or a short flag, is not, so the re-scan of a
-#: single-gate subcommand can cover a different scope — give the path through the ``path`` input instead.
-SUMMARY_FORWARDED_FLAGS = ("exclude", "version", "recursive", "norecursive")
-_GAP_NOT_IMPORTED = (
-    "{count} module(s) could not be imported and were not audited; install your package's dependencies"
-    " in this job before the pyDeprecate step"
-)
-_GAP_VERSION_UNDETECTED = (
-    "the package version could not be detected, so removal deadlines were not checked; install your"
-    " package in this job or pass `--version X.Y` through `args`"
-)
-_GAP_VERSION_INVALID = (
-    "the auto-detected package version is not a valid PEP 440 version, so removal deadlines were not checked;"
-    " pass `--version X.Y` through `args`"
-)
-_GAP_NO_PACKAGING = (
-    "the `packaging` library is not installed, so version-based checks (removal deadlines, the `min-grace`"
-    " policy rule) were skipped; install 'pyDeprecate[audit]' or keep `install: true`"
-)
-_GAP_NESTED_FILES = (
-    "nested Python files of a plain directory (no `__init__.py`) were not audited; point `path` at an importable"
-    " package instead"
-)
-#: Kinds of the CLI's "gap lines" -> warning annotation text. The CLI prints one stderr line ``<kind>: <detail>`` each
-#: time a run passes without auditing everything; it writes them with plain ``print``, so terminal-width wrapping never
-#: splits a kind, and outside the warnings channel, so the audited package's own `warnings.filterwarnings("ignore")`
-#: cannot hide them. Only lines that start with a kind count, so output of the audited package that merely quotes one
-#: is ignored. Several lines of one kind raise a single annotation (``{count}`` sums them); every kind must stay
-#: a literal of the CLI source (``deprecate/_cli/report.py``), which ``tests/integration/test_action.py`` checks.
-SILENT_GAP_MARKERS = {
-    "pydeprecate gap: module not audited": _GAP_NOT_IMPORTED,
-    "pydeprecate gap: version not resolved": _GAP_VERSION_UNDETECTED,
-    "pydeprecate gap: version not PEP 440": _GAP_VERSION_INVALID,
-    "pydeprecate gap: packaging missing": _GAP_NO_PACKAGING,
-    "pydeprecate gap: nested files not audited": _GAP_NESTED_FILES,
-}
-
-#: Trailing stderr lines of a failed summary re-scan quoted in its warning annotation.
-SUMMARY_ERROR_TAIL_LINES = 3
-#: Emitted only after the CLI successfully writes its report; an existing file may belong to an older run.
-REPORT_SAVED_PREFIX = "→ Saved to:"
+#: Name of the report file inside the runner's private temporary directory.
+REPORT_FILENAME = "report.json"
+#: Layout version of the CLI's ``--report-json`` file that this runner reads.
+REPORT_SCHEMA = 1
+#: Most gap details quoted in one warning annotation; the CLI log above it lists every one.
+GAP_DETAILS_SHOWN = 3
 
 _TRUE_VALUES = ("true", "1")
 _FALSE_VALUES = ("false", "0")
@@ -104,6 +63,10 @@ _VERSION_QUERY = (
     "except m.PackageNotFoundError:\n"
     "    pass\n"
 )
+#: Program a child interpreter runs to tell whether the installed CLI takes ``--report-json`` (exit 0) or not.
+_REPORT_PROBE = "import deprecate._cli as cli\nraise SystemExit(0 if hasattr(cli, '_REPORT_OPTION') else 3)\n"
+#: Exit code of :data:`_REPORT_PROBE` for an importable CLI without ``--report-json``; any other failure is not one.
+_PROBE_UNSUPPORTED = 3
 
 
 class ExitStatus(NamedTuple):
@@ -111,13 +74,6 @@ class ExitStatus(NamedTuple):
 
     code: int
     description: str
-
-
-class CliResult(NamedTuple):
-    """Outcome of a CLI invocation, including whether it confirmed a successful report write."""
-
-    returncode: int
-    report_written: bool
 
 
 def exit_status(returncode: int) -> ExitStatus:
@@ -194,6 +150,7 @@ def read_inputs(env: dict[str, str]) -> ActionInputs:
     """
     subcommand = _input(env, "subcommand")
     if subcommand not in SUBCOMMANDS:
+        # the CLI itself would read an unknown first token as the path of an implicit `check`, scanning the wrong thing
         raise ValueError(f"input `subcommand` must be one of {', '.join(SUBCOMMANDS)}, got {subcommand!r}")
     try:
         args = tuple(shlex.split(_input(env, "args")))
@@ -220,10 +177,11 @@ def read_inputs(env: dict[str, str]) -> ActionInputs:
     return inputs
 
 
-def build_cli_argv(inputs: ActionInputs, python: str, summary_file: Path | None = None) -> list[str]:
-    """Build the ``python -m deprecate`` command line for the gate run.
+def build_cli_argv(inputs: ActionInputs, python: str, report_file: Path | None = None) -> list[str]:
+    """Build the ``python -m deprecate`` command line for the gate run, writing its report to ``report_file``.
 
-    ``summary_file`` is the table file the gate run itself writes for the job summary (:func:`in_run_table_file`).
+    The report option goes last: the CLI keeps the last ``--report-json``, so one a user put in ``args`` cannot
+    divert the report away from the runner.
 
     """
     argv = [python, "-m", "deprecate", inputs.subcommand]
@@ -232,99 +190,21 @@ def build_cli_argv(inputs: ActionInputs, python: str, summary_file: Path | None 
     argv.extend(inputs.args)
     if inputs.exit_zero:
         argv.append("--exit-zero")
-    if summary_file is not None and user_output_path(inputs.args) is None:
-        # a second `--output` would win over the user's own one, whose report would then never be written
-        argv.append(f"--output={summary_file}")
+    if report_file is not None:
+        argv.append(f"--report-json={report_file}")
     return argv
 
 
-def user_output_path(args: tuple[str, ...]) -> str | None:
-    """Return the ``--output`` path given in the gate's ``args`` — the last one, as the CLI keeps — else ``None``.
+def _child_output(python: str, program: str) -> subprocess.CompletedProcess[str] | None:
+    """Run ``program`` in a fresh ``python`` and return the finished process, or ``None`` when it cannot start.
 
-    Recognises the long forms ``--output=PATH`` and ``--output PATH``; a trailing ``--output`` without a value is left
-    to the CLI, which rejects it as a usage error.
-
-    """
-    found: str | None = None
-    for index, arg in enumerate(args):
-        if arg.startswith("--output="):
-            found = arg[len("--output=") :]
-        elif arg == "--output" and index + 1 < len(args):
-            found = args[index + 1]
-    return found or None
-
-
-def in_run_table_file(inputs: ActionInputs, scratch_file: Path) -> Path | None:
-    """Return the file the gate run writes the summary table to, or ``None`` when the summary needs a ``status`` run.
-
-    A user ``--output`` in ``args`` is reused, so the requested report and the job summary both get the table; a failure
-    to write it is the user's own request failing. The runner's ``scratch_file`` is handed only to
-    :data:`ADVISORY_OUTPUT_SUBCOMMANDS`, so a job-summary file that cannot be written never fails a passing gate.
-
-    """
-    if not inputs.summary or inputs.subcommand not in IN_RUN_SUMMARY_SUBCOMMANDS:
-        return None
-    user_output = user_output_path(inputs.args)
-    if user_output:
-        return Path(user_output)
-    return scratch_file if inputs.subcommand in ADVISORY_OUTPUT_SUBCOMMANDS else None
-
-
-def summary_forwarded_args(args: tuple[str, ...]) -> list[str]:
-    """Pick the gate arguments the summary's ``status`` re-scan must repeat to scan the same modules."""
-    forwarded: list[str] = []
-    take_next = False
-    for index, token in enumerate(args):
-        if take_next:
-            forwarded.append(token)
-            take_next = False
-            continue
-        name, has_value, _ = token.partition("=")
-        flag = name[2:]
-        if not name.startswith("--") or flag.replace("-", "_") not in SUMMARY_FORWARDED_FLAGS:
-            continue
-        forwarded.append(token)
-        if has_value:
-            continue
-        if flag == "recursive":
-            # the CLI also accepts `--recursive false`; take the next token only when it is a boolean literal
-            following = args[index + 1].lower() if index + 1 < len(args) else ""
-            take_next = following in _TRUE_VALUES + _FALSE_VALUES
-        else:
-            take_next = flag in ("exclude", "version")
-    return forwarded
-
-
-def build_summary_argv(inputs: ActionInputs, python: str, summary_file: Path) -> list[str]:
-    """Build the ``status`` command line that writes the job-summary table when the gate run did not write it.
-
-    After a ``status`` gate it repeats the gate's own command, so the table covers exactly what the gate scanned; after
-    any other gate it scans ``path`` with the long-form :data:`SUMMARY_FORWARDED_FLAGS` of ``args``.
-
-    """
-    if inputs.subcommand == "status":
-        argv = build_cli_argv(inputs, python)
-    else:
-        argv = [python, "-m", "deprecate", "status"]
-        if inputs.path:
-            argv.append(inputs.path)
-        argv.extend(summary_forwarded_args(inputs.args))
-    argv.append(f"--output={summary_file}")
-    return argv
-
-
-def installed_version(python: str) -> str | None:
-    """Return the version of the pyDeprecate distribution ``python`` sees, or ``None`` when absent or unreadable.
-
-    A fresh child interpreter answers, not this process: it reads the metadata pip has just written, free of any
-    discovery cache of this process, through the import path the CLI later runs with. The value is the installed
-    metadata version, which build backends record in normalized form (``0.15.0.dev`` becomes ``0.15.0.dev0``), so two
-    such values compare equal exactly when they name the same release.
+    A fresh child interpreter answers, not this process: it sees the distribution pip has just written, free of any
+    discovery cache of this process, through the import path the CLI later runs with.
 
     """
     try:
-        result = subprocess.run(  # noqa: S603 — list argv, no shell; the query is a constant
-            [python, "-c", _VERSION_QUERY],
+        return subprocess.run(  # noqa: S603 — list argv, no shell; the program is a constant
+            [python, "-c", program],
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
             encoding="utf-8",
@@ -333,8 +213,34 @@ def installed_version(python: str) -> str | None:
         )
     except OSError:
         return None
+
+
+def installed_version(python: str) -> str | None:
+    """Return the version of the pyDeprecate distribution ``python`` sees, or ``None`` when absent or unreadable.
+
+    The value is the installed metadata version, which build backends record in normalized form (``0.15.0.dev`` becomes
+    ``0.15.0.dev0``), so two such values compare equal exactly when they name the same release.
+
+    """
+    result = _child_output(python, _VERSION_QUERY)
+    if result is None:
+        return None
     version = result.stdout.strip()
     return version if result.returncode == 0 and version else None
+
+
+def report_supported(python: str) -> bool:
+    """Tell whether the pyDeprecate CLI that ``python`` runs writes ``--report-json`` reports.
+
+    A capability probe rather than a version comparison: with ``install: false`` the job may have any release
+    installed, and comparing pre-release versions would need the ``packaging`` library this script cannot assume.
+    Only an importable CLI that lacks the option counts as unsupported. An interpreter that cannot start, or one
+    without pyDeprecate at all, counts as supporting it: the gate run then fails with the real reason, instead of a
+    warning blaming the pyDeprecate version.
+
+    """
+    result = _child_output(python, _REPORT_PROBE)
+    return result is None or result.returncode != _PROBE_UNSUPPORTED
 
 
 def install_package(action_path: Path, python: str) -> int:
@@ -376,114 +282,83 @@ def install_package(action_path: Path, python: str) -> int:
     return pip.code
 
 
-def run_cli(argv: list[str], report_file: Path | None = None) -> CliResult:
-    """Run the CLI with workflow commands disabled; return its exit code and report-write confirmation.
+def run_cli(argv: list[str]) -> int:
+    """Run the CLI with workflow commands disabled and return its exit code.
 
     The scan imports the audited package and prints strings taken from it, so its output must not be able to emit
-    ``::error``/``::add-mask`` lines of its own. Its stderr is relayed line by line to count the CLI's gap lines —
-    lines that start with a :data:`SILENT_GAP_MARKERS` kind and mark a run that passed without auditing everything —
-    which get one warning annotation per gap afterwards.
-    Commands are resumed in a ``finally``, so a failure mid-run (a broken pipe, Ctrl+C) cannot leave them stopped
-    for the rest of the step, where they would swallow every later annotation.
+    ``::error``/``::add-mask`` lines of its own. Commands are resumed in a ``finally``, so a failure mid-run (Ctrl+C,
+    an argument the operating system rejects) cannot leave them stopped for the rest of the step, where they would
+    swallow every later annotation.
 
     Raises:
         CliStartError: The CLI process could not be started; raised once commands are resumed, so it can be annotated.
 
     """
     token = secrets.token_hex(16)
-    counts = dict.fromkeys(SILENT_GAP_MARKERS, 0)
     print(f"::stop-commands::{token}", flush=True)
     try:
-        result = _relay_cli(argv, counts, report_file)
+        # list argv, no shell: user-supplied `args` reach the CLI as separate tokens and are never parsed by a shell
+        process = subprocess.Popen(argv, env={**os.environ, "PYTHONIOENCODING": "utf-8"})  # noqa: S603
+    except OSError as err:
+        raise CliStartError(f"could not start the pyDeprecate CLI with {argv[0]}: {err}") from err
+    else:
+        with process:
+            return process.wait()
     finally:
         # Child stdout may end mid-line; a resume token joined to that text is not a workflow command.
         print(f"\n::{token}::", flush=True)
-    annotate_gaps(counts)
-    return result
 
 
-def _relay_cli(argv: list[str], counts: dict[str, int], report_file: Path | None) -> CliResult:
-    """Relay CLI stderr, counting gap lines and recording successful report writes alongside its exit code."""
+def read_report(report_file: Path) -> dict[str, Any] | None:
+    """Return the CLI's report from ``report_file``, or ``None`` when it was not written or cannot be used.
+
+    The file sits in the runner's fresh private directory, so its existence alone proves this run wrote it. An
+    unreadable file or one of another layout version is reported with a warning.
+
+    """
+    if not report_file.is_file():
+        return None
     try:
-        # list argv, no shell: user-supplied `args` reach the CLI as separate tokens and are never parsed by a shell
-        process = subprocess.Popen(  # noqa: S603
-            argv, stderr=subprocess.PIPE, env={**os.environ, "PYTHONIOENCODING": "utf-8"}
-        )
-    except OSError as err:
-        raise CliStartError(f"could not start the pyDeprecate CLI with {argv[0]}: {err}") from err
-    with process:
-        if process.stderr is None:  # unreachable with stderr=PIPE; keeps the type checker honest without assert
-            raise RuntimeError("subprocess stderr pipe was not created")
-        report_written = False
-        for raw_line in process.stderr:
-            line = raw_line.decode("utf-8", errors="replace")
-            sys.stderr.write(line)
-            sys.stderr.flush()
-            # A nested scan can save another report while the intended outer scan subsequently fails.
-            report_written |= report_file is not None and line.rstrip("\r\n") == f"{REPORT_SAVED_PREFIX} {report_file}"
-            for marker in counts:
-                # anchored at the line start: the audited package's own stderr output that merely mentions a gap
-                # message is not a gap line (a package that forges a whole gap line is not guarded against)
-                counts[marker] += line.startswith(f"{marker}:")
-        return CliResult(process.wait(), report_written)
+        report = json.loads(report_file.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as err:
+        annotate("warning", f"could not read the pyDeprecate report: {err}")
+        return None
+    if not isinstance(report, dict) or report.get("schema") != REPORT_SCHEMA:
+        annotate("warning", f"the pyDeprecate report is not of layout version {REPORT_SCHEMA}; ignoring it")
+        return None
+    return report
 
 
-def annotate_gaps(counts: dict[str, int]) -> None:
-    """Raise one warning annotation per distinct gap text for the markers in ``counts`` that matched a line."""
-    totals: dict[str, int] = {}
-    for marker, count in counts.items():
-        if count:
-            text = SILENT_GAP_MARKERS[marker]
-            totals[text] = totals.get(text, 0) + count
-    for text, count in totals.items():
-        annotate("warning", text.format(count=count))
+def annotate_gaps(gaps: list[dict[str, Any]]) -> None:
+    """Raise one warning annotation per kind of gap: its count, the CLI's hint and the first few details.
+
+    A gap is a part of the audit that did not run although the gate passed; without an annotation the green step would
+    hide it. Kind, hint and detail are the CLI's own words, so this runner keeps no copy of them.
+
+    """
+    by_kind: dict[str, list[dict[str, Any]]] = {}
+    for gap in gaps:
+        by_kind.setdefault(str(gap.get("kind")), []).append(gap)
+    for kind, group in by_kind.items():
+        details = [str(gap.get("detail", "")).splitlines()[0] for gap in group[:GAP_DETAILS_SHOWN] if gap.get("detail")]
+        more = len(group) - len(details)
+        lines = [f"{kind} ({len(group)}): {group[0].get('hint', '')}", *details]
+        if details and more > 0:
+            lines.append(f"... and {more} more in the log above")
+        annotate("warning", "\n".join(lines))
 
 
-def append_summary(summary_file: Path, env: dict[str, str]) -> None:
-    """Append the markdown table in ``summary_file`` to the job summary; failures only warn."""
+def append_summary(table: str, env: dict[str, str]) -> None:
+    """Append the markdown ``table`` to the job summary; failures only warn."""
     target = env.get("GITHUB_STEP_SUMMARY")
     if not target:
         annotate("warning", "`summary: true` needs GITHUB_STEP_SUMMARY, which is not set; skipping the job summary")
         return
     try:
-        table = summary_file.read_text(encoding="utf-8")
         with open(target, "a", encoding="utf-8") as handle:
             handle.write(f"## pyDeprecate deprecation status\n\n{table}\n")
     except OSError as err:
         annotate("warning", f"could not write the job summary: {err}")
-
-
-def write_summary(inputs: ActionInputs, python: str, summary_file: Path, env: dict[str, str]) -> None:
-    """Run ``status`` to write the table the gate run did not write, and append it to the job summary.
-
-    Any failure of this run only warns, so the job summary can never change the gate's result. After a ``status`` gate
-    the run repeats the gate's command; after another gate it repeats ``path`` and the long-form
-    :data:`SUMMARY_FORWARDED_FLAGS` only, so it scans what the gate scanned unless ``args`` carries a positional path or
-    version.
-
-    """
-    # stderr is captured, never relayed: the re-scan imports the audited package, and its output would sit outside
-    # the stop-commands fence; quoted in the annotation it is escaped and cannot issue a workflow command
-    try:
-        result = subprocess.run(  # noqa: S603 — list argv, no shell; only gate arguments are forwarded
-            build_summary_argv(inputs, python, summary_file),
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.PIPE,
-            encoding="utf-8",
-            errors="replace",
-            env={**os.environ, "PYTHONIOENCODING": "utf-8"},
-            check=False,
-        )
-    except OSError as err:
-        annotate("warning", f"could not start the summary scan: {err}; skipping the job summary")
-        return
-    scan = exit_status(result.returncode)
-    if scan.code != 0:
-        message = f"the summary scan `pydeprecate status` exited {scan.description}; skipping the job summary"
-        tail = result.stderr.strip().splitlines()[-SUMMARY_ERROR_TAIL_LINES:]
-        annotate("warning", "\n".join([f"{message}:", *tail]) if tail else message)
-        return
-    append_summary(summary_file, env)
 
 
 def _ensure_utf8_streams() -> None:
@@ -508,40 +383,56 @@ def main() -> int:
         code = install_package(Path(env.get("GITHUB_ACTION_PATH", Path(__file__).resolve().parents[2])), python)
         if code != 0:
             return code
-    if not inputs.summary:
+    # just installed from the action's own ref, the CLI takes `--report-json`; only an older one kept with
+    # `install: false` may not
+    if not inputs.install and not report_supported(python):
+        annotate(
+            "warning",
+            "the installed pyDeprecate predates `--report-json`, so gaps are not annotated and no job summary is"
+            " written; keep `install: true` or upgrade the pyDeprecate this job installs",
+        )
         return run_gate(inputs, python, None, env)
     try:
-        # a private directory removed on exit, so no summary file outlives the step or lands in the checkout
+        # a private directory removed on exit, so no report outlives the step or lands in the checkout
         scratch = tempfile.TemporaryDirectory(prefix="pydeprecate-", dir=env.get("RUNNER_TEMP") or None)
     except OSError as err:
-        annotate("warning", f"could not create a temporary directory for the job summary ({err}); skipping it")
+        annotate("warning", f"could not create a temporary directory for the report ({err}); running without it")
         return run_gate(inputs, python, None, env)
     with scratch as scratch_dir:
-        # never created here: only a CLI run that renders the table writes it, so a run that did not is reported
-        return run_gate(inputs, python, Path(scratch_dir) / "summary.md", env)
+        # never created here: only a CLI run that completed writes it, so a missing file means no report
+        return run_gate(inputs, python, Path(scratch_dir) / REPORT_FILENAME, env)
 
 
-def run_gate(inputs: ActionInputs, python: str, summary_file: Path | None, env: dict[str, str]) -> int:
-    """Run the gate and, when given a ``summary_file`` path for the table, append the job summary after it."""
-    gate_table_file = in_run_table_file(inputs, summary_file) if summary_file is not None else None
+def run_gate(inputs: ActionInputs, python: str, report_file: Path | None, env: dict[str, str]) -> int:
+    """Run the gate, then annotate its gaps and, with ``summary``, append its table from ``report_file``."""
     try:
-        result = run_cli(build_cli_argv(inputs, python, gate_table_file), report_file=gate_table_file)
+        returncode = run_cli(build_cli_argv(inputs, python, report_file))
     except CliStartError as err:
         annotate("error", str(err))
         return 1
-    gate = exit_status(result.returncode)
+    gate = exit_status(returncode)
     if gate.code != 0:
         annotate("error", f"pydeprecate {inputs.subcommand} exited {gate.description}")
-    if summary_file is not None and gate.code != 2:
-        if gate_table_file is not None:
-            # Failed scans and advisory write failures in `all` can leave a previous report in place.
-            # Require this invocation's successful-write diagnostic, not timestamps or file existence.
-            if result.report_written:
-                append_summary(gate_table_file, env)
-            else:
-                annotate("warning", "the gate did not confirm writing its report; skipping the job summary")
+    if report_file is None:
+        if inputs.summary:
+            annotate("warning", "no pyDeprecate report is available; skipping the job summary")
+        return gate.code
+    if gate.code == 2:  # a usage error scanned nothing, so there are no gaps or table to miss
+        return gate.code
+    report = read_report(report_file)
+    if report is None:
+        # a crash, or a report the CLI could not write (its reason is on stderr); a green step must not hide that
+        # its gaps went unchecked
+        skipped = " and the job summary is skipped" if inputs.summary else ""
+        annotate("warning", f"the gate wrote no pyDeprecate report, so its gaps are not annotated{skipped}")
+        return gate.code
+    annotate_gaps([gap for gap in report.get("gaps") or [] if isinstance(gap, dict)])
+    if inputs.summary:
+        table = report.get("table")
+        if isinstance(table, str):
+            append_summary(table, env)
         else:
-            write_summary(inputs, python, summary_file, env)
+            annotate("warning", "the gate's report holds no deprecation table; skipping the job summary")
     return gate.code
 
 

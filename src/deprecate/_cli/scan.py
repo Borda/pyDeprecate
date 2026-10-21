@@ -5,7 +5,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Optional
 
-from deprecate._cli.report import _GAP_MODULE_NOT_AUDITED, _GAP_NESTED_FILES, _print_gap
+from deprecate._cli.report import _GapKind, _print_gap
 from deprecate._pkg import _is_package_dir, _select_child_package
 from deprecate.audit import DeprecationWrapperInfo, find_deprecation_wrappers
 
@@ -37,9 +37,11 @@ def _scan_directory(
                     )
                 )
             except SystemExit:
-                _print_gap(_GAP_MODULE_NOT_AUDITED, f"{module_name}: module-level code exited (not a library module)")
+                _print_gap(
+                    _GapKind.MODULE_NOT_AUDITED, f"{module_name}: module-level code exited (not a library module)"
+                )
             except Exception as e:
-                _print_gap(_GAP_MODULE_NOT_AUDITED, f"{module_name}: could not scan: {e!r}")
+                _print_gap(_GapKind.MODULE_NOT_AUDITED, f"{module_name}: could not scan: {e!r}")
     finally:
         sys.argv = original_argv
 
@@ -49,7 +51,7 @@ def _scan_directory(
 
     if nested_python_files_found:
         _print_gap(
-            _GAP_NESTED_FILES,
+            _GapKind.NESTED_FILES,
             "Skipping nested Python files in plain directory scan. Use an importable package layout with '__init__.py'"
             " files, or scan an importable module/package path instead.",
         )

@@ -1,7 +1,5 @@
 """Subcommand implementations for the CLI: ``check``, ``expiry``, ``policy``, ``chains``, ``all`` and ``status``."""
 
-import sys
-from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
@@ -18,12 +16,13 @@ from deprecate._cli.config import (
     _validate_user_version,
 )
 from deprecate._cli.report import (
-    _GAP_PACKAGING_MISSING,
-    _GAP_VERSION_INVALID,
-    _GAP_VERSION_UNRESOLVED,
+    _GapKind,
     _print,
     _print_gap,
+    _record_scan,
+    _record_table,
     _Reporter,
+    _ScanRecord,
 )
 from deprecate._cli.scan import _scan_path
 from deprecate._pkg import _auto_detect_version, _managed_sys_path, _resolve_module_name, _safe_module_name
@@ -31,9 +30,8 @@ from deprecate.audit import (
     DeprecationWrapperInfo,
     PolicyRule,
     TableStyle,
+    find_deprecation_wrappers,
     generate_deprecation_table,
-    validate_deprecation_chains,
-    validate_deprecation_expiry,
 )
 from deprecate.audit._lifecycle import _check_expiry_for_callables
 from deprecate.audit._policy import _build_policy_spec, _check_policy_for_callables
@@ -42,57 +40,13 @@ if TYPE_CHECKING:
     from deprecate.audit._policy import _PolicySpec
 
 
-def _do_expiry(
-    path: str, version: Optional[str], recursive: bool, exclude: Optional[Sequence[str]] = None
-) -> Optional[list[str]]:
-    """Run the expiry scan and return expired wrapper messages, or None when packaging is unavailable.
-
-    Caller is responsible for setting up ``sys.path`` via :func:`_managed_sys_path` before calling.
-
-    Args:
-        path: Package directory path or importable module name string.
-        version: Current package version for comparison, or None to auto-detect.
-        recursive: Scan submodules recursively.
-        exclude: Module-name glob patterns to leave out of the scan.
-
-    Returns:
-        List of expired wrapper message strings (may be empty), or None when the
-        ``packaging`` library is unavailable (advisory — warning already printed to stderr).
-
-    """
-    module_name = _resolve_module_name(path)
-    try:
-        return validate_deprecation_expiry(module_name, version, recursive=recursive, exclude=exclude)
-    except ImportError as exc:
-        if _is_missing_packaging_import_error(exc):
-            _print_gap(
-                _GAP_PACKAGING_MISSING,
-                "The 'expiry' subcommand requires the 'packaging' library.\n"
-                "Install it with: `pip install 'pyDeprecate[audit]'`",
-            )
-            return None
-        if getattr(exc, "name", None) is not None:
-            # Python's import system sets ``exc.name`` when a module-level ``import`` statement
-            # fails — this is a broken import inside the user's package, not a version-detection
-            # failure.  Propagate so the caller gets the real error instead of the misleading
-            # "Could not determine version" message.
-            raise
-        _print_gap(
-            _GAP_VERSION_UNRESOLVED,
-            "Could not determine the current package version automatically.\n"
-            "Pass --version explicitly, or ensure the package is installed and importable.\n\n"
-            f"Original error: {exc}",
-        )
-        return None
-    # other exceptions propagate to cli()'s top-level handler around fire.Fire
-
-
 def _do_expiry_prescanned(wrappers: list[DeprecationWrapperInfo], version: Optional[str]) -> Optional[list[str]]:
     """Derive expired wrapper messages from an already-scanned wrapper list, without rescanning.
 
-    The single-scan path used by ``cmd_all``. Every way this can fail is advisory: ``cmd_all`` resolves one
-    version for all of its subcommands, and neither an unresolvable nor an unparsable one is a usage error
-    the user can be blamed for, so the expiry gate is skipped with a message instead of failing the run.
+    Used by both ``cmd_expiry`` and ``cmd_all`` after their single scan. Every way this can fail is advisory: an
+    explicit ``--version`` is validated up front (exit 2), so only an auto-detected version reaches here, and
+    neither an unresolvable nor an unparsable one is a usage error the user can be blamed for, so the expiry gate
+    is skipped with a message instead of failing the run.
 
     Args:
         wrappers: Pre-scanned wrapper list to compare against *version*.
@@ -104,13 +58,13 @@ def _do_expiry_prescanned(wrappers: list[DeprecationWrapperInfo], version: Optio
 
     """
     if version is None:
-        _print_gap(_GAP_VERSION_UNRESOLVED, "Cannot check expiry: version not resolved. Pass --version explicitly.")
+        _print_gap(_GapKind.VERSION_UNRESOLVED, "Cannot check expiry: version not resolved. Pass --version explicitly.")
         return None
     try:
         return _check_expiry_for_callables(wrappers, version)
     except ImportError:
         _print_gap(
-            _GAP_PACKAGING_MISSING,
+            _GapKind.PACKAGING_MISSING,
             "The 'expiry' subcommand requires the 'packaging' library.\n"
             "Install it with: `pip install 'pyDeprecate[audit]'`",
         )
@@ -120,7 +74,7 @@ def _do_expiry_prescanned(wrappers: list[DeprecationWrapperInfo], version: Optio
         # A package whose own metadata version is not PEP 440 is not a usage error, so the check degrades
         # to an advisory skip rather than aborting the run with an unhandled parse failure.
         _print_gap(
-            _GAP_VERSION_INVALID,
+            _GapKind.VERSION_INVALID,
             f"Cannot check expiry: the auto-detected version `{version}` is not a valid PEP 440 version "
             "string. Pass `--version` explicitly for a definitive check.",
         )
@@ -158,7 +112,7 @@ def _policy_violations_without_packaging(
     """
     skipped_rules = ", ".join(f"`{rule}`" for rule in _skipped_policy_rules(spec))
     _print_gap(
-        _GAP_PACKAGING_MISSING,
+        _GapKind.PACKAGING_MISSING,
         f"The `packaging` library is required for the {skipped_rules} policy rule; skipping it.\n"
         "Install it with: `pip install 'pyDeprecate[audit]'`",
     )
@@ -232,6 +186,7 @@ def cmd_check(
         _print_scan_header(path, exclude=resolved_exclude)
         with _managed_sys_path(path):
             _wrappers = _scan_path(path, recursive=recursive, exclude=resolved_exclude[0])
+        _record_scan(_ScanRecord(path, _wrappers))
 
     if not _wrappers:
         _print("No deprecated callables found.")
@@ -300,27 +255,19 @@ def cmd_expiry(
         resolved_exclude = _resolve_exclude(path, exclude)
         if resolved_exclude is None:
             return 2
-        # Standalone path: full scan + version auto-detect inside _do_expiry.
-        resolved_version = version if version is not None else _auto_detect_version(_safe_module_name(path), path=path)
-        if resolved_version is None and version is None:
-            _print_gap(
-                _GAP_VERSION_UNRESOLVED,
-                "Could not resolve the current package version automatically and no --version was given; "
-                "the expiry check runs without a resolved version and its result may be unreliable. "
-                "Pass --version explicitly for a definitive check.",
-            )
-        _print_scan_header(path, resolved_version, user_provided=version_explicit, exclude=resolved_exclude)
+        # Standalone path: scan once (a plain directory is rejected by `_resolve_module_name`), then the same
+        # derivation as the pre-scanned path, which reports an unresolved version or missing `packaging` once.
+        version = version if version is not None else _auto_detect_version(_safe_module_name(path), path=path)
+        _print_scan_header(path, version, user_provided=version_explicit, exclude=resolved_exclude)
         with _managed_sys_path(path):
-            raw = _do_expiry(path, resolved_version, recursive, exclude=resolved_exclude[0])
-        if raw is None:  # packaging unavailable — warning already printed to stderr
-            return 0
-        expired = raw
-    else:
-        # Pre-scanned path: derive expired list from wrappers directly.
-        raw = _do_expiry_prescanned(_wrappers, version)
-        if raw is None:  # check could not run — advisory already printed to stderr
-            return 0
-        expired = raw
+            _wrappers = find_deprecation_wrappers(
+                _resolve_module_name(path), recursive=recursive, exclude=resolved_exclude[0]
+            )
+        _record_scan(_ScanRecord(path, _wrappers, version))
+    raw = _do_expiry_prescanned(_wrappers, version)
+    if raw is None:  # check could not run — advisory already printed to stderr
+        return 0
+    expired = raw
     if not expired:
         _print("No expired deprecated wrappers found.")
         return 0
@@ -410,6 +357,7 @@ def cmd_policy(
         _print_scan_header(path, exclude=resolved_exclude)
         with _managed_sys_path(path):
             _wrappers = _scan_path(path, recursive=recursive, exclude=resolved_exclude[0])
+        _record_scan(_ScanRecord(path, _wrappers))
     _print(policy_header)
     try:
         violations = _check_policy_for_callables(_wrappers, spec)
@@ -467,9 +415,12 @@ def cmd_chains(
             return 2
         _print_scan_header(path, exclude=resolved_exclude)
         with _managed_sys_path(path):
-            _wrappers = validate_deprecation_chains(
+            # the body of `validate_deprecation_chains` minus its chain filter, applied below: the run record
+            # needs every wrapper for its table
+            _wrappers = find_deprecation_wrappers(
                 _resolve_module_name(path), recursive=recursive, exclude=resolved_exclude[0]
             )
+        _record_scan(_ScanRecord(path, _wrappers))
     chains = [r for r in _wrappers if r.chain_type is not None]
     if not chains:
         _print("No deprecation chains found.")
@@ -663,6 +614,7 @@ def cmd_status(
         _wrappers=_wrappers,
         _version_explicit=version_explicit,
     )
+    _record_table(markdown)
 
     if _Reporter._HAS_RICH:
         from rich.markdown import Markdown
@@ -675,8 +627,6 @@ def cmd_status(
         out_path = Path(output)
         out_path.parent.mkdir(parents=True, exist_ok=True)
         out_path.write_text(markdown, encoding="utf-8")
-        # The action uses this receipt to avoid publishing an older report after a failed scan.
-        # Keep it unwrapped even on narrow terminals, and emit it only after the write completes.
-        print(f"→ Saved to: {out_path}", file=sys.stderr, flush=True)
+        _print(f"→ Saved to: {out_path}", stderr=True)
 
     return 0

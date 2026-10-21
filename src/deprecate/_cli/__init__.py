@@ -21,7 +21,7 @@ for the same checks is :mod:`deprecate.audit`.
 import functools
 import sys
 from collections.abc import Callable
-from typing import Optional
+from typing import Optional, Union
 
 from deprecate._cli.argv import (
     _bind_cli_arguments,
@@ -32,8 +32,74 @@ from deprecate._cli.argv import (
     _normalize_bool_flags,
 )
 from deprecate._cli.commands import cmd_all, cmd_chains, cmd_check, cmd_expiry, cmd_policy, cmd_status
-from deprecate._cli.report import _print, _print_skipped_modules
+from deprecate._cli.report import _print, _print_skipped_modules, _record_run, _run_active, _write_report
 from deprecate.audit._scan import _collect_skipped_modules
+
+#: Option of every subcommand naming the file the run's machine-readable report goes to; ``cli`` handles it itself.
+_REPORT_OPTION = "--report-json"
+
+
+def _pop_report_option(argv: list[str]) -> Union[tuple[list[str], Optional[str]], str]:
+    """Remove ``--report-json PATH`` / ``--report-json=PATH`` from *argv*; the last one wins, as for other flags.
+
+    Returns:
+        The remaining arguments and the report path (``None`` when not given), or an error message when the option
+        has no value. Arguments after a ``--`` separator are left untouched.
+
+    Examples:
+        >>> _pop_report_option(["check", "--report-json", "r.json", "src/pkg"])
+        (['check', 'src/pkg'], 'r.json')
+        >>> _pop_report_option(["check", "--report-json=r.json"])
+        (['check'], 'r.json')
+        >>> _pop_report_option(["check", "--report-json"])
+        'Option `--report-json` needs a file path.'
+
+    """
+    remaining: list[str] = []
+    path: Optional[str] = None
+    idx = 0
+    while idx < len(argv):
+        arg = argv[idx]
+        idx += 1
+        if arg == "--":
+            return [*remaining, arg, *argv[idx:]], path
+        name, has_value, value = arg.partition("=")
+        if name != _REPORT_OPTION:
+            remaining.append(arg)
+            continue
+        if not has_value:
+            if idx >= len(argv):
+                return "Option `--report-json` needs a file path."
+            value = argv[idx]
+            idx += 1
+        if not value:
+            return "Option `--report-json` needs a file path."
+        path = value
+    return remaining, path
+
+
+def _prepare_argv(argv: list[str], commands: dict[str, Callable[..., int]]) -> tuple[list[str], Optional[str]]:
+    """Turn the raw arguments into the Fire command line and the ``--report-json`` path; exit 2 on a usage error.
+
+    Pops ``--report-json``, prepends the implicit ``check`` when the first token is no subcommand, rejects private
+    ``--_*`` options and makes every boolean flag of the subcommand explicit (see :func:`_normalize_bool_flags`).
+
+    """
+    popped = _pop_report_option(argv)
+    if isinstance(popped, str):
+        _print(popped, stderr=True)
+        sys.exit(2)
+    argv, report_path = popped
+    if argv and argv[0] not in commands and argv[0] not in {"-h", "--help"}:
+        argv = ["check", *argv]
+    internal = _internal_option(argv)
+    if internal is not None:
+        _print(f"Unknown option `{internal}`: options starting with an underscore are internal.", stderr=True)
+        sys.exit(2)
+    if argv and argv[0] in commands:
+        argv = [argv[0], *_normalize_bool_flags(argv[1:], _bool_params(commands[argv[0]]))]
+    return argv, report_path
+
 
 # ---------------------------------------------------------------------------
 # CLI entry point
@@ -66,6 +132,11 @@ def cli() -> None:
     scanning. Internal options and their negated aliases (``--_advisory``, ``--no-wrappers``) exit 2 before Fire sees
     them. Direct calls to the ``cmd_*`` functions retain their original signatures.
 
+    Every subcommand also takes ``--report-json PATH``, handled here rather than by Fire: once the subcommand ran with
+    exit code 0 or 1, the run's machine-readable record is written there — the deprecation table of the very scan
+    that gated and every gap, each with its kind, detail and hint (see :func:`~deprecate._cli.report._write_report`).
+    A usage error (exit 2) writes no report, and a failure to write one never changes the exit code.
+
     """
     _ensure_utf8_streams()
     try:
@@ -81,15 +152,7 @@ def cli() -> None:
         "all": cmd_all,
         "status": cmd_status,
     }
-    argv = sys.argv[1:]
-    if argv and argv[0] not in commands and argv[0] not in {"-h", "--help"}:
-        argv = ["check", *argv]
-    internal = _internal_option(argv)
-    if internal is not None:
-        _print(f"Unknown option `{internal}`: options starting with an underscore are internal.", stderr=True)
-        sys.exit(2)
-    if argv and argv[0] in commands:
-        argv = [argv[0], *_normalize_bool_flags(argv[1:], _bool_params(commands[argv[0]]))]
+    argv, report_path = _prepare_argv(sys.argv[1:], commands)
 
     exit_code: Optional[int] = None
 
@@ -117,7 +180,11 @@ def cli() -> None:
         wrapper.__signature__ = cli_signature  # type: ignore[attr-defined]
         return wrapper
 
-    with _collect_skipped_modules() as skipped_modules:
+    if _run_active():
+        # an audited package whose import runs the CLI again sees the outer `sys.argv`; only the outermost run may
+        # write the report, or the nested run's report would pass for the outer scan's
+        report_path = None
+    with _record_run() as run_record, _collect_skipped_modules() as skipped_modules:
         try:
             fire.Fire({name: _capture(fn) for name, fn in commands.items()}, command=argv)
         except Exception as exc:  # SystemExit is BaseException — Fire's own exits pass through untouched
@@ -127,6 +194,9 @@ def cli() -> None:
         finally:
             # Unlike the `audit: skipped` warning, these lines survive the audited package's own warnings filters.
             _print_skipped_modules(skipped_modules)
+    # written after the skipped-module gaps are recorded, and never for a usage error (exit 2): nothing was scanned
+    if report_path is not None and exit_code in (0, 1):
+        _write_report(report_path, run_record)
     # exit_code stays None when no subcommand ran (bare `pydeprecate` help) → return normally (exit 0).
     if exit_code is not None:
         sys.exit(exit_code)

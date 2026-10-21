@@ -5,6 +5,7 @@
 # imports the audited package, so its runtime dependencies must already be importable there.
 # All logic lives in `.github/scripts/action_runner.py`; inputs reach it only through `env:` (never interpolated into
 # the script), and `tests/integration/test_action.py` keeps inputs, defaults and env names in lockstep with it.
+# Gaps and the job-summary table come from the CLI's `--report-json` file, never from its console output.
 name: pyDeprecate audit
 description: Validate @deprecated wrappers in CI - misconfigured mappings, chains, expired removals and policy rules.
 author: Jiri Borovec
@@ -40,12 +41,9 @@ inputs:
     default: "true"
   summary:
     description: >-
-      Append a markdown deprecation status table to the job summary. `all`, and `status` with `--output` in
-      `args`, reuse their report only after the CLI confirms writing it in the current run. `status` without
-      `--output` repeats its entire gate command in a separate scan. Other subcommands add a `status` scan that repeats
-      `path` and only the long-form `--exclude`, `--version` and `--recursive`/`--norecursive` flags from `args`;
-      for those subcommands, give the package through `path`, not positionally in `args`. Summary failures only
-      warn and preserve the gate result. No summary is written when the CLI exits `2`.
+      Append the markdown deprecation status table of the gate's own scan to the job summary, read from the report
+      the CLI writes with `--report-json`, so it covers exactly what the gate scanned. Summary failures only warn
+      and preserve the gate result. No summary is written when the CLI exits `2`.
     required: false
     default: "false"
 
