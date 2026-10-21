@@ -7,6 +7,7 @@ root, and ``PYDEPRECATE_ACTION_INSTALL=false`` skips the pip install so the test
 
 import importlib.util
 import inspect
+import json
 import os
 import re
 import shlex
@@ -147,6 +148,13 @@ def _use_repo_checkout(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(_REPO_ROOT)
 
 
+def _input_named_by(expression: str) -> str:
+    """Return the action input a ``${{ inputs.<name> }}`` expression reads, failing the test when it names none."""
+    match = re.search(r"inputs\.([\w-]+)", expression)
+    assert match is not None, f"no `inputs.<name>` reference in {expression!r}"
+    return match.group(1)
+
+
 class TestActionDemo:
     """End-to-end use of the action as a CI step: gate on findings, or report without blocking."""
 
@@ -244,6 +252,13 @@ class TestActionInputs:
                 id="exit-zero-status",
             ),
             pytest.param({"args": "--exclude='unbalanced"}, "input `args` cannot be split", id="unbalanced-quote"),
+            pytest.param({"args": "-- --exit-zero"}, "input `args` must not contain '--': ", id="args-separator"),
+            pytest.param({"args": "--help"}, "input `args` must not contain '--help': ", id="args-help"),
+            pytest.param(
+                {"args": "--report-json=elsewhere.json"},
+                "input `args` must not contain '--report-json=elsewhere.json': ",
+                id="args-report-json",
+            ),
         ],
     )
     def test_rejects_invalid_input(self, tmp_path: Path, inputs: dict[str, str], message: str) -> None:
@@ -278,6 +293,7 @@ class TestActionInputs:
             pytest.param("args", "--version 2.0", "args", ("--version", "2.0"), id="args-split"),
             pytest.param("args", '--exclude="a b,c"', "args", ("--exclude=a b,c",), id="args-double-quotes"),
             pytest.param("args", "--exclude=a\\ b", "args", ("--exclude=a b",), id="args-backslash-escape"),
+            pytest.param("args", "--exclude=--help,-h", "args", ("--exclude=--help,-h",), id="args-reserved-in-value"),
             pytest.param(
                 "args",
                 "--norecursive\n--version 2.0",
@@ -338,6 +354,22 @@ class TestActionInputs:
         message = f"input `{name}` must be true, false, 1 or 0, got {raw!r}"
         with pytest.raises(ValueError, match=re.escape(message)):
             action_runner.read_inputs({variable: raw})
+
+    @pytest.mark.parametrize(
+        "token",
+        ["--", "-h", "--help", "--report-json", "--report-json=out.json", "--report_json", "--report_json=out.json"],
+    )
+    def test_rejects_reserved_args_token(self, token: str) -> None:
+        """An ``args`` token that would swallow the runner's options or skip the scan is a usage error naming it.
+
+        A workflow author appends a ``--`` separator, ``--help`` or a ``--report-json`` copied from a local command
+        line. Fire would drop the options the action appends after a separator, a help flag would end the run green
+        without a scan, and a second report option would silently divert the report the job summary is read from;
+        each is refused up front, wherever it sits among the other flags, and the error quotes the token.
+        """
+        message = f"input `args` must not contain {token!r}: "
+        with pytest.raises(ValueError, match=re.escape(message)):
+            action_runner.read_inputs({"PYDEPRECATE_ACTION_ARGS": f"--version 2.0 {token}"})
 
     @pytest.mark.parametrize("path", ["--help", "-h", "--exit-zero", "--version", "  -h  "])
     def test_rejects_option_like_path(self, tmp_path: Path, path: str) -> None:
@@ -606,11 +638,12 @@ class TestActionSummary:
         assert "| `tests.collection_chains.caller_acc_via_depr_map` |" in report.read_text(encoding="utf-8")
         assert "| `tests.collection_chains.caller_acc_via_depr_map` |" in summary
 
-    def test_user_report_option_does_not_divert_the_runner(self, tmp_path: Path) -> None:
-        """A ``--report-json`` in ``args`` cannot take the report away from the runner, whose option comes last.
+    def test_user_report_option_is_rejected(self, tmp_path: Path) -> None:
+        """A ``--report-json`` in ``args`` fails the step with exit code 2 instead of being dropped without a word.
 
-        A workflow copies a local command line that already writes a JSON report. The CLI keeps the last
-        ``--report-json``, and the runner's own one is appended after ``args``, so the job summary is still written.
+        A workflow copies a local command line that already writes a JSON report. The runner owns the report option
+        (the CLI keeps only one), so honouring the user's path would starve the job summary and ignoring it would hide
+        that the file never appears; the step stops with a usage error that names the input before anything runs.
         """
         elsewhere = tmp_path / "elsewhere.json"
         result = _run_action(
@@ -620,9 +653,11 @@ class TestActionSummary:
             args=f"--report-json={elsewhere}",
             summary="true",
         )
-        assert result.returncode == 0, result.stdout + result.stderr
-        assert "| `tests.collection_chains.caller_acc_via_depr_map` |" in _summary_path(tmp_path).read_text("utf-8")
+        assert result.returncode == 2, result.stdout + result.stderr
+        assert "::error title=pyDeprecate::input `args` must not contain '--report-json=" in result.stdout
+        assert "Scanning:" not in result.stdout
         assert not elsewhere.exists()
+        assert not _summary_path(tmp_path).exists()
 
     def test_failing_gate_keeps_exit_code(self, tmp_path: Path) -> None:
         """A failing gate still gets its summary table, and the step keeps the gate's exit code 1.
@@ -692,6 +727,154 @@ class TestActionSummary:
         assert code == 0
         assert "::warning title=pyDeprecate::the gate wrote no pyDeprecate report" in out
         assert "::error" not in out
+
+    @pytest.mark.parametrize(
+        ("content", "warning"),
+        [
+            pytest.param(b"{not json", "could not read the pyDeprecate report: ", id="malformed-json"),
+            pytest.param(b"\xff\xfe\x00", "could not read the pyDeprecate report: ", id="not-utf8"),
+            pytest.param(
+                json.dumps({"schema": action_runner.REPORT_SCHEMA + 1, "gaps": [], "table": "t"}).encode(),
+                f"the pyDeprecate report is not of layout version {action_runner.REPORT_SCHEMA}; ignoring it",
+                id="other-layout-version",
+            ),
+            pytest.param(
+                json.dumps({"gaps": [], "table": "t"}).encode(),
+                f"the pyDeprecate report is not of layout version {action_runner.REPORT_SCHEMA}; ignoring it",
+                id="no-layout-version",
+            ),
+            pytest.param(
+                b"[]",
+                f"the pyDeprecate report is not of layout version {action_runner.REPORT_SCHEMA}; ignoring it",
+                id="not-an-object",
+            ),
+        ],
+    )
+    def test_unusable_report_is_ignored_with_warning(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str], content: bytes, warning: str
+    ) -> None:
+        """A report the runner cannot trust is dropped with a warning instead of crashing the step.
+
+        A job pins an older or newer pyDeprecate than the action expects, or the report was cut short: the file exists
+        but is not JSON, not UTF-8 text, not an object, or of another layout version. Reading gap annotations or the
+        table out of it could mislead, so the runner ignores it and says why.
+        """
+        report_file = tmp_path / "report.json"
+        report_file.write_bytes(content)
+        report = action_runner.read_report(report_file)
+        out = capsys.readouterr().out
+        assert report is None
+        assert f"::warning title=pyDeprecate::{warning}" in out
+
+    def test_missing_report_is_ignored_silently(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        """A report file that was never written yields no report and no warning of its own.
+
+        The caller, not the reader, explains a missing report, because only it knows whether the gate crashed.
+        """
+        report = action_runner.read_report(tmp_path / "report.json")
+        assert report is None
+        assert capsys.readouterr().out == ""
+
+    @pytest.mark.parametrize(
+        "report",
+        [
+            pytest.param({"schema": action_runner.REPORT_SCHEMA, "gaps": []}, id="table-absent"),
+            pytest.param({"schema": action_runner.REPORT_SCHEMA, "gaps": [], "table": None}, id="table-null"),
+            pytest.param({"schema": action_runner.REPORT_SCHEMA, "gaps": [], "table": ["| a |"]}, id="table-list"),
+        ],
+    )
+    def test_report_without_table_skips_summary(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+        report: dict[str, Any],
+    ) -> None:
+        """A valid report that holds no table text skips the job summary with a warning and keeps the gate result.
+
+        A future CLI may drop or retype the ``table`` field while keeping the layout version. The step must stay
+        green for a passing gate and say that the summary could not be written.
+        """
+        report_file = tmp_path / "report.json"
+        report_file.write_text(json.dumps(report), encoding="utf-8")
+        monkeypatch.setattr(action_runner, "run_cli", lambda argv: 0)
+        inputs = action_runner.read_inputs(
+            {"PYDEPRECATE_ACTION_SUBCOMMAND": "check", "PYDEPRECATE_ACTION_SUMMARY": "true"}
+        )
+        env = {"GITHUB_STEP_SUMMARY": str(_summary_path(tmp_path))}
+        code = action_runner.run_gate(inputs, sys.executable, report_file, env)
+        out = capsys.readouterr().out
+        assert code == 0
+        assert "::warning title=pyDeprecate::the gate's report holds no deprecation table" in out
+        assert "skipping the job summary" in out
+        assert not _summary_path(tmp_path).exists()
+
+    @pytest.mark.parametrize(
+        "content",
+        [
+            pytest.param(b"{not json", id="malformed-json"),
+            pytest.param(json.dumps({"schema": action_runner.REPORT_SCHEMA + 1}).encode(), id="other-layout-version"),
+        ],
+    )
+    def test_unusable_report_keeps_gate_result(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], content: bytes
+    ) -> None:
+        """An unusable report leaves a passing gate green, skips annotations and the summary, and says so.
+
+        The gate passed and wrote a file the runner cannot use. The step keeps the gate's exit code 0, warns that the
+        report is unusable, and warns that its gaps and the job summary went unchecked.
+        """
+        report_file = tmp_path / "report.json"
+        report_file.write_bytes(content)
+        monkeypatch.setattr(action_runner, "run_cli", lambda argv: 0)
+        inputs = action_runner.read_inputs(
+            {"PYDEPRECATE_ACTION_SUBCOMMAND": "check", "PYDEPRECATE_ACTION_SUMMARY": "true"}
+        )
+        env = {"GITHUB_STEP_SUMMARY": str(_summary_path(tmp_path))}
+        code = action_runner.run_gate(inputs, sys.executable, report_file, env)
+        out = capsys.readouterr().out
+        assert code == 0
+        assert "::warning title=pyDeprecate::the gate wrote no pyDeprecate report, so its gaps are not annotated" in out
+        assert "the job summary is skipped" in out
+        assert "::error" not in out
+        assert not _summary_path(tmp_path).exists()
+
+    @pytest.mark.parametrize(
+        "gaps",
+        [
+            pytest.param(None, id="gaps-null"),
+            pytest.param(["not a gap", 3, None], id="no-gap-objects"),
+        ],
+    )
+    def test_report_with_unusable_gaps_annotates_nothing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], gaps: object
+    ) -> None:
+        """Report ``gaps`` that are missing or not objects raise no annotation and leave the gate result alone.
+
+        Only the CLI's own gap objects are worth quoting; a retyped field must not crash the step or invent warnings.
+        """
+        report_file = tmp_path / "report.json"
+        report_file.write_text(json.dumps({"schema": action_runner.REPORT_SCHEMA, "gaps": gaps}), encoding="utf-8")
+        monkeypatch.setattr(action_runner, "run_cli", lambda argv: 0)
+        inputs = action_runner.read_inputs({"PYDEPRECATE_ACTION_SUBCOMMAND": "check"})
+        code = action_runner.run_gate(inputs, sys.executable, report_file, {})
+        assert code == 0
+        assert "::warning" not in capsys.readouterr().out
+
+    @pytest.mark.parametrize("summary", [True, False])
+    def test_unusable_runner_temp_runs_gate_without_report(self, tmp_path: Path, summary: bool) -> None:
+        """A scratch directory that cannot be created leaves the gate result alone and warns about the lost report.
+
+        ``RUNNER_TEMP`` names a directory that does not exist (a misconfigured self-hosted runner), so the private
+        report directory cannot be made. The gate still runs and passes; gaps are not annotated, and with ``summary``
+        on, a second warning says the job summary is skipped.
+        """
+        env = _runner_env(tmp_path, subcommand="check", path="tests.collection_chains", summary=str(summary))
+        result = _run_runner({**env, "RUNNER_TEMP": str(tmp_path / "missing")})
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "::warning title=pyDeprecate::could not create a temporary directory for the report (" in result.stdout
+        assert ("::warning title=pyDeprecate::no pyDeprecate report is available" in result.stdout) is summary
+        assert not _summary_path(tmp_path).exists()
 
     def test_leaves_no_file_in_checkout_without_runner_temp(self, tmp_path: Path) -> None:
         """Without ``RUNNER_TEMP`` the report goes to the system temp dir and is removed afterwards.
@@ -1122,8 +1305,10 @@ class TestActionOutputSafety:
         ]
         action_runner.annotate_gaps([*gaps, {"kind": "packaging missing", "detail": "line one\nline two", "hint": "h"}])
         assert capsys.readouterr().out.splitlines() == [
-            "::warning title=pyDeprecate::module not audited (5): install deps%0Apkg.mod0: ImportError()"
-            "%0Apkg.mod1: ImportError()%0Apkg.mod2: ImportError()%0A... and 2 more in the log above",
+            (
+                "::warning title=pyDeprecate::module not audited (5): install deps%0Apkg.mod0: ImportError()"
+                "%0Apkg.mod1: ImportError()%0Apkg.mod2: ImportError()%0A... and 2 more in the log above"
+            ),
             "::warning title=pyDeprecate::packaging missing (1): h%0Aline one",
         ]
 
@@ -1190,10 +1375,7 @@ class TestActionMetadata:
             "summary": "true",
         }
         step_env = next(step for step in _load_action()["runs"]["steps"] if "run" in step)["env"]
-        delivered = {
-            variable: distinct[re.search(r"inputs\.([\w-]+)", expression).group(1)]  # type: ignore[union-attr]
-            for variable, expression in step_env.items()
-        }
+        delivered = {variable: distinct[_input_named_by(expression)] for variable, expression in step_env.items()}
         assert set(distinct) == set(action_runner.INPUT_DEFAULTS)
         assert action_runner.read_inputs(delivered) == action_runner.ActionInputs(
             subcommand="check",
