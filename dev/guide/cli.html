@@ -100,7 +100,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-04-29",
-  "dateModified": "2026-10-19"
+  "dateModified": "2026-10-21"
 }
 </script>
 
@@ -1562,7 +1562,7 @@
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># explicit version</span>
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>pydeprecate<span class="w"> </span>expiry<span class="w"> </span>path/to/your/package<span class="w"> </span>--version<span class="w"> </span><span class="m">2</span>.0.0
 <a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="c1"># auto-detect version (searches up to 2 parent directories for pyproject.toml, else installed metadata)</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="c1"># auto-detect version (pyproject.toml, installed metadata, then package __version__)</span>
 <a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>pydeprecate<span class="w"> </span>expiry<span class="w"> </span>path/to/your/package
 </code></pre></div>
 <p>Exit 1 if any wrapper is past its removal deadline. If <code>packaging</code> is not installed, the check is skipped with a warning and exits 0 (use <code>--exit-zero</code> to suppress exit 1 when expired wrappers are found).</p>
@@ -1597,6 +1597,9 @@
 <a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
 <a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="c1"># auto-detect version</span>
 <a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>pydeprecate<span class="w"> </span>all<span class="w"> </span>path/to/your/package
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="c1"># also save the appended table</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>pydeprecate<span class="w"> </span>all<span class="w"> </span>path/to/your/package<span class="w"> </span>--output<span class="w"> </span>DEPRECATIONS.md
 </code></pre></div>
 <p>Exit 1 if any hard error is found: invalid argument mappings, deprecated-to-deprecated chains, or expired wrappers. <strong>Policy violations are advisory here</strong> — they are printed (rendered as <code>[WARNING]</code>, with a trailer noting the check is advisory and naming <code>pydeprecate policy</code> as the gate) but never contribute to the exit code, because the policy defaults encode a project convention that not every repository shares; run <code>pydeprecate policy</code> as its own CI step to gate on them. This advisory treatment covers violation <em>counts</em> only: a policy <strong>configuration</strong> failure — the nearest <code>pyproject.toml</code> cannot be read or parsed, or a <code>[tool.pydeprecate.policy]</code> value is malformed — still exits <code>2</code>, printing <code>Cannot read &lt;path&gt;: &lt;err&gt;</code>, and that exit is checked before the chains check ever runs. If <code>packaging</code> is not installed, expiry is skipped and policy runs its packaging-free <code>message-required</code> rule in advisory mode, so neither affects <code>all</code>'s exit <code>1</code>; a malformed explicit <code>--version</code> is also advisory. With <code>packaging</code> available, an invalid explicit <code>--version</code> exits <code>2</code>. The deprecation table is always appended regardless of pass/fail outcome.</p>
 </div>
@@ -1694,15 +1697,42 @@
 <td style="text-align: center;"></td>
 <td style="text-align: center;"></td>
 <td style="text-align: center;"></td>
-<td style="text-align: center;"></td>
+<td style="text-align: center;">✓</td>
 <td style="text-align: center;">✓</td>
 <td>Also save the markdown table to a file. Table is always printed to stdout regardless.</td>
-<td></td>
+<td>For <code>all</code>, a failure to write the file is reported but never changes the exit code.</td>
+</tr>
+<tr>
+<td><code>--report-json FILE</code></td>
+<td>off</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td>Write the run's machine-readable record for CI tooling: the deprecation table of this run's scan and every gap (see below).</td>
+<td>Written on exit <code>0</code> or <code>1</code> only; a write failure is reported on stderr and never changes the exit code.</td>
 </tr>
 </tbody>
 </table>
 <p>A bare <code>pydeprecate policy src/mypackage</code> therefore runs a recursive scan, exits <code>1</code> on violations, and applies both default-on rules below (<code>--min-grace=0.3</code>, <code>--message-required=True</code>) — unless the project's <code>pyproject.toml</code> says otherwise (see <a href="#project-configuration-in-pyprojecttoml">Project configuration in <code>pyproject.toml</code></a>).</p>
 <p>Flags and the path may come in any order: <code>pydeprecate check --exit-zero src/mypackage</code> scans <code>src/mypackage</code>, which is the order a <a href="audit.html#pre-commit-integration">pre-commit hook</a> produces from its <code>args</code>. Boolean flags accept <code>true</code>, <code>false</code>, <code>1</code> or <code>0</code> (case-insensitive) as <code>--flag value</code> or <code>--flag=value</code>, and the negated form attaches directly: <code>--norecursive</code>, not <code>--no-recursive</code>. Each run takes one path. For <code>check</code>, <code>policy</code> and <code>chains</code>, a second positional path exits <code>2</code> with "Pass one path per run". A short flag such as <code>-r src/mypackage</code>, or a boolean value other than <code>true</code>/<code>false</code>/<code>1</code>/<code>0</code>, exits <code>2</code> with a message that the flag expects True or False (use long flags and an explicit <code>--flag=True|False</code>) rather than scanning something you did not name. For <code>expiry</code>, <code>all</code> and <code>status</code>, a second positional argument binds <code>--version</code> instead. Private <code>--_*</code> options (for example <code>--_advisory</code>) are not part of the CLI and exit <code>2</code>.</p>
+<p>A run can pass without auditing everything. Each such gap is reported as one unwrapped stderr line starting with <code>pydeprecate gap: &lt;kind&gt;:</code> — <code>module not audited</code> (one line per submodule that failed to import, printed whatever warnings filters the audited package installs, plus one <code>&lt;package&gt;.*</code> line when a recursive walk stopped early and left the remaining submodules unaudited), <code>version not resolved</code>, <code>version not PEP 440</code>, <code>remove_in not PEP 440</code> (a wrapper's own <code>remove_in</code> is not a valid PEP 440 version, so that one removal deadline was skipped; one line per wrapper, exit code unchanged), <code>packaging missing</code> or <code>nested files not audited</code> — so they stay visible in a CI log.</p>
+<p>For tooling, <code>--report-json FILE</code> records the same run as JSON — every subcommand takes it:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="p">{</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">  </span><span class="nt">"schema"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">  </span><span class="nt">"table"</span><span class="p">:</span><span class="w"> </span><span class="s2">"| API | ... |"</span><span class="p">,</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">  </span><span class="nt">"gaps"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="w">    </span><span class="p">{</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="w">      </span><span class="nt">"kind"</span><span class="p">:</span><span class="w"> </span><span class="s2">"module not audited"</span><span class="p">,</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="w">      </span><span class="nt">"detail"</span><span class="p">:</span><span class="w"> </span><span class="s2">"mypackage.extra: ImportError(...)"</span><span class="p">,</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="w">      </span><span class="nt">"hint"</span><span class="p">:</span><span class="w"> </span><span class="s2">"install the scanned package's runtime dependencies in the environment that runs the scan"</span>
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="w">  </span><span class="p">]</span>
+<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="p">}</span>
+</code></pre></div>
+<p><code>table</code> is the markdown deprecation table of the scan that ran (<code>null</code> when it could not be rendered), and each gap carries one of the kinds above, its detail and a remedy. The file is written only when the run exits <code>0</code> or <code>1</code>: a usage error (exit <code>2</code>) scanned nothing and a crash writes no file, so a consumer never publishes stale results. The <a href="audit.html#github-action">GitHub Action</a> builds its gap annotations and job summary from this file.</p>
 <p>There is intentionally no <code>--include-pep702</code> flag: every subcommand evaluates pyDeprecate schedule metadata (<code>deprecated_in</code>, <code>remove_in</code>, a replacement) that symbols deprecated only with <code>warnings.deprecated</code> lack. List those with the Python API — <code>find_deprecation_wrappers(..., include_pep702=True)</code>, see <a href="audit.html#pep-702-only-deprecations">PEP 702-only deprecations</a>.</p>
 <h3 id="policy-rule-flags">Policy rule flags<a class="headerlink" href="#policy-rule-flags" title="Permanent link">🔗</a></h3>
 <p>These two are specific to <code>policy</code> — one flag per rule, switched off with <code>--min-grace=None</code> and <code>--message-required=False</code>. The <em>Default</em> column is the built-in value; a <code>[tool.pydeprecate.policy]</code> table in <code>pyproject.toml</code> replaces it, and a typed flag beats both.</p>
@@ -1734,16 +1764,16 @@
 <p>A malformed <code>--min-grace</code> value is rejected before the scan starts and exits <code>2</code> with a message naming the accepted spellings — it is never silently ignored.</p>
 <h3 id="project-configuration-in-pyprojecttoml">Project configuration in <code>pyproject.toml</code><a class="headerlink" href="#project-configuration-in-pyprojecttoml" title="Permanent link">🔗</a></h3>
 <p>Declare the settings once, next to the code they govern, and every bare <code>pydeprecate</code> run — a developer's shell or a CI step — applies them without repeating flags:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="k">[tool.pydeprecate]</span>
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="n">exclude</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"my_package.tests"</span><span class="p">,</span><span class="w"> </span><span class="s2">"*._legacy*"</span><span class="p">]</span><span class="w">   </span><span class="c1"># every subcommand: the scan skips these packages (never imports them itself)</span>
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>
-<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="k">[tool.pydeprecate.policy]</span><span class="w">                      </span><span class="c1"># the `policy` subcommand's rules, keyed by rule slug</span>
-<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="n">min-grace</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"0.3"</span><span class="w">  </span><span class="c1"># quoted dotted delta; false switches the rule off (TOML has no null)</span>
-<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="n">message-required</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="k">[tool.pydeprecate]</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="n">exclude</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"my_package.tests"</span><span class="p">,</span><span class="w"> </span><span class="s2">"*._legacy*"</span><span class="p">]</span><span class="w">   </span><span class="c1"># every subcommand: the scan skips these packages (never imports them itself)</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="k">[tool.pydeprecate.policy]</span><span class="w">                      </span><span class="c1"># the `policy` subcommand's rules, keyed by rule slug</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="n">min-grace</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"0.3"</span><span class="w">  </span><span class="c1"># quoted dotted delta; false switches the rule off (TOML has no null)</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="n">message-required</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span>
 </code></pre></div>
 <p>Each setting resolves independently as <strong>flag → <code>pyproject.toml</code> → built-in default</strong>, and the header lines of every run name the source of each value (<code>flag</code>, <code>pyproject.toml</code>, or <code>built-in</code>), so a log always shows what was applied:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>Exclude: my_package.tests, *._legacy* (pyproject.toml)
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>Policy: min-grace=0.3 (pyproject.toml)  message-required=True (built-in)
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>Exclude: my_package.tests, *._legacy* (pyproject.toml)
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>Policy: min-grace=0.3 (pyproject.toml)  message-required=True (built-in)
 </code></pre></div>
 <ul>
 <li>The table is looked up like <code>--version</code> auto-detection below: from the scanned <em>path</em>'s directory up to two parents, nearest file that declares <code>[tool.pydeprecate]</code> wins (one table per project — a nested file that declares it replaces the parent's whole table); a bare module <em>name</em> never triggers the lookup.</li>
@@ -1754,6 +1784,7 @@
 <li><code>pydeprecate all</code> applies the same resolved settings to its single scan and its advisory policy pass. The Python API (<code>validate_deprecation_policy()</code>) takes a module (object or importable name), never a filesystem path, and does not read <code>pyproject.toml</code> — pass its keyword arguments (including <code>exclude</code>) explicitly.</li>
 </ul>
 <p><code>--version</code> auto-detect: when the scanned argument is an existing <em>path</em>, <code>_read_pyproject_version</code> searches the current directory and up to 2 parent directories for a <code>pyproject.toml</code> (current dir + 2 levels up); the nearest one found wins, falling back to installed package metadata. A bare module <em>name</em> skips the <code>pyproject.toml</code> lookup entirely, so it can never pick up an unrelated project's version from your current working directory.</p>
+<p>Standalone <code>expiry</code> also falls back to the top-level import package's <code>__version__</code> when project and installed metadata cannot resolve a version. Only a genuinely unresolved version skips the check with a <code>version not resolved</code> gap and exit <code>0</code>; pass <code>--version</code> to supply it explicitly.</p>
 <h2 id="exit-codes">Exit codes<a class="headerlink" href="#exit-codes" title="Permanent link">🔗</a></h2>
 <table>
 <thead>
@@ -1809,8 +1840,9 @@
 <h2 id="ci-recipes">CI recipes<a class="headerlink" href="#ci-recipes" title="Permanent link">🔗</a></h2>
 <p>Two gates, two steps: <code>pydeprecate all</code> fails the build on misconfigured wrappers, chains and expired deprecations, and a separate <code>pydeprecate policy</code> step fails it when a <em>new</em> deprecation is scheduled in a way the project does not allow — keeping them separate means a failure tells you which problem you have. The full workflow, with the rules declared once in <code>[tool.pydeprecate.policy]</code>, is in the <a href="audit.html#enforcing-the-policy-in-ci">audit guide</a>.</p>
 <p>While you are bringing an existing codebase into line, run the gate advisory-first so it reports without blocking, then drop the flag once the backlog is clear:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>pydeprecate<span class="w"> </span>policy<span class="w"> </span>src/mypackage<span class="w"> </span>--exit-zero
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>pydeprecate<span class="w"> </span>policy<span class="w"> </span>src/mypackage<span class="w"> </span>--exit-zero
 </code></pre></div>
+<p>On GitHub Actions the CLI also ships as a ready-made step, <code>uses: Borda/pyDeprecate@&lt;tag&gt;</code> with <code>subcommand</code>, <code>path</code>, <code>args</code>, <code>exit-zero</code>, <code>install</code> and <code>summary</code> inputs; the step exits with the CLI's own code. See the <a href="audit.html#github-action">GitHub Action</a> section of the audit guide.</p>
 <h2 id="path-formats">Path formats<a class="headerlink" href="#path-formats" title="Permanent link">🔗</a></h2>
 <p>All subcommands accept:</p>
 <ul>
@@ -1820,8 +1852,8 @@
 </ul>
 <h2 id="python-module-invocation">Python module invocation<a class="headerlink" href="#python-module-invocation" title="Permanent link">🔗</a></h2>
 <p>Both <code>pydeprecate</code> and <code>python -m deprecate</code> are equivalent entry points:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>python<span class="w"> </span>-m<span class="w"> </span>deprecate<span class="w"> </span>check<span class="w"> </span>src/mypackage
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>python<span class="w"> </span>-m<span class="w"> </span>deprecate<span class="w"> </span>expiry<span class="w"> </span>src/mypackage<span class="w"> </span>--version<span class="w"> </span><span class="m">2</span>.0.0
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>python<span class="w"> </span>-m<span class="w"> </span>deprecate<span class="w"> </span>check<span class="w"> </span>src/mypackage
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>python<span class="w"> </span>-m<span class="w"> </span>deprecate<span class="w"> </span>expiry<span class="w"> </span>src/mypackage<span class="w"> </span>--version<span class="w"> </span><span class="m">2</span>.0.0
 </code></pre></div>
 <p>Useful in environments where the <code>pydeprecate</code> script is not on <code>PATH</code> (e.g. inside a Docker image where only <code>python</code> is available).</p>
 
@@ -1846,7 +1878,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 19, 2026 17:15:43 UTC">2026-10-19</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 21, 2026 14:03:26 UTC">2026-10-21</span>
   </span>
 
     
