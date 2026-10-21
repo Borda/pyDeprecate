@@ -145,6 +145,14 @@
       "mainEntity": [
         {
           "@type": "Question",
+          "name": "Why did the GitHub Action skip my job summary?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "The summary is optional and never changes the gate's exit code. The action takes the table from the report the CLI writes with --report-json, which exists only when the scan ran to the end with exit 0 or 1. 'The gate wrote no pyDeprecate report' means the scan crashed or the report could not be written; the cause is in the CLI's stderr just above. A usage error (exit 2) writes no summary. 'No pyDeprecate report is available' means an older pyDeprecate without --report-json runs with install: false; keep install: true or upgrade it. That warning also appears when the runner could not create a temporary directory for the report. Other warnings: GITHUB_STEP_SUMMARY not set means the job is not on a GitHub runner, and 'could not write the job summary' shows the OS error. 'The gate's report holds no deprecation table' means the CLI could not render the table; the reason is on its stderr. An unreadable report or one of another layout version means a corrupt file or a different pyDeprecate than the action's (for example install: false); the preceding runner warning names the cause, and the gate result is unaffected."
+          }
+        },
+        {
+          "@type": "Question",
           "name": "Why do I get UserWarning when applying @deprecated directly to a class?",
           "acceptedAnswer": {
             "@type": "Answer",
@@ -444,7 +452,7 @@
           "name": "What does the UserWarning 'audit: skipped <module>' mean during a recursive scan?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Recursive audit scans import every submodule of the scanned package, so module-level code runs. When a submodule raises any exception at import time — not just ImportError — pyDeprecate emits UserWarning 'audit: skipped <module>: <exception>' and continues scanning instead of aborting. Results are complete for every module that imported successfully; investigate and fix the named submodule to include its deprecations in the scan."
+            "text": "Recursive audit scans import every submodule of the scanned package, so module-level code runs. When a submodule raises any exception at import time — not just ImportError — pyDeprecate emits UserWarning 'audit: skipped <module>: <exception>' and continues scanning instead of aborting. Results are complete for every module that imported successfully; investigate and fix the named submodule to include its deprecations in the scan. The CLI also prints 'pydeprecate gap: module not audited: <module>: <exception>' on stderr for each skipped submodule, even when the package installs a warnings filter that hides the UserWarning."
           }
         },
         {

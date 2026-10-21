@@ -1,0 +1,67 @@
+# GitHub Action manifest — lets other projects run the pyDeprecate CLI as one CI step:
+#   - uses: Borda/pyDeprecate@<tag>
+#     with: { subcommand: all, path: src/mypkg }
+# The step runs in the job's current Python, after the caller's `actions/setup-python` and project install: the scan
+# imports the audited package, so its runtime dependencies must already be importable there.
+# All logic lives in `.github/scripts/action_runner.py`; inputs reach it only through `env:` (never interpolated into
+# the script), and `tests/integration/test_action.py` keeps inputs, defaults and env names in lockstep with it.
+# Gaps and the job-summary table come from the CLI's `--report-json` file, never from its console output.
+# The step exits with the CLI's code, except: a `path` starting with `-` exits 2, a failed install returns pip's exit
+# code, and a CLI that cannot start returns 1.
+name: pyDeprecate audit
+description: Validate @deprecated wrappers in CI - misconfigured mappings, chains, expired removals and policy rules.
+author: Jiri Borovec
+branding:
+  icon: clock
+  color: orange
+
+inputs:
+  subcommand:
+    description: CLI subcommand to run - one of check, expiry, policy, chains, all, status.
+    required: false
+    default: all
+  path:
+    description: >-
+      Package directory or importable module name to scan, relative to the workspace. Empty lets the CLI find the
+      single package under `src/`, else the single package at the repository root. A value starting with `-` fails
+      the step with exit code `2`; write such a directory as `./-name`.
+    required: false
+    default: ""
+  args:
+    description: >-
+      Extra CLI flags, split with shell-style quoting, e.g. `--exclude='mypkg.tests,*._legacy*' --version 2.0`. Backslashes are escape characters: quote Windows paths or use `/`.
+    required: false
+    default: ""
+  exit-zero:
+    description: Report findings without failing the step (passes `--exit-zero`); not valid with `status`.
+    required: false
+    default: "false"
+  install:
+    description: >-
+      Install `pyDeprecate[cli,audit]` from the action ref into the current Python. Set to `false` when the job
+      already installs the pyDeprecate version your project pins.
+    required: false
+    default: "true"
+  summary:
+    description: >-
+      Append the markdown deprecation status table of the gate's own scan to the job summary, read from the report
+      the CLI writes with `--report-json`, so it covers exactly what the gate scanned. Summary failures only warn
+      and preserve the gate result. No summary is written when the CLI exits `2`.
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - name: pyDeprecate
+      shell: python
+      env:
+        PYDEPRECATE_ACTION_SUBCOMMAND: ${{ inputs.subcommand }}
+        PYDEPRECATE_ACTION_PATH: ${{ inputs.path }}
+        PYDEPRECATE_ACTION_ARGS: ${{ inputs.args }}
+        PYDEPRECATE_ACTION_EXIT_ZERO: ${{ inputs.exit-zero }}
+        PYDEPRECATE_ACTION_INSTALL: ${{ inputs.install }}
+        PYDEPRECATE_ACTION_SUMMARY: ${{ inputs.summary }}
+      run: |
+        import os, runpy
+        runpy.run_path(os.path.join(os.environ["GITHUB_ACTION_PATH"], ".github", "scripts", "action_runner.py"), run_name="__main__")

@@ -2133,7 +2133,7 @@ ______________________________________________________________________
 UserWarning: audit: skipped my_package.legacy_ext: RuntimeError('optional native extension not built')
 ```
 
-The scan results are complete for every module that imported successfully; only the named submodule is missing. Investigate and fix that submodule (or accept the gap if the failure is expected, e.g. an optional dependency) — one broken submodule no longer kills the CI gate, but its deprecations are not audited until it imports cleanly.
+The scan results are complete for every module that imported successfully; only the named submodule is missing. Investigate and fix that submodule (or accept the gap if the failure is expected, e.g. an optional dependency) — one broken submodule no longer kills the CI gate, but its deprecations are not audited until it imports cleanly. The CLI also prints `pydeprecate gap: module not audited: <module>: <exception>` on stderr for each skipped submodule; that line appears even when your package installs a warnings filter that hides the `UserWarning`.
 
 ______________________________________________________________________
 
@@ -2204,3 +2204,11 @@ ______________________________________________________________________
 !!! question "Open a GitHub issue"
 
     If none of the above covers your situation, open an issue on [GitHub Issues](https://github.com/Borda/pyDeprecate/issues). Include the full traceback, the decorator call you used, and the Python and pyDeprecate versions (`pip show pyDeprecate`).
+
+______________________________________________________________________
+
+## Why did the GitHub Action skip my job summary?
+
+**Q:** The action ran with `summary: true`, but the job summary is absent or warns that the gate wrote no pyDeprecate report, or that no pyDeprecate report is available, or another runner warning about the summary.
+
+**A:** The summary is optional and never changes the gate's exit code. The action takes the table from the report the CLI writes with `--report-json`, and the CLI writes that report only when the scan ran to the end with exit `0` or `1`. "The gate wrote no pyDeprecate report" means the scan crashed (for example `path` names a single `.py` file) or the report could not be written; the cause is in the CLI's stderr just above the warning. A usage error (exit `2`) writes no summary and no warning, because nothing was scanned. "No pyDeprecate report is available" means the job runs a pyDeprecate older than `--report-json` with `install: false`: keep `install: true`, or upgrade the pyDeprecate your job installs. The same "no report is available" warning also appears when the runner could not create the temporary directory for the report (its preceding warning gives the OS error). Other warnings: "`summary: true` needs GITHUB_STEP_SUMMARY" means the job is not on a GitHub runner, and "could not write the job summary" shows the OS error; both are self-describing. "The gate's report holds no deprecation table" means the CLI could not render the table (the reason is on its stderr). "Could not read the pyDeprecate report" or "not of layout version" means the report file is corrupt or comes from a different pyDeprecate than the action's (for example `install: false` with another version); the preceding runner warning names the cause, and the gate result is unaffected.

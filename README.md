@@ -1764,7 +1764,7 @@ pydeprecate path/to/your/package          # equivalent shorthand
 # expiry — wrappers past their remove_in deadline
 # requires: pip install 'pyDeprecate[audit]'
 pydeprecate expiry path/to/your/package --version 2.0.0
-pydeprecate expiry path/to/your/package   # auto-detects version from the package
+pydeprecate expiry path/to/your/package   # project/installed metadata, then package __version__
 
 # policy — deprecations scheduled against your governance rules
 # requires: pip install 'pyDeprecate[audit]'
@@ -1785,7 +1785,7 @@ pydeprecate status path/to/your/package --style matrix
 pydeprecate status path/to/your/package --version 2.0.0 --output DEPRECATIONS.md
 ```
 
-**Common flags** (all subcommands): `--norecursive` scans the top-level module only. `--exclude` takes glob patterns over full dotted module names (one, comma-separated, or a list) the scan itself never imports nor descends into; its default is the `exclude` list of `[tool.pydeprecate]` in the nearest `pyproject.toml`. `check`, `expiry`, `policy`, `chains`, and `all` also accept `--exit-zero` to always exit `0` even when issues are found. `expiry`, `all`, and `status` also accept `--version VERSION` to set the current version explicitly. `policy` additionally accepts one flag per rule — `--min-grace`, `--message-required` — resolved as flag → `[tool.pydeprecate.policy]` in the nearest `pyproject.toml` → built-in default (`min-grace = "0.3"`, `message-required = true`; `false` switches `min-grace` off), and exits `2` when a rule value is malformed, or when the `pyproject.toml` itself cannot be read or parsed (`Cannot read <path>: <err>`) — this file-read exit `2` is checked before `chains` runs even inside `pydeprecate all`, though policy *violation counts* stay advisory there. The `Policy:` header line names the source of each value. `status` additionally accepts `--style compact|matrix` (default `compact`) and `--output FILE` to also save the markdown to that file.
+**Common flags** (all subcommands): `--norecursive` scans the top-level module only. `--exclude` takes glob patterns over full dotted module names (one, comma-separated, or a list) the scan itself never imports nor descends into; its default is the `exclude` list of `[tool.pydeprecate]` in the nearest `pyproject.toml`. `check`, `expiry`, `policy`, `chains`, and `all` also accept `--exit-zero` to always exit `0` even when issues are found. `expiry`, `all`, and `status` also accept `--version VERSION` to set the current version explicitly. `policy` additionally accepts one flag per rule — `--min-grace`, `--message-required` — resolved as flag → `[tool.pydeprecate.policy]` in the nearest `pyproject.toml` → built-in default (`min-grace = "0.3"`, `message-required = true`; `false` switches `min-grace` off), and exits `2` when a rule value is malformed, or when the `pyproject.toml` itself cannot be read or parsed (`Cannot read <path>: <err>`) — this file-read exit `2` is checked before `chains` runs even inside `pydeprecate all`, though policy *violation counts* stay advisory there. The `Policy:` header line names the source of each value. `status` additionally accepts `--style compact|matrix` (default `compact`) and `--output FILE` to also save the markdown to that file; `all` accepts `--output FILE` too, for the table it appends. When part of the audit did not run (a submodule failed to import, the version could not be resolved, `packaging` is missing), the CLI prints an unwrapped stderr line starting with `pydeprecate gap: <kind>:`, regardless of the audited package's warnings filters. Every subcommand also accepts `--report-json FILE`, which writes the run's deprecation table and those gaps as JSON for CI tooling.
 
 **Quick demo** using pyDeprecate's own test fixtures (no package setup needed):
 
@@ -1820,6 +1820,24 @@ pre-commit run pydeprecate --all-files  # regardless of what is staged
 ```
 
 Packages that import without third-party dependencies can use the shipped hook instead (`repo: https://github.com/Borda/pyDeprecate`, `id: pydeprecate-check`, from `v0.15.0`; one hook id per subcommand); see the [pre-commit section of the audit guide](https://borda.github.io/pyDeprecate/stable/guide/audit#pre-commit-integration) for both recipes and the isolated-environment caveat.
+
+**GitHub Action** — run the same checks as one CI step (from `v0.15.0`). The step runs in the job's own Python and imports your package from the checkout, so install its runtime dependencies first:
+
+```yaml
+steps:
+  - uses: actions/checkout@v6
+  - uses: actions/setup-python@v7
+    with:
+      python-version: "3.11"
+  - run: pip install -e . # pulls in the runtime dependencies the scanned modules import
+  - uses: Borda/pyDeprecate@v0.15.0 # the ref also pins the pyDeprecate version it installs
+    with:
+      subcommand: all # default; or check, expiry, policy, chains, status
+      path: src/mypackage # optional for a single package under src/
+      summary: true # optional: deprecation table in the job summary
+```
+
+The step exits with the CLI's own code, except that a `path` starting with `-` exits `2`, a failed install returns pip's exit code and a CLI that cannot start returns `1`; `exit-zero: true` reports without failing, `args` passes extra flags, and `install: false` keeps the pyDeprecate version your job already installed. Optional summary failures only warn and keep the gate result. When no report exists the gap annotations and the summary are skipped with a warning: an older pyDeprecate that predates `--report-json` (`install: false`) gives "no report is available", and a CLI crash gives "the gate wrote no report". The GitHub Action section of the audit guide covers every input and caveat.
 
 **Example: catching a deprecated-to-deprecated chain**
 

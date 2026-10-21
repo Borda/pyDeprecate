@@ -1,6 +1,6 @@
 """Subcommand implementations for the CLI: ``check``, ``expiry``, ``policy``, ``chains``, ``all`` and ``status``."""
 
-from collections.abc import Sequence
+from contextlib import suppress
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
@@ -16,75 +16,44 @@ from deprecate._cli.config import (
     _source_label,
     _validate_user_version,
 )
-from deprecate._cli.report import _print, _Reporter
+from deprecate._cli.report import (
+    _ensure_run_record,
+    _GapKind,
+    _print,
+    _print_gap,
+    _record_scan,
+    _record_table,
+    _Reporter,
+    _ScanRecord,
+)
 from deprecate._cli.scan import _scan_path
 from deprecate._pkg import _auto_detect_version, _managed_sys_path, _resolve_module_name, _safe_module_name
 from deprecate.audit import (
     DeprecationWrapperInfo,
     PolicyRule,
     TableStyle,
+    find_deprecation_wrappers,
     generate_deprecation_table,
-    validate_deprecation_chains,
-    validate_deprecation_expiry,
 )
-from deprecate.audit._lifecycle import _check_expiry_for_callables
+from deprecate.audit._lifecycle import _check_expiry_for_callables, _get_package_version, _parse_version
 from deprecate.audit._policy import _build_policy_spec, _check_policy_for_callables
+from deprecate.audit._wrappers import _format_subject
 
 if TYPE_CHECKING:
     from deprecate.audit._policy import _PolicySpec
 
 
-def _do_expiry(
-    path: str, version: Optional[str], recursive: bool, exclude: Optional[Sequence[str]] = None
-) -> Optional[list[str]]:
-    """Run the expiry scan and return expired wrapper messages, or None when packaging is unavailable.
-
-    Caller is responsible for setting up ``sys.path`` via :func:`_managed_sys_path` before calling.
-
-    Args:
-        path: Package directory path or importable module name string.
-        version: Current package version for comparison, or None to auto-detect.
-        recursive: Scan submodules recursively.
-        exclude: Module-name glob patterns to leave out of the scan.
-
-    Returns:
-        List of expired wrapper message strings (may be empty), or None when the
-        ``packaging`` library is unavailable (advisory — warning already printed to stderr).
-
-    """
-    module_name = _resolve_module_name(path)
-    try:
-        return validate_deprecation_expiry(module_name, version, recursive=recursive, exclude=exclude)
-    except ImportError as exc:
-        if _is_missing_packaging_import_error(exc):
-            _print(
-                "The 'expiry' subcommand requires the 'packaging' library.\n"
-                "Install it with: `pip install 'pyDeprecate[audit]'`",
-                stderr=True,
-            )
-            return None
-        if getattr(exc, "name", None) is not None:
-            # Python's import system sets ``exc.name`` when a module-level ``import`` statement
-            # fails — this is a broken import inside the user's package, not a version-detection
-            # failure.  Propagate so the caller gets the real error instead of the misleading
-            # "Could not determine version" message.
-            raise
-        _print(
-            "Could not determine the current package version automatically.\n"
-            "Pass --version explicitly, or ensure the package is installed and importable.\n\n"
-            f"Original error: {exc}",
-            stderr=True,
-        )
-        return None
-    # other exceptions propagate to cli()'s top-level handler around fire.Fire
-
-
 def _do_expiry_prescanned(wrappers: list[DeprecationWrapperInfo], version: Optional[str]) -> Optional[list[str]]:
     """Derive expired wrapper messages from an already-scanned wrapper list, without rescanning.
 
-    The single-scan path used by ``cmd_all``. Every way this can fail is advisory: ``cmd_all`` resolves one
-    version for all of its subcommands, and neither an unresolvable nor an unparsable one is a usage error
-    the user can be blamed for, so the expiry gate is skipped with a message instead of failing the run.
+    Used by both ``cmd_expiry`` and ``cmd_all`` after their single scan. Every way this can fail is advisory: an
+    explicit ``--version`` is validated up front (exit 2), so only an auto-detected version reaches here, and
+    neither an unresolvable nor an unparsable one is a usage error the user can be blamed for, so the expiry gate
+    is skipped with a message instead of failing the run.
+
+    A wrapper whose own ``remove_in`` is not PEP 440 is skipped by the check, which only warns about it. This
+    function also records each such wrapper as a :attr:`_GapKind.REMOVE_IN_INVALID` gap, since the warning can be
+    silenced by the audited package; the expired list and the exit code are unchanged.
 
     Args:
         wrappers: Pre-scanned wrapper list to compare against *version*.
@@ -96,27 +65,60 @@ def _do_expiry_prescanned(wrappers: list[DeprecationWrapperInfo], version: Optio
 
     """
     if version is None:
-        _print("Cannot check expiry: version not resolved. Pass --version explicitly.", stderr=True)
+        _print_gap(_GapKind.VERSION_UNRESOLVED, "Cannot check expiry: version not resolved. Pass --version explicitly.")
         return None
     try:
-        return _check_expiry_for_callables(wrappers, version)
+        expired = _check_expiry_for_callables(wrappers, version)
+        # Reached only when the check itself ran, so an unusable `version` is reported once (below) and not again per
+        # wrapper. The audit layer only warns about a `remove_in` it skips; the gap is recorded here so it stays free
+        # of CLI imports.
+        for info in wrappers:
+            remove_in = info.deprecated_info.remove_in
+            if not remove_in:
+                continue
+            try:
+                _parse_version(remove_in)
+            except ValueError:
+                _print_gap(
+                    _GapKind.REMOVE_IN_INVALID,
+                    f"{_format_subject(info)} has `remove_in` `{remove_in}`, which is not a valid PEP 440 version "
+                    "string, so its removal deadline was not checked.",
+                )
+        return expired
     except ImportError:
-        _print(
+        _print_gap(
+            _GapKind.PACKAGING_MISSING,
             "The 'expiry' subcommand requires the 'packaging' library.\n"
             "Install it with: `pip install 'pyDeprecate[audit]'`",
-            stderr=True,
         )
         return None
     except ValueError:
         # Only an auto-detected version reaches here — an explicit one is rejected up front with exit 2.
         # A package whose own metadata version is not PEP 440 is not a usage error, so the check degrades
         # to an advisory skip rather than aborting the run with an unhandled parse failure.
-        _print(
+        _print_gap(
+            _GapKind.VERSION_INVALID,
             f"Cannot check expiry: the auto-detected version `{version}` is not a valid PEP 440 version "
             "string. Pass `--version` explicitly for a definitive check.",
-            stderr=True,
         )
         return None
+
+
+def _save_table(markdown: str, output: str) -> None:
+    """Write the rendered deprecation table to *output* (missing parent directories are created) and say so on stderr.
+
+    Args:
+        markdown: The rendered markdown table.
+        output: File path to write.
+
+    Raises:
+        OSError: When the directory cannot be created or the file cannot be written.
+
+    """
+    out_path = Path(output)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(markdown, encoding="utf-8")
+    _print(f"→ Saved to: {out_path}", stderr=True)
 
 
 def _skipped_policy_rules(spec: "_PolicySpec") -> list[str]:
@@ -149,10 +151,10 @@ def _policy_violations_without_packaging(
 
     """
     skipped_rules = ", ".join(f"`{rule}`" for rule in _skipped_policy_rules(spec))
-    _print(
+    _print_gap(
+        _GapKind.PACKAGING_MISSING,
         f"The `packaging` library is required for the {skipped_rules} policy rule; skipping it.\n"
         "Install it with: `pip install 'pyDeprecate[audit]'`",
-        stderr=True,
     )
     if not spec.message_required:
         return None
@@ -224,6 +226,7 @@ def cmd_check(
         _print_scan_header(path, exclude=resolved_exclude)
         with _managed_sys_path(path):
             _wrappers = _scan_path(path, recursive=recursive, exclude=resolved_exclude[0])
+        _record_scan(_ScanRecord(path, _wrappers))
 
     if not _wrappers:
         _print("No deprecated callables found.")
@@ -255,8 +258,8 @@ def cmd_expiry(
 
     Args:
         path: Path to the module, package directory, or importable module name to scan.
-        version: Current package version for comparison (e.g. ``"2.0.0"``). Auto-detected
-            from installed package metadata if not provided.
+        version: Current package version for comparison (e.g. ``"2.0.0"``). Auto-detected from local
+            project metadata, installed package metadata, or the top-level package's ``__version__`` if not provided.
         recursive: Scan submodules recursively (default True). Pass ``--norecursive`` to scan top-level only.
         exit_zero: Always exit 0 even if expired wrappers are found.
             Useful for advisory CI steps that should report but never block.
@@ -265,9 +268,8 @@ def cmd_expiry(
             nor descends into it. Default: the ``exclude`` list of ``[tool.pydeprecate]`` in the nearest
             ``pyproject.toml``, else nothing.
         _wrappers: Pre-scanned wrapper list. When provided, skips the scan step and derives
-            expired wrappers via ``_do_expiry_prescanned``. Requires *version* to be
-            non-``None`` when set. Underscore prefix hides this parameter from the Fire CLI
-            (internal use by ``cmd_all`` only).
+            expired wrappers via ``_do_expiry_prescanned``. Underscore prefix hides this parameter from the
+            Fire CLI (internal use by ``cmd_all`` only).
         _version_explicit: Whether *version* is a value the user typed rather than one the caller
             auto-detected. ``cmd_all`` forwards its already-resolved version and passes ``False``
             when that version came from auto-detection, so a malformed *installed* version is never
@@ -275,10 +277,10 @@ def cmd_expiry(
             the Fire CLI (internal use by ``cmd_all`` only).
 
     Returns:
-        0 on success, when the ``packaging`` library is unavailable, or when an auto-detected version
-        turns out not to be valid PEP 440 (advisory — the check is skipped); 1 when expired wrappers
-        are found and ``exit_zero`` is False; 2 when a user-supplied ``--version`` is not a valid
-        PEP 440 version string or ``--exclude`` is malformed.
+        0 on success, when the ``packaging`` library is unavailable, when no version could be resolved (the gap
+        is printed and the check is skipped), or when an auto-detected version turns out not to be valid
+        PEP 440 (advisory — the check is skipped); 1 when expired wrappers are found and ``exit_zero`` is False;
+        2 when a user-supplied ``--version`` is not a valid PEP 440 version string or ``--exclude`` is malformed.
 
     """
     # Fire auto-converts numeric-looking strings (e.g. "1.0" → float); normalise to str.
@@ -292,27 +294,24 @@ def cmd_expiry(
         resolved_exclude = _resolve_exclude(path, exclude)
         if resolved_exclude is None:
             return 2
-        # Standalone path: full scan + version auto-detect inside _do_expiry.
-        resolved_version = version if version is not None else _auto_detect_version(_safe_module_name(path), path=path)
-        if resolved_version is None and version is None:
-            _print(
-                "Could not resolve the current package version automatically and no --version was given; "
-                "the expiry check runs without a resolved version and its result may be unreliable. "
-                "Pass --version explicitly for a definitive check.",
-                stderr=True,
-            )
-        _print_scan_header(path, resolved_version, user_provided=version_explicit, exclude=resolved_exclude)
+        # Standalone path: scan once (a plain directory is rejected by `_resolve_module_name`), then the same
+        # derivation as the pre-scanned path, which reports an unresolved version or missing `packaging` once.
+        version = version if version is not None else _auto_detect_version(_safe_module_name(path), path=path)
         with _managed_sys_path(path):
-            raw = _do_expiry(path, resolved_version, recursive, exclude=resolved_exclude[0])
-        if raw is None:  # packaging unavailable — warning already printed to stderr
-            return 0
-        expired = raw
-    else:
-        # Pre-scanned path: derive expired list from wrappers directly.
-        raw = _do_expiry_prescanned(_wrappers, version)
-        if raw is None:  # check could not run — advisory already printed to stderr
-            return 0
-        expired = raw
+            module_name = _resolve_module_name(path)
+            if version is None:
+                # Uninstalled checkouts can expose only __version__; keep their import root in scope.
+                with suppress(ImportError):
+                    fallback = _get_package_version(module_name.split(".")[0])
+                    # A non-string __version__ (e.g. a tuple) is no version; keep it unresolved so a gap is reported.
+                    version = fallback if isinstance(fallback, str) else None
+            _print_scan_header(path, version, user_provided=version_explicit, exclude=resolved_exclude)
+            _wrappers = find_deprecation_wrappers(module_name, recursive=recursive, exclude=resolved_exclude[0])
+        _record_scan(_ScanRecord(path, _wrappers, version))
+    raw = _do_expiry_prescanned(_wrappers, version)
+    if raw is None:  # check could not run — advisory already printed to stderr
+        return 0
+    expired = raw
     if not expired:
         _print("No expired deprecated wrappers found.")
         return 0
@@ -402,6 +401,7 @@ def cmd_policy(
         _print_scan_header(path, exclude=resolved_exclude)
         with _managed_sys_path(path):
             _wrappers = _scan_path(path, recursive=recursive, exclude=resolved_exclude[0])
+        _record_scan(_ScanRecord(path, _wrappers))
     _print(policy_header)
     try:
         violations = _check_policy_for_callables(_wrappers, spec)
@@ -459,9 +459,12 @@ def cmd_chains(
             return 2
         _print_scan_header(path, exclude=resolved_exclude)
         with _managed_sys_path(path):
-            _wrappers = validate_deprecation_chains(
+            # the body of `validate_deprecation_chains` minus its chain filter, applied below: the run record
+            # needs every wrapper for its table
+            _wrappers = find_deprecation_wrappers(
                 _resolve_module_name(path), recursive=recursive, exclude=resolved_exclude[0]
             )
+        _record_scan(_ScanRecord(path, _wrappers))
     chains = [r for r in _wrappers if r.chain_type is not None]
     if not chains:
         _print("No deprecation chains found.")
@@ -477,6 +480,7 @@ def cmd_all(
     recursive: bool = True,
     exit_zero: bool = False,
     exclude: _ConfigFlag = _FROM_PYPROJECT,
+    output: Optional[str] = None,
 ) -> int:
     """Run all four checks then append a deprecation table.
 
@@ -501,6 +505,10 @@ def cmd_all(
             list (``--exclude='my_package.tests,*._legacy*'``); the scan itself never imports a matching package
             nor descends into it. Default: the ``exclude`` list of ``[tool.pydeprecate]`` in the nearest
             ``pyproject.toml``, else nothing.
+        output: Optional file path the appended deprecation table is also written to, as with ``status --output``,
+            so a CI job gets the table of the very scan it gated on. A failure to write it is reported on stderr as
+            ``Could not write the deprecation table`` — apart from a failure to render the table — and never changes
+            the exit code.
 
     Returns:
         0 when the check, expiry, and chain gates pass or ``exit_zero`` is True; 1 when any of them finds a hard
@@ -558,16 +566,26 @@ def cmd_all(
 
     # The status table is a display artifact appended after the three gates. Render it defensively:
     # a table-rendering failure must never change the aggregate exit code the three checks produced.
-    try:
-        cmd_status(
-            path,
-            version=resolved_version,
-            recursive=recursive,
-            _wrappers=wrappers,
-            _version_explicit=version_explicit,
-        )
-    except Exception as exc:
-        _print(f"Could not render the deprecation table: {exc}", stderr=True)
+    # ``output`` is not forwarded: ``cmd_status`` records the table it rendered and this function saves that, so a
+    # failure to write the file is told apart from one to render the table.
+    with _ensure_run_record() as run_record:
+        try:
+            cmd_status(
+                path,
+                version=resolved_version,
+                recursive=recursive,
+                output=None,
+                _wrappers=wrappers,
+                _version_explicit=version_explicit,
+            )
+        except Exception as exc:
+            _print(f"Could not render the deprecation table: {exc}", stderr=True)
+        else:
+            if output is not None and run_record.table is not None:
+                try:
+                    _save_table(run_record.table, output)
+                except OSError as exc:
+                    _print(f"Could not write the deprecation table to {output}: {exc}", stderr=True)
 
     has_errors = bool(check_code or expiry_code or chains_code)
     return 0 if not has_errors or exit_zero else 1
@@ -650,6 +668,7 @@ def cmd_status(
         _wrappers=_wrappers,
         _version_explicit=version_explicit,
     )
+    _record_table(markdown)
 
     if _Reporter._HAS_RICH:
         from rich.markdown import Markdown
@@ -659,9 +678,6 @@ def cmd_status(
         _print(markdown)
 
     if output is not None:
-        out_path = Path(output)
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-        out_path.write_text(markdown, encoding="utf-8")
-        _print(f"→ Saved to: {out_path}", stderr=True)
+        _save_table(markdown, output)
 
     return 0

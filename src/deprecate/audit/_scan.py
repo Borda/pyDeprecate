@@ -12,7 +12,8 @@ import inspect
 import pkgutil
 import warnings
 from collections.abc import Iterator, Sequence
-from contextlib import suppress
+from contextlib import contextmanager, suppress
+from contextvars import ContextVar
 from dataclasses import replace
 from functools import cached_property
 from typing import TYPE_CHECKING, Any, Optional, Union
@@ -551,6 +552,37 @@ def _is_excluded(modname: str, exclude: Sequence[str]) -> bool:
     return any(fnmatch.fnmatchcase(prefix, pattern) for prefix in prefixes for pattern in exclude)
 
 
+#: Submodules skipped for failing to import (or ``<package>.*`` for a walk that stopped early) -> the reason, while
+#: :func:`_collect_skipped_modules` runs.
+_SKIPPED_MODULES: ContextVar[Optional[dict[str, str]]] = ContextVar("_SKIPPED_MODULES", default=None)
+
+
+@contextmanager
+def _collect_skipped_modules() -> Iterator[dict[str, str]]:
+    """Record every submodule a scan inside the block skips because importing it raised, or never reaches.
+
+    The ``audit: skipped`` warning is no reliable signal for a caller that must report the gap: the audited package
+    runs inside the scan and can silence it with its own filters (``warnings.filterwarnings("ignore")`` in its
+    ``__init__``), as can ``PYTHONWARNINGS=ignore``. This record bypasses :mod:`warnings` entirely, so the CLI can
+    always print it. The warning itself is still emitted for library callers.
+
+    A recursive walk that stops early (an unreadable package directory) is recorded under ``<package>.*``, since the
+    package's own wrappers were audited but the submodules after the stop were not.
+
+    Yields:
+        Mapping of skipped module name (or ``<package>.*`` for a stopped walk) to the reason, filled while the block
+        runs: the ``repr`` of the import error, or ``submodule walk stopped early: <repr>``. The first reason
+        recorded for a name is kept.
+
+    """
+    collected: dict[str, str] = {}
+    token = _SKIPPED_MODULES.set(collected)
+    try:
+        yield collected
+    finally:
+        _SKIPPED_MODULES.reset(token)
+
+
 def _walk_submodules(package: Any, exclude: Sequence[str]) -> Iterator[Any]:  # noqa: ANN401
     """Import and yield every submodule of *package* depth-first, never entering an excluded subtree.
 
@@ -558,7 +590,8 @@ def _walk_submodules(package: Any, exclude: Sequence[str]) -> Iterator[Any]:  # 
     neither imports an excluded package nor descends into it (the package's own imports may still load it). Submodule
     top-level code can raise anything at import time (``RuntimeError``, ``OSError``, ``KeyError`` from env lookups,
     ...), not just ``ImportError``. One broken submodule must not abort the whole scan — and with it every audit gate
-    built on top — so the failure is kept as a warning and the walk continues with the remaining submodules.
+    built on top — so the failure is kept as a warning (and recorded for an active :func:`_collect_skipped_modules`
+    block) and the walk continues with the remaining submodules.
 
     """
     for _finder, modname, ispkg in pkgutil.iter_modules(package.__path__, package.__name__ + "."):
@@ -567,6 +600,9 @@ def _walk_submodules(package: Any, exclude: Sequence[str]) -> Iterator[Any]:  # 
         try:
             submod = importlib.import_module(modname)
         except Exception as exc:
+            collected = _SKIPPED_MODULES.get()
+            if collected is not None:
+                collected.setdefault(modname, repr(exc))
             warnings.warn(f"audit: skipped {modname}: {exc!r}", stacklevel=3)
             continue
         yield submod
@@ -694,6 +730,11 @@ def find_deprecation_wrappers(
         except (OSError, ImportError) as exc:
             # ``_walk_submodules`` already warns per broken submodule import; this catches the walk itself failing
             # (unreadable package dir, a member scan triggering an import) — keep what was found, say why it stopped.
+            # The submodules after the stop were never audited, so record that too — the package's own wrappers were
+            # scanned, hence the ``<package>.*`` key instead of the package name, which would read as unaudited.
+            collected = _SKIPPED_MODULES.get()
+            if collected is not None:
+                collected.setdefault(f"{module.__name__}.*", f"submodule walk stopped early: {exc!r}")
             warnings.warn(f"audit: submodule walk of {module.__name__} stopped early: {exc!r}", stacklevel=2)
 
     # Belt for the paths the walk does not cover — a ``deprecated_module`` entry, a per-file directory scan,

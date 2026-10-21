@@ -1,9 +1,11 @@
 """Unit tests for :func:`deprecate._cli.cli`: the Fire-based entry point and its argv dispatch."""
 
 import inspect
+import json
 import sys
 import types
 from collections.abc import Callable
+from pathlib import Path
 from typing import Optional
 from unittest.mock import MagicMock, patch
 
@@ -13,7 +15,7 @@ from deprecate._cli import cli
 from deprecate._cli.argv import _internal_option
 from deprecate._cli.commands import cmd_all, cmd_chains, cmd_check, cmd_expiry, cmd_policy, cmd_status
 from deprecate._cli.config import _FROM_PYPROJECT
-from tests.unittests.cli._helpers import _POLICY_VIOLATION
+from tests.unittests.cli._helpers import _EXPIRED_MSG, _POLICY_VIOLATION
 
 # ---------------------------------------------------------------------------
 # cli() entry point and backward compat
@@ -78,6 +80,47 @@ class TestCliEntryPoint:
         mock_all.assert_called_once()
         assert exc_info.value.code == 0
 
+    @pytest.mark.parametrize(
+        ("expired", "expected_code"),
+        [
+            pytest.param([], 0, id="gates-pass"),
+            pytest.param([_EXPIRED_MSG], 1, id="gate-fails"),
+        ],
+    )
+    @patch("deprecate._cli.commands.generate_deprecation_table", side_effect=RuntimeError("table rendering failed"))
+    @patch("deprecate._cli.commands._check_expiry_for_callables")
+    @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
+    def test_all_report_json_survives_table_render_failure(
+        self,
+        mock_find: MagicMock,
+        mock_expiry: MagicMock,
+        mock_gen: MagicMock,
+        expired: list[str],
+        expected_code: int,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """``all --report-json`` still writes its report, with a null table, when the table cannot be rendered.
+
+        ``all`` hands its scan to every sub-gate, so the report has no scan to rebuild the table from and a failed
+        render leaves ``table`` null. The failure is printed once, as for a run without ``--report-json``, and the
+        gates' own exit code is untouched; a second render attempt for the report would fail the same way and only
+        add another stderr line.
+        """
+        mock_expiry.return_value = expired
+        report = tmp_path / "report.json"
+        with (
+            patch("sys.argv", ["pydeprecate", "all", "some_module", "--version=1.0", f"--report-json={report}"]),
+            patch("deprecate._cli.report._Reporter._HAS_RICH", False),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            cli()
+        err = capsys.readouterr().err
+        assert exc_info.value.code == expected_code
+        assert json.loads(report.read_text(encoding="utf-8"))["table"] is None
+        assert "Could not render the deprecation table: table rendering failed" in err
+        assert "for the JSON report" not in err
+
     def test_exit_code_propagated(self) -> None:
         """``cli()`` propagates the non-zero exit code from the subcommand."""
         with (
@@ -105,7 +148,7 @@ class TestCliEntryPoint:
         assert exc_info.value.code == 2
         assert "Could not consume arg" in capsys.readouterr().err
 
-    @patch("deprecate._cli.commands.validate_deprecation_expiry", return_value=[])
+    @patch("deprecate._cli.commands.find_deprecation_wrappers", return_value=[])
     def test_misspelled_value_flag_exits_nonzero(self, mock_expiry: MagicMock) -> None:
         """``cli()`` with a misspelled ``--verison`` flag exits non-zero instead of dropping the value.
 

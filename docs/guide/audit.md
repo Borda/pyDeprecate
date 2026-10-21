@@ -127,7 +127,7 @@ Warning: This wrapper configuration has zero impact!
 
 Every scanning function — `find_deprecation_wrappers()`, `validate_deprecation_expiry()`, `validate_deprecation_policy()`, `validate_deprecation_chains()`, `validate_mapping_compatibility()`, `generate_deprecation_table()` — accepts a keyword-only `exclude` list of glob patterns over full dotted module names (`exclude=["my_package.tests", "*._legacy*"]`). The scan itself never imports a matching package nor descends into it (another module in the package may still import it — its wrappers are filtered either way), and no wrapper reported under a matching module is returned — the way to keep test fixtures or a frozen legacy tree out of every audit. The CLI takes the same list from `--exclude` or from `exclude` under `[tool.pydeprecate]` in `pyproject.toml` ([details](cli.md#project-configuration-in-pyprojecttoml)).
 
-Recursive scans import every submodule, so module-level side effects run. A submodule that fails to import — for any exception, not just `ImportError` — is skipped with a `UserWarning` of the form `audit: skipped <module>: <exception>` and the scan continues, so one broken submodule cannot abort the whole CI gate.
+Recursive scans import every submodule, so module-level side effects run. A submodule that fails to import — for any exception, not just `ImportError` — is skipped with a `UserWarning` of the form `audit: skipped <module>: <exception>` and the scan continues, so one broken submodule cannot abort the whole CI gate. The CLI also prints a `pydeprecate gap: module not audited: <module>: <exception>` line on stderr for each skipped submodule, even when your package silences warnings.
 
 ```python
 from deprecate import find_deprecation_wrappers
@@ -513,32 +513,18 @@ Good to know:
 
 ### Enforcing the policy in CI
 
-The policy defaults encode *a* convention, not *the* convention. Write the numbers your project actually releases on into `[tool.pydeprecate.policy]` (above) and run the CLI as its own job — the table is the single source of truth, the job is the gate, and there is no test code to maintain. This is the exact step pyDeprecate runs on itself:
+The policy defaults encode *a* convention, not *the* convention. Write the numbers your project actually releases on into `[tool.pydeprecate.policy]` (above) and run the CLI as its own CI step — the table is the single source of truth, the step is the gate, and there is no test code to maintain. In any CI system, after installing your project and `pyDeprecate[audit,cli]`, run these two commands — the same pair pyDeprecate runs on itself:
 
-```yaml
-# .github/workflows/deprecations.yml
-name: Deprecations
-on: [push, pull_request]
-
-jobs:
-  policy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - run: pip install -e . 'pyDeprecate[audit,cli]'
-
-      - name: Audit deprecations (policy advisory here)
-        run: pydeprecate all src/mypackage
-
-      - name: Enforce the deprecation policy
-        # reads [tool.pydeprecate.policy] from pyproject.toml; exits 1 on a violation
-        run: pydeprecate policy src/mypackage
+```bash
+# audit everything; policy violations are advisory here
+pydeprecate all src/mypackage
+# reads [tool.pydeprecate.policy] from pyproject.toml; exits 1 on a violation
+pydeprecate policy src/mypackage
 ```
 
 `pydeprecate all` prints policy violations as a `[WARNING]` without failing, so the dedicated `policy` step is the one that blocks the merge. A one-off override never needs a config edit — `pydeprecate policy src/mypackage --min-grace=0.3` beats the table for that run only.
+
+On GitHub Actions, use the ready-made step instead: the [GitHub Action](#github-action) below runs the same two gates.
 
 ## Detecting Deprecation Chains
 
@@ -813,6 +799,58 @@ pydeprecate check src/your_package --exit-zero
 | `0`       | No hard errors (or `--exit-zero` was set)                                                                |
 | `1`       | Hard error found: invalid arg mappings, chains, expired wrappers, or policy violations under `policy`    |
 | `2`       | A malformed setting: `--exclude`, or for `policy` a rule value, from a flag or from `[tool.pydeprecate]` |
+
+## GitHub Action
+
+pyDeprecate ships a composite GitHub Action (available from `v0.15.0`) that runs the CLI as a single workflow step. Like the local pre-commit hook, it runs in the job's own Python. The scan imports your package from the checkout, so the package itself needs no install, but every module's runtime dependencies must be importable: set up Python and install them first (the simplest way is installing the project), then add the action:
+
+```yaml
+# .github/workflows/deprecations.yml
+name: Deprecations
+on: [push, pull_request]
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+      - run: pip install -e . # pulls in the runtime dependencies the scanned modules import
+
+      - name: Audit deprecations (policy advisory here)
+        uses: Borda/pyDeprecate@v0.15.0 # pin a release tag or a commit SHA
+        with:
+          path: src/mypackage
+          summary: true # add a deprecation status table to the job summary
+
+      - name: Enforce the deprecation policy
+        uses: Borda/pyDeprecate@v0.15.0
+        with:
+          subcommand: policy
+          path: src/mypackage
+          install: false # already installed by the previous step
+```
+
+| Input        | Default | Meaning                                                                                                                                                                                                                                                                                                                       |
+| ------------ | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `subcommand` | `all`   | One of `check`, `expiry`, `policy`, `chains`, `all`, `status`; any other value fails the step with exit code `2`.                                                                                                                                                                                                             |
+| `path`       | empty   | Package directory or importable module name, relative to the workspace. Empty lets the CLI pick the single package under `src/`, else the single package at the repository root. A value starting with `-` fails the step with exit code `2`; write such a directory as `./-name` and pass CLI options through `args`.        |
+| `args`       | empty   | Extra CLI flags, split with shell-style quoting, e.g. `--exclude='mypackage.tests,*._legacy*' --version 2.0`. Backslashes are escape characters, so quote Windows paths or use `/`.                                                                                                                                           |
+| `exit-zero`  | `false` | Report findings without failing the step (`--exit-zero`); not valid with `status`.                                                                                                                                                                                                                                            |
+| `install`    | `true`  | Install `pyDeprecate[cli,audit]` from the action's own ref into the job's Python.                                                                                                                                                                                                                                             |
+| `summary`    | `false` | Append the markdown deprecation status table of the gate's own scan to the job summary, read from the report the CLI writes with `--report-json`, so it covers exactly what the gate scanned however `path` and `args` name the package. Summary failures only warn and preserve the gate result. No summary on CLI exit `2`. |
+
+The step finishes with the CLI's own exit code (see the table above), with three exceptions of its own: a `path` starting with `-` exits `2`, a failed `pip install` (`install: true`) returns pip's exit code, and a CLI process that cannot be started returns `1`. A failing run adds an error annotation to the pull request's checks. The CLI has no "fail on warning" mode: advisory findings such as identity mappings never fail the step, and `exit-zero: true` turns hard errors into reports while you clear a backlog.
+
+**The `uses:` ref pins the pyDeprecate version.** With the default `install: true` the action installs pyDeprecate from the same commit as the action itself, so `@v0.15.0` audits with 0.15.0. That install replaces whatever pyDeprecate version your job already had, for every later step too, and the action warns when it does. Pin the action to the release your project depends on, or install `pyDeprecate[audit,cli]` yourself and set `install: false`. Set `install: false` as well where `pip` is unavailable, such as a uv-managed virtual environment.
+
+!!! warning "A green run can still have gaps"
+
+    A submodule that fails to import is skipped with a `UserWarning: audit: skipped <module>`, and `expiry` (also inside `all`) skips removal deadlines when it cannot detect your package version. The step still passes in both cases, but the action reads the gaps the CLI records in its `--report-json` report (recorded even when your package silences warnings) and raises a warning annotation for each kind of gap, so check the annotations whenever you change how the job installs your package. Pass `args: --version 2.0` when your version is not detectable from the installed package or `pyproject.toml`.
+
+The action imports your package and runs its import-time code, exactly like the CLI. Do not run it under `pull_request_target` on a checkout of the pull request's head, where untrusted code would run with the base repository's secrets and write token. Workflow commands printed during the scan are ignored, but only while the CLI process runs: output from descendant processes that keep running after the CLI exits is not fenced by `stop-commands`. This is not a sandbox either: import-time code runs with the job's environment and can still write to the files behind `GITHUB_ENV`, `GITHUB_PATH` and `GITHUB_OUTPUT`.
 
 ## Testing Deprecated Code
 

@@ -1,6 +1,7 @@
 """Integration tests for the CLI — real subprocess invocations only."""
 
 import importlib.util
+import json
 import os
 import subprocess
 import sys
@@ -152,6 +153,62 @@ class TestCliSubcommands:
         pkg = _make_pkg(tmp_path)
         result = _run_cli("expiry", str(pkg), "--version", "9.0", cwd=tmp_path)
         assert result.returncode == 1
+
+    @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
+    @pytest.mark.parametrize("implicit_path", [False, True])
+    @pytest.mark.parametrize("dynamic_version", [False, True])
+    def test_expiry_falls_back_to_package_version(
+        self, tmp_path: Path, implicit_path: bool, dynamic_version: bool
+    ) -> None:
+        """Standalone expiry enforces removal deadlines using an uninstalled package's ``__version__``.
+
+        A local checkout may have no project metadata, or a dynamic distribution name that differs from its
+        import name. An explicit package path from another directory and a hook invocation without a path must
+        both detect an overdue wrapper, and the JSON report must agree with the gate rather than record an
+        unresolved version.
+        """
+        pkg = _make_pkg(tmp_path, content='__version__ = "2.0"\n' + _MYPKG_INIT_AGGRESSIVE)
+        if dynamic_version:
+            (tmp_path / "pyproject.toml").write_text(
+                '[project]\nname = "uninstalled-cli-fixture-dist"\ndynamic = ["version"]\n', encoding="utf-8"
+            )
+        report = tmp_path / "report.json"
+        args = () if implicit_path else (str(pkg),)
+        result = _run_cli(
+            "expiry", *args, f"--report-json={report}", cwd=tmp_path if implicit_path else tmp_path.parent
+        )
+
+        assert result.returncode == 1, result.stdout + result.stderr
+        assert "Version: 2.0 (auto-detected)" in result.stdout
+        assert "1 expired wrapper(s) found." in result.stdout
+        assert "version not resolved" not in result.stderr
+        data = json.loads(report.read_text(encoding="utf-8"))
+        assert data["gaps"] == []
+        assert "Current version: 2.0" in data["table"]
+        assert "Past Removal Date" in data["table"]
+
+    @pytest.mark.parametrize(
+        "version_line",
+        [
+            pytest.param("", id="no-version-attr"),
+            pytest.param("__version__ = (1, 2)\n", id="non-string-version-attr"),
+        ],
+    )
+    def test_expiry_unresolved_package_version_remains_advisory(self, tmp_path: Path, version_line: str) -> None:
+        """Standalone expiry reports one advisory gap when no version source yields a version string.
+
+        An uninstalled checkout without metadata cannot supply a removal comparison when it has no ``__version__``,
+        or only a non-string one such as a tuple. Keeping that case advisory (instead of crashing on the tuple) must
+        not hide the fallback when a package does publish a version string.
+        """
+        pkg = _make_pkg(tmp_path, content=version_line + _MYPKG_INIT_AGGRESSIVE)
+        report = tmp_path / "report.json"
+        result = _run_cli("expiry", str(pkg), f"--report-json={report}", cwd=tmp_path)
+
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert result.stderr.count("pydeprecate gap: version not resolved: ") == 1
+        data = json.loads(report.read_text(encoding="utf-8"))
+        assert [gap["kind"] for gap in data["gaps"]] == ["version not resolved"]
 
     @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
     @pytest.mark.parametrize(
@@ -773,3 +830,209 @@ class TestCliAttachedBoolLiterals:
         result = _run_cli("check", str(pkg), "--exit-zero=yes", cwd=tmp_path)
         assert result.returncode == 2
         assert "expects True or False" in result.stderr
+
+
+class TestCliReportJson:
+    """``--report-json PATH`` writes one machine-readable record of the run: the status table and every gap."""
+
+    @pytest.mark.parametrize(
+        ("subcommand", "args", "exit_code"),
+        [
+            pytest.param("check", (), 0, id="check"),
+            pytest.param("expiry", ("--version=1.0",), 0, id="expiry"),
+            pytest.param("policy", (), 0, id="policy"),
+            pytest.param("chains", (), 0, id="chains"),
+            pytest.param("all", ("--version=1.0",), 0, id="all"),
+            pytest.param("status", ("--version=1.0",), 0, id="status"),
+        ],
+    )
+    def test_every_subcommand_writes_table_of_its_own_scan(
+        self, tmp_path: Path, subcommand: str, args: tuple[str, ...], exit_code: int
+    ) -> None:
+        """Each subcommand writes a report whose table lists the wrapper its own scan found.
+
+        A CI wrapper publishing a job summary after a single gate used to re-scan with ``status`` and guess the gate's
+        scope from its argv. The report must come from the very scan that gated, so every subcommand carries it.
+
+        """
+        pkg = _make_pkg(tmp_path)
+        report = tmp_path / "report.json"
+        result = _run_cli(subcommand, str(pkg), *args, f"--report-json={report}", cwd=tmp_path)
+        data = json.loads(report.read_text(encoding="utf-8"))
+        assert result.returncode == exit_code, result.stderr
+        assert data["schema"] == 1
+        assert "old_fn" in data["table"]
+
+    def test_failing_gate_still_writes_report(self, tmp_path: Path) -> None:
+        """A gate that finds a hard error (exit 1) still writes its report, with the table of the failing scan.
+
+        Findings are exactly when a job summary matters most; a report written only on success would hide the table
+        of the failing run.
+
+        """
+        pkg = _make_pkg(tmp_path, content=_MYPKG_INIT_INVALID)
+        report = tmp_path / "report.json"
+        result = _run_cli("check", str(pkg), "--report-json", str(report), cwd=tmp_path)
+        assert result.returncode == 1
+        assert "old_fn" in json.loads(report.read_text(encoding="utf-8"))["table"]
+
+    def test_usage_error_writes_no_report(self, tmp_path: Path) -> None:
+        """A usage error (exit 2) writes no report, so a consumer never publishes a scan that did not run.
+
+        ``--version`` that is not PEP 440 stops the run before scanning; any report would describe nothing.
+
+        """
+        pkg = _make_pkg(tmp_path)
+        report = tmp_path / "report.json"
+        result = _run_cli("expiry", str(pkg), "--version=not-a-version", f"--report-json={report}", cwd=tmp_path)
+        assert result.returncode == 2
+        assert not report.exists()
+
+    def test_records_gaps_with_kind_and_hint(self, tmp_path: Path) -> None:
+        """A plain directory with nested files records a ``nested files not audited`` gap with a hint.
+
+        The human stderr line stays as before; the report adds the same gap as data, so CI tooling no longer has to
+        match stderr text to learn that part of the project was never audited.
+
+        """
+        plain = tmp_path / "plain"
+        (plain / "sub").mkdir(parents=True)
+        (plain / "mod.py").write_text("x = 1\n")
+        (plain / "sub" / "nested.py").write_text("y = 2\n")
+        report = tmp_path / "report.json"
+        result = _run_cli("check", str(plain), f"--report-json={report}", cwd=tmp_path)
+        gaps = json.loads(report.read_text(encoding="utf-8"))["gaps"]
+        assert [gap["kind"] for gap in gaps] == ["nested files not audited"]
+        assert gaps[0]["hint"]
+        assert "pydeprecate gap: nested files not audited: " in result.stderr
+
+    def test_records_unparsable_remove_in_gap(self, tmp_path: Path) -> None:
+        """A wrapper whose ``remove_in`` is not PEP 440 is recorded as a ``remove_in not PEP 440`` gap, exit 0.
+
+        The audit layer skips such a wrapper with a warning only, and a package can silence that warning (here
+        ``PYTHONWARNINGS=ignore`` stands in for its own filters). The gap must still reach stderr and the report, so
+        CI tooling can tell that one removal deadline was never checked.
+
+        """
+        content = _MYPKG_INIT.replace('remove_in="9.0"', 'remove_in="next-release"')
+        pkg = _make_pkg(tmp_path, content=content)
+        report = tmp_path / "report.json"
+        result = _run_cli(
+            "expiry",
+            str(pkg),
+            "--version=1.0",
+            f"--report-json={report}",
+            env=_cli_env(PYTHONWARNINGS="ignore"),
+            cwd=tmp_path,
+        )
+        gaps = json.loads(report.read_text(encoding="utf-8"))["gaps"]
+        assert result.returncode == 0
+        assert [gap["kind"] for gap in gaps] == ["remove_in not PEP 440"]
+        assert "old_fn" in gaps[0]["detail"]
+        assert gaps[0]["hint"]
+        assert "pydeprecate gap: remove_in not PEP 440: " in result.stderr
+
+    def test_records_skipped_submodule_gap(self, tmp_path: Path) -> None:
+        """A submodule that fails to import is recorded as a ``module not audited`` gap naming the module.
+
+        These gaps are printed only after the subcommand returns, so the report must be written after them, or the
+        most common gap of all would be missing from it.
+
+        """
+        pkg = _make_pkg(tmp_path)
+        (pkg / "broken.py").write_text("raise RuntimeError('boom')\n")
+        report = tmp_path / "report.json"
+        _run_cli("check", str(pkg), f"--report-json={report}", cwd=tmp_path)
+        gaps = json.loads(report.read_text(encoding="utf-8"))["gaps"]
+        assert [gap["kind"] for gap in gaps] == ["module not audited"]
+        assert gaps[0]["detail"].startswith("mypkg.broken: ")
+
+    def test_clean_scan_records_no_gap(self, tmp_path: Path) -> None:
+        """A fully audited package records an empty gap list, so consumers can tell "no gaps" from "unknown".
+
+        A maintainer scans a package whose every module imports cleanly and publishes the report as a job summary.
+        The ``gaps`` key must be present and empty rather than absent, otherwise the summary cannot distinguish a
+        complete audit from a report format that never recorded gaps at all.
+
+        """
+        pkg = _make_pkg(tmp_path)
+        report = tmp_path / "report.json"
+        _run_cli("status", str(pkg), "--version=1.0", f"--report-json={report}", cwd=tmp_path)
+        assert json.loads(report.read_text(encoding="utf-8"))["gaps"] == []
+
+    def test_unwritable_report_keeps_exit_code(self, tmp_path: Path) -> None:
+        """A report path that cannot be written prints an advisory and keeps the gate's own exit code.
+
+        The report is a by-product for CI tooling; letting its failure turn a passing gate red (as ``status --output``
+        does for a report the user asked to see) would make the gate result depend on the summary.
+
+        """
+        pkg = _make_pkg(tmp_path)
+        result = _run_cli("check", str(pkg), f"--report-json={tmp_path}", cwd=tmp_path)
+        assert result.returncode == 0
+        assert "Could not write the JSON report" in result.stderr
+
+    def test_underscore_spelling_writes_report(self, tmp_path: Path) -> None:
+        """``--report_json`` writes the report like ``--report-json``, as every other flag takes either spelling.
+
+        A user who types the underscore form out of habit (Fire accepts it for ``--exit_zero`` and the like) used to
+        get a loud usage error and no report; the option is now read in both spellings.
+
+        """
+        pkg = _make_pkg(tmp_path)
+        report = tmp_path / "report.json"
+        result = _run_cli("check", str(pkg), f"--report_json={report}", cwd=tmp_path)
+        assert result.returncode == 0, result.stderr
+        assert "old_fn" in json.loads(report.read_text(encoding="utf-8"))["table"]
+
+    @pytest.mark.parametrize(
+        "following",
+        [
+            pytest.param((), id="nothing-follows"),
+            pytest.param(("--exit-zero",), id="flag-follows"),
+            pytest.param(("--",), id="separator-follows"),
+        ],
+    )
+    def test_missing_value_exits_two(self, tmp_path: Path, following: tuple[str, ...]) -> None:
+        """A ``--report-json`` without a path is a usage error, not a silently skipped report.
+
+        The path is missing when the option ends the command line, and also when the next argument is another option
+        or the ``--`` separator: taking it as the path would swallow ``--exit-zero`` (turning an advisory run into a
+        failing gate) and write the report to a file named like a flag.
+
+        """
+        pkg = _make_pkg(tmp_path)
+        result = _run_cli("check", str(pkg), "--report-json", *following, cwd=tmp_path)
+        assert result.returncode == 2
+        assert "Option `--report-json` needs a file path." in result.stderr
+
+    def test_dash_leading_path_needs_equals_form(self, tmp_path: Path) -> None:
+        """``--report-json=-name`` still names a report file that starts with a dash.
+
+        A bare ``--report-json`` never takes a dash-leading next argument as its value, so a path like ``-report.json``
+        is written with ``=``; the report lands in that file under the working directory.
+
+        """
+        pkg = _make_pkg(tmp_path)
+        result = _run_cli("check", str(pkg), "--report-json=-report.json", cwd=tmp_path)
+        assert result.returncode == 0, result.stderr
+        assert "old_fn" in json.loads((tmp_path / "-report.json").read_text(encoding="utf-8"))["table"]
+
+    def test_nested_run_writes_no_report(self, tmp_path: Path) -> None:
+        """A CLI run started from inside the audited package's import never writes the outer run's report.
+
+        The package's ``__init__`` calls the CLI entry point, which sees the outer ``sys.argv`` — including its
+        ``--report-json`` path — and exits the process before the outer scan finishes. A report from that nested run
+        would pass for the outer scan's, so only the outermost run may write one.
+
+        """
+        pkg = tmp_path / "reentrantpkg"
+        pkg.mkdir()
+        marker = tmp_path / "import-started.marker"
+        (pkg / "__init__.py").write_text(
+            f"from pathlib import Path\nfrom deprecate._cli import cli\nPath({str(marker)!r}).write_text('x')\ncli()\n"
+        )
+        report = tmp_path / "report.json"
+        _run_cli("check", str(pkg), f"--report-json={report}", cwd=tmp_path)
+        assert marker.exists(), "the package import never reached the nested cli() call"
+        assert not report.exists()
