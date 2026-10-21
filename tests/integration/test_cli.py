@@ -187,13 +187,21 @@ class TestCliSubcommands:
         assert "Current version: 2.0" in data["table"]
         assert "Past Removal Date" in data["table"]
 
-    def test_expiry_unresolved_package_version_remains_advisory(self, tmp_path: Path) -> None:
-        """Standalone expiry reports one advisory gap when every version source is absent.
+    @pytest.mark.parametrize(
+        "version_line",
+        [
+            pytest.param("", id="no-version-attr"),
+            pytest.param("__version__ = (1, 2)\n", id="non-string-version-attr"),
+        ],
+    )
+    def test_expiry_unresolved_package_version_remains_advisory(self, tmp_path: Path, version_line: str) -> None:
+        """Standalone expiry reports one advisory gap when no version source yields a version string.
 
-        An uninstalled checkout without metadata or ``__version__`` cannot supply a removal comparison. Keeping
-        that case advisory must not hide the fallback when a package does publish its version.
+        An uninstalled checkout without metadata cannot supply a removal comparison when it has no ``__version__``,
+        or only a non-string one such as a tuple. Keeping that case advisory (instead of crashing on the tuple) must
+        not hide the fallback when a package does publish a version string.
         """
-        pkg = _make_pkg(tmp_path, content=_MYPKG_INIT_AGGRESSIVE)
+        pkg = _make_pkg(tmp_path, content=version_line + _MYPKG_INIT_AGGRESSIVE)
         report = tmp_path / "report.json"
         result = _run_cli("expiry", str(pkg), f"--report-json={report}", cwd=tmp_path)
 

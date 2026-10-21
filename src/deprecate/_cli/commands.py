@@ -302,7 +302,9 @@ def cmd_expiry(
             if version is None:
                 # Uninstalled checkouts can expose only __version__; keep their import root in scope.
                 with suppress(ImportError):
-                    version = _get_package_version(module_name.split(".")[0])
+                    fallback = _get_package_version(module_name.split(".")[0])
+                    # A non-string __version__ (e.g. a tuple) is no version; keep it unresolved so a gap is reported.
+                    version = fallback if isinstance(fallback, str) else None
             _print_scan_header(path, version, user_provided=version_explicit, exclude=resolved_exclude)
             _wrappers = find_deprecation_wrappers(module_name, recursive=recursive, exclude=resolved_exclude[0])
         _record_scan(_ScanRecord(path, _wrappers, version))
