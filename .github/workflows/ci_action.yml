@@ -46,25 +46,28 @@ jobs:
           path: src/deprecate
           install: false
 
-      # Expected failure. This step only proves the action fails on misconfigured wrappers; it does not
-      # inspect why. The cause (exit code 1 plus the ::error annotation naming the misconfigured argument) is
-      # pinned by the pytest test test_misconfigured_package_fails_with_annotation in
-      # tests/integration/test_action.py, and by the exit-zero step below, which reruns the same inputs and must pass.
-      - name: ❌ Misconfigured wrappers fail the step
-        id: misconfigured
-        continue-on-error: true
-        uses: ./
-        with:
-          subcommand: check
-          path: tests.collection_misconfigured
-          install: false
-
-      - name: 🔍 Expect the previous step to have failed
-        if: steps.misconfigured.outcome != 'failure'
+      # Expected failure, asserted inside the step so the step itself passes: a `uses:` step cannot invert its own
+      # outcome, and `continue-on-error` still marks it failed. This runs `action_runner.py` (the file `action.yml`
+      # executes) with the same inputs and requires exit code 1 plus an ::error annotation. The captured output is
+      # printed only on a mismatch, so the expected ::error line does not surface as an annotation on a green run.
+      # The exit-zero step below reruns the same inputs through `uses: ./`; the cause is pinned by
+      # test_misconfigured_package_fails_with_annotation in tests/integration/test_action.py.
+      - name: ✅ Misconfigured wrappers fail the gate (exit 1 expected)
         shell: bash
+        env:
+          PYDEPRECATE_ACTION_SUBCOMMAND: check
+          PYDEPRECATE_ACTION_PATH: tests.collection_misconfigured
+          PYDEPRECATE_ACTION_INSTALL: "false"
         run: |
-          echo "expected the misconfigured scan to fail, got: ${{ steps.misconfigured.outcome }}"
-          exit 1
+          log="$(mktemp)"
+          code=0
+          python .github/scripts/action_runner.py >"$log" 2>&1 || code=$?
+          if [ "$code" -ne 1 ] || ! grep -q '^::error ' "$log"; then
+            cat "$log"
+            echo "::error::expected exit code 1 and an ::error annotation from the misconfigured scan, got exit code $code"
+            exit 1
+          fi
+          echo "misconfigured scan failed as expected (exit code 1, ::error annotation raised)"
 
       - name: ✅ exit-zero reports the same findings without failing
         uses: ./

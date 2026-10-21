@@ -513,34 +513,18 @@ Good to know:
 
 ### Enforcing the policy in CI
 
-The policy defaults encode *a* convention, not *the* convention. Write the numbers your project actually releases on into `[tool.pydeprecate.policy]` (above) and run the CLI as its own job — the table is the single source of truth, the job is the gate, and there is no test code to maintain. This is the exact step pyDeprecate runs on itself:
+The policy defaults encode *a* convention, not *the* convention. Write the numbers your project actually releases on into `[tool.pydeprecate.policy]` (above) and run the CLI as its own CI step — the table is the single source of truth, the step is the gate, and there is no test code to maintain. In any CI system, after installing your project and `pyDeprecate[audit,cli]`, run these two commands — the same pair pyDeprecate runs on itself:
 
-```yaml
-# .github/workflows/deprecations.yml
-name: Deprecations
-on: [push, pull_request]
-
-jobs:
-  policy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.11"
-      - run: pip install -e . 'pyDeprecate[audit,cli]'
-
-      - name: Audit deprecations (policy advisory here)
-        run: pydeprecate all src/mypackage
-
-      - name: Enforce the deprecation policy
-        # reads [tool.pydeprecate.policy] from pyproject.toml; exits 1 on a violation
-        run: pydeprecate policy src/mypackage
+```bash
+# audit everything; policy violations are advisory here
+pydeprecate all src/mypackage
+# reads [tool.pydeprecate.policy] from pyproject.toml; exits 1 on a violation
+pydeprecate policy src/mypackage
 ```
 
 `pydeprecate all` prints policy violations as a `[WARNING]` without failing, so the dedicated `policy` step is the one that blocks the merge. A one-off override never needs a config edit — `pydeprecate policy src/mypackage --min-grace=0.3` beats the table for that run only.
 
-The same two gates are available as a ready-made step: see [GitHub Action](#github-action) below.
+On GitHub Actions, use the ready-made step instead: the [GitHub Action](#github-action) below runs the same two gates.
 
 ## Detecting Deprecation Chains
 
