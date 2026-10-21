@@ -1764,7 +1764,7 @@ pydeprecate path/to/your/package          # equivalent shorthand
 # expiry — wrappers past their remove_in deadline
 # requires: pip install 'pyDeprecate[audit]'
 pydeprecate expiry path/to/your/package --version 2.0.0
-pydeprecate expiry path/to/your/package   # auto-detects version from the package
+pydeprecate expiry path/to/your/package   # project/installed metadata, then package __version__
 
 # policy — deprecations scheduled against your governance rules
 # requires: pip install 'pyDeprecate[audit]'

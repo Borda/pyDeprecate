@@ -155,6 +155,54 @@ class TestCliSubcommands:
         assert result.returncode == 1
 
     @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
+    @pytest.mark.parametrize("implicit_path", [False, True])
+    @pytest.mark.parametrize("dynamic_version", [False, True])
+    def test_expiry_falls_back_to_package_version(
+        self, tmp_path: Path, implicit_path: bool, dynamic_version: bool
+    ) -> None:
+        """Standalone expiry enforces removal deadlines using an uninstalled package's ``__version__``.
+
+        A local checkout may have no project metadata, or a dynamic distribution name that differs from its
+        import name. An explicit package path from another directory and a hook invocation without a path must
+        both detect an overdue wrapper, and the JSON report must agree with the gate rather than record an
+        unresolved version.
+        """
+        pkg = _make_pkg(tmp_path, content='__version__ = "2.0"\n' + _MYPKG_INIT_AGGRESSIVE)
+        if dynamic_version:
+            (tmp_path / "pyproject.toml").write_text(
+                '[project]\nname = "uninstalled-cli-fixture-dist"\ndynamic = ["version"]\n', encoding="utf-8"
+            )
+        report = tmp_path / "report.json"
+        args = () if implicit_path else (str(pkg),)
+        result = _run_cli(
+            "expiry", *args, f"--report-json={report}", cwd=tmp_path if implicit_path else tmp_path.parent
+        )
+
+        assert result.returncode == 1, result.stdout + result.stderr
+        assert "Version: 2.0 (auto-detected)" in result.stdout
+        assert "1 expired wrapper(s) found." in result.stdout
+        assert "version not resolved" not in result.stderr
+        data = json.loads(report.read_text(encoding="utf-8"))
+        assert data["gaps"] == []
+        assert "Current version: 2.0" in data["table"]
+        assert "Past Removal Date" in data["table"]
+
+    def test_expiry_unresolved_package_version_remains_advisory(self, tmp_path: Path) -> None:
+        """Standalone expiry reports one advisory gap when every version source is absent.
+
+        An uninstalled checkout without metadata or ``__version__`` cannot supply a removal comparison. Keeping
+        that case advisory must not hide the fallback when a package does publish its version.
+        """
+        pkg = _make_pkg(tmp_path, content=_MYPKG_INIT_AGGRESSIVE)
+        report = tmp_path / "report.json"
+        result = _run_cli("expiry", str(pkg), f"--report-json={report}", cwd=tmp_path)
+
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert result.stderr.count("pydeprecate gap: version not resolved: ") == 1
+        data = json.loads(report.read_text(encoding="utf-8"))
+        assert [gap["kind"] for gap in data["gaps"]] == ["version not resolved"]
+
+    @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
     @pytest.mark.parametrize(
         ("version_arg", "returncode", "expected_text"),
         [

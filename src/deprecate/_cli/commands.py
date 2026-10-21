@@ -1,5 +1,6 @@
 """Subcommand implementations for the CLI: ``check``, ``expiry``, ``policy``, ``chains``, ``all`` and ``status``."""
 
+from contextlib import suppress
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
@@ -33,7 +34,7 @@ from deprecate.audit import (
     find_deprecation_wrappers,
     generate_deprecation_table,
 )
-from deprecate.audit._lifecycle import _check_expiry_for_callables
+from deprecate.audit._lifecycle import _check_expiry_for_callables, _get_package_version
 from deprecate.audit._policy import _build_policy_spec, _check_policy_for_callables
 
 if TYPE_CHECKING:
@@ -218,8 +219,8 @@ def cmd_expiry(
 
     Args:
         path: Path to the module, package directory, or importable module name to scan.
-        version: Current package version for comparison (e.g. ``"2.0.0"``). Auto-detected
-            from installed package metadata if not provided.
+        version: Current package version for comparison (e.g. ``"2.0.0"``). Auto-detected from local
+            project metadata, installed package metadata, or the top-level package's ``__version__`` if not provided.
         recursive: Scan submodules recursively (default True). Pass ``--norecursive`` to scan top-level only.
         exit_zero: Always exit 0 even if expired wrappers are found.
             Useful for advisory CI steps that should report but never block.
@@ -258,11 +259,14 @@ def cmd_expiry(
         # Standalone path: scan once (a plain directory is rejected by `_resolve_module_name`), then the same
         # derivation as the pre-scanned path, which reports an unresolved version or missing `packaging` once.
         version = version if version is not None else _auto_detect_version(_safe_module_name(path), path=path)
-        _print_scan_header(path, version, user_provided=version_explicit, exclude=resolved_exclude)
         with _managed_sys_path(path):
-            _wrappers = find_deprecation_wrappers(
-                _resolve_module_name(path), recursive=recursive, exclude=resolved_exclude[0]
-            )
+            module_name = _resolve_module_name(path)
+            if version is None:
+                # Uninstalled checkouts can expose only __version__; keep their import root in scope.
+                with suppress(ImportError):
+                    version = _get_package_version(module_name.split(".")[0])
+            _print_scan_header(path, version, user_provided=version_explicit, exclude=resolved_exclude)
+            _wrappers = find_deprecation_wrappers(module_name, recursive=recursive, exclude=resolved_exclude[0])
         _record_scan(_ScanRecord(path, _wrappers, version))
     raw = _do_expiry_prescanned(_wrappers, version)
     if raw is None:  # check could not run — advisory already printed to stderr

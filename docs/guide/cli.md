@@ -60,7 +60,7 @@ pydeprecate status tests --version 1.2
     # explicit version
     pydeprecate expiry path/to/your/package --version 2.0.0
 
-    # auto-detect version (searches up to 2 parent directories for pyproject.toml, else installed metadata)
+    # auto-detect version (pyproject.toml, installed metadata, then package __version__)
     pydeprecate expiry path/to/your/package
     ```
 
@@ -205,6 +205,8 @@ Policy: min-grace=0.3 (pyproject.toml)  message-required=True (built-in)
 - `pydeprecate all` applies the same resolved settings to its single scan and its advisory policy pass. The Python API (`validate_deprecation_policy()`) takes a module (object or importable name), never a filesystem path, and does not read `pyproject.toml` — pass its keyword arguments (including `exclude`) explicitly.
 
 `--version` auto-detect: when the scanned argument is an existing *path*, `_read_pyproject_version` searches the current directory and up to 2 parent directories for a `pyproject.toml` (current dir + 2 levels up); the nearest one found wins, falling back to installed package metadata. A bare module *name* skips the `pyproject.toml` lookup entirely, so it can never pick up an unrelated project's version from your current working directory.
+
+Standalone `expiry` also falls back to the top-level import package's `__version__` when project and installed metadata cannot resolve a version. Only a genuinely unresolved version skips the check with a `version not resolved` gap and exit `0`; pass `--version` to supply it explicitly.
 
 ## Exit codes
 

@@ -17,7 +17,7 @@
 
 ### Fixed
 
-- **Standalone `pydeprecate expiry` without a resolvable version.** It now prints one `version not resolved` gap instead of two, and an auto-detected version that is not PEP 440 skips the check with a gap (exit `0`) instead of crashing with `ValueError`, as `pydeprecate all` already did. ([#245](https://github.com/Borda/pyDeprecate/pull/245))
+- **Standalone `pydeprecate expiry` without a resolvable version.** It retains the top-level package's `__version__` fallback when project and installed metadata cannot resolve a version, so overdue wrappers in uninstalled checkouts still exit `1`. A genuinely unresolved version now prints one `version not resolved` gap instead of two, and an auto-detected version that is not PEP 440 skips the check with a gap (exit `0`) instead of crashing with `ValueError`, as `pydeprecate all` already did. ([#245](https://github.com/Borda/pyDeprecate/pull/245))
 - **Boolean flags before the path.** A boolean flag placed before the path (`pydeprecate check --exit-zero src/mypackage`) no longer swallows the path, and `policy --message-required` / `--nomessage-required` now work before the path too instead of exiting `2`. ([#243](https://github.com/Borda/pyDeprecate/pull/243))
 
 ______________________________________________________________________
