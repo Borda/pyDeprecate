@@ -1,12 +1,13 @@
 """Unit tests for :mod:`deprecate._cli.report`: the rich and plain-text output dispatch."""
 
+import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from deprecate._cli.commands import cmd_check, cmd_expiry
-from deprecate._cli.report import _print, _Reporter
+from deprecate._cli.report import _GapKind, _print, _Reporter, _RunRecord, _ScanRecord, _write_report
 from deprecate._types import DeprecationConfig
 from deprecate.audit import ChainType, DeprecationWrapperInfo
 from tests.unittests.cli._helpers import _EXPIRED_MSG
@@ -192,6 +193,47 @@ def test_report_issues_dispatches() -> None:
     """Test _report_issues dispatches based on _HAS_RICH."""
     results = [DeprecationWrapperInfo(module="mod", function="fn", invalid_args=["bad"])]
     assert _Reporter.issues(results) is True
+
+
+class TestWriteReport:
+    """Tests for the ``--report-json`` file written by ``_write_report``."""
+
+    @pytest.mark.parametrize("kind", [pytest.param(kind, id=kind.name) for kind in _GapKind])
+    def test_every_gap_kind_is_written_with_a_hint(self, tmp_path: Path, kind: _GapKind) -> None:
+        """Each kind of gap is written to the report with its value, its detail and a non-empty hint.
+
+        A CI action quotes the report's hint next to every gap it annotates. A gap kind added to the CLI without a
+        hint would either crash the run after the gate finished or leave an annotation with no advice, so every kind
+        the CLI can record must come out of the file with usable text.
+        """
+        report_file = tmp_path / "report.json"
+        _write_report(str(report_file), _RunRecord(gaps=[(kind, "some detail")], table="| a |"))
+        gaps = json.loads(report_file.read_text(encoding="utf-8"))["gaps"]
+        assert [(gap["kind"], gap["detail"]) for gap in gaps] == [(kind.value, "some detail")]
+        assert gaps[0]["hint"].strip()
+
+    def test_table_that_cannot_be_rendered_is_left_out(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A table that fails to render is reported on stderr and left out, while the gaps are still written.
+
+        A gate subcommand recorded its scan but not a table, so the report renders one at the end. A scanned package
+        whose rendering raises must neither fail the run nor cost the report its gaps.
+        """
+        report_file = tmp_path / "report.json"
+        record = _RunRecord(
+            gaps=[(_GapKind.PACKAGING_MISSING, "no packaging")],
+            scan=_ScanRecord(path="some_module", wrappers=[], version="1.0"),
+        )
+        with (
+            patch("deprecate._cli.report._Reporter._HAS_RICH", False),
+            patch("deprecate._cli.report.generate_deprecation_table", side_effect=RuntimeError("boom")),
+        ):
+            _write_report(str(report_file), record)
+        report = json.loads(report_file.read_text(encoding="utf-8"))
+        assert report["table"] is None
+        assert [gap["kind"] for gap in report["gaps"]] == [_GapKind.PACKAGING_MISSING.value]
+        assert "Could not render the deprecation table for the JSON report: boom" in capsys.readouterr().err
 
 
 # ---------------------------------------------------------------------------
