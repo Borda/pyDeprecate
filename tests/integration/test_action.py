@@ -609,11 +609,11 @@ class TestActionSummary:
     def test_crashed_scan_warns_of_missing_report(self, tmp_path: Path, summary: bool) -> None:
         """A scan that crashes writes no report, so the gate fails and a warning says its gaps went unannotated.
 
-        The ``path`` input points at a Python file, which the CLI refuses with exit 1 before scanning. Gap
+        The ``path`` input names a module that does not exist, so the scan fails to import it with exit 1. Gap
         annotations are the action's guard against a green step that audited less than it shows, so their loss is
         flagged even with ``summary`` off; with it on, the summary is skipped, as no table of this run exists.
         """
-        result = _run_action(tmp_path, subcommand="check", path="tests/collection_chains.py", summary=str(summary))
+        result = _run_action(tmp_path, subcommand="check", path="nonexistent_module_xyz", summary=str(summary))
         assert result.returncode == 1, result.stdout + result.stderr
         assert "::error title=pyDeprecate::pydeprecate check exited 1" in result.stdout
         assert "::warning title=pyDeprecate::the gate wrote no pyDeprecate report, so its gaps are not annotated" in (

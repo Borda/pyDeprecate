@@ -33,7 +33,7 @@ pydeprecate all tests --version 1.2
 pydeprecate status tests --version 1.2
 ```
 
-`tests/` contains pyDeprecate's own deprecation fixtures. Note: `expiry` and `chains` (run as part of `all`) require an importable package name rather than a plain directory path.
+`tests/` contains pyDeprecate's own deprecation fixtures. Every subcommand scans a path the same way — a package directory, a plain directory of top-level modules, or an importable module name (see [Path formats](#path-formats)).
 
 ## Subcommands
 
@@ -142,7 +142,7 @@ A bare `pydeprecate policy src/mypackage` therefore runs a recursive scan, exits
 
 Flags and the path may come in any order: `pydeprecate check --exit-zero src/mypackage` scans `src/mypackage`, which is the order a [pre-commit hook](audit.md#pre-commit-integration) produces from its `args`. Boolean flags accept `true`, `false`, `1` or `0` (case-insensitive) as `--flag value` or `--flag=value`, and the negated form attaches directly: `--norecursive`, not `--no-recursive`. Each run takes one path. For `check`, `policy` and `chains`, a second positional path exits `2` with "Pass one path per run". A short flag such as `-r src/mypackage`, or a boolean value other than `true`/`false`/`1`/`0`, exits `2` with a message that the flag expects True or False (use long flags and an explicit `--flag=True|False`) rather than scanning something you did not name. For `expiry`, `all` and `status`, a second positional argument binds `--version` instead. Private `--_*` options (for example `--_advisory`) are not part of the CLI and exit `2`.
 
-A run can pass without auditing everything. Each such gap is reported as one unwrapped stderr line starting with `pydeprecate gap: <kind>:` — `module not audited` (one line per submodule that failed to import, printed whatever warnings filters the audited package installs, plus one `<package>.*` line when a recursive walk stopped early and left the remaining submodules unaudited), `version not resolved`, `version not PEP 440`, `remove_in not PEP 440` (a wrapper's own `remove_in` is not a valid PEP 440 version, so that one removal deadline was skipped; one line per wrapper, exit code unchanged), `packaging missing` or `nested files not audited` — so they stay visible in a CI log.
+A run can pass without auditing everything. Each such gap is reported as one unwrapped stderr line starting with `pydeprecate gap: <kind>:` — `module not audited` (one line per submodule that failed to import, printed whatever warnings filters the audited package installs, plus one `<package>.*` line when a recursive walk stopped early and left the remaining submodules unaudited), `version not resolved`, `version not PEP 440`, `remove_in not PEP 440` (a wrapper's own `remove_in` is not a valid PEP 440 version, so that one removal deadline was skipped; one line per wrapper, exit code unchanged), `packaging missing`, `nested files not audited` or `other copy audited` (the scanned package's import name was already taken by a copy from another directory — the CLI's own `deprecate`, or an editable install of another checkout — so that copy was audited; run the scan in the checkout's own environment) — so they stay visible in a CI log.
 
 For tooling, `--report-json FILE` records the same run as JSON — every subcommand takes it:
 
@@ -217,9 +217,9 @@ Only a genuinely unresolved version skips the expiry check with a `version not r
 | `policy`   | No violations; or only a skipped `min-grace` rule                        | Policy violations found (and `--exit-zero` not set)                   | Malformed rule value or `--exclude` (flag or `pyproject.toml`)                |
 | `chains`   | No chains                                                                | Deprecated-to-deprecated chains found                                 | Malformed `--exclude`                                                         |
 | `all`      | All checks clean, or only policy violations (table always appended)      | Any hard error above (`packaging` missing → skips expiry, no failure) | Malformed `--version` when `packaging` is available, or malformed `--exclude` |
-| `status`   | Table rendered — status is not a pass/fail gate                          | Path holds two or more top-level packages                             | Malformed `--exclude`                                                         |
+| `status`   | Table rendered — status is not a pass/fail gate                          | —                                                                     | Malformed `--exclude`                                                         |
 
-Every subcommand that scans a directory exits `1` with `contains multiple packages (…)` when that directory holds two or more top-level packages — even with `--exit-zero` — so pass the package sub-directory instead. Every subcommand exits `2` for an internal `--_*` option. `check`, `policy` and `chains` also exit `2` for a boolean flag given a value other than `true`/`false`/`1`/`0` and for a second positional path; on `expiry`, `all` and `status` such a stray token binds `--version` instead.
+Every subcommand exits `2` with `contains multiple packages (…)` when the scanned directory holds two or more top-level packages, and with `File paths are not supported` for a single `.py` file — both are usage errors, so `--exit-zero` never masks them; pass the package sub-directory instead. Every subcommand exits `2` for an internal `--_*` option. `check`, `policy` and `chains` also exit `2` for a boolean flag given a value other than `true`/`false`/`1`/`0` and for a second positional path; on `expiry`, `all` and `status` such a stray token binds `--version` instead.
 
 Policy violations are the one finding `all` reports without acting on: they never move `all` from `0` to `1`. Give `policy` its own CI step when you want the build to fail on them.
 
@@ -243,7 +243,9 @@ All subcommands accept:
 
 - **Package directory** — path to a directory with `__init__.py` (e.g. `src/mypackage`)
 - **Importable module name** — dotted module path (e.g. `mypackage.utils`)
-- **Plain directory** — scans top-level `.py` files only; not supported for `expiry` and `chains` which require an importable module name
+- **Plain directory** — scans top-level `.py` files only (nested files are reported as a `nested files not audited` gap)
+
+A single `.py` file, or a directory holding two or more top-level packages, is a usage error (exit `2`) for every subcommand. While scanning, the imported code sees no pydeprecate arguments in `sys.argv`, and the header line `Imported from:` names the file the package was actually imported from.
 
 ## Python module invocation
 
