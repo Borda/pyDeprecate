@@ -26,6 +26,7 @@ from functools import lru_cache, partial
 from types import TracebackType
 from typing import Any, Callable, Optional, Union
 
+from deprecate._frames import _caller_stacklevel
 from deprecate._types import TargetMode
 
 
@@ -114,7 +115,6 @@ def _apply_args_mapping_collisions(
     args_skip: Any,  # noqa: ANN401 - accepts list or set
     name: str,
     stream: Any,  # noqa: ANN401 - truthy check; callable in deprecation path
-    stacklevel: int,
 ) -> dict[str, Any]:
     """Return snapshot of explicit new-name values for collision pairs and emit UserWarning per collision.
 
@@ -128,7 +128,6 @@ def _apply_args_mapping_collisions(
         args_skip: Names whose mapped value is ``None`` (drop); excluded from collision detection.
         name: Callable name used in the warning message.
         stream: Warning stream; falsy value suppresses all warnings.
-        stacklevel: Passed to ``warnings.warn``; caller is responsible for counting frames above this function.
 
     Returns:
         Dict of ``{new_k: kwargs[new_k]}`` for each detected collision pair (empty when no collisions).
@@ -145,7 +144,7 @@ def _apply_args_mapping_collisions(
             warnings.warn(
                 f"Both `{old_k}` (deprecated) and `{new_k}` were supplied to `{name}()`; `{old_k}` is ignored.",
                 UserWarning,
-                stacklevel=stacklevel,
+                stacklevel=_caller_stacklevel(),
             )
     return explicit_new
 
@@ -303,7 +302,7 @@ class no_warning_call:  # noqa: N801 - kept for backward compatibility with prio
             "`deprecate.utils.no_warning_call` is deprecated in `0.6` and will be removed in `1.0`; "
             "use `deprecate.utils.assert_no_warnings` instead.",
             DeprecationWarning,
-            stacklevel=2,
+            stacklevel=_caller_stacklevel(),
         )
         self._warning_type = warning_type
         self._match = match

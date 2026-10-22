@@ -332,6 +332,7 @@ pyDeprecate/
 │   ├── deprecation.py          # Front door: deprecated() dispatcher (functions/methods -> routine, classes -> proxy)
 │   ├── routine.py              # Function/method decorator: deprecated_callable() (strict) + packing descriptors
 │   ├── _dispatch.py            # Target resolution + call-plan engine (decoration-time guards, call-time forwarding)
+│   ├── _frames.py              # Caller-frame walk: _caller_stacklevel() points every warning at user code
 │   ├── messaging.py            # Warning message templates + emitters (shared with proxy.py)
 │   ├── _properties.py          # property descriptors: _DeprecatedProperty, _StrictProperty
 │   ├── proxy.py                # Instance/class proxy: deprecated_class(), deprecated_instance()

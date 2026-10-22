@@ -209,6 +209,14 @@
         },
         {
           "@type": "Question",
+          "name": "Why does my deprecation warning point inside pyDeprecate or functools.py?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "pyDeprecate measures the location when a warning fires and reports the first frame outside the deprecate package, including stacked @deprecated layers, the @deprecated class front door and legacy target=None/True/False sentinels. A custom stream written in Python that forwards stacklevel to warnings.warn adds its own frame and lands one frame short; use warnings.warn, a functools.partial of it, or logging.warning instead. A @cached_property source warns from the functools frame that runs the getter."
+          }
+        },
+        {
+          "@type": "Question",
           "name": "Can I subclass a class created by deprecated_class?",
           "acceptedAnswer": {
             "@type": "Answer",

@@ -27,12 +27,9 @@ import warnings
 from typing import Any, Callable, Optional
 
 from deprecate._fatal import DeprecatedError, _resolve_as_exception
+from deprecate._frames import _caller_stacklevel
 from deprecate._types import DeprecationConfig, TargetMode, _WrapperState, get_deprecation_config
 from deprecate.messaging import _consume_warn_budget, _emit, _format_deprecation_message, _validate_message_template
-
-#: Stacklevel from inside ``_emit_module_warning`` to the code that touched the module attribute:
-#: ``1=_emit_module_warning``, ``2=__getattribute__`` hook, ``3=caller``.
-_MODULE_STACKLEVEL_TO_CALLER: int = 3
 
 #: Thread-local set of ``(module_name, attr_name)`` pairs currently being resolved through a redirect
 #: ``target``. Guards against cyclic redirects (e.g. ``A`` redirects to ``B`` and ``B`` back to ``A``):
@@ -160,10 +157,10 @@ def _emit_module_warning(
             return
     if stream is not None:
         # ``_emit`` passes ``stacklevel`` only when the stream's signature accepts it and never retries, so a
-        # ``TypeError`` raised inside the stream propagates; ``+ 1`` accounts for the ``_emit`` frame.
-        _emit(stream, warn_msg, stacklevel=_MODULE_STACKLEVEL_TO_CALLER + 1)
+        # ``TypeError`` raised inside the stream propagates.
+        _emit(stream, warn_msg)
     else:
-        warnings.warn(warn_msg, FutureWarning, stacklevel=_MODULE_STACKLEVEL_TO_CALLER)
+        warnings.warn(warn_msg, FutureWarning, stacklevel=_caller_stacklevel())
 
 
 def _resolve_missing_attr(
@@ -381,6 +378,9 @@ def deprecated_module(
             exhausted, exactly like the default :func:`warnings.warn` path.  A custom ``stream`` is called once per
             warning, with ``stacklevel=`` only when its signature declares a ``stacklevel`` parameter or ``**kwargs``;
             a C-level callable without an introspectable signature gets the message alone and loses caller attribution.
+            The ``stacklevel`` passed is counted from the frame that calls ``stream``, so it points at the caller
+            for :func:`warnings.warn`, a C-level :func:`functools.partial` of it, or :func:`logging.warning`; a
+            pure-Python stream that forwards it to ``warnings.warn`` adds its own frame and lands one frame short.
         message_template: Optional custom warning message.  When supplied it *replaces* the built-in
             redirect/version notice entirely — it is not appended to it.  Plain text without any ``%`` renders
             verbatim; a literal ``%`` must be escaped as ``%%``.  The ``%``-style placeholders ``%(source_name)s``
@@ -443,7 +443,7 @@ def deprecated_module(
             " Deprecation notices and expiry audits will omit the `deprecated_in` version."
             " Pass `deprecated_in` for a meaningful deprecation notice.",
             UserWarning,
-            stacklevel=2,
+            stacklevel=_caller_stacklevel(),
         )
 
     mod = sys.modules[module_name]
@@ -488,7 +488,7 @@ def deprecated_module(
                 f"`deprecated_module`: module {module_name!r} is already deprecated with a different"
                 " configuration; second call ignored. The original deprecation config is retained.",
                 UserWarning,
-                stacklevel=2,
+                stacklevel=_caller_stacklevel(),
             )
         return
 
@@ -501,7 +501,7 @@ def deprecated_module(
             f" ({type(mod).__name__!r}) — overwriting with `_DeprecatedModuleWrapper`;"
             " any behaviour from the prior subclass is lost.",
             UserWarning,
-            stacklevel=2,
+            stacklevel=_caller_stacklevel(),
         )
 
     # Read any pre-existing PEP 562 __getattr__ hook so bespoke module-level routing survives.
@@ -529,7 +529,7 @@ def deprecated_module(
         warnings.warn(
             f"`deprecated_module`: pre-existing `__getattr__` found on {module_name!r} — chaining.",
             UserWarning,
-            stacklevel=2,
+            stacklevel=_caller_stacklevel(),
         )
         vars(mod)["__deprecated_existing_getattr__"] = existing_getattr
     mod.__deprecation_config__ = new_config  # type: ignore[attr-defined]

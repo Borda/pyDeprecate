@@ -3099,6 +3099,21 @@ def loc_notify(x: int) -> int:
     return x * 2
 
 
+def make_loc_audit_wrapper(remove_in: str) -> Callable[..., Any]:
+    """Build a warn-only wrapper deprecated in ``1.0`` with the given ``remove_in`` for the audit-gate location rows.
+
+    Built on demand rather than defined at module level, so audit scans of this module never see the deliberately
+    unusable ``remove_in`` values (a typo'd version, an epoch change) and emit their diagnostics elsewhere.
+
+    """
+
+    def loc_audit_source(x: int) -> int:
+        """Warn-only source scanned by the audit-gate location rows."""
+        return x
+
+    return deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in=remove_in)(loc_audit_source)
+
+
 @deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old_x": "x"}, **_DEPRS_CASE_STD_ARGS)
 def loc_args_remap(x: int = 0, old_x: int = 0) -> int:
     """Self-rename source (``old_x`` -> ``x``) — argument ``FutureWarning`` and collision ``UserWarning`` site."""

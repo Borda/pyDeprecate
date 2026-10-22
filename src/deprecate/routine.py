@@ -35,6 +35,7 @@ from deprecate._dispatch import (
     _resolve_stored_target,
     _warn_stacking_misconfiguration,
 )
+from deprecate._frames import _caller_stacklevel
 from deprecate._properties import _DeprecatedProperty
 from deprecate._types import (
     DeprecationConfig,
@@ -89,8 +90,8 @@ def _packing_descriptor(  # noqa: C901 — property-path guards (fget/fset/fdel 
             validation guards only.
         args_mapping: Raw ``args_mapping`` argument; used for ``property`` validation only.
         args_extra: Raw ``args_extra`` argument; used for ``property`` validation only.
-        _stacklevel: Threaded through to recursive *packing_fn* calls so the decoration-site
-            stacklevel stays correct across nesting levels.
+        _stacklevel: Threaded through to recursive *packing_fn* calls; no warn site reads it any more, each one
+            measures its own location.
 
     Returns:
         Wrapped descriptor when *source* is a descriptor, or ``None`` when *source* is a
@@ -251,6 +252,9 @@ def deprecated_callable(  # noqa: C901
             A custom ``stream`` is called once per warning, with ``stacklevel=`` only when its signature declares a
             ``stacklevel`` parameter or ``**kwargs`` (:func:`warnings.warn` and its partials always qualify); a
             C-level callable without an introspectable signature gets the message alone and loses caller attribution.
+            The ``stacklevel`` passed is counted from the frame that calls ``stream``, so it points at the caller
+            for :func:`warnings.warn`, a C-level :func:`functools.partial` of it, or :func:`logging.warning`; a
+            pure-Python stream that forwards it to ``warnings.warn`` adds its own frame and lands one frame short.
         num_warns: Number of times to show warning per function or per deprecated argument:
             - ``1`` (default): Show warning once per function/argument
             - ``-1``: Show warning on every call
@@ -405,7 +409,7 @@ def deprecated_callable(  # noqa: C901
                 " Deprecation notices and generated documentation will omit the `deprecated_in` version."
                 " Pass `deprecated_in` for a meaningful deprecation notice.",
                 UserWarning,
-                stacklevel=_stacklevel,
+                stacklevel=_caller_stacklevel(),
             )
         # Cross-class guard runs before remapping; class targets skip it because
         # constructor forwarding (target=NewCls on __init__) is always valid.
@@ -431,9 +435,7 @@ def deprecated_callable(  # noqa: C901
 
         if _has_deprecation_meta(source):
             _source_is_stacked = True
-            # +1: this warning has one packing frame above it; when routed through the `deprecated`
-            # dispatcher a second frame is added, so the site-pointing stacklevel tracks `_stacklevel`.
-            _warn_stacking_misconfiguration(source, _target, _stacklevel + 1)
+            _warn_stacking_misconfiguration(source, _target)
         else:
             _source_is_stacked = False
 
@@ -442,7 +444,7 @@ def deprecated_callable(  # noqa: C901
         _function_misconfigured = False
         if isinstance(_target, TargetMode) and isinstance(target, TargetMode):
             _function_misconfigured = TargetMode._validate(
-                _target, source.__name__, args_mapping=args_mapping, args_extra=args_extra, stacklevel=_stacklevel + 1
+                _target, source.__name__, args_mapping=args_mapping, args_extra=args_extra
             )
 
         _source_params = list(_get_signature(source).parameters.values())
@@ -465,9 +467,7 @@ def deprecated_callable(  # noqa: C901
             tuple(param.name for param in _source_params) if _source_positional_only else ()
         )
 
-        _target_positional_only, _target_positional_only_order = _detect_positional_only(
-            _target, source, stream, _stacklevel + 1
-        )
+        _target_positional_only, _target_positional_only_order = _detect_positional_only(_target, source, stream)
         # Precompute the target signature facts the call-time kwarg validation needs (accepted-name set
         # and var-arg flags) so no forwarded call re-inspects the target via inspect.getfullargspec.
         (

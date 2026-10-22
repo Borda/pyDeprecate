@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Any, Optional, Union
 if TYPE_CHECKING:
     from packaging.version import Version
 
+from deprecate._frames import _caller_stacklevel
 from deprecate._types import DeprecationConfig, TargetMode
 from deprecate.audit._lifecycle import _parse_version
 from deprecate.audit._scan import find_deprecation_wrappers
@@ -280,7 +281,7 @@ def _parse_policy_version(raw: Optional[str], info: DeprecationWrapperInfo, fiel
         warnings.warn(
             f"{_format_subject(info)} has an unparsable `{field_name}` version `{raw}`; "
             "the policy rules depending on it are skipped until the version string is fixed.",
-            stacklevel=2,
+            stacklevel=_caller_stacklevel(),
         )
         return None
 
@@ -381,7 +382,7 @@ def _grace_window_violation(
             f"{_format_subject(info)} spans a PEP 440 epoch change between `deprecated_in`"
             f" `{config.deprecated_in}` and `remove_in` `{config.remove_in}`; version distance is not"
             " comparable across epochs, so the `min-grace` check is skipped for it.",
-            stacklevel=2,
+            stacklevel=_caller_stacklevel(),
         )
         return None
     return None if _satisfies_grace_window(deprecated_ver, remove_ver, window) else violation

@@ -16,12 +16,9 @@ from typing import Any, Callable, Optional, Union
 from warnings import warn
 
 from deprecate._fatal import DeprecatedError
+from deprecate._frames import _caller_stacklevel
 from deprecate._types import DeprecationConfig, TargetMode, _WrapperState
 from deprecate.utils import _partial_chain, _unwrap_descriptor_target
-
-# caller → wrapped_fn → _raise_warn_callable/_raise_warn_arguments → _raise_warn → warnings.warn; counted from
-# ``_raise_warn``, which adds one more level for the ``_emit`` frame it calls through.
-_DEFAULT_STACKLEVEL_TO_CALLER: int = 4
 
 #: Upper bound on distinct ``stream`` objects whose ``stacklevel`` decision is memoised by
 #: :func:`_stream_accepts_stacklevel`.  Most programs use one or two streams; the bound keeps a long-lived process
@@ -70,8 +67,6 @@ _MESSAGE_TEMPLATE_PROBE_ARGS: dict[str, str] = {
 def _resolve_message_template_alias(
     message_template: Optional[str],
     template_mgs: Optional[str],
-    *,
-    stacklevel: int = 3,
 ) -> Optional[str]:
     """Fold the deprecated ``template_mgs`` keyword into ``message_template``.
 
@@ -83,7 +78,6 @@ def _resolve_message_template_alias(
     Args:
         message_template: The value of the canonical ``message_template`` argument (may be ``None``).
         template_mgs: The value of the deprecated ``template_mgs`` alias (``None`` when not supplied).
-        stacklevel: Stack level forwarded to :func:`warnings.warn` so the notice points at the caller.
 
     Returns:
         The resolved ``message_template`` value.
@@ -102,7 +96,7 @@ def _resolve_message_template_alias(
         "`template_mgs` is deprecated since `v0.12` (renamed to `message_template`);"
         " use `message_template` instead. Will be removed in `v1.0`.",
         FutureWarning,
-        stacklevel=stacklevel,
+        stacklevel=_caller_stacklevel(),
     )
     return template_mgs
 
@@ -142,7 +136,6 @@ def _raise_warn(
     stream: Optional[Callable],
     source: Callable,
     message_template: str,
-    stacklevel: int = _DEFAULT_STACKLEVEL_TO_CALLER,
     as_exception: bool = False,
     **extras: str,
 ) -> None:
@@ -156,8 +149,6 @@ def _raise_warn(
             together with ``as_exception=True``, where the message is raised and never written to a stream.
         source: The deprecated function/method being wrapped.
         message_template: Python format string with placeholders for message variables.
-        stacklevel: Passed to ``warnings.warn`` so the warning points to the user's call site.  Default 4 accounts for
-            the ``_raise_warn → _raise_warn_callable/_raise_warn_arguments → wrapped_fn → caller`` chain.
         as_exception: When ``True``, raise :class:`~deprecate._fatal.DeprecatedError` carrying the rendered
             message instead of writing it to ``stream`` — the fatal-deprecation path (``as_exception=True`` or
             ``deprecate.AS_EXCEPTIONS``).  The text is identical either way, so an author maintains one message.
@@ -192,8 +183,7 @@ def _raise_warn(
     # ``stream`` is Optional only to let the fatal path above accept a silenced wrapper; every caller gates on
     # a truthy stream once ``as_exception`` is False.
     assert stream is not None  # noqa: S101
-    # ``+ 1`` for the ``_emit`` frame between this function and the stream.
-    _emit(stream, msg, stacklevel=stacklevel + 1)
+    _emit(stream, msg)
 
 
 def _inspect_stream_accepts_stacklevel(stream: Callable[..., Any]) -> bool:
@@ -259,30 +249,33 @@ def _stream_accepts_stacklevel(stream: Callable[..., Any]) -> bool:
     return _cached_stream_accepts_stacklevel(stream)
 
 
-def _emit(stream: Callable[..., Any], msg: str, *, stacklevel: int) -> None:
+def _emit(stream: Callable[..., Any], msg: str) -> None:
     """Write ``msg`` to ``stream`` exactly once, passing ``stacklevel`` only when the stream accepts it.
 
     The single delivery point for every custom-stream deprecation message.  Whether ``stacklevel`` is passed is
     decided before the call (:func:`_stream_accepts_stacklevel`), never by retrying after a failure, so the stream
     runs once and any exception it raises — :class:`TypeError` included — propagates unchanged.
 
+    The ``stacklevel`` value is measured here by :func:`~deprecate._frames._caller_stacklevel`, relative to this
+    frame, so it lands on the first frame outside the ``deprecate`` package for :func:`warnings.warn` or a C-level
+    :func:`functools.partial` of it.  A pure-Python stream that forwards ``stacklevel`` to ``warnings.warn`` adds
+    its own frame and lands one frame short.
+
     Args:
         stream: The ``stream=`` callable configured on a deprecation wrapper.
         msg: The fully rendered deprecation message.
-        stacklevel: Value for ``stacklevel=``, counted as :func:`warnings.warn` counts it from inside this function:
-            ``1`` is this frame, so callers add one for it.
 
     Example:
         >>> import warnings
         >>> with warnings.catch_warnings(record=True) as caught:
         ...     warnings.simplefilter("always")
-        ...     _emit(warnings.warn, "old_func is deprecated", stacklevel=2)
+        ...     _emit(warnings.warn, "old_func is deprecated")
         >>> str(caught[0].message)
         'old_func is deprecated'
 
     """
     if _stream_accepts_stacklevel(stream):
-        stream(msg, stacklevel=stacklevel)
+        stream(msg, stacklevel=_caller_stacklevel())
     else:
         stream(msg)
 
@@ -409,7 +402,6 @@ def _raise_warn_callable(
     deprecated_in: str,
     remove_in: str,
     message_template: Optional[str] = None,
-    stacklevel: int = _DEFAULT_STACKLEVEL_TO_CALLER,
     as_exception: bool = False,
 ) -> None:
     """Issue deprecation warning for callable (function/class) deprecation.
@@ -429,7 +421,6 @@ def _raise_warn_callable(
         remove_in: Version when the source will be removed (e.g., "2.0.0").
         message_template: Custom message template. If None, uses :data:`TEMPLATE_WARNING_CALLABLE` when a target
             callable is provided, otherwise :data:`TEMPLATE_WARNING_NO_TARGET`.
-        stacklevel: Passed through to :func:`_raise_warn`; default 4 points to the user's call site.
         as_exception: Passed through to :func:`_raise_warn` — raise instead of warn; see its docstring.
 
     Template Variables Available:
@@ -471,7 +462,6 @@ def _raise_warn_callable(
         stream=stream,
         source=source,
         message_template=message_template or template_warn,
-        stacklevel=stacklevel,
         as_exception=as_exception,
         deprecated_in=deprecated_in,
         remove_in=remove_in,
@@ -487,7 +477,6 @@ def _raise_warn_arguments(
     deprecated_in: str,
     remove_in: str,
     message_template: Optional[str] = None,
-    stacklevel: int = _DEFAULT_STACKLEVEL_TO_CALLER,
     as_exception: bool = False,
 ) -> None:
     """Issue deprecation warning for deprecated function arguments.
@@ -503,7 +492,6 @@ def _raise_warn_arguments(
         deprecated_in: Version when arguments were marked deprecated (e.g., "1.0.0").
         remove_in: Version when arguments will be removed (e.g., "2.0.0").
         message_template: Custom message template. If None, uses default template.
-        stacklevel: Passed through to :func:`_raise_warn`; default 4 points to the user's call site.
         as_exception: Passed through to :func:`_raise_warn` — raise instead of warn; see its docstring.
 
     Template Variables Available:
@@ -532,7 +520,6 @@ def _raise_warn_arguments(
         stream,
         source,
         message_template or TEMPLATE_WARNING_ARGUMENTS,
-        stacklevel=stacklevel,
         as_exception=as_exception,
         deprecated_in=deprecated_in,
         remove_in=remove_in,

@@ -344,7 +344,7 @@ class TestRaiseWarnStacklevel:
             pass
 
         with pytest.raises(TypeError, match="boom from inside the stream"):
-            _raise_warn(stream, old, "%(source_name)s", stacklevel=3)
+            _raise_warn(stream, old, "%(source_name)s")
         assert len(calls) == 1
 
     def test_varkw_stream_receives_stacklevel_exactly_once(self) -> None:
@@ -361,7 +361,7 @@ class TestRaiseWarnStacklevel:
         def src() -> None:
             pass
 
-        _raise_warn(stream, src, "%(source_name)s", stacklevel=3)
+        _raise_warn(stream, src, "%(source_name)s")
         assert len(calls) == 1
         assert "stacklevel" in calls[0][1]
 
@@ -374,7 +374,7 @@ class TestRaiseWarnStacklevel:
         """
         stream = KeywordTypeErrorStream()
         with pytest.raises(TypeError, match="unexpected keyword in handler"):
-            _raise_warn(stream, base_sum_kwargs, "%(source_name)s", stacklevel=3)
+            _raise_warn(stream, base_sum_kwargs, "%(source_name)s")
         assert len(stream.calls) == 1
 
 
@@ -447,14 +447,15 @@ class TestEmit:
     """``_emit`` writes the message to the stream exactly once and never catches what the stream raises."""
 
     def test_stacklevel_forwarded_when_accepted(self) -> None:
-        """A stream with a ``stacklevel`` parameter receives the message and the given ``stacklevel`` in one call.
+        """A stream with a ``stacklevel`` parameter receives the message and the measured ``stacklevel`` in one call.
 
         A custom sink that forwards ``stacklevel`` to :func:`warnings.warn` needs the exact value so the warning
-        lands on the user's line.
+        lands on the user's line.  Called straight from this test, ``_emit`` measures ``2``: its own frame, then
+        this external test frame.
         """
         stream = RecordingStream()
-        _emit(stream, "old is deprecated", stacklevel=5)
-        assert stream.calls == [("old is deprecated", {"stacklevel": 5})]
+        _emit(stream, "old is deprecated")
+        assert stream.calls == [("old is deprecated", {"stacklevel": 2})]
 
     @pytest.mark.parametrize(
         ("stream_cls", "expected_call"),
@@ -470,7 +471,7 @@ class TestEmit:
         called a single time with the message alone — never first with ``stacklevel=`` and then again.
         """
         stream = stream_cls()
-        _emit(stream, "old is deprecated", stacklevel=5)
+        _emit(stream, "old is deprecated")
         assert stream.calls == [expected_call]
 
     def test_print_writes_message_once(self, capsys: pytest.CaptureFixture[str]) -> None:
@@ -479,7 +480,7 @@ class TestEmit:
         ``print`` rejects ``stacklevel=`` and its signature support differs across Python versions; whichever rule
         classifies it, the outcome must be one printed line.
         """
-        _emit(print, "old is deprecated", stacklevel=5)
+        _emit(print, "old is deprecated")
         assert capsys.readouterr().out == "old is deprecated\n"
 
     def test_logging_warning_logs_once(self, caplog: pytest.LogCaptureFixture) -> None:
@@ -489,7 +490,7 @@ class TestEmit:
         record per warning.
         """
         with caplog.at_level(logging.WARNING):
-            _emit(logging.warning, "old is deprecated", stacklevel=2)
+            _emit(logging.warning, "old is deprecated")
         assert [record.getMessage() for record in caplog.records] == ["old is deprecated"]
 
     def test_mock_stream_called_once(self) -> None:
@@ -498,7 +499,7 @@ class TestEmit:
         Test suites commonly pass a ``Mock`` as ``stream=`` and assert on its calls; it must see one call.
         """
         stream = Mock()
-        _emit(stream, "old is deprecated", stacklevel=5)
+        _emit(stream, "old is deprecated")
         assert stream.call_count == 1
         assert stream.call_args.args == ("old is deprecated",)
 
@@ -510,14 +511,14 @@ class TestEmit:
         ],
     )
     def test_warning_points_at_emit_caller(self, stream: Callable[..., Any]) -> None:
-        """``_emit`` adds exactly one frame: ``stacklevel=2`` attributes the warning to the code that called it.
+        """``_emit`` measures the level itself, so the warning is attributed to the code that called it.
 
-        Every emitter in the package passes ``stacklevel + 1`` to ``_emit``. That bookkeeping is only correct if
-        ``_emit`` itself contributes precisely one frame between the emitter and :func:`warnings.warn`.
+        Every emitter in the package routes custom streams through ``_emit``, which walks past its own frame and
+        any other ``deprecate`` frame; called straight from this test, the warning must land in this file.
         """
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
-            _emit(stream, "old is deprecated", stacklevel=2)
+            _emit(stream, "old is deprecated")
         assert len(caught) == 1
         assert caught[0].filename.endswith("test_messaging.py")
 
@@ -536,7 +537,7 @@ class TestEmit:
         """
         stream = stream_cls()
         with pytest.raises(TypeError):
-            _emit(stream, "old is deprecated", stacklevel=5)
+            _emit(stream, "old is deprecated")
         assert len(stream.calls) == 1
 
     def test_unhashable_stream_receives_stacklevel(self) -> None:
@@ -545,8 +546,8 @@ class TestEmit:
         The memo cache cannot hold such a stream, but the fallback path must deliver the same behaviour.
         """
         stream = UnhashableStream()
-        _emit(stream, "old is deprecated", stacklevel=5)
-        assert stream.calls == [("old is deprecated", {"stacklevel": 5})]
+        _emit(stream, "old is deprecated")
+        assert stream.calls == [("old is deprecated", {"stacklevel": 2})]
 
 
 class TestTemplateBareConversion:

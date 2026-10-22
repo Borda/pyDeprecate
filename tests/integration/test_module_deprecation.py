@@ -478,8 +478,8 @@ class TestStacklevel:
 
         When a user accesses any attribute on a deprecated module the warning location displayed
         by Python must be the user's source line — not a line inside pyDeprecate's implementation.
-        ``stacklevel=3`` inside ``_emit_module_warning`` accounts for the extra helper-function
-        frame between ``__getattribute__`` and ``warnings.warn``.
+        The level is measured when the warning fires, so the helper frame between
+        ``__getattribute__`` and ``warnings.warn`` is skipped like every other pyDeprecate frame.
         """
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")

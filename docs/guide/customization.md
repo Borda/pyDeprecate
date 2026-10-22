@@ -117,7 +117,7 @@ By default, `stream` is `functools.partial(warnings.warn, category=FutureWarning
 
 - Deprecation notices appear as `FutureWarning`, visible by default in scripts and interactive sessions.
 - Standard warning filters apply — suppress with `warnings.filterwarnings("ignore", category=FutureWarning)` when needed.
-- The traceback points to internal pyDeprecate wrapper code. For caller-level tracebacks, use a custom stream that calls `warnings.warn` with an appropriate `stacklevel`.
+- The warning points at your line that calls the deprecated API, not at pyDeprecate's wrapper code: the location is measured when the warning fires, skipping every frame inside the `deprecate` package, so module-scoped warning filters and `-W error` tracebacks name your code. A custom stream receives the same `stacklevel`; one written in Python that forwards it to `warnings.warn` adds its own frame and lands one frame short — see [Troubleshooting](../troubleshooting.md).
 
 ### Silencing deprecation output entirely
 

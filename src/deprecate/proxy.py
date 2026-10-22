@@ -43,6 +43,7 @@ from typing import Any, Callable, Literal, Optional, Protocol, SupportsIndex, Ty
 
 from deprecate._dispatch import _split_positional_only_kwargs
 from deprecate._fatal import DeprecatedError, _resolve_as_exception
+from deprecate._frames import _caller_stacklevel
 from deprecate._types import (
     DeprecationConfig,
     DeprecationProxy,
@@ -64,13 +65,6 @@ from deprecate.messaging import (
     deprecation_warning,
 )
 from deprecate.utils import _apply_args_mapping_collisions, _get_args_mapping_positional_only_keys, _is_dataclass_target
-
-#: Stacklevel from inside ``_warn`` to the caller's frame.
-#: Chain: ``caller → __getattr__/__getitem__/__iter__/__call__ → _warn → _emit → stream → warnings.warn``.
-#: Counted as if ``_warn`` called ``warnings.warn`` directly: ``1=_warn``, ``2=accessor``, ``3=caller``; ``_warn``
-#: adds one for the ``_emit`` frame.  Helpers one level deeper (e.g. ``_proxy_call_args_remap``) pass
-#: ``_extra_frames=1``.
-_DEFAULT_STACKLEVEL_TO_CALLER: int = 3
 
 
 def _is_dunder(name: str) -> bool:
@@ -132,13 +126,13 @@ class _DeprecatedProxy:
         remove_in: Version string when the object will be removed.
         num_warns: Maximum number of warnings to emit. ``1`` (default) warns once; ``-1`` warns on every access.
         stream: Callable used to emit warnings. Defaults to :data:`~deprecate.deprecation.deprecation_warning`
-            (:class:`FutureWarning`).  Pass ``None`` to suppress warnings.  **Note:** the built-in
-            stacklevel budget assumes *stream* is :func:`warnings.warn` itself or a C-level
-            :func:`functools.partial` of it; a Python-defined wrapper interposes an extra frame and
-            the warning will appear to originate inside :mod:`deprecate.proxy` rather than the caller.
+            (:class:`FutureWarning`).  Pass ``None`` to suppress warnings.
             A custom ``stream`` is called once per warning, with ``stacklevel=`` only when its signature declares a
             ``stacklevel`` parameter or ``**kwargs``; a C-level callable without an introspectable signature gets the
             message alone and loses caller attribution.
+            The ``stacklevel`` passed is counted from the frame that calls ``stream``, so it points at the caller
+            for :func:`warnings.warn`, a C-level :func:`functools.partial` of it, or :func:`logging.warning`; a
+            pure-Python stream that forwards it to ``warnings.warn`` adds its own frame and lands one frame short.
         message_template: Optional custom warning message template that overrides the built-in templates.  When ``None``
             (default), the built-in template for the active scenario is used (callable-target, no-target, or
             per-argument).  See :func:`~deprecate.proxy.deprecated_class` for the available ``%``-style placeholders.
@@ -415,7 +409,7 @@ class _DeprecatedProxy:
         # path lets upstream callers fold their own pre-validated misconfig signals into the same flag.
         misconfigured = target is False or _misconfigured_override
         if isinstance(target, bool):
-            target = TargetMode._from_legacy_proxy(target, args_mapping=args_mapping, stacklevel=3)
+            target = TargetMode._from_legacy_proxy(target, args_mapping=args_mapping)
         _dc_check = _DeprecatedProxy._get_static_attr_owner(
             target if target is not None and not isinstance(target, (TargetMode, bool)) else obj
         )
@@ -441,22 +435,14 @@ class _DeprecatedProxy:
         # validator returns True when any signal fired so we extend ``misconfigured`` accordingly —
         # ``DeprecationConfig.misconfigured`` becomes a single source of truth for all signals.
         if isinstance(target, TargetMode):
-            misconfigured |= TargetMode._validate(
-                target, name, args_mapping=args_mapping, args_extra=args_extra, stacklevel=4 + _stacklevel_extra
-            )
+            misconfigured |= TargetMode._validate(target, name, args_mapping=args_mapping, args_extra=args_extra)
         # Proxy-specific validation: attrs_mapping combinations not covered by _validate().
-        # stacklevel=4: caller → decorator(cls) → __init__ → _validate_proxy → warn
-        # deprecated_class() itself is already off the stack when decorator(cls) runs.
-        # ``_stacklevel_extra`` accounts for extra frames inserted when reached via the ``@deprecated``
-        # front door (packing → _packing_class_source → decorator(cls)), keeping the reported warning
-        # location at the user's actual decoration site instead of pointing into library internals.
         misconfigured |= TargetMode._validate_proxy(
             target,
             name,
             attrs_mapping=attrs_mapping,
             args_mapping=args_mapping,
             args_extra=args_extra,
-            stacklevel=4 + _stacklevel_extra,
         )
         # Private mutable runtime state — warn counter, stream, read-only flag, wrapped object, extras to merge
         # after args_mapping at call time, optional custom warning template.
@@ -617,7 +603,7 @@ class _DeprecatedProxy:
             raise TypeError(f"User function 'skip_if' shall return bool, but got: {type(shall_skip)}")
         return shall_skip
 
-    def _warn(self, *, arg_name: Optional[str] = None, _extra_frames: int = 0) -> None:
+    def _warn(self, *, arg_name: Optional[str] = None) -> None:
         """Emit a deprecation warning if the warn budget is not exhausted.
 
         Args:
@@ -626,7 +612,6 @@ class _DeprecatedProxy:
                 ``cfg.num_warns``.  When provided alongside an ``args_mapping`` entry, the emitted message uses the
                 per-argument template (`old -> new`) rather than the generic callable template — matching the
                 decorator's argument-deprecation form.
-            _extra_frames: Additional Python helper frames between the public accessor and ``_warn``.
 
         """
         if self._shall_skip():
@@ -657,9 +642,9 @@ class _DeprecatedProxy:
             return
         # Route the warning to the caller's frame rather than ``proxy.py``.  ``_emit`` decides from the stream's
         # signature whether to pass ``stacklevel``, so the stream is called exactly once and any ``TypeError`` it
-        # raises propagates; the ``+ 1`` accounts for the ``_emit`` frame itself.
+        # raises propagates; the level itself is measured from ``_emit``'s frame.
         assert stream is not None  # noqa: S101 — a falsy stream returned above unless the fatal branch raised
-        _emit(stream, msg, stacklevel=_DEFAULT_STACKLEVEL_TO_CALLER + _extra_frames + 1)
+        _emit(stream, msg)
 
     def _fatal_gate(self) -> None:
         """Raise DeprecatedError before a side-effecting operation runs when this deprecation is fatal.
@@ -726,9 +711,8 @@ class _DeprecatedProxy:
         if not args_mapping or not kwargs:
             return kwargs
         args_to_drop = {k for k, v in args_mapping.items() if v is None}
-        # caller → __call__ → _proxy_call_* → _apply_args_mapping → _apply_args_mapping_collisions → warn = stacklevel 5
         explicit_new = _apply_args_mapping_collisions(
-            args_mapping, kwargs, args_to_drop, self._dep.name, self._cfg.stream, stacklevel=5
+            args_mapping, kwargs, args_to_drop, self._dep.name, self._cfg.stream
         )
         result = {(args_mapping.get(k) or k): v for k, v in kwargs.items() if k not in args_to_drop}
         result.update(explicit_new)
@@ -1435,7 +1419,7 @@ def _proxy_call_args_remap(
     mapping = dep.args_mapping or {}
     for old_key in mapping:
         if old_key in kwargs:
-            proxy._warn(arg_name=old_key, _extra_frames=1)
+            proxy._warn(arg_name=old_key)
     mapped_kwargs = proxy._apply_args_mapping(kwargs)
     mapped_kwargs = proxy._merge_args_extra(mapped_kwargs)
     return _proxy_call_with_positional_split(cfg.obj, dep, args, mapped_kwargs)
@@ -1452,9 +1436,9 @@ def _proxy_call_callable_with_mapping(
     mapping = dep.args_mapping or {}
     for old_key in mapping:
         if old_key in kwargs:
-            proxy._warn(arg_name=old_key, _extra_frames=1)
+            proxy._warn(arg_name=old_key)
     if not any(old_key in kwargs for old_key in mapping):
-        proxy._warn(_extra_frames=1)
+        proxy._warn()
     mapped_kwargs = proxy._apply_args_mapping(kwargs)
     mapped_kwargs = proxy._merge_args_extra(mapped_kwargs)
     return _proxy_call_with_positional_split(target_fn, dep, args, mapped_kwargs)
@@ -1585,7 +1569,7 @@ def _detect_proxy_positional_only(
             "to the constructor — consider removing `/` from the target signature or using "
             "`attrs_mapping` instead.",
             UserWarning,
-            stacklevel=5,  # caller → decorator(cls) → __init__ → _detect_proxy_positional_only → warn
+            stacklevel=_caller_stacklevel(),
         )
     return incompatible
 
@@ -1779,6 +1763,9 @@ def deprecated_class(
             A custom ``stream`` is called once per warning, with ``stacklevel=`` only when its signature declares a
             ``stacklevel`` parameter or ``**kwargs``; a C-level callable without an introspectable signature gets the
             message alone and loses caller attribution.
+            The ``stacklevel`` passed is counted from the frame that calls ``stream``, so it points at the caller
+            for :func:`warnings.warn`, a C-level :func:`functools.partial` of it, or :func:`logging.warning`; a
+            pure-Python stream that forwards it to ``warnings.warn`` adds its own frame and lands one frame short.
         message_template: Optional custom warning message template that overrides the built-in templates.  When ``None``
             (default), the built-in template for the active scenario is used (callable-target, no-target, or
             per-argument for ``args_mapping``).  Available ``%``-style placeholders:
@@ -1960,7 +1947,7 @@ def deprecated_class(
                 " Deprecation notices and generated documentation will omit the `deprecated_in` version."
                 " Pass `deprecated_in` for a meaningful deprecation notice.",
                 UserWarning,
-                stacklevel=2 + _stacklevel_extra,
+                stacklevel=_caller_stacklevel(),
             )
         proxy = _DeprecatedProxy(
             obj=cls,
@@ -2029,6 +2016,9 @@ def deprecated_instance(
             (:class:`FutureWarning`).  Pass ``None`` to suppress warnings.  A custom ``stream`` is called once per
             warning, with ``stacklevel=`` only when its signature declares a ``stacklevel`` parameter or ``**kwargs``;
             a C-level callable without an introspectable signature gets the message alone and loses caller attribution.
+            The ``stacklevel`` passed is counted from the frame that calls ``stream``, so it points at the caller
+            for :func:`warnings.warn`, a C-level :func:`functools.partial` of it, or :func:`logging.warning`; a
+            pure-Python stream that forwards it to ``warnings.warn`` adds its own frame and lands one frame short.
         message_template: Optional custom warning message template that overrides the built-in templates.  When ``None``
             (default), the built-in template for the active scenario is used.  See
             :func:`~deprecate.proxy.deprecated_class` for the available ``%``-style placeholders.
@@ -2090,7 +2080,7 @@ def deprecated_instance(
             " Deprecation notices and generated documentation will omit the `deprecated_in` version."
             " Pass `deprecated_in` for a meaningful deprecation notice.",
             UserWarning,
-            stacklevel=2,
+            stacklevel=_caller_stacklevel(),
         )
     return _proxy_type_for(obj)(
         obj=obj,

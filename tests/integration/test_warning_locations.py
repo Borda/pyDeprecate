@@ -3,9 +3,8 @@
 Warning filters keyed by module, ``-W error`` tracebacks and ``pytest.warns`` location checks all depend on the
 ``filename``/``lineno`` a warning reports.  Each test below triggers one warn site and asserts the exact location: the
 calling line in this file for call-time warnings, the decorating line in :mod:`tests.collection_deprecate` for
-decoration-time warnings.  The expected values describe today's behaviour so an internal refactor of the stacklevel
-machinery is proven against it; sites that point into pyDeprecate today are marked ``xfail(strict=True)`` with the audit
-finding that tracks them, and assert the *correct* location so the fix flips them.
+decoration-time warnings.  The expected values are the correct user locations and every site meets them, so any
+refactor of the location machinery (:func:`deprecate._frames._caller_stacklevel`) is proven against them.
 
 Call-time sites whose trigger is a single expression run through a one-line ``lambda`` defined in the parametrize list:
 the lambda frame is the user frame, so the expected line is the lambda's own first line.  Statement-shaped triggers
@@ -15,17 +14,25 @@ expected line just before the warned statement.
 """
 
 import functools
+import importlib.util
 import inspect
+import pkgutil
 import sys
 import types
 import warnings
+from pathlib import Path
 from typing import Any, Callable
 
 import pytest
 
 import tests.collection_modules.old_math as old_math
 from deprecate import TargetMode
-from deprecate.audit import DeprecationWrapperInfo
+from deprecate.audit import (
+    DeprecationWrapperInfo,
+    find_deprecation_wrappers,
+    validate_deprecation_expiry,
+    validate_deprecation_policy,
+)
 from deprecate.utils import no_warning_call
 from tests import collection_deprecate
 from tests.collection_deprecate import (
@@ -46,6 +53,7 @@ from tests.collection_deprecate import (
     loc_stack_remap_inner,
     loc_stack_remap_over_notify,
     loc_stack_remap_over_remap,
+    make_loc_audit_wrapper,
     make_loc_callable_direct,
     make_loc_class_direct,
     make_loc_class_dispatch_notice,
@@ -67,36 +75,14 @@ from tests.collection_targets import (
     identity_value,
 )
 
-_XFAIL_CORE03_INNER = pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="CORE-03: the inner layer of a supported stacked @deprecated warns from _dispatch.py, not the caller",
+_requires_packaging = pytest.mark.skipif(
+    importlib.util.find_spec("packaging") is None, reason="requires packaging library"
 )
-_XFAIL_CORE03_COLLISION = pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="CORE-03: the inner stacked layer's argument-collision UserWarning points into _dispatch.py",
-)
-_XFAIL_CORE24 = pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="CORE-24: the front-door legacy-sentinel FutureWarning points into deprecation.py, not the decoration site",
-)
-_XFAIL_CORE16_PROXY_SENTINEL = pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="CORE-16: the deprecated_class legacy-sentinel warning (stacklevel=3) warns from proxy.py",
-)
-_XFAIL_CORE16_PROXY_POSITIONAL_ONLY_DIRECT = pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="CORE-16: the proxy POSITIONAL_ONLY warning (stacklevel=5) warns one frame above the decoration site",
-)
-_XFAIL_CORE16_PROXY_POSITIONAL_ONLY_FRONT = pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="CORE-16: the proxy POSITIONAL_ONLY warning ignores _stacklevel_extra and warns from deprecation.py",
-)
+#: Module the audit gates scan; its own top-level name keeps the scanner from treating the
+#: ``tests.collection_deprecate`` wrappers as re-exports of their defining module.
+_LOC_AUDIT_MODULE_NAME = "tests_loc_audit_module"
+#: Body of a submodule whose import fails, arming the scanner's per-submodule "skipped" diagnostic.
+_LOC_BROKEN_SUBMODULE_SRC = 'raise RuntimeError("boom at import")\n'
 #: Module name registered in ``sys.modules`` (per test, via ``monkeypatch``) for the ``deprecated_module`` sites.
 _LOC_MODULE_NAME = "tests_loc_deprecated_module"
 #: Valid custom message template for the ``template_mgs`` alias rows.
@@ -147,7 +133,6 @@ class TestCallTimeExpressionSites:
                 FutureWarning,
                 "was deprecated since v1.0",
                 id="stacked-remap-over-notify-inner",
-                marks=_XFAIL_CORE03_INNER,
             ),
             pytest.param(
                 lambda: loc_stack_notify_over_callable(1),
@@ -160,14 +145,12 @@ class TestCallTimeExpressionSites:
                 FutureWarning,
                 "in favor of",
                 id="stacked-notify-over-callable-inner",
-                marks=_XFAIL_CORE03_INNER,
             ),
             pytest.param(
                 lambda: loc_stack_remap_over_remap(b=1, c=2),
                 UserWarning,
                 "were supplied",
                 id="stacked-args-collision",
-                marks=_XFAIL_CORE03_COLLISION,
             ),
             pytest.param(lambda: loc_proxy_mapping.keys, FutureWarning, "loc_proxy_mapping", id="proxy-getattr"),
             pytest.param(
@@ -337,7 +320,6 @@ class TestDecorationTimeSites:
                 FutureWarning,
                 "target=None is deprecated",
                 id="front-door-legacy-sentinel",
-                marks=_XFAIL_CORE24,
             ),
             pytest.param(make_loc_decoration_misconfig, UserWarning, "ignores `args_mapping`", id="misconfig"),
             pytest.param(
@@ -461,7 +443,6 @@ class TestDecorationTimeConfiguredSites:
                 FutureWarning,
                 "target=True is deprecated",
                 id="legacy-true-front-door",
-                marks=_XFAIL_CORE24,
             ),
             pytest.param(
                 make_loc_front_door,
@@ -470,7 +451,6 @@ class TestDecorationTimeConfiguredSites:
                 UserWarning,
                 "`target=False` is not a valid deprecation mode",
                 id="legacy-false-front-door",
-                marks=_XFAIL_CORE24,
             ),
             pytest.param(
                 make_loc_front_door,
@@ -503,7 +483,6 @@ class TestDecorationTimeConfiguredSites:
                 FutureWarning,
                 "`target=True` without `args_mapping`",
                 id="proxy-legacy-true",
-                marks=_XFAIL_CORE16_PROXY_SENTINEL,
             ),
             pytest.param(
                 make_loc_class_direct,
@@ -512,7 +491,6 @@ class TestDecorationTimeConfiguredSites:
                 FutureWarning,
                 "`target=True` with `args_mapping`",
                 id="proxy-legacy-true-mapping",
-                marks=_XFAIL_CORE16_PROXY_SENTINEL,
             ),
             pytest.param(
                 make_loc_class_direct,
@@ -521,7 +499,6 @@ class TestDecorationTimeConfiguredSites:
                 UserWarning,
                 "`target=False` is not valid for `deprecated_class()`",
                 id="proxy-legacy-false",
-                marks=_XFAIL_CORE16_PROXY_SENTINEL,
             ),
             pytest.param(
                 make_loc_class_direct,
@@ -554,7 +531,6 @@ class TestDecorationTimeConfiguredSites:
                 UserWarning,
                 "POSITIONAL_ONLY constructor",
                 id="proxy-positional-only",
-                marks=_XFAIL_CORE16_PROXY_POSITIONAL_ONLY_DIRECT,
             ),
             pytest.param(
                 make_loc_front_door,
@@ -563,7 +539,6 @@ class TestDecorationTimeConfiguredSites:
                 UserWarning,
                 "POSITIONAL_ONLY constructor",
                 id="proxy-positional-only-front-door",
-                marks=_XFAIL_CORE16_PROXY_POSITIONAL_ONLY_FRONT,
             ),
             pytest.param(
                 make_loc_callable_direct,
@@ -785,3 +760,116 @@ class TestLibraryAliasSites:
             operation()
 
         assert _location(caught, DeprecationWarning, match) == (__file__, operation.__code__.co_firstlineno)
+
+
+def _write_scan_package(root: Path, name: str, broken_parts: tuple[str, ...]) -> None:
+    """Create package *name* under *root* with a ``sub`` subpackage and, when *broken_parts* is set, a broken module."""
+    (root / name / "sub").mkdir(parents=True)
+    (root / name / "__init__.py").write_text("")
+    (root / name / "sub" / "__init__.py").write_text("")
+    if broken_parts:
+        (root / name).joinpath(*broken_parts).write_text(_LOC_BROKEN_SUBMODULE_SRC)
+
+
+def _no_walk(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+    """Stand-in for ``pkgutil.iter_modules`` that fails the way an unreadable package directory does."""
+    raise OSError("no walk")
+
+
+class TestAuditDiagnosticSites:
+    """Audit-gate diagnostics warn at the line that runs the gate, not inside ``deprecate.audit``."""
+
+    @_requires_packaging
+    @pytest.mark.parametrize(
+        ("gate", "remove_in", "match"),
+        [
+            pytest.param(
+                lambda module: validate_deprecation_expiry(module, "2.0", recursive=False),
+                "not.a.version!!",
+                "unparsable `remove_in`",
+                id="expiry-unparsable-remove-in",
+            ),
+            pytest.param(
+                lambda module: validate_deprecation_policy(module, recursive=False),
+                "not.a.version!!",
+                "unparsable `remove_in`",
+                id="policy-unparsable-remove-in",
+            ),
+            pytest.param(
+                lambda module: validate_deprecation_policy(module, recursive=False),
+                "1!1.0",
+                "PEP 440 epoch change",
+                id="policy-epoch-change",
+            ),
+        ],
+    )
+    def test_version_diagnostic_points_at_gate_call(
+        self, monkeypatch: pytest.MonkeyPatch, gate: Callable[[types.ModuleType], Any], remove_in: str, match: str
+    ) -> None:
+        """A wrapper with an unusable version string is reported at the line that runs the CI gate.
+
+        A project runs ``validate_deprecation_expiry`` or ``validate_deprecation_policy`` from its own CI script; a
+        typo'd ``remove_in`` or an epoch change makes the gate skip that wrapper with a ``UserWarning``.  The
+        warning must name the gate call, because the module-scoped filters and ``-W error`` the project uses are
+        keyed on that location, not on whichever audit helper happened to notice the problem.
+
+        """
+        module = types.ModuleType(_LOC_AUDIT_MODULE_NAME)
+        module.__dict__["source"] = make_loc_audit_wrapper(remove_in)
+        monkeypatch.setitem(sys.modules, _LOC_AUDIT_MODULE_NAME, module)
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            gate(module)
+
+        assert _location(caught, UserWarning, match) == (__file__, gate.__code__.co_firstlineno)
+
+    @pytest.mark.parametrize(
+        ("package_name", "broken_parts", "match"),
+        [
+            pytest.param("tests_loc_scan_flat", ("bad.py",), "skipped tests_loc_scan_flat.bad", id="flat"),
+            pytest.param("tests_loc_scan_nested", ("sub", "bad.py"), "skipped tests_loc_scan_nested.sub", id="nested"),
+        ],
+    )
+    def test_skipped_submodule_points_at_scan_call(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        package_name: str,
+        broken_parts: tuple[str, ...],
+        match: str,
+    ) -> None:
+        """A submodule that fails to import is reported at the ``find_deprecation_wrappers`` call.
+
+        A recursive scan of a package whose optional-dependency submodule raises at import time keeps going and
+        warns per skipped submodule.  The scanner walks nested subpackages through a chain of generators, so the
+        nested row checks that the depth of the broken module does not shift the reported location.
+
+        """
+        _write_scan_package(tmp_path, package_name, broken_parts)
+        monkeypatch.syspath_prepend(str(tmp_path))
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            expected_line = _next_line()
+            find_deprecation_wrappers(package_name, recursive=True)
+
+        assert _location(caught, UserWarning, match) == (__file__, expected_line)
+
+    def test_stopped_walk_points_at_scan_call(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A submodule walk that cannot list the package directory is reported at the scan call.
+
+        An unreadable package directory stops the walk early; the scan returns what it found and warns once,
+        and that warning must point at the CI line that asked for the recursive scan.
+
+        """
+        _write_scan_package(tmp_path, "tests_loc_scan_walk", ())
+        monkeypatch.syspath_prepend(str(tmp_path))
+        monkeypatch.setattr(pkgutil, "iter_modules", _no_walk)
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            expected_line = _next_line()
+            find_deprecation_wrappers("tests_loc_scan_walk", recursive=True)
+
+        assert _location(caught, UserWarning, "stopped early") == (__file__, expected_line)

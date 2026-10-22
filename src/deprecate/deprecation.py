@@ -22,6 +22,7 @@ from functools import cached_property
 from typing import Any, Callable, Literal, Optional, Protocol, Union, cast
 
 from deprecate._dispatch import _reject_non_callable_source
+from deprecate._frames import _caller_stacklevel
 from deprecate._types import TargetMode
 from deprecate.messaging import _resolve_message_template_alias, _validate_message_template, deprecation_warning
 from deprecate.routine import _SourceT, deprecated_callable
@@ -80,9 +81,8 @@ def _packing_class_source(
     Args:
         source: The class being decorated with ``@deprecated``.
         target: Raw ``target`` argument from ``@deprecated``.
-        pack_args: Grouped keyword arguments passed through to ``deprecated_class`` plus the
-            stacklevel for ``warnings.warn`` calls; caller passes ``packing``'s
-            ``_stacklevel + 1`` to account for the extra frame.
+        pack_args: Grouped keyword arguments passed through to ``deprecated_class``.  Its ``_stacklevel`` field is
+            no longer read — every warning computes its own location — and is kept until the plumbing is removed.
 
     Returns:
         Result of ``deprecated_class(...)(source)``.
@@ -106,7 +106,7 @@ def _packing_class_source(
                 " Note: non-class `target` values are ignored when deprecating classes;"
                 " use `@deprecated_class(target=...)` instead."
             )
-        warnings.warn(message, UserWarning, stacklevel=pack_args._stacklevel)
+        warnings.warn(message, UserWarning, stacklevel=_caller_stacklevel())
 
     # Resolve legacy ``target`` sentinels (None/True/False) to a ``TargetMode`` so their migration
     # ``FutureWarning`` fires at the user's decoration site; the raw ``target=False`` stays a genuine
@@ -120,7 +120,7 @@ def _packing_class_source(
     elif isinstance(target, TargetMode) or callable(target) and inspect.isclass(target):
         forward_target = target
     elif target is None or isinstance(target, bool):
-        forward_target = TargetMode._from_legacy(target, stacklevel=pack_args._stacklevel + 1)
+        forward_target = TargetMode._from_legacy(target)
         # Legacy ``None`` meant "no target", and invalid ``False`` is treated the same after its warning —
         # forward the unset value so a mapping still auto-resolves; an explicitly typed
         # ``TargetMode.NOTIFY`` is the only value validated against a mapping.
@@ -215,6 +215,9 @@ def deprecated(
         stream: Function to output warnings (default: :func:`~deprecate.deprecation.deprecation_warning`, which is
             :func:`warnings.warn` with ``FutureWarning`` category). Set to ``None`` to disable warnings entirely —
             this also silences the one-time class-dispatch notice described under ``Warns`` below.
+            The ``stacklevel`` passed is counted from the frame that calls ``stream``, so it points at the caller
+            for :func:`warnings.warn`, a C-level :func:`functools.partial` of it, or :func:`logging.warning`; a
+            pure-Python stream that forwards it to ``warnings.warn`` adds its own frame and lands one frame short.
         num_warns: Number of times to show the warning, per callable/attribute name or per proxy access:
             - ``1`` (default): Show warning once
             - ``-1``: Show warning on every call/access

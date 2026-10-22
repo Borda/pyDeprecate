@@ -18,6 +18,7 @@ from inspect import Parameter
 from typing import Any, Callable, Optional, Union, cast
 
 from deprecate._fatal import _resolve_as_exception
+from deprecate._frames import _caller_stacklevel
 from deprecate._types import (
     DeprecationConfig,
     TargetMode,
@@ -26,7 +27,6 @@ from deprecate._types import (
     get_deprecation_config,
 )
 from deprecate.messaging import (
-    _DEFAULT_STACKLEVEL_TO_CALLER,
     _callable_display_name,
     _consume_warn_budget,
     _raise_warn_arguments,
@@ -255,9 +255,7 @@ def _check_cross_class_method_target(source: Callable, target: Callable) -> None
     )
 
 
-def _warn_stacking_misconfiguration(
-    source: Callable, outer_target: Union[TargetMode, Callable], stacklevel: int = 3
-) -> None:
+def _warn_stacking_misconfiguration(source: Callable, outer_target: Union[TargetMode, Callable]) -> None:
     """Emit ``UserWarning`` at decoration time for unsupported stacking combinations.
 
     Only called when ``source`` already carries ``__deprecation_config__`` metadata (i.e. is itself a
@@ -288,7 +286,7 @@ def _warn_stacking_misconfiguration(
             " This will raise `TypeError` at call time."
             f" Will be `TypeError` in `{_MAJOR_BREAK_VERSION}`.",
             UserWarning,
-            stacklevel=stacklevel,
+            stacklevel=_caller_stacklevel(),
         )
     elif callable(outer_target) and inner_target is TargetMode.ARGS_REMAP:
         warnings.warn(
@@ -297,7 +295,7 @@ def _warn_stacking_misconfiguration(
             " Collapse to: @deprecated(target=<callable>, args_mapping={...})."
             f" Will be `TypeError` in `{_MAJOR_BREAK_VERSION}`.",
             UserWarning,
-            stacklevel=stacklevel,
+            stacklevel=_caller_stacklevel(),
         )
     elif callable(outer_target) and inner_target is TargetMode.NOTIFY:
         warnings.warn(
@@ -307,7 +305,7 @@ def _warn_stacking_misconfiguration(
             " Collapse to a single @deprecated(target=<callable>) and remove the inner @deprecated(NOTIFY)."
             f" Will be `TypeError` in `{_MAJOR_BREAK_VERSION}`.",
             UserWarning,
-            stacklevel=stacklevel,
+            stacklevel=_caller_stacklevel(),
         )
     elif outer_target is TargetMode.ARGS_REMAP and callable(inner_target):
         warnings.warn(
@@ -315,7 +313,7 @@ def _warn_stacking_misconfiguration(
             " Update the inner @deprecated(target=<callable>, args_mapping={...}) instead of stacking."
             f" Will be `TypeError` in `{_MAJOR_BREAK_VERSION}`.",
             UserWarning,
-            stacklevel=stacklevel,
+            stacklevel=_caller_stacklevel(),
         )
     elif outer_target is TargetMode.NOTIFY and inner_target is TargetMode.NOTIFY:
         warnings.warn(
@@ -323,7 +321,7 @@ def _warn_stacking_misconfiguration(
             " Update the existing decorator's `deprecated_in`, `remove_in`, or `message_template` instead."
             f" Will be `TypeError` in `{_MAJOR_BREAK_VERSION}`.",
             UserWarning,
-            stacklevel=stacklevel,
+            stacklevel=_caller_stacklevel(),
         )
     elif outer_target is TargetMode.NOTIFY and inner_target is TargetMode.ARGS_REMAP:
         warnings.warn(
@@ -332,7 +330,7 @@ def _warn_stacking_misconfiguration(
             " and @deprecated(NOTIFY, ...) below it."
             f" Will be `TypeError` in `{_MAJOR_BREAK_VERSION}`.",
             UserWarning,
-            stacklevel=stacklevel,
+            stacklevel=_caller_stacklevel(),
         )
     elif (
         (outer_target is TargetMode.ARGS_REMAP and inner_target is TargetMode.ARGS_REMAP)
@@ -345,7 +343,7 @@ def _warn_stacking_misconfiguration(
             f"'{name}' has an unsupported @deprecated stacking combination."
             f" Will be `TypeError` in `{_MAJOR_BREAK_VERSION}`.",
             UserWarning,
-            stacklevel=stacklevel,
+            stacklevel=_caller_stacklevel(),
         )
 
 
@@ -400,9 +398,8 @@ def _normalize_target(
 
     """
     # --- Legacy sentinel conversion (v0.8 compat shim; removed in v1.0) ---
-    # stacklevel=4: warn() → _from_legacy() → _normalize_target() → packing() → @decorator application site
     if target is None or isinstance(target, bool):
-        return TargetMode._from_legacy(target, stacklevel=4)
+        return TargetMode._from_legacy(target)
 
     # --- TargetMode enum pass-through ---
     if isinstance(target, TargetMode):
@@ -803,7 +800,7 @@ def _build_call_plan(  # noqa: C901
             f"'{source.__name__}' has an invalid deprecation configuration;"
             f" verify your `@deprecated(target=...)` arguments. Will be TypeError in {_MAJOR_BREAK_VERSION}.",
             UserWarning,
-            stacklevel=3,  # caller → wrapper_fn → _build_call_plan → warn
+            stacklevel=_caller_stacklevel(),
         )
         state.warned_misconfigured = True
 
@@ -832,11 +829,6 @@ def _build_call_plan(  # noqa: C901
             target_func=None,
         )
 
-    # +1 stacklevel: extraction added one frame (caller → wrapper_fn → _build_call_plan → _raise_warn_*)
-    # over the previous in-wrapper call chain.  Async path has the same frame depth:
-    # caller → coroutine `async_wrapped_fn` body → _build_call_plan → _raise_warn_* — the asyncio runner
-    # frames sit *below* the caller and are skipped by warnings.warn's stacklevel walk.
-    _stacklevel_to_caller = _DEFAULT_STACKLEVEL_TO_CALLER + 1
     # Double-checked fast path: avoid the lock when the warn budget is clearly exhausted.
     # Under CPython the int read is atomic (GIL); after num_warns=1 fires once,
     # warned_calls >= num_warns on every subsequent call — no benefit from acquiring the lock.
@@ -862,7 +854,6 @@ def _build_call_plan(  # noqa: C901
                 deprecated_in=dep_cfg.deprecated_in,
                 remove_in=dep_cfg.remove_in,
                 message_template=dep_cfg.message_template,
-                stacklevel=_stacklevel_to_caller,
                 as_exception=_fatal,
             )
         elif reason_argument:
@@ -873,7 +864,6 @@ def _build_call_plan(  # noqa: C901
                 deprecated_in=dep_cfg.deprecated_in,
                 remove_in=dep_cfg.remove_in,
                 message_template=dep_cfg.message_template,
-                stacklevel=_stacklevel_to_caller,
                 as_exception=_fatal,
             )
 
@@ -881,10 +871,7 @@ def _build_call_plan(  # noqa: C901
         kwargs = _merge_source_defaults(source, normalized_target, kwargs, dep_cfg.args_mapping)
     if dep_cfg.args_mapping and (normalized_target is TargetMode.ARGS_REMAP or callable(normalized_target)):
         args_skip = [arg for arg in dep_cfg.args_mapping if not dep_cfg.args_mapping[arg]]
-        # caller → wrapper_fn → _build_call_plan → _apply_args_mapping_collisions → warn = stacklevel 4
-        _explicit_new = _apply_args_mapping_collisions(
-            dep_cfg.args_mapping, kwargs, args_skip, source.__name__, stream, stacklevel=4
-        )
+        _explicit_new = _apply_args_mapping_collisions(dep_cfg.args_mapping, kwargs, args_skip, source.__name__, stream)
         kwargs = {(dep_cfg.args_mapping.get(arg) or arg): val for arg, val in kwargs.items() if arg not in args_skip}
         if _explicit_new:
             kwargs.update(_explicit_new)
@@ -924,7 +911,6 @@ def _detect_positional_only(
     target: Union[Callable, TargetMode],
     source: Callable,
     stream: Optional[Callable],
-    warn_stacklevel: int,
 ) -> tuple[frozenset[str], tuple[str, ...]]:
     """Inspect *target* for POSITIONAL_ONLY parameters and emit a ``UserWarning`` when found.
 
@@ -936,8 +922,6 @@ def _detect_positional_only(
             :class:`TargetMode` or a callable.  Non-callables return empty results immediately.
         source: The decorated callable; used only in the warning message.
         stream: Warning stream; when ``None`` the warning is suppressed.
-        warn_stacklevel: ``stacklevel`` forwarded to ``warnings.warn``.  Caller passes
-            ``packing``'s ``_stacklevel + 1`` to account for the extra frame.
 
     Returns:
         Tuple of ``(target_positional_only, target_positional_only_order)`` where
@@ -964,7 +948,7 @@ def _detect_positional_only(
             " forwarded as kwargs. Calls will pass these values positionally."
             " Consider removing `/` from the target signature.",
             UserWarning,
-            stacklevel=warn_stacklevel,
+            stacklevel=_caller_stacklevel(),
         )
     return target_positional_only, target_positional_only_order
 
@@ -993,7 +977,7 @@ def _resolve_stored_target(
     """
     if target is None or isinstance(target, bool):
         # Enum-normalised target stored so audit does not re-derive from raw sentinel.
-        return TargetMode._from_legacy(target, stacklevel=None)
+        return TargetMode._from_legacy(target, emit=False)
     if isinstance(target, TargetMode):
         return target
     if isinstance(target, (staticmethod, classmethod)):

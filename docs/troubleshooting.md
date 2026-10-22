@@ -2225,6 +2225,17 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
+## Why does my deprecation warning point inside pyDeprecate or `functools.py`?
+
+**Q:** A deprecation `FutureWarning` (or a pyDeprecate `UserWarning`) reports a file inside the `deprecate` package or `functools.py` instead of my line, so my module-scoped warning filter or `-W error` traceback does not match my code.
+
+**A:** pyDeprecate measures the location when a warning fires and reports the first frame outside the `deprecate` package. That holds for call-time notices, decoration-time configuration warnings and audit diagnostics, including stacked `@deprecated` layers, the `@deprecated` class front door and legacy `target=None/True/False` sentinels. Two cases still report a different frame:
+
+- **A custom `stream` written in Python.** pyDeprecate passes the `stacklevel` counted from the frame that calls the stream. A Python function that forwards it to `warnings.warn` adds its own frame, so the warning lands one frame short, inside pyDeprecate. Use `warnings.warn`, a `functools.partial` of it, or `logging.warning` as the stream, or add `1` to the `stacklevel` your stream receives before forwarding it.
+- **A `@cached_property` source.** The getter runs inside `functools.cached_property.__get__`, which is the first frame outside pyDeprecate, so the warning reports `functools.py`. Filter on the warning category or message instead of the module.
+
+______________________________________________________________________
+
 ## Still stuck?
 
 !!! question "Open a GitHub issue"

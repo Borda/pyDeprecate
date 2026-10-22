@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 if TYPE_CHECKING:
     from packaging.version import Version
 
+from deprecate._frames import _caller_stacklevel
 from deprecate._pkg import _resolve_package_version
 from deprecate.audit._scan import find_deprecation_wrappers
 from deprecate.audit._wrappers import DeprecationWrapperInfo, _format_subject, validate_deprecation_wrapper
@@ -306,7 +307,7 @@ def _check_expiry_for_callables(results: list[DeprecationWrapperInfo], current_v
             warnings.warn(
                 f"{_format_subject(info)} has an unparsable `remove_in` version `{remove_in}`; "
                 "its expiry cannot be checked until the version string is fixed.",
-                stacklevel=2,
+                stacklevel=_caller_stacklevel(),
             )
             continue
         if current_ver >= remove_ver:

@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Any, Optional, Union
 if TYPE_CHECKING:
     pass
 
+from deprecate._frames import _caller_stacklevel
 from deprecate._properties import _DeprecatedProperty
 from deprecate._types import DeprecationConfig, _has_deprecation_meta, get_deprecation_config
 from deprecate.audit._wrappers import (
@@ -603,7 +604,7 @@ def _walk_submodules(package: Any, exclude: Sequence[str]) -> Iterator[Any]:  # 
             collected = _SKIPPED_MODULES.get()
             if collected is not None:
                 collected.setdefault(modname, repr(exc))
-            warnings.warn(f"audit: skipped {modname}: {exc!r}", stacklevel=3)
+            warnings.warn(f"audit: skipped {modname}: {exc!r}", stacklevel=_caller_stacklevel())
             continue
         yield submod
         if ispkg and hasattr(submod, "__path__"):
@@ -735,7 +736,9 @@ def find_deprecation_wrappers(
             collected = _SKIPPED_MODULES.get()
             if collected is not None:
                 collected.setdefault(f"{module.__name__}.*", f"submodule walk stopped early: {exc!r}")
-            warnings.warn(f"audit: submodule walk of {module.__name__} stopped early: {exc!r}", stacklevel=2)
+            warnings.warn(
+                f"audit: submodule walk of {module.__name__} stopped early: {exc!r}", stacklevel=_caller_stacklevel()
+            )
 
     # Belt for the paths the walk does not cover — a ``deprecated_module`` entry, a per-file directory scan,
     # or the top module itself — judged by the module each wrapper is reported under.
