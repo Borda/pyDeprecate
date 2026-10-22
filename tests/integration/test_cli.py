@@ -155,17 +155,20 @@ class TestCliSubcommands:
         assert result.returncode == 1
 
     @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
+    @pytest.mark.parametrize("subcommand", ["expiry", "all"])
     @pytest.mark.parametrize("implicit_path", [False, True])
     @pytest.mark.parametrize("dynamic_version", [False, True])
-    def test_expiry_falls_back_to_package_version(
-        self, tmp_path: Path, implicit_path: bool, dynamic_version: bool
+    def test_expiry_gates_fall_back_to_package_version(
+        self, tmp_path: Path, subcommand: str, implicit_path: bool, dynamic_version: bool
     ) -> None:
-        """Standalone expiry enforces removal deadlines using an uninstalled package's ``__version__``.
+        """Both expiry gates enforce removal deadlines using an uninstalled package's ``__version__``.
 
         A local checkout may have no project metadata, or a dynamic distribution name that differs from its
         import name. An explicit package path from another directory and a hook invocation without a path must
         both detect an overdue wrapper, and the JSON report must agree with the gate rather than record an
-        unresolved version.
+        unresolved version. ``all`` is the Action's default subcommand and the ``pydeprecate-all`` hook runs in an
+        isolated environment where the scanned package is not installed, so it must resolve the version exactly
+        like standalone ``expiry`` — otherwise it reports a gap and exits 0 on code that ``expiry`` fails.
         """
         pkg = _make_pkg(tmp_path, content='__version__ = "2.0"\n' + _MYPKG_INIT_AGGRESSIVE)
         if dynamic_version:
@@ -175,7 +178,7 @@ class TestCliSubcommands:
         report = tmp_path / "report.json"
         args = () if implicit_path else (str(pkg),)
         result = _run_cli(
-            "expiry", *args, f"--report-json={report}", cwd=tmp_path if implicit_path else tmp_path.parent
+            subcommand, *args, f"--report-json={report}", cwd=tmp_path if implicit_path else tmp_path.parent
         )
 
         assert result.returncode == 1, result.stdout + result.stderr
@@ -186,6 +189,21 @@ class TestCliSubcommands:
         assert data["gaps"] == []
         assert "Current version: 2.0" in data["table"]
         assert "Past Removal Date" in data["table"]
+
+    @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
+    def test_status_header_reports_package_version(self, tmp_path: Path) -> None:
+        """``status`` names the same ``__version__``-derived version in its header that its table compares against.
+
+        An uninstalled checkout with only ``__version__`` is rendered by ``status`` with the overdue wrapper marked
+        past its removal date, so the header must show the version that verdict was made against instead of leaving
+        it out as if the version were unknown.
+        """
+        pkg = _make_pkg(tmp_path, content='__version__ = "2.0"\n' + _MYPKG_INIT_AGGRESSIVE)
+        result = _run_cli("status", str(pkg), env=_cli_env(COLUMNS="200"), cwd=tmp_path.parent)
+
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "Version: 2.0 (auto-detected)" in result.stdout
+        assert "Past Removal Date" in result.stdout
 
     @pytest.mark.parametrize(
         "version_line",
@@ -211,31 +229,39 @@ class TestCliSubcommands:
         assert [gap["kind"] for gap in data["gaps"]] == ["version not resolved"]
 
     @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
+    @pytest.mark.parametrize("subcommand", ["expiry", "all"])
     @pytest.mark.parametrize(
-        ("version_arg", "returncode", "expected_text"),
+        "version_arg",
         [
-            pytest.param("0.10", 0, "No expired", id="unquoted-coerced-to-float"),
-            pytest.param('"0.10"', 1, "expired wrapper", id="quoted-preserves-string"),
+            pytest.param(
+                "0.10",
+                id="unquoted",
+                marks=pytest.mark.xfail(
+                    raises=AssertionError,
+                    strict=True,
+                    reason="Fire coerces an unquoted --version 0.10 to the float 0.1; fixed by moving the CLI off Fire",
+                ),
+            ),
+            pytest.param('"0.10"', id="quoted"),
         ],
     )
-    def test_expiry_multi_digit_minor_version_requires_quoting(
-        self, tmp_path: Path, version_arg: str, returncode: int, expected_text: str
+    def test_expiry_gates_keep_multi_digit_minor_version(
+        self, tmp_path: Path, subcommand: str, version_arg: str
     ) -> None:
-        """'pydeprecate expiry <path> --version <arg>' behaves differently for a bare vs. quoted "0.10".
+        """``--version 0.10`` gates against release 0.10, never against 0.1.
 
         skills/prune/SKILL.md warns that CLI argument parsing can coerce "0.10" to 0.1 and that "shell
-        quoting alone does not guarantee preservation" — confirmed here: Fire infers a bare
-        ``--version 0.10`` as the float 0.1 before it ever reaches this package's own ``str(version)``
-        normalization, so a wrapper with ``remove_in="0.2"`` is (wrongly) reported as not yet expired.
-        Passing the value as an embedded string literal (``'"0.10"'``) is the escape the skill alludes
-        to: it reaches ``validate_deprecation_expiry`` with "0.10" intact, and PEP 440 ordering correctly
-        reports the same wrapper as expired against "0.2". Pinning both outcomes in one test documents
-        the coercion bug and the workaround as a single, comparable contract.
+        quoting alone does not guarantee preservation". A wrapper with ``remove_in="0.2"`` is overdue at
+        0.10 but not at 0.1, so a coerced version silently passes the gate and CI goes green on code that
+        should have been deleted. The bare spelling is what users and the Action ``args`` input actually
+        type; the embedded string literal (``'"0.10"'``) is today's workaround that already reaches the
+        check intact. Both spellings must report the wrapper as expired and print the version unchanged.
         """
         pkg = _make_pkg(tmp_path, content=_MYPKG_INIT_MULTI_DIGIT_MINOR)
-        result = _run_cli("expiry", str(pkg), "--version", version_arg, cwd=tmp_path)
-        assert result.returncode == returncode, result.stdout + result.stderr
-        assert expected_text in result.stdout, result.stdout + result.stderr
+        result = _run_cli(subcommand, str(pkg), "--version", version_arg, cwd=tmp_path)
+        assert result.returncode == 1, result.stdout + result.stderr
+        assert "Version: 0.10 (user-provided)" in result.stdout, result.stdout + result.stderr
+        assert "1 expired wrapper(s) found." in result.stdout, result.stdout + result.stderr
 
     def test_chains_subcommand_no_chains(self, tmp_path: Path) -> None:
         """'pydeprecate chains <path>' exits 0 for a package with no deprecation chains."""

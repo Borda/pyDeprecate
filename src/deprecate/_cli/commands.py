@@ -1,6 +1,5 @@
 """Subcommand implementations for the CLI: ``check``, ``expiry``, ``policy``, ``chains``, ``all`` and ``status``."""
 
-from contextlib import suppress
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
@@ -27,7 +26,7 @@ from deprecate._cli.report import (
     _ScanRecord,
 )
 from deprecate._cli.scan import _scan_path
-from deprecate._pkg import _auto_detect_version, _managed_sys_path, _resolve_module_name, _safe_module_name
+from deprecate._pkg import _managed_sys_path, _resolve_module_name, _resolve_package_version, _safe_module_name
 from deprecate.audit import (
     DeprecationWrapperInfo,
     PolicyRule,
@@ -35,7 +34,7 @@ from deprecate.audit import (
     find_deprecation_wrappers,
     generate_deprecation_table,
 )
-from deprecate.audit._lifecycle import _check_expiry_for_callables, _get_package_version, _parse_version
+from deprecate.audit._lifecycle import _check_expiry_for_callables, _parse_version
 from deprecate.audit._policy import _build_policy_spec, _check_policy_for_callables
 from deprecate.audit._wrappers import _format_subject
 
@@ -296,15 +295,9 @@ def cmd_expiry(
             return 2
         # Standalone path: scan once (a plain directory is rejected by `_resolve_module_name`), then the same
         # derivation as the pre-scanned path, which reports an unresolved version or missing `packaging` once.
-        version = version if version is not None else _auto_detect_version(_safe_module_name(path), path=path)
+        version = version if version is not None else _resolve_package_version(_safe_module_name(path), path=path)
         with _managed_sys_path(path):
             module_name = _resolve_module_name(path)
-            if version is None:
-                # Uninstalled checkouts can expose only __version__; keep their import root in scope.
-                with suppress(ImportError):
-                    fallback = _get_package_version(module_name.split(".")[0])
-                    # A non-string __version__ (e.g. a tuple) is no version; keep it unresolved so a gap is reported.
-                    version = fallback if isinstance(fallback, str) else None
             _print_scan_header(path, version, user_provided=version_explicit, exclude=resolved_exclude)
             _wrappers = find_deprecation_wrappers(module_name, recursive=recursive, exclude=resolved_exclude[0])
         _record_scan(_ScanRecord(path, _wrappers, version))
@@ -490,14 +483,14 @@ def cmd_all(
     compact markdown deprecation table to the output. The policy check runs in advisory mode here — its
     violations are printed but never change the aggregate exit code, because its defaults encode a project
     convention; run ``pydeprecate policy`` directly to gate on them.
-    Version is auto-detected from installed package metadata when not provided.
+    Version is auto-detected when not provided, exactly as for standalone ``expiry`` and ``status``.
     A missing ``packaging`` library skips the expiry check with a warning and does not
     count as a hard error.
 
     Args:
         path: Path to the module, package directory, or importable module name to scan.
-        version: Current package version for expiry comparison (e.g. ``"2.0.0"``).
-            Auto-detected from installed package metadata if not provided.
+        version: Current package version for expiry comparison (e.g. ``"2.0.0"``). Auto-detected from local
+            project metadata, installed package metadata, or the top-level package's ``__version__`` if not provided.
         recursive: Scan submodules recursively (default True). Pass ``--norecursive`` to scan top-level only.
         exit_zero: Always exit 0 even if issues are found.
             Useful for advisory CI steps that should report but never block.
@@ -531,9 +524,8 @@ def cmd_all(
     resolved_exclude = _resolve_exclude(path, exclude, config)
     if resolved_exclude is None:
         return 2
-    version_path = path if Path(path).exists() else None
     version_explicit = version is not None
-    resolved_version = version if version_explicit else _auto_detect_version(_safe_module_name(path), path=version_path)
+    resolved_version = version if version_explicit else _resolve_package_version(_safe_module_name(path), path=path)
     _print_scan_header(path, resolved_version, user_provided=version_explicit, exclude=resolved_exclude)
     with _managed_sys_path(path):
         wrappers = _scan_path(path, recursive=recursive, exclude=resolved_exclude[0])
@@ -612,8 +604,8 @@ def cmd_status(
 
     Args:
         path: Path to the module, package directory, or importable module name to scan.
-        version: Current package version for lifecycle status (e.g. ``"2.0.0"``).
-            Auto-detected from installed package metadata if not provided.
+        version: Current package version for lifecycle status (e.g. ``"2.0.0"``). Auto-detected from local
+            project metadata, installed package metadata, or the top-level package's ``__version__`` if not provided.
         recursive: Scan submodules recursively (default True). Pass ``--norecursive`` to scan top-level only.
         style: Table format — ``compact`` (default) or ``matrix``.
         include_members: Include deprecated class members such as methods and constructors (default True).
@@ -651,7 +643,7 @@ def cmd_status(
     # for which ``_wrappers`` is already supplied by ``cmd_all`` — must not raise here. ``_safe_module_name``
     # falls back to the raw path, used only as table metadata for version resolution.
     module_name = _safe_module_name(path)
-    resolved_version = version if version is not None else _auto_detect_version(module_name, path=path)
+    resolved_version = version if version is not None else _resolve_package_version(module_name, path=path)
     if _wrappers is None:
         resolved_exclude = _resolve_exclude(path, exclude)
         if resolved_exclude is None:

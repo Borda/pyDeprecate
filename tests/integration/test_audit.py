@@ -57,6 +57,22 @@ def old_fn(old: int) -> int:
     pass
 """
 
+# Package shipped under a distribution name that differs from its import name and without ``__version__``
+# (written to a tmp site directory next to a matching ``*.dist-info``); its wrapper is overdue at the dist's 3.0.
+_DIST_MAPPED_PKG = "uninstalled_dist_mapped_pkg"
+_DIST_MAPPED_SRC = """\
+from deprecate import deprecated
+
+
+def new_fn(x: int) -> int:
+    return x
+
+
+@deprecated(target=new_fn, deprecated_in="1.0", remove_in="2.0")
+def old_fn(x: int) -> int:
+    pass
+"""
+
 
 class TestValidateDeprecatedWrapper:
     """Tests for validate_deprecation_wrapper()."""
@@ -1049,6 +1065,57 @@ class TestCheckModuleDeprecationExpiry:
             f"but still exists in version {target_release}. Please delete this deprecated code."
         )
         assert (expected in messages) is expired
+
+
+@pytest.fixture
+def dist_mapped_package(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> str:
+    """Install a package whose distribution name differs from its import name into a tmp site directory."""
+    pkg = tmp_path / _DIST_MAPPED_PKG
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text(_DIST_MAPPED_SRC)
+    dist_info = tmp_path / "mapped_fixture_dist-3.0.dist-info"
+    dist_info.mkdir()
+    (dist_info / "METADATA").write_text("Metadata-Version: 2.1\nName: mapped-fixture-dist\nVersion: 3.0\n")
+    (dist_info / "top_level.txt").write_text(f"{_DIST_MAPPED_PKG}\n")
+    (dist_info / "RECORD").write_text(f"{_DIST_MAPPED_PKG}/__init__.py,,\n")
+    monkeypatch.syspath_prepend(str(tmp_path))
+    monkeypatch.delitem(sys.modules, _DIST_MAPPED_PKG, raising=False)
+    return _DIST_MAPPED_PKG
+
+
+@_requires_packaging
+class TestPackageVersionAutoDetection:
+    """The public audit API resolves a package version exactly like the CLI does."""
+
+    def test_package_version_maps_import_name_to_distribution(self, dist_mapped_package: str) -> None:
+        """The import package resolves to the version of the distribution that ships it.
+
+        Pillow/PIL and scikit-learn/sklearn ship under a distribution name that differs from the import name,
+        and many packages publish no ``__version__``. The CLI already maps the import name to its distribution;
+        the Python API must reach the same version instead of raising ``ImportError`` for the same package.
+        """
+        assert _get_package_version(dist_mapped_package) == "3.0"
+
+    def test_expiry_auto_detects_distribution_version(self, dist_mapped_package: str) -> None:
+        """``validate_deprecation_expiry`` without ``current_version`` flags a wrapper overdue at the dist version.
+
+        A test suite that calls the expiry check without pinning a version relies on auto-detection; for a
+        dist-mapped package it must report the overdue wrapper like ``pydeprecate expiry`` does, not fail to run.
+        """
+        expired = validate_deprecation_expiry(dist_mapped_package, recursive=False)
+        assert len(expired) == 1
+        assert "old_fn" in expired[0]
+
+    def test_table_auto_detects_distribution_version(self, dist_mapped_package: str) -> None:
+        """``generate_deprecation_table`` without ``current_version`` compares rows against the dist version.
+
+        A docs build that renders the deprecation table must mark the overdue wrapper as past its removal date;
+        an unresolved version silently degrades every row to an unknown status.
+        """
+        table = generate_deprecation_table(dist_mapped_package)
+        assert "<!-- Current version: 3.0 -->" in table
+        assert "Past Removal Date" in table
+        assert "Status Unknown" not in table
 
 
 class TestBackwardCompatShims:

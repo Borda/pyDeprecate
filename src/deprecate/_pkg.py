@@ -2,8 +2,9 @@
 
 Internal utilities that resolve a package's version, locate package directories, and manage ``sys.path`` for scanning.
 
-Version resolution uses a local ``pyproject.toml`` (development checkout) when available, falling back to installed
-distribution metadata via ``importlib.metadata``.
+Version resolution (:func:`_resolve_package_version`, shared by the CLI and the audit API) uses a local
+``pyproject.toml`` (development checkout) when available, falling back to installed distribution metadata via
+``importlib.metadata`` and finally to the package's ``__version__``.
 
 TOML parsing uses ``tomllib`` (stdlib on Python 3.11+) or ``tomli`` (backport, via ``pip install 'pyDeprecate[audit]'``
 on Python 3.9-3.10). When not available the helpers return ``None`` and callers fall back to ``importlib.metadata``.
@@ -18,7 +19,7 @@ import os
 import sys
 import warnings
 from collections.abc import Generator, Iterator
-from contextlib import contextmanager, suppress
+from contextlib import contextmanager, nullcontext, suppress
 from pathlib import Path
 from typing import Any, Optional
 
@@ -250,48 +251,57 @@ def _read_pydeprecate_config(path: str) -> tuple[dict[str, Any], Optional[str]]:
     return {}, None
 
 
-def _auto_detect_version(module_name: str, path: Optional[str] = None) -> Optional[str]:
-    """Return the version for *module_name*, or ``None`` on any failure.
+def _resolve_package_version(module_name: str, path: Optional[str] = None) -> Optional[str]:
+    """Return the version of the package that provides *module_name*, or ``None`` when no source yields one.
 
-    Priority order:
+    The single resolution chain behind every CLI subcommand, the JSON report table and the public audit API
+    (``validate_deprecation_expiry``, ``generate_deprecation_table``), so the same package never resolves to one
+    version in one entry point and to another version — or to none — in a different one. Sources, first hit wins:
 
-    1. ``[project].version`` in the nearest ``pyproject.toml`` above *path* (reflects
-       local development checkouts whose version may differ from the installed dist).
-    2. ``importlib.metadata.version(module_name)`` — the installed distribution.
+    1. ``[project].version`` in the nearest ``pyproject.toml`` above *path* (reflects local development checkouts
+       whose version may differ from the installed dist; a ``dynamic`` version imports ``[project].name``).
+    2. ``importlib.metadata.version`` of the top-level import package — the installed distribution.
+    3. The same lookup for the distribution that provides the import package, as the import name (``deprecate``,
+       ``PIL``, ``sklearn``) often differs from the distribution name (``pyDeprecate``, ``Pillow``,
+       ``scikit-learn``).
+    4. The top-level package's ``__version__`` when it is a string — the only source an uninstalled checkout
+       without a static ``pyproject.toml`` version exposes. The package is imported with *path*'s import root
+       on ``sys.path``.
 
     Args:
-        module_name: Importable package name whose installed version to look up.
-        path: Optional file-system path used to locate a local ``pyproject.toml``.
-            Only consulted when it actually exists on the filesystem; an importable
-            module *name* passed through here is ignored, because the walk-up from the
-            current working directory would otherwise pick up an unrelated project's
-            ``pyproject.toml`` version. When honored, the local file takes precedence
-            over installed metadata.
+        module_name: Importable (possibly dotted) module name; the version belongs to its top-level package.
+            A raw path that is not a dotted name (the CLI's fallback for a plain directory) is never imported.
+        path: Optional file-system path used to locate a local ``pyproject.toml`` and the import root.
+            Only consulted when it actually exists on the filesystem; an importable module *name* passed
+            through here is ignored, because the walk-up from the current working directory would otherwise
+            pick up an unrelated project's ``pyproject.toml`` version.
 
     Returns:
-        Version string (e.g. ``"1.2.3"``) or ``None`` when the package is not
-        installed or the version cannot be determined.
+        Version string (e.g. ``"1.2.3"``) or ``None`` when no source yields a version string.
 
     """
     # Guard: a bare module name (not an existing path) must not trigger the pyproject.toml
     # walk-up — starting from cwd it would grab whatever unrelated project the caller is
     # standing in, flipping expiry gates on a foreign version.
-    if path is not None and os.path.exists(path):
-        local_ver = _read_pyproject_version(path)
+    existing_path = path if path is not None and os.path.exists(path) else None
+    if existing_path is not None:
+        local_ver = _read_pyproject_version(existing_path)
         if local_ver is not None:
             return local_ver
-    with suppress(Exception):
-        return importlib.metadata.version(module_name)
-    # The import name (deprecate, PIL, sklearn) often differs from the distribution name
-    # (pyDeprecate, Pillow, scikit-learn) that importlib.metadata.version() requires. Map the
-    # import package to its distribution and retry before giving up.
-    dist_name = _distribution_for_import(module_name)
-    if dist_name is not None:
+    top_level = module_name.split(".")[0]
+    for dist_name in (top_level, _distribution_for_import(top_level)):
+        if dist_name is not None:
+            with suppress(Exception):
+                return importlib.metadata.version(dist_name)
+    if not all(part.isidentifier() for part in module_name.split(".")):
+        return None
+    with _managed_sys_path(existing_path) if existing_path is not None else nullcontext():
         try:
-            return importlib.metadata.version(dist_name)
+            version = getattr(importlib.import_module(top_level), "__version__", None)
         except Exception:
             return None
-    return None
+    # A non-string __version__ (e.g. a tuple) is no version; keep it unresolved so the caller reports a gap.
+    return version if isinstance(version, str) else None
 
 
 def _distribution_for_import(import_name: str) -> Optional[str]:
