@@ -10,9 +10,7 @@ from deprecate._cli.config import (
     _ConfigFlag,
     _is_missing_packaging_import_error,
     _load_pydeprecate_config,
-    _resolve_exclude,
     _resolve_policy_spec,
-    _source_label,
     _validate_user_version,
 )
 from deprecate._cli.report import (
@@ -20,18 +18,15 @@ from deprecate._cli.report import (
     _GapKind,
     _print,
     _print_gap,
-    _record_scan,
     _record_table,
     _Reporter,
-    _ScanRecord,
 )
-from deprecate._cli.scan import _scan_path
-from deprecate._pkg import _managed_sys_path, _resolve_module_name, _resolve_package_version, _safe_module_name
+from deprecate._cli.scan import _scan_for_command
+from deprecate._pkg import _resolve_package_version, _safe_module_name
 from deprecate.audit import (
     DeprecationWrapperInfo,
     PolicyRule,
     TableStyle,
-    find_deprecation_wrappers,
     generate_deprecation_table,
 )
 from deprecate.audit._lifecycle import _check_expiry_for_callables, _parse_version
@@ -167,25 +162,6 @@ def _policy_violations_without_packaging(
 # ---------------------------------------------------------------------------
 
 
-def _print_scan_header(
-    path: str,
-    version: Optional[str] = None,
-    *,
-    user_provided: bool = False,
-    exclude: Optional[tuple[list[str], str]] = None,
-) -> None:
-    """Print a consistent scan header: scanning location, package name, version, and any exclusion patterns."""
-    module = _safe_module_name(path)
-    _print(f"Scanning: {path}")
-    if version is not None:
-        source = "user-provided" if user_provided else "auto-detected"
-        _print(f"Package: {module}  Version: {version} ({source})")
-    else:
-        _print(f"Package: {module}")
-    if exclude is not None and exclude[0]:
-        _print(f"Exclude: {', '.join(exclude[0])} ({_source_label(exclude[1])})")
-
-
 def cmd_check(
     path: str = ".",
     recursive: bool = True,
@@ -215,17 +191,14 @@ def cmd_check(
 
     Returns:
         0 on success or advisory-only issues; 1 when hard errors are found and ``exit_zero`` is False; 2 when
-        ``--exclude`` is malformed.
+        ``--exclude`` is malformed or *path* is a file or a directory holding several packages.
 
     """
     if _wrappers is None:
-        resolved_exclude = _resolve_exclude(path, exclude)
-        if resolved_exclude is None:
+        scan = _scan_for_command(path, recursive=recursive, exclude=exclude)
+        if scan is None:
             return 2
-        _print_scan_header(path, exclude=resolved_exclude)
-        with _managed_sys_path(path):
-            _wrappers = _scan_path(path, recursive=recursive, exclude=resolved_exclude[0])
-        _record_scan(_ScanRecord(path, _wrappers))
+        _wrappers = scan.wrappers
 
     if not _wrappers:
         _print("No deprecated callables found.")
@@ -279,7 +252,8 @@ def cmd_expiry(
         0 on success, when the ``packaging`` library is unavailable, when no version could be resolved (the gap
         is printed and the check is skipped), or when an auto-detected version turns out not to be valid
         PEP 440 (advisory — the check is skipped); 1 when expired wrappers are found and ``exit_zero`` is False;
-        2 when a user-supplied ``--version`` is not a valid PEP 440 version string or ``--exclude`` is malformed.
+        2 when a user-supplied ``--version`` is not a valid PEP 440 version string, ``--exclude`` is malformed, or
+        *path* is a file or a directory holding several packages.
 
     """
     # Fire auto-converts numeric-looking strings (e.g. "1.0" → float); normalise to str.
@@ -290,17 +264,19 @@ def cmd_expiry(
     if err_code is not None:
         return err_code
     if _wrappers is None:
-        resolved_exclude = _resolve_exclude(path, exclude)
-        if resolved_exclude is None:
+        # Standalone path: scan once, then the same derivation as the pre-scanned path, which reports an
+        # unresolved version or missing `packaging` once.
+        scan = _scan_for_command(
+            path,
+            recursive=recursive,
+            exclude=exclude,
+            version=version,
+            version_explicit=version_explicit,
+            resolve_version=True,
+        )
+        if scan is None:
             return 2
-        # Standalone path: scan once (a plain directory is rejected by `_resolve_module_name`), then the same
-        # derivation as the pre-scanned path, which reports an unresolved version or missing `packaging` once.
-        version = version if version is not None else _resolve_package_version(_safe_module_name(path), path=path)
-        with _managed_sys_path(path):
-            module_name = _resolve_module_name(path)
-            _print_scan_header(path, version, user_provided=version_explicit, exclude=resolved_exclude)
-            _wrappers = find_deprecation_wrappers(module_name, recursive=recursive, exclude=resolved_exclude[0])
-        _record_scan(_ScanRecord(path, _wrappers, version))
+        _wrappers, version = scan.wrappers, scan.version
     raw = _do_expiry_prescanned(_wrappers, version)
     if raw is None:  # check could not run — advisory already printed to stderr
         return 0
@@ -374,7 +350,8 @@ def cmd_policy(
         ``message_required`` finds no violation; 1 when violations are found (including from a still-running
         ``message_required`` check) and ``exit_zero`` is False; 2 when a rule's value or ``exclude`` — from a
         flag or from ``pyproject.toml`` — is malformed, when ``policy`` in ``[tool.pydeprecate]`` is not a table,
-        or when a ``pyproject.toml`` within reach cannot be read or parsed.
+        when a ``pyproject.toml`` within reach cannot be read or parsed, or when *path* is a file or a directory
+        holding several packages.
 
     """
     config = _config if _config is not None else _load_pydeprecate_config(path)
@@ -388,13 +365,10 @@ def cmd_policy(
     spec, policy_header = resolved
 
     if _wrappers is None:
-        resolved_exclude = _resolve_exclude(path, exclude, config)
-        if resolved_exclude is None:
+        scan = _scan_for_command(path, recursive=recursive, exclude=exclude, config=config)
+        if scan is None:
             return 2
-        _print_scan_header(path, exclude=resolved_exclude)
-        with _managed_sys_path(path):
-            _wrappers = _scan_path(path, recursive=recursive, exclude=resolved_exclude[0])
-        _record_scan(_ScanRecord(path, _wrappers))
+        _wrappers = scan.wrappers
     _print(policy_header)
     try:
         violations = _check_policy_for_callables(_wrappers, spec)
@@ -443,21 +417,15 @@ def cmd_chains(
 
     Returns:
         0 when no chains are found or ``exit_zero`` is True; 1 when chains are found; 2 when ``--exclude`` is
-        malformed.
+        malformed or *path* is a file or a directory holding several packages.
 
     """
     if _wrappers is None:
-        resolved_exclude = _resolve_exclude(path, exclude)
-        if resolved_exclude is None:
+        # every wrapper, not only chains: the run record needs them all for its table; the chain filter is below
+        scan = _scan_for_command(path, recursive=recursive, exclude=exclude)
+        if scan is None:
             return 2
-        _print_scan_header(path, exclude=resolved_exclude)
-        with _managed_sys_path(path):
-            # the body of `validate_deprecation_chains` minus its chain filter, applied below: the run record
-            # needs every wrapper for its table
-            _wrappers = find_deprecation_wrappers(
-                _resolve_module_name(path), recursive=recursive, exclude=resolved_exclude[0]
-            )
-        _record_scan(_ScanRecord(path, _wrappers))
+        _wrappers = scan.wrappers
     chains = [r for r in _wrappers if r.chain_type is not None]
     if not chains:
         _print("No deprecation chains found.")
@@ -507,8 +475,9 @@ def cmd_all(
         0 when the check, expiry, and chain gates pass or ``exit_zero`` is True; 1 when any of them finds a hard
         error; 2 for a usage error, which ``exit_zero`` never downgrades: a user-supplied ``--version`` that is
         not a valid PEP 440 version string, a malformed ``exclude`` (flag or file), a ``pyproject.toml`` within
-        reach that cannot be read or parsed, a ``policy`` key in ``[tool.pydeprecate]`` that is not a table, or a
-        malformed rule value in ``[tool.pydeprecate.policy]``.
+        reach that cannot be read or parsed, a ``policy`` key in ``[tool.pydeprecate]`` that is not a table, a
+        malformed rule value in ``[tool.pydeprecate.policy]``, or a *path* that is a file or a directory holding
+        several packages.
         Policy violations are advisory here and never contribute to this code.
         The deprecation table is appended after the gates, so a usage error raised by the policy pass skips it.
 
@@ -521,14 +490,20 @@ def cmd_all(
     config = _load_pydeprecate_config(path)
     if config is None:
         return 2
-    resolved_exclude = _resolve_exclude(path, exclude, config)
-    if resolved_exclude is None:
-        return 2
     version_explicit = version is not None
-    resolved_version = version if version_explicit else _resolve_package_version(_safe_module_name(path), path=path)
-    _print_scan_header(path, resolved_version, user_provided=version_explicit, exclude=resolved_exclude)
-    with _managed_sys_path(path):
-        wrappers = _scan_path(path, recursive=recursive, exclude=resolved_exclude[0])
+    scan = _scan_for_command(
+        path,
+        recursive=recursive,
+        exclude=exclude,
+        config=config,
+        version=version,
+        version_explicit=version_explicit,
+        resolve_version=True,
+        record=False,
+    )
+    if scan is None:
+        return 2
+    wrappers, resolved_version = scan.wrappers, scan.version
 
     # Sub-commands run with exit_zero=False so cmd_all sees their truthful exit codes;
     # the user-facing --exit-zero is applied to the aggregate below.
@@ -624,7 +599,8 @@ def cmd_status(
             Fire CLI (internal use by ``cmd_all`` only).
 
     Returns:
-        0 — status table generation is not a pass/fail gate; 2 only when ``--exclude`` is malformed.
+        0 — status table generation is not a pass/fail gate; 2 only when ``--exclude`` is malformed or *path* is a
+        file or a directory holding several packages.
 
     """
     version_explicit = version is not None and _version_explicit
@@ -637,22 +613,25 @@ def cmd_status(
         _print(f"Invalid style {style!r}; falling back to 'compact'. Expected one of: {valid}.", stderr=True)
         table_style = TableStyle.COMPACT
 
-    # Never resolve the importable module name eagerly: status is not a pass/fail gate (it exits
-    # non-zero only for a multi-package root or a malformed ``--exclude``), so a plain directory
-    # without ``__init__.py`` — which ``check`` scans fine and
-    # for which ``_wrappers`` is already supplied by ``cmd_all`` — must not raise here. ``_safe_module_name``
-    # falls back to the raw path, used only as table metadata for version resolution.
+    # Never resolve the importable module name eagerly: a plain directory without ``__init__.py`` has none, and
+    # status still renders its table. ``_safe_module_name`` falls back to the raw path, used only as table metadata.
     module_name = _safe_module_name(path)
-    resolved_version = version if version is not None else _resolve_package_version(module_name, path=path)
     if _wrappers is None:
-        resolved_exclude = _resolve_exclude(path, exclude)
-        if resolved_exclude is None:
+        scan = _scan_for_command(
+            path,
+            recursive=recursive,
+            exclude=exclude,
+            include_members=include_members,
+            version=version,
+            version_explicit=version_explicit,
+            resolve_version=True,
+            record=False,
+        )
+        if scan is None:
             return 2
-        _print_scan_header(path, resolved_version, user_provided=version_explicit, exclude=resolved_exclude)
-        with _managed_sys_path(path):
-            _wrappers = _scan_path(
-                path, recursive=recursive, include_members=include_members, exclude=resolved_exclude[0]
-            )
+        _wrappers, resolved_version = scan.wrappers, scan.version
+    else:
+        resolved_version = version if version is not None else _resolve_package_version(module_name, path=path)
     markdown = generate_deprecation_table(
         module_name,
         current_version=resolved_version,

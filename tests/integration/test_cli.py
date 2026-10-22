@@ -777,20 +777,23 @@ def _make_flat_root(tmp_path: Path, *package_names: str) -> Path:
 class TestCliPackageRootScan:
     """A no-path scan from a project root resolves one package, and never silently audits nothing."""
 
-    @pytest.mark.parametrize("subcommand", ["check", "policy", "status", "all"])
+    @pytest.mark.parametrize("subcommand", ["check", "expiry", "policy", "chains", "status", "all"])
     def test_multi_package_root_fails_loudly(self, tmp_path: Path, subcommand: str) -> None:
-        """``pydeprecate <subcommand>`` at a root with two packages exits non-zero and names both.
+        """``pydeprecate <subcommand>`` at a root with two packages exits 2 (usage error) and names both.
 
         The shipped pre-commit hook runs ``pydeprecate check`` with no path. At a flat-layout root holding ``mypkg/``
         and ``tests/`` the scan used to fall back to the top-level ``*.py`` files, import only ``setup.py`` and
-        report "No deprecated callables found." with exit 0 — a green hook that audited nothing.
+        report "No deprecated callables found." with exit 0 — a green hook that audited nothing. The argument is
+        ambiguous, not a finding, so every subcommand refuses it the same way, as a usage error with a plain message
+        rather than an uncaught ``ValueError``, and before it prints a scan header.
 
         """
         root = _make_flat_root(tmp_path, "mypkg", "tests")
         result = _run_cli(subcommand, cwd=root)
-        assert result.returncode == 1
+        assert result.returncode == 2, result.stdout + result.stderr
         assert "contains multiple packages (mypkg, tests)" in result.stderr
-        assert "No deprecated callables found." not in result.stdout
+        assert "ValueError" not in result.stderr
+        assert "Scanning:" not in result.stdout
 
     def test_single_package_root_still_reports(self, tmp_path: Path) -> None:
         """``pydeprecate check`` at a root with exactly one package scans it and reports its findings.
@@ -814,6 +817,129 @@ class TestCliPackageRootScan:
         (tmp_path / "plain_script.py").write_text("VALUE = 1\n")
         result = _run_cli("check", cwd=tmp_path)
         assert result.returncode == 0, result.stderr
+
+
+# Top-level module of a plain directory (no ``__init__.py``): one wrapper overdue at 3.0, clean for check/policy.
+_PLAIN_MODULE_SRC = """\
+from deprecate import deprecated
+
+
+def new_fn(x: int) -> int:
+    return x
+
+
+@deprecated(target=new_fn, deprecated_in="1.0", remove_in="2.0", args_mapping={"old": "x"})
+def old_fn(old: int) -> int:
+    pass
+"""
+
+# Module-level code that reports which command-line arguments an imported module can see.
+_ARGV_PROBE_SRC = 'import sys\n\nprint("ARGV:", sys.argv[1:], file=sys.stderr)\n'
+
+
+class TestCliScanTarget:
+    """Every subcommand turns the same path into the same scan."""
+
+    @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
+    @pytest.mark.parametrize(
+        ("subcommand", "extra", "returncode", "expected"),
+        [
+            pytest.param("check", (), 0, "All deprecated wrappers look correct!", id="check"),
+            pytest.param("expiry", ("--version", "3.0"), 1, "1 expired wrapper(s) found.", id="expiry"),
+            pytest.param("policy", (), 0, "No deprecation policy violations found.", id="policy"),
+            pytest.param("chains", (), 0, "No deprecation chains found.", id="chains"),
+            pytest.param("all", ("--version", "3.0"), 1, "1 expired wrapper(s) found.", id="all"),
+            pytest.param("status", ("--version", "3.0"), 0, "Past Removal Date", id="status"),
+        ],
+    )
+    def test_plain_directory_scanned_by_every_subcommand(
+        self, tmp_path: Path, subcommand: str, extra: tuple[str, ...], returncode: int, expected: str
+    ) -> None:
+        """A plain directory of top-level modules is scanned the same way by every subcommand.
+
+        A scripts directory without ``__init__.py`` used to pass ``check`` and render in ``status`` while standalone
+        ``expiry`` and ``chains`` refused it with an uncaught ``ValueError`` — yet ``all`` ran both of those checks on
+        the very same directory. Each gate must reach the module's wrapper and report its own verdict on it.
+
+        """
+        plain = tmp_path / "scripts"
+        plain.mkdir()
+        (plain / "legacy_mod.py").write_text(_PLAIN_MODULE_SRC)
+        result = _run_cli(subcommand, str(plain), *extra, env=_cli_env(COLUMNS="200"), cwd=tmp_path)
+        assert result.returncode == returncode, result.stdout + result.stderr
+        assert expected in result.stdout
+        assert "ValueError" not in result.stderr
+
+    @pytest.mark.parametrize("subcommand", ["check", "expiry", "policy", "chains", "status", "all"])
+    def test_file_path_exits_two(self, tmp_path: Path, subcommand: str) -> None:
+        """A single ``.py`` file is refused by every subcommand as a usage error before any scan starts.
+
+        Wrappers are resolved through importable modules, never single files; a hook or CI step that passes one is
+        misconfigured, so it must get a plain message and exit 2 — not an uncaught ``ValueError`` at exit 1 that
+        reads like a failed audit.
+
+        """
+        module = tmp_path / "legacy_mod.py"
+        module.write_text(_PLAIN_MODULE_SRC)
+        result = _run_cli(subcommand, str(module), cwd=tmp_path)
+        assert result.returncode == 2, result.stdout + result.stderr
+        assert "File paths are not supported" in result.stderr
+        assert "ValueError" not in result.stderr
+        assert "Scanning:" not in result.stdout
+
+    @pytest.mark.parametrize("layout", ["package", "plain-directory"])
+    def test_scanned_module_never_sees_cli_arguments(self, tmp_path: Path, layout: str) -> None:
+        """Module-level code of the scanned package sees no pydeprecate arguments, whatever the path layout.
+
+        A module that parses ``sys.argv`` at import time (a script entry point, an ``absl`` flag module) must behave
+        the same during a scan of a package directory as during a scan of a plain directory; leaking ``--exit-zero``
+        and the scan path into it changes its import-time side effects depending only on how the path was given.
+
+        """
+        if layout == "package":
+            target = _make_pkg(tmp_path, name="argvpkg", content=_ARGV_PROBE_SRC)
+        else:
+            target = tmp_path / "argvdir"
+            target.mkdir()
+            (target / "argv_mod.py").write_text(_ARGV_PROBE_SRC)
+        result = _run_cli("check", str(target), "--exit-zero", cwd=tmp_path)
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "ARGV: []" in result.stderr
+
+    def test_header_names_imported_location(self, tmp_path: Path) -> None:
+        """The scan header names the file the scanned package was actually imported from.
+
+        A CI log must show which copy of a package was audited, so a run that picked up an installed copy instead
+        of the checkout on disk can be told apart from a clean run of the checkout.
+
+        """
+        pkg = _make_pkg(tmp_path)
+        result = _run_cli("check", str(pkg), env=_cli_env(COLUMNS="1000"), cwd=tmp_path)
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert f"Imported from: {(pkg / '__init__.py').resolve()}" in result.stdout
+
+    def test_second_copy_of_loaded_package_reports_gap(self, tmp_path: Path) -> None:
+        """A checkout of a package the CLI process already imported is reported as a gap naming both locations.
+
+        The CLI itself imports ``deprecate``; scanning another checkout of it (a fork, an older release tree) audits
+        the copy already in ``sys.modules`` and reports its wrappers as the checkout's. That copy is often the same
+        code — CI installs a wheel built from the checkout, then scans ``src/`` — so the run continues, but the log
+        and the report must say which copy was actually audited.
+
+        """
+        checkout = tmp_path / "other-checkout" / "deprecate"
+        checkout.mkdir(parents=True)
+        (checkout / "__init__.py").write_text(_MYPKG_INIT)
+        report = tmp_path / "report.json"
+        result = _run_cli("check", str(checkout), f"--report-json={report}", env=_cli_env(COLUMNS="1000"), cwd=tmp_path)
+        loaded_from = Path(_SRC_DIR, "deprecate").resolve()
+        assert f"Imported from: {loaded_from / '__init__.py'}" in result.stdout, result.stdout + result.stderr
+        assert (
+            f"pydeprecate gap: other copy audited: `deprecate` was imported from {loaded_from}, not from"
+            f" {checkout.resolve()}; the scan audited that copy." in result.stderr
+        )
+        gaps = json.loads(report.read_text(encoding="utf-8"))["gaps"]
+        assert [gap["kind"] for gap in gaps] == ["other copy audited"]
 
 
 class TestCliPolicyMessageRequiredFlag:
@@ -1077,11 +1203,11 @@ class TestCliReportJson:
         assert "old_fn" in json.loads((tmp_path / "-report.json").read_text(encoding="utf-8"))["table"]
 
     def test_nested_run_writes_no_report(self, tmp_path: Path) -> None:
-        """A CLI run started from inside the audited package's import never writes the outer run's report.
+        """A CLI run started from inside the audited package's import never scans or writes the outer run's report.
 
-        The package's ``__init__`` calls the CLI entry point, which sees the outer ``sys.argv`` — including its
-        ``--report-json`` path — and exits the process before the outer scan finishes. A report from that nested run
-        would pass for the outer scan's, so only the outermost run may write one.
+        The package's ``__init__`` calls the CLI entry point. A report from that nested run would pass for the outer
+        scan's, so the nested run must not see the outer arguments (it gets none and only prints help) and only the
+        outermost run may write the report — the one of its own scan, after the import returned.
 
         """
         pkg = tmp_path / "reentrantpkg"
@@ -1091,6 +1217,8 @@ class TestCliReportJson:
             f"from pathlib import Path\nfrom deprecate._cli import cli\nPath({str(marker)!r}).write_text('x')\ncli()\n"
         )
         report = tmp_path / "report.json"
-        _run_cli("check", str(pkg), f"--report-json={report}", cwd=tmp_path)
+        result = _run_cli("check", str(pkg), f"--report-json={report}", cwd=tmp_path)
         assert marker.exists(), "the package import never reached the nested cli() call"
-        assert not report.exists()
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert result.stdout.count("Scanning:") == 1
+        assert json.loads(report.read_text(encoding="utf-8"))["gaps"] == []

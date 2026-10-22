@@ -2163,7 +2163,15 @@ ______________________________________________________________________
   args: [mypkg]
 ```
 
-The same error applies to `policy`, `status` and `all`; see the [audit guide](guide/audit.md#pre-commit-integration).
+The same error, a usage error with exit `2`, applies to every subcommand; see the [audit guide](guide/audit.md#pre-commit-integration).
+
+______________________________________________________________________
+
+## `pydeprecate gap: other copy audited`
+
+**Q:** The CLI prints `pydeprecate gap: other copy audited: <pkg> was imported from <dir>, not from <scanned dir>`. Were my deprecations checked?
+
+**A:** The ones of the copy named in the message were — not necessarily the ones in the directory you passed. A package is imported by name, and when that name is already taken in the CLI's process the scan gets the loaded copy: pyDeprecate's own `deprecate` package (scanning a fork or another checkout of pyDeprecate), or a package an editable install of another checkout resolves ahead of `sys.path`. The header line `Imported from:` names the file that was actually audited. When that copy is the same code — CI installs a wheel built from the checkout and then scans `src/` — the result is still right. Otherwise run the scan from the checkout's own virtual environment, where the package name resolves to the directory you pass.
 
 ______________________________________________________________________
 

@@ -42,6 +42,8 @@ class _GapKind(str, Enum):
     PACKAGING_MISSING = "packaging missing"
     #: A plain-directory scan left the Python files in its subdirectories out.
     NESTED_FILES = "nested files not audited"
+    #: The scanned package's import name was already taken by a copy from another directory, so that copy was audited.
+    OTHER_COPY = "other copy audited"
 
 
 #: Gap kind -> one-sentence remedy, the same for every occurrence.
@@ -54,6 +56,10 @@ _GAP_HINTS: dict[_GapKind, str] = {
     _GapKind.REMOVE_IN_INVALID: "set the wrapper's `remove_in` to a valid PEP 440 version such as `2.0`",
     _GapKind.PACKAGING_MISSING: "install 'pyDeprecate[audit]' to enable version-based checks",
     _GapKind.NESTED_FILES: "scan an importable package (with `__init__.py` files) instead of a plain directory",
+    _GapKind.OTHER_COPY: (
+        "run the scan in an environment where the package is not already imported from elsewhere, such as the"
+        " checkout's own virtual environment"
+    ),
 }
 
 

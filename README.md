@@ -1798,7 +1798,7 @@ pydeprecate all tests --version 1.2
 pydeprecate status tests --version 1.2
 ```
 
-`tests/` contains pyDeprecate's own deprecation fixtures — useful as a live demo without needing your own package. Note: `expiry` and `chains` (run as part of `all`) require an importable package name rather than a plain directory path.
+`tests/` contains pyDeprecate's own deprecation fixtures — useful as a live demo without needing your own package. Every subcommand accepts a package directory, a plain directory of top-level modules, or an importable module name.
 
 **Pre-commit hook** — catch deprecation problems locally before you push. The scan imports your package, so run the hook in your development environment:
 

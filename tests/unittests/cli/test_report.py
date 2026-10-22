@@ -62,7 +62,7 @@ class TestReportExpiry:
     def test_expired_message_in_output(self, capsys: pytest.CaptureFixture[str], has_rich: bool) -> None:
         """Expired message text appears in both rich and plain output via cmd_expiry."""
         with (
-            patch("deprecate._cli.commands.find_deprecation_wrappers", return_value=[]),
+            patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[]),
             patch("deprecate._cli.commands._check_expiry_for_callables", return_value=[_EXPIRED_MSG]),
             patch("deprecate._cli.report._Reporter._HAS_RICH", has_rich),
         ):

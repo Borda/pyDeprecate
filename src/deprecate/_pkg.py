@@ -450,9 +450,8 @@ def _resolve_module_name(path: str) -> str:
     """Convert a filesystem path to an importable module name.
 
     Accepts a package directory (with ``__init__.py``) or an importable module
-    name string. Plain directories and individual ``.py`` files are not supported
-    because ``validate_deprecation_expiry`` and ``validate_deprecation_chains``
-    require an importable module name, not a filesystem path.
+    name string. A plain directory and an individual ``.py`` file have no single
+    importable name; the CLI scans a plain directory module by module instead.
 
     Args:
         path: Package directory path or importable module name string.
@@ -478,7 +477,7 @@ def _resolve_module_name(path: str) -> str:
         if child_pkg is not None:
             return child_pkg.name
         raise ValueError(
-            f"Plain directories without '__init__.py' are not supported for expiry or chain checks: {path!r}. "
+            f"Plain directory without '__init__.py' has no importable module name: {path!r}. "
             "Use an importable package layout with '__init__.py', or pass an importable module name instead."
         )
     return path

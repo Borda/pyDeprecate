@@ -148,7 +148,7 @@ class TestCliEntryPoint:
         assert exc_info.value.code == 2
         assert "Could not consume arg" in capsys.readouterr().err
 
-    @patch("deprecate._cli.commands.find_deprecation_wrappers", return_value=[])
+    @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
     def test_misspelled_value_flag_exits_nonzero(self, mock_expiry: MagicMock) -> None:
         """``cli()`` with a misspelled ``--verison`` flag exits non-zero instead of dropping the value.
 

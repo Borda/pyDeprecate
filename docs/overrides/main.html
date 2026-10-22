@@ -468,7 +468,15 @@
           "name": "Why does my pydeprecate pre-commit hook fail with 'contains multiple packages'?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "With no path in args, the hook looks for a single package under src/, then at the repository root. A root holding two or more top-level packages (for example mypkg/ and tests/) is ambiguous, so pyDeprecate exits non-zero with 'contains multiple packages (mypkg, tests)' instead of scanning nothing and passing. Src-layout repositories and single-package roots resolve on their own. For a multi-package repository, name the package in the hook args, e.g. args: [mypkg]. The same error applies to policy, status and all."
+            "text": "With no path in args, the hook looks for a single package under src/, then at the repository root. A root holding two or more top-level packages (for example mypkg/ and tests/) is ambiguous, so pyDeprecate exits 2 (a usage error) with 'contains multiple packages (mypkg, tests)' instead of scanning nothing and passing. Src-layout repositories and single-package roots resolve on their own. For a multi-package repository, name the package in the hook args, e.g. args: [mypkg]. The same error applies to every subcommand."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What does 'pydeprecate gap: other copy audited' mean?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "The scanned package's import name was already taken in the CLI's process by a copy from another directory — pyDeprecate's own deprecate package when scanning another checkout of pyDeprecate, or a package an editable install of another checkout resolves ahead of sys.path — so that copy was audited instead of the directory you passed. The header line 'Imported from:' names the file actually audited. When that copy is the same code (a wheel built from the checkout) the result is still right; otherwise run the scan from the checkout's own virtual environment."
           }
         },
         {

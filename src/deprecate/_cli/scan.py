@@ -1,12 +1,25 @@
-"""Path scanning for the CLI: resolve a file, package or plain directory into deprecation wrappers."""
+"""Path scanning for the CLI: resolve a package, plain directory or module name into deprecation wrappers.
+
+:func:`_scan_for_command` is the one scan prologue every subcommand runs, so a path is accepted, refused, imported and
+reported the same way whichever gate scans it.
+
+"""
 
 import sys
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Optional
 
-from deprecate._cli.report import _GapKind, _print_gap
-from deprecate._pkg import _is_package_dir, _select_child_package
+from deprecate._cli.config import _Config, _ConfigFlag, _resolve_exclude, _source_label
+from deprecate._cli.report import _GapKind, _print, _print_gap, _record_scan, _ScanRecord
+from deprecate._pkg import (
+    _is_package_dir,
+    _managed_sys_path,
+    _resolve_package_version,
+    _safe_module_name,
+    _select_child_package,
+)
 from deprecate.audit import DeprecationWrapperInfo, find_deprecation_wrappers
 
 
@@ -23,27 +36,20 @@ def _scan_directory(
     abs_path: Path = Path(path).resolve()
     results: list[DeprecationWrapperInfo] = []
 
-    original_argv = sys.argv[:]
-    sys.argv = sys.argv[:1]  # hide CLI args from any module-level code (e.g. setup.py)
-    try:
-        for entry in sorted(abs_path.iterdir(), key=lambda ent: ent.name):
-            if not (entry.is_file() and entry.suffix == ".py" and not entry.name.startswith("__")):
-                continue
-            module_name: str = entry.stem
-            try:
-                results.extend(
-                    find_deprecation_wrappers(
-                        module_name, recursive=False, include_members=include_members, exclude=exclude
-                    )
+    for entry in sorted(abs_path.iterdir(), key=lambda ent: ent.name):
+        if not (entry.is_file() and entry.suffix == ".py" and not entry.name.startswith("__")):
+            continue
+        module_name: str = entry.stem
+        try:
+            results.extend(
+                find_deprecation_wrappers(
+                    module_name, recursive=False, include_members=include_members, exclude=exclude
                 )
-            except SystemExit:
-                _print_gap(
-                    _GapKind.MODULE_NOT_AUDITED, f"{module_name}: module-level code exited (not a library module)"
-                )
-            except Exception as e:
-                _print_gap(_GapKind.MODULE_NOT_AUDITED, f"{module_name}: could not scan: {e!r}")
-    finally:
-        sys.argv = original_argv
+            )
+        except SystemExit:
+            _print_gap(_GapKind.MODULE_NOT_AUDITED, f"{module_name}: module-level code exited (not a library module)")
+        except Exception as e:
+            _print_gap(_GapKind.MODULE_NOT_AUDITED, f"{module_name}: could not scan: {e!r}")
 
     nested_python_files_found: bool = any(
         not fpy.name.startswith("__") for fpy in abs_path.rglob("*.py") if fpy.parent != abs_path
@@ -85,3 +91,158 @@ def _scan_path(
             f"File paths are not supported: {path!r}. Pass an importable module/package name or a directory instead."
         )
     return find_deprecation_wrappers(path, recursive=recursive, include_members=include_members, exclude=exclude)
+
+
+def _target_package_dir(path: str) -> Optional[Path]:
+    """Return the package directory *path* names, or ``None`` for a plain directory or an importable module name.
+
+    Raises:
+        ValueError: If *path* is a file, or a directory holding two or more packages — both usage errors.
+
+    """
+    pth = Path(path)
+    if pth.is_file():
+        raise ValueError(
+            f"File paths are not supported: {path!r}. Pass an importable module/package name or a directory instead."
+        )
+    if not pth.is_dir():
+        return None
+    if _is_package_dir(pth):
+        return pth.resolve()
+    child_pkg = _select_child_package(path)
+    return child_pkg.resolve() if child_pkg is not None else None
+
+
+def _module_locations(module: object) -> list[Path]:
+    """Return the directories a module was loaded from: its file's directory, else its ``__path__`` entries."""
+    module_file = getattr(module, "__file__", None)
+    if module_file:
+        return [Path(module_file).resolve().parent]
+    return [Path(entry).resolve() for entry in getattr(module, "__path__", [])]
+
+
+def _foreign_copy(package_dir: Path) -> Optional[str]:
+    """Return where the imported package of *package_dir*'s name lives when that is not *package_dir*.
+
+    Importing a package by name hands back whatever ``sys.modules`` holds — the CLI's own ``deprecate``, or a copy an
+    editable install's finder resolved ahead of ``sys.path`` — so a scan of a second checkout audits the loaded copy
+    instead. That copy is often the same code (a wheel built from the checkout), so the run goes on and reports a gap.
+
+    Returns:
+        The directory of the loaded copy, or ``None`` when the package is not imported or comes from *package_dir*.
+
+    """
+    module = sys.modules.get(package_dir.name)
+    if module is None:
+        return None
+    locations = _module_locations(module)
+    if not locations or package_dir.resolve() in locations:
+        return None
+    return str(locations[0])
+
+
+def _imported_location(path: str, package_dir: Optional[Path]) -> Optional[str]:
+    """Return the file the scanned package or module was imported from, or ``None`` for a plain-directory scan."""
+    if package_dir is not None:
+        module = sys.modules.get(package_dir.name)
+    elif Path(path).is_dir():
+        return None
+    else:
+        module = sys.modules.get(path)
+    return getattr(module, "__file__", None) if module is not None else None
+
+
+@contextmanager
+def _hidden_argv() -> Iterator[None]:
+    """Hide the CLI's own arguments from module-level code that the scan imports, restoring them afterwards."""
+    original_argv = sys.argv[:]
+    sys.argv = sys.argv[:1]
+    try:
+        yield
+    finally:
+        sys.argv = original_argv
+
+
+def _print_scan_header(
+    path: str,
+    version: Optional[str] = None,
+    *,
+    user_provided: bool = False,
+    exclude: Optional[tuple[list[str], str]] = None,
+) -> None:
+    """Print a consistent scan header: scanning location, package name, version, and any exclusion patterns."""
+    module = _safe_module_name(path)
+    _print(f"Scanning: {path}")
+    if version is not None:
+        source = "user-provided" if user_provided else "auto-detected"
+        _print(f"Package: {module}  Version: {version} ({source})")
+    else:
+        _print(f"Package: {module}")
+    if exclude is not None and exclude[0]:
+        _print(f"Exclude: {', '.join(exclude[0])} ({_source_label(exclude[1])})")
+
+
+def _scan_for_command(
+    path: str,
+    *,
+    recursive: bool,
+    exclude: _ConfigFlag,
+    config: Optional[_Config] = None,
+    include_members: bool = True,
+    version: Optional[str] = None,
+    version_explicit: bool = False,
+    resolve_version: bool = False,
+    record: bool = True,
+) -> Optional[_ScanRecord]:
+    """Run the scan prologue shared by every subcommand and return what it scanned.
+
+    In order: refuse a file path or an ambiguous multi-package directory, resolve ``exclude`` (flag >
+    ``pyproject.toml``), auto-detect the version when asked, print the header, scan with ``sys.path`` pointed at the
+    import root and the CLI's arguments hidden from module-level code, name the file the package was imported from
+    (a gap when that is another copy than the scanned directory), and record the scan for ``--report-json`` (unless
+    *record* is off).
+
+    Args:
+        path: Package directory, plain directory, or importable module name, as the user passed it.
+        recursive: Scan submodules recursively.
+        exclude: The ``--exclude`` flag value, or the sentinel that defers to ``pyproject.toml``.
+        config: Already-loaded ``[tool.pydeprecate]`` configuration, so a caller that read it does not re-read it.
+        include_members: Also scan deprecated class members.
+        version: Version for the header and the record; with *resolve_version*, ``None`` is auto-detected.
+        version_explicit: Whether *version* was typed by the user (header label only).
+        resolve_version: Auto-detect a missing *version* — for the subcommands that compare against one.
+        record: Keep the scan for ``--report-json``. ``all`` and ``status`` turn it off: they record the table they
+            render instead, so a table that failed to render is not rebuilt from the scan for the report.
+
+    Returns:
+        The recorded scan, or ``None`` after printing a usage error (the caller exits 2).
+
+    """
+    try:
+        package_dir = _target_package_dir(path)
+    except ValueError as err:
+        _print(str(err), stderr=True)
+        return None
+    resolved_exclude = _resolve_exclude(path, exclude, config)
+    if resolved_exclude is None:
+        return None
+    if version is None and resolve_version:
+        version = _resolve_package_version(_safe_module_name(path), path=path)
+    _print_scan_header(path, version, user_provided=version_explicit, exclude=resolved_exclude)
+    with _managed_sys_path(path), _hidden_argv():
+        wrappers = _scan_path(path, recursive=recursive, include_members=include_members, exclude=resolved_exclude[0])
+    location = _imported_location(path, package_dir)
+    if location is not None:
+        _print(f"Imported from: {location}")
+    # Checked after importing: an editable install's finder can resolve the import name ahead of ``sys.path``.
+    loaded_from = _foreign_copy(package_dir) if package_dir is not None else None
+    if package_dir is not None and loaded_from is not None:
+        _print_gap(
+            _GapKind.OTHER_COPY,
+            f"`{package_dir.name}` was imported from {loaded_from}, not from {package_dir};"
+            " the scan audited that copy.",
+        )
+    scan = _ScanRecord(path, wrappers, version)
+    if record:
+        _record_scan(scan)
+    return scan
