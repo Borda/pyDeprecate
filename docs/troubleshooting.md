@@ -882,6 +882,8 @@ ______________________________________________________________________
 
 Custom method names — for example `register()`, `reload()`, or `set_value()` — are not in this list and call through to the underlying object without any guard.
 
+The guard is also off while `skip_if` evaluates `True`: attribute writes, item writes and deletes (`proxy[key] = value`, `del proxy[key]`), and mutator calls then reach the wrapped object directly, because an active `skip_if` switches the whole deprecation machinery off.
+
 **Workaround:** Subclass the wrapped object's type and override the custom mutator method to raise explicitly:
 
 ```python
@@ -2204,6 +2206,14 @@ ______________________________________________________________________
 **Q:** My code probes a deprecated mapping with `try: settings[key] except KeyError: ...`. The miss emitted no `FutureWarning`, but the next successful `settings["threshold"]` read did.
 
 **A:** That is intended. A `deprecated_instance` or `deprecated_class` proxy warns only after a data-use operation succeeds: subscripts, iteration, unary and binary operators, context-manager entry, async iteration, `await`, and `attrs_mapping` attribute reads all run first and warn afterwards. A probe that fails — a `KeyError` from `proxy[key]`, a `StopIteration` from `next(proxy)`, an `AttributeError` from `hasattr` — emits nothing and leaves the `num_warns` budget unspent, so the default one warning still reaches the first real use. Calling the proxy is the one exception: like `@deprecated`, it warns before the call, so a deprecated constructor that raises still reports the deprecation. With `as_exception=True`, operations with side effects on the wrapped object (`next()`, `with` and `async with` entry, async iteration steps, `await`, in-place operators such as `+=`) still raise `DeprecatedError` before they run, while pure reads compute first — a missing key under a fatal deprecation therefore raises `KeyError`, not `DeprecatedError`.
+
+______________________________________________________________________
+
+## Can a `deprecated_instance` of a function be used as a class attribute (method)?
+
+**Q:** I replaced a method with `class Model: scale = deprecated_instance(legacy_scale, ...)`. Does `Model().scale(2)` still pass the instance to `legacy_scale`?
+
+**A:** Yes. The proxy implements the descriptor protocol: read through an instance, a proxy over a plain function (or a `@deprecated` wrapper) returns a bound method whose `__func__` is the proxy, so `Model().scale(2)` calls `legacy_scale(model, 2)` and warns on the call, pointing at the calling line. The `num_warns` budget belongs to the proxy, so the default single warning is shared by every instance, and `skip_if` and `as_exception` behave as on a direct call. Read through the class, `Model.scale` is the proxy itself, as a plain function would be, so `Model.scale(model, 2)` works too. Proxies over data, classes, and non-function descriptors (`property`, `classmethod`, `staticmethod` objects) are returned as stored and never bound; to deprecate one of those, decorate the underlying function with `@deprecated` instead. Releases without this binding called `legacy_scale(2)` and raised `TypeError: legacy_scale() missing 1 required positional argument`.
 
 ______________________________________________________________________
 

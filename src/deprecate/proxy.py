@@ -120,7 +120,7 @@ class _DeprecatedProxy:
     underlying object — or to an optional *target* replacement — while emitting a configurable :class:`FutureWarning`.
 
     In *read-only* mode any attempt to mutate the proxied object via ``__setitem__``, ``__delitem__``, or
-    ``__setattr__`` raises :class:`AttributeError`.
+    ``__setattr__`` raises :class:`AttributeError`, unless ``skip_if`` is active. Writes never warn.
 
     Use :func:`~deprecate.proxy.deprecated_instance` or :func:`~deprecate.proxy.deprecated_class` to create
     instances rather than instantiating this class directly.
@@ -157,9 +157,11 @@ class _DeprecatedProxy:
         ``< <= > >=``, ``int()``/``float()``/``complex()``/``index()``, ``abs()``/``-``/``+``/``~``,
         ``round()``/``math.trunc``/``floor``/``ceil``, ``reversed()``, ``os.fspath()``, ``format()``,
         ``with``/``async with``, ``next()``/``async for``, ``await``, and ``class Child(DeprecatedAlias)`` via PEP 560
-        ``__mro_entries__``). Because implicit special-method lookup bypasses ``__getattr__``, any dunder *not* listed
-        here is not forwarded; a protocol the wrapped object does not implement raises the normal :class:`TypeError`
-        (binary operators return :data:`NotImplemented` so reflected operands and Python's error path are preserved).
+        ``__mro_entries__``). A proxy over a function stored as a class attribute binds like a method through
+        ``__get__`` (see :class:`_BindingDeprecatedProxy`). Because implicit special-method lookup
+        bypasses ``__getattr__``, any dunder *not* listed here is not forwarded; a protocol the wrapped object does not
+        implement raises the normal :class:`TypeError` (binary operators return :data:`NotImplemented` so reflected
+        operands and Python's error path are preserved).
 
         **Warn policy** (consistent with ``__getitem__`` vs ``__len__``): operations that use or produce the wrapped
         data warn once against the shared budget — arithmetic and its reflected/in-place forms, numeric/path
@@ -177,6 +179,10 @@ class _DeprecatedProxy:
         any other structural ABC that keys on dunder presence.  Always check the *unwrapped* object's type
         when using structural ABCs as a dispatch guard, or call ``type(deprecated_instance_proxy.__class__)``
         to get the wrapped type (which is ``_DeprecatedProxy``).
+
+        **Binding**: only a proxy over a bindable callable (a plain function, a ``@deprecated`` wrapper) is a
+        :class:`_BindingDeprecatedProxy` with ``__get__``, so ``inspect.isroutine(proxy)`` is ``True`` for it and
+        ``False`` for proxies over data or classes.
 
     """
 
@@ -940,20 +946,36 @@ class _DeprecatedProxy:
     def __setitem__(self, key: Any, value: Any) -> None:  # noqa: ANN401
         """Forward subscript mutation to the active object, raising in read-only mode.
 
+        Item writes never warn: a write stores new data rather than reading the deprecated value, the same policy as
+        attribute writes outside ``attrs_mapping``. With ``skip_if`` active the write goes straight to the wrapped
+        source and the read-only guard does not apply, mirroring :meth:`~deprecate.proxy._DeprecatedProxy.__setattr__`.
+
         Raises:
-            AttributeError: If the proxy is in read-only mode.
+            AttributeError: If the proxy is in read-only mode and ``skip_if`` is inactive.
 
         """
+        # skip_if active — write straight to the wrapped source; no read-only guard (parity with ``__setattr__``).
+        if self._shall_skip():
+            self._cfg.obj[key] = value
+            return
         self._check_read_only(f"Setting item '{key}'")
         self._get_active()[key] = value
 
     def __delitem__(self, key: Any) -> None:  # noqa: ANN401
         """Forward subscript deletion to the active object, raising in read-only mode.
 
+        Never warns, like :meth:`~deprecate.proxy._DeprecatedProxy.__setitem__`. With ``skip_if`` active the deletion
+        goes straight to the wrapped source and the read-only guard does not apply, mirroring
+        :meth:`~deprecate.proxy._DeprecatedProxy.__delattr__`.
+
         Raises:
-            AttributeError: If the proxy is in read-only mode.
+            AttributeError: If the proxy is in read-only mode and ``skip_if`` is inactive.
 
         """
+        # skip_if active — delete straight on the wrapped source; no read-only guard (parity with ``__delattr__``).
+        if self._shall_skip():
+            del self._cfg.obj[key]
+            return
         self._check_read_only(f"Deleting item '{key}'")
         del self._get_active()[key]
 
@@ -1391,7 +1413,8 @@ def _reconstruct_proxy(
             Defaults to ``None`` so pickles written without it still load with the rendered message.
 
     """
-    proxy = _DeprecatedProxy.__new__(_DeprecatedProxy)
+    proxy_type = _proxy_type_for(cfg.obj)
+    proxy = proxy_type.__new__(proxy_type)
     object.__setattr__(proxy, "_DeprecatedProxy__config", cfg)
     object.__setattr__(proxy, "__deprecation_config__", dep)
     _restore_pep702_marker(proxy, dep, pep702_marker)
@@ -1478,9 +1501,9 @@ def _resolve_proxy_target(
 
     Only ``None`` — the ``deprecated_class`` default, meaning "no explicit target" — auto-resolves: a mapping present
     selects :attr:`~deprecate._types.TargetMode.ARGS_REMAP` / :attr:`~deprecate._types.TargetMode.ATTRS_REMAP` (or the
-    wrapped object itself when dataclass auto-expand activated both surfaces); no mapping keeps ``None`` (warn-on-access
-    proxy).  An **explicit** ``TargetMode.NOTIFY`` is a deliberate caller choice and is never overridden — with
-    ``attrs_mapping`` present the pair is contradictory, so dataclass auto-expand is skipped and the flag in the
+    wrapped object itself when dataclass auto-expand activated both surfaces); no mapping keeps ``None`` (a proxy that
+    warns on access).  An **explicit** ``TargetMode.NOTIFY`` is a deliberate caller choice and is never overridden —
+    with ``attrs_mapping`` present the pair is contradictory, so dataclass auto-expand is skipped and the flag in the
     returned tuple tells the proxy to ignore the mapping at runtime (the validators emit the misconfig ``UserWarning``).
 
     Returns ``(resolved_target, args_mapping, auto_expanded_keys, explicit_notify_attrs)``.
@@ -1661,8 +1684,8 @@ class _RedirectDecorator(Protocol[_NewT_co]):
     A redirecting proxy does not stand in for the class it wraps — ``isinstance``, construction, and attribute access
     all resolve against *target*, so ``deprecated_class(target=NewCls)(OldCls)`` is statically ``type[NewCls]``, never
     ``type[OldCls]`` (``OldCls`` instances are not instances of the alias).  The wrapped class is not part of the result
-    type, so it may be any class — including a bare ``type`` — and need not be related to *target*.  An already-wrapped
-    proxy (stacking) keeps its concrete proxy type.
+    type, so it may be any class — including a bare ``type`` — and need not be related to *target*.  A source that is
+    already a proxy (stacking) keeps its concrete proxy type.
 
     """
 
@@ -1992,7 +2015,8 @@ def deprecated_instance(
 
     Returns a :class:`~deprecate.proxy._DeprecatedProxy` that transparently forwards all read access to *obj* while
     emitting a :class:`FutureWarning`.  In *read-only* mode any write attempt through the proxy raises
-    :class:`AttributeError`.
+    :class:`AttributeError` (unless ``skip_if`` is active); writes never warn.  A proxy over a function stored as a
+    class attribute binds like a method, so ``Model().scale(2)`` passes the instance and warns on the call.
 
     Args:
         obj: The object to deprecate (dict, list, custom object, …).
@@ -2068,7 +2092,7 @@ def deprecated_instance(
             UserWarning,
             stacklevel=2,
         )
-    return _DeprecatedProxy(
+    return _proxy_type_for(obj)(
         obj=obj,
         name=resolved_name,
         deprecated_in=deprecated_in,
@@ -2237,3 +2261,58 @@ def _install_forwarding_dunders(cls: type) -> None:
 
 
 _install_forwarding_dunders(_DeprecatedProxy)
+
+
+class _BindingDeprecatedProxy(_DeprecatedProxy):
+    """A deprecation proxy over a callable that binds as a method when read through an instance.
+
+    Covers a plain function, a ``@deprecated`` wrapper, and a nested proxy over either. Defining ``__get__`` makes an
+    object a descriptor, and :func:`inspect.isroutine` / :func:`inspect.ismethoddescriptor` report every descriptor type
+    as a routine — so ``__get__`` lives only on this subclass, which :func:`_proxy_type_for` selects for a callable
+    whose type defines ``__get__``. Proxies over data, classes and other objects stay plain :class:`_DeprecatedProxy`
+    instances and are not reported as routines.
+
+    """
+
+    def __get__(self, instance: Any, owner: Optional[type] = None) -> Any:  # noqa: ANN401
+        """Bind a wrapped function stored as a class attribute, so a call through an instance receives the instance.
+
+        Python turns a plain function read through an instance into a bound method; a proxy stored in a class body
+        (``class Model: scale = deprecated_instance(legacy_scale, ...)``) must do the same, or ``Model().scale(2)``
+        would call ``legacy_scale(2)`` without the instance. The wrapped object's own ``__get__`` decides: when it binds
+        by prepending the instance (plain functions, ``@deprecated`` wrappers, a nested proxy over either), the result
+        is a :class:`types.MethodType` whose ``__func__`` is this proxy, so the call warns against this proxy's budget
+        and honours ``skip_if`` and fatal mode exactly as a direct call does, with no extra Python frame.
+
+        Every other case returns this proxy unchanged: class access (``Model.scale``, where a plain function does not
+        bind either), wrapped objects without ``__get__`` (data, classes wrapped by
+        :func:`~deprecate.proxy.deprecated_class`), non-callable descriptors (``property``, ``cached_property``,
+        ``classmethod`` objects, whose getter is not run), and callables that bind differently (``staticmethod``).
+
+        Binding is silent: attribute access is how ``hasattr``, ``inspect.getmembers`` and autodoc read members, while
+        the call is the use of the deprecated API and warns.
+
+        """
+        source = self._cfg.obj
+        descr_get = getattr(type(source), "__get__", None)
+        # Only a callable can bind into a method; skipping the rest keeps a wrapped ``property`` or ``cached_property``
+        # from running its getter on an access whose result would be discarded anyway.
+        if descr_get is None or not callable(source):
+            return self
+        bound = descr_get(source, instance, owner)
+        # ``type()`` rather than ``isinstance``: a proxy reports its wrapped object's class through ``__class__``.
+        if type(bound) is types.MethodType and bound.__func__ is source:
+            return types.MethodType(self, bound.__self__)
+        return self
+
+
+def _proxy_type_for(obj: Any) -> type[_DeprecatedProxy]:  # noqa: ANN401
+    """Return the proxy class for *obj*: :class:`_BindingDeprecatedProxy` for a bindable callable, else the base.
+
+    A callable non-class whose type defines ``__get__`` (a function, a bound-method factory, a nested binding proxy)
+    gets the binding subclass; a class never does, because a class read through an instance does not bind.
+
+    """
+    if callable(obj) and not isinstance(obj, type) and getattr(type(obj), "__get__", None) is not None:
+        return _BindingDeprecatedProxy
+    return _DeprecatedProxy

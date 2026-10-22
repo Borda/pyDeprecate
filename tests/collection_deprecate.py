@@ -114,6 +114,7 @@ from tests.collection_targets import (
     gen_target,
     identity_value,
     increment_value,
+    legacy_host_scale,
     nested_partial_target,
     non_cycle_double,
     partial_async_target,
@@ -3211,6 +3212,52 @@ def make_warn_after_success_proxy(obj: object, **overrides: Any) -> Any:  # noqa
     can flip a failure flag without reading through the proxy (which would itself warn).
     """
     return deprecated_instance(obj, **{"name": "legacy_box", **_DEPRS_CASE_STD_ARGS, **overrides})
+
+
+# ========== Proxies stored as class attributes: descriptor binding ==========
+
+
+def make_deprecated_method_host(**overrides: Any) -> type[Any]:  # noqa: ANN401
+    """Build a fresh host class whose ``scale`` method is a ``deprecated_instance`` of a plain function.
+
+    The proxy lives in the class body, so instance access goes through its ``__get__`` and must bind the wrapped
+    function like a method. Built per call so every test starts with an unspent warn budget. *overrides* replace any
+    ``deprecated_instance`` keyword — ``skip_if=True``, ``as_exception=True``, ``num_warns=-1``.
+    """
+
+    class MethodHost:
+        """Host class carrying the deprecated ``scale`` method."""
+
+        scale = deprecated_instance(legacy_host_scale, **{"name": "scale", **_DEPRS_CASE_STD_ARGS, **overrides})
+
+    return MethodHost
+
+
+def make_deprecated_data_host() -> type[Any]:
+    """Build a fresh host class holding a deprecated dict constant and a deprecated class alias as class attributes.
+
+    Neither wrapped object binds (a ``dict`` instance and a class are not descriptors), so instance access must return
+    the very proxy stored in the class body, exactly as before the proxy gained ``__get__``.
+    """
+
+    class DataHost:
+        """Host class carrying non-binding deprecated class attributes."""
+
+        defaults = deprecated_instance({"threshold": 0.5}, name="defaults", stream=None, **_DEPRS_CASE_STD_ARGS)
+        Palette = deprecated_class(stream=None, **_DEPRS_CASE_STD_ARGS)(Palette)
+
+    return DataHost
+
+
+def make_read_only_settings_proxy(*, skip_if: bool) -> Any:  # noqa: ANN401
+    """Wrap a fresh dict as the read-only ``legacy_settings`` instance with the given ``skip_if`` condition."""
+    return deprecated_instance(
+        {"threshold": 0.5, "enabled": True},
+        name="legacy_settings",
+        read_only=True,
+        skip_if=skip_if,
+        **_DEPRS_CASE_STD_ARGS,
+    )
 
 
 def make_flaky_attr_alias(host: type, **overrides: Any) -> Any:  # noqa: ANN401

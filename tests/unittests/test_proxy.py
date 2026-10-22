@@ -11,6 +11,7 @@ import warnings
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass as dc_decorator
 from enum import Enum
+from types import MethodType
 from typing import TYPE_CHECKING, Any, cast
 
 import pytest
@@ -60,10 +61,13 @@ from tests.collection_deprecate import (
     make_deprecated_class_skip_if_flag,
     make_deprecated_class_skip_if_non_bool,
     make_deprecated_class_skip_if_true,
+    make_deprecated_data_host,
     make_deprecated_hostile_signature_instance,
     make_deprecated_instance_over_marked_object,
     make_deprecated_instance_skip_if_true_read_only,
+    make_deprecated_method_host,
     make_flaky_attr_alias,
+    make_read_only_settings_proxy,
     make_warn_after_success_proxy,
     pep702_proxy_stacked,
 )
@@ -3543,6 +3547,228 @@ class TestProxySkipIf:
             proxy.append(3)
 
         assert list(proxy) == [1, 2, 3]
+
+    @pytest.mark.parametrize(
+        ("operation", "expected"),
+        [
+            pytest.param(lambda p: p.__setitem__("threshold", 0.9), {"threshold": 0.9, "enabled": True}, id="setitem"),
+            pytest.param(lambda p: p.__delitem__("enabled"), {"threshold": 0.5}, id="delitem"),
+        ],
+    )
+    def test_instance_skip_allows_item_writes(
+        self, operation: Callable[[Any], None], expected: dict[str, object]
+    ) -> None:
+        """With ``skip_if=True`` item writes and deletes reach a read-only source silently, like attribute writes.
+
+        A read-only deprecated settings mapping whose deprecation is gated by a flag: while the flag holds, the proxy
+        must be fully transparent, so ``settings["threshold"] = 0.9`` and ``del settings["enabled"]`` mutate the
+        wrapped dict instead of raising the read-only ``AttributeError`` — the same rule ``__setattr__`` follows.
+
+        """
+        proxy = make_read_only_settings_proxy(skip_if=True)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            operation(proxy)
+
+        assert proxy.wrapped == expected
+
+    @pytest.mark.parametrize(
+        "operation",
+        [
+            pytest.param(lambda p: p.__setitem__("threshold", 0.9), id="setitem"),
+            pytest.param(lambda p: p.__delitem__("enabled"), id="delitem"),
+        ],
+    )
+    def test_inactive_skip_keeps_item_write_guard(self, operation: Callable[[Any], None]) -> None:
+        """With ``skip_if=False`` the read-only guard still rejects item writes and deletes.
+
+        Honouring ``skip_if`` must not weaken the default: once the gating flag is off, a write through a read-only
+        deprecated mapping raises the read-only ``AttributeError`` and leaves the wrapped dict untouched.
+
+        """
+        proxy = make_read_only_settings_proxy(skip_if=False)
+
+        with pytest.raises(AttributeError, match="read-only"):
+            operation(proxy)
+
+        assert proxy.wrapped == {"threshold": 0.5, "enabled": True}
+
+
+class TestProxyDescriptorBinding:
+    """A proxy stored as a class attribute binds a wrapped function like a method, via ``__get__``."""
+
+    @pytest.mark.parametrize(
+        ("host_factory", "attr", "expected"),
+        [
+            pytest.param(make_deprecated_method_host, "scale", True, id="function"),
+            pytest.param(make_deprecated_data_host, "defaults", False, id="dict"),
+            pytest.param(make_deprecated_data_host, "Palette", False, id="class-alias"),
+        ],
+    )
+    def test_only_bindable_proxies_report_as_routines(
+        self, host_factory: Callable[[], type[Any]], attr: str, expected: bool
+    ) -> None:
+        """``inspect.isroutine`` is ``True`` for a proxy over a function and ``False`` for data and class proxies.
+
+        Documentation and introspection tools (``pydoc``, ``inspect.getmembers(module, inspect.isroutine)``, griffe in
+        dynamic mode) sort members by this predicate. Only a proxy that actually binds may carry ``__get__``; a
+        deprecated constant or class alias must keep being reported as what it stands in for, not as a function.
+
+        """
+        stored = vars(host_factory())[attr]
+
+        assert inspect.isroutine(stored) is expected
+
+    @pytest.mark.parametrize(
+        "duplicate",
+        [
+            pytest.param(copy.copy, id="copy"),
+            pytest.param(copy.deepcopy, id="deepcopy"),
+            pytest.param(lambda proxy: pickle.loads(pickle.dumps(proxy)), id="pickle"),  # noqa: S301
+        ],
+    )
+    def test_duplicate_keeps_binding(self, duplicate: Callable[[Any], Any]) -> None:
+        """A copied, deep-copied or unpickled function proxy is still a binding proxy.
+
+        Caches and worker processes copy class namespaces; the rebuilt proxy must keep ``__get__`` so a method stored
+        on a class keeps receiving its instance after the round trip.
+
+        """
+        stored = vars(make_deprecated_method_host())["scale"]
+
+        assert type(duplicate(stored)) is type(stored)
+
+    def test_instance_calls_bind_and_share_one_warning(self) -> None:
+        """Calls through two instances each receive their own instance and together emit one warning.
+
+        A library replaces ``class Model: scale = legacy_scale`` by ``scale = deprecated_instance(legacy_scale, ...)``:
+        ``Model().scale(2)`` must keep passing the instance as the first argument, and the default ``num_warns=1``
+        budget belongs to the deprecated object — not to each instance or to each attribute access.
+
+        """
+        host_cls = make_deprecated_method_host()
+        first, second = host_cls(), host_cls()
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            results = (first.scale(1), second.scale(2), host_cls.scale(first, 3))
+
+        assert results == ((first, 1), (second, 2), (first, 3))
+        assert _future_warning_count(caught) == 1
+
+    def test_instance_access_returns_method_over_proxy(self) -> None:
+        """Instance access yields a bound method over the stored proxy, with ``self`` dropped from its signature.
+
+        Pins the binding mechanism: the deprecation config, the PEP 702 marker and the warn budget stay reachable
+        through ``__func__``, and introspection (``inspect.signature``, IDE help) shows the signature callers use.
+
+        """
+        host_cls = make_deprecated_method_host()
+        host = host_cls()
+        proxy = host_cls.__dict__["scale"]
+
+        bound = host.scale
+
+        assert isinstance(bound, MethodType)
+        assert bound.__func__ is proxy
+        assert bound.__self__ is host
+        assert list(inspect.signature(bound).parameters) == ["factor"]
+        assert cast(Any, bound).__deprecated__ == cast(Any, proxy).__deprecated__
+
+    def test_class_access_returns_stored_proxy(self) -> None:
+        """Class access returns the stored proxy itself, so an explicit-instance call works and warns as before.
+
+        Code calling ``Model.scale(model, 2)`` — unbound style, or a subclass delegating to its parent — keeps today's
+        behaviour: a plain function read from its class does not bind, so the proxy must not either.
+
+        """
+        host_cls = make_deprecated_method_host()
+        host = host_cls()
+
+        with pytest.warns(FutureWarning, match="scale"):
+            result = host_cls.scale(host, 3)
+
+        assert host_cls.scale is host_cls.__dict__["scale"]
+        assert result == (host, 3)
+
+    def test_bound_call_warning_points_at_caller(self) -> None:
+        """The warning from a bound call names this test file and the calling line.
+
+        Binding adds no Python frame between the caller and the proxy's ``__call__``, so warning filters keyed on the
+        calling module and ``-W error`` tracebacks keep pointing at user code, not into ``deprecate``.
+
+        """
+        host = make_deprecated_method_host()()
+        frame = inspect.currentframe()
+        assert frame is not None
+
+        call_line = frame.f_lineno + 2  # the ``host.scale(4)`` line two lines below
+        with pytest.warns(FutureWarning) as record:
+            host.scale(4)
+
+        assert record[0].filename == __file__
+        assert record[0].lineno == call_line
+
+    def test_unlimited_budget_warns_per_bound_call(self) -> None:
+        """With ``num_warns=-1`` every bound call warns, exactly as direct calls on the proxy do.
+
+        A strict migration window that wants every use reported must not be undercut by binding: each call through an
+        instance spends from the proxy's own unlimited budget.
+
+        """
+        host = make_deprecated_method_host(num_warns=-1)()
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            results = (host.scale(1), host.scale(2))
+
+        assert results == ((host, 1), (host, 2))
+        assert _future_warning_count(caught) == 2
+
+    def test_skip_if_serves_bound_source_silently(self) -> None:
+        """With ``skip_if=True`` a bound call runs the wrapped function with the instance, without warning.
+
+        The deprecation is gated off by a flag: the method must behave exactly like the undeprecated function stored
+        on the class — bound to the instance, silent.
+
+        """
+        host = make_deprecated_method_host(skip_if=True)()
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            result = host.scale(5)
+
+        assert result == (host, 5)
+
+    def test_fatal_bound_call_raises(self) -> None:
+        """With ``as_exception=True`` a bound call raises ``DeprecatedError`` instead of running the method.
+
+        Attribute access stays silent (it is how ``hasattr`` and introspection read members); the call is the use of
+        the deprecated API, so it is where the fatal deprecation fires.
+
+        """
+        host = make_deprecated_method_host(as_exception=True)()
+        bound = host.scale
+
+        with pytest.raises(DeprecatedError, match="scale"):
+            bound(6)
+
+    @pytest.mark.parametrize("attr", ["defaults", "Palette"])
+    def test_non_descriptor_attribute_returns_stored_proxy(self, attr: str) -> None:
+        """Instance and class access to a proxy over a non-descriptor return the stored proxy unchanged.
+
+        Deprecated constants and class aliases held on a class (``Config.DEFAULTS``, ``Toolkit.OldWidget``) must not
+        be re-wrapped or bound: a ``dict`` instance and a class are not descriptors, so the proxy is served as stored.
+
+        """
+        host_cls = make_deprecated_data_host()
+        stored = host_cls.__dict__[attr]
+
+        from_instance, from_class = getattr(host_cls(), attr), getattr(host_cls, attr)
+
+        assert from_instance is stored
+        assert from_class is stored
 
 
 def _future_warning_count(caught: list[warnings.WarningMessage]) -> int:

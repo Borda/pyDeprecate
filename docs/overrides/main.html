@@ -569,6 +569,14 @@
         },
         {
           "@type": "Question",
+          "name": "Can a deprecated_instance of a function be used as a class attribute (method)?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. The proxy implements the descriptor protocol: read through an instance, a proxy over a plain function (or a @deprecated wrapper) returns a bound method whose __func__ is the proxy, so Model().scale(2) calls legacy_scale(model, 2) and warns on the call, pointing at the calling line. The num_warns budget belongs to the proxy, so the default single warning is shared by every instance, and skip_if and as_exception behave as on a direct call. Read through the class, Model.scale is the proxy itself, so Model.scale(model, 2) works too. Proxies over data, classes, and non-function descriptors (property, classmethod, staticmethod objects) are returned as stored and never bound; decorate the underlying function with @deprecated instead."
+          }
+        },
+        {
+          "@type": "Question",
           "name": "Why don't mypy, pyright, or my IDE flag functions deprecated with pyDeprecate?",
           "acceptedAnswer": {
             "@type": "Answer",

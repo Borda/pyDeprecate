@@ -1308,6 +1308,18 @@ def make_flaky_attr_host() -> "type[FlakyAttrHost]":
     return type("FlakyAttrHost", (FlakyAttrHost,), {"fail": False})
 
 
+# ========== Plain function stored as a class attribute: the proxy binds like a method ==========
+
+
+def legacy_host_scale(host: Any, factor: int) -> tuple[Any, int]:  # noqa: ANN401
+    """Return the receiving *host* together with *factor*, so a test sees which object the call was bound to.
+
+    A host class stores this function as a method; wrapped in ``deprecated_instance`` it must still receive the
+    instance as its first argument when called through an instance, exactly as the undeprecated function would.
+    """
+    return host, factor
+
+
 # ========== Stream fixtures: how a warning reaches a custom ``stream`` ==========
 
 # Stand-ins for the ``stream=`` callables users pass to ``@deprecated``, ``deprecated_instance`` and
