@@ -42,7 +42,8 @@ def _is_internal(frame: FrameType) -> bool:
 
     """
     name = frame.f_globals.get("__name__", "")
-    return name == _PACKAGE or name.startswith(_PACKAGE + ".")
+    # ``exec`` code may bind ``__name__`` to any object; a non-string name is never this package.
+    return isinstance(name, str) and (name == _PACKAGE or name.startswith(_PACKAGE + "."))
 
 
 def _is_import_bootstrap(frame: FrameType) -> bool:

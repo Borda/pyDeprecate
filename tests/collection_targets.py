@@ -6,6 +6,7 @@ This module provides base functions that are used as targets for deprecated func
 
 import functools
 import inspect
+import logging
 import time
 import types
 import warnings
@@ -1334,6 +1335,11 @@ class LocCustomModuleType(types.ModuleType):
 
 def stream_message_only(msg: str) -> None:
     """Stream that takes only the message, like a ``print``-style sink with no ``stacklevel`` support."""
+
+
+@functools.wraps(logging.warning)
+def stream_wraps_logging_warning(msg: str) -> None:
+    """Message-only stream copying ``logging.warning``'s metadata, so ``__wrapped__`` has a wider signature."""
 
 
 def stream_with_stacklevel(msg: str, stacklevel: int = 1) -> None:

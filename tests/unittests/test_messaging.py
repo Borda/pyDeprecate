@@ -48,6 +48,7 @@ from tests.collection_targets import (
     stream_var_keyword,
     stream_var_positional_named_stacklevel,
     stream_with_stacklevel,
+    stream_wraps_logging_warning,
 )
 
 
@@ -394,6 +395,7 @@ class TestStreamAcceptsStacklevel:
             pytest.param(logging.warning, True, id="logging-warning"),
             pytest.param(print, False, id="print"),
             pytest.param(stream_message_only, False, id="message-only"),
+            pytest.param(stream_wraps_logging_warning, False, id="wraps-of-logging-warning"),
             pytest.param(stream_with_stacklevel, True, id="stacklevel-param"),
             pytest.param(stream_positional_only_message, True, id="positional-only-message"),
             pytest.param(stream_positional_only_stacklevel, False, id="positional-only-stacklevel"),
@@ -413,6 +415,8 @@ class TestStreamAcceptsStacklevel:
         callables as ``stream=``. Only a stream with a keyword-capable ``stacklevel`` parameter or ``**kwargs``
         may receive ``stacklevel=``; ``warnings.warn`` and its partials are recognised by identity so the answer
         does not hinge on builtin signature support, and an unintrospectable stream is never sent the keyword.
+        A stream decorated with ``functools.wraps`` is judged by its own parameters, not by the ``__wrapped__``
+        callable whose metadata it copied, because the stream itself is what gets called.
         """
         assert _stream_accepts_stacklevel(stream) is expected
 

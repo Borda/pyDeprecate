@@ -81,6 +81,18 @@ class TestIsInternal:
         exec(compile("def current():\n    return sys._getframe()\n", "<raw>", "exec"), namespace)  # noqa: S102
         assert _is_internal(namespace["current"]()) is False
 
+    @pytest.mark.parametrize("module_name", [None, 42])
+    def test_non_string_module_name_is_external(self, module_name: object) -> None:
+        """A frame whose globals bind ``__name__`` to a non-string counts as external instead of raising.
+
+        ``exec`` code may set ``__name__`` to any object. The predicate runs on every frame of every emitted warning,
+        so an ``AttributeError`` there would break each deprecated call made from such code.
+
+        """
+        namespace: dict[str, Any] = {"sys": sys, "__name__": module_name}
+        exec(compile("def current():\n    return sys._getframe()\n", "<raw>", "exec"), namespace)  # noqa: S102
+        assert _is_internal(namespace["current"]()) is False
+
 
 class TestCallerStacklevel:
     """``_caller_stacklevel`` returns the ``stacklevel`` that lands ``warnings.warn`` on the first external frame."""

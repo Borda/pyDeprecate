@@ -199,7 +199,9 @@ def _inspect_stream_accepts_stacklevel(stream: Callable[..., Any]) -> bool:
     if base is warn:
         return True
     try:
-        parameters = inspect.signature(stream).parameters.values()
+        # ``follow_wrapped=False``: a stream decorated with ``functools.wraps(logging.warning)`` reports the wrapped
+        # callable's wider signature, but the stream itself is what gets called.
+        parameters = inspect.signature(stream, follow_wrapped=False).parameters.values()
     except (TypeError, ValueError):
         # No signature: call with the message alone rather than guess, so the stream is never invoked twice.
         return False
