@@ -155,6 +155,38 @@ class TestCliSubcommands:
         assert result.returncode == 1
 
     @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
+    @pytest.mark.parametrize("subcommand", ["expiry", "all", "status"])
+    def test_dotted_distribution_version(self, tmp_path: Path, subcommand: str) -> None:
+        """Use a dotted component's distribution version instead of its top-level package's release.
+
+        Independently released namespace components can share an import prefix while publishing different
+        distribution versions. A component at 3.0 must report its wrapper due at 2.0 as expired even when the
+        top-level distribution is only at 1.0; both the gate and its recorded status table must use 3.0.
+        """
+        pkg = _make_pkg(tmp_path, name="versioned_namespace", content="")
+        (pkg / "component.py").write_text(_MYPKG_INIT.replace('remove_in="9.0"', 'remove_in="2.0"'), encoding="utf-8")
+        for name, version, source in [
+            ("versioned_namespace", "1.0", "versioned_namespace/__init__.py"),
+            ("versioned_namespace_component", "3.0", "versioned_namespace/component.py"),
+        ]:
+            info = tmp_path / f"{name}-{version}.dist-info"
+            info.mkdir()
+            (info / "METADATA").write_text(
+                f"Metadata-Version: 2.1\nName: {name}\nVersion: {version}\n", encoding="utf-8"
+            )
+            (info / "top_level.txt").write_text("versioned_namespace\n", encoding="utf-8")
+            (info / "RECORD").write_text(f"{source},,\n", encoding="utf-8")
+        report = tmp_path / "report.json"
+        result = _run_cli(subcommand, "versioned_namespace.component", f"--report-json={report}", cwd=tmp_path)
+
+        assert result.returncode == (0 if subcommand == "status" else 1), result.stdout + result.stderr
+        assert "Version: 3.0 (auto-detected)" in result.stdout
+        data = json.loads(report.read_text(encoding="utf-8"))
+        assert data["gaps"] == []
+        assert "Current version: 3.0" in data["table"]
+        assert "Past Removal Date" in data["table"]
+
+    @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
     @pytest.mark.parametrize("subcommand", ["expiry", "all"])
     @pytest.mark.parametrize("implicit_path", [False, True])
     @pytest.mark.parametrize("dynamic_version", [False, True])

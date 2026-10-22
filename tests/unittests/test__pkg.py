@@ -59,6 +59,17 @@ class TestResolvePackageVersion:
         monkeypatch.setattr(importlib.metadata, "version", MagicMock(return_value="1.2.3"))
         assert _resolve_package_version("somepkg", path=None) == "1.2.3"
 
+    def test_direct_metadata_skips_distribution_mapping(self) -> None:
+        """Resolve a known distribution without enumerating every installed package.
+
+        A CLI invocation for an installed package with matching import and distribution names needs only one
+        metadata lookup. Building the environment-wide import mapping first adds work unrelated to that result.
+        """
+        expected = importlib.metadata.version("pytest")
+        with patch.object(importlib.metadata, "packages_distributions", create=True) as mapping:
+            assert _resolve_package_version("pytest") == expected
+        mapping.assert_not_called()
+
     def test_import_name_maps_to_distribution(self) -> None:
         """Auto-detect resolves the version even when the distribution name differs from the import name.
 

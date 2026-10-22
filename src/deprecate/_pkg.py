@@ -260,16 +260,18 @@ def _resolve_package_version(module_name: str, path: Optional[str] = None) -> Op
 
     1. ``[project].version`` in the nearest ``pyproject.toml`` above *path* (reflects local development checkouts
        whose version may differ from the installed dist; a ``dynamic`` version imports ``[project].name``).
-    2. ``importlib.metadata.version`` of the top-level import package — the installed distribution.
-    3. The same lookup for the distribution that provides the import package, as the import name (``deprecate``,
-       ``PIL``, ``sklearn``) often differs from the distribution name (``pyDeprecate``, ``Pillow``,
-       ``scikit-learn``).
+    2. ``importlib.metadata.version`` of the full module name, then its top-level import package. A dotted
+       component can have its own distribution and version, distinct from another package sharing its namespace.
+    3. The same lookup for the distribution that provides the top-level import package, as the import name
+       (``deprecate``, ``PIL``, ``sklearn``) often differs from the distribution name (``pyDeprecate``,
+       ``Pillow``, ``scikit-learn``).
     4. The top-level package's ``__version__`` when it is a string — the only source an uninstalled checkout
        without a static ``pyproject.toml`` version exposes. The package is imported with *path*'s import root
        on ``sys.path``.
 
     Args:
-        module_name: Importable (possibly dotted) module name; the version belongs to its top-level package.
+        module_name: Importable (possibly dotted) module name; matching distribution metadata takes priority
+            over the top-level package's version.
             A raw path that is not a dotted name (the CLI's fallback for a plain directory) is never imported.
         path: Optional file-system path used to locate a local ``pyproject.toml`` and the import root.
             Only consulted when it actually exists on the filesystem; an importable module *name* passed
@@ -289,10 +291,16 @@ def _resolve_package_version(module_name: str, path: Optional[str] = None) -> Op
         if local_ver is not None:
             return local_ver
     top_level = module_name.split(".")[0]
-    for dist_name in (top_level, _distribution_for_import(top_level)):
-        if dist_name is not None:
-            with suppress(Exception):
-                return importlib.metadata.version(dist_name)
+    with suppress(Exception):
+        return importlib.metadata.version(module_name)
+    if module_name != top_level:
+        with suppress(Exception):
+            return importlib.metadata.version(top_level)
+    # Mapping enumerates installed distributions, so defer it until direct metadata lookups fail.
+    dist_name = _distribution_for_import(top_level)
+    if dist_name is not None:
+        with suppress(Exception):
+            return importlib.metadata.version(dist_name)
     if not all(part.isidentifier() for part in module_name.split(".")):
         return None
     with _managed_sys_path(existing_path) if existing_path is not None else nullcontext():
