@@ -5,6 +5,7 @@ This module provides base functions that are used as targets for deprecated func
 """
 
 import functools
+import inspect
 import time
 import warnings
 from collections.abc import AsyncIterator, Generator, Iterator
@@ -989,3 +990,142 @@ class HostileSignatureCallable:
     def __signature__(self) -> Any:  # noqa: ANN401
         """Always raise ``RuntimeError`` — stands in for any descriptor that cannot be introspected."""
         raise RuntimeError("`__signature__` is deliberately unreadable")
+
+
+# ========== Characterization fixtures: call shapes and warning locations ==========
+
+# Sources whose runtime call shape differs from what ``inspect.signature`` reports, plus callable objects
+# without a usable ``__name__`` and a side-effect-counting container.  Wrapped in
+# :mod:`tests.collection_deprecate` and exercised by ``tests/integration/test_call_transparency.py`` and
+# ``tests/integration/test_warning_locations.py``, which pin today's behaviour before internal refactors.
+
+
+@functools.singledispatch
+def area_dispatch(shape: object) -> str:
+    """Describe a shape by its type — generic fallback of a ``functools.singledispatch`` source.
+
+    ``singledispatch`` dispatches on the type of the first *positional* argument and raises ``TypeError`` when
+    called with keywords only, so a wrapper that rewrites positionals into keywords breaks it.
+    """
+    return f"generic:{shape}"
+
+
+@area_dispatch.register
+def _area_dispatch_int(shape: int) -> str:
+    """Describe a square by its integer side length."""
+    return f"int:{shape}"
+
+
+@area_dispatch.register
+def _area_dispatch_str(shape: str) -> str:
+    """Describe a shape by its name."""
+    return f"str:{shape}"
+
+
+def raw_signature_patched(*args: object, **kwargs: object) -> tuple[tuple[object, ...], dict[str, object]]:
+    """Return the raw ``(args, kwargs)`` it received while ``__signature__`` advertises a single ``x`` parameter.
+
+    Mirrors C-accelerated wrappers and argument-clinic shims whose real call shape (``*args, **kwargs``) differs
+    from the signature they report, so the observed return value shows exactly how a wrapper forwarded the call.
+    """
+    return args, kwargs
+
+
+raw_signature_patched.__signature__ = inspect.Signature(  # type: ignore[attr-defined]
+    [inspect.Parameter("x", inspect.Parameter.POSITIONAL_OR_KEYWORD)]
+)
+
+
+def kwargs_rejecting_inner(func: Callable[..., int]) -> Callable[..., int]:
+    """Wrap *func* in a ``functools.wraps`` forwarder whose inner body rejects keyword arguments.
+
+    ``inspect.signature`` follows ``__wrapped__`` and reports *func*'s named parameters, but the forwarder itself
+    only passes positionals through — the common shape of hand-written decorator layers in user code.
+    """
+
+    @functools.wraps(func)
+    def inner(*args: object, **kwargs: object) -> int:
+        if kwargs:
+            raise TypeError(f"{func.__name__}() forwarder accepts positional arguments only, got {sorted(kwargs)}")
+        return func(*args)
+
+    return inner
+
+
+@kwargs_rejecting_inner
+def wraps_chain_outer(value: int) -> int:
+    """Double *value* behind a positional-only ``functools.wraps`` forwarder (see :func:`kwargs_rejecting_inner`)."""
+    return value * 2
+
+
+def new_scale(x: int, y: int = 1) -> int:
+    """Scale *x* by *y* — replacement callable bound through :data:`partial_target`."""
+    return x * y
+
+
+#: ``functools.partial`` replacement target; a partial object has no ``__name__`` of its own.
+partial_target = functools.partial(new_scale, y=5)
+
+
+class CallableAdder:
+    """Callable object adding a fixed offset — an instance target that has no ``__name__`` of its own."""
+
+    def __init__(self, offset: int = 1) -> None:
+        """Store the offset added on every call."""
+        self.offset = offset
+
+    def __call__(self, x: int) -> int:
+        """Return ``x`` plus the stored offset."""
+        return x + self.offset
+
+
+#: Callable-instance replacement target (instances of :class:`CallableAdder` carry no ``__name__``).
+callable_adder_target = CallableAdder(offset=10)
+
+
+class SideEffectBox:
+    """Container counting every ``__iadd__``, ``__enter__`` and ``__next__`` call; ``fail=True`` makes them raise.
+
+    Wrapped by a ``deprecated_instance`` proxy, the counters show how often the proxy actually invoked each operation
+    on the wrapped object, and the failure flag lets a test observe what the proxy does when the operation raises.
+    """
+
+    def __init__(self, items: tuple[int, ...] = (1, 2), fail: bool = False) -> None:
+        """Store the items to iterate over and whether every counted operation should raise."""
+        self.items = list(items)
+        self.fail = fail
+        self.calls: dict[str, int] = {"__iadd__": 0, "__enter__": 0, "__next__": 0}
+        self._cursor = 0
+
+    def _record(self, operation: str) -> None:
+        """Count *operation* and raise ``RuntimeError`` when the box was built with ``fail=True``."""
+        self.calls[operation] += 1
+        if self.fail:
+            raise RuntimeError(f"SideEffectBox.{operation} failed on purpose")
+
+    def __iadd__(self, other: int) -> "SideEffectBox":
+        """Append *other* in place."""
+        self._record("__iadd__")
+        self.items.append(other)
+        return self
+
+    def __enter__(self) -> "SideEffectBox":
+        """Enter the context and return the box itself."""
+        self._record("__enter__")
+        return self
+
+    def __exit__(self, *exc_info: object) -> None:
+        """Leave the context without suppressing exceptions."""
+
+    def __iter__(self) -> "SideEffectBox":
+        """Restart iteration over the stored items."""
+        self._cursor = 0
+        return self
+
+    def __next__(self) -> int:
+        """Return the next stored item."""
+        self._record("__next__")
+        if self._cursor >= len(self.items):
+            raise StopIteration
+        self._cursor += 1
+        return self.items[self._cursor - 1]

@@ -45,7 +45,7 @@ from dataclasses import dataclass
 from enum import Enum
 from functools import cached_property, partial
 from types import SimpleNamespace
-from typing import Any, Callable
+from typing import Any, Callable, Optional
 from warnings import catch_warnings, simplefilter, warn
 
 import typing_extensions
@@ -58,6 +58,7 @@ from tests.collection_targets import (
     AutoExpandInitFalseDC,
     AutoExpandOverriddenInitDC,
     AutoExpandReqDC,
+    CallableAdder,
     ColorEnum,
     CombinedAttrsArgsSource,
     CombinedAttrsArgsTarget,
@@ -79,15 +80,18 @@ from tests.collection_targets import (
     RequiredPositionalOnlyTarget,
     SelfDeprecatedModel,
     SelfOnlyPositionalOnlyTarget,
+    SideEffectBox,
     SomeTargetClass,
     StackedAttrTarget,
     StackingArgsAttrsBase,
+    SubclassableBase,
     TimerDecorator,
     WithInjected,
     _DelOnlyPropTarget,  # private alias — see H3 fdel-only fixtures below
     _InnerOrderPropTarget,  # private alias — see H2 inner-order fixtures below
     _Pep702ProxyTarget,  # private alias — see B1b regression fixture below
     add_values,
+    area_dispatch,
     async_gen_target,
     async_non_cycle_double,
     async_positional_only_target,
@@ -113,6 +117,7 @@ from tests.collection_targets import (
     positional_only_target,
     positional_only_two_params_target,
     power_with_new_coef,
+    raw_signature_patched,
     return_b,
     return_z,
     single_positional_target,
@@ -121,6 +126,7 @@ from tests.collection_targets import (
     trio_positional_target,
     var_positional_remap_body,
     var_positional_target,
+    wraps_chain_outer,
 )
 
 _deprecation_warning = partial(warn, category=DeprecationWarning)
@@ -3057,3 +3063,198 @@ class DescriptorSourcesHolder:
     def legacy_helper(x: int) -> int:
         """Deprecated staticmethod."""
         return x
+
+
+# ========== Characterization fixtures: warning locations and call shapes ==========
+#
+# One wrapper per pyDeprecate warn site for ``tests/integration/test_warning_locations.py`` (where does the warning
+# point?) and one per call shape for ``tests/integration/test_call_transparency.py`` (what does the source receive?).
+# Both files pin today's behaviour so internal refactors of the dispatch and stacklevel machinery are proven against it.
+#
+# Budgets: module-level ``@deprecated`` wrappers below (including the inner layers of stacks, bound to their own module
+# names on purpose) are reset before every test by ``tests/conftest.py`` and keep the default ``num_warns=1``.  Proxies
+# and class-body descriptor wrappers are out of that fixture's reach, so they use ``num_warns=-1`` and no test depends
+# on execution order.  Decoration-time warnings come from ``make_loc_*`` factories: the decorating statement of each
+# factory carries a ``# warn-site`` marker so the test can compute the exact line the warning has to point at.
+
+
+@deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)
+def loc_notify(x: int) -> int:
+    """Warn-only source — its call-time ``FutureWarning`` must point at the caller's line."""
+    return x * 2
+
+
+@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old_x": "x"}, **_DEPRS_CASE_STD_ARGS)
+def loc_args_remap(x: int = 0, old_x: int = 0) -> int:
+    """Self-rename source (``old_x`` -> ``x``) — argument ``FutureWarning`` and collision ``UserWarning`` site."""
+    return x
+
+
+@deprecated(target=double_value, **_DEPRS_CASE_STD_ARGS)
+def loc_forward(x: int) -> int:
+    """Forwarding source — the callable-target ``FutureWarning`` must point at the caller's line."""
+    return void(x)
+
+
+def _loc_stack_lifecycle_source(x: int = 0, old_x: int = 0) -> int:
+    """Body of the supported ARGS_REMAP-over-NOTIFY lifecycle stack."""
+    return x
+
+
+#: Inner NOTIFY layer of the supported lifecycle stack (bound to a module name so its budget is reset per test).
+loc_stack_notify_inner = deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)(_loc_stack_lifecycle_source)
+#: Supported stack: the outer layer renames ``old_x``, the inner layer deprecates the whole function.
+loc_stack_remap_over_notify = deprecated(
+    target=TargetMode.ARGS_REMAP, args_mapping={"old_x": "x"}, **_DEPRS_CASE_STD_ARGS
+)(loc_stack_notify_inner)
+
+
+def _loc_stack_forward_source(x: int) -> int:
+    """Body of the supported NOTIFY-over-callable stack; never runs because the inner layer forwards."""
+    return void(x)
+
+
+#: Inner forwarding layer of the supported NOTIFY-over-callable stack.
+loc_stack_callable_inner = deprecated(target=double_value, **_DEPRS_CASE_STD_ARGS)(_loc_stack_forward_source)
+#: Supported stack: the outer NOTIFY layer (``v1.5``) announces removal, the inner layer (``v1.0``) forwards.
+loc_stack_notify_over_callable = deprecated(target=TargetMode.NOTIFY, deprecated_in="1.5", remove_in="2.0")(
+    loc_stack_callable_inner
+)
+
+
+def _loc_stack_rename_chain_source(a: int = 0, b: int = 0, c: int = 0) -> int:
+    """Body of the supported two-step rename stack (``a`` -> ``b`` first, ``b`` -> ``c`` later)."""
+    return c
+
+
+#: Inner ARGS_REMAP layer of the two-step rename stack (``b`` -> ``c``).
+loc_stack_remap_inner = deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"b": "c"}, **_DEPRS_CASE_STD_ARGS)(
+    _loc_stack_rename_chain_source
+)
+#: Supported stack: outer layer renames ``a`` -> ``b``; a caller passing ``b`` and ``c`` collides in the inner layer.
+loc_stack_remap_over_remap = deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"a": "b"}, **_DEPRS_CASE_STD_ARGS)(
+    loc_stack_remap_inner
+)
+
+
+def _loc_positional_only_source(x: int, y: int = 0) -> int:
+    """Source forwarding to ``positional_only_target``, whose ``x`` parameter is positional-only."""
+    return void(x, y)
+
+
+def make_loc_legacy_none_sentinel() -> Callable[..., Any]:
+    """Decorate through the ``@deprecated`` front door with the legacy ``target=None`` sentinel.
+
+    The legacy-sentinel ``FutureWarning`` has to point at the ``# warn-site`` line, the user's decoration site.
+    """
+    decorator = deprecated(target=None, **_DEPRS_CASE_STD_ARGS)
+    return decorator(identity_value)  # warn-site
+
+
+def make_loc_decoration_misconfig() -> Callable[..., Any]:
+    """Decorate with ``TargetMode.NOTIFY`` plus an ignored ``args_mapping`` — decoration-time misconfig warning."""
+    decorator = deprecated(target=TargetMode.NOTIFY, args_mapping={"old_x": "x"}, **_DEPRS_CASE_STD_ARGS)
+    return decorator(identity_value)  # warn-site
+
+
+def make_loc_missing_deprecated_in() -> Callable[..., Any]:
+    """Decorate without ``deprecated_in`` — decoration-time missing-version ``UserWarning``."""
+    decorator = deprecated(target=TargetMode.NOTIFY, remove_in="2.0")
+    return decorator(identity_value)  # warn-site
+
+
+def make_loc_positional_only_target() -> Callable[..., Any]:
+    """Decorate with a target that declares a positional-only parameter — decoration-time ``UserWarning``."""
+    decorator = deprecated(target=positional_only_target, **_DEPRS_CASE_STD_ARGS)
+    return decorator(_loc_positional_only_source)  # warn-site
+
+
+def make_loc_class_dispatch_notice() -> Any:  # noqa: ANN401
+    """Apply ``@deprecated`` to a fresh class — the one-time class-dispatch ``UserWarning`` at decoration time."""
+
+    class LocLegacyWidget:
+        """Plain class deprecated through the ``@deprecated`` front door."""
+
+    decorator = deprecated(**_DEPRS_CASE_STD_ARGS)
+    return decorator(LocLegacyWidget)  # warn-site
+
+
+#: Mapping proxy for the ``__getattr__`` / ``__getitem__`` / ``__iter__`` sites.
+loc_proxy_mapping = deprecated_instance({"threshold": 0.5}, name="loc_proxy_mapping", **_DEPRS_CASE_STD_INF_ARGS)
+#: Number proxy for the binary- and unary-operator sites.
+loc_proxy_number = deprecated_instance(5, name="loc_proxy_number", **_DEPRS_CASE_STD_INF_ARGS)
+#: Callable-object proxy for the ``__call__`` site.
+loc_proxy_callable = deprecated_instance(CallableAdder(offset=1), name="loc_proxy_callable", **_DEPRS_CASE_STD_INF_ARGS)
+#: Deprecated base-class alias for the ``__mro_entries__`` site (``class Child(LocProxyBase): ...``).
+LocProxyBase = deprecated_class(**_DEPRS_CASE_STD_INF_ARGS)(SubclassableBase)
+
+
+def make_loc_side_effect_box_proxy() -> Any:  # noqa: ANN401
+    """Wrap a fresh ``SideEffectBox`` for the in-place-operator, ``__enter__`` and iteration sites."""
+    return deprecated_instance(SideEffectBox(), name="loc_proxy_box", **_DEPRS_CASE_STD_INF_ARGS)
+
+
+class LocDescriptorHost:
+    """Descriptor sources (decorator above the descriptor) for the call-time warning-location tests.
+
+    Class-body wrappers are not module-level, so ``tests/conftest.py`` cannot reset them: unlimited budget.
+    """
+
+    @deprecated(**_DEPRS_CASE_STD_INF_ARGS)  # type: ignore[prop-decorator]
+    @property
+    def legacy_value(self) -> int:
+        """Deprecated read-only property."""
+        return 1
+
+    @deprecated(**_DEPRS_CASE_STD_INF_ARGS)  # type: ignore[prop-decorator]
+    @cached_property
+    def legacy_cached(self) -> int:
+        """Deprecated cached property; read it on a fresh instance, the cache skips the getter afterwards."""
+        return 2
+
+    @deprecated(**_DEPRS_CASE_STD_INF_ARGS)
+    @classmethod
+    def legacy_factory(cls, x: int) -> int:
+        """Deprecated classmethod."""
+        return x
+
+    @deprecated(**_DEPRS_CASE_STD_INF_ARGS)
+    @staticmethod
+    def legacy_helper(x: int) -> int:
+        """Deprecated staticmethod."""
+        return x
+
+
+@deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)
+async def loc_async_notify(x: int) -> int:
+    """Async warn-only source — the warning fires when awaited and must point at the awaiting line."""
+    return x * 2
+
+
+#: NOTIFY over a ``functools.singledispatch`` source, which dispatches on its first positional argument.
+shape_notify_area_dispatch = deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)(area_dispatch)
+#: NOTIFY over a source whose ``__signature__`` reports ``(x)`` while its real shape is ``(*args, **kwargs)``.
+shape_notify_raw_signature = deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)(raw_signature_patched)
+#: NOTIFY over a ``functools.wraps`` forwarder that rejects keyword arguments.
+shape_notify_wraps_chain = deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)(wraps_chain_outer)
+
+
+@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old": "new"}, **_DEPRS_CASE_STD_ARGS)
+def shape_remap_old_new(old: Optional[int] = None, new: Optional[int] = None) -> tuple[Optional[int], Optional[int]]:
+    """Self-rename source (``old`` -> ``new``) that returns exactly what it received."""
+    return old, new
+
+
+@deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)
+def shape_notify_two_params(a: int, b: int = 0) -> tuple[int, int]:
+    """Warn-only source with two positional slots, for the arity-error characterization."""
+    return a, b
+
+
+def make_pickle_settings_proxy() -> Any:  # noqa: ANN401
+    """Wrap a fresh settings dict in a ``deprecated_instance`` proxy with the default one-warning budget.
+
+    ``tests/integration/test_pickle_compat.py`` holds payloads pickled by pyDeprecate 0.14.0 from a proxy built with
+    exactly these arguments; keep them in sync or the payload-versus-fresh comparisons stop meaning anything.
+    """
+    return deprecated_instance({"threshold": 0.5, "enabled": True}, name="legacy_settings", **_DEPRS_CASE_STD_ARGS)
