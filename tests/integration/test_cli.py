@@ -906,6 +906,83 @@ class TestCliScanTarget:
         assert result.returncode == 0, result.stdout + result.stderr
         assert "ARGV: []" in result.stderr
 
+    @pytest.mark.parametrize("subcommand", ["expiry", "status", "all"])
+    @pytest.mark.parametrize("dynamic_version", [False, True])
+    def test_version_import_hides_arguments(self, tmp_path: Path, subcommand: str, dynamic_version: bool) -> None:
+        """Version detection imports parser-sensitive packages with the same empty argv as scanning.
+
+        An uninstalled checkout may parse command-line flags while publishing its version. Both dynamic project
+        metadata and the fallback version import must allow the expiry gate and report to audit its wrappers.
+
+        """
+        content = (
+            "import argparse\nimport sys\n"
+            'print("ARGV:", sys.argv[1:], file=sys.stderr)\n'
+            "argparse.ArgumentParser().parse_args()\n"
+            '__version__ = "3.0"\n' + _PLAIN_MODULE_SRC
+        )
+        pkg = _make_pkg(tmp_path, name="argvpkg", content=content)
+        if dynamic_version:
+            (tmp_path / "pyproject.toml").write_text(
+                '[project]\nname = "argvpkg"\ndynamic = ["version"]\n', encoding="utf-8"
+            )
+        report = tmp_path / "report.json"
+        result = _run_cli(subcommand, str(pkg), f"--report-json={report}", cwd=tmp_path)
+        assert result.returncode == (0 if subcommand == "status" else 1), result.stdout + result.stderr
+        assert result.stderr.count("ARGV: []") == 1
+        assert "unrecognized arguments" not in result.stderr
+        assert "Version: 3.0 (auto-detected)" in result.stdout
+        data = json.loads(report.read_text(encoding="utf-8"))
+        assert data["gaps"] == []
+        assert "Current version: 3.0" in data["table"]
+        assert "old_fn" in data["table"]
+
+    @pytest.mark.parametrize("module_name", ["json", "os", "sys", "unique_scan_fixture"])
+    @pytest.mark.parametrize("excluded", [False, True])
+    def test_plain_module_import_origin_is_reported(self, tmp_path: Path, module_name: str, excluded: bool) -> None:
+        """Plain-directory scans disclose names already imported from another file.
+
+        A scripts directory can contain json.py or os.py with deprecations, while the CLI has already imported
+        the standard-library names. The report must disclose that those local wrappers were not audited.
+
+        """
+        plain = tmp_path / "scripts"
+        plain.mkdir()
+        source = plain / f"{module_name}.py"
+        source.write_text(_PLAIN_MODULE_SRC, encoding="utf-8")
+        report = tmp_path / "report.json"
+        extra = [f"--exclude={module_name}"] if excluded else []
+        result = _run_cli(
+            "check", str(plain), *extra, f"--report-json={report}", env=_cli_env(COLUMNS="1000"), cwd=tmp_path
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+        data = json.loads(report.read_text(encoding="utf-8"))
+        if excluded:
+            assert data["gaps"] == []
+            assert "old_fn" not in data["table"]
+            assert "other copy audited" not in result.stderr
+        elif module_name == "unique_scan_fixture":
+            assert data["gaps"] == []
+            assert "old_fn" in data["table"]
+            assert "other copy audited" not in result.stderr
+        else:
+            module = sys.modules[module_name]
+            imported = getattr(module, "__file__", None)
+            if imported:
+                loaded_from = str(Path(imported).resolve())
+            else:
+                assert module.__spec__ is not None
+                assert module.__spec__.origin is not None
+                loaded_from = module.__spec__.origin
+            detail = (
+                f"`{module_name}` was imported from {loaded_from}, not from {source.resolve()};"
+                " the scan audited that copy."
+            )
+            assert f"pydeprecate gap: other copy audited: {detail}" in result.stderr
+            assert [gap["kind"] for gap in data["gaps"]] == ["other copy audited"]
+            assert data["gaps"][0]["detail"] == detail
+            assert "old_fn" not in data["table"]
+
     def test_header_names_imported_location(self, tmp_path: Path) -> None:
         """The scan header names the file the scanned package was actually imported from.
 

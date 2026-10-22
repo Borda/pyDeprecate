@@ -21,6 +21,7 @@ from deprecate._pkg import (
     _select_child_package,
 )
 from deprecate.audit import DeprecationWrapperInfo, find_deprecation_wrappers
+from deprecate.audit._scan import _is_excluded
 
 
 def _scan_directory(
@@ -40,12 +41,21 @@ def _scan_directory(
         if not (entry.is_file() and entry.suffix == ".py" and not entry.name.startswith("__")):
             continue
         module_name: str = entry.stem
+        if _is_excluded(module_name, exclude or []):
+            continue
         try:
             results.extend(
                 find_deprecation_wrappers(
                     module_name, recursive=False, include_members=include_members, exclude=exclude
                 )
             )
+            # A cached import can resolve json.py or os.py to the CLI's own standard-library module.
+            loaded_from = _foreign_copy(entry)
+            if loaded_from is not None:
+                _print_gap(
+                    _GapKind.OTHER_COPY,
+                    f"`{module_name}` was imported from {loaded_from}, not from {entry}; the scan audited that copy.",
+                )
         except SystemExit:
             _print_gap(_GapKind.MODULE_NOT_AUDITED, f"{module_name}: module-level code exited (not a library module)")
         except Exception as e:
@@ -121,22 +131,30 @@ def _module_locations(module: object) -> list[Path]:
     return [Path(entry).resolve() for entry in getattr(module, "__path__", [])]
 
 
-def _foreign_copy(package_dir: Path) -> Optional[str]:
-    """Return where the imported package of *package_dir*'s name lives when that is not *package_dir*.
+def _foreign_copy(source: Path) -> Optional[str]:
+    """Return where an imported package or plain module lives when it differs from the requested source.
 
-    Importing a package by name hands back whatever ``sys.modules`` holds — the CLI's own ``deprecate``, or a copy an
-    editable install's finder resolved ahead of ``sys.path`` — so a scan of a second checkout audits the loaded copy
-    instead. That copy is often the same code (a wheel built from the checkout), so the run goes on and reports a gap.
+    Importing by name hands back whatever ``sys.modules`` holds — the CLI's own ``deprecate`` or standard-library
+    modules, or a copy an editable install's finder resolved ahead of ``sys.path``. Packages compare their directory;
+    plain modules compare their exact file, since a different file in the same directory is also the wrong source.
 
     Returns:
-        The directory of the loaded copy, or ``None`` when the package is not imported or comes from *package_dir*.
+        The loaded package directory or module file, or ``None`` when no conflicting import is found.
 
     """
-    module = sys.modules.get(package_dir.name)
+    is_module = source.is_file()
+    module = sys.modules.get(source.stem if is_module else source.name)
     if module is None:
         return None
+    if is_module:
+        module_file = getattr(module, "__file__", None)
+        if module_file:
+            loaded_file = Path(module_file).resolve()
+            return str(loaded_file) if loaded_file != source.resolve() else None
+        # Built-in and frozen modules can take a plain module's name without exposing a source file.
+        return getattr(getattr(module, "__spec__", None), "origin", None)
     locations = _module_locations(module)
-    if not locations or package_dir.resolve() in locations:
+    if not locations or source.resolve() in locations:
         return None
     return str(locations[0])
 
@@ -197,8 +215,8 @@ def _scan_for_command(
     """Run the scan prologue shared by every subcommand and return what it scanned.
 
     In order: refuse a file path or an ambiguous multi-package directory, resolve ``exclude`` (flag >
-    ``pyproject.toml``), auto-detect the version when asked, print the header, scan with ``sys.path`` pointed at the
-    import root and the CLI's arguments hidden from module-level code, name the file the package was imported from
+    ``pyproject.toml``), auto-detect the version when asked with CLI arguments hidden from imported code, print the
+    header, scan with ``sys.path`` pointed at the import root and the CLI's arguments hidden, name the imported file
     (a gap when that is another copy than the scanned directory), and record the scan for ``--report-json`` (unless
     *record* is off).
 
@@ -227,7 +245,9 @@ def _scan_for_command(
     if resolved_exclude is None:
         return None
     if version is None and resolve_version:
-        version = _resolve_package_version(_safe_module_name(path), path=path)
+        # Dynamic project versions and the __version__ fallback import code before the wrapper scan does.
+        with _hidden_argv():
+            version = _resolve_package_version(_safe_module_name(path), path=path)
     _print_scan_header(path, version, user_provided=version_explicit, exclude=resolved_exclude)
     with _managed_sys_path(path), _hidden_argv():
         wrappers = _scan_path(path, recursive=recursive, include_members=include_members, exclude=resolved_exclude[0])

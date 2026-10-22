@@ -547,7 +547,7 @@ class TestCmdExpiry:
         assert "version" in capsys.readouterr().err.lower()
 
     @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
-    @patch("deprecate._cli.commands._resolve_package_version", return_value=None)
+    @patch("deprecate._cli.scan._resolve_package_version", return_value=None)
     def test_unresolved_version_prints_one_gap(
         self, mock_detect: MagicMock, mock_scan: MagicMock, capsys: pytest.CaptureFixture[str]
     ) -> None:
@@ -558,6 +558,8 @@ class TestCmdExpiry:
         give one gap line, not two.
         """
         result = cmd_expiry(path="some_module")
+        mock_detect.assert_called_once_with("some_module", path="some_module")
+        mock_scan.assert_called_once()
         err = capsys.readouterr().err
         assert result == 0
         assert err.count("pydeprecate gap: version not resolved: ") == 1
@@ -684,10 +686,21 @@ class TestCmdAll:
         the expiry check exits early reporting an invalid ``--version`` and the status table never renders.
         """
         mock_find.return_value = [_POLICY_CLEAN]
-        with patch("deprecate._cli.commands._resolve_package_version", return_value="2024.06-nightly"):
+        with (
+            patch("deprecate._cli.scan._resolve_package_version", return_value="2024.06-nightly") as detect,
+            _record_run() as run,
+        ):
             result = cmd_all(path="some_module")
+        detect.assert_called_once_with("some_module", path="some_module")
+        mock_find.assert_called_once()
         captured = capsys.readouterr()
         assert result == 0
+        assert "2024.06-nightly" in captured.out
+        assert run.table is not None
+        assert "forwarding_fn" in run.table
+        assert "2024.06-nightly" in run.table
+        assert "pydeprecate gap: version not PEP 440:" in captured.err
+        assert "version not resolved" not in captured.err
         assert "Invalid `--version`" not in captured.err
         assert "Could not render the deprecation table" not in captured.err
         assert "No deprecation policy violations found." in captured.out
@@ -728,13 +741,22 @@ class TestCmdAll:
 
     @patch("deprecate._cli.scan.find_deprecation_wrappers")
     def test_no_version_skips_expiry(self, mock_find: MagicMock, capsys: pytest.CaptureFixture[str]) -> None:
-        """When version is None and auto-detect fails, expiry warns and returns 0; cmd_all continues."""
+        """An unresolved package version skips expiry while the remaining checks and table still run.
+
+        An uninstalled project without version metadata must report exactly one unresolved-version gap, while
+        preserving the wrapper scan and its advisory status table instead of treating the missing version as invalid.
+
+        """
         mock_find.return_value = [DeprecationWrapperInfo(module="mod", function="fn")]
-        with patch("deprecate._cli.commands._resolve_package_version", return_value=None):
+        with patch("deprecate._cli.scan._resolve_package_version", return_value=None) as detect:
             result = cmd_all(path="some_module")
+        detect.assert_called_once_with("some_module", path="some_module")
+        mock_find.assert_called_once()
         assert result == 0
         captured = capsys.readouterr()
-        assert "version" in captured.err.lower()
+        assert captured.err.count("pydeprecate gap: version not resolved:") == 1
+        assert "version not PEP 440" not in captured.err
+        assert "No Removal Target" in captured.out
 
     @patch("deprecate._cli.commands._check_expiry_for_callables", return_value=[])
     @patch("deprecate._cli.scan.find_deprecation_wrappers")

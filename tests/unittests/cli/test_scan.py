@@ -7,7 +7,8 @@ from unittest.mock import patch
 
 import pytest
 
-from deprecate._cli.scan import _foreign_copy, _scan_path
+from deprecate._cli.config import _FROM_PYPROJECT
+from deprecate._cli.scan import _foreign_copy, _scan_for_command, _scan_path
 
 
 class TestScanPath:
@@ -61,6 +62,24 @@ class TestForeignCopy:
         monkeypatch.setitem(sys.modules, self._NAME, module)
         assert _foreign_copy(pkg) is None
 
+    @pytest.mark.parametrize("same_file", [False, True])
+    def test_plain_module_compares_file_identity(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, same_file: bool
+    ) -> None:
+        """Modules sharing a directory still need the requested source file to be audited.
+
+        Comparing only parent directories would accept an imported file with a different name as the requested
+        module, hiding a redirected import even though the two sources contain different wrappers.
+
+        """
+        source = tmp_path / f"{self._NAME}.py"
+        source.write_text("VALUE = 1\n")
+        loaded = source if same_file else tmp_path / "different.py"
+        module = types.ModuleType(self._NAME)
+        module.__file__ = str(loaded)
+        monkeypatch.setitem(sys.modules, self._NAME, module)
+        assert _foreign_copy(source) == (None if same_file else str(loaded.resolve()))
+
     @pytest.mark.parametrize("namespace", [False, True])
     def test_copy_from_elsewhere_is_reported(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, namespace: bool
@@ -82,3 +101,43 @@ class TestForeignCopy:
             module.__file__ = str(elsewhere / "__init__.py")
         monkeypatch.setitem(sys.modules, self._NAME, module)
         assert _foreign_copy(pkg) == str(elsewhere.resolve())
+
+
+class TestVersionImportArguments:
+    """Version resolution and scanning hide arguments and restore the invoking process afterwards."""
+
+    @pytest.mark.parametrize("raises", [False, True])
+    def test_resolver_sees_empty_arguments(self, monkeypatch: pytest.MonkeyPatch, raises: bool) -> None:
+        """A resolver that imports module-level parsers cannot consume the CLI's own flags.
+
+        Even a failed version import must restore the caller's argv; a successful resolver must not cause a
+        second scan while handing its version to the shared scan record.
+
+        """
+        original = ["pydeprecate", "expiry", "example", "--report-json=report.json"]
+        monkeypatch.setattr(sys, "argv", original[:])
+        with (
+            patch("deprecate._cli.scan._resolve_package_version", return_value="3.0") as resolver,
+            patch("deprecate._cli.scan._scan_path", return_value=[]) as scan,
+        ):
+
+            def resolve(module: str, *, path: str) -> str:
+                """Observe the arguments visible to the version import."""
+                assert module == path == "example"
+                assert sys.argv == original[:1]
+                if raises:
+                    raise RuntimeError("version import failed")
+                return "3.0"
+
+            resolver.side_effect = resolve
+            if raises:
+                with pytest.raises(RuntimeError, match="version import failed"):
+                    _scan_for_command("example", recursive=True, exclude=_FROM_PYPROJECT, resolve_version=True)
+                scan.assert_not_called()
+            else:
+                result = _scan_for_command("example", recursive=True, exclude=_FROM_PYPROJECT, resolve_version=True)
+                assert result is not None
+                assert result.version == "3.0"
+                scan.assert_called_once()
+            resolver.assert_called_once_with("example", path="example")
+        assert sys.argv == original

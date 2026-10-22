@@ -573,8 +573,8 @@ def cmd_status(
     """Print a markdown deprecation status table to stdout.
 
     Scans the target package for deprecated wrappers and renders their lifecycle
-    status as a Markdown table. Standalone — runs no checks, exits 0 (1 when the path holds two or more
-    top-level packages, 2 for a malformed ``--exclude``).
+    status as a Markdown table. Standalone — runs no checks, exits 0; 2 for a usage error (a malformed
+    ``--exclude``, a file path, or a directory holding several packages).
     When ``--output`` is given, the table is also written to that file.
 
     Args:
