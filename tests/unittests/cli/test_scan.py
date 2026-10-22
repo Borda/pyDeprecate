@@ -2,6 +2,8 @@
 
 import sys
 import types
+from importlib.machinery import PathFinder
+from importlib.util import module_from_spec
 from pathlib import Path
 from unittest.mock import patch
 
@@ -79,6 +81,34 @@ class TestForeignCopy:
         module.__file__ = str(loaded)
         monkeypatch.setitem(sys.modules, self._NAME, module)
         assert _foreign_copy(source) == (None if same_file else str(loaded.resolve()))
+
+    def test_plain_module_shadowed_by_namespace(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A cached namespace package must be reported when it shadows a requested plain module.
+
+        An earlier import can cache a namespace package with no source file or spec origin. A later directory scan
+        then audits that package instead of its same-named Python file, so the gap must name the namespace location.
+
+        """
+        installed = tmp_path / "installed"
+        namespace = installed / self._NAME
+        namespace.mkdir(parents=True)
+        spec = PathFinder.find_spec(self._NAME, [str(installed)])
+        assert spec is not None
+        module = module_from_spec(spec)
+        assert module.__spec__ is not None
+        assert module.__spec__.origin is None
+        assert getattr(module, "__file__", None) is None
+        monkeypatch.setitem(sys.modules, self._NAME, module)
+        source = tmp_path / f"{self._NAME}.py"
+        source.write_text("VALUE = 1\n")
+        assert _foreign_copy(source) == str(namespace.resolve())
+        assert _scan_path(str(tmp_path)) == []
+        assert (
+            f"pydeprecate gap: other copy audited: `{self._NAME}` was imported from {namespace.resolve()},"
+            f" not from {source.resolve()}; the scan audited that copy."
+        ) in capsys.readouterr().err
 
     @pytest.mark.parametrize("namespace", [False, True])
     def test_copy_from_elsewhere_is_reported(

@@ -151,6 +151,10 @@ def _foreign_copy(source: Path) -> Optional[str]:
         if module_file:
             loaded_file = Path(module_file).resolve()
             return str(loaded_file) if loaded_file != source.resolve() else None
+        # Namespace packages expose directories rather than a source file or spec origin.
+        locations = _module_locations(module)
+        if locations:
+            return str(locations[0])
         # Built-in and frozen modules can take a plain module's name without exposing a source file.
         return getattr(getattr(module, "__spec__", None), "origin", None)
     locations = _module_locations(module)
