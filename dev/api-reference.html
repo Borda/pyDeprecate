@@ -5137,8 +5137,9 @@ the current version. Any wrappers that have reached or passed their removal dead
             <td>
               <div class="doc-md-description">
                 <p>The current version of your package to compare against removal deadlines (e.g., <code>"2.0.0"</code>).
-If None, attempts to auto-detect the version using the package name from the module path (e.g.,
-<code>"mypackage"</code> extracts <code>mypackage</code> as package name).</p>
+If None, auto-detects the version of the top-level package of the module path (e.g. <code>"mypackage"</code>
+for <code>"mypackage.submodule"</code>) the way the CLI does: installed metadata under the import name, then
+under the distribution that ships it, then the package's string <code>__version__</code>.</p>
               </div>
             </td>
             <td>
@@ -5871,9 +5872,10 @@ top-level wrappers and deprecated class members (methods/constructors).</p>
             <td>
               <div class="doc-md-description">
                 <p>Optional current package version for lifecycle status
-evaluation in compact style. If <code>None</code>, auto-detection is attempted
-via the package name; status falls back to <code>"⚪ Status Unknown"</code> when
-<code>packaging</code> is not installed.</p>
+evaluation in compact style. If <code>None</code>, the version is auto-detected
+like <code>validate_deprecation_expiry</code> does; status falls back to
+<code>"⚪ Status Unknown"</code> when it stays unresolved or <code>packaging</code> is not
+installed.</p>
               </div>
             </td>
             <td>

@@ -100,7 +100,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-04-29",
-  "dateModified": "2026-10-21"
+  "dateModified": "2026-10-22"
 }
 </script>
 
@@ -1639,7 +1639,7 @@
 <td style="text-align: center;"></td>
 <td style="text-align: center;">✓</td>
 <td style="text-align: center;">✓</td>
-<td>Package version for deadline comparison. Auto-detected from installed metadata if omitted.</td>
+<td>Package version for deadline comparison. Auto-detected if omitted (see below).</td>
 <td><code>policy</code> compares <code>deprecated_in</code> to <code>remove_in</code> only, so it takes no version.</td>
 </tr>
 <tr>
@@ -1783,8 +1783,8 @@
 <li>Reading the file needs a TOML parser — built in on Python 3.11+, the <code>tomli</code> backport from the <code>[audit]</code> extra on 3.9–3.10. Without one, a reachable <code>pyproject.toml</code> triggers a stderr advisory instead of being silently skipped.</li>
 <li><code>pydeprecate all</code> applies the same resolved settings to its single scan and its advisory policy pass. The Python API (<code>validate_deprecation_policy()</code>) takes a module (object or importable name), never a filesystem path, and does not read <code>pyproject.toml</code> — pass its keyword arguments (including <code>exclude</code>) explicitly.</li>
 </ul>
-<p><code>--version</code> auto-detect: when the scanned argument is an existing <em>path</em>, <code>_read_pyproject_version</code> searches the current directory and up to 2 parent directories for a <code>pyproject.toml</code> (current dir + 2 levels up); the nearest one found wins, falling back to installed package metadata. A bare module <em>name</em> skips the <code>pyproject.toml</code> lookup entirely, so it can never pick up an unrelated project's version from your current working directory.</p>
-<p>Standalone <code>expiry</code> also falls back to the top-level import package's <code>__version__</code> when project and installed metadata cannot resolve a version. Only a genuinely unresolved version skips the check with a <code>version not resolved</code> gap and exit <code>0</code>; pass <code>--version</code> to supply it explicitly.</p>
+<p><code>--version</code> auto-detect: every subcommand (and the JSON report table) uses the same resolver. When the scanned argument is an existing <em>path</em>, the scanned path's directory and up to 2 parent directories are searched for a <code>pyproject.toml</code>; the nearest file that yields a version wins. If none does, or the argument is a bare module name, installed metadata is tried under the full import name, then the top-level import name, then the distribution that ships that top-level package (<code>PIL</code> → <code>Pillow</code>). The full name takes priority because a dotted component can have a separately versioned distribution. Only after these lookups fail does the resolver read the top-level import package's string <code>__version__</code>. A bare module <em>name</em> skips the <code>pyproject.toml</code> lookup, so it cannot pick up an unrelated project's version from your current working directory. The Python API (<code>validate_deprecation_expiry()</code>, <code>generate_deprecation_table()</code>) resolves the module's top-level package through this chain without the <code>pyproject.toml</code> step, as it receives a module, never a path.</p>
+<p>Only a genuinely unresolved version skips the expiry check with a <code>version not resolved</code> gap and exit <code>0</code>; pass <code>--version</code> to supply it explicitly.</p>
 <h2 id="exit-codes">Exit codes<a class="headerlink" href="#exit-codes" title="Permanent link">🔗</a></h2>
 <table>
 <thead>
@@ -1878,7 +1878,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 21, 2026 14:03:26 UTC">2026-10-21</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 22, 2026 11:27:31 UTC">2026-10-22</span>
   </span>
 
     
