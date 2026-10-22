@@ -1284,10 +1284,11 @@ class DecliningInplaceOperand:
 
 
 class _FlakyClassAttribute:
-    """Class-level descriptor returning ``3`` that raises ``RuntimeError`` while its owner's ``fail`` flag is set."""
+    """Class-level descriptor returning ``3``; counts reads on its owner and raises while the ``fail`` flag is set."""
 
     def __get__(self, instance: Optional[object], owner: "type[FlakyAttrHost]") -> int:
-        """Return the value, or raise when the owning class is flagged to fail."""
+        """Count the read on the owning class, then return the value, or raise when that class is flagged to fail."""
+        owner.reads += 1
         if owner.fail:
             raise RuntimeError("FlakyAttrHost.total failed on purpose")
         return 3
@@ -1297,17 +1298,19 @@ class FlakyAttrHost:
     """Class whose ``total`` attribute raises on read while the class-level ``fail`` flag is set.
 
     Wrapped by ``deprecated_class(attrs_mapping={"legacy_total": "total"})``, it lets a test make the redirected lookup
-    fail and then succeed under the same deprecated name, which is what the per-name warn budget is keyed on. Build a
-    fresh subclass per test with :func:`make_flaky_attr_host` so the flag never leaks between tests.
+    fail and then succeed under the same deprecated name, which is what the per-name warn budget is keyed on. The
+    class-level ``reads`` counter records every execution of the ``total`` getter, so a test can show it never ran.
+    Build a fresh subclass per test with :func:`make_flaky_attr_host` so the flag and counter never leak between tests.
     """
 
     fail: ClassVar[bool] = False
+    reads: ClassVar[int] = 0
     total = _FlakyClassAttribute()
 
 
 def make_flaky_attr_host() -> "type[FlakyAttrHost]":
-    """Return a fresh ``FlakyAttrHost`` subclass with its own ``fail`` flag, initially ``False``."""
-    return type("FlakyAttrHost", (FlakyAttrHost,), {"fail": False})
+    """Return a fresh ``FlakyAttrHost`` subclass with its own ``fail`` flag and ``reads`` counter (``False``, ``0``)."""
+    return type("FlakyAttrHost", (FlakyAttrHost,), {"fail": False, "reads": 0})
 
 
 # ========== Plain function stored as a class attribute: the proxy binds like a method ==========

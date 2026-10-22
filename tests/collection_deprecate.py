@@ -3367,6 +3367,8 @@ shape_notify_area_dispatch = deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_
 shape_notify_raw_signature = deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)(raw_signature_patched)
 #: NOTIFY over a ``functools.wraps`` forwarder that rejects keyword arguments.
 shape_notify_wraps_chain = deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)(wraps_chain_outer)
+#: NOTIFY over a source whose first parameter ``x`` is positional-only.
+shape_notify_positional_only = deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)(positional_only_target)
 
 
 @deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old": "new"}, **_DEPRS_CASE_STD_ARGS)

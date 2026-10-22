@@ -8,6 +8,7 @@ import math
 import os
 import pickle
 import warnings
+from collections import defaultdict
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass as dc_decorator
 from enum import Enum
@@ -3844,7 +3845,7 @@ def _drive_await(proxy: Any) -> object:  # noqa: ANN401
     return asyncio.run(_await_proxy(proxy))
 
 
-#: Operations that only read the wrapped object: compute first, then warn.
+#: Operations that only read the wrapped object: fatal gate first, then compute, then warn.
 _PURE_PROXY_OPS = [
     pytest.param("__getitem__", _drive_getitem, id="getitem"),
     pytest.param("__iter__", _drive_iter, id="iter"),
@@ -3868,8 +3869,8 @@ class TestWarnAfterSuccess:
 
     Duck-typing code probes a deprecated object inside ``try``/``except`` (``cfg[key]`` with a ``KeyError`` fallback,
     ``next(it)`` until ``StopIteration``). A warning emitted before the operation would spend the default one-warning
-    budget on a probe that failed, leaving the real use silent. Side-effecting operations still refuse a fatal
-    deprecation before they run, so ``as_exception=True`` never mutates the wrapped object.
+    budget on a probe that failed, leaving the real use silent. Every one of these operations still refuses a fatal
+    deprecation before it runs, so ``as_exception=True`` never reads, advances or mutates the wrapped object.
     """
 
     @pytest.mark.parametrize(("operation", "drive"), [*_PURE_PROXY_OPS, *_SIDE_EFFECTING_PROXY_OPS])
@@ -3892,31 +3893,19 @@ class TestWarnAfterSuccess:
             drive(proxy)
         assert (_future_warning_count(failed), _future_warning_count(succeeded), box.calls[operation]) == (0, 1, 2)
 
-    @pytest.mark.parametrize(("operation", "drive"), _SIDE_EFFECTING_PROXY_OPS)
-    def test_fatal_side_effecting_operation_never_runs(self, operation: str, drive: Callable[[Any], object]) -> None:
-        """A fatal deprecation refuses a side-effecting operation before the wrapped object is touched.
+    @pytest.mark.parametrize(("operation", "drive"), [*_PURE_PROXY_OPS, *_SIDE_EFFECTING_PROXY_OPS])
+    def test_fatal_operation_never_runs(self, operation: str, drive: Callable[[Any], object]) -> None:
+        """A fatal deprecation refuses the operation before the wrapped object is touched.
 
-        With ``as_exception=True`` the proxy must raise ``DeprecatedError`` without advancing an iterator, entering a
-        context, or mutating in place — moving the warning after the operation must not let the side effect through.
+        With ``as_exception=True`` the proxy must raise ``DeprecatedError`` without subscripting, iterating, negating,
+        rounding, advancing, entering or mutating the wrapped object. A fatal deprecation means the legacy code does not
+        run at all, so moving the warning after a successful operation must not let that code run first.
         """
         box = FlakyProtocolBox()
         proxy = make_warn_after_success_proxy(box, as_exception=True)
         with pytest.raises(DeprecatedError, match="legacy_box"):
             drive(proxy)
         assert box.calls[operation] == 0
-
-    @pytest.mark.parametrize(("operation", "drive"), _PURE_PROXY_OPS)
-    def test_fatal_pure_operation_raises_after_compute(self, operation: str, drive: Callable[[Any], object]) -> None:
-        """A fatal deprecation still raises on a pure read, which is computed before the raise.
-
-        Pure reads follow the plain ``__getattr__`` and binary-operator rule: compute, then let the warn path raise
-        ``DeprecatedError``. The read has no side effect on the wrapped object, so running it first is harmless.
-        """
-        box = FlakyProtocolBox()
-        proxy = make_warn_after_success_proxy(box, as_exception=True)
-        with pytest.raises(DeprecatedError, match="legacy_box"):
-            drive(proxy)
-        assert box.calls[operation] == 1
 
     @pytest.mark.parametrize(("operation", "drive"), [*_PURE_PROXY_OPS, *_SIDE_EFFECTING_PROXY_OPS])
     def test_skip_if_bypasses_warning_and_gate(self, operation: str, drive: Callable[[Any], object]) -> None:
@@ -3966,15 +3955,29 @@ class TestWarnAfterSuccess:
             value = proxy["threshold"]
         assert (_future_warning_count(missed), value, _future_warning_count(found)) == (0, 0.5, 1)
 
-    def test_missing_key_under_fatal_raises_key_error(self) -> None:
-        """A missing key on a fatal mapping raises ``KeyError``, not ``DeprecatedError``.
+    def test_missing_key_under_fatal_raises_deprecated_error(self) -> None:
+        """A missing key on a fatal mapping raises ``DeprecatedError``, not ``KeyError``.
 
-        The lookup runs before the fatal path, matching plain attribute access, so the caller's ``except KeyError``
-        fallback keeps working on a missing key while a present key still raises ``DeprecatedError``.
+        The fatal deprecation refuses the subscript before the lookup runs, the same as for a present key, so code that
+        still reads the deprecated mapping fails loudly even when it only probes it with ``try: cfg[key] except
+        KeyError``.
         """
         proxy = make_warn_after_success_proxy({"threshold": 0.5}, as_exception=True)
-        with pytest.raises(KeyError, match="missing"):
+        with pytest.raises(DeprecatedError, match="legacy_box"):
             proxy["missing"]
+
+    def test_fatal_missing_key_leaves_defaultdict_unchanged(self) -> None:
+        """A fatal subscript on a ``defaultdict`` raises without inserting the missing key.
+
+        Reading a missing key from a ``defaultdict`` creates the entry as a side effect. Under ``as_exception=True`` the
+        deprecated mapping must stay exactly as it was, so the proxy has to refuse the read before ``__getitem__``
+        reaches ``__missing__``.
+        """
+        source: defaultdict[str, list[int]] = defaultdict(list)
+        proxy = make_warn_after_success_proxy(source, as_exception=True)
+        with pytest.raises(DeprecatedError, match="legacy_box"):
+            proxy["missing"]
+        assert dict(source) == {}
 
     def test_declined_inplace_operator_warns_once(self) -> None:
         """An in-place hook that returns ``NotImplemented`` adds no warning of its own to the ``__add__`` fallback.
@@ -4007,18 +4010,17 @@ class TestWarnAfterSuccess:
             value = alias.legacy_total
         assert (_future_warning_count(failed), value, _future_warning_count(succeeded)) == (0, 3, 1)
 
-    def test_attrs_mapping_fatal_read_resolves_first(self) -> None:
-        """A fatal renamed-attribute read surfaces the lookup's own error before ``DeprecatedError``.
+    def test_attrs_mapping_fatal_read_never_runs_getter(self) -> None:
+        """A fatal renamed-attribute read raises ``DeprecatedError`` before the redirected getter runs.
 
-        The mapped read is a pure lookup, so it runs first: a getter failure propagates unchanged, and only a
-        successful lookup reaches the fatal path.
+        ``Legacy.legacy_total`` resolves through a descriptor on the canonical ``total`` attribute. A fatal deprecation
+        must refuse the deprecated name before that descriptor executes, so the host's read counter stays at zero.
         """
         host = make_flaky_attr_host()
         alias = make_flaky_attr_alias(host, as_exception=True)
-        host.fail = True
-        with pytest.raises(RuntimeError, match="failed on purpose") as lookup_error:
+        with pytest.raises(DeprecatedError, match="legacy_total"):
             _ = alias.legacy_total
-        assert not isinstance(lookup_error.value, DeprecatedError)
+        assert host.reads == 0
 
     def test_call_still_warns_before_invoking(self) -> None:
         """Calling the proxy keeps warn-before: a call that raises still reports the deprecation.

@@ -19,6 +19,7 @@ from tests.collection_deprecate import (
     loc_stack_notify_over_callable,
     loc_stack_remap_over_notify,
     shape_notify_area_dispatch,
+    shape_notify_positional_only,
     shape_notify_raw_signature,
     shape_notify_two_params,
     shape_notify_wraps_chain,
@@ -101,6 +102,38 @@ class TestNotifyCallShape:
             result = _result_or_type_error(shape_notify_wraps_chain, 2)
 
         assert result == 4
+
+    def test_duplicate_argument_raises_like_undecorated(self) -> None:
+        """A value passed both positionally and by keyword raises Python's own ``TypeError`` after the notice.
+
+        The source receives the caller's arguments as made, so ``old(1, a=2)`` fails exactly as the undecorated
+        function would instead of silently dropping one of the two values.  The deprecation notice is emitted once,
+        before the source is called.
+
+        """
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            with pytest.raises(TypeError, match="multiple values for argument 'a'"):
+                shape_notify_two_params(1, a=2)  # type: ignore[misc]
+
+        warned_calls = shape_notify_two_params._state.warned_calls  # type: ignore[attr-defined]
+        assert ([record.category for record in caught], warned_calls) == ([FutureWarning], 1)
+
+    def test_positional_only_by_keyword_raises_like_undecorated(self) -> None:
+        """A positional-only parameter passed by keyword raises Python's own ``TypeError`` after the notice.
+
+        ``positional_only_target(x, /, y=0)`` rejects ``x=1`` when undecorated.  The warn-only wrapper forwards the
+        call as made, so the caller gets the same ``TypeError`` instead of a call silently rebound to the positional
+        slot.  The deprecation notice is emitted once, before the source is called.
+
+        """
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            with pytest.raises(TypeError, match="positional-only arguments passed as keyword"):
+                shape_notify_positional_only(x=1)  # type: ignore[call-arg]
+
+        warned_calls = shape_notify_positional_only._state.warned_calls  # type: ignore[attr-defined]
+        assert ([record.category for record in caught], warned_calls) == ([FutureWarning], 1)
 
 
 class TestArgsRemapCallShape:
