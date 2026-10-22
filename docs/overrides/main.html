@@ -561,6 +561,14 @@
         },
         {
           "@type": "Question",
+          "name": "Why did a failed proxy[key] lookup not warn?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "By design. A deprecated_instance or deprecated_class proxy warns only after a data-use operation succeeds: subscripts, iteration, operators, context-manager entry, async iteration, await, and renamed-attribute reads all run first and warn afterwards. A probe that fails, such as a KeyError from proxy[key], a StopIteration from next(proxy), or an AttributeError from hasattr, emits nothing and leaves the num_warns budget unspent, so the next successful use still reports the deprecation. Calling the proxy is the exception and keeps warning before the call, like @deprecated. With as_exception=True, side-effecting operations (next(), context entry, async with, async iteration steps, await, in-place operators) still raise DeprecatedError before they run, while pure reads compute first, so a missing key raises KeyError rather than DeprecatedError."
+          }
+        },
+        {
+          "@type": "Question",
           "name": "Why don't mypy, pyright, or my IDE flag functions deprecated with pyDeprecate?",
           "acceptedAnswer": {
             "@type": "Answer",

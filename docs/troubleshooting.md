@@ -2199,6 +2199,14 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
+## Why did a failed `proxy[key]` lookup not warn?
+
+**Q:** My code probes a deprecated mapping with `try: settings[key] except KeyError: ...`. The miss emitted no `FutureWarning`, but the next successful `settings["threshold"]` read did.
+
+**A:** That is intended. A `deprecated_instance` or `deprecated_class` proxy warns only after a data-use operation succeeds: subscripts, iteration, unary and binary operators, context-manager entry, async iteration, `await`, and `attrs_mapping` attribute reads all run first and warn afterwards. A probe that fails — a `KeyError` from `proxy[key]`, a `StopIteration` from `next(proxy)`, an `AttributeError` from `hasattr` — emits nothing and leaves the `num_warns` budget unspent, so the default one warning still reaches the first real use. Calling the proxy is the one exception: like `@deprecated`, it warns before the call, so a deprecated constructor that raises still reports the deprecation. With `as_exception=True`, operations with side effects on the wrapped object (`next()`, `with` and `async with` entry, async iteration steps, `await`, in-place operators such as `+=`) still raise `DeprecatedError` before they run, while pure reads compute first — a missing key under a fatal deprecation therefore raises `KeyError`, not `DeprecatedError`.
+
+______________________________________________________________________
+
 ## Why don't mypy, pyright, or my IDE flag functions deprecated with pyDeprecate?
 
 **Q:** My deprecated function warns at runtime, but the editor shows no strikethrough and `mypy` / `pyright` report nothing when I call it.

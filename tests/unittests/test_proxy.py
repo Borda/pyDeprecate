@@ -1,6 +1,7 @@
 """Unit tests for _DeprecatedProxy internals and deprecated_class decorator behaviour."""
 
 import abc
+import asyncio
 import copy
 import inspect
 import math
@@ -15,7 +16,7 @@ from typing import TYPE_CHECKING, Any, cast
 import pytest
 
 import deprecate
-from deprecate import DeprecationProxy
+from deprecate import DeprecatedError, DeprecationProxy
 from deprecate._types import TargetMode
 from deprecate.deprecation import deprecated
 from deprecate.proxy import _DeprecatedProxy, deprecated_class, deprecated_instance
@@ -62,6 +63,8 @@ from tests.collection_deprecate import (
     make_deprecated_hostile_signature_instance,
     make_deprecated_instance_over_marked_object,
     make_deprecated_instance_skip_if_true_read_only,
+    make_flaky_attr_alias,
+    make_warn_after_success_proxy,
     pep702_proxy_stacked,
 )
 from tests.collection_misconfigured import make_stacked_legacy_proxy
@@ -72,6 +75,8 @@ from tests.collection_targets import (
     ColorEnum,
     CombinedAttrsArgsSource,
     CombinedAttrsArgsTarget,
+    DecliningInplaceOperand,
+    FlakyProtocolBox,
     FlakyTypeErrorStream,
     HostileSignatureCallable,
     KeywordTypeErrorStream,
@@ -90,6 +95,7 @@ from tests.collection_targets import (
     WithInjected,
     _Pep702ProxyTarget,
     base_sum_kwargs,
+    make_flaky_attr_host,
 )
 
 
@@ -2471,22 +2477,20 @@ class TestDataclassAutoExpand:
             instance = DepAutoExpandReqDC(old_field=5)  # type: ignore[call-arg]
         assert instance.new_field == 5
 
-    def test_req_dc_class_proxy_attribute_access_warns_then_raises(self) -> None:
-        """Accessing ``DepAutoExpandReqDC.old_field`` emits FutureWarning then raises AttributeError.
+    def test_req_dc_class_proxy_attribute_access_raises_without_warning(self) -> None:
+        """Accessing ``DepAutoExpandReqDC.old_field`` raises AttributeError and emits no FutureWarning.
 
-        ``AutoExpandReqDC`` has a required field ``new_field`` with no class-level default.
-        The proxy emits a ``FutureWarning`` (redirect from ``old_field`` → ``new_field``) before
-        attempting the attribute read; because there is no class-level sentinel value for a required
-        dataclass field, the lookup then raises ``AttributeError``.  Both signals must occur — the
-        warning fires first, the error follows.
+        ``AutoExpandReqDC`` has a required field ``new_field`` with no class-level default, so the redirected
+        class-level read of ``old_field`` → ``new_field`` raises ``AttributeError``. The proxy resolves the mapped
+        attribute before warning, so this failed lookup — the same shape as a ``hasattr`` probe — emits nothing and
+        leaves the ``old_field`` warn budget unspent.
         """
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             with pytest.raises(AttributeError):
                 _ = DepAutoExpandReqDC.old_field  # type: ignore[attr-defined]
 
-        future_warns = [w for w in caught if issubclass(w.category, FutureWarning)]
-        assert len(future_warns) >= 1, "FutureWarning must be emitted before AttributeError"
+        assert [w for w in caught if issubclass(w.category, FutureWarning)] == []
 
     def test_init_false_field_excluded_from_auto_expand(self) -> None:
         """``field(init=False)`` entries must not appear in ``args_mapping_auto_expanded``.
@@ -3539,6 +3543,270 @@ class TestProxySkipIf:
             proxy.append(3)
 
         assert list(proxy) == [1, 2, 3]
+
+
+def _future_warning_count(caught: list[warnings.WarningMessage]) -> int:
+    """Count the deprecation ``FutureWarning`` records captured by ``catch_warnings(record=True)``."""
+    return sum(issubclass(record.category, FutureWarning) for record in caught)
+
+
+def _drive_getitem(proxy: Any) -> object:  # noqa: ANN401
+    """Subscript the proxy."""
+    return proxy[0]
+
+
+def _drive_iter(proxy: Any) -> object:  # noqa: ANN401
+    """Start iterating the proxy."""
+    return iter(proxy)
+
+
+def _drive_neg(proxy: Any) -> object:  # noqa: ANN401
+    """Negate the proxy (a unary forward)."""
+    return -proxy
+
+
+def _drive_round(proxy: Any) -> object:  # noqa: ANN401
+    """Round the proxy."""
+    return round(proxy)
+
+
+def _drive_aiter(proxy: Any) -> object:  # noqa: ANN401
+    """Start async iteration over the proxy."""
+    return proxy.__aiter__()
+
+
+def _drive_next(proxy: Any) -> object:  # noqa: ANN401
+    """Advance the proxy as an iterator."""
+    return next(proxy)
+
+
+def _drive_enter(proxy: Any) -> object:  # noqa: ANN401
+    """Enter and leave the proxy as a context manager."""
+    with proxy as entered:
+        return entered
+
+
+def _drive_iadd(proxy: Any) -> object:  # noqa: ANN401
+    """Apply an in-place addition through the proxy."""
+    proxy += 3
+    return proxy
+
+
+async def _enter_async(proxy: Any) -> object:  # noqa: ANN401
+    """Enter and leave the proxy as an async context manager."""
+    async with proxy as entered:
+        return entered
+
+
+def _drive_aenter(proxy: Any) -> object:  # noqa: ANN401
+    """Run ``async with proxy`` on a fresh event loop."""
+    return asyncio.run(_enter_async(proxy))
+
+
+def _drive_anext(proxy: Any) -> object:  # noqa: ANN401
+    """Request the next async item from the proxy and await it on a fresh event loop."""
+    return asyncio.run(proxy.__anext__())
+
+
+async def _await_proxy(proxy: Any) -> object:  # noqa: ANN401
+    """Await the proxy."""
+    return await proxy
+
+
+def _drive_await(proxy: Any) -> object:  # noqa: ANN401
+    """Await the proxy on a fresh event loop."""
+    return asyncio.run(_await_proxy(proxy))
+
+
+#: Operations that only read the wrapped object: compute first, then warn.
+_PURE_PROXY_OPS = [
+    pytest.param("__getitem__", _drive_getitem, id="getitem"),
+    pytest.param("__iter__", _drive_iter, id="iter"),
+    pytest.param("__neg__", _drive_neg, id="unary-neg"),
+    pytest.param("__round__", _drive_round, id="round"),
+    pytest.param("__aiter__", _drive_aiter, id="aiter"),
+]
+#: Operations with side effects on the wrapped object: fatal gate first, then run, then warn.
+_SIDE_EFFECTING_PROXY_OPS = [
+    pytest.param("__next__", _drive_next, id="next"),
+    pytest.param("__enter__", _drive_enter, id="enter"),
+    pytest.param("__iadd__", _drive_iadd, id="inplace-add"),
+    pytest.param("__aenter__", _drive_aenter, id="aenter"),
+    pytest.param("__anext__", _drive_anext, id="anext"),
+    pytest.param("__await__", _drive_await, id="await"),
+]
+
+
+class TestWarnAfterSuccess:
+    """Proxy data-use operations warn only once the forwarded operation has succeeded.
+
+    Duck-typing code probes a deprecated object inside ``try``/``except`` (``cfg[key]`` with a ``KeyError`` fallback,
+    ``next(it)`` until ``StopIteration``). A warning emitted before the operation would spend the default one-warning
+    budget on a probe that failed, leaving the real use silent. Side-effecting operations still refuse a fatal
+    deprecation before they run, so ``as_exception=True`` never mutates the wrapped object.
+    """
+
+    @pytest.mark.parametrize(("operation", "drive"), [*_PURE_PROXY_OPS, *_SIDE_EFFECTING_PROXY_OPS])
+    def test_failed_operation_keeps_budget(self, operation: str, drive: Callable[[Any], object]) -> None:
+        """A failing operation emits no warning; the same operation warns once when it later succeeds.
+
+        A legacy object wrapped with the default ``num_warns=1`` budget is first used while the wrapped operation
+        raises (a probe that fails), then again once it works. Only the successful use may spend the budget — the
+        failed one must leave it intact so the migration notice still reaches the caller.
+        """
+        box = FlakyProtocolBox(fail=True)
+        proxy = make_warn_after_success_proxy(box)
+        with warnings.catch_warnings(record=True) as failed:
+            warnings.simplefilter("always")
+            with pytest.raises(RuntimeError, match=f"{operation} failed on purpose"):
+                drive(proxy)
+        box.fail = False
+        with warnings.catch_warnings(record=True) as succeeded:
+            warnings.simplefilter("always")
+            drive(proxy)
+        assert (_future_warning_count(failed), _future_warning_count(succeeded), box.calls[operation]) == (0, 1, 2)
+
+    @pytest.mark.parametrize(("operation", "drive"), _SIDE_EFFECTING_PROXY_OPS)
+    def test_fatal_side_effecting_operation_never_runs(self, operation: str, drive: Callable[[Any], object]) -> None:
+        """A fatal deprecation refuses a side-effecting operation before the wrapped object is touched.
+
+        With ``as_exception=True`` the proxy must raise ``DeprecatedError`` without advancing an iterator, entering a
+        context, or mutating in place — moving the warning after the operation must not let the side effect through.
+        """
+        box = FlakyProtocolBox()
+        proxy = make_warn_after_success_proxy(box, as_exception=True)
+        with pytest.raises(DeprecatedError, match="legacy_box"):
+            drive(proxy)
+        assert box.calls[operation] == 0
+
+    @pytest.mark.parametrize(("operation", "drive"), _PURE_PROXY_OPS)
+    def test_fatal_pure_operation_raises_after_compute(self, operation: str, drive: Callable[[Any], object]) -> None:
+        """A fatal deprecation still raises on a pure read, which is computed before the raise.
+
+        Pure reads follow the plain ``__getattr__`` and binary-operator rule: compute, then let the warn path raise
+        ``DeprecatedError``. The read has no side effect on the wrapped object, so running it first is harmless.
+        """
+        box = FlakyProtocolBox()
+        proxy = make_warn_after_success_proxy(box, as_exception=True)
+        with pytest.raises(DeprecatedError, match="legacy_box"):
+            drive(proxy)
+        assert box.calls[operation] == 1
+
+    @pytest.mark.parametrize(("operation", "drive"), [*_PURE_PROXY_OPS, *_SIDE_EFFECTING_PROXY_OPS])
+    def test_skip_if_bypasses_warning_and_gate(self, operation: str, drive: Callable[[Any], object]) -> None:
+        """An inactive deprecation neither warns nor applies the fatal gate.
+
+        ``skip_if=True`` turns the deprecation off even when it is configured fatal: every operation runs on the
+        wrapped object exactly once and no warning is emitted.
+        """
+        box = FlakyProtocolBox()
+        proxy = make_warn_after_success_proxy(box, as_exception=True, skip_if=True)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            drive(proxy)
+        assert (_future_warning_count(caught), box.calls[operation]) == (0, 1)
+
+    def test_stop_iteration_keeps_budget(self) -> None:
+        """An exhausted ``next(proxy)`` emits no warning; the next produced item warns once.
+
+        Iterator-draining code ends on ``StopIteration``. That end-of-data signal is not a use of the deprecated
+        object, so it must not spend the budget that the next real item should report.
+        """
+        box = FlakyProtocolBox(items=())
+        proxy = make_warn_after_success_proxy(box)
+        with warnings.catch_warnings(record=True) as exhausted:
+            warnings.simplefilter("always")
+            with pytest.raises(StopIteration):
+                next(proxy)
+        box.items.append(7)
+        with warnings.catch_warnings(record=True) as produced:
+            warnings.simplefilter("always")
+            item = next(proxy)
+        assert (_future_warning_count(exhausted), item, _future_warning_count(produced)) == (0, 7, 1)
+
+    def test_missing_key_probe_keeps_budget(self) -> None:
+        """A ``KeyError`` probe on a deprecated mapping emits no warning; the next successful lookup warns once.
+
+        ``try: cfg[key] except KeyError: ...`` is the usual duck-typed optional-setting lookup. The miss must not use
+        up the one warning the real ``cfg["threshold"]`` read is meant to deliver.
+        """
+        proxy = make_warn_after_success_proxy({"threshold": 0.5})
+        with warnings.catch_warnings(record=True) as missed:
+            warnings.simplefilter("always")
+            with pytest.raises(KeyError):
+                proxy["missing"]
+        with warnings.catch_warnings(record=True) as found:
+            warnings.simplefilter("always")
+            value = proxy["threshold"]
+        assert (_future_warning_count(missed), value, _future_warning_count(found)) == (0, 0.5, 1)
+
+    def test_missing_key_under_fatal_raises_key_error(self) -> None:
+        """A missing key on a fatal mapping raises ``KeyError``, not ``DeprecatedError``.
+
+        The lookup runs before the fatal path, matching plain attribute access, so the caller's ``except KeyError``
+        fallback keeps working on a missing key while a present key still raises ``DeprecatedError``.
+        """
+        proxy = make_warn_after_success_proxy({"threshold": 0.5}, as_exception=True)
+        with pytest.raises(KeyError, match="missing"):
+            proxy["missing"]
+
+    def test_declined_inplace_operator_warns_once(self) -> None:
+        """An in-place hook that returns ``NotImplemented`` adds no warning of its own to the ``__add__`` fallback.
+
+        ``proxy += 1`` on a value whose ``__iadd__`` declines makes Python retry ``__add__`` on the proxy. The
+        statement is one use of the deprecated object, so even an unlimited budget must record exactly one warning.
+        """
+        proxy = make_warn_after_success_proxy(DecliningInplaceOperand(5), num_warns=-1)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            proxy += 1
+        assert (_future_warning_count(caught), proxy.value) == (1, 6)
+
+    def test_attrs_mapping_failed_lookup_keeps_budget(self) -> None:
+        """A failing read of a renamed attribute emits no warning; the same read warns once after it succeeds.
+
+        ``attrs_mapping`` keeps one budget per deprecated name. When the redirected lookup raises, that name's budget
+        must stay unspent so the next successful ``Legacy.legacy_total`` read still announces the rename.
+        """
+        host = make_flaky_attr_host()
+        alias = make_flaky_attr_alias(host)
+        host.fail = True
+        with warnings.catch_warnings(record=True) as failed:
+            warnings.simplefilter("always")
+            with pytest.raises(RuntimeError, match="failed on purpose"):
+                _ = alias.legacy_total
+        host.fail = False
+        with warnings.catch_warnings(record=True) as succeeded:
+            warnings.simplefilter("always")
+            value = alias.legacy_total
+        assert (_future_warning_count(failed), value, _future_warning_count(succeeded)) == (0, 3, 1)
+
+    def test_attrs_mapping_fatal_read_resolves_first(self) -> None:
+        """A fatal renamed-attribute read surfaces the lookup's own error before ``DeprecatedError``.
+
+        The mapped read is a pure lookup, so it runs first: a getter failure propagates unchanged, and only a
+        successful lookup reaches the fatal path.
+        """
+        host = make_flaky_attr_host()
+        alias = make_flaky_attr_alias(host, as_exception=True)
+        host.fail = True
+        with pytest.raises(RuntimeError, match="failed on purpose") as lookup_error:
+            _ = alias.legacy_total
+        assert not isinstance(lookup_error.value, DeprecatedError)
+
+    def test_call_still_warns_before_invoking(self) -> None:
+        """Calling the proxy keeps warn-before: a call that raises still reports the deprecation.
+
+        ``__call__`` mirrors ``@deprecated``, which warns before invoking, so a deprecated constructor or callable that
+        fails still tells the caller the API is deprecated.
+        """
+        box = FlakyProtocolBox(fail=True)
+        proxy = make_warn_after_success_proxy(box)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            with pytest.raises(RuntimeError, match="__call__ failed on purpose"):
+                proxy()
+        assert _future_warning_count(caught) == 1
 
 
 # Statically `DeprecatedColorEnum` is still the class statement: mypy does not rebind a decorated

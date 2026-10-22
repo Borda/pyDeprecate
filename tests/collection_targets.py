@@ -8,10 +8,10 @@ import functools
 import inspect
 import time
 import warnings
-from collections.abc import AsyncIterator, Generator, Iterator
+from collections.abc import AsyncIterator, Coroutine, Generator, Iterator
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Optional
+from typing import Any, Callable, ClassVar, Optional
 
 import typing_extensions
 
@@ -1182,6 +1182,130 @@ class SideEffectBox:
             raise StopIteration
         self._cursor += 1
         return self.items[self._cursor - 1]
+
+
+class FlakyProtocolBox(SideEffectBox):
+    """``SideEffectBox`` that also counts the pure, async and call protocols a deprecation proxy forwards.
+
+    Subscript, iteration, negation, ``round``, ``__aiter__``, ``async with`` entry, ``__anext__``, ``await`` and calling
+    each record themselves in ``calls`` and raise ``RuntimeError`` while ``fail`` is set — the same contract as the
+    inherited ``__iadd__``/``__enter__``/``__next__``. A test can therefore show whether a failed operation consumed the
+    proxy's warn budget, and whether a fatal deprecation reached the wrapped object at all.
+    """
+
+    def __init__(self, items: tuple[int, ...] = (1, 2), fail: bool = False) -> None:
+        """Store the items and extend the call counters with every additionally recorded protocol."""
+        super().__init__(items, fail)
+        recorded = ("__getitem__", "__iter__", "__neg__", "__round__", "__aiter__", "__aenter__", "__anext__")
+        self.calls.update(dict.fromkeys((*recorded, "__await__", "__call__"), 0))
+
+    def __getitem__(self, index: int) -> int:
+        """Return the stored item at *index*."""
+        self._record("__getitem__")
+        return self.items[index]
+
+    def __iter__(self) -> "FlakyProtocolBox":
+        """Restart iteration over the stored items."""
+        self._record("__iter__")
+        self._cursor = 0
+        return self
+
+    def __neg__(self) -> int:
+        """Return the negated sum of the stored items."""
+        self._record("__neg__")
+        return -sum(self.items)
+
+    def __round__(self, ndigits: Optional[int] = None) -> int:
+        """Return the sum of the stored items, which is already a whole number."""
+        self._record("__round__")
+        return sum(self.items)
+
+    def __aiter__(self) -> "FlakyProtocolBox":
+        """Restart async iteration over the stored items."""
+        self._record("__aiter__")
+        self._cursor = 0
+        return self
+
+    async def __aenter__(self) -> "FlakyProtocolBox":
+        """Enter the async context and return the box itself."""
+        self._record("__aenter__")
+        return self
+
+    async def __aexit__(self, *exc_info: object) -> None:
+        """Leave the async context without suppressing exceptions."""
+
+    def __anext__(self) -> Coroutine[Any, Any, int]:
+        """Record the step synchronously, then return the awaitable that produces the next stored item."""
+        self._record("__anext__")
+        return self._next_item()
+
+    async def _next_item(self) -> int:
+        """Produce the next stored item, ending async iteration once the items run out."""
+        if self._cursor >= len(self.items):
+            raise StopAsyncIteration
+        self._cursor += 1
+        return self.items[self._cursor - 1]
+
+    def __await__(self) -> Generator[Any, None, list[int]]:
+        """Record the await synchronously, then delegate to a coroutine that returns the stored items."""
+        self._record("__await__")
+        return self._snapshot().__await__()
+
+    async def _snapshot(self) -> list[int]:
+        """Return a copy of the stored items."""
+        return list(self.items)
+
+    def __call__(self) -> int:
+        """Return how many items the box holds."""
+        self._record("__call__")
+        return len(self.items)
+
+
+class DecliningInplaceOperand:
+    """Number-like operand whose ``__iadd__`` declines with ``NotImplemented`` so Python falls back to ``__add__``.
+
+    A deprecation proxy forwarding ``proxy += 1`` first tries the in-place hook; when that declines, Python retries the
+    plain ``__add__`` on the proxy. The proxy must warn once for the whole statement, not once per attempted hook.
+    """
+
+    def __init__(self, value: int) -> None:
+        """Store the wrapped integer value."""
+        self.value = value
+
+    def __iadd__(self, other: int) -> Any:  # noqa: ANN401
+        """Decline the in-place form so the interpreter falls back to ``__add__``."""
+        return NotImplemented
+
+    def __add__(self, other: int) -> "DecliningInplaceOperand":
+        """Return a new operand holding the sum."""
+        return DecliningInplaceOperand(self.value + other)
+
+
+class _FlakyClassAttribute:
+    """Class-level descriptor returning ``3`` that raises ``RuntimeError`` while its owner's ``fail`` flag is set."""
+
+    def __get__(self, instance: Optional[object], owner: "type[FlakyAttrHost]") -> int:
+        """Return the value, or raise when the owning class is flagged to fail."""
+        if owner.fail:
+            raise RuntimeError("FlakyAttrHost.total failed on purpose")
+        return 3
+
+
+class FlakyAttrHost:
+    """Class whose ``total`` attribute raises on read while the class-level ``fail`` flag is set.
+
+    Wrapped by ``deprecated_class(attrs_mapping={"legacy_total": "total"})``, it lets a test make the redirected lookup
+    fail and then succeed under the same deprecated name, which is what the per-name warn budget is keyed on. Build a
+    fresh subclass per test with :func:`make_flaky_attr_host` so the flag never leaks between tests.
+    """
+
+    fail: ClassVar[bool] = False
+    total = _FlakyClassAttribute()
+
+
+def make_flaky_attr_host() -> "type[FlakyAttrHost]":
+    """Return a fresh ``FlakyAttrHost`` subclass with its own ``fail`` flag, initially ``False``."""
+    return type("FlakyAttrHost", (FlakyAttrHost,), {"fail": False})
 
 
 # ========== Stream fixtures: how a warning reaches a custom ``stream`` ==========

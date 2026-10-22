@@ -3200,6 +3200,27 @@ def make_loc_side_effect_box_proxy() -> Any:  # noqa: ANN401
     return deprecated_instance(SideEffectBox(), name="loc_proxy_box", **_DEPRS_CASE_STD_INF_ARGS)
 
 
+# ========== Warn-after-success proxies: a failed operation must not spend the warn budget ==========
+
+
+def make_warn_after_success_proxy(obj: object, **overrides: Any) -> Any:  # noqa: ANN401
+    """Wrap *obj* as the deprecated ``legacy_box`` instance with the default one-warning budget.
+
+    *overrides* replace any ``deprecated_instance`` keyword — ``as_exception=True`` for the fatal rows, ``skip_if=True``
+    for the inactive rows, ``num_warns=-1`` to see every emission. The caller keeps its own reference to *obj*, so it
+    can flip a failure flag without reading through the proxy (which would itself warn).
+    """
+    return deprecated_instance(obj, **{"name": "legacy_box", **_DEPRS_CASE_STD_ARGS, **overrides})
+
+
+def make_flaky_attr_alias(host: type, **overrides: Any) -> Any:  # noqa: ANN401
+    """Wrap *host* in ``deprecated_class`` renaming ``legacy_total`` to ``total``, one warning per deprecated name.
+
+    *overrides* replace any ``deprecated_class`` keyword, e.g. ``as_exception=True`` for the fatal row.
+    """
+    return deprecated_class(attrs_mapping={"legacy_total": "total"}, **{**_DEPRS_CASE_STD_ARGS, **overrides})(host)
+
+
 class LocDescriptorHost:
     """Descriptor sources (decorator above the descriptor) for the call-time warning-location tests.
 
