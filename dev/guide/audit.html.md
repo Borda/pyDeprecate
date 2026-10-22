@@ -127,6 +127,8 @@ Warning: This wrapper configuration has zero impact!
 
 Every scanning function — `find_deprecation_wrappers()`, `validate_deprecation_expiry()`, `validate_deprecation_policy()`, `validate_deprecation_chains()`, `validate_mapping_compatibility()`, `generate_deprecation_table()` — accepts a keyword-only `exclude` list of glob patterns over full dotted module names (`exclude=["my_package.tests", "*._legacy*"]`). The scan itself never imports a matching package nor descends into it (another module in the package may still import it — its wrappers are filtered either way), and no wrapper reported under a matching module is returned — the way to keep test fixtures or a frozen legacy tree out of every audit. The CLI takes the same list from `--exclude` or from `exclude` under `[tool.pydeprecate]` in `pyproject.toml` ([details](cli.md#project-configuration-in-pyprojecttoml)).
 
+The same six functions also accept `include_members` (default `True`): deprecated class members — methods, constructors, properties and other descriptors, and `deprecated_class` proxies bound as class attributes — are scanned unless you pass `include_members=False`, which keeps the check on module-level wrappers. Every CLI subcommand takes the matching `--noinclude-members` flag.
+
 Recursive scans import every submodule, so module-level side effects run. A submodule that fails to import — for any exception, not just `ImportError` — is skipped with a `UserWarning` of the form `audit: skipped <module>: <exception>` and the scan continues, so one broken submodule cannot abort the whole CI gate. The CLI also prints a `pydeprecate gap: module not audited: <module>: <exception>` line on stderr for each skipped submodule, even when your package silences warnings.
 
 ```python
@@ -691,17 +693,18 @@ for info in issues:
   <summary>Output: <code>f"Found {len(issues)} wrappers with POSITIONAL_ONLY mapping incompatibilities"</code></summary>
 
 ```
-Found 5 wrappers with POSITIONAL_ONLY mapping incompatibilities
+Found 6 wrappers with POSITIONAL_ONLY mapping incompatibilities
   tests.collection_deprecate.DepPositionalOnly: incompatible keys = ['old_val']
   tests.collection_deprecate.DepPositionalOnlyDerived: incompatible keys = ['old_val']
   tests.collection_deprecate.DepPositionalOnlyImmutable: incompatible keys = ['old_val']
   tests.collection_deprecate.DepPositionalOnlyMixed: incompatible keys = ['old_x']
   tests.collection_deprecate.DepPositionalOnlyRequired: incompatible keys = ['old_val']
+  tests.collection_deprecate.PositionalOnlyProxyHolder.LegacyTarget: incompatible keys = ['old_val']
 ```
 
 </details>
 
-The function accepts the same `module` and `recursive` arguments as `find_deprecation_wrappers()` — pass an imported module object or a dotted string path; set `recursive=False` to restrict scanning to the top-level module.
+The function accepts the same `module`, `recursive` and `include_members` arguments as `find_deprecation_wrappers()` — pass an imported module object or a dotted string path; set `recursive=False` to restrict scanning to the top-level module, or `include_members=False` to skip proxies bound as class attributes (such as `PositionalOnlyProxyHolder.LegacyTarget` above).
 
 Unlike `validate_deprecation_expiry` or `validate_deprecation_chains`, a positional-only mapping is not a defect — the wrapper forwards the remapped values positionally and works correctly. Prefer `pydeprecate check` for advisory CI reporting; positional-only mapping findings are advisory warnings (exit `0`) — only hard config errors such as invalid argument mappings cause exit `1`. See the [CLI Reference](cli.md) for flags and exit codes.
 

@@ -5518,7 +5518,7 @@ library is not installed (<code>pip install pyDeprecate[audit]</code>). A policy
 
 
 <h2 id="deprecate.audit.validate_deprecation_chains" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">deprecate</span><span class="o">.</span><span class="n">audit</span><span class="o">.</span><span class="n">validate_deprecation_chains</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">deprecate</span><span class="o">.</span><span class="n">audit</span><span class="o">.</span><span class="n">validate_deprecation_chains</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">include_members</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
 <a href="#deprecate.audit.validate_deprecation_chains" class="headerlink" title="Permanent link">🔗</a></h2>
 
@@ -5579,6 +5579,24 @@ inspection is performed.</p>
             <td>
               <div class="doc-md-description">
                 <p>If True (default), recursively scan submodules. If False, only scan the top-level module.</p>
+              </div>
+            </td>
+            <td>
+                  <code>True</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>include_members</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If True (default), also scan deprecated class members (methods, constructors,
+descriptors), matching :func:<code>~deprecate.audit.find_deprecation_wrappers</code>. Pass False to check
+module-level wrappers only.</p>
               </div>
             </td>
             <td>
@@ -5681,7 +5699,7 @@ True</p>
 
 
 <h2 id="deprecate.audit.validate_mapping_compatibility" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">deprecate</span><span class="o">.</span><span class="n">audit</span><span class="o">.</span><span class="n">validate_mapping_compatibility</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">deprecate</span><span class="o">.</span><span class="n">audit</span><span class="o">.</span><span class="n">validate_mapping_compatibility</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">include_members</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
 <a href="#deprecate.audit.validate_mapping_compatibility" class="headerlink" title="Permanent link">🔗</a></h2>
 
@@ -5733,6 +5751,24 @@ module path string.</p>
             <td>
               <div class="doc-md-description">
                 <p>When <code>True</code> (default) recursively scan submodules.</p>
+              </div>
+            </td>
+            <td>
+                  <code>True</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>include_members</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>When <code>True</code> (default) also scan class members, so a <code>deprecated_class</code> proxy bound as
+a class attribute is checked too, matching :func:<code>~deprecate.audit.find_deprecation_wrappers</code>. Pass
+<code>False</code> to check module-level wrappers only.</p>
               </div>
             </td>
             <td>

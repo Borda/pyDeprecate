@@ -100,7 +100,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-04-21",
-  "dateModified": "2026-10-21"
+  "dateModified": "2026-10-22"
 }
 </script>
 
@@ -2056,6 +2056,7 @@
 <h3 id="scanning-a-package-for-deprecated-wrappers">Scanning a package for deprecated wrappers<a class="headerlink" href="#scanning-a-package-for-deprecated-wrappers" title="Permanent link">🔗</a></h3>
 <p><code>find_deprecation_wrappers()</code> walks an entire package or module and returns a list of <code>DeprecationWrapperInfo</code> entries, one per deprecated callable discovered. Pass either a module object or a dotted module path string. This is the foundation for all package-wide CI checks.</p>
 <p>Every scanning function — <code>find_deprecation_wrappers()</code>, <code>validate_deprecation_expiry()</code>, <code>validate_deprecation_policy()</code>, <code>validate_deprecation_chains()</code>, <code>validate_mapping_compatibility()</code>, <code>generate_deprecation_table()</code> — accepts a keyword-only <code>exclude</code> list of glob patterns over full dotted module names (<code>exclude=["my_package.tests", "*._legacy*"]</code>). The scan itself never imports a matching package nor descends into it (another module in the package may still import it — its wrappers are filtered either way), and no wrapper reported under a matching module is returned — the way to keep test fixtures or a frozen legacy tree out of every audit. The CLI takes the same list from <code>--exclude</code> or from <code>exclude</code> under <code>[tool.pydeprecate]</code> in <code>pyproject.toml</code> (<a href="cli.html#project-configuration-in-pyprojecttoml">details</a>).</p>
+<p>The same six functions also accept <code>include_members</code> (default <code>True</code>): deprecated class members — methods, constructors, properties and other descriptors, and <code>deprecated_class</code> proxies bound as class attributes — are scanned unless you pass <code>include_members=False</code>, which keeps the check on module-level wrappers. Every CLI subcommand takes the matching <code>--noinclude-members</code> flag.</p>
 <p>Recursive scans import every submodule, so module-level side effects run. A submodule that fails to import — for any exception, not just <code>ImportError</code> — is skipped with a <code>UserWarning</code> of the form <code>audit: skipped &lt;module&gt;: &lt;exception&gt;</code> and the scan continues, so one broken submodule cannot abort the whole CI gate. The CLI also prints a <code>pydeprecate gap: module not audited: &lt;module&gt;: &lt;exception&gt;</code> line on stderr for each skipped submodule, even when your package silences warnings.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">find_deprecation_wrappers</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
@@ -2551,17 +2552,18 @@
 <details>
   <summary>Output: <code>f"Found {len(issues)} wrappers with POSITIONAL_ONLY mapping incompatibilities"</code></summary>
 
-<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>Found 5 wrappers with POSITIONAL_ONLY mapping incompatibilities
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>Found 6 wrappers with POSITIONAL_ONLY mapping incompatibilities
 <a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>  tests.collection_deprecate.DepPositionalOnly: incompatible keys = ['old_val']
 <a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a>  tests.collection_deprecate.DepPositionalOnlyDerived: incompatible keys = ['old_val']
 <a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a>  tests.collection_deprecate.DepPositionalOnlyImmutable: incompatible keys = ['old_val']
 <a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a>  tests.collection_deprecate.DepPositionalOnlyMixed: incompatible keys = ['old_x']
 <a id="__codelineno-27-6" name="__codelineno-27-6" href="#__codelineno-27-6"></a>  tests.collection_deprecate.DepPositionalOnlyRequired: incompatible keys = ['old_val']
+<a id="__codelineno-27-7" name="__codelineno-27-7" href="#__codelineno-27-7"></a>  tests.collection_deprecate.PositionalOnlyProxyHolder.LegacyTarget: incompatible keys = ['old_val']
 </code></pre></div>
 
 </details>
 
-<p>The function accepts the same <code>module</code> and <code>recursive</code> arguments as <code>find_deprecation_wrappers()</code> — pass an imported module object or a dotted string path; set <code>recursive=False</code> to restrict scanning to the top-level module.</p>
+<p>The function accepts the same <code>module</code>, <code>recursive</code> and <code>include_members</code> arguments as <code>find_deprecation_wrappers()</code> — pass an imported module object or a dotted string path; set <code>recursive=False</code> to restrict scanning to the top-level module, or <code>include_members=False</code> to skip proxies bound as class attributes (such as <code>PositionalOnlyProxyHolder.LegacyTarget</code> above).</p>
 <p>Unlike <code>validate_deprecation_expiry</code> or <code>validate_deprecation_chains</code>, a positional-only mapping is not a defect — the wrapper forwards the remapped values positionally and works correctly. Prefer <code>pydeprecate check</code> for advisory CI reporting; positional-only mapping findings are advisory warnings (exit <code>0</code>) — only hard config errors such as invalid argument mappings cause exit <code>1</code>. See the <a href="cli.html">CLI Reference</a> for flags and exit codes.</p>
 <h2 id="pre-commit-integration">Pre-commit Integration<a class="headerlink" href="#pre-commit-integration" title="Permanent link">🔗</a></h2>
 <p>A <a href="https://pre-commit.com/">pre-commit</a> hook gives a fast local signal before you push, without running the test suite or waiting for CI. The scan imports your package to read its wrappers, so the hook has to run where your package and its runtime dependencies are importable — which decides which of the two recipes below fits.</p>
@@ -3111,7 +3113,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 21, 2026 14:03:26 UTC">2026-10-21</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 22, 2026 17:12:49 UTC">2026-10-22</span>
   </span>
 
     
