@@ -836,6 +836,35 @@ def old_fn(old: int) -> int:
 # Module-level code that reports which command-line arguments an imported module can see.
 _ARGV_PROBE_SRC = 'import sys\n\nprint("ARGV:", sys.argv[1:], file=sys.stderr)\n'
 
+# Package whose only deprecations are class members: a stacked-remap chain overdue at 3.0, and a warn-only method
+# with a one-minor grace window (a policy violation). Every gate fails on them unless members are left out.
+_MEMBERS_ONLY_SRC = '''\
+from deprecate import TargetMode, deprecated
+
+
+class Legacy:
+    """Holds the package's only deprecations."""
+
+    @deprecated(target=TargetMode.ARGS_REMAP, deprecated_in="1.0", remove_in="2.0", args_mapping={"c1": "nc2"})
+    @deprecated(target=TargetMode.ARGS_REMAP, deprecated_in="1.0", remove_in="2.0", args_mapping={"nc1": "nc2"})
+    def scale(self, base: int, c1: int = 0, nc1: int = 0, nc2: int = 2) -> int:
+        return base
+
+    @deprecated(target=None, deprecated_in="1.0", remove_in="1.1")
+    def old_reset(self) -> None:
+        """Warn-only member."""
+'''
+
+# (subcommand, extra args, exit code with members scanned) for the member-only package above.
+_MEMBER_GATES = [
+    pytest.param("check", (), 0, id="check"),
+    pytest.param("expiry", ("--version", "3.0"), 1, id="expiry"),
+    pytest.param("policy", (), 1, id="policy"),
+    pytest.param("chains", (), 1, id="chains"),
+    pytest.param("all", ("--version", "3.0"), 1, id="all"),
+    pytest.param("status", ("--version", "3.0"), 0, id="status"),
+]
+
 
 class TestCliScanTarget:
     """Every subcommand turns the same path into the same scan."""
@@ -1017,6 +1046,44 @@ class TestCliScanTarget:
         )
         gaps = json.loads(report.read_text(encoding="utf-8"))["gaps"]
         assert [gap["kind"] for gap in gaps] == ["other copy audited"]
+
+
+@pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
+class TestCliIncludeMembers:
+    """Every scanning subcommand takes ``--noinclude-members`` and scans class members by default."""
+
+    @pytest.mark.parametrize(("subcommand", "extra", "returncode"), _MEMBER_GATES)
+    def test_members_scanned_by_default(
+        self, tmp_path: Path, subcommand: str, extra: tuple[str, ...], returncode: int
+    ) -> None:
+        """Each subcommand reaches deprecations defined on a class without any flag.
+
+        A package that deprecates only methods (a common shape for an SDK client class) must be gated like one with
+        module-level wrappers: the members are reported and every failing gate exits 1.
+
+        """
+        pkg = _make_pkg(tmp_path, name="memberpkg", content=_MEMBERS_ONLY_SRC)
+        result = _run_cli(subcommand, str(pkg), *extra, env=_cli_env(COLUMNS="1000"), cwd=tmp_path)
+        assert result.returncode == returncode, result.stdout + result.stderr
+        assert "Legacy." in result.stdout
+
+    @pytest.mark.parametrize(("subcommand", "extra", "returncode"), _MEMBER_GATES)
+    def test_noinclude_members_leaves_members_out(
+        self, tmp_path: Path, subcommand: str, extra: tuple[str, ...], returncode: int
+    ) -> None:
+        """``--noinclude-members`` scopes every subcommand to module-level wrappers.
+
+        The flag used to exist on ``status`` only, so a project could render a module-level table while ``expiry``
+        and ``all`` on the same path still failed on member deprecations. With the flag, no gate sees the members:
+        nothing is reported and every gate passes.
+
+        """
+        pkg = _make_pkg(tmp_path, name="memberpkg", content=_MEMBERS_ONLY_SRC)
+        result = _run_cli(
+            subcommand, str(pkg), *extra, "--noinclude-members", env=_cli_env(COLUMNS="1000"), cwd=tmp_path
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "Legacy." not in result.stdout
 
 
 class TestCliPolicyMessageRequiredFlag:

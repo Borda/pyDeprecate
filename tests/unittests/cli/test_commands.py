@@ -2,7 +2,7 @@
 
 import inspect
 import sys
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -1345,3 +1345,30 @@ class TestCmdPolicy:
         (tmp_path / "pyproject.toml").write_text("[tool.pydeprecate.policy]\nmessage-required = false\n")
         assert cmd_policy(path=str(tmp_path), _wrappers=[_POLICY_VIOLATION]) == 1
         assert "pyDeprecate[audit]" in capsys.readouterr().err
+
+
+class TestIncludeMembersFlag:
+    """Every scanning subcommand forwards ``include_members`` to its one scan."""
+
+    @pytest.mark.parametrize(
+        ("command", "kwargs"),
+        [
+            pytest.param(cmd_check, {}, id="check"),
+            pytest.param(cmd_expiry, {"version": "1.0"}, id="expiry"),
+            pytest.param(cmd_policy, {}, id="policy"),
+            pytest.param(cmd_chains, {}, id="chains"),
+            pytest.param(cmd_all, {"version": "1.0"}, id="all"),
+            pytest.param(cmd_status, {"version": "1.0"}, id="status"),
+        ],
+    )
+    @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
+    def test_opt_out_reaches_scan(self, mock_find: MagicMock, command: Callable[..., int], kwargs: dict) -> None:
+        """``include_members=False`` narrows the scan itself, for every subcommand.
+
+        A project whose class members carry deprecations it does not want gated yet (a framework's overridable hooks,
+        say) must be able to run any gate on module-level wrappers only, not just render a narrower ``status`` table
+        while ``expiry`` and ``all`` still fail on the members.
+
+        """
+        command(path="some_module", include_members=False, **kwargs)
+        mock_find.assert_called_once_with("some_module", recursive=True, include_members=False, exclude=[])

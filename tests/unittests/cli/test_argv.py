@@ -127,11 +127,11 @@ class TestBoolParams:
     @pytest.mark.parametrize(
         ("command", "expected"),
         [
-            pytest.param(cmd_check, {"exit_zero", "recursive"}, id="check"),
-            pytest.param(cmd_expiry, {"exit_zero", "recursive"}, id="expiry"),
-            pytest.param(cmd_policy, {"exit_zero", "message_required", "recursive"}, id="policy"),
-            pytest.param(cmd_chains, {"exit_zero", "recursive"}, id="chains"),
-            pytest.param(cmd_all, {"exit_zero", "recursive"}, id="all"),
+            pytest.param(cmd_check, {"exit_zero", "include_members", "recursive"}, id="check"),
+            pytest.param(cmd_expiry, {"exit_zero", "include_members", "recursive"}, id="expiry"),
+            pytest.param(cmd_policy, {"exit_zero", "include_members", "message_required", "recursive"}, id="policy"),
+            pytest.param(cmd_chains, {"exit_zero", "include_members", "recursive"}, id="chains"),
+            pytest.param(cmd_all, {"exit_zero", "include_members", "recursive"}, id="all"),
             pytest.param(cmd_status, {"include_members", "recursive"}, id="status"),
         ],
     )
