@@ -292,7 +292,8 @@ def _resolve_package_version(module_name: str, path: Optional[str] = None) -> Op
             return local_ver
     top_level = module_name.split(".")[0]
     with suppress(Exception):
-        return importlib.metadata.version(module_name)
+        # Python 3.9's metadata reader normalizes hyphens but leaves dots unchanged.
+        return importlib.metadata.version(module_name.replace(".", "-"))
     if module_name != top_level:
         with suppress(Exception):
             return importlib.metadata.version(top_level)
