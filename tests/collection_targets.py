@@ -7,6 +7,7 @@ This module provides base functions that are used as targets for deprecated func
 import functools
 import inspect
 import time
+import types
 import warnings
 from collections.abc import AsyncIterator, Coroutine, Generator, Iterator
 from dataclasses import dataclass, field
@@ -1325,6 +1326,10 @@ def legacy_host_scale(host: Any, factor: int) -> tuple[Any, int]:  # noqa: ANN40
 # Stand-ins for the ``stream=`` callables users pass to ``@deprecated``, ``deprecated_instance`` and
 # ``deprecated_module``.  The plain functions cover the signature shapes ``_stream_accepts_stacklevel`` must
 # classify; the recording classes count every invocation, so a test can prove the stream ran exactly once.
+
+
+class LocCustomModuleType(types.ModuleType):
+    """Module subclass standing in for a lazy loader's module class, which ``deprecated_module`` overwrites."""
 
 
 def stream_message_only(msg: str) -> None:

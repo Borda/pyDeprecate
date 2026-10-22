@@ -16,34 +16,56 @@ expected line just before the warned statement.
 
 import functools
 import inspect
+import sys
+import types
 import warnings
 from typing import Any, Callable
 
 import pytest
 
 import tests.collection_modules.old_math as old_math
+from deprecate import TargetMode
+from deprecate.audit import DeprecationWrapperInfo
+from deprecate.utils import no_warning_call
 from tests import collection_deprecate
 from tests.collection_deprecate import (
     LocDescriptorHost,
     LocProxyBase,
+    MappedDataClass,
     loc_args_remap,
     loc_async_notify,
     loc_forward,
     loc_notify,
     loc_proxy_callable,
+    loc_proxy_ctor_remap,
     loc_proxy_mapping,
     loc_proxy_number,
+    loc_stack_callable_inner,
+    loc_stack_notify_inner,
     loc_stack_notify_over_callable,
+    loc_stack_remap_inner,
     loc_stack_remap_over_notify,
     loc_stack_remap_over_remap,
+    make_loc_callable_direct,
+    make_loc_class_direct,
     make_loc_class_dispatch_notice,
     make_loc_decoration_misconfig,
+    make_loc_front_door,
+    make_loc_instance,
     make_loc_legacy_none_sentinel,
     make_loc_missing_deprecated_in,
+    make_loc_module,
     make_loc_positional_only_target,
     make_loc_side_effect_box_proxy,
 )
 from tests.collection_misconfigured import args_only_no_mapping_deprecation
+from tests.collection_targets import (
+    LocCustomModuleType,
+    NewDataClass,
+    PositionalOnlyTarget,
+    double_value,
+    identity_value,
+)
 
 _XFAIL_CORE03_INNER = pytest.mark.xfail(
     strict=True,
@@ -60,6 +82,25 @@ _XFAIL_CORE24 = pytest.mark.xfail(
     raises=AssertionError,
     reason="CORE-24: the front-door legacy-sentinel FutureWarning points into deprecation.py, not the decoration site",
 )
+_XFAIL_CORE16_PROXY_SENTINEL = pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason="CORE-16: the deprecated_class legacy-sentinel warning (stacklevel=3) warns from proxy.py",
+)
+_XFAIL_CORE16_PROXY_POSITIONAL_ONLY_DIRECT = pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason="CORE-16: the proxy POSITIONAL_ONLY warning (stacklevel=5) warns one frame above the decoration site",
+)
+_XFAIL_CORE16_PROXY_POSITIONAL_ONLY_FRONT = pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason="CORE-16: the proxy POSITIONAL_ONLY warning ignores _stacklevel_extra and warns from deprecation.py",
+)
+#: Module name registered in ``sys.modules`` (per test, via ``monkeypatch``) for the ``deprecated_module`` sites.
+_LOC_MODULE_NAME = "tests_loc_deprecated_module"
+#: Valid custom message template for the ``template_mgs`` alias rows.
+_LOC_TEMPLATE = "`%(source_name)s` is deprecated."
 
 
 def _next_line() -> int:
@@ -142,6 +183,33 @@ class TestCallTimeExpressionSites:
                 lambda: LocDescriptorHost.legacy_factory(1), FutureWarning, "legacy_factory", id="classmethod"
             ),
             pytest.param(lambda: LocDescriptorHost.legacy_helper(1), FutureWarning, "legacy_helper", id="staticmethod"),
+            pytest.param(
+                lambda: loc_proxy_ctor_remap(name="a"),
+                FutureWarning,
+                "`name`",
+                id="proxy-ctor-remap-argument",
+            ),
+            pytest.param(
+                lambda: loc_proxy_ctor_remap(name="a", label="b"),
+                UserWarning,
+                "were supplied",
+                id="proxy-ctor-remap-collision",
+            ),
+            pytest.param(
+                lambda: MappedDataClass(name="a"),  # type: ignore[call-arg]
+                FutureWarning,
+                "`name`",
+                id="proxy-ctor-forward-argument",
+            ),
+            pytest.param(
+                lambda: MappedDataClass(label="a"), FutureWarning, "MappedDataClass", id="proxy-ctor-forward-class"
+            ),
+            pytest.param(
+                lambda: MappedDataClass(name="a", label="b"),  # type: ignore[call-arg]
+                UserWarning,
+                "were supplied",
+                id="proxy-ctor-forward-collision",
+            ),
         ],
     )
     def test_points_at_calling_line(self, operation: Callable[[], Any], category: type[Warning], match: str) -> None:
@@ -298,3 +366,422 @@ class TestDecorationTimeSites:
 
         expected = (collection_deprecate.__file__, _line_ending_with(factory, "# warn-site"))
         assert _location(caught, category, match) == expected
+
+
+class TestDecorationTimeConfiguredSites:
+    """Decoration-time warnings of every entry point point at the configurable factory's ``# warn-site`` line."""
+
+    @pytest.mark.parametrize(
+        ("factory", "source", "config", "category", "match"),
+        [
+            pytest.param(
+                make_loc_front_door,
+                loc_stack_callable_inner,
+                {"target": double_value},
+                UserWarning,
+                "stacked over another callable-target",
+                id="stack-callable-over-callable",
+            ),
+            pytest.param(
+                make_loc_front_door,
+                loc_stack_remap_inner,
+                {"target": double_value},
+                UserWarning,
+                "stacked over @deprecated(ARGS_REMAP)",
+                id="stack-callable-over-remap",
+            ),
+            pytest.param(
+                make_loc_front_door,
+                loc_stack_notify_inner,
+                {"target": double_value},
+                UserWarning,
+                "stacked over @deprecated(NOTIFY)",
+                id="stack-callable-over-notify",
+            ),
+            pytest.param(
+                make_loc_front_door,
+                loc_stack_callable_inner,
+                {"target": TargetMode.ARGS_REMAP, "args_mapping": {"old_x": "x"}},
+                UserWarning,
+                "stacked over a callable-target",
+                id="stack-remap-over-callable",
+            ),
+            pytest.param(
+                make_loc_front_door,
+                loc_stack_notify_inner,
+                {"target": TargetMode.NOTIFY},
+                UserWarning,
+                "duplicate @deprecated(NOTIFY)",
+                id="stack-notify-over-notify",
+            ),
+            pytest.param(
+                make_loc_front_door,
+                loc_stack_remap_inner,
+                {"target": TargetMode.NOTIFY},
+                UserWarning,
+                "Reverse the decorator order",
+                id="stack-notify-over-remap",
+            ),
+            pytest.param(
+                make_loc_callable_direct,
+                loc_stack_notify_inner,
+                {"target": TargetMode.NOTIFY},
+                UserWarning,
+                "duplicate @deprecated(NOTIFY)",
+                id="stack-notify-over-notify-direct",
+            ),
+            pytest.param(
+                make_loc_callable_direct,
+                identity_value,
+                {"target": None},
+                FutureWarning,
+                "target=None is deprecated",
+                id="legacy-none-direct",
+            ),
+            pytest.param(
+                make_loc_callable_direct,
+                identity_value,
+                {"target": True, "args_mapping": {"old_x": "x"}},
+                FutureWarning,
+                "target=True is deprecated",
+                id="legacy-true-direct",
+            ),
+            pytest.param(
+                make_loc_callable_direct,
+                identity_value,
+                {"target": False},
+                UserWarning,
+                "`target=False` is not a valid deprecation mode",
+                id="legacy-false-direct",
+            ),
+            pytest.param(
+                make_loc_front_door,
+                identity_value,
+                {"target": True, "args_mapping": {"old_x": "x"}},
+                FutureWarning,
+                "target=True is deprecated",
+                id="legacy-true-front-door",
+                marks=_XFAIL_CORE24,
+            ),
+            pytest.param(
+                make_loc_front_door,
+                identity_value,
+                {"target": False},
+                UserWarning,
+                "`target=False` is not a valid deprecation mode",
+                id="legacy-false-front-door",
+                marks=_XFAIL_CORE24,
+            ),
+            pytest.param(
+                make_loc_front_door,
+                NewDataClass,
+                {"target": None},
+                FutureWarning,
+                "target=None is deprecated",
+                id="class-legacy-none-front-door",
+            ),
+            pytest.param(
+                make_loc_front_door,
+                NewDataClass,
+                {"target": True},
+                FutureWarning,
+                "target=True is deprecated",
+                id="class-legacy-true-front-door",
+            ),
+            pytest.param(
+                make_loc_front_door,
+                NewDataClass,
+                {"target": False},
+                UserWarning,
+                "`target=False` is not a valid deprecation mode",
+                id="class-legacy-false-front-door",
+            ),
+            pytest.param(
+                make_loc_class_direct,
+                NewDataClass,
+                {"target": True},
+                FutureWarning,
+                "`target=True` without `args_mapping`",
+                id="proxy-legacy-true",
+                marks=_XFAIL_CORE16_PROXY_SENTINEL,
+            ),
+            pytest.param(
+                make_loc_class_direct,
+                NewDataClass,
+                {"target": True, "args_mapping": {"name": "label"}},
+                FutureWarning,
+                "`target=True` with `args_mapping`",
+                id="proxy-legacy-true-mapping",
+                marks=_XFAIL_CORE16_PROXY_SENTINEL,
+            ),
+            pytest.param(
+                make_loc_class_direct,
+                NewDataClass,
+                {"target": False},
+                UserWarning,
+                "`target=False` is not valid for `deprecated_class()`",
+                id="proxy-legacy-false",
+                marks=_XFAIL_CORE16_PROXY_SENTINEL,
+            ),
+            pytest.param(
+                make_loc_class_direct,
+                NewDataClass,
+                {"target": TargetMode.NOTIFY, "args_mapping": {"name": "label"}},
+                UserWarning,
+                "ignores `args_mapping`",
+                id="proxy-misconfig",
+            ),
+            pytest.param(
+                make_loc_front_door,
+                NewDataClass,
+                {"target": TargetMode.NOTIFY, "args_mapping": {"name": "label"}},
+                UserWarning,
+                "ignores `args_mapping`",
+                id="proxy-misconfig-front-door",
+            ),
+            pytest.param(
+                make_loc_class_direct,
+                NewDataClass,
+                {"attrs_mapping": {}},
+                UserWarning,
+                "empty dict",
+                id="proxy-attrs-misconfig",
+            ),
+            pytest.param(
+                make_loc_class_direct,
+                PositionalOnlyTarget,
+                {"args_mapping": {"old_val": "new_val"}},
+                UserWarning,
+                "POSITIONAL_ONLY constructor",
+                id="proxy-positional-only",
+                marks=_XFAIL_CORE16_PROXY_POSITIONAL_ONLY_DIRECT,
+            ),
+            pytest.param(
+                make_loc_front_door,
+                PositionalOnlyTarget,
+                {"args_mapping": {"old_val": "new_val"}},
+                UserWarning,
+                "POSITIONAL_ONLY constructor",
+                id="proxy-positional-only-front-door",
+                marks=_XFAIL_CORE16_PROXY_POSITIONAL_ONLY_FRONT,
+            ),
+            pytest.param(
+                make_loc_callable_direct,
+                identity_value,
+                {"deprecated_in": ""},
+                UserWarning,
+                "has no `deprecated_in` set",
+                id="missing-deprecated-in-direct",
+            ),
+            pytest.param(
+                make_loc_front_door,
+                property(identity_value),
+                {"deprecated_in": ""},
+                UserWarning,
+                "has no `deprecated_in` set",
+                id="missing-deprecated-in-property",
+            ),
+            pytest.param(
+                make_loc_front_door,
+                classmethod(identity_value),  # type: ignore[arg-type]
+                {"deprecated_in": ""},
+                UserWarning,
+                "has no `deprecated_in` set",
+                id="missing-deprecated-in-classmethod",
+            ),
+            pytest.param(
+                make_loc_front_door,
+                staticmethod(identity_value),
+                {"deprecated_in": ""},
+                UserWarning,
+                "has no `deprecated_in` set",
+                id="missing-deprecated-in-staticmethod",
+            ),
+            pytest.param(
+                make_loc_class_direct,
+                NewDataClass,
+                {"deprecated_in": ""},
+                UserWarning,
+                "has no `deprecated_in` set",
+                id="missing-deprecated-in-class",
+            ),
+            pytest.param(
+                make_loc_front_door,
+                NewDataClass,
+                {"deprecated_in": ""},
+                UserWarning,
+                "has no `deprecated_in` set",
+                id="missing-deprecated-in-class-front-door",
+            ),
+            pytest.param(
+                make_loc_instance,
+                {"threshold": 0.5},
+                {"deprecated_in": ""},
+                UserWarning,
+                "has no `deprecated_in` set",
+                id="missing-deprecated-in-instance",
+            ),
+            pytest.param(
+                make_loc_front_door,
+                identity_value,
+                {"template_mgs": _LOC_TEMPLATE},
+                FutureWarning,
+                "`template_mgs` is deprecated",
+                id="template-alias-front-door",
+            ),
+            pytest.param(
+                make_loc_callable_direct,
+                identity_value,
+                {"template_mgs": _LOC_TEMPLATE},
+                FutureWarning,
+                "`template_mgs` is deprecated",
+                id="template-alias-callable",
+            ),
+            pytest.param(
+                make_loc_class_direct,
+                NewDataClass,
+                {"template_mgs": _LOC_TEMPLATE},
+                FutureWarning,
+                "`template_mgs` is deprecated",
+                id="template-alias-class",
+            ),
+            pytest.param(
+                make_loc_instance,
+                {"threshold": 0.5},
+                {"template_mgs": _LOC_TEMPLATE},
+                FutureWarning,
+                "`template_mgs` is deprecated",
+                id="template-alias-instance",
+            ),
+        ],
+    )
+    def test_points_at_decorating_line(
+        self, factory: Callable[..., Any], source: object, config: dict[str, Any], category: type[Warning], match: str
+    ) -> None:
+        """The warning reports the factory's ``# warn-site`` line, where the user's decoration statement sits.
+
+        Each entry point (``@deprecated`` front door, strict ``deprecated_callable``, ``deprecated_class``,
+        ``deprecated_instance``) reaches the shared warn sites through a different number of library frames, so a fixed
+        ``stacklevel`` that is right for one is wrong for another.  Every row applies one entry point to one source with
+        the configuration that trips one decoration-time warning — stacking misconfigurations, legacy ``target``
+        sentinels, proxy misconfigurations, missing ``deprecated_in`` and the ``template_mgs`` alias — and pins where
+        the maintainer is sent to fix it.
+
+        """
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            factory(source, **config)
+
+        expected = (collection_deprecate.__file__, _line_ending_with(factory, "# warn-site"))
+        assert _location(caught, category, match) == expected
+
+
+class TestModuleSites:
+    """``deprecated_module`` warnings point at the ``deprecated_module(...)`` call or at the attribute access."""
+
+    @pytest.mark.parametrize(
+        ("module_type", "module_attrs", "config", "match"),
+        [
+            pytest.param(
+                types.ModuleType, {}, {"deprecated_in": ""}, "has no `deprecated_in` set", id="missing-version"
+            ),
+            pytest.param(LocCustomModuleType, {}, {}, "custom `__class__`", id="custom-module-class"),
+            pytest.param(
+                types.ModuleType,
+                {"__getattr__": identity_value},
+                {},
+                "pre-existing `__getattr__`",
+                id="chained-getattr",
+            ),
+        ],
+    )
+    def test_install_points_at_call(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        module_type: type[types.ModuleType],
+        module_attrs: dict[str, Any],
+        config: dict[str, Any],
+        match: str,
+    ) -> None:
+        """An install-time ``UserWarning`` reports the ``deprecated_module(...)`` call line.
+
+        A maintainer deprecates a module from its own ``__init__``; a missing version, a lazy-loader module class that
+        gets overwritten, or a chained PEP 562 ``__getattr__`` are flagged once at that call, which is where the warning
+        has to send them.  The module is registered for this test only, so the class swap never leaks.
+
+        """
+        module = module_type(_LOC_MODULE_NAME)
+        vars(module).update(module_attrs)
+        monkeypatch.setitem(sys.modules, _LOC_MODULE_NAME, module)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            make_loc_module(_LOC_MODULE_NAME, **config)
+
+        expected = (collection_deprecate.__file__, _line_ending_with(make_loc_module, "# warn-site"))
+        assert _location(caught, UserWarning, match) == expected
+
+    def test_reconfiguration_points_at_second_call(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Re-deprecating a module with a different configuration warns at the second ``deprecated_module`` call.
+
+        After an ``importlib.reload`` or a copy-paste, a module can be deprecated twice with different versions; the
+        second call is ignored, and the ``UserWarning`` saying so must name that ignored call.
+
+        """
+        monkeypatch.setitem(sys.modules, _LOC_MODULE_NAME, types.ModuleType(_LOC_MODULE_NAME))
+        make_loc_module(_LOC_MODULE_NAME)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            make_loc_module(_LOC_MODULE_NAME, remove_in="3.0")
+
+        expected = (collection_deprecate.__file__, _line_ending_with(make_loc_module, "# warn-site"))
+        assert _location(caught, UserWarning, "different configuration") == expected
+
+    def test_custom_stream_access_points_at_access(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A module deprecated with a custom ``stream`` reports the attribute-access line.
+
+        A custom stream takes the ``_emit`` delivery path instead of the default ``warnings.warn`` call, with its own
+        frame count; ``warnings.warn`` as the stream accepts ``stacklevel`` and must still land on the user's access.
+
+        """
+        module = types.ModuleType(_LOC_MODULE_NAME)
+        vars(module)["value"] = 1
+        monkeypatch.setitem(sys.modules, _LOC_MODULE_NAME, module)
+        make_loc_module(_LOC_MODULE_NAME, stream=warnings.warn)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            expected_line = _next_line()
+            _ = module.value
+
+        assert _location(caught, UserWarning, "module was deprecated") == (__file__, expected_line)
+
+
+class TestLibraryAliasSites:
+    """pyDeprecate's own renamed APIs warn at the line that still uses the old spelling."""
+
+    @pytest.mark.parametrize(
+        ("operation", "match"),
+        [
+            pytest.param(lambda: no_warning_call(), "no_warning_call", id="no-warning-call"),
+            pytest.param(lambda: DeprecationWrapperInfo().empty_mapping, "'empty_mapping'", id="empty-mapping-read"),
+            pytest.param(
+                lambda: DeprecationWrapperInfo().identity_mapping, "'identity_mapping'", id="identity-mapping-read"
+            ),
+            pytest.param(
+                lambda: DeprecationWrapperInfo(empty_mapping=True),  # type: ignore[call-arg]
+                "'empty_mapping'",
+                id="empty-mapping-ctor",
+            ),
+        ],
+    )
+    def test_points_at_calling_line(self, operation: Callable[[], Any], match: str) -> None:
+        """The ``DeprecationWarning`` reports this file and the line of the old-spelling expression.
+
+        Downstream test suites still construct ``no_warning_call()`` or read the pre-0.8 ``DeprecationWrapperInfo``
+        field names; the warning must point at that use, not at the alias shim inside pyDeprecate.
+
+        """
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            operation()
+
+        assert _location(caught, DeprecationWarning, match) == (__file__, operation.__code__.co_firstlineno)

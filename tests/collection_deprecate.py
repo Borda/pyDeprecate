@@ -51,7 +51,15 @@ from warnings import catch_warnings, simplefilter, warn
 import typing_extensions
 from sklearn.metrics import accuracy_score
 
-from deprecate import TargetMode, deprecated, deprecated_callable, deprecated_class, deprecated_instance, void
+from deprecate import (
+    TargetMode,
+    deprecated,
+    deprecated_callable,
+    deprecated_class,
+    deprecated_instance,
+    deprecated_module,
+    void,
+)
 from deprecate.proxy import _DeprecatedProxy
 from tests.collection_targets import (
     AutoExpandDC,
@@ -3199,6 +3207,39 @@ LocProxyBase = deprecated_class(**_DEPRS_CASE_STD_INF_ARGS)(SubclassableBase)
 def make_loc_side_effect_box_proxy() -> Any:  # noqa: ANN401
     """Wrap a fresh ``SideEffectBox`` for the in-place-operator, ``__enter__`` and iteration sites."""
     return deprecated_instance(SideEffectBox(), name="loc_proxy_box", **_DEPRS_CASE_STD_INF_ARGS)
+
+
+#: Constructor-rename proxy (``ARGS_REMAP``, no ``target``) for the per-argument and collision constructor sites.
+loc_proxy_ctor_remap = deprecated_class(args_mapping={"name": "label"}, **_DEPRS_CASE_STD_INF_ARGS)(NewDataClass)
+
+# Configurable decoration-time factories: each applies one entry point to *source* on its ``# warn-site`` line, with
+# *config* overriding the standard version pair (``deprecated_in=""`` drops it).  Decorator-factory warnings (the
+# ``template_mgs`` alias) and decorator-application warnings therefore share the same expected line.
+
+
+def make_loc_front_door(source: Any, **config: Any) -> Any:  # noqa: ANN401
+    """Decorate *source* through the ``@deprecated`` front door configured by *config*."""
+    return deprecated(**{**_DEPRS_CASE_STD_ARGS, **config})(source)  # warn-site
+
+
+def make_loc_callable_direct(source: Any, **config: Any) -> Any:  # noqa: ANN401
+    """Decorate *source* with the strict ``deprecated_callable`` configured by *config*."""
+    return deprecated_callable(**{**_DEPRS_CASE_STD_ARGS, **config})(source)  # warn-site
+
+
+def make_loc_class_direct(source: Any, **config: Any) -> Any:  # noqa: ANN401
+    """Wrap the class *source* with ``deprecated_class`` configured by *config*."""
+    return deprecated_class(**{**_DEPRS_CASE_STD_ARGS, **config})(source)  # warn-site
+
+
+def make_loc_instance(source: Any, **config: Any) -> Any:  # noqa: ANN401
+    """Wrap the object *source* with ``deprecated_instance`` configured by *config*."""
+    return deprecated_instance(source, **{**_DEPRS_CASE_STD_ARGS, **config})  # warn-site
+
+
+def make_loc_module(name: str, **config: Any) -> None:  # noqa: ANN401
+    """Deprecate the registered module *name* in place with ``deprecated_module`` configured by *config*."""
+    deprecated_module(name, **{**_DEPRS_CASE_STD_ARGS, **config})  # warn-site
 
 
 # ========== Warn-after-success proxies: a failed operation must not spend the warn budget ==========
