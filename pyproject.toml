@@ -131,8 +131,8 @@ ini_options.filterwarnings = [
   "ignore:.*ignores `args_extra`\\..*:UserWarning:tests",
   "ignore:.*ignores `args_mapping`\\..*:UserWarning:tests",
   "ignore:.*requires `args_mapping` to specify which arguments are being renamed.*:UserWarning:tests",
-  "ignore:target=None is deprecated since v0\\.8.*:FutureWarning:tests",
-  "ignore:target=True is deprecated since v0\\.8.*:FutureWarning:tests",
+  "ignore:target=None is deprecated since `v0\\.8`.*:FutureWarning:tests",
+  "ignore:target=True is deprecated since `v0\\.8`.*:FutureWarning:tests",
 ]
 ini_options.junit_duration_report = "call"
 # filterwarnings = [ "error::FutureWarning" ]
