@@ -109,7 +109,7 @@
           "name": "Why did the GitHub Action skip my job summary?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "The summary is optional and never changes the gate's exit code. The action takes the table from the report the CLI writes with --report-json, which exists only when the scan ran to the end with exit 0 or 1. 'The gate wrote no pyDeprecate report' means the scan crashed or the report could not be written; the cause is in the CLI's stderr just above. A usage error (exit 2) writes no summary. 'No pyDeprecate report is available' means an older pyDeprecate without --report-json runs with install: false; keep install: true or upgrade it. That warning also appears when the runner could not create a temporary directory for the report. Other warnings: GITHUB_STEP_SUMMARY not set means the job is not on a GitHub runner, and 'could not write the job summary' shows the OS error. 'The gate's report holds no deprecation table' means the CLI could not render the table; the reason is on its stderr. An unreadable report or one of another layout version means a corrupt file or a different pyDeprecate than the action's (for example install: false); the preceding runner warning names the cause, and the gate result is unaffected."
+            "text": "The summary is optional and never changes the gate's exit code. The action takes the table from the report the CLI writes with --report-json, which exists only when the scan ran to the end with exit 0 or 1. 'The gate wrote no pyDeprecate report' means the scan crashed (for example, a module that fails to import) or the report could not be written; the cause is in the CLI's stderr just above. A usage error (exit 2) writes no summary. 'No pyDeprecate report is available' means an older pyDeprecate without --report-json runs with install: false; keep install: true or upgrade it. That warning also appears when the runner could not create a temporary directory for the report. Other warnings: GITHUB_STEP_SUMMARY not set means the job is not on a GitHub runner, and 'could not write the job summary' shows the OS error. 'The gate's report holds no deprecation table' means the CLI could not render the table; the reason is on its stderr. An unreadable report or one of another layout version means a corrupt file or a different pyDeprecate than the action's (for example install: false); the preceding runner warning names the cause, and the gate result is unaffected."
           }
         },
         {
@@ -429,7 +429,15 @@
           "name": "Why does my pydeprecate pre-commit hook fail with 'contains multiple packages'?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "With no path in args, the hook looks for a single package under src/, then at the repository root. A root holding two or more top-level packages (for example mypkg/ and tests/) is ambiguous, so pyDeprecate exits non-zero with 'contains multiple packages (mypkg, tests)' instead of scanning nothing and passing. Src-layout repositories and single-package roots resolve on their own. For a multi-package repository, name the package in the hook args, e.g. args: [mypkg]. The same error applies to policy, status and all."
+            "text": "With no path in args, the hook looks for a single package under src/, then at the repository root. A root holding two or more top-level packages (for example mypkg/ and tests/) is ambiguous, so pyDeprecate exits 2 (a usage error) with 'contains multiple packages (mypkg, tests)' instead of scanning nothing and passing. Src-layout repositories and single-package roots resolve on their own. For a multi-package repository, name the package in the hook args, e.g. args: [mypkg]. The same error applies to every subcommand."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What does 'pydeprecate gap: other copy audited' mean?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "The scanned package's import name was already taken in the CLI's process by a copy from another directory — pyDeprecate's own deprecate package when scanning another checkout of pyDeprecate, or a package an editable install of another checkout resolves ahead of sys.path — so that copy was audited instead of the directory you passed. The header line 'Imported from:' names the file actually audited. When that copy is the same code (a wheel built from the checkout) the result is still right; otherwise run the scan from the checkout's own virtual environment."
           }
         },
         {
@@ -2004,6 +2012,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#pydeprecate-gap-other-copy-audited" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pydeprecate gap: other copy audited
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#typeerror-obj-is-wrapped-in-a-deprecation-proxy-and-cannot-be-pickled-directly" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2767,6 +2786,17 @@
     <span class="md-ellipsis">
       
         My pydeprecate pre-commit hook fails: contains multiple packages
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pydeprecate-gap-other-copy-audited" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pydeprecate gap: other copy audited
       
     </span>
   </a>
@@ -4613,7 +4643,11 @@
 <div class="highlight"><pre><span></span><code><a id="__codelineno-109-1" name="__codelineno-109-1" href="#__codelineno-109-1"></a><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pydeprecate-check</span>
 <a id="__codelineno-109-2" name="__codelineno-109-2" href="#__codelineno-109-2"></a><span class="w">  </span><span class="nt">args</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">mypkg</span><span class="p p-Indicator">]</span>
 </code></pre></div>
-<p>The same error applies to <code>policy</code>, <code>status</code> and <code>all</code>; see the <a href="guide/audit.html#pre-commit-integration">audit guide</a>.</p>
+<p>The same error, a usage error with exit <code>2</code>, applies to every subcommand; see the <a href="guide/audit.html#pre-commit-integration">audit guide</a>.</p>
+<hr />
+<h2 id="pydeprecate-gap-other-copy-audited"><code>pydeprecate gap: other copy audited</code><a class="headerlink" href="#pydeprecate-gap-other-copy-audited" title="Permanent link">🔗</a></h2>
+<p><strong>Q:</strong> The CLI prints <code>pydeprecate gap: other copy audited: &lt;pkg&gt; was imported from &lt;dir&gt;, not from &lt;scanned dir&gt;</code>. Were my deprecations checked?</p>
+<p><strong>A:</strong> The ones of the copy named in the message were — not necessarily the ones in the directory you passed. A package is imported by name, and when that name is already taken in the CLI's process the scan gets the loaded copy: pyDeprecate's own <code>deprecate</code> package (scanning a fork or another checkout of pyDeprecate), or a package an editable install of another checkout resolves ahead of <code>sys.path</code>. The header line <code>Imported from:</code> names the file that was actually audited. When that copy is the same code — CI installs a wheel built from the checkout and then scans <code>src/</code> — the result is still right. Otherwise run the scan from the checkout's own virtual environment, where the package name resolves to the directory you pass.</p>
 <hr />
 <h2 id="typeerror-obj-is-wrapped-in-a-deprecation-proxy-and-cannot-be-pickled-directly">TypeError: <code>&lt;obj&gt;</code> is wrapped in a deprecation proxy and cannot be pickled directly<a class="headerlink" href="#typeerror-obj-is-wrapped-in-a-deprecation-proxy-and-cannot-be-pickled-directly" title="Permanent link">🔗</a></h2>
 <p><strong>Q:</strong> I get <code>TypeError: ... is wrapped in a deprecation proxy and cannot be pickled directly</code> when passing a <code>deprecated_instance</code> proxy to <code>pickle.dumps</code>, <code>multiprocessing</code>, or <code>joblib</code>.</p>
@@ -4639,7 +4673,7 @@
 <hr />
 <h2 id="why-did-the-github-action-skip-my-job-summary">Why did the GitHub Action skip my job summary?<a class="headerlink" href="#why-did-the-github-action-skip-my-job-summary" title="Permanent link">🔗</a></h2>
 <p><strong>Q:</strong> The action ran with <code>summary: true</code>, but the job summary is absent or warns that the gate wrote no pyDeprecate report, or that no pyDeprecate report is available, or another runner warning about the summary.</p>
-<p><strong>A:</strong> The summary is optional and never changes the gate's exit code. The action takes the table from the report the CLI writes with <code>--report-json</code>, and the CLI writes that report only when the scan ran to the end with exit <code>0</code> or <code>1</code>. "The gate wrote no pyDeprecate report" means the scan crashed (for example <code>path</code> names a single <code>.py</code> file) or the report could not be written; the cause is in the CLI's stderr just above the warning. A usage error (exit <code>2</code>) writes no summary and no warning, because nothing was scanned. "No pyDeprecate report is available" means the job runs a pyDeprecate older than <code>--report-json</code> with <code>install: false</code>: keep <code>install: true</code>, or upgrade the pyDeprecate your job installs. The same "no report is available" warning also appears when the runner could not create the temporary directory for the report (its preceding warning gives the OS error). Other warnings: "<code>summary: true</code> needs GITHUB_STEP_SUMMARY" means the job is not on a GitHub runner, and "could not write the job summary" shows the OS error; both are self-describing. "The gate's report holds no deprecation table" means the CLI could not render the table (the reason is on its stderr). "Could not read the pyDeprecate report" or "not of layout version" means the report file is corrupt or comes from a different pyDeprecate than the action's (for example <code>install: false</code> with another version); the preceding runner warning names the cause, and the gate result is unaffected.</p>
+<p><strong>A:</strong> The summary is optional and never changes the gate's exit code. The action takes the table from the report the CLI writes with <code>--report-json</code>, and the CLI writes that report only when the scan ran to the end with exit <code>0</code> or <code>1</code>. "The gate wrote no pyDeprecate report" means the scan crashed (for example, a module that fails to import) or the report could not be written; the cause is in the CLI's stderr just above the warning. A usage error (exit <code>2</code>) writes no summary and no warning, because nothing was scanned. "No pyDeprecate report is available" means the job runs a pyDeprecate older than <code>--report-json</code> with <code>install: false</code>: keep <code>install: true</code>, or upgrade the pyDeprecate your job installs. The same "no report is available" warning also appears when the runner could not create the temporary directory for the report (its preceding warning gives the OS error). Other warnings: "<code>summary: true</code> needs GITHUB_STEP_SUMMARY" means the job is not on a GitHub runner, and "could not write the job summary" shows the OS error; both are self-describing. "The gate's report holds no deprecation table" means the CLI could not render the table (the reason is on its stderr). "Could not read the pyDeprecate report" or "not of layout version" means the report file is corrupt or comes from a different pyDeprecate than the action's (for example <code>install: false</code> with another version); the preceding runner warning names the cause, and the gate result is unaffected.</p>
 
 
 
@@ -4662,7 +4696,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 21, 2026 14:03:26 UTC">2026-10-21</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 22, 2026 15:48:45 UTC">2026-10-22</span>
   </span>
 
     

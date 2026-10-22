@@ -1542,7 +1542,7 @@
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="c1"># Standalone deprecation status table only</span>
 <a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>pydeprecate<span class="w"> </span>status<span class="w"> </span>tests<span class="w"> </span>--version<span class="w"> </span><span class="m">1</span>.2
 </code></pre></div>
-<p><code>tests/</code> contains pyDeprecate's own deprecation fixtures. Note: <code>expiry</code> and <code>chains</code> (run as part of <code>all</code>) require an importable package name rather than a plain directory path.</p>
+<p><code>tests/</code> contains pyDeprecate's own deprecation fixtures. Every subcommand scans a path the same way — a package directory, a plain directory of top-level modules, or an importable module name (see <a href="#path-formats">Path formats</a>).</p>
 <h2 id="subcommands">Subcommands<a class="headerlink" href="#subcommands" title="Permanent link">🔗</a></h2>
 <div class="tabbed-set tabbed-alternate" data-tabs="1:6"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><input id="__tabbed_1_3" name="__tabbed_1" type="radio" /><input id="__tabbed_1_4" name="__tabbed_1" type="radio" /><input id="__tabbed_1_5" name="__tabbed_1" type="radio" /><input id="__tabbed_1_6" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">check</label><label for="__tabbed_1_2">expiry</label><label for="__tabbed_1_3">policy</label><label for="__tabbed_1_4">chains</label><label for="__tabbed_1_5">all</label><label for="__tabbed_1_6">status</label></div>
 <div class="tabbed-content">
@@ -1718,7 +1718,7 @@
 </table>
 <p>A bare <code>pydeprecate policy src/mypackage</code> therefore runs a recursive scan, exits <code>1</code> on violations, and applies both default-on rules below (<code>--min-grace=0.3</code>, <code>--message-required=True</code>) — unless the project's <code>pyproject.toml</code> says otherwise (see <a href="#project-configuration-in-pyprojecttoml">Project configuration in <code>pyproject.toml</code></a>).</p>
 <p>Flags and the path may come in any order: <code>pydeprecate check --exit-zero src/mypackage</code> scans <code>src/mypackage</code>, which is the order a <a href="audit.html#pre-commit-integration">pre-commit hook</a> produces from its <code>args</code>. Boolean flags accept <code>true</code>, <code>false</code>, <code>1</code> or <code>0</code> (case-insensitive) as <code>--flag value</code> or <code>--flag=value</code>, and the negated form attaches directly: <code>--norecursive</code>, not <code>--no-recursive</code>. Each run takes one path. For <code>check</code>, <code>policy</code> and <code>chains</code>, a second positional path exits <code>2</code> with "Pass one path per run". A short flag such as <code>-r src/mypackage</code>, or a boolean value other than <code>true</code>/<code>false</code>/<code>1</code>/<code>0</code>, exits <code>2</code> with a message that the flag expects True or False (use long flags and an explicit <code>--flag=True|False</code>) rather than scanning something you did not name. For <code>expiry</code>, <code>all</code> and <code>status</code>, a second positional argument binds <code>--version</code> instead. Private <code>--_*</code> options (for example <code>--_advisory</code>) are not part of the CLI and exit <code>2</code>.</p>
-<p>A run can pass without auditing everything. Each such gap is reported as one unwrapped stderr line starting with <code>pydeprecate gap: &lt;kind&gt;:</code> — <code>module not audited</code> (one line per submodule that failed to import, printed whatever warnings filters the audited package installs, plus one <code>&lt;package&gt;.*</code> line when a recursive walk stopped early and left the remaining submodules unaudited), <code>version not resolved</code>, <code>version not PEP 440</code>, <code>remove_in not PEP 440</code> (a wrapper's own <code>remove_in</code> is not a valid PEP 440 version, so that one removal deadline was skipped; one line per wrapper, exit code unchanged), <code>packaging missing</code> or <code>nested files not audited</code> — so they stay visible in a CI log.</p>
+<p>A run can pass without auditing everything. Each such gap is reported as one unwrapped stderr line starting with <code>pydeprecate gap: &lt;kind&gt;:</code> — <code>module not audited</code> (one line per submodule that failed to import, printed whatever warnings filters the audited package installs, plus one <code>&lt;package&gt;.*</code> line when a recursive walk stopped early and left the remaining submodules unaudited), <code>version not resolved</code>, <code>version not PEP 440</code>, <code>remove_in not PEP 440</code> (a wrapper's own <code>remove_in</code> is not a valid PEP 440 version, so that one removal deadline was skipped; one line per wrapper, exit code unchanged), <code>packaging missing</code>, <code>nested files not audited</code> or <code>other copy audited</code> (the scanned package's import name was already taken by a copy from another directory — the CLI's own <code>deprecate</code>, or an editable install of another checkout — so that copy was audited; run the scan in the checkout's own environment) — so they stay visible in a CI log.</p>
 <p>For tooling, <code>--report-json FILE</code> records the same run as JSON — every subcommand takes it:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="p">{</span>
 <a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">  </span><span class="nt">"schema"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
@@ -1829,12 +1829,12 @@
 <tr>
 <td><code>status</code></td>
 <td>Table rendered — status is not a pass/fail gate</td>
-<td>Path holds two or more top-level packages</td>
+<td>—</td>
 <td>Malformed <code>--exclude</code></td>
 </tr>
 </tbody>
 </table>
-<p>Every subcommand that scans a directory exits <code>1</code> with <code>contains multiple packages (…)</code> when that directory holds two or more top-level packages — even with <code>--exit-zero</code> — so pass the package sub-directory instead. Every subcommand exits <code>2</code> for an internal <code>--_*</code> option. <code>check</code>, <code>policy</code> and <code>chains</code> also exit <code>2</code> for a boolean flag given a value other than <code>true</code>/<code>false</code>/<code>1</code>/<code>0</code> and for a second positional path; on <code>expiry</code>, <code>all</code> and <code>status</code> such a stray token binds <code>--version</code> instead.</p>
+<p>Every subcommand exits <code>2</code> with <code>contains multiple packages (…)</code> when the scanned directory holds two or more top-level packages, and with <code>File paths are not supported</code> for a single <code>.py</code> file — both are usage errors, so <code>--exit-zero</code> never masks them; pass the package sub-directory instead. Every subcommand exits <code>2</code> for an internal <code>--_*</code> option. <code>check</code>, <code>policy</code> and <code>chains</code> also exit <code>2</code> for a boolean flag given a value other than <code>true</code>/<code>false</code>/<code>1</code>/<code>0</code> and for a second positional path; on <code>expiry</code>, <code>all</code> and <code>status</code> such a stray token binds <code>--version</code> instead.</p>
 <p>Policy violations are the one finding <code>all</code> reports without acting on: they never move <code>all</code> from <code>0</code> to <code>1</code>. Give <code>policy</code> its own CI step when you want the build to fail on them.</p>
 <p>Unknown or misspelled flags are never silently ignored: any unconsumed argument (e.g. <code>pydeprecate expiry mypackage --verison 2.0</code>) exits <code>2</code> with a <code>Could not consume arg: --verison</code> diagnostic from the underlying argument parser.</p>
 <h2 id="ci-recipes">CI recipes<a class="headerlink" href="#ci-recipes" title="Permanent link">🔗</a></h2>
@@ -1848,8 +1848,9 @@
 <ul>
 <li><strong>Package directory</strong> — path to a directory with <code>__init__.py</code> (e.g. <code>src/mypackage</code>)</li>
 <li><strong>Importable module name</strong> — dotted module path (e.g. <code>mypackage.utils</code>)</li>
-<li><strong>Plain directory</strong> — scans top-level <code>.py</code> files only; not supported for <code>expiry</code> and <code>chains</code> which require an importable module name</li>
+<li><strong>Plain directory</strong> — scans top-level <code>.py</code> files only (nested files are reported as a <code>nested files not audited</code> gap)</li>
 </ul>
+<p>A single <code>.py</code> file, or a directory holding two or more top-level packages, is a usage error (exit <code>2</code>) for every subcommand. While scanning, the imported code sees no pydeprecate arguments in <code>sys.argv</code>, and the header line <code>Imported from:</code> names the file the package was actually imported from.</p>
 <h2 id="python-module-invocation">Python module invocation<a class="headerlink" href="#python-module-invocation" title="Permanent link">🔗</a></h2>
 <p>Both <code>pydeprecate</code> and <code>python -m deprecate</code> are equivalent entry points:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>python<span class="w"> </span>-m<span class="w"> </span>deprecate<span class="w"> </span>check<span class="w"> </span>src/mypackage
@@ -1878,7 +1879,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 22, 2026 11:27:31 UTC">2026-10-22</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 22, 2026 15:48:45 UTC">2026-10-22</span>
   </span>
 
     
