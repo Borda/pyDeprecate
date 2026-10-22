@@ -11,7 +11,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Optional
 
-from deprecate._pkg import _auto_detect_version, _safe_module_name
+from deprecate._pkg import _resolve_package_version, _safe_module_name
 from deprecate.audit import DeprecationWrapperInfo, generate_deprecation_table
 
 
@@ -414,7 +414,7 @@ def _render_recorded_table(record: _RunRecord) -> Optional[str]:
         return record.table
     scan = record.scan
     module_name = _safe_module_name(scan.path)
-    version = scan.version if scan.version is not None else _auto_detect_version(module_name, path=scan.path)
+    version = scan.version if scan.version is not None else _resolve_package_version(module_name, path=scan.path)
     try:
         return generate_deprecation_table(
             module_name, current_version=version, _wrappers=scan.wrappers, _version_explicit=False

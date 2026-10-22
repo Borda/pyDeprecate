@@ -138,9 +138,10 @@ def generate_deprecation_table(
     Args:
         module: Imported module/package object or string module path to scan.
         current_version: Optional current package version for lifecycle status
-            evaluation in compact style. If ``None``, auto-detection is attempted
-            via the package name; status falls back to ``"⚪ Status Unknown"`` when
-            ``packaging`` is not installed.
+            evaluation in compact style. If ``None``, the version is auto-detected
+            like ``validate_deprecation_expiry`` does; status falls back to
+            ``"⚪ Status Unknown"`` when it stays unresolved or ``packaging`` is not
+            installed.
         recursive: If True (default), include submodules in the scan.
         style: Table format — ``"compact"`` or ``"matrix"``.
             - ``"compact"``: ``Original API | API Type | New API | Deprecated | Remove | Current Status``

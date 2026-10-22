@@ -9,22 +9,22 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from deprecate._pkg import (
-    _auto_detect_version,
     _ConfigReadError,
     _distribution_for_import,
     _load_toml,
     _read_pydeprecate_config,
+    _resolve_package_version,
     _version_from_dynamic,
     _version_from_toml,
 )
 
 # ---------------------------------------------------------------------------
-# _auto_detect_version (package helper)
+# _resolve_package_version (package helper)
 # ---------------------------------------------------------------------------
 
 
-class TestAutoDetectVersion:
-    """Tests for _auto_detect_version() — the *path* argument must only be honored for real filesystem paths."""
+class TestResolvePackageVersion:
+    """Tests for _resolve_package_version() — one resolution chain for every CLI subcommand and the audit API."""
 
     def test_module_name_ignores_cwd_pyproject(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """A module *name* that is not an existing path must not trigger the cwd pyproject.toml walk-up.
@@ -39,7 +39,7 @@ class TestAutoDetectVersion:
         monkeypatch.setattr(
             importlib.metadata, "version", MagicMock(side_effect=importlib.metadata.PackageNotFoundError)
         )
-        assert _auto_detect_version("somepkg", path="somepkg") is None
+        assert _resolve_package_version("somepkg", path="somepkg") is None
 
     def test_existing_path_uses_local_pyproject(self, tmp_path: Path) -> None:
         """An existing package directory still resolves the version from the nearby ``pyproject.toml``.
@@ -52,12 +52,23 @@ class TestAutoDetectVersion:
         pkg = tmp_path / "mypkg"
         pkg.mkdir()
         (pkg / "__init__.py").touch()
-        assert _auto_detect_version("mypkg", path=str(pkg)) == "7.7.7"
+        assert _resolve_package_version("mypkg", path=str(pkg)) == "7.7.7"
 
     def test_none_path_falls_back_to_metadata(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Without a path, the installed distribution metadata provides the version."""
         monkeypatch.setattr(importlib.metadata, "version", MagicMock(return_value="1.2.3"))
-        assert _auto_detect_version("somepkg", path=None) == "1.2.3"
+        assert _resolve_package_version("somepkg", path=None) == "1.2.3"
+
+    def test_direct_metadata_skips_distribution_mapping(self) -> None:
+        """Resolve a known distribution without enumerating every installed package.
+
+        A CLI invocation for an installed package with matching import and distribution names needs only one
+        metadata lookup. Building the environment-wide import mapping first adds work unrelated to that result.
+        """
+        expected = importlib.metadata.version("pytest")
+        with patch.object(importlib.metadata, "packages_distributions", create=True) as mapping:
+            assert _resolve_package_version("pytest") == expected
+        mapping.assert_not_called()
 
     def test_import_name_maps_to_distribution(self) -> None:
         """Auto-detect resolves the version even when the distribution name differs from the import name.
@@ -68,7 +79,43 @@ class TestAutoDetectVersion:
         the expiry gate runs against an undefined version.
         """
         expected = importlib.metadata.version("pyDeprecate")
-        assert _auto_detect_version("deprecate", path=None) == expected
+        assert _resolve_package_version("deprecate", path=None) == expected
+
+    @pytest.mark.parametrize("dynamic_pyproject", [False, True])
+    def test_uninstalled_package_falls_back_to_dunder_version(self, tmp_path: Path, dynamic_pyproject: bool) -> None:
+        """An uninstalled checkout with only ``__version__`` resolves to that version.
+
+        A setup.py-era checkout has no ``pyproject.toml`` version, and a dynamic-version project whose distribution
+        name differs from its import name cannot be imported under ``[project].name``. Neither is installed in an
+        isolated pre-commit environment, so ``__version__`` is the only source left; every gate must reach it.
+        """
+        if dynamic_pyproject:
+            (tmp_path / "pyproject.toml").write_text(
+                '[project]\nname = "uninstalled-fixture-dist"\ndynamic = ["version"]\n'
+            )
+        pkg = tmp_path / "uninstalled_fixture_pkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text('__version__ = "2.0"\n')
+        assert _resolve_package_version("uninstalled_fixture_pkg", path=str(pkg)) == "2.0"
+
+    def test_non_string_dunder_version_is_unresolved(self, tmp_path: Path) -> None:
+        """A non-string ``__version__`` (e.g. a tuple) yields ``None`` so the caller reports an unresolved version."""
+        pkg = tmp_path / "tuple_version_fixture_pkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text("__version__ = (1, 2)\n")
+        assert _resolve_package_version("tuple_version_fixture_pkg", path=str(pkg)) is None
+
+    def test_plain_path_is_never_imported(self, tmp_path: Path) -> None:
+        """A raw path that is no importable dotted name resolves to ``None`` without an import attempt.
+
+        The CLI hands over the raw path when it cannot derive a module name (a plain directory); importing that
+        string would at best fail and at worst import an unrelated namespace package of the same name.
+        """
+        plain = tmp_path / "plain dir"
+        plain.mkdir()
+        with patch("importlib.import_module") as mock_import:
+            assert _resolve_package_version(str(plain), path=str(plain)) is None
+        mock_import.assert_not_called()
 
     def test_distribution_for_import_resolves_known_package(self) -> None:
         """_distribution_for_import maps the ``deprecate`` import name to its ``pyDeprecate`` distribution."""
