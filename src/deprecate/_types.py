@@ -831,22 +831,24 @@ class _CallPlan:
     Attributes:
         short_circuit: ``True`` when the wrapper must call ``source`` directly (no warning, no remap, no target
             lookup) — this is the "migrated caller using the new arg name" fast path before any warning logic runs.
-            The wrapper calls ``source(**resolved_kwargs)`` for sources without ``*args``, or
-            ``source(*args, **original_kwargs)`` when the source declares a var-positional parameter so that
-            extra positional arguments are forwarded correctly.  When ``True``, :attr:`resolved_kwargs` equals the
-            kwargs after :func:`_update_kwargs_with_args`, before defaults / remap / extras are applied.
+            Such a call needs no rename and no injected extras, so it is always :attr:`verbatim` too and the wrapper
+            calls ``source(*args, **original_kwargs)``.
         original_kwargs: A shallow copy of the wrapper's incoming ``kwargs`` (before positional args were converted to
             keyword form).  Used by the var-positional branch when no argument-rename reason fired, so that the source
             sees its original positional/keyword shape.
-        resolved_kwargs: Final kwargs after defaults injection, ``args_mapping`` remap, and ``args_extra`` merge when
-            the normal planning path runs.  On the :attr:`short_circuit` path, this instead holds the kwargs produced
-            immediately after :func:`_update_kwargs_with_args`, and that is what the wrapper passes to ``source``.
+        resolved_kwargs: Final kwargs after positional-to-keyword conversion, defaults injection, ``args_mapping``
+            remap, and ``args_extra`` merge when the wrapper rewrites the call.  On a :attr:`verbatim` plan nothing is
+            converted, so this holds the caller's keyword arguments unchanged.
         reason_argument: Subset of ``args_mapping`` whose old-arg names appeared in the caller's kwargs.  Non-empty
             value means the argument-rename warning fired (or was suppressed by ``num_warns`` quota).  Empty when the
             warning reason was callable-deprecation or when no rename was triggered.
         target_func: Resolved target callable when forwarding is required, or ``None`` when the source body should be
             invoked instead.  ``None`` for :attr:`TargetMode.NOTIFY` and :attr:`TargetMode.ARGS_REMAP`; a validated
             callable when the user passed a forwarding target.
+        verbatim: ``True`` when the call needs no forwarding target, no argument rename and no ``args_extra``
+            injection, so the wrapper invokes ``source(*args, **original_kwargs)`` exactly as the caller made the
+            call.  A ``functools.singledispatch`` source or one with a patched ``__signature__`` then keeps working.
+            Decided by :func:`deprecate._dispatch._is_verbatim_call`; the warning and the budget are unaffected.
 
     """
 
@@ -855,3 +857,4 @@ class _CallPlan:
     resolved_kwargs: dict[str, Any]
     reason_argument: dict[str, Optional[str]] = field(default_factory=dict)
     target_func: Optional[Callable[..., Any]] = None
+    verbatim: bool = False

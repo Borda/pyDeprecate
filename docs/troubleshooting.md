@@ -2236,6 +2236,17 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
+## My `singledispatch` or `__signature__`-patched source receives keyword arguments
+
+**Q:** A deprecated source built with `functools.singledispatch`, or one whose `__signature__` differs from its real call shape, fails with `TypeError: ... requires at least 1 positional argument`, receives keywords it did not expect, or rejects a call the plain function accepts.
+
+**A:** A `TargetMode.NOTIFY` wrapper, and a `TargetMode.ARGS_REMAP` wrapper whose caller uses no deprecated argument name, calls the source with the caller's arguments unchanged, so positional dispatch keeps working there. Two cases still differ from calling the source directly:
+
+- **A caller passes a deprecated argument name to a `TargetMode.ARGS_REMAP` wrapper.** To rename the argument, the wrapper rewrites the whole call into keyword arguments, whether the old name was passed by keyword or filled positionally; a wrapper that sets `args_extra` rewrites every call the same way. A source that dispatches on its positional arguments then receives keywords. Keep the dispatching function out of the rename: decorate a plain `def` that accepts the old and new names and calls the dispatcher positionally.
+- **A `__signature__` that reports fewer positional parameters than the source accepts.** Before calling the source, the wrapper checks the number of positional arguments against `inspect.signature(source)`, so a call that fills more slots than the patched signature lists raises the curated `TypeError` (`... takes N positional argument(s) but got M positional argument(s)`) even though the real source would accept it. Make `__signature__` list every positional slot, or give it a `*args` parameter.
+
+______________________________________________________________________
+
 ## Still stuck?
 
 !!! question "Open a GitHub issue"

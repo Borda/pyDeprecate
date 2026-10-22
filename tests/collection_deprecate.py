@@ -3381,6 +3381,22 @@ def shape_notify_two_params(a: int, b: int = 0) -> tuple[int, int]:
     return a, b
 
 
+#: ARGS_REMAP over a ``functools.singledispatch`` source; ``figure`` is the deprecated spelling of ``shape``.
+shape_remap_area_dispatch = deprecated(
+    target=TargetMode.ARGS_REMAP, args_mapping={"figure": "shape"}, **_DEPRS_CASE_STD_ARGS
+)(area_dispatch)
+
+
+@deprecated(
+    target=TargetMode.ARGS_REMAP, args_mapping={"old": "new"}, args_extra={"flag": True}, **_DEPRS_CASE_STD_ARGS
+)
+def shape_remap_with_extra(
+    old: Optional[int] = None, new: Optional[int] = None, flag: bool = False
+) -> tuple[Optional[int], Optional[int], bool]:
+    """Self-rename source that also gets ``flag`` injected by ``args_extra``; returns exactly what it received."""
+    return old, new, flag
+
+
 def make_pickle_settings_proxy() -> Any:  # noqa: ANN401
     """Wrap a fresh settings dict in a ``deprecated_instance`` proxy with the default one-warning budget.
 

@@ -217,6 +217,14 @@
         },
         {
           "@type": "Question",
+          "name": "My singledispatch or __signature__-patched source receives keyword arguments",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "A TargetMode.NOTIFY wrapper, and a TargetMode.ARGS_REMAP wrapper whose caller uses no deprecated argument name, calls the source with the caller's arguments unchanged, so functools.singledispatch and __signature__-patched sources keep working. Two cases still differ from calling the source directly. When a caller passes a deprecated argument name to a TargetMode.ARGS_REMAP wrapper, by keyword or positionally, the wrapper rewrites the whole call into keyword arguments to rename it, and a wrapper with args_extra rewrites every call the same way; decorate a plain def that accepts the old and new names and calls the dispatcher positionally. The number of positional arguments is checked against inspect.signature(source), so a __signature__ that reports fewer positional parameters than the source accepts raises the curated TypeError; make __signature__ list every positional slot, or give it a *args parameter."
+          }
+        },
+        {
+          "@type": "Question",
           "name": "Can I subclass a class created by deprecated_class?",
           "acceptedAnswer": {
             "@type": "Answer",

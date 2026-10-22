@@ -27,6 +27,7 @@ from deprecate._dispatch import (
     _build_call_plan,
     _check_cross_class_method_target,
     _detect_positional_only,
+    _get_positional_params,
     _invoke_async,
     _invoke_sync,
     _normalize_target,
@@ -456,10 +457,13 @@ def deprecated_callable(  # noqa: C901
             if source_has_var_positional
             else 0
         )
-        # Source-side POSITIONAL_ONLY params: the wrapper converts positional args to kwargs
-        # internally, so the dispatcher must split these back out before invoking the source
-        # body (NOTIFY / ARGS_REMAP / migrated-caller short-circuit) — mirror of the
-        # target-side machinery below.
+        # Positional parameter names before *args, in order: the call-time arity pre-check and the detection of a
+        # deprecated argument filled positionally read them instead of converting every call to keywords.
+        _source_positional_names = tuple(param.name for param in _get_positional_params(_source_params))
+        # Source-side POSITIONAL_ONLY params: a call the wrapper rewrites (a triggered ARGS_REMAP
+        # rename, or ARGS_REMAP with args_extra) converts positional args to kwargs internally, so
+        # the dispatcher must split these back out before invoking the source body — mirror of the
+        # target-side machinery below.  Verbatim calls keep the caller's shape and need no split.
         _source_positional_only = frozenset(
             param.name for param in _source_params if param.kind is inspect.Parameter.POSITIONAL_ONLY
         )
@@ -560,6 +564,7 @@ def deprecated_callable(  # noqa: C901
                         num_warns=num_warns,
                         source_has_var_positional=source_has_var_positional,
                         source_is_stacked=_source_is_stacked,
+                        source_positional_names=_source_positional_names,
                     )
                     return await _invoke_async(source, plan, _dep_cfg, source_has_var_positional, args)
                 finally:
@@ -623,6 +628,7 @@ def deprecated_callable(  # noqa: C901
                     num_warns=num_warns,
                     source_has_var_positional=source_has_var_positional,
                     source_is_stacked=_source_is_stacked,
+                    source_positional_names=_source_positional_names,
                 )
                 return _invoke_sync(source, plan, _dep_cfg, source_has_var_positional, args)
             finally:
