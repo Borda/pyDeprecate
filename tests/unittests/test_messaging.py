@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import functools
+import inspect
+import logging
+import warnings
 from collections.abc import Callable
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, Mock
 
 import pytest
 
@@ -12,23 +16,38 @@ from deprecate import TargetMode, assert_no_warnings, deprecated
 from deprecate._types import DeprecationConfig
 from deprecate.messaging import (
     _callable_display_name,
+    _emit,
     _raise_warn,
     _raise_warn_arguments,
     _raise_warn_callable,
     _render_static_deprecation_message,
     _resolve_message_template_alias,
+    _stream_accepts_stacklevel,
     _validate_message_template,
 )
 from deprecate.utils import _partial_chain
 from tests.collection_targets import (
     CallableAdder,
+    FlakyTypeErrorStream,
+    KeywordTypeErrorStream,
+    MessageOnlyRecordingStream,
     NewCls,
     NonStringNameCallable,
+    RecordingStream,
+    UnhashableStream,
+    UnintrospectableStream,
     base_sum_kwargs,
     callable_adder_target,
     moduleless_function,
     nested_partial_target,
     partial_target,
+    stream_keyword_only_stacklevel,
+    stream_message_only,
+    stream_positional_only_message,
+    stream_positional_only_stacklevel,
+    stream_var_keyword,
+    stream_var_positional_named_stacklevel,
+    stream_with_stacklevel,
 )
 
 
@@ -312,8 +331,8 @@ class TestRaiseWarnStacklevel:
 
         A ``TypeError`` raised *inside* a stacklevel-accepting stream must propagate and the stream must run
         exactly once. A naive ``try/except TypeError`` would re-invoke the stream on any TypeError, producing
-        duplicate side effects (double log lines) for anyone whose custom stream raised internally.  The
-        message-based discrimination (``"stacklevel" in str(exc)``) prevents this.
+        duplicate side effects (double log lines) for anyone whose custom stream raised internally.  Deciding from
+        the stream's signature, before the call, leaves nothing to retry.
         """
         calls: list[str] = []
 
@@ -345,6 +364,189 @@ class TestRaiseWarnStacklevel:
         _raise_warn(stream, src, "%(source_name)s", stacklevel=3)
         assert len(calls) == 1
         assert "stacklevel" in calls[0][1]
+
+    def test_keyword_typeerror_from_stream_propagates_after_one_call(self) -> None:
+        """A stream's own ``TypeError`` mentioning "keyword" propagates after a single invocation.
+
+        A logging handler used as ``stream=`` has a bug that raises ``TypeError("unexpected keyword in handler")``.
+        The text looks like a rejected ``stacklevel`` keyword, and sniffing it used to trigger a second call — the
+        handler logged twice and still failed.  The decorator's emitter must call it once and let the error through.
+        """
+        stream = KeywordTypeErrorStream()
+        with pytest.raises(TypeError, match="unexpected keyword in handler"):
+            _raise_warn(stream, base_sum_kwargs, "%(source_name)s", stacklevel=3)
+        assert len(stream.calls) == 1
+
+
+class TestStreamAcceptsStacklevel:
+    """``_stream_accepts_stacklevel`` decides once, from the signature, whether a stream gets ``stacklevel=``."""
+
+    @pytest.mark.parametrize(
+        ("stream", "expected"),
+        [
+            pytest.param(warnings.warn, True, id="warnings-warn"),
+            pytest.param(functools.partial(warnings.warn, category=FutureWarning), True, id="partial-of-warn"),
+            pytest.param(
+                functools.partial(functools.partial(warnings.warn, category=FutureWarning), stacklevel=2),
+                True,
+                id="nested-partial-of-warn",
+            ),
+            pytest.param(logging.warning, True, id="logging-warning"),
+            pytest.param(print, False, id="print"),
+            pytest.param(stream_message_only, False, id="message-only"),
+            pytest.param(stream_with_stacklevel, True, id="stacklevel-param"),
+            pytest.param(stream_positional_only_message, True, id="positional-only-message"),
+            pytest.param(stream_positional_only_stacklevel, False, id="positional-only-stacklevel"),
+            pytest.param(stream_keyword_only_stacklevel, True, id="keyword-only-stacklevel"),
+            pytest.param(stream_var_keyword, True, id="var-keyword"),
+            pytest.param(stream_var_positional_named_stacklevel, False, id="var-positional-named-stacklevel"),
+            pytest.param(functools.partial(stream_with_stacklevel), True, id="partial-of-python-stream"),
+            pytest.param(functools.partial(stream_message_only), False, id="partial-of-message-only"),
+            pytest.param(Mock(), True, id="mock"),
+            pytest.param(UnintrospectableStream(), False, id="signature-raises"),
+        ],
+    )
+    def test_decision_table(self, stream: Callable[..., Any], expected: bool) -> None:
+        """Each supported stream shape is classified by whether it can take ``stacklevel`` as a keyword.
+
+        Users pass ``warnings.warn``, partials of it, ``logging.warning``, ``print``, mocks and hand-written
+        callables as ``stream=``. Only a stream with a keyword-capable ``stacklevel`` parameter or ``**kwargs``
+        may receive ``stacklevel=``; ``warnings.warn`` and its partials are recognised by identity so the answer
+        does not hinge on builtin signature support, and an unintrospectable stream is never sent the keyword.
+        """
+        assert _stream_accepts_stacklevel(stream) is expected
+
+    def test_decision_memoised_per_stream(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A hashable stream's signature is inspected only on the first emission, not on every warning.
+
+        A wrapper with ``num_warns=-1`` warns on every call, so re-inspecting its stream each time would add
+        signature-introspection cost to every deprecated call. The decision is cached per stream object.
+        """
+        spy = MagicMock(wraps=inspect.signature)
+        monkeypatch.setattr(inspect, "signature", spy)
+        stream = RecordingStream()
+        decisions = (_stream_accepts_stacklevel(stream), _stream_accepts_stacklevel(stream))
+        assert decisions == (True, True)
+        assert spy.call_count == 1
+
+    def test_unhashable_stream_inspected_uncached(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """An unhashable stream is classified on every call instead of crashing the memo cache.
+
+        A user-written callable class that defines ``__eq__`` without ``__hash__`` cannot be a cache key. The
+        decision must still be made correctly, falling back to a fresh inspection each time.
+        """
+        spy = MagicMock(wraps=inspect.signature)
+        monkeypatch.setattr(inspect, "signature", spy)
+        stream = UnhashableStream()
+        decisions = (_stream_accepts_stacklevel(stream), _stream_accepts_stacklevel(stream))
+        assert decisions == (True, True)
+        assert spy.call_count == 2
+
+
+class TestEmit:
+    """``_emit`` writes the message to the stream exactly once and never catches what the stream raises."""
+
+    def test_stacklevel_forwarded_when_accepted(self) -> None:
+        """A stream with a ``stacklevel`` parameter receives the message and the given ``stacklevel`` in one call.
+
+        A custom sink that forwards ``stacklevel`` to :func:`warnings.warn` needs the exact value so the warning
+        lands on the user's line.
+        """
+        stream = RecordingStream()
+        _emit(stream, "old is deprecated", stacklevel=5)
+        assert stream.calls == [("old is deprecated", {"stacklevel": 5})]
+
+    @pytest.mark.parametrize(
+        ("stream_cls", "expected_call"),
+        [
+            pytest.param(MessageOnlyRecordingStream, "old is deprecated", id="message-only"),
+            pytest.param(UnintrospectableStream, ("old is deprecated", {}), id="signature-raises"),
+        ],
+    )
+    def test_message_only_when_stacklevel_not_accepted(self, stream_cls: type, expected_call: object) -> None:
+        """A stream that cannot (or cannot be shown to) take ``stacklevel`` receives just the message, once.
+
+        A minimal sink without a ``stacklevel`` parameter, or a callable whose signature cannot be read, must be
+        called a single time with the message alone — never first with ``stacklevel=`` and then again.
+        """
+        stream = stream_cls()
+        _emit(stream, "old is deprecated", stacklevel=5)
+        assert stream.calls == [expected_call]
+
+    def test_print_writes_message_once(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """``print`` as a stream prints the message a single time.
+
+        ``print`` rejects ``stacklevel=`` and its signature support differs across Python versions; whichever rule
+        classifies it, the outcome must be one printed line.
+        """
+        _emit(print, "old is deprecated", stacklevel=5)
+        assert capsys.readouterr().out == "old is deprecated\n"
+
+    def test_logging_warning_logs_once(self, caplog: pytest.LogCaptureFixture) -> None:
+        """``logging.warning`` as a stream logs the message a single time.
+
+        The recommended CI-friendly stream accepts ``stacklevel`` through ``**kwargs``; it must produce exactly one
+        record per warning.
+        """
+        with caplog.at_level(logging.WARNING):
+            _emit(logging.warning, "old is deprecated", stacklevel=2)
+        assert [record.getMessage() for record in caplog.records] == ["old is deprecated"]
+
+    def test_mock_stream_called_once(self) -> None:
+        """A ``Mock`` stream is called once with the message as its first argument.
+
+        Test suites commonly pass a ``Mock`` as ``stream=`` and assert on its calls; it must see one call.
+        """
+        stream = Mock()
+        _emit(stream, "old is deprecated", stacklevel=5)
+        assert stream.call_count == 1
+        assert stream.call_args.args == ("old is deprecated",)
+
+    @pytest.mark.parametrize(
+        "stream",
+        [
+            pytest.param(warnings.warn, id="warnings-warn"),
+            pytest.param(functools.partial(warnings.warn, category=FutureWarning), id="partial-of-warn"),
+        ],
+    )
+    def test_warning_points_at_emit_caller(self, stream: Callable[..., Any]) -> None:
+        """``_emit`` adds exactly one frame: ``stacklevel=2`` attributes the warning to the code that called it.
+
+        Every emitter in the package passes ``stacklevel + 1`` to ``_emit``. That bookkeeping is only correct if
+        ``_emit`` itself contributes precisely one frame between the emitter and :func:`warnings.warn`.
+        """
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            _emit(stream, "old is deprecated", stacklevel=2)
+        assert len(caught) == 1
+        assert caught[0].filename.endswith("test_messaging.py")
+
+    @pytest.mark.parametrize(
+        "stream_cls",
+        [
+            pytest.param(KeywordTypeErrorStream, id="typeerror-mentions-keyword"),
+            pytest.param(FlakyTypeErrorStream, id="unrelated-typeerror"),
+        ],
+    )
+    def test_stream_typeerror_propagates_after_one_call(self, stream_cls: type[RecordingStream]) -> None:
+        """A ``TypeError`` raised inside the stream propagates unchanged and the stream is not re-invoked.
+
+        Whether the handler's own error mentions "keyword" or not, ``_emit`` must not interpret it: the decision
+        about ``stacklevel`` was already made from the signature, so the only correct reaction is to let it through.
+        """
+        stream = stream_cls()
+        with pytest.raises(TypeError):
+            _emit(stream, "old is deprecated", stacklevel=5)
+        assert len(stream.calls) == 1
+
+    def test_unhashable_stream_receives_stacklevel(self) -> None:
+        """An unhashable stream that accepts ``stacklevel`` is still called once with it.
+
+        The memo cache cannot hold such a stream, but the fallback path must deliver the same behaviour.
+        """
+        stream = UnhashableStream()
+        _emit(stream, "old is deprecated", stacklevel=5)
+        assert stream.calls == [("old is deprecated", {"stacklevel": 5})]
 
 
 class TestTemplateBareConversion:

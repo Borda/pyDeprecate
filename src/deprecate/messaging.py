@@ -8,9 +8,10 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 
 """
 
+import inspect
 import re
 from collections.abc import Mapping
-from functools import partial
+from functools import lru_cache, partial
 from typing import Any, Callable, Optional, Union
 from warnings import warn
 
@@ -18,8 +19,17 @@ from deprecate._fatal import DeprecatedError
 from deprecate._types import DeprecationConfig, TargetMode, _WrapperState
 from deprecate.utils import _partial_chain, _unwrap_descriptor_target
 
-# caller → wrapped_fn → _raise_warn_callable/_raise_warn_arguments → _raise_warn → warnings.warn
+# caller → wrapped_fn → _raise_warn_callable/_raise_warn_arguments → _raise_warn → warnings.warn; counted from
+# ``_raise_warn``, which adds one more level for the ``_emit`` frame it calls through.
 _DEFAULT_STACKLEVEL_TO_CALLER: int = 4
+
+#: Upper bound on distinct ``stream`` objects whose ``stacklevel`` decision is memoised by
+#: :func:`_stream_accepts_stacklevel`.  Most programs use one or two streams; the bound keeps a long-lived process
+#: that builds streams dynamically from pinning an unbounded number of them.
+_STREAM_DECISION_CACHE_SIZE: int = 128
+
+#: Parameter kinds through which ``stream(msg, stacklevel=...)`` can bind ``stacklevel`` by name.
+_KEYWORD_BINDABLE_KINDS: tuple[Any, ...] = (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
 
 
 #: Default template warning message for redirecting callable
@@ -182,13 +192,99 @@ def _raise_warn(
     # ``stream`` is Optional only to let the fatal path above accept a silenced wrapper; every caller gates on
     # a truthy stream once ``as_exception`` is False.
     assert stream is not None  # noqa: S101
+    # ``+ 1`` for the ``_emit`` frame between this function and the stream.
+    _emit(stream, msg, stacklevel=stacklevel + 1)
+
+
+def _inspect_stream_accepts_stacklevel(stream: Callable[..., Any]) -> bool:
+    """Decide from its signature whether ``stream`` can be called as ``stream(msg, stacklevel=...)``.
+
+    Uncached core of :func:`_stream_accepts_stacklevel`; see there for the decision rules.
+
+    """
+    layers = _partial_chain(stream)
+    base = layers[-1].func if layers else stream
+    # Identity, not introspection: ``warnings.warn`` is a C builtin whose signature support varies across Python
+    # versions, and it always accepts ``stacklevel``.
+    if base is warn:
+        return True
     try:
+        parameters = inspect.signature(stream).parameters.values()
+    except (TypeError, ValueError):
+        # No signature: call with the message alone rather than guess, so the stream is never invoked twice.
+        return False
+    return any(
+        param.kind is inspect.Parameter.VAR_KEYWORD
+        or (param.name == "stacklevel" and param.kind in _KEYWORD_BINDABLE_KINDS)
+        for param in parameters
+    )
+
+
+_cached_stream_accepts_stacklevel = lru_cache(maxsize=_STREAM_DECISION_CACHE_SIZE)(_inspect_stream_accepts_stacklevel)
+
+
+def _stream_accepts_stacklevel(stream: Callable[..., Any]) -> bool:
+    """Tell whether ``stream`` can receive ``stacklevel=`` as a keyword argument, deciding once per stream object.
+
+    Decision rules, in order:
+
+    1. ``warnings.warn`` itself, or a (nested) :func:`functools.partial` of it, accepts ``stacklevel``.
+    2. Otherwise, when :func:`inspect.signature` describes ``stream``, it accepts ``stacklevel`` if a ``stacklevel``
+       parameter can be bound by keyword (not positional-only, not ``*stacklevel``) or it declares ``**kwargs``.
+    3. When :func:`inspect.signature` raises :class:`ValueError` or :class:`TypeError` (typically a C-level callable
+       without signature metadata), the answer is ``False``: the stream is called with the message alone, which
+       costs caller attribution for a C-level stream that would have accepted ``stacklevel``.
+
+    The answer is memoised per stream object; an unhashable stream is inspected afresh on every call.
+
+    Args:
+        stream: The ``stream=`` callable configured on a deprecation wrapper.
+
+    Returns:
+        ``True`` when ``stream(msg, stacklevel=...)`` is the right call, ``False`` for ``stream(msg)``.
+
+    Example:
+        >>> import logging, warnings
+        >>> _stream_accepts_stacklevel(warnings.warn), _stream_accepts_stacklevel(logging.warning)
+        (True, True)
+        >>> def message_only(msg): pass
+        >>> _stream_accepts_stacklevel(message_only)
+        False
+
+    """
+    try:
+        hash(stream)
+    except TypeError:
+        return _inspect_stream_accepts_stacklevel(stream)
+    return _cached_stream_accepts_stacklevel(stream)
+
+
+def _emit(stream: Callable[..., Any], msg: str, *, stacklevel: int) -> None:
+    """Write ``msg`` to ``stream`` exactly once, passing ``stacklevel`` only when the stream accepts it.
+
+    The single delivery point for every custom-stream deprecation message.  Whether ``stacklevel`` is passed is
+    decided before the call (:func:`_stream_accepts_stacklevel`), never by retrying after a failure, so the stream
+    runs once and any exception it raises — :class:`TypeError` included — propagates unchanged.
+
+    Args:
+        stream: The ``stream=`` callable configured on a deprecation wrapper.
+        msg: The fully rendered deprecation message.
+        stacklevel: Value for ``stacklevel=``, counted as :func:`warnings.warn` counts it from inside this function:
+            ``1`` is this frame, so callers add one for it.
+
+    Example:
+        >>> import warnings
+        >>> with warnings.catch_warnings(record=True) as caught:
+        ...     warnings.simplefilter("always")
+        ...     _emit(warnings.warn, "old_func is deprecated", stacklevel=2)
+        >>> str(caught[0].message)
+        'old_func is deprecated'
+
+    """
+    if _stream_accepts_stacklevel(stream):
         stream(msg, stacklevel=stacklevel)
-    except TypeError as _exc:
-        if "stacklevel" in str(_exc) or "keyword" in str(_exc):
-            stream(msg)
-        else:
-            raise
+    else:
+        stream(msg)
 
 
 def _format_deprecation_message(

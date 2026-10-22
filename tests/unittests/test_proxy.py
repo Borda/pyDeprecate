@@ -72,15 +72,19 @@ from tests.collection_targets import (
     ColorEnum,
     CombinedAttrsArgsSource,
     CombinedAttrsArgsTarget,
+    FlakyTypeErrorStream,
     HostileSignatureCallable,
+    KeywordTypeErrorStream,
     LegacyBoolAttrsSource,
     ManagedResource,
+    MessageOnlyRecordingStream,
     NewDataClass,
     Palette,
     PaletteEnum,
     PaletteOld,
     Pep702StaticTarget,
     PositionalOnlyTarget,
+    RecordingStream,
     SomeTargetClass,
     SubclassableBase,
     WithInjected,
@@ -193,8 +197,8 @@ class TestProxyWarnBehavior:
             # (``__getitem__ → _warn → stream``) that the stacklevel fix targets.
             _ = proxy["k"]
         assert caught[0].category is FutureWarning
-        # ``_DeprecatedProxy._warn`` forwards ``stacklevel=_DEFAULT_STACKLEVEL_TO_CALLER`` to ``stream``
-        # so the warning is attributed to this test file rather than ``proxy.py``.
+        # ``_DeprecatedProxy._warn`` hands ``stream`` (through ``messaging._emit``) a ``stacklevel`` that counts every
+        # pyDeprecate frame, so the warning is attributed to this test file rather than ``proxy.py``.
         assert caught[0].filename.endswith("test_proxy.py")
 
     def test_warn_filename_points_to_caller_on_args_remap_path(self) -> None:
@@ -228,6 +232,43 @@ class TestProxyWarnBehavior:
         future_warnings = [w for w in caught if issubclass(w.category, FutureWarning)]
         assert future_warnings, "Expected FutureWarning from callable+args_mapping path"
         assert future_warnings[0].filename.endswith("test_proxy.py")
+
+
+class TestProxyWarnStream:
+    """A custom ``stream`` on a proxy is invoked exactly once per warning, and its own errors reach the caller."""
+
+    @pytest.mark.parametrize(
+        "stream_cls",
+        [
+            pytest.param(KeywordTypeErrorStream, id="typeerror-mentions-keyword"),
+            pytest.param(FlakyTypeErrorStream, id="unrelated-typeerror"),
+        ],
+    )
+    def test_stream_typeerror_propagates_after_one_call(self, stream_cls: type[RecordingStream]) -> None:
+        """A ``TypeError`` raised inside a ``stacklevel``-accepting stream propagates; the stream is not retried.
+
+        A project routes the deprecation notice of a legacy config object through its own logging handler, and the
+        handler has a bug that raises ``TypeError("unexpected keyword in handler")``. The proxy must hand that error
+        to the caller after one invocation — re-invoking the handler on the strength of the word "keyword" would
+        duplicate its side effects (two log lines, two metric increments) and then fail anyway.
+        """
+        stream = stream_cls()
+        proxy = deprecated_instance({"a": 1}, name="cfg", deprecated_in="1.0", remove_in="2.0", stream=stream)
+        with pytest.raises(TypeError):
+            _ = proxy["a"]
+        assert len(stream.calls) == 1
+
+    def test_message_only_stream_called_once(self) -> None:
+        """A stream without a ``stacklevel`` parameter receives just the message, once.
+
+        A user plugs in a minimal sink that takes only the message text. The proxy must deliver the notice in a
+        single call instead of first trying ``stacklevel=`` and retrying after the resulting ``TypeError``.
+        """
+        stream = MessageOnlyRecordingStream()
+        proxy = deprecated_instance({"a": 1}, name="cfg", deprecated_in="1.0", remove_in="2.0", stream=stream)
+        assert proxy["a"] == 1
+        assert len(stream.calls) == 1
+        assert "cfg" in stream.calls[0]
 
 
 class TestProxyTemplateMgs:

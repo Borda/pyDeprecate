@@ -1182,3 +1182,124 @@ class SideEffectBox:
             raise StopIteration
         self._cursor += 1
         return self.items[self._cursor - 1]
+
+
+# ========== Stream fixtures: how a warning reaches a custom ``stream`` ==========
+
+# Stand-ins for the ``stream=`` callables users pass to ``@deprecated``, ``deprecated_instance`` and
+# ``deprecated_module``.  The plain functions cover the signature shapes ``_stream_accepts_stacklevel`` must
+# classify; the recording classes count every invocation, so a test can prove the stream ran exactly once.
+
+
+def stream_message_only(msg: str) -> None:
+    """Stream that takes only the message, like a ``print``-style sink with no ``stacklevel`` support."""
+
+
+def stream_with_stacklevel(msg: str, stacklevel: int = 1) -> None:
+    """Stream that accepts ``stacklevel`` as an ordinary keyword-capable parameter."""
+
+
+def stream_positional_only_message(msg: str, /, stacklevel: int = 1) -> None:
+    """Stream whose message is positional-only while ``stacklevel`` can still be passed by keyword."""
+
+
+def stream_positional_only_stacklevel(msg: str, stacklevel: int = 1, /) -> None:
+    """Stream whose ``stacklevel`` is positional-only, so ``stacklevel=`` by keyword is rejected."""
+
+
+def stream_keyword_only_stacklevel(msg: str, *, stacklevel: int = 1) -> None:
+    """Stream that accepts ``stacklevel`` only as a keyword-only parameter."""
+
+
+def stream_var_keyword(msg: str, **kwargs: Any) -> None:  # noqa: ANN401
+    """Stream that soaks up any keyword, ``stacklevel`` included, through ``**kwargs``."""
+
+
+def stream_var_positional_named_stacklevel(msg: str, *stacklevel: int) -> None:
+    """Stream with a ``*stacklevel`` catch-all — the name matches but no keyword binding is possible."""
+
+
+class RecordingStream:
+    """Stream that records every call's message and keyword arguments and accepts ``stacklevel``.
+
+    A logging handler or metrics sink plugged in as ``stream=`` has side effects, so how many times the deprecation
+    machinery invokes it is observable behaviour.  ``calls`` holds one ``(msg, kwargs)`` pair per invocation.
+    """
+
+    def __init__(self) -> None:
+        """Start with an empty call log."""
+        self.calls: list[tuple[str, dict[str, Any]]] = []
+
+    def __call__(self, msg: str, stacklevel: int = 1) -> None:
+        """Record the message together with the ``stacklevel`` it was handed."""
+        self.calls.append((msg, {"stacklevel": stacklevel}))
+
+
+class MessageOnlyRecordingStream:
+    """Stream that records every message and has no ``stacklevel`` parameter at all."""
+
+    def __init__(self) -> None:
+        """Start with an empty call log."""
+        self.calls: list[str] = []
+
+    def __call__(self, msg: str) -> None:
+        """Record the message."""
+        self.calls.append(msg)
+
+
+class KeywordTypeErrorStream(RecordingStream):
+    """Stream that accepts ``stacklevel`` but fails inside its own body with a ``TypeError`` mentioning "keyword".
+
+    Models a handler whose internal bug raises ``TypeError("unexpected keyword in handler")`` — text that a
+    message-sniffing retry would mistake for a rejected ``stacklevel`` keyword and answer by invoking the stream a
+    second time.
+    """
+
+    def __call__(self, msg: str, stacklevel: int = 1) -> None:
+        """Record the call, then raise the handler's own ``TypeError``."""
+        super().__call__(msg, stacklevel=stacklevel)
+        raise TypeError("unexpected keyword in handler")
+
+
+class FlakyTypeErrorStream(RecordingStream):
+    """Stream that accepts ``stacklevel`` and raises an unrelated ``TypeError`` on its first call only.
+
+    Models a sink that fails once (a lazily configured handler, say) and works afterwards; the first failure must
+    reach the caller instead of being swallowed and silently retried.
+    """
+
+    def __call__(self, msg: str, stacklevel: int = 1) -> None:
+        """Record the call and raise on the first one."""
+        super().__call__(msg, stacklevel=stacklevel)
+        if len(self.calls) == 1:
+            raise TypeError("unsupported operand type(s) for +: 'int' and 'str'")
+
+
+class UnintrospectableStream(RecordingStream):
+    """Stream whose ``__signature__`` raises ``ValueError``, so ``inspect.signature`` cannot describe it.
+
+    Stands in for C-level callables without signature metadata: the deprecation machinery cannot tell whether it
+    accepts ``stacklevel``, so it must call it with the message alone and exactly once.
+    """
+
+    @property
+    def __signature__(self) -> Any:  # noqa: ANN401
+        """Always raise ``ValueError``, as ``inspect.signature`` does for an unsupported builtin."""
+        raise ValueError("no signature found for this stream")
+
+    def __call__(self, msg: str, stacklevel: Optional[int] = None) -> None:
+        """Record the message and whether ``stacklevel`` was passed (``None`` means it was not)."""
+        self.calls.append((msg, {} if stacklevel is None else {"stacklevel": stacklevel}))
+
+
+class UnhashableStream(RecordingStream):
+    """Stream that cannot be hashed, so any memoised per-stream decision must fall back to an uncached check.
+
+    Defining ``__eq__`` without ``__hash__`` is the everyday way a user-written callable class ends up unhashable.
+    """
+
+    def __eq__(self, other: object) -> bool:
+        """Compare by call log, which is what makes the instance unhashable."""
+        return isinstance(other, UnhashableStream) and other.calls == self.calls
+
+    __hash__ = None  # type: ignore[assignment]

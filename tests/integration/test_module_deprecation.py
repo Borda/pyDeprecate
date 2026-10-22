@@ -32,6 +32,7 @@ from deprecate._types import DeprecationConfig
 from deprecate.audit._lifecycle import _check_deprecated_wrapper_expiry
 from deprecate.audit._wrappers import _format_report_symbol
 from deprecate.module import deprecated_module
+from tests.collection_targets import FlakyTypeErrorStream, KeywordTypeErrorStream, RecordingStream
 
 # Shared version kwargs for module deprecation call sites (see AGENTS.md Unification pattern).
 _DEPRS_CASE_MOD_ARGS: dict[str, Any] = {"deprecated_in": "1.0", "remove_in": "2.0"}
@@ -747,9 +748,9 @@ class TestStream:
     def test_stream_fallback_when_no_stacklevel(self, make_tmp_module: Callable[..., types.ModuleType]) -> None:
         """A ``stream`` callable that does not accept ``stacklevel`` does not crash.
 
-        The hook first tries ``stream(msg, stacklevel=3)``.  If the callable raises
-        ``TypeError`` (e.g. a zero-kwargs ``lambda msg: ...``), the hook retries with
-        ``stream(msg)`` only.  The warning must still reach the stream.
+        The hook inspects the stream's signature once: a callable with no ``stacklevel`` parameter and no
+        ``**kwargs`` (e.g. a ``lambda msg: ...``) is called with ``stream(msg)`` only, in a single call.  The
+        warning must still reach the stream.
         """
         mod_name = "_test_stream_no_sl_tmp"
         make_tmp_module(mod_name)
@@ -758,6 +759,31 @@ class TestStream:
         getattr(sys.modules[mod_name], "some_attr", None)
         assert len(calls) == 1
         assert isinstance(calls[0], str)
+
+    @pytest.mark.parametrize(
+        "stream_cls",
+        [
+            pytest.param(KeywordTypeErrorStream, id="typeerror-mentions-keyword"),
+            pytest.param(FlakyTypeErrorStream, id="unrelated-typeerror"),
+        ],
+    )
+    def test_stream_typeerror_propagates_after_one_call(
+        self, make_tmp_module: Callable[..., types.ModuleType], stream_cls: type[RecordingStream]
+    ) -> None:
+        """A ``TypeError`` raised inside a ``stacklevel``-accepting stream reaches the importer after one call.
+
+        A package routes its module deprecation notice through a logging handler that fails with its own
+        ``TypeError`` — either one mentioning "keyword" or an unrelated one on the first access only. The module hook
+        must neither retry the handler (doubling its side effects) nor swallow the error and carry on as if the
+        warning had been delivered.
+        """
+        mod_name = "_test_stream_typeerror_tmp"
+        make_tmp_module(mod_name)
+        stream = stream_cls()
+        deprecated_module(mod_name, **_DEPRS_CASE_MOD_ARGS, stream=stream)
+        with pytest.raises(TypeError):
+            getattr(sys.modules[mod_name], "some_attr", None)
+        assert len(stream.calls) == 1
 
 
 @pytest.fixture

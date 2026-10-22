@@ -248,6 +248,9 @@ def deprecated_callable(  # noqa: C901
         remove_in: Version when the function will be removed (e.g., "2.0.0"). Default is empty string.
         stream: Function to output warnings (default: :func:`~deprecate.deprecation.deprecation_warning`, which is
             :func:`warnings.warn` with ``FutureWarning`` category). Set to ``None`` to disable warnings entirely.
+            A custom ``stream`` is called once per warning, with ``stacklevel=`` only when its signature declares a
+            ``stacklevel`` parameter or ``**kwargs`` (:func:`warnings.warn` and its partials always qualify); a
+            C-level callable without an introspectable signature gets the message alone and loses caller attribution.
         num_warns: Number of times to show warning per function or per deprecated argument:
             - ``1`` (default): Show warning once per function/argument
             - ``-1``: Show warning on every call
