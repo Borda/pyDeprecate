@@ -56,6 +56,7 @@ from deprecate.messaging import (
     TEMPLATE_WARNING_ARGUMENTS,
     TEMPLATE_WARNING_CALLABLE,
     TEMPLATE_WARNING_NO_TARGET,
+    _callable_display_name,
     _render_static_deprecation_message,
     _resolve_message_template_alias,
     _validate_message_template,
@@ -218,6 +219,9 @@ class _DeprecatedProxy:
     def _target_display_name(target: Any, fallback: str) -> str:  # noqa: ANN401
         """Return a warning-display name without triggering proxy ``__getattr__``."""
         target_owner = _DeprecatedProxy._get_static_attr_owner(target)
+        # a callable owner (``functools.partial``, callable instance) may lack ``__name__``; the helper names it
+        if callable(target_owner) and not isinstance(target_owner, _DeprecatedProxy):
+            return _callable_display_name(target_owner)[0]
         return getattr(target_owner, "__name__", fallback)
 
     @staticmethod
@@ -1147,8 +1151,8 @@ class _DeprecatedProxy:
         a concrete type is reached. Defensive cycle guard breaks the loop on the unlikely case of a circular stack so
         this dunder never blocks.
 
-        Raises ``TypeError`` (mirroring the builtin) when the active object is an instance rather than a type — using
-        an *instance* proxy as the second argument to ``isinstance`` is a misuse. Returns ``False`` only on a circular
+        Raises ``TypeError`` (mirroring the builtin) when the active object is an instance rather than a type — using an
+        *instance* proxy as the second argument to ``isinstance`` is a misuse. Returns ``False`` only on a circular
         proxy stack.
 
         """
@@ -1421,11 +1425,11 @@ def _resolve_proxy_target(
 ) -> "tuple[Any, Optional[dict[str, Optional[str]]], list[str], bool]":
     """Resolve the unset factory default (``None``) against the configured mappings.
 
-    Only ``None`` — the ``deprecated_class`` default, meaning "no explicit target" — auto-resolves: a mapping
-    present selects :attr:`~deprecate._types.TargetMode.ARGS_REMAP` / :attr:`~deprecate._types.TargetMode.ATTRS_REMAP`
-    (or the wrapped object itself when dataclass auto-expand activated both surfaces); no mapping keeps ``None`` (warn-
-    on-access proxy).  An **explicit** ``TargetMode.NOTIFY`` is a deliberate caller choice and is never overridden —
-    with ``attrs_mapping`` present the pair is contradictory, so dataclass auto-expand is skipped and the flag in the
+    Only ``None`` — the ``deprecated_class`` default, meaning "no explicit target" — auto-resolves: a mapping present
+    selects :attr:`~deprecate._types.TargetMode.ARGS_REMAP` / :attr:`~deprecate._types.TargetMode.ATTRS_REMAP` (or the
+    wrapped object itself when dataclass auto-expand activated both surfaces); no mapping keeps ``None`` (warn-on-access
+    proxy).  An **explicit** ``TargetMode.NOTIFY`` is a deliberate caller choice and is never overridden — with
+    ``attrs_mapping`` present the pair is contradictory, so dataclass auto-expand is skipped and the flag in the
     returned tuple tells the proxy to ignore the mapping at runtime (the validators emit the misconfig ``UserWarning``).
 
     Returns ``(resolved_target, args_mapping, auto_expanded_keys, explicit_notify_attrs)``.
@@ -1543,8 +1547,8 @@ def _build_proxy_warn_msg(
     if arg_name is not None and arg_name.startswith("__attr__:") and dep.attrs_mapping is not None:
         return proxy._build_attr_warning_msg(arg_name, dep, dep.attrs_mapping, target, custom_template)
     if callable(target):
-        target_name = target.__name__
-        target_path = f"{target.__module__}.{target_name}"
+        # ``functools.partial`` and callable-instance targets carry no ``__name__``; the helper names them.
+        target_name, target_path = _callable_display_name(target)
         template = custom_template or TEMPLATE_WARNING_CALLABLE
         return template % {
             "source_name": dep.name,
@@ -1586,10 +1590,10 @@ class _ClassDecorator(Protocol):
     """Decorator returned by :func:`deprecated_class` when no replacement class is given: the source keeps its type.
 
     At runtime every input comes back wrapped in a :class:`_DeprecatedProxy`. For a class input the static type stays
-    ``type[Cls]`` because the proxy is a truthful stand-in for it — ``isinstance`` (``__instancecheck__``),
-    subclassing (``__mro_entries__``), construction, and attribute access all forward to the class — and it matches
-    what type checkers (mypy, which ignores a class decorator's return type) infer for the ``@deprecated_class(...)``
-    decorator form. An already-wrapped proxy (stacking) keeps its concrete proxy type.
+    ``type[Cls]`` because the proxy is a truthful stand-in for it — ``isinstance`` (``__instancecheck__``), subclassing
+    (``__mro_entries__``), construction, and attribute access all forward to the class — and it matches what type
+    checkers (mypy, which ignores a class decorator's return type) infer for the ``@deprecated_class(...)`` decorator
+    form. An already-wrapped proxy (stacking) keeps its concrete proxy type.
 
     """
 
@@ -1606,8 +1610,8 @@ class _RedirectDecorator(Protocol[_NewT_co]):
     A redirecting proxy does not stand in for the class it wraps — ``isinstance``, construction, and attribute access
     all resolve against *target*, so ``deprecated_class(target=NewCls)(OldCls)`` is statically ``type[NewCls]``, never
     ``type[OldCls]`` (``OldCls`` instances are not instances of the alias).  The wrapped class is not part of the result
-    type, so it may be any class — including a bare ``type`` — and need not be related to *target*.  An already-
-    wrapped proxy (stacking) keeps its concrete proxy type.
+    type, so it may be any class — including a bare ``type`` — and need not be related to *target*.  An already-wrapped
+    proxy (stacking) keeps its concrete proxy type.
 
     """
 

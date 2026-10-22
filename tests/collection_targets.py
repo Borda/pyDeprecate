@@ -1083,6 +1083,59 @@ class CallableAdder:
 callable_adder_target = CallableAdder(offset=10)
 
 
+def _build_nested_partial_target() -> "functools.partial[int]":
+    """Return ``partial(partial(new_scale, y=5))`` with the inner layer kept intact.
+
+    CPython flattens ``partial(partial(f, ...))`` into one layer unless the inner object carries an instance
+    attribute, so the inner partial gets one; the result is a genuine two-level chain whose bound keyword ``y``
+    lives on the inner layer only.
+    """
+    inner = functools.partial(new_scale, y=5)
+    inner.__dict__["origin"] = "nested"
+    return functools.partial(inner)
+
+
+#: Two-level ``functools.partial`` chain over :func:`new_scale` binding ``y=5`` on the inner layer.
+nested_partial_target = _build_nested_partial_target()
+
+#: ``functools.partial`` over :class:`NewCls` binding ``d`` — a class replacement with a preset constructor keyword.
+partial_new_cls_target = functools.partial(NewCls, d="preset")
+
+
+class NonStringNameCallable:
+    """Callable whose ``__name__`` is a property returning an ``int`` rather than a string.
+
+    A warning renderer must not trust ``__name__`` blindly: here it exists but is not a name, so the display falls
+    back to the type name.
+    """
+
+    @property
+    def __name__(self) -> int:
+        """Return a non-string value where a name is expected."""
+        return 42
+
+    def __call__(self, x: int) -> int:
+        """Return *x* unchanged."""
+        return x
+
+
+#: Async replacement wrapped in ``functools.partial`` — awaitable target without a ``__name__`` of its own.
+partial_async_target = functools.partial(async_target)
+
+
+def moduleless_function(x: int) -> int:
+    """Return *x* unchanged — its ``__module__`` is cleared below, as for code built with ``exec`` or ``types``."""
+    return x
+
+
+moduleless_function.__module__ = None  # type: ignore[assignment]
+
+#: ``functools`` wrapper kinds that are not functions: each lacks a function body ``@deprecated`` could wrap.
+partial_of_double = functools.partial(double_value)
+partialmethod_of_double = functools.partialmethod(double_value)
+singledispatchmethod_of_double = functools.singledispatchmethod(double_value)
+
+
 class SideEffectBox:
     """Container counting every ``__iadd__``, ``__enter__`` and ``__next__`` call; ``fail=True`` makes them raise.
 

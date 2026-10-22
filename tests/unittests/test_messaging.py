@@ -11,6 +11,7 @@ import pytest
 from deprecate import TargetMode, assert_no_warnings, deprecated
 from deprecate._types import DeprecationConfig
 from deprecate.messaging import (
+    _callable_display_name,
     _raise_warn,
     _raise_warn_arguments,
     _raise_warn_callable,
@@ -18,7 +19,79 @@ from deprecate.messaging import (
     _resolve_message_template_alias,
     _validate_message_template,
 )
-from tests.collection_targets import base_sum_kwargs
+from deprecate.utils import _partial_chain
+from tests.collection_targets import (
+    CallableAdder,
+    NewCls,
+    NonStringNameCallable,
+    base_sum_kwargs,
+    callable_adder_target,
+    moduleless_function,
+    nested_partial_target,
+    partial_target,
+)
+
+
+class TestCallableDisplayName:
+    """``_callable_display_name`` renders ``(name, dotted_path)`` for any target object without raising."""
+
+    @pytest.mark.parametrize(
+        ("obj", "expected"),
+        [
+            pytest.param(
+                base_sum_kwargs,
+                ("base_sum_kwargs", "tests.collection_targets.base_sum_kwargs"),
+                id="function",
+            ),
+            pytest.param(NewCls.__init__, ("__init__", "tests.collection_targets.__init__"), id="method"),
+            pytest.param(NewCls, ("NewCls", "tests.collection_targets.NewCls"), id="class"),
+            pytest.param(partial_target, ("new_scale", "tests.collection_targets.new_scale"), id="partial"),
+            pytest.param(
+                nested_partial_target,
+                ("new_scale", "tests.collection_targets.new_scale"),
+                id="nested-partial",
+            ),
+            pytest.param(
+                callable_adder_target,
+                ("CallableAdder", "tests.collection_targets.CallableAdder"),
+                id="callable-instance",
+            ),
+            pytest.param(
+                NonStringNameCallable(),
+                ("NonStringNameCallable", "tests.collection_targets.NonStringNameCallable"),
+                id="non-string-name",
+            ),
+            pytest.param(max, ("max", "builtins.max"), id="builtin"),
+            pytest.param(moduleless_function, ("moduleless_function", "moduleless_function"), id="module-none"),
+            pytest.param(object(), ("object", "builtins.object"), id="plain-object"),
+        ],
+    )
+    def test_renders_name_and_path(self, obj: object, expected: tuple[str, str]) -> None:
+        """Each target kind maps to the name and dotted path the deprecation warning shows the caller.
+
+        Functions, classes and builtins keep the ``module.name`` form every earlier release produced; partials are
+        unwrapped to the function they wrap, objects without a string ``__name__`` are named by their type, and a
+        missing module drops the ``None.`` prefix instead of rendering it.
+
+        """
+        assert _callable_display_name(obj) == expected
+
+    def test_instance_and_class_render_alike(self) -> None:
+        """A callable instance renders exactly like its class, so the warning names the type a caller can import.
+
+        Users read the path to find the replacement; ``CallableAdder`` is importable, the instance is not.
+
+        """
+        assert _callable_display_name(CallableAdder(offset=3)) == _callable_display_name(CallableAdder)
+
+    def test_nested_partial_fixture_is_two_layers(self) -> None:
+        """The nested-partial fixture really is a two-layer chain, so the nested rows test unwrapping at all.
+
+        CPython flattens ``partial(partial(f))`` unless the inner layer carries attributes; if that ever changed,
+        the nested cases would silently degrade to single-layer ones.
+
+        """
+        assert len(_partial_chain(nested_partial_target)) == 2
 
 
 class TestResolveMessageTemplateAlias:

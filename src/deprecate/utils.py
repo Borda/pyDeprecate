@@ -22,7 +22,7 @@ import inspect
 import warnings
 from collections.abc import Generator
 from contextlib import contextmanager
-from functools import lru_cache
+from functools import lru_cache, partial
 from types import TracebackType
 from typing import Any, Callable, Optional, Union
 
@@ -364,3 +364,36 @@ def _unwrap_descriptor_target(
     if isinstance(target, (staticmethod, classmethod)):
         return target.__func__
     return target
+
+
+#: Upper bound on ``functools.partial`` layers walked by :func:`_partial_chain` — a guard against pathological
+#: (or self-referencing) chains; real code nests one or two layers.
+_MAX_PARTIAL_DEPTH = 32
+
+
+def _partial_chain(obj: Any) -> tuple[partial, ...]:  # noqa: ANN401
+    """Return the ``functools.partial`` layers wrapping *obj*, outermost first (empty for anything else).
+
+    CPython flattens ``partial(partial(f, ...))`` into one layer unless the inner partial carries instance
+    attributes, so a chain can be deeper than one; the walk stops after :data:`_MAX_PARTIAL_DEPTH` layers.
+
+    Args:
+        obj: Any object; usually a ``target`` handed to ``@deprecated``.
+
+    Returns:
+        The partial objects from the outermost to the innermost; the innermost one's ``.func`` is the wrapped base.
+
+    Example:
+        >>> from functools import partial
+        >>> def scale(x, y=1): return x * y
+        >>> [layer.keywords for layer in _partial_chain(partial(scale, y=5))]
+        [{'y': 5}]
+        >>> _partial_chain(scale)
+        ()
+
+    """
+    layers: list[partial] = []
+    while isinstance(obj, partial) and len(layers) < _MAX_PARTIAL_DEPTH:
+        layers.append(obj)
+        obj = obj.func
+    return tuple(layers)

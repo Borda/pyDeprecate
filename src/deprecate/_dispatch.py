@@ -12,7 +12,8 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 import inspect
 import sys
 import warnings
-from functools import cached_property
+from collections.abc import Mapping
+from functools import cached_property, partial, partialmethod, singledispatchmethod
 from inspect import Parameter
 from typing import Any, Callable, Optional, Union, cast
 
@@ -26,11 +27,17 @@ from deprecate._types import (
 )
 from deprecate.messaging import (
     _DEFAULT_STACKLEVEL_TO_CALLER,
+    _callable_display_name,
     _consume_warn_budget,
     _raise_warn_arguments,
     _raise_warn_callable,
 )
-from deprecate.utils import _apply_args_mapping_collisions, _get_signature, get_func_arguments_types_defaults
+from deprecate.utils import (
+    _apply_args_mapping_collisions,
+    _get_signature,
+    _partial_chain,
+    get_func_arguments_types_defaults,
+)
 
 _MAJOR_BREAK_VERSION = "v1.0"
 
@@ -56,6 +63,7 @@ def _reject_bare_decorator(source: Any) -> None:  # noqa: ANN401
         source: The object ``packing`` received as its decoration target.
 
     """
+    _reject_functools_wrapper_source(source)
     if not callable(source) and not isinstance(source, (classmethod, staticmethod, property, cached_property)):
         raise TypeError(
             f"`@deprecated` must be called with parentheses, e.g. "
@@ -67,20 +75,51 @@ def _reject_bare_decorator(source: Any) -> None:  # noqa: ANN401
 
 # Descriptor source types the callable path handles via ``_packing_descriptor`` even though some are
 # neither ``callable`` nor carry ``__name__`` (``property``/``cached_property``). They must be exempt
-# from the dispatcher's "plain object" reject guard so class/instance-style misuse stays the only reject.
+# from the dispatcher's "plain object" reject guard so only class/instance-style misuse and the ``functools``
+# wrapper kinds (``_FUNCTOOLS_WRAPPER_SOURCE_TYPES``, rejected first with their own message) are rejected.
 _DESCRIPTOR_SOURCE_TYPES = (classmethod, staticmethod, property, cached_property)
 
 # Reject message for a non-callable / callable-without-``__name__`` source handed to ``@deprecated``.
 _PLAIN_OBJECT_REJECT = "cannot deprecate a plain object with `@deprecated` — use `deprecated_instance(obj, ...)`"
 
+#: ``functools`` wrapper kinds rejected as ``@deprecated`` sources with their own message: none has a function body
+#: the wrapper could take over, and ``partialmethod`` / ``singledispatchmethod`` are class-body descriptors that
+#: ``deprecated_instance`` (the plain-object advice) does not fit either.
+_FUNCTOOLS_WRAPPER_SOURCE_TYPES = (partial, partialmethod, singledispatchmethod)
+
+
+def _reject_functools_wrapper_source(source: Any) -> None:  # noqa: ANN401
+    """Raise ``TypeError`` when *source* is a ``functools.partial``, ``partialmethod`` or ``singledispatchmethod``.
+
+    Runs first in both decoration-time guards (:func:`_reject_bare_decorator` for ``deprecated_callable``, and
+    :func:`_reject_non_callable_source` for the ``@deprecated`` front door), so every entry point gives the same
+    advice instead of "use ``deprecated_instance``", "must be called with parentheses", or a late
+    ``AttributeError``. The message names the wrapper type and the workaround: wrap it in a plain ``def``.
+
+    Args:
+        source: The object ``packing`` received as its decoration target.
+
+    Raises:
+        TypeError: When ``source`` is an instance of one of :data:`_FUNCTOOLS_WRAPPER_SOURCE_TYPES`.
+
+    """
+    if isinstance(source, _FUNCTOOLS_WRAPPER_SOURCE_TYPES):
+        kind = f"{type(source).__module__}.{type(source).__qualname__}"
+        raise TypeError(
+            f"`@deprecated` cannot decorate a `{kind}` object: it has no function body of its own to wrap."
+            " Wrap it in a plain `def` that calls it, and decorate that `def` instead"
+            " (in a class body: `def method(self, *args, **kwargs): return ...`)."
+        )
+
 
 def _reject_non_callable_source(source: Any, target: Any) -> None:  # noqa: ANN401
     """Raise ``TypeError`` for a non-callable, or callable-without-``__name__``, decoration source.
 
-    Third dispatch bucket: a non-callable object, or a callable instance lacking ``__name__`` (a
-    ``__call__`` object or ``functools.partial``), would crash downstream at ``source.__name__``. Reject
-    up front with actionable guidance. Descriptors are exempt — the callable path handles them via
-    ``_packing_descriptor`` even though some are neither ``callable`` nor carry ``__name__``.
+    Third dispatch bucket: a non-callable object, or a callable instance lacking ``__name__`` (a hand-written
+    ``__call__`` object), would crash downstream at ``source.__name__``. Reject up front with actionable
+    guidance. ``functools`` wrapper kinds (``partial``, ``partialmethod``, ``singledispatchmethod``) are rejected
+    first with their own message (:func:`_reject_functools_wrapper_source`). Descriptors are exempt — the callable
+    path handles them via ``_packing_descriptor`` even though some are neither ``callable`` nor carry ``__name__``.
 
     Disambiguates two look-alike shapes: a bare ``@deprecated`` (no parens) binds the user's callable to
     ``target`` and this call arrives with the call ARGUMENT as ``source`` — a callable ``target`` that is
@@ -97,6 +136,7 @@ def _reject_non_callable_source(source: Any, target: Any) -> None:  # noqa: ANN4
         TypeError: When ``source`` is neither a descriptor, nor a named callable.
 
     """
+    _reject_functools_wrapper_source(source)
     if not isinstance(source, _DESCRIPTOR_SOURCE_TYPES) and (not callable(source) or not hasattr(source, "__name__")):
         if callable(target) and not isinstance(target, TargetMode):
             _reject_bare_decorator(source)  # raises the missing-parentheses TypeError
@@ -572,6 +612,71 @@ def _update_kwargs_with_defaults(func: Callable, fn_kwargs: dict[str, Any]) -> d
     return dict(list(fn_defaults.items()) + list(fn_kwargs.items()))
 
 
+def _renamed_defaults_owned_by_target(
+    normalized_target: Union[Callable[..., Any], TargetMode],
+    args_mapping: Mapping[str, Optional[str]],
+) -> frozenset[str]:
+    """Return the source parameter names whose default an ``args_mapping`` rename makes stale.
+
+    A source default for a renamed argument survives :func:`_update_kwargs_with_defaults` and would be forwarded under
+    the new name, silently overriding the target's own default. Two kinds of name are stale: a source parameter that
+    already carries a rename's *new* name, and a renamed *old* name whose new name has a default on the target. Only a
+    callable target with a non-empty mapping can have any.
+
+    """
+    if not args_mapping or not callable(normalized_target):
+        return frozenset()
+    rename_targets = {new for new in args_mapping.values() if new is not None}
+    target_defaults = {
+        arg[0] for arg in get_func_arguments_types_defaults(normalized_target) if arg[2] is not inspect.Parameter.empty
+    }
+    renamed_with_target_default = {old for old, new in args_mapping.items() if new in target_defaults}
+    return frozenset(rename_targets | renamed_with_target_default)
+
+
+def _merge_source_defaults(
+    source: Callable[..., Any],
+    normalized_target: Union[Callable[..., Any], TargetMode],
+    kwargs: dict[str, Any],
+    args_mapping: Optional[Mapping[str, Optional[str]]],
+) -> dict[str, Any]:
+    """Fill the source's defaults into the caller's *kwargs*, leaving out defaults the target owns.
+
+    Precedence for one argument: a value the caller supplied (by keyword or by position — positionals are already
+    folded into *kwargs*) > a keyword a ``functools.partial`` target binds > the source default. Two kinds of
+    source default are therefore dropped, unless the caller supplied that name:
+
+    - a renamed argument's default the rename makes stale (:func:`_renamed_defaults_owned_by_target`);
+    - a default whose forwarded name (``args_mapping.get(name) or name``) is bound by a keyword anywhere in the
+      target's ``functools.partial`` chain — the partial's own value must reach the target.
+
+    Every other shared parameter keeps its source default: the source signature is the contract callers migrated
+    from, so its default is forwarded (see ``decorated_sum`` / ``test_functions.py::test_default``). Positional
+    arguments a partial binds are not considered — forwarding by name collides with the bound slot.
+
+    Args:
+        source: The decorated callable whose signature provides the defaults.
+        normalized_target: The normalised target (callable or :class:`TargetMode`).
+        kwargs: The caller's arguments, positionals already mapped to their parameter names.
+        args_mapping: The wrapper's ``args_mapping``, or ``None``.
+
+    Returns:
+        The caller's arguments plus every source default the target does not own.
+
+    """
+    full_defaults = _update_kwargs_with_defaults(source, kwargs)
+    mapping = args_mapping or {}
+    stale_renamed = _renamed_defaults_owned_by_target(normalized_target, mapping)
+    partial_bound = frozenset().union(*(layer.keywords for layer in _partial_chain(normalized_target)))
+    if not stale_renamed and not partial_bound:
+        return full_defaults
+    return {
+        name: value
+        for name, value in full_defaults.items()
+        if name in kwargs or (name not in stale_renamed and (mapping.get(name) or name) not in partial_bound)
+    }
+
+
 def _split_positional_only_kwargs(
     param_order: tuple[str, ...],
     resolved_kwargs: dict[str, Any],
@@ -638,7 +743,7 @@ def _split_positional_only_kwargs(
     return pos_args, kw_args
 
 
-def _build_call_plan(  # noqa: C901, PLR0912
+def _build_call_plan(  # noqa: C901
     wrapper_fn: Callable[..., Any],
     source: Callable[..., Any],
     target: Union[bool, None, Callable[..., Any], TargetMode, staticmethod, classmethod],
@@ -773,39 +878,7 @@ def _build_call_plan(  # noqa: C901, PLR0912
             )
 
     if reason_callable:
-        # Source defaults for renamed args survive _update_kwargs_with_defaults and would be forwarded
-        # under the new name, silently overriding the target's own default. Drop only the *renamed*
-        # old-arg default when the caller supplied neither the old nor the new name.
-        # NOTE: non-renamed shared parameters intentionally keep their source default — the source
-        # signature is the contract the caller migrated from, so its default is forwarded (see
-        # ``decorated_sum`` / ``test_functions.py::test_default``). Dropping these too
-        # would conflict with the tested behaviour and is deliberately NOT applied.
-        if dep_cfg.args_mapping and (normalized_target is TargetMode.ARGS_REMAP or callable(normalized_target)):
-            _am = dep_cfg.args_mapping  # narrowed: non-None inside this branch; needed for nested closure
-            caller_keys = set(kwargs)
-            rename_targets: set[str] = {r for r in _am.values() if r is not None}
-            rename_sources = set(_am)
-            # For ARGS_REMAP, source IS the target; Python applies its own default
-            # when the kwarg is absent, so treating rename_targets as target_defaults is safe.
-            if callable(normalized_target):
-                target_defaults = {
-                    arg[0]
-                    for arg in get_func_arguments_types_defaults(normalized_target)
-                    if arg[2] is not inspect.Parameter.empty
-                }
-            else:
-                target_defaults = rename_targets
-            full_defaults = _update_kwargs_with_defaults(source, kwargs)
-
-            def is_source_default_kept(k: str) -> bool:
-                # A renamed old-arg default is stale when the target has its own default → drop it;
-                # everything else (non-renamed params) keeps its source default.
-                renamed_with_target_default = k in rename_sources and _am.get(k) in target_defaults
-                return k not in rename_targets and not renamed_with_target_default
-
-            kwargs = {k: v for k, v in full_defaults.items() if k in caller_keys or is_source_default_kept(k)}
-        else:
-            kwargs = _update_kwargs_with_defaults(source, kwargs)
+        kwargs = _merge_source_defaults(source, normalized_target, kwargs, dep_cfg.args_mapping)
     if dep_cfg.args_mapping and (normalized_target is TargetMode.ARGS_REMAP or callable(normalized_target)):
         args_skip = [arg for arg in dep_cfg.args_mapping if not dep_cfg.args_mapping[arg]]
         # caller → wrapper_fn → _build_call_plan → _apply_args_mapping_collisions → warn = stacklevel 4
@@ -1088,7 +1161,7 @@ def _invoke_sync(
         return source(*pos_args, **kw_args)
     if inspect.iscoroutinefunction(plan.target_func):
         raise TypeError(
-            f"Async target `{plan.target_func.__name__}` cannot be invoked from a sync wrapper."
+            f"Async target `{_callable_display_name(plan.target_func)[0]}` cannot be invoked from a sync wrapper."
             f" Declare `{source.__name__}` as `async def`, or replace the target with a sync callable."
         )
     pos_args, kw_args = _resolve_target_call_shape(source, plan, dep_cfg, source_has_var_positional, args)

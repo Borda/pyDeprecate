@@ -73,6 +73,7 @@ from tests.collection_targets import (
     NewDataClass,
     NewEnum,
     NewIntEnum,
+    NonStringNameCallable,
     Palette,
     PaletteEnum,
     PaletteOld,
@@ -100,6 +101,7 @@ from tests.collection_targets import (
     base_pow_args,
     base_sum_kwargs,
     both_old_new_target,
+    callable_adder_target,
     compute_power,
     cross_guard_standalone_increment,
     del_only_prop_fdel,
@@ -112,7 +114,11 @@ from tests.collection_targets import (
     gen_target,
     identity_value,
     increment_value,
+    nested_partial_target,
     non_cycle_double,
+    partial_async_target,
+    partial_new_cls_target,
+    partial_target,
     pep702_target,
     positional_only_target,
     positional_only_two_params_target,
@@ -2827,11 +2833,11 @@ def make_deprecated_on_callable_without_name() -> Any:  # noqa: ANN401
 
 
 def make_deprecated_on_partial_of_function() -> Any:  # noqa: ANN401
-    """Apply ``@deprecated`` to ``functools.partial(double_value)`` — raises ``TypeError`` (no ``__name__``).
+    """Apply ``@deprecated`` to ``functools.partial(double_value)`` — raises the dedicated ``functools.partial`` error.
 
-    ``functools.partial`` objects never carry ``__name__`` — this is the same guard as
-    ``make_deprecated_on_callable_without_name``, exercised via the stdlib ``partial`` kind called out explicitly
-    in the dispatcher's callable-kind matrix.
+    ``functools.partial`` objects never carry ``__name__`` and have no function body to wrap. Unlike
+    ``make_deprecated_on_callable_without_name`` (a hand-written ``__call__`` object, pointed at
+    ``deprecated_instance``), the rejection names the ``functools.partial`` type and the wrap-in-a-``def`` fix.
 
     """
     return deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)(partial(double_value))
@@ -2841,8 +2847,8 @@ def make_deprecated_on_partial_of_class() -> Any:  # noqa: ANN401
     """Apply ``@deprecated`` to ``functools.partial(NewCls)`` — documents partial-of-class routing.
 
     ``functools.partial(NewCls)`` is NOT class-dispatched (``inspect.isclass`` is ``False`` on a ``partial``
-    object) — it falls into the callable bucket and is rejected there for lacking ``__name__``, the same
-    ``TypeError`` as any other nameless callable. This proves the dispatcher never silently treats a
+    object) — it falls into the callable bucket and is rejected there with the dedicated ``functools.partial``
+    ``TypeError``, the same as a partial of a function. This proves the dispatcher never silently treats a
     partial-wrapped class as a class, which would lose proxy semantics (isinstance/pickling/etc).
 
     """
@@ -3258,3 +3264,86 @@ def make_pickle_settings_proxy() -> Any:  # noqa: ANN401
     exactly these arguments; keep them in sync or the payload-versus-fresh comparisons stop meaning anything.
     """
     return deprecated_instance({"threshold": 0.5, "enabled": True}, name="legacy_settings", **_DEPRS_CASE_STD_ARGS)
+
+
+# ---------------------------------------------------------------------------
+# Callable-kind targets without a ``__name__`` of their own (partial, callable instance)
+# ---------------------------------------------------------------------------
+
+
+@deprecated(target=partial_target, **_DEPRS_CASE_STD_ARGS)
+def depr_scale_partial(x: int, y: int = 0) -> int:
+    """Forward to ``partial(new_scale, y=5)``; the source default ``y=0`` differs from the partial-bound ``y=5``."""
+    return void(x, y)
+
+
+@deprecated(target=partial_target, **_DEPRS_CASE_STD_INF_ARGS)
+def depr_scale_partial_every_call(x: int, y: int = 0) -> int:
+    """Forward to ``partial(new_scale, y=5)`` and warn on every call (``num_warns=-1``)."""
+    return void(x, y)
+
+
+@deprecated(target=partial_target, **_DEPRS_CASE_STD_ARGS)
+def depr_scale_partial_no_default(x: int) -> int:
+    """Forward to ``partial(new_scale, y=5)`` from a source that has no ``y`` parameter at all."""
+    return void(x)
+
+
+@deprecated(target=partial_target, args_mapping={"factor": "y"}, **_DEPRS_CASE_STD_ARGS)
+def depr_scale_partial_renamed(x: int, factor: int = 0) -> int:
+    """Forward to ``partial(new_scale, y=5)`` renaming ``factor`` to the partial-bound ``y``."""
+    return void(x, factor)
+
+
+@deprecated(target=nested_partial_target, **_DEPRS_CASE_STD_ARGS)
+def depr_scale_nested_partial(x: int, y: int = 0) -> int:
+    """Forward to a two-level partial chain whose inner layer binds ``y=5``."""
+    return void(x, y)
+
+
+@deprecated(target=callable_adder_target, **_DEPRS_CASE_STD_ARGS)
+def depr_add_callable_instance(x: int) -> int:
+    """Forward to the ``CallableAdder(offset=10)`` instance."""
+    return void(x)
+
+
+@deprecated(target=NonStringNameCallable(), **_DEPRS_CASE_STD_ARGS)
+def depr_non_string_name_target(x: int) -> int:
+    """Forward to a callable whose ``__name__`` is a non-string property."""
+    return void(x)
+
+
+@deprecated(target=max, **_DEPRS_CASE_STD_ARGS)
+def depr_builtin_max_target(a: int, b: int) -> int:
+    """Name the C builtin ``max`` as the replacement (only the static ``__deprecated__`` text is exercised)."""
+    return void(a, b)
+
+
+@deprecated(target=partial_async_target, **_DEPRS_CASE_STD_ARGS)
+def depr_sync_over_partial_async(x: int) -> int:
+    """Sync source forwarding to ``partial(async_target)`` — the dispatcher refuses to call it."""
+    return void(x)
+
+
+@deprecated_class(target=partial_new_cls_target, **_DEPRS_CASE_STD_ARGS)
+class LegacyPresetCls:
+    """Legacy class replaced by ``NewCls`` with ``d`` preset through ``functools.partial(NewCls, d="preset")``."""
+
+    def __init__(self, c: float) -> None:
+        """Store *c* — never runs, construction is forwarded to the partial."""
+        self.c = c
+
+
+def make_front_door_notify_on(source: Any) -> Any:  # noqa: ANN401
+    """Apply the ``@deprecated`` front door with ``TargetMode.NOTIFY`` to *source*."""
+    return deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)(source)
+
+
+def make_front_door_redirect_on(source: Any) -> Any:  # noqa: ANN401
+    """Apply the ``@deprecated`` front door with a callable ``target`` to *source*."""
+    return deprecated(target=double_value, **_DEPRS_CASE_STD_ARGS)(source)
+
+
+def make_strict_callable_notify_on(source: Any) -> Any:  # noqa: ANN401
+    """Apply the strict ``deprecated_callable`` form with ``TargetMode.NOTIFY`` to *source*."""
+    return deprecated_callable(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)(source)

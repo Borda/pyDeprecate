@@ -11,7 +11,7 @@ Current test coverage:
 """
 
 import warnings
-from typing import Callable, cast
+from typing import Any, Callable, cast
 
 import pytest
 
@@ -22,6 +22,7 @@ from tests.collection_depr_legacy import decorated_sum_warn_only as legacy_sum_w
 from tests.collection_depr_legacy import depr_pow_self_double as legacy_pow_self_double
 from tests.collection_deprecate import (
     DeprecatedTimerDecorator,
+    LegacyPresetCls,
     decorated_pow_self,
     decorated_pow_skip_if_func,
     decorated_pow_skip_if_true,
@@ -34,10 +35,13 @@ from tests.collection_deprecate import (
     depr_accuracy_extra,
     depr_accuracy_map,
     depr_accuracy_skip,
+    depr_add_callable_instance,
+    depr_builtin_max_target,
     depr_collision_old_new,
     depr_collision_old_new_extra_wins,
     depr_make_new_cls,
     depr_make_new_cls_mapped,
+    depr_non_string_name_target,
     depr_pow_args,
     depr_pow_mix,
     depr_pow_self_double,
@@ -46,6 +50,12 @@ from tests.collection_deprecate import (
     depr_pow_skip_if_func_int,
     depr_pow_skip_if_true_false,
     depr_pow_wrong,
+    depr_scale_nested_partial,
+    depr_scale_partial,
+    depr_scale_partial_every_call,
+    depr_scale_partial_no_default,
+    depr_scale_partial_renamed,
+    depr_sync_over_partial_async,
     depr_timing_wrapper,
     deprecated_async_var_positional_forward,
     deprecated_var_positional_forward,
@@ -734,3 +744,177 @@ class TestTemplateMgsAliasOnFunctionEntryPoint:
                 message_template="Canonical notice.",
                 template_mgs="Legacy notice.",
             )(base_sum_kwargs)
+
+
+class TestCallableKindTargets:
+    """Targets that are callable but carry no ``__name__`` of their own: ``functools.partial`` and instances."""
+
+    def test_partial_target_warns_and_forwards(self) -> None:
+        """A ``functools.partial`` target warns once, names the wrapped function and forwards the call.
+
+        A maintainer redirects ``depr_scale_partial`` to ``partial(new_scale, y=5)`` to preset an argument. The
+        partial object has no ``__name__``, so the warning must name the function it wraps instead of crashing
+        with ``AttributeError`` on the first call (which also used to burn the one-warning budget silently).
+
+        """
+        with pytest.warns(FutureWarning, match=r"in favor of `tests\.collection_targets\.new_scale`"):
+            assert depr_scale_partial(2) == 10
+
+    def test_partial_target_warns_only_once(self) -> None:
+        """After the first warning, the default ``num_warns=1`` budget keeps later calls silent.
+
+        The budget must count a real emission: a crash inside the warning path used to consume it without any
+        warning reaching the caller, so the second call is the one that proves the warning was actually issued.
+
+        """
+        with pytest.warns(FutureWarning):
+            depr_scale_partial(1)
+        with assert_no_warnings(FutureWarning):
+            assert depr_scale_partial(1) == 5
+
+    def test_partial_target_unlimited_budget_warns_every_call(self) -> None:
+        """With ``num_warns=-1`` a partial target warns on each call instead of raising on each call.
+
+        Unlimited budgets re-enter the warning path every time, so a broken target-name lookup used to turn the
+        deprecated function into one that always raises; both calls here must warn and return the target result.
+
+        """
+        with pytest.warns(FutureWarning) as record:
+            first, second = depr_scale_partial_every_call(1), depr_scale_partial_every_call(2)
+        assert (first, second, len(record)) == (5, 10, 2)
+
+    def test_callable_instance_target_names_its_class(self) -> None:
+        """A callable-instance target is named by its class and receives the forwarded call.
+
+        Replacing a function with a configured callable object (``CallableAdder(offset=10)``) is a common
+        pattern; the instance has no ``__name__``, so the warning names ``CallableAdder`` by its module path.
+
+        """
+        with pytest.warns(FutureWarning, match=r"in favor of `tests\.collection_targets\.CallableAdder`"):
+            assert depr_add_callable_instance(1) == 11
+
+    def test_non_string_name_falls_back_to_type_name(self) -> None:
+        """A target whose ``__name__`` is a non-string property is named by its type, not by that value.
+
+        Objects can expose ``__name__`` as an arbitrary attribute; trusting it would render ``42`` (or crash on
+        concatenation), so only a string ``__name__`` counts as a name.
+
+        """
+        with pytest.warns(FutureWarning, match=r"in favor of `tests\.collection_targets\.NonStringNameCallable`"):
+            assert depr_non_string_name_target(3) == 3
+
+    def test_nested_partial_names_innermost_function(self) -> None:
+        """A two-level partial chain is unwrapped to the innermost function for the warning text.
+
+        ``partial(partial(f, ...))`` stays nested when the inner layer carries attributes, so a single ``.func``
+        step would still land on a partial; the display walks the whole chain.
+
+        """
+        with pytest.warns(FutureWarning, match=r"in favor of `tests\.collection_targets\.new_scale`"):
+            assert depr_scale_nested_partial(1) == 5
+
+    def test_partial_target_static_message(self) -> None:
+        """The PEP 702 ``__deprecated__`` string names the wrapped function, not the partial's ``repr``.
+
+        Static checkers and IDEs show ``__deprecated__`` verbatim; ``functools.partial(<function ...>)`` with a
+        memory address is unreadable there and differs between runs.
+
+        """
+        message = cast(Any, depr_scale_partial).__deprecated__
+        assert "in favor of `tests.collection_targets.new_scale`" in message
+
+    def test_builtin_target_keeps_builtins_path(self) -> None:
+        """A C builtin target (``max``) keeps its ``builtins.max`` path in the static message.
+
+        Builtins carry both ``__name__`` and ``__module__``, so the shared display helper must reproduce the
+        message every release before this one rendered for them, byte for byte.
+
+        """
+        message = cast(Any, depr_builtin_max_target).__deprecated__
+        assert "in favor of `builtins.max`" in message
+
+    def test_async_partial_target_error_names_wrapped_function(self) -> None:
+        """A sync source over ``partial(async_fn)`` raises the curated ``TypeError`` naming ``async_target``.
+
+        ``inspect.iscoroutinefunction`` sees through ``functools.partial``, so the dispatcher refuses the call;
+        the refusal message itself must not crash on the partial's missing ``__name__``.
+
+        """
+        with pytest.warns(FutureWarning), pytest.raises(TypeError, match=r"Async target `async_target` cannot"):
+            depr_sync_over_partial_async(1)
+
+    def test_class_partial_target_warns_and_constructs(self) -> None:
+        """``deprecated_class`` with ``target=partial(NewCls, d=...)`` warns once and builds a ``NewCls``.
+
+        A legacy class is retired in favour of the new class with one constructor argument preset. The proxy's
+        warning path read ``target.__name__`` directly and crashed; it must name ``NewCls`` and forward.
+
+        """
+        with pytest.warns(FutureWarning, match=r"in favor of `tests\.collection_targets\.NewCls`"):
+            built = cast(NewCls, LegacyPresetCls(1.5))
+        assert (type(built), built.my_c, built.my_d) == (NewCls, 1.5, "preset")
+
+
+class TestPartialTargetPrecedence:
+    """Which value reaches a ``functools.partial`` target: caller > partial-bound keyword > source default."""
+
+    def test_partial_keyword_beats_source_default(self) -> None:
+        """When the caller omits ``y``, the partial's bound ``y=5`` wins over the source default ``y=0``.
+
+        The maintainer chose ``partial(new_scale, y=5)`` precisely to preset ``y``; forwarding the legacy
+        signature's default would silently override that choice and return ``0`` instead of ``5``.
+
+        """
+        with pytest.warns(FutureWarning):
+            assert depr_scale_partial(1) == 5
+
+    @pytest.mark.parametrize(
+        ("args", "kwargs"),
+        [pytest.param((1,), {"y": 7}, id="keyword"), pytest.param((1, 7), {}, id="positional")],
+    )
+    def test_caller_value_beats_partial_keyword(self, args: tuple[int, ...], kwargs: dict[str, int]) -> None:
+        """A ``y`` supplied by the caller, by keyword or by position, still overrides the partial's ``y=5``.
+
+        Dropping the source default must not drop the caller's own value: an explicit argument is the strongest
+        signal of intent, so it keeps winning exactly as it would when calling the partial directly.
+
+        """
+        with pytest.warns(FutureWarning):
+            assert depr_scale_partial(*args, **kwargs) == 7
+
+    def test_source_without_default_uses_partial_keyword(self) -> None:
+        """A source with no ``y`` parameter forwards nothing for ``y``, so the partial's ``y=5`` applies.
+
+        Characterises the path that already worked: nothing to drop, the partial keyword is the only value.
+
+        """
+        with pytest.warns(FutureWarning):
+            assert depr_scale_partial_no_default(1) == 5
+
+    def test_renamed_default_does_not_override_partial_keyword(self) -> None:
+        """A renamed argument (``factor`` -> ``y``) whose new name the partial binds keeps the partial's value.
+
+        The source default ``factor=0`` would be forwarded as ``y=0``; like any other source default, it yields to
+        the keyword the partial binds when the caller did not pass ``factor``.
+
+        """
+        with pytest.warns(FutureWarning):
+            assert depr_scale_partial_renamed(1) == 5
+
+    def test_renamed_caller_value_beats_partial_keyword(self) -> None:
+        """A caller passing the old name ``factor=3`` reaches the target as ``y=3``, overriding the partial.
+
+        The caller's value travels through the rename unchanged; only defaults the caller never supplied yield.
+
+        """
+        with pytest.warns(FutureWarning):
+            assert depr_scale_partial_renamed(1, factor=3) == 3
+
+    def test_nested_partial_keyword_beats_source_default(self) -> None:
+        """A keyword bound on the inner layer of a nested partial chain also beats the source default.
+
+        The bound-keyword set is collected over every layer of the chain, not only the outermost partial.
+
+        """
+        with pytest.warns(FutureWarning):
+            assert depr_scale_nested_partial(1) == 5

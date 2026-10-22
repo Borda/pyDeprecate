@@ -11,12 +11,12 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 import re
 from collections.abc import Mapping
 from functools import partial
-from typing import Callable, Optional, Union
+from typing import Any, Callable, Optional, Union
 from warnings import warn
 
 from deprecate._fatal import DeprecatedError
 from deprecate._types import DeprecationConfig, TargetMode, _WrapperState
-from deprecate.utils import _unwrap_descriptor_target
+from deprecate.utils import _partial_chain, _unwrap_descriptor_target
 
 # caller → wrapped_fn → _raise_warn_callable/_raise_warn_arguments → _raise_warn → warnings.warn
 _DEFAULT_STACKLEVEL_TO_CALLER: int = 4
@@ -243,9 +243,7 @@ def _render_static_deprecation_message(dep: DeprecationConfig, source_name: str,
             argument_map=argument_map,
         )
     if callable(dep.target):
-        target_name = getattr(dep.target, "__name__", str(dep.target))
-        target_module = getattr(dep.target, "__module__", "")
-        target_path = f"{target_module}.{target_name}" if target_module else target_name
+        target_name, target_path = _callable_display_name(dep.target)
         return _format_deprecation_message(
             dep.message_template or TEMPLATE_WARNING_CALLABLE,
             source_name,
@@ -263,6 +261,44 @@ def _render_static_deprecation_message(dep: DeprecationConfig, source_name: str,
         deprecated_in=dep.deprecated_in,
         remove_in=dep.remove_in,
     )
+
+
+def _callable_display_name(obj: Any) -> tuple[str, str]:  # noqa: ANN401
+    """Return the ``(name, dotted_path)`` pair a warning shows for *obj*, for any callable or object, never raising.
+
+    A ``target`` can be any callable — a ``functools.partial`` or a callable instance has no ``__name__`` of its own,
+    and an arbitrary object may expose a non-string ``__name__``. Resolution, in order:
+
+    1. Unwrap nested ``functools.partial`` layers to the innermost ``.func`` (see :func:`_partial_chain`).
+    2. A base with a string ``__name__`` is named by it, with its own ``__module__``.
+    3. Anything else (callable instance, plain object) is named by its type and the type's module.
+    4. The path is ``f"{module}.{name}"`` when the module is a non-empty string, else just the name — so a
+       function or class renders exactly as ``f"{target.__module__}.{target.__name__}"`` always did.
+
+    Args:
+        obj: The object to name; usually the ``target`` given to ``@deprecated`` or ``deprecated_class``.
+
+    Returns:
+        Tuple of the display name and the dotted path used for the ``target_name`` / ``target_path`` placeholders.
+
+    Example:
+        >>> from functools import partial
+        >>> _callable_display_name(max)
+        ('max', 'builtins.max')
+        >>> _callable_display_name(partial(max, default=0))
+        ('max', 'builtins.max')
+
+    """
+    chain = _partial_chain(obj)
+    base = chain[-1].func if chain else obj
+    name = getattr(base, "__name__", None)
+    if isinstance(name, str):
+        module = getattr(base, "__module__", None)
+    else:
+        name = type(base).__name__
+        module = type(base).__module__
+    path = f"{module}.{name}" if isinstance(module, str) and module else name
+    return name, path
 
 
 def _source_display_name(source: Callable) -> str:
@@ -329,8 +365,8 @@ def _raise_warn_callable(
     # is always False, so without this unwrap the no-target template fires incorrectly.
     target = _unwrap_descriptor_target(target)
     if callable(target):
-        target_name = target.__name__
-        target_path = f"{target.__module__}.{target_name}"
+        # ``functools.partial`` and callable-instance targets carry no ``__name__``; the helper names them.
+        target_name, target_path = _callable_display_name(target)
         template_warn = TEMPLATE_WARNING_CALLABLE
     else:
         target_name, target_path = "", ""
