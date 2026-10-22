@@ -354,5 +354,5 @@ class StackedRemapMethodHolder:
     @deprecated(target=TargetMode.ARGS_REMAP, deprecated_in="1.2", remove_in="2.0", args_mapping={"c1": "nc2"})
     @deprecated(target=TargetMode.ARGS_REMAP, deprecated_in="1.2", remove_in="2.0", args_mapping={"nc1": "nc2"})
     def scale(self, base: int, c1: int = 0, nc1: int = 0, nc2: int = 2) -> int:
-        """Stacked self-deprecation decorators on a method."""
+        """Handle callers still using c1 or nc1 while the scaling API migrates to nc2."""
         return stacked_chain_identity(base)
