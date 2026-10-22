@@ -877,6 +877,26 @@ class TestValidateMappingCompatibility:
         names = [r.function for r in results]
         assert "DepPositionalOnly" in names
 
+    @pytest.mark.parametrize(
+        ("include_members", "expected"),
+        [
+            pytest.param(True, True, id="members-scanned"),
+            pytest.param(False, False, id="members-skipped"),
+        ],
+    )
+    def test_include_members_controls_class_attribute_proxies(self, include_members: bool, expected: bool) -> None:
+        """A positional-only proxy bound as a class attribute is reported only when class members are scanned.
+
+        ``PositionalOnlyProxyHolder.LegacyTarget`` is reachable only through its holder class. The default scan
+        reports it like the module-level ``DepPositionalOnly``; ``include_members=False`` keeps the check on
+        module-level wrappers, the same scope the other validators give with that switch.
+
+        """
+        results = validate_mapping_compatibility(col, recursive=False, include_members=include_members)
+        names = {r.function for r in results}
+        assert ("PositionalOnlyProxyHolder.LegacyTarget" in names) is expected
+        assert "DepPositionalOnly" in names
+
     def test_dataclass_auto_expanded_visible_in_audit(self) -> None:
         """``find_deprecation_wrappers`` populates ``args_mapping_auto_expanded`` for ``DepAutoExpandDC``.
 

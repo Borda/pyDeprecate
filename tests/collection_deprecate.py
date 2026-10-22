@@ -2038,6 +2038,18 @@ with catch_warnings():
         PositionalOnlyTarget
     )
 
+    class PositionalOnlyProxyHolder:
+        """Namespace class exposing a positional-only-remapping proxy as a class attribute.
+
+        Same configuration as ``DepPositionalOnly``, reached only through the class: mapping validation with
+        ``include_members=False`` stops at the holder and does not report ``LegacyTarget``.
+
+        """
+
+        LegacyTarget = deprecated_class(args_mapping={"old_val": "new_val"}, **_DEPRS_CASE_STD_INF_ARGS)(
+            PositionalOnlyTarget
+        )
+
 
 # ========== Single-call combined attrs_mapping + args_mapping fixture ==========
 # Single deprecated_class() call with both attrs_mapping (class-level attribute redirect)

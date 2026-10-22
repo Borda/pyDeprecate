@@ -59,9 +59,9 @@ def _bool_params(fn: Callable[..., int]) -> frozenset[str]:
     Examples:
         >>> from deprecate._cli.commands import cmd_check, cmd_policy
         >>> sorted(_bool_params(cmd_check))
-        ['exit_zero', 'recursive']
+        ['exit_zero', 'include_members', 'recursive']
         >>> sorted(_bool_params(cmd_policy))
-        ['exit_zero', 'message_required', 'recursive']
+        ['exit_zero', 'include_members', 'message_required', 'recursive']
 
     """
     return frozenset(

@@ -34,7 +34,9 @@ from deprecate.audit import (
     find_deprecation_wrappers,
     generate_deprecation_table,
     validate_deprecation_chains,
+    validate_deprecation_policy,
     validate_deprecation_wrapper,
+    validate_mapping_compatibility,
 )
 from deprecate.audit._lifecycle import _check_deprecated_wrapper_expiry, _get_package_version, _parse_version
 from tests.collection_targets import plain_function_target
@@ -658,6 +660,54 @@ class TestValidateDeprecationChains:
         assert "depr_func_targeting_proxy" in by_name
         assert by_name["ChainedProxyColorEnum"].chain_type is ChainType.TARGET
         assert by_name["depr_func_targeting_proxy"].chain_type is ChainType.TARGET
+
+    def test_member_chain_reported_by_default(self, chain_issues: list) -> None:
+        """A stacked chain on a class method is reported without opting in.
+
+        Class members are part of the default scan of every audit function, so a method that stacks two remapping
+        layers is a chain like its module-level twin; the chain gate must not silently skip it.
+
+        """
+        by_name = {i.function: i for i in chain_issues}
+        assert by_name["StackedRemapMethodHolder.scale"].chain_type is ChainType.STACKED
+
+    def test_member_chain_skipped_without_members(self) -> None:
+        """``include_members=False`` limits the chain check to module-level wrappers.
+
+        A project that gates only its module-level API — the same scope it already picks for expiry or policy with
+        ``include_members=False`` — must get the same scope from the chain check instead of a stray member finding.
+
+        """
+        issues = validate_deprecation_chains(chain_module, recursive=False, include_members=False)
+        functions = {i.function for i in issues}
+        assert "StackedRemapMethodHolder.scale" not in functions
+        assert "caller_stacked_args_enum_enum" in functions
+
+
+class TestIncludeMembersParameter:
+    """Every public scanning function takes the same ``include_members`` switch."""
+
+    @pytest.mark.parametrize(
+        "function",
+        [
+            pytest.param(find_deprecation_wrappers, id="find_deprecation_wrappers"),
+            pytest.param(validate_deprecation_expiry, id="validate_deprecation_expiry"),
+            pytest.param(validate_deprecation_policy, id="validate_deprecation_policy"),
+            pytest.param(validate_deprecation_chains, id="validate_deprecation_chains"),
+            pytest.param(validate_mapping_compatibility, id="validate_mapping_compatibility"),
+            pytest.param(generate_deprecation_table, id="generate_deprecation_table"),
+        ],
+    )
+    def test_defaults_to_scanning_members(self, function: Any) -> None:  # noqa: ANN401
+        """``include_members`` exists, defaults to ``True`` and can be passed by keyword.
+
+        A CI script that narrows one audit call to module-level wrappers must be able to narrow every other call the
+        same way; a validator without the switch forces a second, hand-filtered ``find_deprecation_wrappers`` scan.
+
+        """
+        param = inspect.signature(function).parameters["include_members"]
+        assert param.default is True
+        assert param.kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
 
 
 class TestGenerateDeprecationMarkdown:

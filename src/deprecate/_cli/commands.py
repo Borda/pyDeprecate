@@ -167,6 +167,7 @@ def cmd_check(
     recursive: bool = True,
     exit_zero: bool = False,
     exclude: _ConfigFlag = _FROM_PYPROJECT,
+    include_members: bool = True,
     *,
     _wrappers: Optional[list[DeprecationWrapperInfo]] = None,
 ) -> int:
@@ -186,6 +187,8 @@ def cmd_check(
             list (``--exclude='my_package.tests,*._legacy*'``); the scan itself never imports a matching package
             nor descends into it. Default: the ``exclude`` list of ``[tool.pydeprecate]`` in the nearest
             ``pyproject.toml``, else nothing.
+        include_members: Include deprecated class members such as methods and constructors (default True). Pass
+            ``--noinclude-members`` to check module-level wrappers only.
         _wrappers: Pre-scanned wrapper list. When provided, skips the scan step. Underscore
             prefix hides this parameter from the Fire CLI (internal use by ``cmd_all`` only).
 
@@ -195,7 +198,7 @@ def cmd_check(
 
     """
     if _wrappers is None:
-        scan = _scan_for_command(path, recursive=recursive, exclude=exclude)
+        scan = _scan_for_command(path, recursive=recursive, exclude=exclude, include_members=include_members)
         if scan is None:
             return 2
         _wrappers = scan.wrappers
@@ -219,6 +222,7 @@ def cmd_expiry(
     recursive: bool = True,
     exit_zero: bool = False,
     exclude: _ConfigFlag = _FROM_PYPROJECT,
+    include_members: bool = True,
     *,
     _wrappers: Optional[list[DeprecationWrapperInfo]] = None,
     _version_explicit: bool = True,
@@ -239,6 +243,8 @@ def cmd_expiry(
             list (``--exclude='my_package.tests,*._legacy*'``); the scan itself never imports a matching package
             nor descends into it. Default: the ``exclude`` list of ``[tool.pydeprecate]`` in the nearest
             ``pyproject.toml``, else nothing.
+        include_members: Include deprecated class members such as methods and constructors (default True). Pass
+            ``--noinclude-members`` to check module-level wrappers only.
         _wrappers: Pre-scanned wrapper list. When provided, skips the scan step and derives
             expired wrappers via ``_do_expiry_prescanned``. Underscore prefix hides this parameter from the
             Fire CLI (internal use by ``cmd_all`` only).
@@ -270,6 +276,7 @@ def cmd_expiry(
             path,
             recursive=recursive,
             exclude=exclude,
+            include_members=include_members,
             version=version,
             version_explicit=version_explicit,
             resolve_version=True,
@@ -296,6 +303,7 @@ def cmd_policy(
     min_grace: _ConfigFlag = _FROM_PYPROJECT,
     message_required: _ConfigBool = _FROM_PYPROJECT,
     exclude: _ConfigFlag = _FROM_PYPROJECT,
+    include_members: bool = True,
     *,
     _wrappers: Optional[list[DeprecationWrapperInfo]] = None,
     _config: Optional[_Config] = None,
@@ -335,6 +343,8 @@ def cmd_policy(
             list (``--exclude='my_package.tests,*._legacy*'``); the scan itself never imports a matching package
             nor descends into it. Default: the ``exclude`` list of ``[tool.pydeprecate]`` in the nearest
             ``pyproject.toml``, else nothing.
+        include_members: Include deprecated class members such as methods and constructors (default True). Pass
+            ``--noinclude-members`` to check module-level wrappers only.
         _wrappers: Pre-scanned wrapper list. When provided, skips the scan step. Underscore prefix hides this
             parameter from the Fire CLI (internal use by ``cmd_all`` only).
         _config: Already-loaded ``[tool.pydeprecate]`` configuration, so ``cmd_all`` does not re-read (and
@@ -365,7 +375,9 @@ def cmd_policy(
     spec, policy_header = resolved
 
     if _wrappers is None:
-        scan = _scan_for_command(path, recursive=recursive, exclude=exclude, config=config)
+        scan = _scan_for_command(
+            path, recursive=recursive, exclude=exclude, config=config, include_members=include_members
+        )
         if scan is None:
             return 2
         _wrappers = scan.wrappers
@@ -394,6 +406,7 @@ def cmd_chains(
     recursive: bool = True,
     exit_zero: bool = False,
     exclude: _ConfigFlag = _FROM_PYPROJECT,
+    include_members: bool = True,
     *,
     _wrappers: Optional[list[DeprecationWrapperInfo]] = None,
 ) -> int:
@@ -411,6 +424,8 @@ def cmd_chains(
             list (``--exclude='my_package.tests,*._legacy*'``); the scan itself never imports a matching package
             nor descends into it. Default: the ``exclude`` list of ``[tool.pydeprecate]`` in the nearest
             ``pyproject.toml``, else nothing.
+        include_members: Include deprecated class members such as methods and constructors (default True). Pass
+            ``--noinclude-members`` to check module-level wrappers only.
         _wrappers: Pre-scanned wrapper list. When provided, skips the scan step and filters
             for ``chain_type is not None`` internally. Underscore prefix hides this parameter
             from the Fire CLI (internal use by ``cmd_all`` only).
@@ -422,7 +437,7 @@ def cmd_chains(
     """
     if _wrappers is None:
         # every wrapper, not only chains: the run record needs them all for its table; the chain filter is below
-        scan = _scan_for_command(path, recursive=recursive, exclude=exclude)
+        scan = _scan_for_command(path, recursive=recursive, exclude=exclude, include_members=include_members)
         if scan is None:
             return 2
         _wrappers = scan.wrappers
@@ -442,6 +457,7 @@ def cmd_all(
     exit_zero: bool = False,
     exclude: _ConfigFlag = _FROM_PYPROJECT,
     output: Optional[str] = None,
+    include_members: bool = True,
 ) -> int:
     """Run all four checks then append a deprecation table.
 
@@ -470,6 +486,8 @@ def cmd_all(
             so a CI job gets the table of the very scan it gated on. A failure to write it is reported on stderr as
             ``Could not write the deprecation table`` — apart from a failure to render the table — and never changes
             the exit code.
+        include_members: Include deprecated class members such as methods and constructors (default True) in the one
+            scan every check and the table share. Pass ``--noinclude-members`` to check module-level wrappers only.
 
     Returns:
         0 when the check, expiry, and chain gates pass or ``exit_zero`` is True; 1 when any of them finds a hard
@@ -496,6 +514,7 @@ def cmd_all(
         recursive=recursive,
         exclude=exclude,
         config=config,
+        include_members=include_members,
         version=version,
         version_explicit=version_explicit,
         resolve_version=True,
@@ -583,7 +602,8 @@ def cmd_status(
             project metadata, installed package metadata, or the top-level package's ``__version__`` if not provided.
         recursive: Scan submodules recursively (default True). Pass ``--norecursive`` to scan top-level only.
         style: Table format — ``compact`` (default) or ``matrix``.
-        include_members: Include deprecated class members such as methods and constructors (default True).
+        include_members: Include deprecated class members such as methods and constructors (default True). Pass
+            ``--noinclude-members`` to list module-level wrappers only.
         output: Optional file path to write the markdown table. The table is always
             printed to stdout regardless of this flag.
         exclude: Module-name glob patterns to leave out of the scan — one pattern, a comma-separated string, or a

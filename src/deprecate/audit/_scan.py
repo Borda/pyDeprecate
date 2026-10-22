@@ -745,6 +745,7 @@ def find_deprecation_wrappers(
 def validate_deprecation_chains(
     module: Union[Any, str],  # noqa: ANN401
     recursive: bool = True,
+    include_members: bool = True,
     *,
     exclude: Optional[Sequence[str]] = None,
 ) -> list[DeprecationWrapperInfo]:
@@ -769,6 +770,9 @@ def validate_deprecation_chains(
             - Imported module object (e.g., ``import my_package; validate_deprecation_chains(my_package)``)
             - String module path (e.g., ``validate_deprecation_chains("my_package.submodule")``)
         recursive: If True (default), recursively scan submodules. If False, only scan the top-level module.
+        include_members: If True (default), also scan deprecated class members (methods, constructors,
+            descriptors), matching :func:`~deprecate.audit.find_deprecation_wrappers`. Pass False to check
+            module-level wrappers only.
         exclude: Glob patterns over full dotted module names to leave out of the scan, as in
             :func:`~deprecate.audit.find_deprecation_wrappers` (e.g. ``["my_package.tests"]``); ``None`` excludes
             nothing.
@@ -790,13 +794,14 @@ def validate_deprecation_chains(
         - Uses :func:`~deprecate.audit.find_deprecation_wrappers` and inspects ``chain_type`` to detect chains
 
     """
-    wrappers = find_deprecation_wrappers(module, recursive=recursive, exclude=exclude)
+    wrappers = find_deprecation_wrappers(module, recursive=recursive, include_members=include_members, exclude=exclude)
     return [info for info in wrappers if info.chain_type is not None]
 
 
 def validate_mapping_compatibility(
     module: Union[Any, str],  # noqa: ANN401
     recursive: bool = True,
+    include_members: bool = True,
     *,
     exclude: Optional[Sequence[str]] = None,
 ) -> list[DeprecationWrapperInfo]:
@@ -811,6 +816,9 @@ def validate_mapping_compatibility(
         module: A Python module or package to scan.  Accepts an imported module object or a dotted
             module path string.
         recursive: When ``True`` (default) recursively scan submodules.
+        include_members: When ``True`` (default) also scan class members, so a ``deprecated_class`` proxy bound as
+            a class attribute is checked too, matching :func:`~deprecate.audit.find_deprecation_wrappers`. Pass
+            ``False`` to check module-level wrappers only.
         exclude: Glob patterns over full dotted module names to leave out of the scan, as in
             :func:`~deprecate.audit.find_deprecation_wrappers` (e.g. ``["my_package.tests"]``); ``None`` excludes
             nothing.
@@ -831,6 +839,8 @@ def validate_mapping_compatibility(
     """
     return [
         info
-        for info in find_deprecation_wrappers(module, recursive=recursive, exclude=exclude)
+        for info in find_deprecation_wrappers(
+            module, recursive=recursive, include_members=include_members, exclude=exclude
+        )
         if info.args_mapping_positional_only
     ]

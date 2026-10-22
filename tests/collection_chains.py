@@ -339,3 +339,20 @@ def caller_via_notify_layer(value: int) -> int:
 
     """
     return void(value)
+
+
+class StackedRemapMethodHolder:
+    """Class whose method stacks two argument-remapping deprecations — a chain on a class member.
+
+    Examples:
+        ``scale`` carries two ``TargetMode.ARGS_REMAP`` layers that should collapse into one mapping, exactly like
+        ``caller_stacked_args_enum_enum`` at module level. Only a member scan reaches it: chain validation with
+        ``include_members=False`` stops at the class and reports no chain for it.
+
+    """
+
+    @deprecated(target=TargetMode.ARGS_REMAP, deprecated_in="1.2", remove_in="2.0", args_mapping={"c1": "nc2"})
+    @deprecated(target=TargetMode.ARGS_REMAP, deprecated_in="1.2", remove_in="2.0", args_mapping={"nc1": "nc2"})
+    def scale(self, base: int, c1: int = 0, nc1: int = 0, nc2: int = 2) -> int:
+        """Stacked self-deprecation decorators on a method."""
+        return stacked_chain_identity(base)
