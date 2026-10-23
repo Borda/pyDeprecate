@@ -10,8 +10,9 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 
 import inspect
 import re
+import weakref
 from collections.abc import Mapping
-from functools import lru_cache, partial
+from functools import partial
 from typing import Any, Callable, Optional, Union
 from warnings import warn
 
@@ -20,13 +21,12 @@ from deprecate._frames import _caller_stacklevel
 from deprecate._types import DeprecationConfig, TargetMode, _WrapperState
 from deprecate.utils import _partial_chain, _unwrap_descriptor_target
 
-#: Upper bound on distinct ``stream`` objects whose ``stacklevel`` decision is memoised by
-#: :func:`_stream_accepts_stacklevel`.  Most programs use one or two streams; the bound keeps a long-lived process
-#: that builds streams dynamically from pinning an unbounded number of them.
-_STREAM_DECISION_CACHE_SIZE: int = 128
-
-#: Parameter kinds through which ``stream(msg, stacklevel=...)`` can bind ``stacklevel`` by name.
-_KEYWORD_BINDABLE_KINDS: tuple[Any, ...] = (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
+#: Memoised ``stacklevel`` decisions of :func:`_stream_accepts_stacklevel`: one entry per live ``stream`` object,
+#: keyed by ``id(stream)``.  Each entry pairs the decision with a *weak* reference to its stream.  A hit counts only
+#: while that reference still resolves to the very same object, so an id recycled after garbage collection, or a
+#: second stream that merely compares ``==`` (and hashes) equal, can never borrow another stream's answer, and the
+#: memo never keeps a stream alive.
+_STREAM_DECISIONS: dict[int, tuple["weakref.ReferenceType[Any]", bool]] = {}
 
 
 #: Default template warning message for redirecting callable
@@ -192,28 +192,60 @@ def _inspect_stream_accepts_stacklevel(stream: Callable[..., Any]) -> bool:
     Uncached core of :func:`_stream_accepts_stacklevel`; see there for the decision rules.
 
     """
-    layers = _partial_chain(stream)
-    base = layers[-1].func if layers else stream
-    # Identity, not introspection: ``warnings.warn`` is a C builtin whose signature support varies across Python
-    # versions, and it always accepts ``stacklevel``.
-    if base is warn:
-        return True
     try:
-        # ``follow_wrapped=False``: a stream decorated with ``functools.wraps(logging.warning)`` reports the wrapped
-        # callable's wider signature, but the stream itself is what gets called.
-        parameters = inspect.signature(stream, follow_wrapped=False).parameters.values()
+        # Look through ``functools.wraps``-style pass-throughs: a layer whose own signature is a bare
+        # ``(*args, **kwargs)`` says nothing about what it forwards, so the callable it wraps decides. Every layer that
+        # declares parameters of its own stops the walk, because that signature is what actually gets called — a
+        # ``functools.wraps(logging.warning)`` stream written as ``(msg)`` stays message-only.
+        stream = inspect.unwrap(stream, stop=_declares_own_parameters)
+        layers = _partial_chain(stream)
+        # Identity, not introspection: ``warnings.warn`` is a C builtin whose signature support varies across Python
+        # versions, and it always accepts ``stacklevel``.
+        if (layers[-1].func if layers else stream) is warn:
+            return True
+        signature = inspect.signature(stream, follow_wrapped=False)
     except Exception:
         # User-provided metadata descriptors can raise arbitrary exceptions. Only introspection is defensive:
         # call with the message alone rather than guess, and let any callback error propagate without retry.
         return False
-    return any(
-        param.kind is inspect.Parameter.VAR_KEYWORD
-        or (param.name == "stacklevel" and param.kind in _KEYWORD_BINDABLE_KINDS)
-        for param in parameters
-    )
+    return _binds_message_and_stacklevel(signature)
 
 
-_cached_stream_accepts_stacklevel = lru_cache(maxsize=_STREAM_DECISION_CACHE_SIZE)(_inspect_stream_accepts_stacklevel)
+def _declares_own_parameters(layer: Callable[..., Any]) -> bool:
+    """Stop :func:`inspect.unwrap` at ``layer`` unless its own signature is just ``(*args, **kwargs)``.
+
+    ``follow_wrapped=False`` keeps the lookup on the layer itself rather than on the callable it copied metadata from.
+
+    """
+    kinds = [param.kind for param in inspect.signature(layer, follow_wrapped=False).parameters.values()]
+    return kinds != [inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD]
+
+
+def _binds_message_and_stacklevel(signature: inspect.Signature) -> bool:
+    """Tell whether ``signature`` accepts the exact call ``_emit`` makes: one positional message plus ``stacklevel=``.
+
+    Binding mirrors the real call, so the positional message occupies the first slot before ``stacklevel`` is
+    considered: ``def sink(stacklevel)`` is rejected (``stacklevel`` is already taken by the message), while
+    ``def sink(*args, stacklevel=None)`` and ``def sink(msg, **kwargs)`` are accepted.
+
+    """
+    try:
+        signature.bind("", stacklevel=0)
+    except TypeError:
+        return False
+    return True
+
+
+def _decision_evictor(key: int) -> Callable[["weakref.ReferenceType[Any]"], None]:
+    """Build the weak-reference callback that drops the memo entry of ``key`` once its stream is garbage-collected."""
+    # Bound now rather than looked up on ``_STREAM_DECISIONS`` later: the callback can run during interpreter shutdown,
+    # when module globals may already be cleared.
+    pop = _STREAM_DECISIONS.pop
+
+    def evict(_ref: "weakref.ReferenceType[Any]") -> None:
+        pop(key, None)
+
+    return evict
 
 
 def _stream_accepts_stacklevel(stream: Callable[..., Any]) -> bool:
@@ -221,14 +253,27 @@ def _stream_accepts_stacklevel(stream: Callable[..., Any]) -> bool:
 
     Decision rules, in order:
 
-    1. ``warnings.warn`` itself, or a (nested) :func:`functools.partial` of it, accepts ``stacklevel``.
-    2. Otherwise, when :func:`inspect.signature` describes ``stream``, it accepts ``stacklevel`` if a ``stacklevel``
-       parameter can be bound by keyword (not positional-only, not ``*stacklevel``) or it declares ``**kwargs``.
-    3. When :func:`inspect.signature` raises an :class:`Exception` (missing or failing signature metadata), the
-       answer is ``False``: the stream is called with the message alone, which costs caller attribution for a
-       stream that would have accepted ``stacklevel``. Exceptions from calling the stream still propagate.
+    1. A stream whose own signature is a bare ``(*args, **kwargs)`` and that carries ``__wrapped__`` (the shape a
+       :func:`functools.wraps` pass-through decorator produces) is replaced by the callable it wraps, layer by layer,
+       until a layer declares parameters of its own; the rules below then apply to that callable. A narrow stream that
+       merely copied ``logging.warning``'s metadata with ``functools.wraps`` declares its own parameters, so it is
+       judged as written.
+    2. ``warnings.warn`` itself, or a (nested) :func:`functools.partial` of it, accepts ``stacklevel``.
+    3. Otherwise, when :func:`inspect.signature` describes ``stream``, it accepts ``stacklevel`` if that signature
+       binds the call ``stream(msg, stacklevel=...)``: the positional message fills the first slot, then ``stacklevel``
+       must bind by keyword (a keyword-capable ``stacklevel`` parameter other than the one the message lands in, or
+       ``**kwargs``). ``def sink(stacklevel)`` therefore receives the message alone. A stream that declares
+       ``**kwargs`` is thereby promised ``stacklevel=`` and must accept or drop it, not hand it to a callable that
+       rejects it.
+    4. When :func:`inspect.signature` (or the ``__wrapped__`` lookup) raises an :class:`Exception` (missing or
+       failing signature metadata), the answer is ``False``: the stream is called with the message alone, which costs
+       caller attribution for a stream that would have accepted ``stacklevel``. Exceptions from calling the stream
+       still propagate.
 
-    The answer is memoised per stream object; an unhashable stream is inspected afresh on every call.
+    The answer is memoised per live stream object, by identity and through a weak reference: ``==``-equal streams with
+    different signatures each keep their own answer (an unhashable stream included), and the memo never keeps a stream
+    alive. A stream that cannot be weakly referenced, such as an instance of a ``__slots__`` class without
+    ``__weakref__``, is inspected afresh on every call.
 
     Args:
         stream: The ``stream=`` callable configured on a deprecation wrapper.
@@ -243,13 +288,27 @@ def _stream_accepts_stacklevel(stream: Callable[..., Any]) -> bool:
         >>> def message_only(msg): pass
         >>> _stream_accepts_stacklevel(message_only)
         False
+        >>> import functools
+        >>> @functools.wraps(message_only)
+        ... def pass_through(*args, **kwargs): return message_only(*args, **kwargs)
+        >>> _stream_accepts_stacklevel(pass_through)
+        False
 
     """
+    key = id(stream)
+    entry = _STREAM_DECISIONS.get(key)
+    if entry is not None and entry[0]() is stream:
+        return entry[1]
+    decision = _inspect_stream_accepts_stacklevel(stream)
     try:
-        hash(stream)
+        ref = weakref.ref(stream, _decision_evictor(key))
     except TypeError:
-        return _inspect_stream_accepts_stacklevel(stream)
-    return _cached_stream_accepts_stacklevel(stream)
+        # No weak reference possible, so nothing safe to anchor a memo entry to: decide afresh on the next emission.
+        return decision
+    # Plain dict reads and writes are atomic under the GIL. Two threads racing past the lookup both compute the same
+    # deterministic decision and the last write wins, so no lock is needed.
+    _STREAM_DECISIONS[key] = (ref, decision)
+    return decision
 
 
 def _emit(stream: Callable[..., Any], msg: str) -> None:
@@ -263,6 +322,11 @@ def _emit(stream: Callable[..., Any], msg: str) -> None:
     frame, so it lands on the first frame outside the ``deprecate`` package for :func:`warnings.warn` or a C-level
     :func:`functools.partial` of it.  A pure-Python stream that forwards ``stacklevel`` to ``warnings.warn`` adds
     its own frame and lands one frame short.
+
+    Contract for a stream declaring ``**kwargs`` (``def sink(msg, **kwargs)``): it receives ``stacklevel=`` and must
+    forward it to a callable that accepts it (``warnings.warn``, ``logging.warning``) or drop it. Forwarding all
+    keywords to a callable that rejects ``stacklevel`` (``print(msg, **kwargs)``) raises :class:`TypeError`; declare
+    the stream as ``def sink(msg)`` instead and it is called with the message alone.
 
     Args:
         stream: The ``stream=`` callable configured on a deprecation wrapper.

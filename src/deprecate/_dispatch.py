@@ -94,7 +94,8 @@ def _reject_functools_wrapper_source(source: Any) -> None:  # noqa: ANN401
     Runs first in both decoration-time guards (:func:`_reject_bare_decorator` for ``deprecated_callable``, and
     :func:`_reject_non_callable_source` for the ``@deprecated`` front door), so every entry point gives the same
     advice instead of "use ``deprecated_instance``", "must be called with parentheses", or a late
-    ``AttributeError``. The message names the wrapper type and the workaround: wrap it in a plain ``def``.
+    ``AttributeError``. The message names the wrapper type and the workaround: wrap it in a plain ``def``. Its
+    subject is "pyDeprecate", not ``@deprecated``, because the ``deprecated_callable`` guard raises it too.
 
     Args:
         source: The object ``packing`` received as its decoration target.
@@ -106,7 +107,7 @@ def _reject_functools_wrapper_source(source: Any) -> None:  # noqa: ANN401
     if isinstance(source, _FUNCTOOLS_WRAPPER_SOURCE_TYPES):
         kind = f"{type(source).__module__}.{type(source).__qualname__}"
         raise TypeError(
-            f"`@deprecated` cannot decorate a `{kind}` object: it has no function body of its own to wrap."
+            f"pyDeprecate cannot deprecate a `{kind}` object: it has no function body of its own to wrap."
             " Wrap it in a plain `def` that calls it, and decorate that `def` instead"
             " (in a class body: `def method(self, *args, **kwargs): return ...`)."
         )

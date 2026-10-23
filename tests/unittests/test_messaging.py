@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import functools
+import gc
 import inspect
 import logging
 import warnings
+import weakref
 from collections.abc import Callable
 from typing import Any
 from unittest.mock import MagicMock, Mock
@@ -15,6 +17,7 @@ import pytest
 from deprecate import TargetMode, assert_no_warnings, deprecated
 from deprecate._types import DeprecationConfig
 from deprecate.messaging import (
+    _STREAM_DECISIONS,
     _callable_display_name,
     _emit,
     _raise_warn,
@@ -26,15 +29,21 @@ from deprecate.messaging import (
     _validate_message_template,
 )
 from deprecate.utils import _partial_chain
+from tests.collection_deprecate import make_sum_deprecation_with_stream
 from tests.collection_targets import (
     CallableAdder,
+    EqualMessageOnlyStream,
+    EqualStacklevelStream,
     FlakyTypeErrorStream,
     KeywordTypeErrorStream,
+    MessageNamedStacklevelRecordingStream,
     MessageOnlyRecordingStream,
     NewCls,
     NonStringNameCallable,
+    PassThroughMessageOnlyStream,
     RecordingStream,
     RuntimeSignatureStream,
+    SlottedStream,
     UnhashableStream,
     UnintrospectableStream,
     base_sum_kwargs,
@@ -42,11 +51,19 @@ from tests.collection_targets import (
     moduleless_function,
     nested_partial_target,
     partial_target,
+    stream_cycle_a,
     stream_keyword_only_stacklevel,
+    stream_message_named_stacklevel,
     stream_message_only,
+    stream_passthrough_message_only,
+    stream_passthrough_of_narrow_wraps,
+    stream_passthrough_of_passthrough,
+    stream_passthrough_warn,
+    stream_passthrough_with_stacklevel,
     stream_positional_only_message,
     stream_positional_only_stacklevel,
     stream_var_keyword,
+    stream_var_positional_keyword_only_stacklevel,
     stream_var_positional_named_stacklevel,
     stream_with_stacklevel,
     stream_wraps_logging_warning,
@@ -367,6 +384,25 @@ class TestRaiseWarnStacklevel:
         assert len(calls) == 1
         assert "stacklevel" in calls[0][1]
 
+    def test_passthrough_stream_delivers_through_decorator(self) -> None:
+        """A ``functools.wraps``-style pass-through around a message-only sink works as ``@deprecated(stream=...)``.
+
+        A team wraps its message-only logging sink in a bare ``(*args, **kwargs)`` adapter and plugs the adapter in as
+        ``stream=``. Calling the deprecated function must deliver the message once and still forward the call; it
+        must not fail on every call with "unexpected keyword argument 'stacklevel'" because the adapter's
+        ``**kwargs`` looked as if it accepted the keyword.
+        """
+        stream = PassThroughMessageOnlyStream()
+        deprecated_sum = make_sum_deprecation_with_stream(stream)
+        result = deprecated_sum(1, 2)
+        assert (result, stream.calls) == (
+            3,
+            [
+                "The `original_sum` was deprecated since v1.0 in favor of `tests.collection_targets.base_sum_kwargs`."
+                " It will be removed in v2.0."
+            ],
+        )
+
     def test_keyword_typeerror_from_stream_propagates_after_one_call(self) -> None:
         """A stream's own ``TypeError`` mentioning "keyword" propagates after a single invocation.
 
@@ -403,6 +439,16 @@ class TestStreamAcceptsStacklevel:
             pytest.param(stream_keyword_only_stacklevel, True, id="keyword-only-stacklevel"),
             pytest.param(stream_var_keyword, True, id="var-keyword"),
             pytest.param(stream_var_positional_named_stacklevel, False, id="var-positional-named-stacklevel"),
+            pytest.param(stream_message_named_stacklevel, False, id="message-bound-stacklevel-name"),
+            pytest.param(
+                stream_var_positional_keyword_only_stacklevel, True, id="var-positional-keyword-only-stacklevel"
+            ),
+            pytest.param(stream_passthrough_message_only, False, id="passthrough-of-message-only"),
+            pytest.param(stream_passthrough_with_stacklevel, True, id="passthrough-of-stacklevel-stream"),
+            pytest.param(stream_passthrough_of_passthrough, False, id="passthrough-of-passthrough"),
+            pytest.param(stream_passthrough_of_narrow_wraps, False, id="passthrough-of-narrow-wraps-logging"),
+            pytest.param(stream_passthrough_warn, True, id="passthrough-of-warn"),
+            pytest.param(stream_cycle_a, False, id="wrapped-cycle"),
             pytest.param(functools.partial(stream_with_stacklevel), True, id="partial-of-python-stream"),
             pytest.param(functools.partial(stream_message_only), False, id="partial-of-message-only"),
             pytest.param(Mock(), True, id="mock"),
@@ -410,14 +456,18 @@ class TestStreamAcceptsStacklevel:
         ],
     )
     def test_decision_table(self, stream: Callable[..., Any], expected: bool) -> None:
-        """Each supported stream shape is classified by whether it can take ``stacklevel`` as a keyword.
+        """Each supported stream shape is classified by whether it binds ``stream(msg, stacklevel=...)``.
 
         Users pass ``warnings.warn``, partials of it, ``logging.warning``, ``print``, mocks and hand-written
-        callables as ``stream=``. Only a stream with a keyword-capable ``stacklevel`` parameter or ``**kwargs``
-        may receive ``stacklevel=``; ``warnings.warn`` and its partials are recognised by identity so the answer
-        does not hinge on builtin signature support, and an unintrospectable stream is never sent the keyword.
+        callables as ``stream=``. Only a stream whose signature binds the positional message *and* a ``stacklevel``
+        keyword may receive ``stacklevel=`` — a lone ``def sink(stacklevel)`` fails the second half, because the
+        message already filled that parameter; ``warnings.warn`` and its partials are recognised by identity so the
+        answer does not hinge on builtin signature support, and an unintrospectable stream is never sent the keyword.
         A stream decorated with ``functools.wraps`` is judged by its own parameters, not by the ``__wrapped__``
-        callable whose metadata it copied, because the stream itself is what gets called.
+        callable whose metadata it copied, because the stream itself is what gets called — unless those parameters
+        are just ``(*args, **kwargs)``: such a pass-through says nothing about what it forwards, so the wrapped
+        callable decides (layer by layer, stopping at the first layer that declares parameters of its own). A
+        ``__wrapped__`` loop cannot be resolved, so it is treated like unreadable metadata.
         """
         assert _stream_accepts_stacklevel(stream) is expected
 
@@ -434,15 +484,65 @@ class TestStreamAcceptsStacklevel:
         assert decisions == (True, True)
         assert spy.call_count == 1
 
-    def test_unhashable_stream_inspected_uncached(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """An unhashable stream is classified on every call instead of crashing the memo cache.
+    def test_unhashable_stream_memoised_by_identity(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """An unhashable stream is inspected once, because the memo is keyed by identity and never hashes it.
 
-        A user-written callable class that defines ``__eq__`` without ``__hash__`` cannot be a cache key. The
-        decision must still be made correctly, falling back to a fresh inspection each time.
+        A user-written callable class that defines ``__eq__`` without ``__hash__`` cannot be a hash-table key. The
+        decision must still be correct and, like any other stream's, made only on the first emission.
         """
         spy = MagicMock(wraps=inspect.signature)
         monkeypatch.setattr(inspect, "signature", spy)
         stream = UnhashableStream()
+        decisions = (_stream_accepts_stacklevel(stream), _stream_accepts_stacklevel(stream))
+        assert decisions == (True, True)
+        assert spy.call_count == 1
+
+    def test_equal_streams_with_different_signatures_decided_separately(self) -> None:
+        """Two streams that compare and hash equal still each get the decision their own signature earns.
+
+        A value-object style callable class makes every instance ``==`` to the others; a hand-written message-only
+        sink and a ``stacklevel``-capable sink built from such classes must not share the first decision made, or the
+        second would be called with a keyword it rejects and the deprecation message would never be delivered.
+        """
+        message_only, with_stacklevel = EqualMessageOnlyStream(), EqualStacklevelStream()
+        assert message_only == with_stacklevel
+        assert hash(message_only) == hash(with_stacklevel)
+        decisions = (_stream_accepts_stacklevel(message_only), _stream_accepts_stacklevel(with_stacklevel))
+        assert decisions == (False, True)
+
+    def test_memo_does_not_keep_stream_alive(self) -> None:
+        """Dropping the last outside reference to a stream frees it and its memo entry.
+
+        A long-lived process that builds streams dynamically — one handler per request, say — must not accumulate
+        them through the decision memo; the entry goes away with the stream it describes.
+        """
+        stream = RecordingStream()
+        _stream_accepts_stacklevel(stream)
+        key, ref = id(stream), weakref.ref(stream)
+        del stream
+        gc.collect()
+        assert (ref(), key in _STREAM_DECISIONS) == (None, False)
+
+    def test_recycled_id_does_not_borrow_another_streams_decision(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A memo entry whose weak reference resolves to a different object is ignored and replaced.
+
+        After a stream is garbage-collected its id can be handed to a new object. Simulate the stale entry such a
+        collision would leave behind: the new stream must be classified from its own signature, not from the entry
+        recorded for the object that used to live at that address.
+        """
+        stream, impostor = RecordingStream(), MessageOnlyRecordingStream()
+        monkeypatch.setitem(_STREAM_DECISIONS, id(stream), (weakref.ref(impostor), False))
+        assert _stream_accepts_stacklevel(stream) is True
+
+    def test_stream_without_weakref_support_inspected_every_time(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A stream that cannot be weakly referenced is classified correctly, just without memoisation.
+
+        An instance of a ``__slots__`` class has no ``__weakref__`` slot, so no weak reference can anchor a memo
+        entry to it. It must be re-inspected on each emission rather than rejected or pinned strongly.
+        """
+        spy = MagicMock(wraps=inspect.signature)
+        monkeypatch.setattr(inspect, "signature", spy)
+        stream = SlottedStream()
         decisions = (_stream_accepts_stacklevel(stream), _stream_accepts_stacklevel(stream))
         assert decisions == (True, True)
         assert spy.call_count == 2
@@ -466,18 +566,39 @@ class TestEmit:
         ("stream_cls", "expected_call"),
         [
             pytest.param(MessageOnlyRecordingStream, "old is deprecated", id="message-only"),
+            pytest.param(
+                MessageNamedStacklevelRecordingStream, "old is deprecated", id="message-bound-stacklevel-name"
+            ),
+            pytest.param(PassThroughMessageOnlyStream, "old is deprecated", id="passthrough-of-message-only"),
             pytest.param(UnintrospectableStream, ("old is deprecated", {}), id="signature-raises"),
         ],
     )
     def test_message_only_when_stacklevel_not_accepted(self, stream_cls: type, expected_call: object) -> None:
         """A stream that cannot (or cannot be shown to) take ``stacklevel`` receives just the message, once.
 
-        A minimal sink without a ``stacklevel`` parameter, or a callable whose signature cannot be read, must be
-        called a single time with the message alone — never first with ``stacklevel=`` and then again.
+        A minimal sink without a ``stacklevel`` parameter, a sink whose only parameter is *named* ``stacklevel`` (the
+        message lands in it, so passing the keyword too would raise "multiple values"), or a callable whose
+        signature cannot be read, must be called a single time with the message alone — never first with
+        ``stacklevel=`` and then again.
         """
         stream = stream_cls()
         _emit(stream, "old is deprecated")
         assert stream.calls == [expected_call]
+
+    def test_equal_streams_each_receive_the_call_they_accept(self) -> None:
+        """Equal-by-value streams with different signatures are each delivered to in the form they accept.
+
+        Two sinks of the same value-object style class compare equal, yet one takes only the message and the other
+        also takes ``stacklevel``. Emitting to both must reach both exactly once, not raise "unexpected keyword
+        argument" because the first sink's classification was reused for the second.
+        """
+        message_only, with_stacklevel = EqualMessageOnlyStream(), EqualStacklevelStream()
+        _emit(message_only, "old is deprecated")
+        _emit(with_stacklevel, "old is deprecated")
+        assert (message_only.calls, with_stacklevel.calls) == (
+            ["old is deprecated"],
+            [("old is deprecated", {"stacklevel": 2})],
+        )
 
     def test_print_writes_message_once(self, capsys: pytest.CaptureFixture[str]) -> None:
         """``print`` as a stream prints the message a single time.

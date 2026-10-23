@@ -3520,3 +3520,30 @@ def make_switching_entry_proxy(source: object, target: object) -> Any:  # noqa: 
         skip_if=lambda: flag["skip"],
         **_DEPRS_CASE_STD_ARGS,
     )
+
+
+def make_skip_gated_target_proxy(source: object, target: object, skip_if: Callable[[], bool]) -> Any:  # noqa: ANN401
+    """Wrap *source* as ``legacy_box`` forwarding to *target* while *skip_if* is false, with the default budget."""
+    return _DeprecatedProxy(obj=source, target=target, name="legacy_box", skip_if=skip_if, **_DEPRS_CASE_STD_ARGS)
+
+
+def make_deprecated_partial_host() -> type[Any]:
+    """Build a fresh host class whose ``double`` attribute is a ``deprecated_instance`` of ``partial(double_value)``.
+
+    A ``functools.partial`` is callable and, from Python 3.13, defines ``__get__`` (it warns on 3.13 and binds on 3.14).
+    The proxy must serve it unbound on every version, so ``host.double(3)`` calls ``double_value(3)``.
+    """
+
+    class PartialHost:
+        """Host class carrying a deprecated ``functools.partial`` as a class attribute."""
+
+        double = deprecated_instance(partial(double_value), name="double", **_DEPRS_CASE_STD_ARGS)
+
+    return PartialHost
+
+
+def make_sum_deprecation_with_stream(stream: Callable[..., Any]) -> Callable[..., int]:
+    """Deprecate ``original_sum`` in favour of ``base_sum_kwargs``, delivering every warning through ``stream``."""
+    return deprecated(target=base_sum_kwargs, deprecated_in="1.0", remove_in="2.0", num_warns=-1, stream=stream)(
+        original_sum
+    )

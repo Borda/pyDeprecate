@@ -73,7 +73,6 @@ def _packing_descriptor(  # noqa: C901 — property-path guards (fget/fset/fdel 
     target: Union[bool, None, Callable, TargetMode, staticmethod, classmethod],
     args_mapping: Optional[dict[str, Optional[str]]],
     args_extra: Optional[dict[str, Any]],
-    _stacklevel: int,
 ) -> Optional[Callable]:
     """Wrap descriptor sources (classmethod/staticmethod/property/cached_property).
 
@@ -91,8 +90,6 @@ def _packing_descriptor(  # noqa: C901 — property-path guards (fget/fset/fdel 
             validation guards only.
         args_mapping: Raw ``args_mapping`` argument; used for ``property`` validation only.
         args_extra: Raw ``args_extra`` argument; used for ``property`` validation only.
-        _stacklevel: Threaded through to recursive *packing_fn* calls; no warn site reads it any more, each one
-            measures its own location.
 
     Returns:
         Wrapped descriptor when *source* is a descriptor, or ``None`` when *source* is a
@@ -112,7 +109,7 @@ def _packing_descriptor(  # noqa: C901 — property-path guards (fget/fset/fdel 
         # the wrong type") does not apply — thread ``_is_static`` through so ``packing`` skips the guard
         # for the unwrapped function, whose qualname alone cannot reveal it was a staticmethod.
         _is_static = isinstance(source, staticmethod)
-        wrapped_inner = packing_fn(source.__func__, _stacklevel + 2, _is_static=_is_static)
+        wrapped_inner = packing_fn(source.__func__, _is_static=_is_static)
         return classmethod(wrapped_inner) if isinstance(source, classmethod) else staticmethod(wrapped_inner)  # type: ignore[return-value]
 
     if isinstance(source, property):
@@ -164,30 +161,24 @@ def _packing_descriptor(  # noqa: C901 — property-path guards (fget/fset/fdel 
         # Otherwise pass None so property() inherits the deprecation-injected fget.__doc__.
         explicit_doc = source.__doc__ if (source.fget is None or source.__doc__ != source.fget.__doc__) else None
 
-        # Closure captured on the returned ``_DeprecatedProperty`` so chain-style
+        # ``packing_fn`` is captured on the returned ``_DeprecatedProperty`` so chain-style
         # ``@value.setter`` / ``@value.deleter`` can re-wrap freshly-supplied accessors
         # with the same packing config (message_template, stream, deprecated_in, remove_in,
-        # num_warns, skip_if, stacklevel). args_mapping / args_extra / callable target are
+        # num_warns, skip_if). args_mapping / args_extra / callable target are
         # blocked above by TypeError guards and are never reachable here.
         # Without this, ``property.setter(fn)`` would build a plain ``property`` whose new
         # accessor is raw — silently dropping the deprecation warning on attribute writes.
-        _accessor_sl = _stacklevel + 2
-
-        def _wrap_accessor(fn: Callable) -> Callable:
-            """Apply packing_fn to a property accessor with the adjusted stacklevel."""
-            return packing_fn(fn, _accessor_sl)
-
         return _DeprecatedProperty(  # type: ignore[return-value]
-            packing_fn(source.fget, _stacklevel + 2) if source.fget is not None else None,
-            packing_fn(source.fset, _stacklevel + 2) if source.fset is not None else None,
-            packing_fn(source.fdel, _stacklevel + 2) if source.fdel is not None else None,
+            packing_fn(source.fget) if source.fget is not None else None,
+            packing_fn(source.fset) if source.fset is not None else None,
+            packing_fn(source.fdel) if source.fdel is not None else None,
             explicit_doc,
-            _wrap=_wrap_accessor,
+            _wrap=packing_fn,
         )
 
     if isinstance(source, cached_property):
         # Order-agnostic @cached_property: unwrap → deprecate func → rewrap.
-        return cached_property(packing_fn(source.func, _stacklevel + 2))  # type: ignore[return-value]
+        return cached_property(packing_fn(source.func))  # type: ignore[return-value]
 
     return None
 
@@ -377,7 +368,6 @@ def deprecated_callable(  # noqa: C901
 
     def packing(  # noqa: C901
         source: Union[Callable, classmethod, staticmethod, property, cached_property],
-        _stacklevel: int = 2,
         _is_static: bool = False,
     ) -> Callable:
         _reject_bare_decorator(source)
@@ -389,7 +379,7 @@ def deprecated_callable(  # noqa: C901
                 " callable-only form. Use `@deprecated_class(...)` to deprecate a class, or `@deprecated`"
                 " for automatic class/callable dispatch."
             )
-        _descriptor_result = _packing_descriptor(source, packing, target, args_mapping, args_extra, _stacklevel)
+        _descriptor_result = _packing_descriptor(source, packing, target, args_mapping, args_extra)
         if _descriptor_result is not None:
             return _descriptor_result
         # mypy narrowing: _packing_descriptor handles all descriptor types via early return;
@@ -647,6 +637,6 @@ def deprecated_callable(  # noqa: C901
 
         return wrapped_fn
 
-    # ``packing`` also takes private ``_stacklevel``/``_is_static`` arguments the front door passes; the public
+    # ``packing`` also takes a private ``_is_static`` argument the front door passes; the public
     # contract is the identity signature above.
     return cast(Callable[[_SourceT], _SourceT], packing)

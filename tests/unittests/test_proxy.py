@@ -3,6 +3,7 @@
 import abc
 import asyncio
 import copy
+import gc
 import inspect
 import math
 import os
@@ -68,9 +69,11 @@ from tests.collection_deprecate import (
     make_deprecated_instance_over_marked_object,
     make_deprecated_instance_skip_if_true_read_only,
     make_deprecated_method_host,
+    make_deprecated_partial_host,
     make_flaky_attr_alias,
     make_read_only_inplace_proxy,
     make_read_only_settings_proxy,
+    make_skip_gated_target_proxy,
     make_switching_entry_proxy,
     make_warn_after_success_proxy,
     pep702_proxy_stacked,
@@ -83,6 +86,7 @@ from tests.collection_targets import (
     ColorEnum,
     CombinedAttrsArgsSource,
     CombinedAttrsArgsTarget,
+    CountingSkipCondition,
     DecliningInplaceOperand,
     DeferredFailureAwaitable,
     FlakyProtocolBox,
@@ -105,6 +109,8 @@ from tests.collection_targets import (
     WithInjected,
     _Pep702ProxyTarget,
     base_sum_kwargs,
+    legacy_snapshot,
+    legacy_tick_stream,
     make_flaky_attr_host,
 )
 
@@ -3610,6 +3616,7 @@ class TestProxyDescriptorBinding:
             pytest.param(make_deprecated_method_host, "scale", True, id="function"),
             pytest.param(make_deprecated_data_host, "defaults", False, id="dict"),
             pytest.param(make_deprecated_data_host, "Palette", False, id="class-alias"),
+            pytest.param(make_deprecated_partial_host, "double", False, id="partial"),
         ],
     )
     def test_only_bindable_proxies_report_as_routines(
@@ -3776,6 +3783,35 @@ class TestProxyDescriptorBinding:
         assert from_instance is stored
         assert from_class is stored
 
+    def test_partial_attribute_served_unbound_without_warning(self) -> None:
+        """Instance access to a proxy over ``functools.partial`` returns the stored proxy and emits nothing.
+
+        Python 3.13 gives ``functools.partial`` a ``__get__`` that warns ``functools.partial will be a method
+        descriptor``, and 3.14 makes it bind. A deprecated partial held on a class must behave the same on every
+        version — served as stored, silently — so the access runs under an all-errors filter.
+        """
+        host_cls = make_deprecated_partial_host()
+        host = host_cls()
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            from_instance = host.double
+
+        assert from_instance is host_cls.__dict__["double"]
+
+    def test_partial_call_through_instance_passes_no_instance(self) -> None:
+        """Calling a deprecated partial through an instance calls the partial with the caller's arguments only.
+
+        ``host.double(3)`` must reach ``double_value(3)``; binding would prepend the instance and fail with
+        ``TypeError``. The call is the use of the deprecated object, so it warns once.
+        """
+        host = make_deprecated_partial_host()()
+
+        with pytest.warns(FutureWarning, match="double") as record:
+            result = host.double(3)
+
+        assert (result, len(record)) == (6, 1)
+
 
 def _future_warning_count(caught: list[warnings.WarningMessage]) -> int:
     """Count the deprecation ``FutureWarning`` records captured by ``catch_warnings(record=True)``."""
@@ -3860,22 +3896,26 @@ _PURE_PROXY_OPS = [
 ]
 #: Operations with side effects on the wrapped object: fatal gate first, then run, then warn.
 _SIDE_EFFECTING_PROXY_OPS = [
-    pytest.param("__next__", _drive_next, id="next"),
     pytest.param("__enter__", _drive_enter, id="enter"),
     pytest.param("__iadd__", _drive_iadd, id="inplace-add"),
     pytest.param("__aenter__", _drive_aenter, id="aenter"),
     pytest.param("__anext__", _drive_anext, id="anext"),
     pytest.param("__await__", _drive_await, id="await"),
 ]
+#: Operations that consume what they read: fatal gate first, then warn, then run.
+_WARN_FIRST_PROXY_OPS = [pytest.param("__next__", _drive_next, id="next")]
+#: Every operation that refuses a fatal deprecation before it touches the wrapped object.
+_GATED_PROXY_OPS = [*_PURE_PROXY_OPS, *_SIDE_EFFECTING_PROXY_OPS, *_WARN_FIRST_PROXY_OPS]
 
 
 class TestWarnAfterSuccess:
     """Proxy data-use operations warn only once the forwarded operation has succeeded.
 
     Duck-typing code probes a deprecated object inside ``try``/``except`` (``cfg[key]`` with a ``KeyError`` fallback,
-    ``next(it)`` until ``StopIteration``). A warning emitted before the operation would spend the default one-warning
-    budget on a probe that failed, leaving the real use silent. Every one of these operations still refuses a fatal
-    deprecation before it runs, so ``as_exception=True`` never reads, advances or mutates the wrapped object.
+    an operation the wrapped object does not support). A warning emitted before the operation would spend the default
+    one-warning budget on a probe that failed, leaving the real use silent. Every one of these operations still refuses
+    a fatal deprecation before it runs, so ``as_exception=True`` never reads, advances or mutates the wrapped object.
+    ``next`` is the exception that warns first, see :class:`TestNextWarnsBeforeAdvancing`.
     """
 
     @pytest.mark.parametrize(("operation", "drive"), [*_PURE_PROXY_OPS, *_SIDE_EFFECTING_PROXY_OPS])
@@ -3898,7 +3938,7 @@ class TestWarnAfterSuccess:
             drive(proxy)
         assert (_future_warning_count(failed), _future_warning_count(succeeded), box.calls[operation]) == (0, 1, 2)
 
-    @pytest.mark.parametrize(("operation", "drive"), [*_PURE_PROXY_OPS, *_SIDE_EFFECTING_PROXY_OPS])
+    @pytest.mark.parametrize(("operation", "drive"), _GATED_PROXY_OPS)
     def test_fatal_operation_never_runs(self, operation: str, drive: Callable[[Any], object]) -> None:
         """A fatal deprecation refuses the operation before the wrapped object is touched.
 
@@ -3912,7 +3952,7 @@ class TestWarnAfterSuccess:
             drive(proxy)
         assert box.calls[operation] == 0
 
-    @pytest.mark.parametrize(("operation", "drive"), [*_PURE_PROXY_OPS, *_SIDE_EFFECTING_PROXY_OPS])
+    @pytest.mark.parametrize(("operation", "drive"), _GATED_PROXY_OPS)
     def test_skip_if_bypasses_warning_and_gate(self, operation: str, drive: Callable[[Any], object]) -> None:
         """An inactive deprecation neither warns nor applies the fatal gate.
 
@@ -3925,24 +3965,6 @@ class TestWarnAfterSuccess:
             warnings.simplefilter("always")
             drive(proxy)
         assert (_future_warning_count(caught), box.calls[operation]) == (0, 1)
-
-    def test_stop_iteration_keeps_budget(self) -> None:
-        """An exhausted ``next(proxy)`` emits no warning; the next produced item warns once.
-
-        Iterator-draining code ends on ``StopIteration``. That end-of-data signal is not a use of the deprecated
-        object, so it must not spend the budget that the next real item should report.
-        """
-        box = FlakyProtocolBox(items=())
-        proxy = make_warn_after_success_proxy(box)
-        with warnings.catch_warnings(record=True) as exhausted:
-            warnings.simplefilter("always")
-            with pytest.raises(StopIteration):
-                next(proxy)
-        box.items.append(7)
-        with warnings.catch_warnings(record=True) as produced:
-            warnings.simplefilter("always")
-            item = next(proxy)
-        assert (_future_warning_count(exhausted), item, _future_warning_count(produced)) == (0, 7, 1)
 
     def test_missing_key_probe_keeps_budget(self) -> None:
         """A ``KeyError`` probe on a deprecated mapping emits no warning; the next successful lookup warns once.
@@ -4040,6 +4062,72 @@ class TestWarnAfterSuccess:
             with pytest.raises(RuntimeError, match="__call__ failed on purpose"):
                 proxy()
         assert _future_warning_count(caught) == 1
+
+
+class TestNextWarnsBeforeAdvancing:
+    """``next(proxy)`` delivers its warning before the wrapped iterator moves, so a failed delivery consumes no item."""
+
+    @pytest.mark.parametrize("raising_stream", [False, True])
+    def test_failed_delivery_does_not_advance(self, raising_stream: bool) -> None:
+        """A warning that cannot be delivered leaves the wrapped iterator where it was.
+
+        A test suite running with ``FutureWarning`` as an error, or an application whose logging sink raises, sees the
+        first ``next`` on a deprecated iterator fail. The item it would have returned must still be there for the
+        next read, so the wrapped ``__next__`` must not run before the warning is out.
+        """
+        box = FlakyProtocolBox(items=(10, 20, 30))
+        stream = KeywordTypeErrorStream()
+        proxy = make_warn_after_success_proxy(box, **({"stream": stream} if raising_stream else {}))
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", FutureWarning)
+            with pytest.raises(TypeError if raising_stream else FutureWarning):
+                next(proxy)
+        assert box.calls["__next__"] == 0
+
+    def test_failing_next_still_warns(self) -> None:
+        """A wrapped ``__next__`` that raises still reports the deprecation.
+
+        The warning is delivered before the iterator is touched, so the caller learns that the iterator is deprecated
+        even when advancing it fails.
+        """
+        proxy = make_warn_after_success_proxy(FlakyProtocolBox(fail=True))
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            with pytest.raises(RuntimeError, match="__next__ failed on purpose"):
+                next(proxy)
+        assert _future_warning_count(caught) == 1
+
+    def test_exhausting_next_spends_budget(self) -> None:
+        """An exhausting ``next(proxy)`` warns once; the item produced afterwards is silent.
+
+        Warning first means the call that ends iteration with ``StopIteration`` is reported like any other use. With the
+        default one-warning budget it is the only notice, matching how ``__anext__`` spends the budget before async
+        exhaustion.
+        """
+        box = FlakyProtocolBox(items=())
+        proxy = make_warn_after_success_proxy(box)
+        with warnings.catch_warnings(record=True) as exhausted:
+            warnings.simplefilter("always")
+            with pytest.raises(StopIteration):
+                next(proxy)
+        box.items.append(7)
+        with warnings.catch_warnings(record=True) as produced:
+            warnings.simplefilter("always")
+            item = next(proxy)
+        assert (_future_warning_count(exhausted), item, _future_warning_count(produced)) == (1, 7, 0)
+
+    def test_non_iterator_raises_without_warning(self) -> None:
+        """``next`` on a proxy over a non-iterator raises the builtin ``TypeError`` and emits nothing.
+
+        Duck-typing code calls ``next(obj)`` and falls back on ``TypeError`` when it holds an iterable instead of an
+        iterator. That unsupported protocol is not a use of the deprecated object, so it must not spend the budget.
+        """
+        proxy = make_warn_after_success_proxy([1, 2])
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            with pytest.raises(TypeError, match="is not an iterator"):
+                next(proxy)
+        assert _future_warning_count(caught) == 0
 
 
 # Statically `DeprecatedColorEnum` is still the class statement: mypy does not rebind a decorated
@@ -4432,3 +4520,171 @@ class TestDeferredAsyncWarningTiming:
             with pytest.raises(RuntimeError, match="^deferred await failed$"):
                 _drive_await(proxy)
         assert not later
+
+
+def _drive_getattr(proxy: Any) -> object:  # noqa: ANN401
+    """Read a plain attribute through the proxy."""
+    return proxy.items
+
+
+#: Proxy operations that each run exactly one forwarded hook, so ``skip_if`` must be consulted exactly once.
+_SINGLE_HOOK_PROXY_OPS = [
+    *_PURE_PROXY_OPS,
+    pytest.param("__next__", _drive_next, id="next"),
+    pytest.param("__iadd__", _drive_iadd, id="inplace-add"),
+    pytest.param("__anext__", _drive_anext, id="anext"),
+    pytest.param("__await__", _drive_await, id="await"),
+    pytest.param("items", _drive_getattr, id="getattr"),
+]
+
+
+class TestSingleSkipDecision:
+    """Each proxy operation evaluates ``skip_if`` once and serves and warns on that single answer."""
+
+    @pytest.mark.parametrize(("operation", "drive"), _SINGLE_HOOK_PROXY_OPS)
+    def test_skip_condition_consulted_once(self, operation: str, drive: Callable[[Any], object]) -> None:
+        """A forwarded operation calls the ``skip_if`` callable exactly once.
+
+        A migration flag read from settings or the environment is evaluated on every proxy access. Re-reading it for
+        the fatal check, the active object and the warning multiplies that cost per access and lets the three reads
+        disagree, so the operation must take one decision and reuse it.
+        """
+        condition = CountingSkipCondition()
+        proxy = make_warn_after_success_proxy(FlakyProtocolBox(), skip_if=condition)
+        with warnings.catch_warnings(record=True):
+            warnings.simplefilter("always")
+            drive(proxy)
+        assert condition.calls == 1
+
+    def test_flipping_condition_serves_and_warns_consistently(self) -> None:
+        """A ``skip_if`` that turns true after its first read still serves the target and warns for that access.
+
+        The flag flips while the operation runs, as when another thread finishes a migration. The access that read the
+        flag as live must forward to the replacement and report the deprecation together; serving the old object
+        silently would mix the two decisions.
+        """
+        condition = CountingSkipCondition(answers=(False, True))
+        proxy = make_skip_gated_target_proxy(["legacy"], ["replacement"], condition)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            value = proxy[0]
+        assert (value, _future_warning_count(caught)) == ("replacement", 1)
+
+
+def _acquire_anext(proxy: Any) -> object:  # noqa: ANN401
+    """Obtain the next awaitable from the proxy without awaiting it."""
+    return proxy.__anext__()
+
+
+def _acquire_await(proxy: Any) -> object:  # noqa: ANN401
+    """Obtain the proxy's await iterator without driving it."""
+    return proxy.__await__()
+
+
+async def _collect(stream: Any) -> list[Any]:  # noqa: ANN401
+    """Drain an async iterable into a list."""
+    return [item async for item in stream]
+
+
+class TestAsyncAcquisitionCleanup:
+    """A failed warning delivery after ``__anext__``/``__await__`` must not abandon what the acquisition created."""
+
+    @pytest.mark.parametrize(
+        "acquire", [pytest.param(_acquire_anext, id="anext"), pytest.param(_acquire_await, id="await")]
+    )
+    @pytest.mark.parametrize("raising_stream", [False, True])
+    def test_failed_delivery_leaves_no_unawaited_coroutine(
+        self, acquire: Callable[[Any], object], raising_stream: bool
+    ) -> None:
+        """Closing the acquired coroutine leaves no ``coroutine ... was never awaited`` warning behind.
+
+        ``async for`` and ``await`` over a deprecated object fail on their first step when ``FutureWarning`` is an
+        error or the logging sink raises. The coroutine the wrapped ``__anext__``/``__await__`` created never runs, so
+        it must be closed rather than left for the garbage collector to report as a second, misleading warning.
+        """
+        stream = KeywordTypeErrorStream()
+        proxy = make_warn_after_success_proxy(FlakyProtocolBox(), **({"stream": stream} if raising_stream else {}))
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            warnings.simplefilter("error", FutureWarning)
+            with pytest.raises(TypeError if raising_stream else FutureWarning):
+                acquire(proxy)
+            gc.collect()
+        assert [str(record.message) for record in caught if issubclass(record.category, RuntimeWarning)] == []
+
+    def test_failed_delivery_keeps_async_generator_open(self) -> None:
+        """A failed ``__anext__`` delivery over an async generator leaves every item for the next iteration.
+
+        The awaitable an async generator hands out is a view of the generator itself; on CPython 3.13+ closing it
+        finishes the generator, so a later ``async for`` would end silently with no items. The proxy must not close it.
+        """
+        source = legacy_tick_stream()
+        proxy = make_warn_after_success_proxy(source)
+        with warnings.catch_warnings(record=True):
+            warnings.simplefilter("always")
+            warnings.simplefilter("error", FutureWarning)
+            with pytest.raises(FutureWarning):
+                _acquire_anext(proxy)
+            gc.collect()
+        assert asyncio.run(_collect(source)) == [1, 2]
+
+    def test_failed_delivery_keeps_wrapped_coroutine_awaitable(self) -> None:
+        """A failed ``await`` delivery over a wrapped coroutine object leaves that coroutine usable.
+
+        When the deprecated object is itself a coroutine, its await iterator belongs to it; closing that iterator would
+        close the wrapped coroutine, and awaiting it again would raise ``cannot reuse already awaited coroutine``.
+        """
+        source = legacy_snapshot()
+        proxy = make_warn_after_success_proxy(source)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", FutureWarning)
+            with pytest.raises(FutureWarning):
+                _acquire_await(proxy)
+        assert asyncio.run(source) == [1, 2]
+
+
+class TestFailedDeliveryRestoresBudget:
+    """A warning the ``stream`` failed to deliver does not spend the proxy's warn budget."""
+
+    def test_raising_stream_retries_proxy_wide_slot(self) -> None:
+        """After a stream fails on the first access, the next access delivers the one allowed warning.
+
+        A logging sink that is not configured yet raises on its first call and works afterwards. With the default
+        ``num_warns=1`` the migration notice must still reach that sink once it works, not be lost to the failure.
+        """
+        stream = FlakyTypeErrorStream()
+        proxy = make_warn_after_success_proxy(FlakyProtocolBox(), stream=stream)
+        with pytest.raises(TypeError, match="unsupported operand"):
+            proxy[0]
+        proxy[0]
+        assert len(stream.calls) == 2
+
+    def test_raising_stream_retries_per_attribute_slot(self) -> None:
+        """A renamed attribute whose first warning failed warns again on its next read.
+
+        ``attrs_mapping`` keeps one budget per deprecated name; a failed delivery for ``legacy_total`` must give that
+        name's slot back so the rename is still announced once the sink works.
+        """
+        stream = FlakyTypeErrorStream()
+        alias = make_flaky_attr_alias(make_flaky_attr_host(), stream=stream)
+        with pytest.raises(TypeError, match="unsupported operand"):
+            _ = alias.legacy_total
+        _ = alias.legacy_total
+        assert len(stream.calls) == 2
+
+    def test_error_filter_failure_keeps_context_entry_warning(self) -> None:
+        """A context entry that failed under an error filter warns on the next successful entry.
+
+        A test run that treats ``FutureWarning`` as an error aborts the first ``with proxy`` (the acquired context is
+        unwound); once the filter is lifted, the next entry must still report the deprecation.
+        """
+        resource = RecordingEntryContext()
+        proxy = make_warn_after_success_proxy(resource)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", FutureWarning)
+            with pytest.raises(FutureWarning):
+                _drive_enter(proxy)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            _drive_enter(proxy)
+        assert _future_warning_count(caught) == 1

@@ -17,8 +17,10 @@ protocol for proxies. Every proxy carries ``__wrapped__`` (the source object) an
 (the source's signature) so ``inspect.unwrap``, ``inspect.signature``, Sphinx autodoc, and IDEs
 resolve through the proxy to the original — reading either attribute emits no deprecation warning.
 
-Context entry releases an acquired resource if warning delivery raises. Async next and await warnings
-fire when the underlying awaitable or iterator is obtained, before deferred execution.
+Context entry releases an acquired resource if warning delivery raises. ``next`` warns before it advances the
+iterator, so a failing delivery loses no item. Async next and await warnings fire when the underlying awaitable or
+iterator is obtained, before deferred execution; if that delivery raises, a coroutine the acquisition created is
+closed unstarted instead of being left unawaited.
 
 Example:
     >>> import warnings
@@ -111,6 +113,91 @@ def _consume_proxy_warn_budget(cfg: _ProxyConfig, arg_name: Optional[str]) -> bo
         return False
 
 
+def _release_proxy_warn_budget(cfg: _ProxyConfig, arg_name: Optional[str]) -> None:
+    """Give back a slot claimed by :func:`_consume_proxy_warn_budget` whose warning was never delivered.
+
+    When the ``stream`` raises (a ``FutureWarning`` filter set to ``"error"``, a failing logging sink) the caller did
+    not receive the notice, so the slot returns to the budget and the next use warns again. An unlimited budget
+    (``num_warns < 0``) has no slot to return, so nothing changes.
+
+    Args:
+        cfg: The proxy's mutable runtime config holding the counters and the lock.
+        arg_name: The key the slot was claimed under, as for :func:`_consume_proxy_warn_budget`.
+
+    Examples:
+        >>> from deprecate._types import _ProxyConfig
+        >>> cfg = _ProxyConfig(obj=object(), stream=None, num_warns=1, read_only=False)
+        >>> _consume_proxy_warn_budget(cfg, None)
+        True
+        >>> _release_proxy_warn_budget(cfg, None)
+        >>> _consume_proxy_warn_budget(cfg, None)
+        True
+
+    """
+    if cfg.num_warns < 0:
+        return
+    with cfg.lock:
+        if arg_name is not None:
+            cfg.warned_args[arg_name] -= 1
+        else:
+            cfg.warned -= 1
+
+
+async def _sample_coroutine() -> None:
+    """Do nothing; one instance is created and closed at import to look up the coroutine await-iterator type."""
+
+
+def _coroutine_wrapper_type() -> type:
+    """Return the type of ``coroutine.__await__()`` (CPython's ``coroutine_wrapper``), which :mod:`types` does not name.
+
+    The sample coroutine is closed before it starts, so creating it runs no code and leaves no unawaited coroutine.
+
+    """
+    sample = _sample_coroutine()
+    try:
+        return type(sample.__await__())
+    finally:
+        sample.close()
+
+
+#: Type of the iterator returned by ``coroutine.__await__()``.
+_COROUTINE_WRAPPER_TYPE = _coroutine_wrapper_type()
+
+
+def _exit_acquired(context: Any, *exc_info: Any) -> None:  # noqa: ANN401
+    """Unwind a context the proxy entered, handing its ``__exit__`` the error that aborted the entry.
+
+    Whatever ``__exit__`` returns is ignored: the caller re-raises that error, so a suppressing context cannot hide it.
+
+    """
+    context.__exit__(*exc_info)
+
+
+def _close_abandoned(acquired: Any, owner: Any, *exc_info: Any) -> None:  # noqa: ANN401
+    """Close a coroutine that an acquiring call created, so it is not left behind unawaited.
+
+    When warning delivery fails after ``__anext__`` or ``__await__`` returned, the caller never awaits what it got, and
+    the garbage collector would report ``coroutine ... was never awaited`` on top of the real error. An unstarted
+    coroutine closes without running its body, so closing is safe for what the call created fresh: a coroutine (an
+    ``async def __anext__``) or the await iterator of one (``__await__`` returning ``helper().__await__()``).
+
+    Everything else is left untouched, because it can be a view of the wrapped object itself: an async generator's
+    ``asend`` awaitable (on CPython 3.13 and later closing it finishes the generator, so later iteration would end
+    with no items) and the await iterator of a wrapped coroutine object (closing it closes that coroutine). On CPython
+    3.13 and later an abandoned ``asend`` still reports that it was never awaited; keeping the stream usable wins.
+    Other awaitables (futures, plain generators) need no cleanup.
+
+    Args:
+        acquired: The awaitable or await iterator the wrapped object returned.
+        owner: The object it was acquired from.
+        exc_info: The delivery error's ``sys.exc_info()``, accepted for the release-callback signature and unused.
+
+    """
+    kind = type(acquired)
+    if kind is types.CoroutineType or (kind is _COROUTINE_WRAPPER_TYPE and type(owner) is not types.CoroutineType):
+        acquired.close()
+
+
 class _DeprecatedProxy:
     """Transparent proxy that emits deprecation warnings on attribute and item access.
 
@@ -169,6 +256,18 @@ class _DeprecatedProxy:
         ``__str__``. In-place operators return the active object's own result, so a proxied value assigned via ``+=``
         rebinds to that result rather than a re-wrapped proxy.
 
+        **Warn timing**: most data-use operations warn once the forwarded operation has succeeded, so a failed probe (a
+        ``KeyError`` subscript, a raising getter, an operand the hook declines) keeps the budget for the real use.
+        Calling the proxy and ``next`` warn first: a call mirrors ``@deprecated``, and ``next`` consumes an item that a
+        failing warning delivery would otherwise lose, so an exhausting ``next`` spends the budget too. ``__anext__``
+        and ``__await__`` warn once the awaitable is obtained, before it runs. When delivery raises after the
+        operation already ran — a ``FutureWarning`` filter set to ``"error"`` or a failing ``stream`` — context entry
+        is unwound through the context's own exit and a coroutine that ``__anext__`` or ``__await__`` created is
+        closed unstarted (an async generator is left open), while the effect of an in-place operator (``p += [2]`` has
+        already extended the list) or of a ``defaultdict`` subscript (the missing key has been inserted) stays and its
+        result is lost. Those operations keep warning after success because warning first would spend the budget on
+        every failed probe, and an in-place hook that declines would add a second warning to the binary fallback.
+
     Known limitations:
         **Structural ABC over-claim**: because dunder methods are installed unconditionally on the *type*
         (implicit special-method lookup bypasses ``__getattr__`` and cannot be conditional per-instance),
@@ -178,9 +277,11 @@ class _DeprecatedProxy:
         when using structural ABCs as a dispatch guard, or call ``type(deprecated_instance_proxy.__class__)``
         to get the wrapped type (which is ``_DeprecatedProxy``).
 
-        **Binding**: only a proxy over a bindable callable (a plain function, a ``@deprecated`` wrapper) is a
-        :class:`_BindingDeprecatedProxy` with ``__get__``, so ``inspect.isroutine(proxy)`` is ``True`` for it and
-        ``False`` for proxies over data or classes.
+        **Binding**: only a proxy over a plain function (a ``@deprecated`` wrapper included) or over another such proxy
+        is a :class:`_BindingDeprecatedProxy` with ``__get__``, so ``inspect.isroutine(proxy)`` is ``True`` for it and
+        ``False`` for proxies over data, classes, and other callables. A ``functools.partial``, a bound method, a
+        builtin or a Cython-style binding callable stored as a class attribute is served unbound, on every Python
+        version.
 
     """
 
@@ -381,7 +482,6 @@ class _DeprecatedProxy:
         read_only: bool = False,
         docstring_style: str = "auto",
         _misconfigured_override: bool = False,
-        _stacklevel_extra: int = 0,
     ) -> None:
         """Initialise the proxy with typed runtime/config dataclasses.
 
@@ -608,7 +708,10 @@ class _DeprecatedProxy:
         return shall_skip
 
     def _warn(self, *, arg_name: Optional[str] = None) -> None:
-        """Emit a deprecation warning if the warn budget is not exhausted.
+        """Gate and deliver a deprecation warning in one step, for an operation that warns before it runs.
+
+        Equivalent to :meth:`_gate` followed by :meth:`_deliver` on its decision. Operations that touch the wrapped
+        object call the two halves themselves, so the operation and its warning share one ``skip_if`` evaluation.
 
         Args:
             arg_name: When given, use per-argument warning tracking (``cfg.warned_args``) instead of the global
@@ -618,13 +721,86 @@ class _DeprecatedProxy:
                 decorator's argument-deprecation form.
 
         """
-        # Every ``_warn`` call site is a data-producing use of the deprecated object — structural probes (``__eq__``,
-        # ordering, ``__len__``, ``__repr__``, ``__bool__``, ``__exit__``) never reach here.  ``_fatal_gate`` is the one
-        # place that decides a fatal deprecation, and it runs ahead of the ``stream`` gate: ``stream=None`` silences the
-        # message but never opens the door.  Operations that warn after they succeed already passed the gate before
-        # touching the wrapped object; for plain attribute reads and binary operators, which resolve first, and for
-        # warn-first calls, the fatal raise happens here.
-        if not self._fatal_gate(arg_name=arg_name):
+        _, live = self._gate(arg_name=arg_name)
+        self._deliver(live, arg_name=arg_name)
+
+    def _activation(self) -> tuple[Any, bool]:
+        """Evaluate ``skip_if`` once and return the object to operate on with whether the deprecation is live.
+
+        Returns:
+            ``(active, live)`` — the wrapped source and ``False`` while ``skip_if`` holds, otherwise the configured
+            replacement (the source when there is none) and ``True``.
+
+        """
+        if self._shall_skip():
+            return self._cfg.obj, False
+        return self._unskipped_active(), True
+
+    def _gate(self, *, arg_name: Optional[str] = None, read_only_op: Optional[str] = None) -> tuple[Any, bool]:
+        """Decide once whether this operation's deprecation is live, refusing a fatal one before the object is used.
+
+        Every operation that warns makes this decision exactly once: ``skip_if`` is evaluated here (through
+        :meth:`_activation`) and nowhere else in the operation, and the returned pair carries the decision to the
+        operation itself and to :meth:`_deliver`. A ``skip_if`` callable that changes its answer between calls
+        therefore cannot serve one object and warn about another, and it is not paid for twice.
+
+        This is the single place that refuses a fatal deprecation ahead of the operation. Proxy operations with an
+        effect on the wrapped object (subscript, iteration, ``round``, the unary and conversion forwards,
+        ``attrs_mapping`` reads, ``__next__``, context entry, the async protocols, ``await`` and the in-place
+        operators) gate before they touch it, so under fatal mode the operation never runs: a missing key raises
+        ``DeprecatedError`` rather than ``KeyError``, a ``defaultdict`` gains no entry, and a mapped getter or a user
+        ``__iter__`` is not executed. Plain attribute reads and binary operators resolve first: they take the
+        decision from :meth:`_activation` and refuse a fatal deprecation once the lookup or operator has succeeded.
+        The fatal check runs ahead of the ``stream`` check — ``stream=None`` silences the message but never opens the
+        door — and it never touches the warn counters, so turning the global switch back off restores warn-once.
+
+        Args:
+            arg_name: Per-argument tracking key, as for :meth:`_warn`. A name absent from ``attrs_mapping`` builds no
+                message, so the gate does not raise for it.
+            read_only_op: Description of an in-place write. When given, a live read-only proxy raises
+                :class:`AttributeError` here, before the fatal check and before the wrapped operator is looked up.
+
+        Returns:
+            ``(active, live)`` from :meth:`_activation`.
+
+        Raises:
+            AttributeError: If *read_only_op* is given and the live proxy is read-only.
+            DeprecatedError: If ``as_exception`` (or the process-wide switch) makes this deprecation fatal.
+
+        """
+        active, live = self._activation()
+        if live:
+            if read_only_op is not None:
+                self._check_read_only(read_only_op)
+            self._refuse_fatal(arg_name)
+        return active, live
+
+    def _refuse_fatal(self, arg_name: Optional[str] = None) -> None:
+        """Raise ``DeprecatedError`` when this live deprecation is fatal; otherwise do nothing.
+
+        Raises:
+            DeprecatedError: If ``as_exception`` (or the process-wide switch) makes this deprecation fatal.
+
+        """
+        dep = self._dep
+        if _resolve_as_exception(dep.as_exception):
+            msg = _build_proxy_warn_msg(self, arg_name, dep, self._cfg)
+            if msg is not None:
+                raise DeprecatedError(msg)
+
+    def _deliver(self, live: bool, *, arg_name: Optional[str] = None) -> None:
+        """Emit the deprecation warning for an operation whose gate returned *live*, if the warn budget allows.
+
+        Re-evaluates neither ``skip_if`` nor the fatal switch: *live* is the decision the operation was gated on.
+
+        Args:
+            live: The second element of the pair returned by :meth:`_gate` or :meth:`_activation`.
+            arg_name: Per-argument tracking key, as for :meth:`_warn`.
+
+        """
+        # Every delivery is a data-producing use of the deprecated object — structural probes (``__eq__``, ordering,
+        # ``__len__``, ``__repr__``, ``__bool__``, ``__exit__``) never reach here.
+        if not live:
             return
         cfg = self._cfg
         stream = cfg.stream
@@ -639,40 +815,39 @@ class _DeprecatedProxy:
             return
         # Route the warning to the caller's frame rather than ``proxy.py``.  ``_emit`` decides from the stream's
         # signature whether to pass ``stacklevel``, so the stream is called exactly once and any ``TypeError`` it
-        # raises propagates; the level itself is measured from ``_emit``'s frame.
-        _emit(stream, msg)
+        # raises propagates; the level itself is measured from ``_emit``'s frame.  A raising stream delivered
+        # nothing, so the claimed slot goes back to the budget before the error propagates.
+        try:
+            _emit(stream, msg)
+        except BaseException:
+            _release_proxy_warn_budget(cfg, arg_name)
+            raise
 
-    def _fatal_gate(self, *, arg_name: Optional[str] = None) -> bool:
-        """Raise DeprecatedError before the deprecated object is used when this deprecation is fatal.
+    def _deliver_or_release(
+        self,
+        live: bool,
+        release: Callable[..., object],
+        *release_args: Any,  # noqa: ANN401
+    ) -> None:
+        """Deliver the warning for an operation that already acquired something, releasing it if delivery raises.
 
-        This is the single place that decides a fatal deprecation. Proxy operations that warn only after they succeed
-        (subscript, iteration, ``round``, the unary and conversion forwards, ``attrs_mapping`` reads, ``__next__``,
-        context entry, the async protocols, ``await`` and the in-place operators) call it before they touch the wrapped
-        object, so under fatal mode the operation never runs: a missing key raises ``DeprecatedError`` rather than
-        ``KeyError``, a ``defaultdict`` gains no entry, and a mapped getter or a user ``__iter__`` is not executed.
-        :meth:`_warn` calls it as well, which covers plain attribute reads and binary operators (both resolve first)
-        and warn-first calls. Outside fatal mode the gate does nothing, so these operations keep warning only once they
-        succeed. It never touches the warn counters, so turning the global switch back off restores ordinary warn-once.
+        Python never runs the release half of a protocol (``__exit__``, closing an unused coroutine) when the acquiring
+        call itself raises, so the proxy does it: on a delivery error, ``release(*release_args, *sys.exc_info())`` runs
+        and the delivery error is then re-raised unchanged, whatever *release* returns. Context entry passes
+        :func:`_exit_acquired`; ``__anext__`` and ``__await__`` pass :func:`_close_abandoned`. ``__aenter__`` repeats
+        the same steps inline, because its release (``__aexit__``) has to be awaited.
 
         Args:
-            arg_name: Per-argument tracking key, as for :meth:`_warn`. A name absent from ``attrs_mapping`` builds no
-                message, so the gate does not raise for it.
-
-        Returns:
-            ``False`` when ``skip_if`` makes the deprecation inactive, ``True`` otherwise.
-
-        Raises:
-            DeprecatedError: If ``as_exception`` (or the process-wide switch) makes this deprecation fatal.
+            live: The decision the operation was gated on, as for :meth:`_deliver`.
+            release: Called only when delivery raises.
+            release_args: Leading positional arguments for *release*.
 
         """
-        if self._shall_skip():
-            return False
-        dep = self._dep
-        if _resolve_as_exception(dep.as_exception):
-            msg = _build_proxy_warn_msg(self, arg_name, dep, self._cfg)
-            if msg is not None:
-                raise DeprecatedError(msg)
-        return True
+        try:
+            self._deliver(live)
+        except BaseException:
+            release(*release_args, *sys.exc_info())
+            raise
 
     def _check_read_only(self, operation: str) -> None:
         """Raise AttributeError when the proxy is in read-only mode.
@@ -696,11 +871,16 @@ class _DeprecatedProxy:
         """Return the active object: *target* when set, otherwise *source*.
 
         When ``skip_if`` evaluates ``True`` the deprecation machinery is inactive, so the wrapped source is served
-        regardless of any configured target.
+        regardless of any configured target. For the silent structural probes; an operation that warns takes the active
+        object from its :meth:`_gate` result instead, so ``skip_if`` is not evaluated a second time.
 
         """
         if self._shall_skip():
             return self._cfg.obj
+        return self._unskipped_active()
+
+    def _unskipped_active(self) -> Any:  # noqa: ANN401
+        """Return the configured replacement when there is one, otherwise the wrapped source, ignoring ``skip_if``."""
         target = self._dep.target
         if target is not None and not isinstance(target, TargetMode):
             return target
@@ -801,43 +981,52 @@ class _DeprecatedProxy:
             cfg = cast(_ProxyConfig, object.__getattribute__(self, "_DeprecatedProxy__config"))
         except AttributeError:
             raise AttributeError(name) from None
+        # One ``skip_if`` decision serves the lookup and its warning.
+        active, live = self._activation()
         # skip_if active — deprecation machinery inactive: serve the wrapped source directly, with no
         # warning, no attrs_mapping redirect, and no read-only mutator guard.
-        if self._shall_skip():
-            return getattr(cfg.obj, name)
+        if not live:
+            return getattr(active, name)
         attrs_mapping = cfg.attrs_mapping
         if attrs_mapping is not None:
             if name in attrs_mapping:
                 # A fatal deprecation is refused before the lookup, so the redirected getter never runs.  Otherwise
                 # resolve first, as below: a failed lookup raises without warning or burning this name's budget.
-                self._fatal_gate(arg_name=f"__attr__:{name}")
-                attr_name, attr = self._resolve_mapped_attr(attrs_mapping, name)
-                self._warn(arg_name=f"__attr__:{name}")
+                arg_name = f"__attr__:{name}"
+                self._refuse_fatal(arg_name)
+                attr_name, attr = self._resolve_mapped_attr(attrs_mapping, name, active)
+                self._deliver(live, arg_name=arg_name)
                 return self._guard_read_only_mutator(attr, attr_name)
             # Not a deprecated attr — silent passthrough, no warning.
-            attr = getattr(self._get_active(), name)
+            attr = getattr(active, name)
             return self._guard_read_only_mutator(attr, name)
         # Resolve first so a missing attribute raises without warning or burning the warn budget.
-        attr = getattr(self._get_active(), name)
+        attr = getattr(active, name)
         # ARGS_REMAP deprecates constructor argument names only; attribute access is unrelated
         # to the deprecated call signature and must not emit a spurious global warning.
         # Dunder reads are silent machinery — see the docstring above.
         if self._dep.target is not TargetMode.ARGS_REMAP and not _is_dunder(name):
-            self._warn()
+            # A plain read resolves first, so a fatal deprecation is refused only once the lookup has succeeded.
+            self._refuse_fatal()
+            self._deliver(live)
         return self._guard_read_only_mutator(attr, name)
 
-    def _resolve_mapped_attr(self, attrs_mapping: dict[str, Optional[str]], name: str) -> tuple[str, Any]:
+    def _resolve_mapped_attr(
+        self,
+        attrs_mapping: dict[str, Optional[str]],
+        name: str,
+        active: Any,  # noqa: ANN401
+    ) -> tuple[str, Any]:
         """Look up the attribute a deprecated ``attrs_mapping`` alias reads, returning its resolved name and value.
 
-        A string redirect is read from the active object under its canonical name. A ``None`` (warn-only) entry keeps
-        the name and falls back to the wrapped source when the active object lacks it.
+        A string redirect is read from *active* (the object the caller's gate resolved) under its canonical name. A
+        ``None`` (warn-only) entry keeps the name and falls back to the wrapped source when *active* lacks it.
 
         Raises:
             AttributeError: If the resolved attribute exists on neither object.
 
         """
         redirect = attrs_mapping[name]
-        active = self._get_active()
         if redirect is not None:
             return redirect, getattr(active, redirect)
         try:
@@ -932,12 +1121,13 @@ class _DeprecatedProxy:
         The lookup runs first, so a missing key raises its own ``KeyError``/``IndexError`` without warning or spending
         the warn budget — a ``try: cfg[key] except KeyError`` probe stays free, as on ``__getattr__``.  A fatal
         deprecation raises ``DeprecatedError`` before the lookup instead, so a missing key raises it too and a
-        ``defaultdict`` gains no entry.
+        ``defaultdict`` gains no entry. Outside fatal mode the lookup's own effects stay if warning delivery then
+        raises: a ``defaultdict`` keeps the entry it inserted.
 
         """
-        self._fatal_gate()
-        value = self._get_active()[key]
-        self._warn()
+        active, live = self._gate()
+        value = active[key]
+        self._deliver(live)
         return value
 
     def __setitem__(self, key: Any, value: Any) -> None:  # noqa: ANN401
@@ -986,10 +1176,26 @@ class _DeprecatedProxy:
 
     def __iter__(self) -> Iterator[Any]:
         """Iterate over the active object, emitting a deprecation warning once the iterator is obtained."""
-        self._fatal_gate()
-        iterator = iter(self._get_active())
-        self._warn()
+        active, live = self._gate()
+        iterator = iter(active)
+        self._deliver(live)
         return iterator
+
+    def __next__(self) -> Any:  # noqa: ANN401
+        """Advance the active iterator, emitting the deprecation warning before the iterator moves.
+
+        Advancing consumes an item that cannot be handed back, so the warning comes first: when its delivery raises (a
+        ``FutureWarning`` turned into an error, a failing ``stream``) the iterator has not moved and no item is lost.
+        The exhausting call that raises ``StopIteration`` is therefore a use too, and spends the budget when it comes
+        first. An active object that is not an iterator raises the builtin ``TypeError`` before any warning.
+
+        """
+        active, live = self._gate()
+        if getattr(type(active), "__next__", None) is None:
+            # Not an iterator: ``next`` raises its own ``TypeError`` without touching the object or the budget.
+            next(active)
+        self._deliver(live)
+        return next(active)
 
     def __contains__(self, item: Any) -> bool:  # noqa: ANN401
         """Check membership in the active object without emitting a warning."""
@@ -1281,23 +1487,18 @@ class _DeprecatedProxy:
 
     # ------------------------------------------------------------------
     # Context-manager protocol — entry warns (a use), exit is silent cleanup.  Entry, ``__anext__`` and
-    # ``__await__`` have side effects on the wrapped object: ``_fatal_gate`` refuses a fatal deprecation before
+    # ``__await__`` have side effects on the wrapped object: ``_gate`` refuses a fatal deprecation before
     # they run. Entry warns after acquisition; async next/await warn when their awaitable/iterator is obtained,
     # before any deferred execution. Failed acquisition keeps the budget.
     # ------------------------------------------------------------------
 
     def __enter__(self) -> Any:  # noqa: ANN401
         """Enter the active context, unwinding it if warning delivery after acquisition fails."""
-        self._fatal_gate()
-        active = self._get_active()
+        active, live = self._gate()
         entered = active.__enter__()
-        try:
-            self._warn()
-        except BaseException:
-            # Python will not invoke __exit__ when entry raises. Unwind the context we acquired,
-            # even if the stream changed skip state, and never suppress the emission failure.
-            active.__exit__(*sys.exc_info())
-            raise
+        # Python will not invoke __exit__ when entry raises. Unwind the context we acquired,
+        # even if the stream changed skip state, and never suppress the emission failure.
+        self._deliver_or_release(live, _exit_acquired, active)
         return entered
 
     def __exit__(self, *exc_info: Any) -> Any:  # noqa: ANN401
@@ -1306,14 +1507,14 @@ class _DeprecatedProxy:
 
     async def __aenter__(self) -> Any:  # noqa: ANN401
         """Async-enter the active context, unwinding it if warning delivery after acquisition fails."""
-        self._fatal_gate()
-        active = self._get_active()
+        active, live = self._gate()
         entered = await active.__aenter__()
         try:
-            self._warn()
+            self._deliver(live)
         except BaseException:
             # Entry has acquired the resource, but Python will not call __aexit__ on its failure.
-            # Keep the acquired context and propagate the delivery error regardless of suppression.
+            # Release the acquired context via __aexit__, then re-raise the delivery error unchanged, whatever
+            # __aexit__ returns: its return value is ignored, so a suppressing context cannot swallow the error.
             await active.__aexit__(*sys.exc_info())
             raise
         return entered
@@ -1324,23 +1525,33 @@ class _DeprecatedProxy:
 
     def __aiter__(self) -> Any:  # noqa: ANN401
         """Return the active object's async iterator, emitting a deprecation warning once it is obtained."""
-        self._fatal_gate()
-        iterator = self._get_active().__aiter__()
-        self._warn()
+        active, live = self._gate()
+        iterator = active.__aiter__()
+        self._deliver(live)
         return iterator
 
     def __anext__(self) -> Any:  # noqa: ANN401
-        """Return the active object's next awaitable, emitting a deprecation warning once it is obtained."""
-        self._fatal_gate()
-        awaitable = self._get_active().__anext__()
-        self._warn()
+        """Return the active object's next awaitable, emitting a deprecation warning once it is obtained.
+
+        If delivering the warning raises, a coroutine the wrapped ``__anext__`` created is closed unstarted before the
+        error propagates (see :func:`_close_abandoned`).
+
+        """
+        active, live = self._gate()
+        awaitable = active.__anext__()
+        self._deliver_or_release(live, _close_abandoned, awaitable, active)
         return awaitable
 
     def __await__(self) -> Any:  # noqa: ANN401
-        """Await the active object, emitting a deprecation warning once its await iterator is obtained."""
-        self._fatal_gate()
-        iterator = self._get_active().__await__()
-        self._warn()
+        """Await the active object, emitting a deprecation warning once its await iterator is obtained.
+
+        If delivering the warning raises, the await iterator of a coroutine the wrapped ``__await__`` created is closed
+        unstarted before the error propagates (see :func:`_close_abandoned`).
+
+        """
+        active, live = self._gate()
+        iterator = active.__await__()
+        self._deliver_or_release(live, _close_abandoned, iterator, active)
         return iterator
 
     # ------------------------------------------------------------------
@@ -1349,10 +1560,9 @@ class _DeprecatedProxy:
 
     def __round__(self, ndigits: Any = None) -> Any:  # noqa: ANN401
         """Round the active object, emitting a deprecation warning (numeric read) once rounding succeeds."""
-        self._fatal_gate()
-        active = self._get_active()
+        active, live = self._gate()
         rounded = round(active) if ndigits is None else round(active, ndigits)
-        self._warn()
+        self._deliver(live)
         return rounded
 
     def __format__(self, format_spec: str) -> str:
@@ -1732,7 +1942,6 @@ def deprecated_class(
     template_mgs: Optional[str] = None,
     as_exception: Optional[bool] = None,
     _misconfigured_override: bool = False,
-    _stacklevel_extra: int = 0,
 ) -> _RedirectDecorator[_NewT]: ...
 
 
@@ -1754,7 +1963,6 @@ def deprecated_class(
     template_mgs: Optional[str] = None,
     as_exception: Optional[bool] = None,
     _misconfigured_override: bool = False,
-    _stacklevel_extra: int = 0,
 ) -> _ClassDecorator:
     pass
 
@@ -1776,7 +1984,6 @@ def deprecated_class(
     template_mgs: Optional[str] = None,
     as_exception: Optional[bool] = None,
     _misconfigured_override: bool = False,
-    _stacklevel_extra: int = 0,
 ) -> Union[_ClassDecorator, _RedirectDecorator[Any]]:
     r"""Decorator factory for deprecating class definitions with optional target redirection.
 
@@ -1997,7 +2204,6 @@ def deprecated_class(
             as_exception=as_exception,
             docstring_style=docstring_style,
             _misconfigured_override=_misconfigured_override,
-            _stacklevel_extra=_stacklevel_extra,
         )
         if update_docstring:
             # Use a SimpleNamespace shim so _update_docstring_with_deprecation can set __doc__ normally; then store
@@ -2151,20 +2357,23 @@ def _make_binary_forward(op_name: str, *, warn: bool) -> Callable[..., Any]:
 
     Looks the operator up on the *type* of the active object and returns :data:`NotImplemented` when it is absent, so
     Python can try the reflected operand and ultimately raise its normal :class:`TypeError` — the proxy never masks an
-    unsupported-operand error. Proxy operands are unwrapped to their active object first.
+    unsupported-operand error. Proxy operands are unwrapped to their active object first. A warning operator resolves
+    first: one ``skip_if`` decision selects the operand and the warning, and a fatal deprecation is refused only once
+    the operator has produced a result.
 
     """
 
     def _binary_dunder(self: "_DeprecatedProxy", other: Any, *extra: Any) -> Any:  # noqa: ANN401
-        active = self._get_active()
+        active, live = self._activation()
         impl = getattr(type(active), op_name, None)
         if impl is None:
             return NotImplemented
         result = impl(active, _unwrap_operand(other), *(_unwrap_operand(e) for e in extra))
         if result is NotImplemented:
             return NotImplemented
-        if warn:
-            self._warn()
+        if warn and live:
+            self._refuse_fatal()
+            self._deliver(live)
         return result
 
     _binary_dunder.__name__ = op_name
@@ -2177,24 +2386,25 @@ def _make_inplace_forward(op_name: str) -> Callable[..., Any]:
 
     In-place operators mutate the active object, so they must honour the ``read_only=True`` contract.  This is a
     separate factory from :func:`_make_binary_forward` so that the check is not paid by the much more common
-    arithmetic/reflected paths.  The mutation is a side effect, so a fatal deprecation is refused by
-    :meth:`~deprecate.proxy._DeprecatedProxy._fatal_gate` before it runs; the warning follows only a result other
-    than :data:`NotImplemented` — a declined hook makes Python retry the binary operator, which warns on its own.
+    arithmetic/reflected paths.  The mutation is a side effect, so one :meth:`~deprecate.proxy._DeprecatedProxy._gate`
+    call checks ``read_only`` and refuses a fatal deprecation before the operator is looked up — a read-only proxy over
+    a value without the in-place hook (an ``int``) still raises instead of letting Python fall back to the binary
+    operator. The warning follows only a result other than :data:`NotImplemented` — a declined hook makes Python retry
+    the binary operator, which warns on its own. The mutation has already happened when the warning is delivered, so it
+    stays if that delivery raises.
 
     """
+    read_only_op = f"In-place operation '{op_name}'"
 
     def _inplace_dunder(self: "_DeprecatedProxy", other: Any) -> Any:  # noqa: ANN401
-        if not self._shall_skip():
-            self._check_read_only(f"In-place operation '{op_name}'")
-        active = self._get_active()
+        active, live = self._gate(read_only_op=read_only_op)
         impl = getattr(type(active), op_name, None)
         if impl is None:
             return NotImplemented
-        self._fatal_gate()
         result = impl(active, _unwrap_operand(other))
         if result is NotImplemented:
             return NotImplemented
-        self._warn()
+        self._deliver(live)
         return result
 
     _inplace_dunder.__name__ = op_name
@@ -2207,17 +2417,17 @@ def _make_unary_forward(op_name: str, func: Callable[[Any], Any]) -> Callable[..
 
     Delegating through the builtin preserves Python's own fallbacks (e.g. ``int()`` falling back to ``__index__``) and
     lets the natural :class:`TypeError` surface when the active object does not support the protocol.  The warning
-    follows a successful call only, so a failing one (including ``StopIteration`` from ``next``) keeps the warn
-    budget.  Every forward first passes :meth:`~deprecate.proxy._DeprecatedProxy._fatal_gate`, so a fatal deprecation
-    never runs the wrapped object's hook (``__next__`` would advance the iterator, ``__index__`` or ``__fspath__`` may
-    run user code).
+    follows a successful call only, so a failing one keeps the warn budget; every forwarded hook is a read without a
+    lasting effect, which is why ``__next__`` (it consumes an item) is hand-written to warn first instead.  Every
+    forward first passes :meth:`~deprecate.proxy._DeprecatedProxy._gate`, so a fatal deprecation never runs the wrapped
+    object's hook (``__index__`` or ``__fspath__`` may run user code).
 
     """
 
     def _unary_dunder(self: "_DeprecatedProxy") -> Any:  # noqa: ANN401
-        self._fatal_gate()
-        result = func(self._get_active())
-        self._warn()
+        active, live = self._gate()
+        result = func(active)
+        self._deliver(live)
         return result
 
     _unary_dunder.__name__ = op_name
@@ -2255,7 +2465,6 @@ _UNARY_OPS: dict[str, Callable[[Any], Any]] = {
     "__ceil__": math.ceil,
     "__reversed__": reversed,
     "__fspath__": os.fspath,
-    "__next__": next,
 }
 
 
@@ -2286,9 +2495,9 @@ class _BindingDeprecatedProxy(_DeprecatedProxy):
 
     Covers a plain function, a ``@deprecated`` wrapper, and a nested proxy over either. Defining ``__get__`` makes an
     object a descriptor, and :func:`inspect.isroutine` / :func:`inspect.ismethoddescriptor` report every descriptor type
-    as a routine — so ``__get__`` lives only on this subclass, which :func:`_proxy_type_for` selects for a callable
-    whose type defines ``__get__``. Proxies over data, classes and other objects stay plain :class:`_DeprecatedProxy`
-    instances and are not reported as routines.
+    as a routine — so ``__get__`` lives only on this subclass, which :func:`_proxy_type_for` selects only when
+    :func:`_binds_as_method` holds. Proxies over data, classes and other callables (``functools.partial``, bound
+    methods, builtins) stay plain :class:`_DeprecatedProxy` instances and are not reported as routines.
 
     """
 
@@ -2297,40 +2506,47 @@ class _BindingDeprecatedProxy(_DeprecatedProxy):
 
         Python turns a plain function read through an instance into a bound method; a proxy stored in a class body
         (``class Model: scale = deprecated_instance(legacy_scale, ...)``) must do the same, or ``Model().scale(2)``
-        would call ``legacy_scale(2)`` without the instance. The wrapped object's own ``__get__`` decides: when it binds
-        by prepending the instance (plain functions, ``@deprecated`` wrappers, a nested proxy over either), the result
-        is a :class:`types.MethodType` whose ``__func__`` is this proxy, so the call warns against this proxy's budget
-        and honours ``skip_if`` and fatal mode exactly as a direct call does, with no extra Python frame.
+        would call ``legacy_scale(2)`` without the instance. For a wrapped plain function, ``@deprecated`` wrapper, or a
+        nested binding proxy over either, instance access returns a :class:`types.MethodType` whose ``__func__`` is
+        this proxy, so the call warns against this proxy's budget and honours ``skip_if`` and fatal mode exactly as a
+        direct call does, with no extra Python frame. The wrapped object's own ``__get__`` is never called.
 
-        Every other case returns this proxy unchanged: class access (``Model.scale``, where a plain function does not
-        bind either), wrapped objects without ``__get__`` (data, classes wrapped by
-        :func:`~deprecate.proxy.deprecated_class`), non-callable descriptors (``property``, ``cached_property``,
-        ``classmethod`` objects, whose getter is not run), and callables that bind differently (``staticmethod``).
+        Class access (``Model.scale``, where a plain function does not bind either) returns this proxy unchanged. Every
+        other wrapped object gets a plain :class:`_DeprecatedProxy` without ``__get__`` (see :func:`_binds_as_method`),
+        so it is served as stored too.
 
         Binding is silent: attribute access is how ``hasattr``, ``inspect.getmembers`` and autodoc read members, while
         the call is the use of the deprecated API and warns.
 
         """
-        source = self._cfg.obj
-        descr_get = getattr(type(source), "__get__", None)
-        # Only a callable can bind into a method; skipping the rest keeps a wrapped ``property`` or ``cached_property``
-        # from running its getter on an access whose result would be discarded anyway.
-        if descr_get is None or not callable(source):
+        # The wrapped object is not asked to bind itself: only a plain function or a nested binding proxy gets here
+        # (see ``_binds_as_method``), and both bind any instance by prepending it, so no foreign ``__get__`` runs.
+        if instance is None or not _binds_as_method(self._cfg.obj):
             return self
-        bound = descr_get(source, instance, owner)
-        # ``type()`` rather than ``isinstance``: a proxy reports its wrapped object's class through ``__class__``.
-        if type(bound) is types.MethodType and bound.__func__ is source:
-            return types.MethodType(self, bound.__self__)
-        return self
+        return types.MethodType(self, instance)
+
+
+def _binds_as_method(obj: Any) -> bool:  # noqa: ANN401
+    """Return whether a proxy over *obj* binds like a method when read through an instance.
+
+    Only a plain Python function — which covers ``@deprecated`` wrappers — and a nested binding proxy over one bind. The
+    check is by exact type, not by the presence of ``__get__``: ``functools.partial`` gains a ``__get__`` that warns on
+    3.13 and binds on 3.14, method descriptors reject foreign instances, and a callable whose binding the proxy cannot
+    predict is served unbound on every Python version. Cython-style binding callables are not bound either.
+
+    """
+    # ``type()`` rather than ``isinstance`` for the function: a proxy reports its wrapped object's class through
+    # ``__class__``, so a plain proxy over a function would pass ``isinstance(obj, types.FunctionType)``.
+    return type(obj) is types.FunctionType or isinstance(obj, _BindingDeprecatedProxy)
 
 
 def _proxy_type_for(obj: Any) -> type[_DeprecatedProxy]:  # noqa: ANN401
-    """Return the proxy class for *obj*: :class:`_BindingDeprecatedProxy` for a bindable callable, else the base.
+    """Return the proxy class for *obj*: :class:`_BindingDeprecatedProxy` when it binds as a method, else the base.
 
-    A callable non-class whose type defines ``__get__`` (a function, a bound-method factory, a nested binding proxy)
-    gets the binding subclass; a class never does, because a class read through an instance does not bind.
+    Uses :func:`_binds_as_method`, the same test :meth:`_BindingDeprecatedProxy.__get__` applies, so the proxy type and
+    its binding behaviour cannot disagree.
 
     """
-    if callable(obj) and not isinstance(obj, type) and getattr(type(obj), "__get__", None) is not None:
+    if _binds_as_method(obj):
         return _BindingDeprecatedProxy
     return _DeprecatedProxy

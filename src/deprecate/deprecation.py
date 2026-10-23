@@ -63,7 +63,6 @@ class _PackingClassArgs:
     as_exception: Optional[bool]
     update_docstring: bool
     docstring_style: str
-    _stacklevel: int
 
 
 def _packing_class_source(
@@ -81,8 +80,7 @@ def _packing_class_source(
     Args:
         source: The class being decorated with ``@deprecated``.
         target: Raw ``target`` argument from ``@deprecated``.
-        pack_args: Grouped keyword arguments passed through to ``deprecated_class``.  Its ``_stacklevel`` field is
-            no longer read — every warning computes its own location — and is kept until the plumbing is removed.
+        pack_args: Grouped keyword arguments passed through to ``deprecated_class``.
 
     Returns:
         Result of ``deprecated_class(...)(source)``.
@@ -153,11 +151,6 @@ def _packing_class_source(
         update_docstring=pack_args.update_docstring,
         docstring_style=pack_args.docstring_style,
         _misconfigured_override=class_misconfigured,
-        # The dispatcher inserts two frames beyond a direct ``deprecated_class(...)`` call
-        # (``packing`` and this function) before reaching ``decorator(cls)`` — without this offset
-        # proxy misconfig warnings would point into library internals instead of the user's
-        # `@deprecated`-on-class decoration site.
-        _stacklevel_extra=2,
     )(source)
 
 
@@ -302,12 +295,11 @@ def deprecated(
 
     def packing(
         source: Union[Callable, classmethod, staticmethod, property, cached_property],
-        _stacklevel: int = 2,
         _is_static: bool = False,
     ) -> Union[Callable, classmethod, staticmethod, property, cached_property]:
         # Class sources delegate to ``deprecated_class`` (Phase 1 warn-and-delegate); every callable routes
-        # to the strict ``deprecated_callable`` arm.  Delegating adds one frame between the user's decoration
-        # site and ``deprecated_callable``'s ``packing``, so the callable path bumps ``_stacklevel`` by one.
+        # to the strict ``deprecated_callable`` arm.  The extra frames this delegation adds need no offset:
+        # every warning measures its own location (``_caller_stacklevel``).
         if inspect.isclass(source):
             # ``ATTRS_REMAP`` needs ``attrs_mapping`` to have any effect, but the front door does not expose
             # that class-only knob (it raises ``TypeError`` as an unexpected kwarg). The mode is therefore
@@ -337,15 +329,14 @@ def deprecated(
                     as_exception=as_exception,
                     update_docstring=update_docstring,
                     docstring_style=docstring_style,
-                    _stacklevel=_stacklevel + 1,
                 ),
             )
         # Non-class source from here — the decoration-time guard lives in ``_dispatch.py``
         # alongside ``_reject_bare_decorator``, the sibling guard this dispatcher also uses.
         _reject_non_callable_source(source, target)
-        # ``_stacklevel``/``_is_static`` are internal parameters of ``deprecated_callable``'s ``packing``,
+        # ``_is_static`` is an internal parameter of ``deprecated_callable``'s ``packing``,
         # intentionally omitted from its public return annotation (hence the call-arg ignore).
-        return _callable_pack(source, _stacklevel + 1, _is_static)  # type: ignore[call-arg]
+        return _callable_pack(source, _is_static=_is_static)  # type: ignore[call-arg]
 
-    # ``packing`` also takes private ``_stacklevel``/``_is_static`` arguments; the public contract is the protocol.
+    # ``packing`` also takes a private ``_is_static`` argument; the public contract is the protocol.
     return cast(_FrontDoorDecorator, packing)

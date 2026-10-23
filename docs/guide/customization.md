@@ -111,6 +111,12 @@ print(train(lr=0.001))
 
 `stream` controls where deprecation messages go. It accepts a callable that can receive the warning message, or `None` to silence output entirely. pyDeprecate probes the callable signature to see whether it can also receive `stacklevel`; if that signature cannot be inspected, it falls back to calling the stream with the message only. In that fallback, a custom stream that forwards to `warnings.warn` cannot receive pyDeprecate's caller stack level.
 
+The stream runs exactly once per warning — a `TypeError` it raises is never retried — so the decision is made from its signature before the call:
+
+- A stream that can take `stacklevel` as a keyword (a `stacklevel` parameter, or `**kwargs`) is called as `stream(msg, stacklevel=...)`; any other stream is called as `stream(msg)`.
+- A stream that declares `**kwargs` is therefore handed `stacklevel=` and must accept or drop it: forward it to a callable that takes it (`warnings.warn`, `logging.warning`), never to one that rejects it, such as `print(msg, **kwargs)`, which raises `TypeError`. To receive the message alone, declare the stream without `**kwargs`.
+- A bare `(*args, **kwargs)` pass-through built with `functools.wraps` is judged by the callable it wraps, so an adapter around a message-only sink stays message-only. A narrow stream that only copied another callable's metadata is judged by its own parameters.
+
 ### Default: FutureWarning via `warnings.warn`
 
 By default, `stream` is `functools.partial(warnings.warn, category=FutureWarning)`. In practice this means:
@@ -246,7 +252,7 @@ Hello, World!
 
 ### Custom stream callable
 
-Any callable accepting a single string argument works. Here is an example that collects deprecation messages into a list for later processing:
+Any callable accepting the message as a single string argument works; one that also declares `stacklevel` or `**kwargs` is additionally passed `stacklevel=` and must accept or drop it (see [Deprecation Output Sink](#deprecation-output-sink-stream)). Here is an example that collects deprecation messages into a list for later processing:
 
 ```python
 from deprecate import deprecated

@@ -1,11 +1,25 @@
 """Unit tests for private helpers in :mod:`deprecate.audit._report`."""
 
+import functools
 import warnings
+from collections.abc import Callable
 from typing import Any
+
+import pytest
 
 import tests.collection_misconfigured as clean_module
 from deprecate.audit._report import _format_report_target
 from deprecate.proxy import deprecated_class
+from tests.collection_targets import (
+    CallableAdder,
+    NewCls,
+    NonStringNameCallable,
+    callable_adder_target,
+    nested_partial_target,
+    new_scale,
+    partial_new_cls_target,
+    partial_target,
+)
 
 
 class TestFormatReportProxyTarget:
@@ -48,3 +62,38 @@ class TestFormatReportProxyTarget:
         proxy_config = object.__getattribute__(target, "_DeprecatedProxy__config")
         assert formatted == "LegacyClass"
         assert proxy_config.warned == 0
+
+
+class TestFormatReportCallableTarget:
+    """_format_report_target names a callable target by a stable dotted path, as the runtime warning does."""
+
+    @pytest.mark.parametrize(
+        ("target", "expected"),
+        [
+            pytest.param(new_scale, "tests.collection_targets.new_scale", id="function"),
+            pytest.param(NewCls, "tests.collection_targets.NewCls", id="class"),
+            pytest.param(NewCls.__init__, "tests.collection_targets.NewCls.__init__", id="method-keeps-class"),
+            pytest.param(partial_target, "tests.collection_targets.new_scale", id="partial"),
+            pytest.param(nested_partial_target, "tests.collection_targets.new_scale", id="nested-partial"),
+            pytest.param(partial_new_cls_target, "tests.collection_targets.NewCls", id="partial-of-class"),
+            pytest.param(
+                functools.partial(CallableAdder.__call__),
+                "tests.collection_targets.CallableAdder.__call__",
+                id="partial-of-method-keeps-class",
+            ),
+            pytest.param(callable_adder_target, "tests.collection_targets.CallableAdder", id="callable-instance"),
+            pytest.param(
+                NonStringNameCallable(), "tests.collection_targets.NonStringNameCallable", id="non-string-name"
+            ),
+        ],
+    )
+    def test_target_named_without_memory_address(self, target: Callable[..., Any], expected: str) -> None:
+        """A partial or callable-instance target reports the same name on every run, never an address-bearing repr.
+
+        The warning at call time names a ``functools.partial`` replacement by the callable it wraps and a callable
+        instance by its type. The audit table and ``--report-json`` row for the same target must agree: a repr such
+        as ``functools.functools.partial(<function new at 0x...>)`` differs on every run and cannot be diffed or
+        matched against the warning. A method keeps its class in the name, since ``__qualname__`` stays the preferred
+        source whenever the callable has one.
+        """
+        assert _format_report_target(target) == expected

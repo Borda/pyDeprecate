@@ -446,8 +446,13 @@ class TestFunctoolsWrapperSource:
         ``AttributeError`` from ``deprecated_callable``. None of these helps. Every route now raises one
         ``TypeError`` that names the wrapper type and the workaround (wrap the alias in a plain ``def``).
 
+        The subject is the library, not one decorator: the same message is raised from the ``deprecated_callable``
+        route, where a claim that "``@deprecated`` cannot decorate" the object would name the wrong entry point.
+
         """
-        with pytest.raises(TypeError, match=rf"`{re.escape(kind)}` object.*{_WRAP_IN_DEF_HINT}"):
+        with pytest.raises(
+            TypeError, match=rf"^pyDeprecate cannot deprecate a `{re.escape(kind)}` object.*{_WRAP_IN_DEF_HINT}"
+        ):
             decorate(source)
 
     def test_nameless_callable_instance_keeps_instance_advice(self) -> None:
