@@ -7,6 +7,7 @@ import inspect
 import math
 import os
 import pickle
+import threading
 import warnings
 from collections import defaultdict
 from collections.abc import Callable, Mapping
@@ -68,7 +69,9 @@ from tests.collection_deprecate import (
     make_deprecated_instance_skip_if_true_read_only,
     make_deprecated_method_host,
     make_flaky_attr_alias,
+    make_read_only_inplace_proxy,
     make_read_only_settings_proxy,
+    make_switching_entry_proxy,
     make_warn_after_success_proxy,
     pep702_proxy_stacked,
 )
@@ -81,6 +84,7 @@ from tests.collection_targets import (
     CombinedAttrsArgsSource,
     CombinedAttrsArgsTarget,
     DecliningInplaceOperand,
+    DeferredFailureAwaitable,
     FlakyProtocolBox,
     FlakyTypeErrorStream,
     HostileSignatureCallable,
@@ -94,6 +98,7 @@ from tests.collection_targets import (
     PaletteOld,
     Pep702StaticTarget,
     PositionalOnlyTarget,
+    RecordingEntryContext,
     RecordingStream,
     SomeTargetClass,
     SubclassableBase,
@@ -4272,3 +4277,158 @@ class TestDeprecatedProtocol:
         # Runtime: calling the proxy forwards to the target constructor, exactly as the decorator form does.
         assert DeprecatedColorEnumFunctional(1) is ColorEnum.RED
         assert isinstance(DeprecatedColorEnumFunctional, DeprecationProxy)
+
+
+class TestEntryWarningCleanup:
+    """Failed warning delivery must unwind resources acquired by proxy entry."""
+
+    @pytest.mark.parametrize("drive", [pytest.param(_drive_enter, id="sync"), pytest.param(_drive_aenter, id="async")])
+    @pytest.mark.parametrize("suppress", [False, True])
+    @pytest.mark.parametrize("raising_stream", [False, True])
+    def test_emission_failure_unwinds_acquired_context(
+        self, drive: Callable[[Any], object], suppress: bool, raising_stream: bool
+    ) -> None:
+        """Clean up acquired contexts even if their exit hook would suppress errors.
+
+        Applications treating warnings as errors, or using a failing logging sink,
+        never reach the with body. The acquired resource must still receive the exact
+        emission exception once and that exception must remain visible to the caller.
+        """
+        resource = RecordingEntryContext(suppress=suppress)
+        stream = KeywordTypeErrorStream()
+        proxy = make_warn_after_success_proxy(resource, **({"stream": stream} if raising_stream else {}))
+        expected = TypeError if raising_stream else FutureWarning
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", FutureWarning)
+            with pytest.raises(expected) as raised:
+                drive(proxy)
+        assert resource.entries == 1
+        assert len(resource.exits) == 1
+        exc_type, exc, traceback = resource.exits[0]
+        assert exc_type is expected
+        assert exc is raised.value
+        assert traceback is not None
+        if raising_stream:
+            assert len(stream.calls) == 1
+
+    @pytest.mark.parametrize("drive", [pytest.param(_drive_enter, id="sync"), pytest.param(_drive_aenter, id="async")])
+    def test_cleanup_uses_acquired_context_after_skip_changes(self, drive: Callable[[Any], object]) -> None:
+        """Unwind the acquired target even if the failing stream changes skip state.
+
+        A logging callback can activate a feature flag before it raises. Cleanup must
+        use the context already acquired, although future proxy operations serve source.
+        """
+        source = RecordingEntryContext()
+        target = RecordingEntryContext()
+        proxy = make_switching_entry_proxy(source, target)
+        with pytest.raises(RuntimeError, match="^delivery failed$") as raised:
+            drive(proxy)
+        assert (source.entries, source.exits, target.entries) == (0, [], 1)
+        assert len(target.exits) == 1
+        assert target.exits[0][1] is raised.value
+
+    def test_warning_error_releases_real_lock(self) -> None:
+        """Release a real lock when entry fails because a warning becomes an error.
+
+        A subsequent nonblocking acquisition proves the warning path does not leave
+        shared application state locked after Python declines to enter the with body.
+        """
+        lock = threading.Lock()
+        proxy = make_warn_after_success_proxy(lock)
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter("error", FutureWarning)
+                with pytest.raises(FutureWarning):
+                    _drive_enter(proxy)
+            assert not lock.locked()
+            assert lock.acquire(blocking=False)
+        finally:
+            if lock.locked():
+                lock.release()
+
+    @pytest.mark.parametrize("drive", [pytest.param(_drive_enter, id="sync"), pytest.param(_drive_aenter, id="async")])
+    @pytest.mark.parametrize("fail", [False, True])
+    def test_underlying_entry_controls_cleanup(self, drive: Callable[[Any], object], fail: bool) -> None:
+        """Clean up exactly once after successful entry and never after failed entry.
+
+        A context whose own acquisition raises has nothing to unwind. Normal entry
+        must still warn once, return the acquired resource and exit without an error.
+        """
+        resource = RecordingEntryContext(fail=fail)
+        proxy = make_warn_after_success_proxy(resource)
+        if fail:
+            with warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter("always")
+                with pytest.raises(RuntimeError, match="^entry failed$"):
+                    drive(proxy)
+            assert not caught
+            assert resource.exits == []
+        else:
+            with pytest.warns(FutureWarning) as caught:
+                assert drive(proxy) is resource
+            assert len(caught) == 1
+            assert resource.exits == [(None, None, None)]
+        assert resource.entries == 1
+
+
+class TestSkippedInplaceReadOnly:
+    """Read-only in-place operators honor the same dynamic skip as other writes."""
+
+    def test_skip_bypasses_guards_then_rearms_without_mutation(self) -> None:
+        """Permit skipped mutation and reject the same operation once skip is off.
+
+        A feature flag disables a fatal read-only deprecation during a transition.
+        The source list may mutate while skipped, but reactivation must reject the
+        in-place operation before it changes the list or emits a warning.
+        """
+        source = [1, 2]
+        flag = {"skip": True}
+        proxy = make_read_only_inplace_proxy(source, flag)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            result = proxy.__iadd__([3])
+            flag["skip"] = False
+            with pytest.raises(AttributeError, match="read-only"):
+                proxy.__iadd__([4])
+        assert result is source
+        assert source == [1, 2, 3]
+        assert not caught
+
+
+class TestDeferredAsyncWarningTiming:
+    """Acquiring an awaitable spends the budget before deferred execution fails."""
+
+    def test_exhaustion_after_acquisition_spends_budget(self) -> None:
+        """Warn before an async iterator reports exhaustion during awaiting.
+
+        An async iterator obtains its coroutine successfully but has no items left.
+        The acquisition warning consumes the single notice before StopAsyncIteration.
+        """
+        source = FlakyProtocolBox(items=())
+        proxy = make_warn_after_success_proxy(source)
+        with pytest.warns(FutureWarning) as caught:
+            pending = proxy.__anext__()
+        assert len(caught) == 1
+        with pytest.raises(StopAsyncIteration):
+            asyncio.run(pending)
+        source.items.append(7)
+        with warnings.catch_warnings(record=True) as later:
+            warnings.simplefilter("always")
+            assert _drive_anext(proxy) == 7
+        assert not later
+
+    def test_await_failure_after_acquisition_spends_budget(self) -> None:
+        """Warn before driving an await iterator that subsequently raises.
+
+        A lazy awaitable acquires its iterator normally and fails only when awaited.
+        Retrying the await still fails but cannot issue another default-budget notice.
+        """
+        proxy = make_warn_after_success_proxy(DeferredFailureAwaitable())
+        with pytest.warns(FutureWarning) as caught, pytest.raises(RuntimeError, match="^deferred await failed$"):
+            _drive_await(proxy)
+        assert len(caught) == 1
+        with warnings.catch_warnings(record=True) as later:
+            warnings.simplefilter("always")
+            with pytest.raises(RuntimeError, match="^deferred await failed$"):
+                _drive_await(proxy)
+        assert not later

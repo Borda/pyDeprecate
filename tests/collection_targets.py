@@ -1453,3 +1453,66 @@ class UnhashableStream(RecordingStream):
         return isinstance(other, UnhashableStream) and other.calls == self.calls
 
     __hash__ = None  # type: ignore[assignment]
+
+
+class RecordingEntryContext:
+    """Record context acquisition and cleanup, including errors supplied to cleanup."""
+
+    def __init__(self, *, fail: bool = False, suppress: bool = False) -> None:
+        """Configure entry failure and cleanup suppression independently."""
+        self.fail = fail
+        self.suppress = suppress
+        self.entries = 0
+        self.exits: list[tuple[Any, ...]] = []
+
+    def __enter__(self) -> "RecordingEntryContext":
+        """Acquire once, or raise before acquisition completes."""
+        self.entries += 1
+        if self.fail:
+            raise RuntimeError("entry failed")
+        return self
+
+    def __exit__(self, *exc_info: object) -> bool:
+        """Record the exact exception information and optionally suppress it."""
+        self.exits.append(exc_info)
+        return self.suppress
+
+    async def __aenter__(self) -> "RecordingEntryContext":
+        """Acquire through the asynchronous protocol."""
+        return self.__enter__()
+
+    async def __aexit__(self, *exc_info: object) -> bool:
+        """Record asynchronous cleanup and optionally suppress its exception."""
+        return self.__exit__(*exc_info)
+
+
+class RuntimeSignatureStream(UnintrospectableStream):
+    """Represent a working stream whose metadata descriptor fails unexpectedly."""
+
+    def __init__(self, *, fail: bool = False) -> None:
+        """Configure a distinct callback failure after recording delivery."""
+        super().__init__()
+        self.fail = fail
+
+    @property
+    def __signature__(self) -> Any:  # noqa: ANN401
+        """Raise a descriptor error rather than an unsupported-signature error."""
+        raise RuntimeError("signature metadata failed")
+
+    def __call__(self, msg: str, stacklevel: Optional[int] = None) -> None:
+        """Record delivery once and optionally raise the callback's own error."""
+        super().__call__(msg, stacklevel)
+        if self.fail:
+            raise RuntimeError("callback failed")
+
+
+class DeferredFailureAwaitable:
+    """Fail while driving an acquired await iterator, rather than during acquisition."""
+
+    def __await__(self) -> Generator[Any, None, int]:
+        """Acquire an iterator whose first advancement raises."""
+        return self._fail().__await__()
+
+    async def _fail(self) -> int:
+        """Raise after the await iterator has already been obtained."""
+        raise RuntimeError("deferred await failed")

@@ -17,6 +17,9 @@ protocol for proxies. Every proxy carries ``__wrapped__`` (the source object) an
 (the source's signature) so ``inspect.unwrap``, ``inspect.signature``, Sphinx autodoc, and IDEs
 resolve through the proxy to the original — reading either attribute emits no deprecation warning.
 
+Context entry releases an acquired resource if warning delivery raises. Async next and await warnings
+fire when the underlying awaitable or iterator is obtained, before deferred execution.
+
 Example:
     >>> import warnings
     >>> cfg = {"threshold": 0.5}
@@ -34,6 +37,7 @@ import inspect
 import math
 import operator
 import os
+import sys
 import threading
 import types
 import warnings
@@ -1278,14 +1282,22 @@ class _DeprecatedProxy:
     # ------------------------------------------------------------------
     # Context-manager protocol — entry warns (a use), exit is silent cleanup.  Entry, ``__anext__`` and
     # ``__await__`` have side effects on the wrapped object: ``_fatal_gate`` refuses a fatal deprecation before
-    # they run, and the warning follows only a successful operation so a failed one keeps the budget.
+    # they run. Entry warns after acquisition; async next/await warn when their awaitable/iterator is obtained,
+    # before any deferred execution. Failed acquisition keeps the budget.
     # ------------------------------------------------------------------
 
     def __enter__(self) -> Any:  # noqa: ANN401
-        """Enter the active object's context, emitting a deprecation warning once entry succeeds."""
+        """Enter the active context, unwinding it if warning delivery after acquisition fails."""
         self._fatal_gate()
-        entered = self._get_active().__enter__()
-        self._warn()
+        active = self._get_active()
+        entered = active.__enter__()
+        try:
+            self._warn()
+        except BaseException:
+            # Python will not invoke __exit__ when entry raises. Unwind the context we acquired,
+            # even if the stream changed skip state, and never suppress the emission failure.
+            active.__exit__(*sys.exc_info())
+            raise
         return entered
 
     def __exit__(self, *exc_info: Any) -> Any:  # noqa: ANN401
@@ -1293,10 +1305,17 @@ class _DeprecatedProxy:
         return self._get_active().__exit__(*exc_info)
 
     async def __aenter__(self) -> Any:  # noqa: ANN401
-        """Async-enter the active object's context, emitting a deprecation warning once entry succeeds."""
+        """Async-enter the active context, unwinding it if warning delivery after acquisition fails."""
         self._fatal_gate()
-        entered = await self._get_active().__aenter__()
-        self._warn()
+        active = self._get_active()
+        entered = await active.__aenter__()
+        try:
+            self._warn()
+        except BaseException:
+            # Entry has acquired the resource, but Python will not call __aexit__ on its failure.
+            # Keep the acquired context and propagate the delivery error regardless of suppression.
+            await active.__aexit__(*sys.exc_info())
+            raise
         return entered
 
     async def __aexit__(self, *exc_info: Any) -> Any:  # noqa: ANN401
@@ -2165,7 +2184,8 @@ def _make_inplace_forward(op_name: str) -> Callable[..., Any]:
     """
 
     def _inplace_dunder(self: "_DeprecatedProxy", other: Any) -> Any:  # noqa: ANN401
-        self._check_read_only(f"In-place operation '{op_name}'")
+        if not self._shall_skip():
+            self._check_read_only(f"In-place operation '{op_name}'")
         active = self._get_active()
         impl = getattr(type(active), op_name, None)
         if impl is None:

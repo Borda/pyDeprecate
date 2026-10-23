@@ -34,6 +34,7 @@ from tests.collection_targets import (
     NewCls,
     NonStringNameCallable,
     RecordingStream,
+    RuntimeSignatureStream,
     UnhashableStream,
     UnintrospectableStream,
     base_sum_kwargs,
@@ -573,3 +574,22 @@ class TestTemplateBareConversion:
             @deprecated(deprecated_in="1.0", remove_in="2.0", message_template="gone %d")
             def old() -> int:
                 return 1
+
+
+class TestFailingStreamMetadata:
+    """Metadata failures must not prevent delivery to a usable stream."""
+
+    @pytest.mark.parametrize("fail", [False, True])
+    def test_delivers_once_despite_descriptor_error(self, fail: bool) -> None:
+        """Fall back to a message-only call while preserving callback failures.
+
+        A user-defined stream may expose dynamic signature metadata that raises even
+        though the callback works. Its real callback error must still reach the caller.
+        """
+        stream = RuntimeSignatureStream(fail=fail)
+        if fail:
+            with pytest.raises(RuntimeError, match="^callback failed$"):
+                _emit(stream, "old is deprecated")
+        else:
+            _emit(stream, "old is deprecated")
+        assert stream.calls == [("old is deprecated", {})]

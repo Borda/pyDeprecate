@@ -202,8 +202,9 @@ def _inspect_stream_accepts_stacklevel(stream: Callable[..., Any]) -> bool:
         # ``follow_wrapped=False``: a stream decorated with ``functools.wraps(logging.warning)`` reports the wrapped
         # callable's wider signature, but the stream itself is what gets called.
         parameters = inspect.signature(stream, follow_wrapped=False).parameters.values()
-    except (TypeError, ValueError):
-        # No signature: call with the message alone rather than guess, so the stream is never invoked twice.
+    except Exception:
+        # User-provided metadata descriptors can raise arbitrary exceptions. Only introspection is defensive:
+        # call with the message alone rather than guess, and let any callback error propagate without retry.
         return False
     return any(
         param.kind is inspect.Parameter.VAR_KEYWORD
@@ -223,9 +224,9 @@ def _stream_accepts_stacklevel(stream: Callable[..., Any]) -> bool:
     1. ``warnings.warn`` itself, or a (nested) :func:`functools.partial` of it, accepts ``stacklevel``.
     2. Otherwise, when :func:`inspect.signature` describes ``stream``, it accepts ``stacklevel`` if a ``stacklevel``
        parameter can be bound by keyword (not positional-only, not ``*stacklevel``) or it declares ``**kwargs``.
-    3. When :func:`inspect.signature` raises :class:`ValueError` or :class:`TypeError` (typically a C-level callable
-       without signature metadata), the answer is ``False``: the stream is called with the message alone, which
-       costs caller attribution for a C-level stream that would have accepted ``stacklevel``.
+    3. When :func:`inspect.signature` raises an :class:`Exception` (missing or failing signature metadata), the
+       answer is ``False``: the stream is called with the message alone, which costs caller attribution for a
+       stream that would have accepted ``stacklevel``. Exceptions from calling the stream still propagate.
 
     The answer is memoised per stream object; an unhashable stream is inspected afresh on every call.
 

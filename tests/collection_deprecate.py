@@ -3489,3 +3489,34 @@ def make_front_door_redirect_on(source: Any) -> Any:  # noqa: ANN401
 def make_strict_callable_notify_on(source: Any) -> Any:  # noqa: ANN401
     """Apply the strict ``deprecated_callable`` form with ``TargetMode.NOTIFY`` to *source*."""
     return deprecated_callable(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)(source)
+
+
+def make_read_only_inplace_proxy(obj: object, flag: dict[str, bool]) -> Any:  # noqa: ANN401
+    """Wrap an object with a dynamically skipped read-only guard and fatal gate."""
+    return deprecated_instance(
+        obj,
+        name="legacy_box",
+        read_only=True,
+        skip_if=lambda: flag["skip"],
+        as_exception=True,
+        **_DEPRS_CASE_STD_ARGS,
+    )
+
+
+def make_switching_entry_proxy(source: object, target: object) -> Any:  # noqa: ANN401
+    """Change the active context during failed warning delivery to test cleanup ownership."""
+    flag = {"skip": False}
+
+    def failing_stream(message: str) -> None:
+        """Switch to the source before propagating the delivery failure."""
+        flag["skip"] = True
+        raise RuntimeError("delivery failed")
+
+    return _DeprecatedProxy(
+        obj=source,
+        target=target,
+        name="legacy_context",
+        stream=failing_stream,
+        skip_if=lambda: flag["skip"],
+        **_DEPRS_CASE_STD_ARGS,
+    )
