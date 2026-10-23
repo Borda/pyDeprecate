@@ -20,6 +20,7 @@ from deprecate.messaging import (
     _STREAM_DECISIONS,
     _callable_display_name,
     _emit,
+    _eval_skip_if,
     _raise_warn,
     _raise_warn_arguments,
     _raise_warn_callable,
@@ -728,3 +729,34 @@ class TestFailingStreamMetadata:
         else:
             _emit(stream, "old is deprecated")
         assert stream.calls == [("old is deprecated", {})]
+
+
+class TestEvalSkipIf:
+    """The one ``skip_if`` evaluation shared by the callable wrappers and the deprecation proxy."""
+
+    @pytest.mark.parametrize(
+        ("skip_if", "expected"),
+        [
+            pytest.param(True, True, id="static-true"),
+            pytest.param(False, False, id="static-false"),
+            pytest.param(1, True, id="truthy-static-value"),
+            pytest.param(lambda: True, True, id="callable-true"),
+            pytest.param(lambda: False, False, id="callable-false"),
+        ],
+    )
+    def test_returns_evaluated_condition(self, skip_if: Any, expected: bool) -> None:  # noqa: ANN401
+        """A static value is converted with ``bool()`` and a callable is invoked, each giving a strict ``bool``.
+
+        A library gates its deprecation on a feature flag, either fixed at import time or read from configuration on
+        every call; both forms must switch the deprecation machinery off exactly when they evaluate truthy.
+        """
+        assert _eval_skip_if(skip_if) is expected
+
+    def test_non_bool_callable_result_raises(self) -> None:
+        """A callable returning anything but a ``bool`` raises ``TypeError`` naming the returned type.
+
+        A flag reader that returns ``1`` or a string by mistake would otherwise be treated as truthy and silently
+        disable the warning; the error names the offending type instead.
+        """
+        with pytest.raises(TypeError, match=r"^User function 'skip_if' shall return bool, but got: <class 'int'>$"):
+            _eval_skip_if(lambda: 1)  # type: ignore[arg-type, return-value]

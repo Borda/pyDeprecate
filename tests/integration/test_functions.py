@@ -364,7 +364,7 @@ class TestArgumentMapping:
         """New-name value wins when old name passed positionally and new name passed as kwarg.
 
         ``depr_collision_old_new(5, new=6)`` resolves positional ``5`` to ``old=5`` via
-        ``_update_kwargs_with_args`` before ``_build_call_plan`` computes ``_explicit_new``;
+        ``_update_kwargs_with_args`` before ``_resolve_forward_kwargs`` computes ``_explicit_new``;
         the fix then fires identically to the kwarg-only collision case.
         """
         with pytest.warns(FutureWarning):

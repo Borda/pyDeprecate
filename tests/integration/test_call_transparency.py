@@ -25,6 +25,7 @@ from tests.collection_deprecate import (
     shape_notify_wraps_chain,
     shape_remap_area_dispatch,
     shape_remap_old_new,
+    shape_remap_var_positional_with_extra,
     shape_remap_with_extra,
 )
 
@@ -36,6 +37,10 @@ _NOTIFY_OVER_CALLABLE_WARNINGS = [
 ]
 _LIFECYCLE_NOTIFY_WARNING = (
     "FutureWarning: The `_loc_stack_lifecycle_source` was deprecated since v1.0. It will be removed in v2.0."
+)
+_VAR_POSITIONAL_RENAME_WARNING = (
+    "FutureWarning: The `shape_remap_var_positional_with_extra` uses deprecated arguments: `old` -> `new`."
+    " They were deprecated since v1.0 and will be removed in v2.0."
 )
 _LIFECYCLE_RENAME_WARNING = (
     "FutureWarning: The `_loc_stack_lifecycle_source` uses deprecated arguments: `old_x` -> `x`."
@@ -180,6 +185,30 @@ class TestArgsRemapCallShape:
             result = shape_remap_with_extra(new=1)
 
         assert (result, _warning_lines(caught)) == ((None, 1, True), [])
+
+    @pytest.mark.parametrize(
+        ("kwargs", "expected_warnings"),
+        [
+            pytest.param({"new": 3}, [], id="migrated-caller"),
+            pytest.param({"old": 3}, [_VAR_POSITIONAL_RENAME_WARNING], id="old-name-caller"),
+        ],
+    )
+    def test_args_extra_injected_for_var_positional_source(
+        self, kwargs: dict[str, Any], expected_warnings: list[str]
+    ) -> None:
+        """``args_extra`` reaches a source declaring ``*args`` whether or not the caller uses the deprecated name.
+
+        A library renames ``old`` to ``new`` on a function that also collects a ``*values`` tail, and injects
+        ``flag=True`` through ``args_extra``.  The injected keyword belongs to every call, so a caller already on the
+        new spelling, ``f(1, 2, new=3)``, must reach the source with ``flag=True`` next to its positional tail exactly
+        like a caller still passing ``old=3``; only the latter warns.
+
+        """
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            result = shape_remap_var_positional_with_extra(1, 2, **kwargs)
+
+        assert (result, _warning_lines(caught)) == (((1, 2), None, 3, True), expected_warnings)
 
 
 class TestArityError:

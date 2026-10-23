@@ -2,6 +2,7 @@
 
 import asyncio
 import concurrent.futures
+import contextvars
 import inspect
 import sys
 import threading
@@ -16,7 +17,11 @@ import pytest
 from deprecate import TargetMode, assert_no_warnings, deprecated, void
 from deprecate._dispatch import (
     POSITIONAL_OR_KEYWORD,
+    _build_call_facts,
     _build_call_plan,
+    _cycle_detection,
+    _enter_cycle_guard,
+    _exit_cycle_guard,
     _find_class_body_qualname,
     _ForwardDefaults,
     _get_positional_params,
@@ -29,8 +34,9 @@ from deprecate._dispatch import (
     _split_positional_only_kwargs,
     _update_kwargs_with_args,
     _update_kwargs_with_defaults,
+    _WrapperContext,
 )
-from deprecate._types import DeprecationConfig, _DeprecatedCallable, _WrapperState
+from deprecate._types import DeprecationConfig, _CallFacts, _DeprecatedCallable, _WrapperState
 from tests.collection_deprecate import (
     CrossGuardModuleLevel,
     CrossGuardOldClass,
@@ -74,6 +80,7 @@ from tests.collection_deprecate import (
 from tests.collection_misconfigured import target_false_deprecation
 from tests.collection_targets import (
     KeywordCallTarget,
+    NewCls,
     call_signature_source,
     compute_power,
     double_value,
@@ -88,6 +95,7 @@ from tests.collection_targets import (
     source_with_forward_defaults,
     stacked_inner_target,
     stacked_outer_target,
+    var_positional_target,
 )
 
 
@@ -1271,22 +1279,33 @@ class TestClassBodyQualnameWalk:
                     return void(x)
 
 
-def _make_wrapper_stub(source: Callable[..., Any], dep_cfg: DeprecationConfig) -> _DeprecatedCallable:
-    """Return a minimal callable shaped like a ``@deprecated`` wrapper for unit testing.
+def _make_context(
+    source: Callable[..., Any],
+    cfg: DeprecationConfig,
+    target: Union[Callable[..., Any], TargetMode],
+    *,
+    is_stacked: bool = False,
+    forward_defaults: Optional[_ForwardDefaults] = None,
+) -> _WrapperContext:
+    """Return the decoration-time context a ``@deprecated`` wrapper over ``source`` would build, without a stream.
 
-    The real wrapper carries mutable ``_state`` and frozen ``__deprecation_config__`` attributes that
-    :func:`_build_call_plan` reads via :class:`~deprecate._types._DeprecatedCallable`.  Wrapping the
-    bare ``source`` here suffices because the helper never invokes ``wrapper_fn`` itself — it only
-    reads ``wrapper_fn._state``.
+    The facts come from the real :func:`_build_call_facts` and the state is fresh; ``stream=None`` keeps
+    :func:`_build_call_plan` from emitting warnings, so a test only reads the plan and ``ctx.state``.
 
     """
-
-    def _stub(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401 - signature mirrors real wrappers
-        return source(*args, **kwargs)
-
-    _stub._state = _WrapperState()  # type: ignore[attr-defined]
-    _stub.__deprecation_config__ = dep_cfg  # type: ignore[attr-defined]
-    return _stub  # type: ignore[return-value]
+    return _WrapperContext(
+        source=source,
+        raw_target=target,
+        target=target,
+        cfg=cfg,
+        facts=_build_call_facts(source, target, None),
+        state=_WrapperState(),
+        stream=None,
+        num_warns=1,
+        skip_if=False,
+        is_stacked=is_stacked,
+        forward_defaults=forward_defaults,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1297,27 +1316,15 @@ def _make_wrapper_stub(source: Callable[..., Any], dep_cfg: DeprecationConfig) -
 def test_callable_target_round_trip_returns_target_func() -> None:
     """Callable target with matching kwargs returns ``short_circuit=False`` and the resolved ``target_func``."""
     cfg = DeprecationConfig(deprecated_in="1.0", remove_in="2.0", name="src", target=double_value)
-    wrapper = _make_wrapper_stub(double_value, cfg)
-    plan = _build_call_plan(
-        wrapper_fn=wrapper,
-        source=double_value,
-        target=double_value,
-        normalized_target=double_value,
-        args=(),
-        kwargs={"x": 3},
-        dep_cfg=cfg,
-        stream=None,  # suppress real warning emission
-        num_warns=1,
-        source_has_var_positional=False,
-        source_is_stacked=False,
-    )
+    ctx = _make_context(double_value, cfg, double_value)
+    plan = _build_call_plan(ctx, (), {"x": 3})
 
     assert plan.short_circuit is False
     assert plan.target_func is double_value
     assert plan.resolved_kwargs == {"x": 3}
     assert plan.reason_argument == {}
     # State must be bumped exactly once per call.
-    assert wrapper._state.called == 1  # type: ignore[attr-defined]
+    assert ctx.state.called == 1
 
 
 # ---------------------------------------------------------------------------
@@ -1336,20 +1343,8 @@ def test_args_remap_migrated_caller_short_circuits() -> None:
     cfg = DeprecationConfig(
         deprecated_in="1.0", remove_in="2.0", name="src", target=TargetMode.ARGS_REMAP, args_mapping={"old_x": "x"}
     )
-    wrapper = _make_wrapper_stub(identity_value, cfg)
-    plan = _build_call_plan(
-        wrapper_fn=wrapper,
-        source=identity_value,
-        target=TargetMode.ARGS_REMAP,
-        normalized_target=TargetMode.ARGS_REMAP,
-        args=(),
-        kwargs={"x": 7},  # caller already migrated — uses new name
-        dep_cfg=cfg,
-        stream=None,
-        num_warns=1,
-        source_has_var_positional=False,
-        source_is_stacked=False,
-    )
+    ctx = _make_context(identity_value, cfg, TargetMode.ARGS_REMAP)
+    plan = _build_call_plan(ctx, (), {"x": 7})  # caller already migrated — uses new name
 
     assert plan.short_circuit is True
     assert plan.target_func is None
@@ -1365,20 +1360,8 @@ def test_args_remap_migrated_caller_short_circuits() -> None:
 def test_notify_mode_returns_none_target_func() -> None:
     """:attr:`TargetMode.NOTIFY` never resolves a target; the wrapper must execute the source body."""
     cfg = DeprecationConfig(deprecated_in="1.0", remove_in="2.0", name="src", target=TargetMode.NOTIFY)
-    wrapper = _make_wrapper_stub(identity_value, cfg)
-    plan = _build_call_plan(
-        wrapper_fn=wrapper,
-        source=identity_value,
-        target=TargetMode.NOTIFY,
-        normalized_target=TargetMode.NOTIFY,
-        args=(),
-        kwargs={"x": 5},
-        dep_cfg=cfg,
-        stream=None,
-        num_warns=1,
-        source_has_var_positional=False,
-        source_is_stacked=False,
-    )
+    ctx = _make_context(identity_value, cfg, TargetMode.NOTIFY)
+    plan = _build_call_plan(ctx, (), {"x": 5})
 
     assert plan.short_circuit is False
     assert plan.target_func is None
@@ -1395,8 +1378,8 @@ def test_misconfigured_warning_fires_exactly_once() -> None:
     """A misconfigured wrapper emits its ``UserWarning`` only on the first call.
 
     The misconfiguration ``UserWarning`` is gated by ``state.warned_misconfigured`` in
-    :func:`deprecate._dispatch._build_call_plan` (see lines around the
-    ``state.warned_misconfigured = True`` assignment).  The flag is **never** reset by
+    :func:`deprecate._dispatch._warn_misconfigured_once` (called from
+    :func:`deprecate._dispatch._build_call_plan`).  The flag is **never** reset by
     :mod:`tests.conftest` — it implements an intentional once-per-wrapper-lifetime contract
     so noisy misconfig warnings do not flood test output.
 
@@ -1486,7 +1469,7 @@ def test_num_warns_one_exhausts_after_first_call() -> None:
 def test_source_is_stacked_skips_positional_conversion() -> None:
     """When ``source_is_stacked=True`` the helper must not short-circuit on a migrated caller.
 
-    The short-circuit gate (see ``_build_call_plan`` lines 728–739) compresses three conditions:
+    The short-circuit gate (``_is_short_circuit``) compresses three conditions:
     no callable/arg reason, no ``args_extra`` injection, and ``not source_is_stacked``.  When the
     outer wrapper sits over an already-``@deprecated`` source — the canonical
     ``ARGS_REMAP``-outer + ``NOTIFY``-inner stack from :func:`make_depr_compute_power_stacked` —
@@ -1498,7 +1481,7 @@ def test_source_is_stacked_skips_positional_conversion() -> None:
 
     Two assertions are checked in isolation here:
 
-    * direct call to ``_build_call_plan`` with ``source_is_stacked=True`` returns
+    * direct call to ``_build_call_plan`` with a stacked context (``is_stacked=True``) returns
       ``short_circuit=False`` even when no reason fires (the bypass);
     * end-to-end call to the real stacked wrapper from
       :func:`make_depr_compute_power_stacked` with the migrated arg name emits the inner
@@ -1508,20 +1491,9 @@ def test_source_is_stacked_skips_positional_conversion() -> None:
     cfg = DeprecationConfig(
         deprecated_in="1.0", remove_in="2.0", name="src", target=TargetMode.ARGS_REMAP, args_mapping={"factor": "scale"}
     )
-    wrapper = _make_wrapper_stub(compute_power, cfg)
-    plan = _build_call_plan(
-        wrapper_fn=wrapper,
-        source=compute_power,
-        target=TargetMode.ARGS_REMAP,
-        normalized_target=TargetMode.ARGS_REMAP,
-        args=(),
-        kwargs={"base": 2.0, "scale": 3.0},  # caller already migrated — uses new name
-        dep_cfg=cfg,
-        stream=None,
-        num_warns=1,
-        source_has_var_positional=False,
-        source_is_stacked=True,  # source itself carries @deprecated meta
-    )
+    # ``is_stacked=True``: the source itself carries @deprecated meta.
+    ctx = _make_context(compute_power, cfg, TargetMode.ARGS_REMAP, is_stacked=True)
+    plan = _build_call_plan(ctx, (), {"base": 2.0, "scale": 3.0})  # caller already migrated — uses new name
 
     assert plan.short_circuit is False, "source_is_stacked=True must bypass the migrated-caller short-circuit"
     assert plan.target_func is None, "ARGS_REMAP never resolves a callable target_func"
@@ -1659,25 +1631,190 @@ class TestForwardDefaultsPrecompute:
         ``level`` stale the resolved keywords carry only ``x``, proving the plan used the facts it was given.
         """
         cfg = DeprecationConfig(deprecated_in="1.0", remove_in="2.0", name="src", target=fn_shared_default_target)
-        wrapper = _make_wrapper_stub(source_sharing_level_default, cfg)
         facts = _ForwardDefaults(stale_renamed=frozenset({"level"}), partial_bound=frozenset())
+        ctx = _make_context(source_sharing_level_default, cfg, fn_shared_default_target, forward_defaults=facts)
 
-        plan = _build_call_plan(
-            wrapper_fn=wrapper,
-            source=source_sharing_level_default,
-            target=fn_shared_default_target,
-            normalized_target=fn_shared_default_target,
-            args=(),
-            kwargs={"x": 5},
-            dep_cfg=cfg,
-            stream=None,
-            num_warns=1,
-            source_has_var_positional=False,
-            source_is_stacked=False,
-            forward_defaults=facts,
-        )
+        plan = _build_call_plan(ctx, (), {"x": 5})
 
         assert plan.resolved_kwargs == {"x": 5}
+
+
+# ---------------------------------------------------------------------------
+# Decoration-time call facts, wrapper context and cycle guard
+# ---------------------------------------------------------------------------
+
+
+def _guarded_reentry_error(ctx: _WrapperContext) -> str:
+    """Enter the cycle guard of ``ctx`` twice in one call stack and return the message of the second entry's error."""
+    handle = _enter_cycle_guard(ctx)
+    with pytest.raises(RuntimeError) as err:
+        _enter_cycle_guard(ctx)
+    _exit_cycle_guard(ctx, handle)
+    return str(err.value)
+
+
+def _guard_value_after_exit(ctx: _WrapperContext) -> Optional[set[int]]:
+    """Enter and exit the cycle guard of ``ctx`` once, then return what the guard's context variable holds."""
+    _exit_cycle_guard(ctx, _enter_cycle_guard(ctx))
+    return _cycle_detection.get()
+
+
+async def _hold_guard_across_task_switch(ctx: _WrapperContext) -> set[int]:
+    """Enter the cycle guard, yield to the event loop, and return a copy of this task's active set before exiting."""
+    handle = _enter_cycle_guard(ctx)
+    await asyncio.sleep(0)
+    active = set(cast(set[int], _cycle_detection.get()))
+    _exit_cycle_guard(ctx, handle)
+    return active
+
+
+async def _gather_guarded_tasks(ctx: _WrapperContext) -> list[set[int]]:
+    """Run two guarded tasks for the same wrapper concurrently and return each task's active set."""
+    return list(await asyncio.gather(_hold_guard_across_task_switch(ctx), _hold_guard_across_task_switch(ctx)))
+
+
+_FACTS_CFG = DeprecationConfig(deprecated_in="1.0", remove_in="2.0")
+
+
+class TestBuildCallFacts:
+    """Signature facts a wrapper derives once at decoration time so no call inspects a signature again."""
+
+    @pytest.mark.parametrize(
+        ("source", "target", "expected"),
+        [
+            pytest.param(
+                positional_only_target,
+                TargetMode.NOTIFY,
+                _CallFacts(
+                    source_positional_names=("x", "y"),
+                    source_positional_only=frozenset({"x"}),
+                    source_positional_only_order=("x", "y"),
+                    target_all_param_names=frozenset(),
+                    target_positional_names=(),
+                ),
+                id="positional-only-source",
+            ),
+            pytest.param(
+                identity_value,
+                positional_only_target,
+                _CallFacts(
+                    source_positional_names=("x",),
+                    target_all_param_names=frozenset({"x", "y"}),
+                    target_positional_only=frozenset({"x"}),
+                    target_positional_only_order=("x", "y"),
+                    target_positional_names=("x", "y"),
+                ),
+                id="positional-only-target",
+            ),
+            pytest.param(
+                var_positional_target,
+                double_value,
+                _CallFacts(
+                    source_positional_names=("a",),
+                    source_has_var_positional=True,
+                    source_var_positional_prefix=1,
+                    target_all_param_names=frozenset({"x"}),
+                    target_positional_names=("x",),
+                ),
+                id="var-positional-source",
+            ),
+            pytest.param(
+                double_value,
+                NewCls,
+                _CallFacts(
+                    source_positional_names=("x",),
+                    target_all_param_names=frozenset({"c", "d", "kwargs"}),
+                    target_accepts_var_keyword=True,
+                    target_positional_names=("c", "d"),
+                ),
+                id="class-target-with-var-keyword",
+            ),
+            pytest.param(
+                double_value,
+                partial_target,
+                _CallFacts(
+                    source_positional_names=("x",),
+                    target_all_param_names=frozenset({"x", "y"}),
+                    target_positional_names=("x",),
+                ),
+                id="partial-target-binds-keyword",
+            ),
+        ],
+    )
+    def test_derives_source_and_target_facts(
+        self, source: Callable[..., Any], target: Union[Callable[..., Any], TargetMode], expected: _CallFacts
+    ) -> None:
+        """Every source and target signature shape maps to the facts the call path reads.
+
+        A deprecated function may declare ``/`` or ``*args`` and forward to a class whose ``__init__`` takes
+        ``**kwargs`` or to a ``functools.partial`` that turns a bound argument keyword-only.  The decorator reads
+        both signatures once; a wrong fact would silently misroute positionals on every later call.
+        """
+        assert _build_call_facts(source, target, None) == expected
+
+
+class TestWrapperContext:
+    """The per-wrapper context the call path reads instead of re-deriving flags on every call."""
+
+    @pytest.mark.parametrize(
+        ("target", "remap_active", "cycle_guarded"),
+        [
+            pytest.param(TargetMode.NOTIFY, False, False, id="notify"),
+            pytest.param(TargetMode.ARGS_REMAP, True, False, id="args-remap"),
+            pytest.param(double_value, True, True, id="callable-target"),
+        ],
+    )
+    def test_derives_flags_from_target(
+        self, target: Union[Callable[..., Any], TargetMode], remap_active: bool, cycle_guarded: bool
+    ) -> None:
+        """``remap_active`` and ``cycle_guarded`` follow from the normalised target alone.
+
+        ``args_mapping`` and ``args_extra`` apply to a self-rename and to a forwarding target but never to a warn-only
+        wrapper, and only a forwarding target can lead back into itself, so only it runs under the cycle guard.
+        """
+        ctx = _make_context(identity_value, _FACTS_CFG, target)
+
+        assert (ctx.remap_active, ctx.cycle_guarded) == (remap_active, cycle_guarded)
+
+
+class TestCycleGuard:
+    """Target-chain cycle detection, scoped per call stack and per asyncio task."""
+
+    def test_reentry_in_same_call_stack_raises(self) -> None:
+        """A wrapper entered again while it is still running in the same call stack raises ``RuntimeError``.
+
+        A deprecated function whose target chain leads back to itself would recurse until Python's recursion limit;
+        the guard names the wrapper instead.  The scenario runs in a fresh ``contextvars.Context`` so no guard state
+        can leak into other tests.
+        """
+        ctx = _make_context(double_value, _FACTS_CFG, double_value)
+
+        message = contextvars.Context().run(_guarded_reentry_error, ctx)
+
+        assert message == (
+            "Circular deprecation cycle detected: `double_value` re-entered via its own target chain."
+            " Point to a non-deprecated final implementation."
+        )
+
+    def test_exit_restores_outer_value(self) -> None:
+        """Leaving the outermost guarded call resets the context variable to its value before the call.
+
+        The first guarded call in a call stack installs a fresh active set; once it returns, a later unrelated call
+        must start from an empty state again rather than inherit a stale set.
+        """
+        ctx = _make_context(double_value, _FACTS_CFG, double_value)
+
+        assert contextvars.Context().run(_guard_value_after_exit, ctx) is None
+
+    def test_gathered_tasks_keep_separate_sets(self) -> None:
+        """Two ``asyncio.gather`` tasks running the same wrapper concurrently never see each other's active set.
+
+        An async service awaits the same deprecated coroutine from two tasks at once.  That is concurrency, not a
+        cycle: each task holds the guard across a task switch, and neither may observe the other's entry.
+        """
+        ctx = _make_context(double_value, _FACTS_CFG, double_value)
+
+        assert asyncio.run(_gather_guarded_tasks(ctx)) == [{id(double_value)}, {id(double_value)}]
 
 
 # ---------------------------------------------------------------------------
@@ -1740,10 +1877,10 @@ class TestSplitPositionalOnlyKwargs:
 class TestWarnQuotaThreadSafety:
     """The warn quota holds under concurrency.
 
-    ``_build_call_plan`` reads the warn counter, decides whether to emit, and increments — a check-then-act
-    sequence.  Without synchronisation, concurrent first calls all read ``warned_calls == 0``, all pass the
-    ``num_warns`` gate, and each emit a warning.  The state lock makes the check-and-increment atomic so exactly
-    ``num_warns`` emissions happen regardless of thread interleaving.
+    ``_emit_call_warning`` (called from ``_build_call_plan``) reads the warn counter, decides whether to emit, and
+    increments — a check-then-act sequence.  Without synchronisation, concurrent first calls all read
+    ``warned_calls == 0``, all pass the ``num_warns`` gate, and each emit a warning.  The state lock makes the
+    check-and-increment atomic so exactly ``num_warns`` emissions happen regardless of thread interleaving.
     """
 
     @pytest.fixture

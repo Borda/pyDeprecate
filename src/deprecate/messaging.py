@@ -522,7 +522,7 @@ def _raise_warn_callable(
         >>> #           `__main__.new_func`. It will be removed in v2.0."
 
     """
-    # Unwrap descriptor: _build_call_plan passes the raw (pre-normalization) target so
+    # Unwrap descriptor: _emit_call_warning passes the raw (pre-normalization) target so
     # the warning can name the class rather than __init__.  For descriptor targets,
     # callable(staticmethod(fn)) is False on Python 3.9 and callable(classmethod(fn))
     # is always False, so without this unwrap the no-target template fires incorrectly.
@@ -601,6 +601,38 @@ def _raise_warn_arguments(
         remove_in=remove_in,
         argument_map=args_map,
     )
+
+
+def _eval_skip_if(skip_if: Union[bool, Callable[[], bool]]) -> bool:
+    """Evaluate a ``skip_if`` condition; ``True`` means the deprecation machinery stays inactive for this use.
+
+    The one implementation shared by the callable wrappers and the deprecation proxy.  A non-callable value is
+    converted with ``bool()``; a callable is invoked with no arguments and must return a strict ``bool``.
+
+    Args:
+        skip_if: A static condition or a zero-argument callable returning ``bool``.
+
+    Returns:
+        The evaluated condition.
+
+    Raises:
+        TypeError: If ``skip_if`` is a callable that does not return a ``bool``.
+
+    Example:
+        >>> _eval_skip_if(False)
+        False
+        >>> _eval_skip_if(lambda: True)
+        True
+        >>> _eval_skip_if(lambda: 1)
+        Traceback (most recent call last):
+        ...
+        TypeError: User function 'skip_if' shall return bool, but got: <class 'int'>
+
+    """
+    shall_skip = skip_if() if callable(skip_if) else bool(skip_if)
+    if not isinstance(shall_skip, bool):
+        raise TypeError(f"User function 'skip_if' shall return bool, but got: {type(shall_skip)}")
+    return shall_skip
 
 
 def _consume_warn_budget(

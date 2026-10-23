@@ -19,23 +19,23 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 
 import inspect
 import warnings
-from contextvars import ContextVar
 from functools import cached_property, wraps
 from typing import Any, Callable, Literal, Optional, TypeVar, Union, cast
 
 from deprecate._dispatch import (
+    _build_call_facts,
     _build_call_plan,
     _check_cross_class_method_target,
-    _detect_positional_only,
-    _get_positional_params,
+    _enter_cycle_guard,
+    _exit_cycle_guard,
     _invoke_async,
     _invoke_sync,
     _normalize_target,
     _precompute_forward_defaults,
-    _precompute_target_facts,
     _reject_bare_decorator,
     _resolve_stored_target,
     _warn_stacking_misconfiguration,
+    _WrapperContext,
 )
 from deprecate._frames import _caller_stacklevel
 from deprecate._properties import _DeprecatedProperty
@@ -48,21 +48,14 @@ from deprecate._types import (
 )
 from deprecate.docstring.inject import _update_docstring_with_deprecation, normalize_docstring_style
 from deprecate.messaging import (
+    _eval_skip_if,
     _render_static_deprecation_message,
     _resolve_message_template_alias,
     _source_display_name,
     _validate_message_template,
     deprecation_warning,
 )
-from deprecate.utils import _get_signature, _unwrap_descriptor_target
-
-# ContextVar storing the active-wrapper id-set for the current async task or sync call stack.
-# Each asyncio.Task inherits a snapshot of the parent context at creation time; because this
-# ContextVar defaults to None and is only set() to a fresh set() inside the wrapper call, tasks
-# spawned from user code (e.g. asyncio.gather) see None and create independent sets — no sharing.
-# A synchronous recursive chain (same task/stack) shares one set — correct for cycle detection.
-# Lives here (not in _dispatch) because only the ``wrapped_fn`` closures below read/write it.
-_cycle_detection: ContextVar[Optional[set[int]]] = ContextVar("_cycle_detection", default=None)
+from deprecate.utils import _unwrap_descriptor_target
 
 #: Decorated source type: preserve callable/descriptor signatures while rejecting non-callable values statically.
 _SourceT = TypeVar("_SourceT", bound=Union[Callable[..., Any], classmethod, staticmethod, property, cached_property])
@@ -440,37 +433,9 @@ def deprecated_callable(  # noqa: C901
                 _target, source.__name__, args_mapping=args_mapping, args_extra=args_extra
             )
 
-        _source_params = list(_get_signature(source).parameters.values())
-        source_has_var_positional = any(param.kind is inspect.Parameter.VAR_POSITIONAL for param in _source_params)
-        # Named positional params preceding *args — the wrapper forwards args[prefix:] as the
-        # surplus positional tail when forwarding to a callable target.
-        _source_var_positional_prefix = (
-            next(i for i, param in enumerate(_source_params) if param.kind is inspect.Parameter.VAR_POSITIONAL)
-            if source_has_var_positional
-            else 0
-        )
-        # Positional parameter names before *args, in order: the call-time arity pre-check and the detection of a
-        # deprecated argument filled positionally read them instead of converting every call to keywords.
-        _source_positional_names = tuple(param.name for param in _get_positional_params(_source_params))
-        # Source-side POSITIONAL_ONLY params: a call the wrapper rewrites (a triggered ARGS_REMAP
-        # rename, or ARGS_REMAP with args_extra) converts positional args to kwargs internally, so
-        # the dispatcher must split these back out before invoking the source body — mirror of the
-        # target-side machinery below.  Verbatim calls keep the caller's shape and need no split.
-        _source_positional_only = frozenset(
-            param.name for param in _source_params if param.kind is inspect.Parameter.POSITIONAL_ONLY
-        )
-        _source_positional_only_order: tuple[str, ...] = (
-            tuple(param.name for param in _source_params) if _source_positional_only else ()
-        )
-
-        _target_positional_only, _target_positional_only_order = _detect_positional_only(_target, source, stream)
-        # Precompute the target signature facts the call-time kwarg validation needs (accepted-name set
-        # and var-arg flags) so no forwarded call re-inspects the target via inspect.getfullargspec.
-        (
-            _target_all_names,
-            _target_accepts_var_positional,
-            _target_accepts_var_keyword,
-        ) = _precompute_target_facts(_target)
+        # Source and target signature facts, read once here so no call re-inspects either signature; this also fires
+        # the POSITIONAL_ONLY target warning.
+        _facts = _build_call_facts(source, _target, stream)
 
         stored_target = _resolve_stored_target(target)
         misconfigured = target is False or _function_misconfigured
@@ -492,24 +457,38 @@ def deprecated_callable(  # noqa: C901
             docstring_style=normalized_docstring_style,
             message_template=message_template,
             as_exception=as_exception,
-            target_positional_only=_target_positional_only,
-            target_positional_only_order=_target_positional_only_order,
-            source_positional_only=_source_positional_only,
-            source_positional_only_order=_source_positional_only_order,
-            source_var_positional_prefix=_source_var_positional_prefix,
-            target_all_param_names=_target_all_names,
-            target_accepts_var_positional=_target_accepts_var_positional,
-            target_accepts_var_keyword=_target_accepts_var_keyword,
+            target_positional_only=_facts.target_positional_only,
+            target_positional_only_order=_facts.target_positional_only_order,
+            source_positional_only=_facts.source_positional_only,
+            source_positional_only_order=_facts.source_positional_only_order,
+            source_var_positional_prefix=_facts.source_var_positional_prefix,
+            target_all_param_names=_facts.target_all_param_names,
+            target_accepts_var_positional=_facts.target_accepts_var_positional,
+            target_accepts_var_keyword=_facts.target_accepts_var_keyword,
         )
-        _dep_cfg = dep_meta
-        # Rendered once and reused by both the sync and async wrapper branches below — the PEP-702-conformant
-        # ``__deprecated__`` message string, computed statically at decoration time from `dep_meta` alone.
+        # The PEP-702-conformant ``__deprecated__`` message string, computed statically at decoration time from
+        # `dep_meta` alone.
         _source_name = _source_display_name(source)
         _static_message = _render_static_deprecation_message(
             dep_meta, _source_name, f"{source.__module__}.{_source_name}"
         )
+        # One context per wrapper; its ``state`` is the very object installed as ``wrapper._state`` below, so counter
+        # resets through the wrapper reach the call path.
+        ctx = _WrapperContext(
+            source=source,
+            raw_target=target,
+            target=_target,
+            cfg=dep_meta,
+            facts=_facts,
+            state=_WrapperState(),
+            stream=stream,
+            num_warns=num_warns,
+            skip_if=skip_if,
+            is_stacked=_source_is_stacked,
+            forward_defaults=_forward_defaults,
+        )
 
-        #
+        # The sync and async wrappers below differ only by ``await``.
         # Known false-negatives of ``inspect.iscoroutinefunction`` — these sources silently receive the sync
         # wrapper, meaning ``await wrapper(...)`` will fail or return a bare coroutine:
         #   • async function wrapped by a decorator that does NOT propagate ``__wrapped__`` / use
@@ -521,127 +500,38 @@ def deprecated_callable(  # noqa: C901
 
             @wraps(source)
             async def async_wrapped_fn(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
-                shall_skip = skip_if() if callable(skip_if) else bool(skip_if)
-                if not isinstance(shall_skip, bool):
-                    raise TypeError(f"User function 'skip_if' shall return bool, but got: {type(shall_skip)}")
-                if shall_skip:
+                if _eval_skip_if(ctx.skip_if):
                     return await source(*args, **kwargs)
-
-                _active_async: Optional[set[int]] = None
-                _token_async = None
-                if callable(_target):
-                    _active_async = _cycle_detection.get()
-                    if _active_async is None:
-                        _active_async = set()
-                        _token_async = _cycle_detection.set(_active_async)
-                    if id(source) in _active_async:
-                        _source_name = getattr(source, "__qualname__", repr(source))
-                        raise RuntimeError(
-                            f"Circular deprecation cycle detected: `{_source_name}` re-entered"
-                            " via its own target chain. Point to a non-deprecated final implementation."
-                        )
-                    _active_async.add(id(source))
-
+                handle = _enter_cycle_guard(ctx)
                 try:
-                    # Read DeprecationConfig from the closure rather than re-reading
-                    # ``async_wrapped_fn.__deprecated__``: a PEP 702 ``typing_extensions.deprecated``
-                    # decorator stacked outside this one overwrites that attribute with a plain string.
-                    plan = _build_call_plan(
-                        wrapper_fn=async_wrapped_fn,
-                        source=source,
-                        target=target,
-                        normalized_target=_target,
-                        args=args,
-                        kwargs=kwargs,
-                        dep_cfg=_dep_cfg,
-                        stream=stream,
-                        num_warns=num_warns,
-                        source_has_var_positional=source_has_var_positional,
-                        source_is_stacked=_source_is_stacked,
-                        source_positional_names=_source_positional_names,
-                        forward_defaults=_forward_defaults,
-                    )
-                    return await _invoke_async(source, plan, _dep_cfg, source_has_var_positional, args)
+                    return await _invoke_async(ctx, _build_call_plan(ctx, args, kwargs), args)
                 finally:
-                    if _active_async is not None:
-                        _active_async.discard(id(source))
-                        if _token_async is not None:
-                            _cycle_detection.reset(_token_async)
+                    _exit_cycle_guard(ctx, handle)
 
-            async_wrapped_fn_typed = cast(_DeprecatedCallable, async_wrapped_fn)
-            async_wrapped_fn_typed.__deprecation_config__ = dep_meta
-            async_wrapped_fn_typed.__deprecated__ = _static_message
-            async_wrapped_fn_typed._state = _WrapperState()
+            wrapper = cast(_DeprecatedCallable, async_wrapped_fn)
+        else:
+            # Async generator sources (``async def`` + ``yield``) get the sync wrapper: ``source(**kwargs)`` returns
+            # the async generator object without executing any body code — same as sync generators.  Warning fires
+            # at sync call time; callers iterate with ``async for``.
+            @wraps(source)
+            def wrapped_fn(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+                if _eval_skip_if(ctx.skip_if):
+                    return source(*args, **kwargs)
+                handle = _enter_cycle_guard(ctx)
+                try:
+                    return _invoke_sync(ctx, _build_call_plan(ctx, args, kwargs), args)
+                finally:
+                    _exit_cycle_guard(ctx, handle)
 
-            if update_docstring:
-                _update_docstring_with_deprecation(async_wrapped_fn)
-
-            return async_wrapped_fn
-
-        # Async generator sources (``async def`` + ``yield``) fall through to the sync ``wrapped_fn`` below:
-        # ``source(**kwargs)`` returns the async generator object without executing any body code — same as
-        # sync generators.  Warning fires at sync call time; callers iterate with ``async for``.  The
-        # ``iscoroutinefunction`` guard below does not fire for async gen targets (they are not coroutines).
-
-        @wraps(source)
-        def wrapped_fn(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
-            shall_skip = skip_if() if callable(skip_if) else bool(skip_if)
-            if not isinstance(shall_skip, bool):
-                raise TypeError(f"User function 'skip_if' shall return bool, but got: {type(shall_skip)}")
-            if shall_skip:
-                return source(*args, **kwargs)
-
-            _active: Optional[set[int]] = None
-            _token = None
-            if callable(_target):
-                _active = _cycle_detection.get()
-                if _active is None:
-                    _active = set()
-                    _token = _cycle_detection.set(_active)
-                if id(source) in _active:
-                    _source_name = getattr(source, "__qualname__", repr(source))
-                    raise RuntimeError(
-                        f"Circular deprecation cycle detected: `{_source_name}` re-entered"
-                        " via its own target chain. Point to a non-deprecated final implementation."
-                    )
-                _active.add(id(source))
-
-            try:
-                # Read DeprecationConfig from the closure rather than re-reading
-                # ``wrapped_fn.__deprecated__``: a PEP 702 ``typing_extensions.deprecated``
-                # decorator stacked outside this one overwrites that attribute with a plain
-                # string, which then crashes on ``.misconfigured`` access.
-                plan = _build_call_plan(
-                    wrapper_fn=wrapped_fn,
-                    source=source,
-                    target=target,
-                    normalized_target=_target,
-                    args=args,
-                    kwargs=kwargs,
-                    dep_cfg=_dep_cfg,
-                    stream=stream,
-                    num_warns=num_warns,
-                    source_has_var_positional=source_has_var_positional,
-                    source_is_stacked=_source_is_stacked,
-                    source_positional_names=_source_positional_names,
-                    forward_defaults=_forward_defaults,
-                )
-                return _invoke_sync(source, plan, _dep_cfg, source_has_var_positional, args)
-            finally:
-                if _active is not None:
-                    _active.discard(id(source))
-                    if _token is not None:
-                        _cycle_detection.reset(_token)
-
-        wrapped_fn_typed = cast(_DeprecatedCallable, wrapped_fn)
-        wrapped_fn_typed.__deprecation_config__ = dep_meta
-        wrapped_fn_typed.__deprecated__ = _static_message
-        wrapped_fn_typed._state = _WrapperState()
+            wrapper = cast(_DeprecatedCallable, wrapped_fn)
+        wrapper.__deprecation_config__ = dep_meta
+        wrapper.__deprecated__ = _static_message
+        wrapper._state = ctx.state
 
         if update_docstring:
-            _update_docstring_with_deprecation(wrapped_fn)
+            _update_docstring_with_deprecation(wrapper)
 
-        return wrapped_fn
+        return wrapper
 
     # ``packing`` also takes a private ``_is_static`` argument the front door passes; the public
     # contract is the identity signature above.

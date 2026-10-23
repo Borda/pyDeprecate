@@ -3410,6 +3410,16 @@ def shape_remap_with_extra(
     return old, new, flag
 
 
+@deprecated(
+    target=TargetMode.ARGS_REMAP, args_mapping={"old": "new"}, args_extra={"flag": True}, **_DEPRS_CASE_STD_ARGS
+)
+def shape_remap_var_positional_with_extra(
+    *values: int, old: Optional[int] = None, new: Optional[int] = None, flag: bool = False
+) -> tuple[tuple[int, ...], Optional[int], Optional[int], bool]:
+    """Self-rename source with a ``*values`` tail and an ``args_extra`` injected ``flag``; returns what it received."""
+    return values, old, new, flag
+
+
 def make_pickle_settings_proxy() -> Any:  # noqa: ANN401
     """Wrap a fresh settings dict in a ``deprecated_instance`` proxy with the default one-warning budget.
 

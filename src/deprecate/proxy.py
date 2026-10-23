@@ -66,6 +66,7 @@ from deprecate.messaging import (
     TEMPLATE_WARNING_NO_TARGET,
     _callable_display_name,
     _emit,
+    _eval_skip_if,
     _render_static_deprecation_message,
     _resolve_message_template_alias,
     _validate_message_template,
@@ -740,11 +741,7 @@ class _DeprecatedProxy:
             TypeError: If ``skip_if`` is a callable that does not return a ``bool``.
 
         """
-        skip_if = self._cfg.skip_if
-        shall_skip = skip_if() if callable(skip_if) else bool(skip_if)
-        if not isinstance(shall_skip, bool):
-            raise TypeError(f"User function 'skip_if' shall return bool, but got: {type(shall_skip)}")
-        return shall_skip
+        return _eval_skip_if(self._cfg.skip_if)
 
     def _warn(self, *, arg_name: Optional[str] = None) -> None:
         """Gate and deliver a deprecation warning in one step, for an operation that warns before it runs.

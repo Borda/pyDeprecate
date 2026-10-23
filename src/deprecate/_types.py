@@ -820,6 +820,49 @@ class _DeprecatedCallable(Protocol):
         raise NotImplementedError
 
 
+@dataclass(frozen=True)
+class _CallFacts:
+    """Signature facts of a deprecated callable and its forwarding target, fixed once the callable is decorated.
+
+    A ``@deprecated`` wrapper reads these on every call instead of inspecting the source or the target signature
+    again.  :func:`deprecate._dispatch._build_call_facts` derives them; the default values describe a source with no
+    positional-only parameters and no ``*args`` forwarding to nothing.  The eight fields mirrored on
+    :class:`DeprecationConfig` keep the names they carry there.
+
+    Attributes:
+        source_positional_names: Names of the source's positional parameters before ``*args``, in order.
+        source_has_var_positional: ``True`` when the source declares ``*args``.
+        source_var_positional_prefix: Number of named positional parameters preceding the source's ``*args``.
+        source_positional_only: Names of the source's POSITIONAL_ONLY parameters.
+        source_positional_only_order: Every source parameter name in declaration order when the source has
+            POSITIONAL_ONLY parameters, otherwise empty.
+        target_all_param_names: Every parameter name of a callable target; ``None`` derives the names from the
+            target on each forwarded call.
+        target_accepts_var_positional: ``True`` when the target declares ``*args``.
+        target_accepts_var_keyword: ``True`` when the target declares ``**kwargs``.
+        target_positional_only: Names of the target's POSITIONAL_ONLY parameters.
+        target_positional_only_order: Every target parameter name in declaration order when the target has
+            POSITIONAL_ONLY parameters, otherwise empty.
+        target_positional_names: The target's leading positional parameter names, up to its ``*args`` or its first
+            keyword-only parameter, which a surplus ``*args`` tail is forwarded after; ``None`` reads them from the
+            target on the forwarded call (also the value when the target signature could not be read at decoration,
+            so that call raises the signature error itself).
+
+    """
+
+    source_positional_names: tuple[str, ...] = ()
+    source_has_var_positional: bool = False
+    source_var_positional_prefix: int = 0
+    source_positional_only: frozenset[str] = frozenset()
+    source_positional_only_order: tuple[str, ...] = ()
+    target_all_param_names: Optional[frozenset[str]] = None
+    target_accepts_var_positional: bool = False
+    target_accepts_var_keyword: bool = False
+    target_positional_only: frozenset[str] = frozenset()
+    target_positional_only_order: tuple[str, ...] = ()
+    target_positional_names: Optional[tuple[str, ...]] = None
+
+
 @dataclass
 class _CallPlan:
     """Resolved dispatch plan returned by :func:`deprecate._dispatch._build_call_plan`.
