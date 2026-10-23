@@ -407,8 +407,8 @@ def _has_migration_guidance(info: DeprecationWrapperInfo) -> bool:
 
     The same reading excludes a mapping configured alongside an explicit ``TargetMode.NOTIFY``: that combination is
     contradictory, so the decorator warns about it and drops the mapping (see
-    :meth:`~deprecate._types.TargetMode._validate`) — nothing is renamed at call time and the emitted warning names
-    no replacement, which leaves a custom ``message_template`` as ``NOTIFY``'s only way to guide a caller. An
+    :func:`~deprecate._validate._validate_callable_mode`) — nothing is renamed at call time and the emitted warning
+    names no replacement, which leaves a custom ``message_template`` as ``NOTIFY``'s only way to guide a caller. An
     *unset* target keeps its mapping: only an explicitly chosen ``NOTIFY`` is barred from auto-resolving to a remap
     mode, so a mapping stored against ``target=None`` is still applied.
 

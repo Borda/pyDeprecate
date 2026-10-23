@@ -1,9 +1,8 @@
-"""Target resolution and call-plan engine for callable deprecation.
+"""Call-facts precomputation and call-plan engine for callable deprecation.
 
-Decoration-time target normalization and guards (``_normalize_target``, cross-class checks, positional-only detection,
-stacking-misconfiguration warnings) plus the call-time dispatch core (``_build_call_plan`` and the sync/async invokers)
-that forwards a deprecated call to its replacement.  :mod:`deprecate.routine` builds its ``packing`` closures and the
-public ``deprecated`` / ``deprecated_callable`` decorators on top of these helpers.
+Signature facts computed at decoration time feed the call-time dispatch core (``_build_call_plan`` and the sync/async
+invokers) that forwards a deprecated call to its replacement.  :mod:`deprecate.routine` builds its ``packing`` closures
+and the public ``deprecated`` / ``deprecated_callable`` decorators on top of these helpers.
 
 Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 
@@ -11,26 +10,23 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 
 import copy
 import inspect
-import sys
 import warnings
 from collections.abc import Mapping
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
-from functools import cached_property, partial, partialmethod, singledispatchmethod
 from inspect import Parameter
 from typing import Any, Callable, NamedTuple, NoReturn, Optional, Union, cast
 
 from deprecate._fatal import _resolve_as_exception
 from deprecate._frames import _caller_stacklevel
 from deprecate._types import (
-    _MAJOR_BREAK_VERSION,
     DeprecationConfig,
     TargetMode,
     _CallFacts,
     _CallPlan,
     _WrapperState,
-    get_deprecation_config,
 )
+from deprecate._validate import _MAJOR_BREAK_VERSION, _warn_target_positional_only
 from deprecate.messaging import (
     _callable_display_name,
     _consume_argument_warn_budget,
@@ -42,400 +38,6 @@ from deprecate.utils import _partial_chain, _remap_kwargs, _SigFacts, _signature
 
 POSITIONAL_ONLY = Parameter.POSITIONAL_ONLY
 POSITIONAL_OR_KEYWORD = Parameter.POSITIONAL_OR_KEYWORD
-
-
-def _get_positional_params(params: list[inspect.Parameter]) -> list[inspect.Parameter]:
-    """Filter positional-only and positional-or-keyword parameters."""
-    return [param for param in params if param.kind in (POSITIONAL_ONLY, POSITIONAL_OR_KEYWORD)]
-
-
-def _reject_bare_decorator(source: Any) -> None:  # noqa: ANN401
-    """Raise a clear ``TypeError`` when ``@deprecated`` was applied without parentheses.
-
-    Bare ``@deprecated`` makes Python call ``deprecated(source)`` — binding the decorated object to
-    ``target`` — and return the ``packing`` decorator; the first real call then arrives in ``packing`` with
-    the *call argument* as ``source`` (e.g. ``old(5)`` → ``packing(5)``).  A non-callable, non-descriptor
-    ``source`` therefore signals the missing-parentheses mistake, so raise here instead of leaking a downstream
-    ``AttributeError: 'int' object has no attribute '__name__'``.
-
-    Args:
-        source: The object ``packing`` received as its decoration target.
-
-    """
-    _reject_functools_wrapper_source(source)
-    if not callable(source) and not isinstance(source, _DESCRIPTOR_SOURCE_TYPES):
-        raise TypeError(
-            f"`@deprecated` must be called with parentheses, e.g. "
-            f"`@deprecated(target=..., deprecated_in=..., remove_in=...)`; got a non-callable "
-            f"`{type(source).__name__}` as the decoration target, which usually means `@deprecated` "
-            f"was used without arguments."
-        )
-
-
-# Descriptor source types the callable path handles via ``_packing_descriptor`` even though some are
-# neither ``callable`` nor carry ``__name__`` (``property``/``cached_property``). They must be exempt
-# from the dispatcher's "plain object" reject guard so only class/instance-style misuse and the ``functools``
-# wrapper kinds (``_FUNCTOOLS_WRAPPER_SOURCE_TYPES``, rejected first with their own message) are rejected.
-_DESCRIPTOR_SOURCE_TYPES = (classmethod, staticmethod, property, cached_property)
-
-# Reject message for a non-callable / callable-without-``__name__`` source handed to ``@deprecated``.
-_PLAIN_OBJECT_REJECT = "cannot deprecate a plain object with `@deprecated` — use `deprecated_instance(obj, ...)`"
-
-#: ``functools`` wrapper kinds rejected as ``@deprecated`` sources with their own message: none has a function body
-#: the wrapper could take over, and ``partialmethod`` / ``singledispatchmethod`` are class-body descriptors that
-#: ``deprecated_instance`` (the plain-object advice) does not fit either.
-_FUNCTOOLS_WRAPPER_SOURCE_TYPES = (partial, partialmethod, singledispatchmethod)
-
-
-def _reject_functools_wrapper_source(source: Any) -> None:  # noqa: ANN401
-    """Raise ``TypeError`` when *source* is a ``functools.partial``, ``partialmethod`` or ``singledispatchmethod``.
-
-    Runs first in both decoration-time guards (:func:`_reject_bare_decorator` for ``deprecated_callable``, and
-    :func:`_reject_non_callable_source` for the ``@deprecated`` front door), so every entry point gives the same
-    advice instead of "use ``deprecated_instance``", "must be called with parentheses", or a late
-    ``AttributeError``. The message names the wrapper type and the workaround: wrap it in a plain ``def``. Its
-    subject is "pyDeprecate", not ``@deprecated``, because the ``deprecated_callable`` guard raises it too.
-
-    Args:
-        source: The object ``packing`` received as its decoration target.
-
-    Raises:
-        TypeError: When ``source`` is an instance of one of :data:`_FUNCTOOLS_WRAPPER_SOURCE_TYPES`.
-
-    """
-    if isinstance(source, _FUNCTOOLS_WRAPPER_SOURCE_TYPES):
-        kind = f"{type(source).__module__}.{type(source).__qualname__}"
-        raise TypeError(
-            f"pyDeprecate cannot deprecate a `{kind}` object: it has no function body of its own to wrap."
-            " Wrap it in a plain `def` that calls it, and decorate that `def` instead"
-            " (in a class body: `def method(self, *args, **kwargs): return ...`)."
-        )
-
-
-def _reject_non_callable_source(source: Any, target: Any) -> None:  # noqa: ANN401
-    """Raise ``TypeError`` for a non-callable, or callable-without-``__name__``, decoration source.
-
-    Third dispatch bucket: a non-callable object, or a callable instance lacking ``__name__`` (a hand-written
-    ``__call__`` object), would crash downstream at ``source.__name__``. Reject up front with actionable
-    guidance. ``functools`` wrapper kinds (``partial``, ``partialmethod``, ``singledispatchmethod``) are rejected
-    first with their own message (:func:`_reject_functools_wrapper_source`). Descriptors are exempt — the callable
-    path handles them via ``_packing_descriptor`` even though some are neither ``callable`` nor carry ``__name__``.
-
-    Disambiguates two look-alike shapes: a bare ``@deprecated`` (no parens) binds the user's callable to
-    ``target`` and this call arrives with the call ARGUMENT as ``source`` — a callable ``target`` that is
-    not a ``TargetMode`` is that signal, so it delegates to :func:`_reject_bare_decorator`. Otherwise
-    (dispatcher default ``target`` is a ``TargetMode``) it is a genuine attempt to deprecate a plain
-    object → point at ``deprecated_instance``.
-
-    Args:
-        source: The object ``packing`` received as its decoration target.
-        target: The raw ``target`` argument given to ``@deprecated``, used only to disambiguate the
-            bare-decorator misuse case.
-
-    Raises:
-        TypeError: When ``source`` is neither a descriptor, nor a named callable.
-
-    """
-    _reject_functools_wrapper_source(source)
-    if not isinstance(source, _DESCRIPTOR_SOURCE_TYPES) and (not callable(source) or not hasattr(source, "__name__")):
-        if callable(target) and not isinstance(target, TargetMode):
-            _reject_bare_decorator(source)  # raises the missing-parentheses TypeError
-        raise TypeError(_PLAIN_OBJECT_REJECT)
-
-
-def _find_class_body_qualname(max_depth: int = 10) -> str:
-    """Return the ``__qualname__`` of the nearest enclosing class body on the call stack.
-
-    Python populates ``__qualname__`` (alongside ``__module__``) in the class-body execution namespace at
-    class-definition time.  A fixed :func:`sys._getframe` depth is fragile — descriptor-decorated methods
-    (``@property``/``@classmethod``/``@staticmethod`` under ``@deprecated``) insert extra ``_packing_descriptor``
-    and ``packing`` frames, so the class body sits deeper than the plain-callable case.  This bounded walk
-    searches upward for the first frame whose locals carry both ``__qualname__`` and ``__module__`` (the
-    signature of a class body) instead of assuming a single layout, and returns ``""`` when none is found.
-
-    Args:
-        max_depth: Maximum number of parent frames to inspect (safety bound against unbounded walks).
-
-    """
-    for depth in range(1, max_depth + 1):
-        try:
-            frame = sys._getframe(depth)
-        except ValueError:
-            break
-        qualname = frame.f_locals.get("__qualname__", "")
-        # Class-body namespaces expose both ``__qualname__`` and ``__module__``; a function frame that merely
-        # has a local named ``__qualname__`` (e.g. a decorator rewrite) lacks ``__module__`` in its locals.
-        if qualname and "__module__" in frame.f_locals and not qualname.rsplit(".", 1)[-1].startswith("<"):
-            return qualname
-    return ""
-
-
-def _check_cross_class_method_target(source: Callable, target: Callable) -> None:
-    """Raise ``TypeError`` when target is a method on a different class than source.
-
-    Forwarding a class method to a method on a *different* class silently passes ``self`` of the wrong type, causing
-    runtime attribute errors.  This guard detects the misconfiguration at decoration time by comparing the immediate
-    class name extracted from each callable's ``__qualname__``.
-
-    Qualname patterns and how they are handled:
-
-    - ``"MyClass.method"``                   → class ``MyClass``
-    - ``"outer.<locals>.MyClass.method"``    → class ``MyClass`` (class inside a function)
-    - ``"outer.<locals>.<lambda>"``          → skipped; prefix ends with ``<locals>``
-    - ``"base_sum_kwargs"``                  → skipped; no dot means module-level function
-
-    False positive resolution — ``__qualname__`` is a display string, not an ownership API, so two scenarios used to
-    yield spurious warnings.  Both are now handled:
-
-    - **Decorators that rewrite ``__qualname__``** (e.g. a decorator applied before
-      :func:`~deprecate.deprecated` that sets ``fn.__qualname__ = "OtherClass.method"``): resolved by reading
-      ``__qualname__`` from the enclosing class
-      body frame via :func:`sys._getframe`.  Python itself sets ``__qualname__`` in the class-body locals at
-      class-definition time, so this value reflects the true enclosing class regardless of any decorator that
-      mutated the source callable's ``__qualname__`` attribute.
-    - **Metaclass-generated classes** (``type("Name", bases, ns)``, ``__init_subclass__``, or manual assignment
-      producing qualnames like ``"FakeOwner.method"`` for unrelated types): resolved by verifying that the
-      top-level class name in the qualname prefix actually exists in the callable's module globals.  When the
-      referenced class does not exist, the qualname is unreliable and the guard returns without raising.
-
-    Args:
-        source: The callable being decorated with ``@deprecated``.
-        target: The replacement callable supplied as the ``target`` argument.
-
-    """
-    # Constructor-to-constructor forwarding (__init__ → __init__) is always valid,
-    # including across different classes, because PastCls inherits NewCls so `self` is a valid NewCls instance.
-    if source.__name__ == "__init__" and getattr(target, "__name__", "") == "__init__":
-        return
-    src_qualname = getattr(source, "__qualname__", "")
-    tgt_qualname = getattr(target, "__qualname__", "")
-    src_parts = src_qualname.rsplit(".", 1)
-    tgt_parts = tgt_qualname.rsplit(".", 1)
-    if len(src_parts) != 2 or len(tgt_parts) != 2:
-        return
-    src_prefix, tgt_prefix = src_parts[0], tgt_parts[0]
-    # Skip nested functions / lambdas whose prefix ends with "<locals>"
-    if src_prefix.endswith("<locals>") or tgt_prefix.endswith("<locals>"):
-        return
-
-    # Fix 1 — decorator-rewriting FP: a decorator applied before @deprecated may have
-    # mutated source.__qualname__.  Python sets __qualname__ in the class body's locals
-    # at class-definition time, before any decorator runs, so the frame value is the
-    # authoritative source class name.  A bounded upward walk locates the class-body frame
-    # regardless of how many descriptor/packing frames sit between here and it (see
-    # :func:`_find_class_body_qualname`) — a fixed ``sys._getframe(2)`` silently missed the
-    # class body for descriptor-decorated methods, disabling the guard for them.
-    frame_qn = _find_class_body_qualname()
-    if frame_qn:
-        src_prefix = frame_qn
-
-    # Fix 2 — metaclass/synthetic-qualname FP: a target whose __qualname__ refers to a
-    # class that does not actually exist in the target's module is unreliable; the guard
-    # has no way to verify the cross-class claim, so it must skip rather than raise.
-    # Applied to the target only — the source class is mid-definition when this helper
-    # runs, so it cannot appear in module globals yet; applying the check to the source
-    # would silently disable the guard for all module-level class definitions.
-    tgt_top_class = tgt_prefix.split(".", 1)[0]
-    tgt_module = sys.modules.get(getattr(target, "__module__", ""), None)
-    if tgt_module is not None and not hasattr(tgt_module, tgt_top_class):
-        return
-
-    src_class_name = src_prefix.rsplit(".", 1)[-1]
-    tgt_class_name = tgt_prefix.rsplit(".", 1)[-1]
-    src_owner = f"{getattr(source, '__module__', '')}.{src_prefix}"
-    tgt_owner = f"{getattr(target, '__module__', '')}.{tgt_prefix}"
-    if src_owner == tgt_owner:
-        return
-    raise TypeError(
-        f"Cannot use @deprecated on '{source.__qualname__}' with target "
-        f"'{target.__qualname__}': cross-class method forwarding is not supported "
-        f"because `self` would carry the wrong type. "
-        f"The target must be a method on the same class ('{src_class_name}') "
-        f"or a full class (use target={tgt_class_name} for class migration).",
-    )
-
-
-_STACKING_CALLABLE = "callable"
-_STACKING_NOTIFY = "notify"
-_STACKING_ARGS_REMAP = "args_remap"
-_STACKING_OTHER = "other"
-
-_UNSUPPORTED_STACKING_MESSAGE = (
-    f"'{{name}}' has an unsupported @deprecated stacking combination. Will be `TypeError` in `{_MAJOR_BREAK_VERSION}`."
-)
-_STACKING_MESSAGES: dict[tuple[str, str], Optional[str]] = {
-    (_STACKING_CALLABLE, _STACKING_CALLABLE): (
-        "'{name}' has a callable target stacked over another callable-target @deprecated. Stacking a callable "
-        "target over another callable target is not supported. This will raise `TypeError` at call time. Will be "
-        f"`TypeError` in `{_MAJOR_BREAK_VERSION}`."
-    ),
-    (_STACKING_CALLABLE, _STACKING_NOTIFY): (
-        "'{name}' has a callable target stacked over @deprecated(NOTIFY). The inner function-deprecated warning "
-        "will not fire at call time; the inner layer is bypassed while the callable target is still invoked. "
-        "Collapse to a single @deprecated(target=<callable>) and remove the inner @deprecated(NOTIFY). Will be "
-        f"`TypeError` in `{_MAJOR_BREAK_VERSION}`."
-    ),
-    (_STACKING_CALLABLE, _STACKING_ARGS_REMAP): (
-        "'{name}' has a callable target stacked over @deprecated(ARGS_REMAP). The arg-rename warning will not fire "
-        "at call time; the inner layer is bypassed. Collapse to: @deprecated(target=<callable>, "
-        f"args_mapping={{{{...}}}}). Will be `TypeError` in `{_MAJOR_BREAK_VERSION}`."
-    ),
-    (_STACKING_CALLABLE, _STACKING_OTHER): _UNSUPPORTED_STACKING_MESSAGE,
-    (_STACKING_NOTIFY, _STACKING_CALLABLE): None,
-    (_STACKING_NOTIFY, _STACKING_NOTIFY): (
-        "'{name}' has duplicate @deprecated(NOTIFY) layers. Update the existing decorator's `deprecated_in`, "
-        f"`remove_in`, or `message_template` instead. Will be `TypeError` in `{_MAJOR_BREAK_VERSION}`."
-    ),
-    (_STACKING_NOTIFY, _STACKING_ARGS_REMAP): (
-        "'{name}' has @deprecated(NOTIFY) stacked over @deprecated(ARGS_REMAP). Reverse the decorator order: put "
-        "@deprecated(ARGS_REMAP, ...) outermost (on top) and @deprecated(NOTIFY, ...) below it. Will be "
-        f"`TypeError` in `{_MAJOR_BREAK_VERSION}`."
-    ),
-    (_STACKING_NOTIFY, _STACKING_OTHER): _UNSUPPORTED_STACKING_MESSAGE,
-    (_STACKING_ARGS_REMAP, _STACKING_CALLABLE): (
-        "'{name}' has @deprecated(ARGS_REMAP) stacked over a callable-target @deprecated. Update the inner "
-        "@deprecated(target=<callable>, args_mapping={{...}}) instead of stacking. Will be `TypeError` in "
-        f"`{_MAJOR_BREAK_VERSION}`."
-    ),
-    (_STACKING_ARGS_REMAP, _STACKING_NOTIFY): None,
-    (_STACKING_ARGS_REMAP, _STACKING_ARGS_REMAP): None,
-    (_STACKING_ARGS_REMAP, _STACKING_OTHER): _UNSUPPORTED_STACKING_MESSAGE,
-    (_STACKING_OTHER, _STACKING_CALLABLE): _UNSUPPORTED_STACKING_MESSAGE,
-    (_STACKING_OTHER, _STACKING_NOTIFY): _UNSUPPORTED_STACKING_MESSAGE,
-    (_STACKING_OTHER, _STACKING_ARGS_REMAP): _UNSUPPORTED_STACKING_MESSAGE,
-    (_STACKING_OTHER, _STACKING_OTHER): _UNSUPPORTED_STACKING_MESSAGE,
-}
-
-
-def _stacking_kind(target: object) -> str:
-    """Classify a normalized target for the stacking compatibility table."""
-    if callable(target):
-        return _STACKING_CALLABLE
-    if target is TargetMode.NOTIFY:
-        return _STACKING_NOTIFY
-    if target is TargetMode.ARGS_REMAP:
-        return _STACKING_ARGS_REMAP
-    return _STACKING_OTHER
-
-
-def _warn_stacking_misconfiguration(source: Callable, outer_target: Union[TargetMode, Callable]) -> None:
-    """Emit ``UserWarning`` at decoration time for unsupported stacking combinations.
-
-    Only called when ``source`` already carries ``__deprecation_config__`` metadata (i.e. is itself a
-    ``@deprecated`` wrapper).  Supported combinations are silently accepted:
-
-    - ``ARGS_REMAP`` (outer) + ``ARGS_REMAP`` (inner): multi-step arg renames across versions.
-    - ``ARGS_REMAP`` (outer) + ``NOTIFY`` (inner): lifecycle pattern — rename args first, deprecate
-      the whole function later.
-    - ``NOTIFY`` (outer) + ``callable`` (inner): outer NOTIFY warns callers the function is going
-      away; inner callable handles forwarding.
-
-    All other combinations produce ``UserWarning`` at decoration time.
-
-    """
-    inner_config = get_deprecation_config(source)
-    if inner_config is None:
-        raise TypeError(f"'{source.__name__}' no longer carries valid deprecation metadata.")
-    message = _STACKING_MESSAGES[(_stacking_kind(outer_target), _stacking_kind(inner_config.target))]
-    if message is not None:
-        warnings.warn(message.format(name=source.__name__), UserWarning, stacklevel=_caller_stacklevel())
-
-
-def _normalize_target(
-    source: Callable,
-    target: Union[bool, None, Callable, TargetMode, staticmethod, classmethod],
-) -> Union[TargetMode, Callable]:
-    """Normalise the effective target callable before the wrapper closure captures it.
-
-    Converts legacy sentinel values to :class:`~deprecate._types.TargetMode` enum members with a deprecation
-    warning, and handles class targets:
-
-    Legacy sentinel conversion (emits warning at decoration time):
-
-    - ``target=None`` → :attr:`TargetMode.NOTIFY` + :class:`FutureWarning`
-    - ``target=True`` → :attr:`TargetMode.ARGS_REMAP` + :class:`FutureWarning`
-    - ``target=False`` → :attr:`TargetMode.NOTIFY` + :class:`UserWarning`
-
-    Class target handling (unchanged from previous behaviour):
-
-    1. ``source`` is ``__init__`` → remap ``target=NewCls`` to ``target=NewCls.__init__``
-       (constructor forwarding; ``self`` is the new instance so the call is valid).
-    2. ``source`` is a class method (non-``__init__``) → raise :exc:`TypeError`; passing a class as target for a
-       bound method silently passes ``self`` of the wrong type.
-    3. ``source`` is a module-level function → keep ``target=NewCls`` as-is; calling ``NewCls(**kwargs)`` creates
-       a new instance directly.
-
-    Descriptor unwrapping:
-
-    - ``target=staticmethod(fn)`` → unwrapped to ``fn`` (``.__func__``); enables ``target=bbb`` inside a class
-      body where ``bbb`` is still the raw ``staticmethod`` descriptor, not yet bound.
-    - ``target=classmethod(fn)`` → unwrapped to ``fn`` (``.__func__``); same pattern, but only when ``source``
-      accepts ``cls`` as its first positional parameter.  Asymmetric usage (non-classmethod source targeting a
-      ``classmethod`` descriptor) raises :exc:`TypeError` at decoration time because ``cls`` would be missing at
-      call time otherwise.
-
-    Note on the ``classmethod`` guard: the check ``src_params[0] != "cls"`` relies on the Python convention that
-    classmethods name their first parameter ``cls`` (PEP 8 / all major linters enforce this).  If your classmethod
-    uses an unconventional name (e.g. ``klass``) or ``source`` is a ``functools.partial`` whose first argument is
-    already bound, the guard may raise spuriously.  In that case pass the unwrapped target explicitly:
-    ``target=your_classmethod.__func__``.
-
-    Args:
-        source: The callable being decorated with ``@deprecated``.
-        target: Raw ``target`` argument from the ``@deprecated`` call.
-
-    Returns:
-        Normalised target suitable for use inside ``wrapped_fn``.
-
-    Raises:
-        TypeError: When a class target is used on a non-``__init__`` class method.
-
-    """
-    # --- Legacy sentinel conversion (v0.8 compat shim; removed in v1.0) ---
-    if target is None or isinstance(target, bool):
-        return TargetMode._from_legacy(target)
-
-    # --- TargetMode enum pass-through ---
-    if isinstance(target, TargetMode):
-        return target
-
-    # --- Descriptor unwrap (staticmethod/classmethod passed from class body before binding) ---
-    if isinstance(target, (staticmethod, classmethod)):
-        if isinstance(target, classmethod):
-            # Guard: classmethod.__func__ expects cls as its first arg.  If source does not
-            # accept cls, it will never be supplied → TypeError at call time.  Raise early.
-            try:
-                src_params = list(inspect.signature(source).parameters)
-            except (ValueError, TypeError):
-                src_params = []
-            if not src_params or src_params[0] != "cls":
-                func_name = getattr(target.__func__, "__name__", "target")
-                raise TypeError(
-                    f"@deprecated(target=<classmethod descriptor>) on '{source.__name__}': "
-                    "descriptor targets require the source to accept a leading class argument "
-                    "(typically named 'cls') so it can be forwarded to the replacement. "
-                    f"Either make '{source.__name__}' a @classmethod, or pass a bound target like "
-                    f"'target=<YourClass>.{func_name}' after the class is defined."
-                )
-        return target.__func__
-
-    # --- Class target handling ---
-    if inspect.isclass(target):
-        src_qualname = getattr(source, "__qualname__", "")
-        src_parts = src_qualname.rsplit(".", 1)
-        source_is_class_method = len(src_parts) == 2 and not src_parts[0].endswith("<locals>")
-        if source.__name__ == "__init__":
-            return target.__init__
-        if source_is_class_method:
-            raise TypeError(
-                f"Cannot use a class as `target` for @deprecated on '{source.__qualname__}'. "
-                f"Constructor forwarding via target=ClassName is only supported on `__init__`. "
-                f"Use target={target.__name__}.__init__ explicitly, or apply the decorator to `__init__`."
-            )
-        return target  # module-level function: instantiate directly
-
-    # --- Callable target (function/method) ---
-    return target
 
 
 def _prepare_target_call(
@@ -890,7 +492,7 @@ class _WrapperContext:
         raw_target: The ``target`` argument as given to ``@deprecated``; warnings name a class target by it rather
             than by its ``__init__``.
         target: The normalised target (a :class:`TargetMode` member or a callable) returned by
-            :func:`_normalize_target`.
+            :func:`~deprecate._validate._normalize_target`.
         cfg: The wrapper's frozen :class:`~deprecate._types.DeprecationConfig`; ``args_mapping``, ``args_extra``,
             ``deprecated_in``, ``remove_in``, ``message_template``, ``misconfigured`` and ``as_exception`` are read
             from it.
@@ -1024,7 +626,7 @@ def _target_signature_facts(
     """Read a normalised target's signature once, keeping apart a mode target and an unreadable callable.
 
     Args:
-        target: The normalised target returned by :func:`_normalize_target`.
+        target: The normalised target returned by :func:`~deprecate._validate._normalize_target`.
 
     Returns:
         Tuple of ``(facts, error)``.  A :class:`TargetMode` gives empty facts and no error; a callable whose signature
@@ -1077,9 +679,10 @@ def _build_call_facts(
 
     Args:
         source: The decorated callable.
-        normalized_target: The normalised target returned by :func:`_normalize_target`.
-        stream: Warning stream; the POSITIONAL_ONLY target warning of :func:`_warn_target_positional_only` fires
-            through ``warnings.warn`` unless it is ``None``.
+        normalized_target: The normalised target returned by :func:`~deprecate._validate._normalize_target`.
+        stream: Warning stream; the POSITIONAL_ONLY target warning of
+            :func:`~deprecate._validate._warn_target_positional_only` fires through ``warnings.warn`` unless it is
+            ``None``.
 
     Returns:
         The facts the call-time dispatcher reads.
@@ -1370,70 +973,6 @@ def _build_call_plan(ctx: _WrapperContext, args: tuple[Any, ...], kwargs: dict[s
         target_func=target_func,
         verbatim=verbatim,
     )
-
-
-def _warn_target_positional_only(
-    target: Union[Callable, TargetMode],
-    source: Callable,
-    target_positional_only: frozenset[str],
-    stream: Optional[Callable],
-) -> None:
-    """Emit a ``UserWarning`` when a forwarding target declares POSITIONAL_ONLY parameters.
-
-    Called at decoration time by :func:`_build_call_facts` so the warning fires once; the call-time dispatcher then
-    passes those values positionally.  ``self`` and ``cls`` are exempt: they are positional by nature.
-
-    Args:
-        target: Normalised target from :func:`_normalize_target` — may be a :class:`TargetMode` or a callable;
-            used only in the warning message.
-        source: The decorated callable; used only in the warning message.
-        target_positional_only: The target's POSITIONAL_ONLY parameter names (empty for a :class:`TargetMode`).
-        stream: Warning stream; when ``None`` the warning is suppressed.
-
-    """
-    warn_set = target_positional_only - {"self", "cls"}
-    if warn_set and stream is not None:
-        warnings.warn(
-            f"`@deprecated(target={getattr(target, '__name__', repr(target))!r})` on"
-            f" `{source.__name__}`: target parameter(s)"
-            f" {sorted(warn_set)!r} are POSITIONAL_ONLY and cannot be"
-            " forwarded as kwargs. Calls will pass these values positionally."
-            " Consider removing `/` from the target signature.",
-            UserWarning,
-            stacklevel=_caller_stacklevel(),
-        )
-
-
-def _resolve_stored_target(
-    target: Union[bool, None, Callable, TargetMode, staticmethod, classmethod],
-) -> Union[TargetMode, Callable]:
-    """Normalise *target* for storage in :class:`~deprecate._types.DeprecationConfig`.
-
-    Converts legacy bool/None sentinels to :class:`TargetMode` members and strips
-    descriptor wrappers so audit tools see the underlying callable rather than a raw
-    descriptor object.
-
-    Args:
-        target: Raw ``target`` argument from ``@deprecated``.
-
-    Returns:
-        Normalised value suitable for ``DeprecationConfig.target``.
-
-    Note:
-        Class targets are kept verbatim — :func:`_normalize_target` remaps
-        ``class → __init__`` at decoration time for the wrapper closure, but the stored
-        value must preserve the user-facing class so audit and docstring consumers see
-        the original target.
-
-    """
-    if target is None or isinstance(target, bool):
-        # Enum-normalised target stored so audit does not re-derive from raw sentinel.
-        return TargetMode._from_legacy(target, emit=False)
-    if isinstance(target, TargetMode):
-        return target
-    if isinstance(target, (staticmethod, classmethod)):
-        return target.__func__  # audit sees the function, not the descriptor
-    return target
 
 
 def _reorder_kwargs_for_surplus(

@@ -18,7 +18,8 @@ from warnings import warn
 
 from deprecate._fatal import DeprecatedError
 from deprecate._frames import _caller_stacklevel
-from deprecate._types import _MAJOR_BREAK_VERSION, DeprecationConfig, TargetMode, _WrapperState
+from deprecate._types import DeprecationConfig, TargetMode, _WrapperState
+from deprecate._validate import _MAJOR_BREAK_VERSION
 from deprecate.utils import _partial_chain, _unwrap_descriptor_target
 
 #: Memoised ``stacklevel`` decisions of :func:`_stream_accepts_stacklevel`: one entry per live ``stream`` object,

@@ -23,9 +23,9 @@ from dataclasses import dataclass
 from functools import cached_property
 from typing import Any, Callable, Literal, Optional, Protocol, Union, cast
 
-from deprecate._dispatch import _reject_non_callable_source
 from deprecate._frames import _caller_stacklevel
 from deprecate._types import TargetMode
+from deprecate._validate import _reject_non_callable_source, _resolve_legacy_target
 from deprecate.messaging import _resolve_message_template_alias, _validate_message_template, deprecation_warning
 from deprecate.routine import _SourceT, deprecated_callable
 
@@ -128,7 +128,7 @@ def _packing_class_source(
     elif isinstance(target, TargetMode) or callable(target) and inspect.isclass(target):
         forward_target = target
     elif target is None or isinstance(target, bool):
-        forward_target = TargetMode._from_legacy(target)
+        forward_target = _resolve_legacy_target(target)
         # Legacy ``None`` meant "no target", and invalid ``False`` is treated the same after its warning —
         # forward the unset value so a mapping still auto-resolves; an explicitly typed
         # ``TargetMode.NOTIFY`` is the only value validated against a mapping.
