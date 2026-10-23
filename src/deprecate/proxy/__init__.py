@@ -7,7 +7,8 @@ redirection.
 
 The public factories and typing contracts live here. Runtime and copy/pickle support live in
 :mod:`deprecate.proxy.core`, target and attribute validation in :mod:`deprecate.proxy.resolve`, and protocol
-forwarding in :mod:`deprecate.proxy.dunders`. Historical imports from :mod:`deprecate.proxy` remain available.
+forwarding in :mod:`deprecate.proxy.dunders`. The proxy classes and the pickle reconstruction helpers keep
+``deprecate.proxy`` as their module and stay importable from it.
 
 Typical use cases:
 
@@ -65,6 +66,7 @@ from deprecate.messaging import (
 )
 from deprecate.proxy import dunders  # noqa: F401 # imported for its side effect: installs the forwarders
 from deprecate.proxy.core import (
+    _BindingDeprecatedProxy,  # noqa: F401 # re-exported: its module is deprecate.proxy (pickle by reference)
     _DeprecatedProxy,
     _proxy_call_global,  # noqa: F401 # re-exported: imported by tests
     _proxy_type_for,

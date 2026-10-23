@@ -663,8 +663,13 @@ def _raise_target_signature_error(facts: _CallFacts) -> None:
 
     """
     error = facts.target_signature_error
-    if error is not None:
-        raise copy.copy(error)
+    if error is None:
+        return
+    try:
+        fresh = copy.copy(error)
+    except Exception:  # an error type that cannot be rebuilt from its ``args``: raise it as stored
+        fresh = error
+    raise fresh
 
 
 def _build_call_facts(

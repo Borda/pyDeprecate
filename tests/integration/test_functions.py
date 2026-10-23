@@ -74,6 +74,7 @@ from tests.collection_deprecate_regressions import (
     LegacyPresetCls,
     depr_add_callable_instance,
     depr_builtin_max_target,
+    depr_lazy_signature_target_renamed,
     depr_non_string_name_target,
     depr_notify_skip_counted,
     depr_notify_spent_budget,
@@ -93,6 +94,7 @@ from tests.collection_deprecate_regressions import (
 from tests.collection_misconfigured import make_notify_mapping_no_budget
 from tests.collection_targets import (
     NewCls,
+    SignatureNotBuiltError,
     TimerDecorator,
     base_sum_kwargs,
     sample_function,
@@ -1121,6 +1123,19 @@ class TestUnreadableSignature:
         """
         with pytest.warns(FutureWarning), pytest.raises(ValueError, match="no signature found"):
             func(1, 2)
+
+    def test_target_error_of_custom_type_raised(self) -> None:
+        """A target signature error whose type needs more than the message still reaches the caller with that type.
+
+        A framework that builds signatures lazily raises its own ``ValueError`` subclass, whose constructor takes the
+        callable's name and a reason, until the signature exists. The forwarded call must raise that error as it was
+        read at decoration, not a ``TypeError`` from trying to rebuild it from its ``args``.
+        """
+        with (
+            pytest.warns(FutureWarning),
+            pytest.raises(SignatureNotBuiltError, match="^lazy_callable: not built yet$"),
+        ):
+            depr_lazy_signature_target_renamed(1, 2)
 
 
 class TestDecoratedFunctionLifetime:

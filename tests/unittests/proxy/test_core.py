@@ -13,9 +13,16 @@ from typing import Any, cast
 import pytest
 
 from deprecate import DeprecationProxy
+from deprecate import proxy as proxy_package
 from deprecate.messaging import deprecation_warning
 from deprecate.proxy import deprecated_class, deprecated_instance
-from deprecate.proxy.core import _DeprecatedProxy, _ProxySpec
+from deprecate.proxy.core import (
+    _BindingDeprecatedProxy,
+    _DeprecatedProxy,
+    _ProxySpec,
+    _reconstruct_proxy,
+    _restore_pep702_marker,
+)
 from tests.collection_deprecate import DeprecatedColorEnum, ast_breadcrumb_source_dict, depr_ast_breadcrumb_dict
 from tests.collection_deprecate_forwarding import pep702_proxy_stacked
 from tests.collection_deprecate_regressions import (
@@ -1184,3 +1191,28 @@ class TestProxyAstFriendliness:
         """
         with pytest.warns(FutureWarning):
             assert DeprecatedColorEnum.RED is ColorEnum.RED
+
+
+class TestPackageIdentity:
+    """Objects whose ``__module__`` names ``deprecate.proxy`` resolve there, so references to them keep working."""
+
+    @pytest.mark.parametrize(
+        "obj",
+        [
+            pytest.param(_DeprecatedProxy, id="proxy-class"),
+            pytest.param(_BindingDeprecatedProxy, id="binding-proxy-class"),
+            pytest.param(_reconstruct_proxy, id="reconstruct"),
+            pytest.param(_restore_pep702_marker, id="restore-marker"),
+        ],
+    )
+    def test_resolves_on_package_and_pickles_by_reference(self, obj: Any) -> None:  # noqa: ANN401
+        """Each pinned class or function is an attribute of ``deprecate.proxy`` and survives a pickle round trip.
+
+        Pickle stores classes and functions by ``__module__`` and ``__qualname__``, and so do ``pydoc.locate`` and
+        debuggers. These objects live in a submodule of the proxy package but keep ``deprecate.proxy`` as their
+        module so payloads and reprs written before the package split stay valid; the package must therefore
+        expose each of them, or pickling the proxy type itself fails.
+        """
+        assert obj.__module__ == "deprecate.proxy"
+        assert getattr(proxy_package, obj.__qualname__) is obj
+        assert pickle.loads(pickle.dumps(obj)) is obj  # noqa: S301 - payload produced in this test

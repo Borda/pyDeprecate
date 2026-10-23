@@ -4,9 +4,11 @@ This module provides base functions that are used as targets for deprecated func
 
 """
 
+import contextvars
 import functools
 import inspect
 import logging
+import threading
 import time
 import types
 import warnings
@@ -1615,6 +1617,66 @@ class OpaqueSignatureCallable:
     def __call__(self, *args: Any, **kwargs: Any) -> tuple[tuple[Any, ...], dict[str, Any]]:  # noqa: ANN401
         """Return the call's arguments, so a test can see what reached the callable."""
         return args, kwargs
+
+
+class SignatureNotBuiltError(ValueError):
+    """``ValueError`` subclass whose constructor takes more than the message, so it cannot be rebuilt from ``args``."""
+
+    def __init__(self, name: str, reason: str) -> None:
+        """Build the message from the callable's name and the reason its signature is not available."""
+        super().__init__(f"{name}: {reason}")
+        self.reason = reason
+
+
+class LazySignatureCallable(OpaqueSignatureCallable):
+    """Named callable whose ``__signature__`` raises :class:`SignatureNotBuiltError` while the signature is not built.
+
+    Frameworks that build signatures lazily raise their own error type until the signature exists. A deprecated
+    function forwarding to such a callable must surface that error on the forwarded call, with its own type.
+    """
+
+    __name__ = "lazy_callable"
+
+    @property
+    def __signature__(self) -> Any:  # noqa: ANN401
+        """Always raise :class:`SignatureNotBuiltError`."""
+        raise SignatureNotBuiltError("lazy_callable", "not built yet")
+
+
+class InheritedContextLookup:
+    """Module ``__getattr__`` that answers a name by looking it up again from a thread started in a copied context.
+
+    Free-threaded CPython 3.14 starts every new thread with a copy of the creating thread's context. A module
+    attribute resolved through a redirect may hand work to such a thread, which then makes its own lookup of the same
+    name; that nested lookup answers ``7``. The outer call returns what the worker got (or re-raises its error).
+    """
+
+    def __init__(self, source: types.ModuleType) -> None:
+        """Remember the deprecated module the worker looks the name up on."""
+        self.source = source
+        self.depth = 0
+
+    def __call__(self, name: str) -> Any:  # noqa: ANN401
+        """Resolve *name* from a worker thread running in a copy of the current context."""
+        if self.depth:
+            return 7
+        self.depth += 1
+        outcome: list[Any] = []
+        context = contextvars.copy_context()
+        worker = threading.Thread(target=self._lookup, args=(context, name, outcome))
+        worker.start()
+        worker.join(timeout=10)
+        self.depth -= 1
+        if isinstance(outcome[0], Exception):
+            raise outcome[0]
+        return outcome[0]
+
+    def _lookup(self, context: contextvars.Context, name: str, outcome: list[Any]) -> None:
+        """Look *name* up on the source module inside *context*, recording the value or the ``AttributeError``."""
+        try:
+            outcome.append(context.run(getattr, self.source, name))
+        except AttributeError as err:
+            outcome.append(err)
 
 
 async def legacy_tick_stream() -> AsyncIterator[int]:

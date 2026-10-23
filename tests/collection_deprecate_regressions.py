@@ -19,6 +19,7 @@ from tests.collection_deprecate import (
 from tests.collection_targets import (
     CountingSkipCondition,
     HostileSignatureCallable,
+    LazySignatureCallable,
     NewCls,
     NonStringNameCallable,
     OpaqueSignatureCallable,
@@ -1009,6 +1010,12 @@ def depr_opaque_target_renamed(x: int = 0, old_x: int = 0) -> Any:  # noqa: ANN4
 def depr_opaque_target_var_positional(*values: int) -> Any:  # noqa: ANN401
     """Forwards a ``*args`` tail to a target whose signature cannot be read; the tail needs the target's slots."""
     return void(values)
+
+
+@deprecated(target=LazySignatureCallable(), args_mapping={"old_x": "x"}, **_DEPRS_CASE_STD_ARGS)
+def depr_lazy_signature_target_renamed(x: int = 0, old_x: int = 0) -> Any:  # noqa: ANN401
+    """Forwards to a target whose signature error type cannot be rebuilt from its ``args``; the rename needs it."""
+    return void(x, old_x)
 
 
 def make_opaque_source_wrapper() -> Callable[..., Any]:

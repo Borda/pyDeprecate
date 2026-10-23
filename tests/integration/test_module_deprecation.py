@@ -33,7 +33,12 @@ from deprecate._types import DeprecationConfig
 from deprecate.audit._lifecycle import _check_deprecated_wrapper_expiry
 from deprecate.audit._wrappers import _format_report_symbol
 from deprecate.module import _redirect_guard, deprecated_module
-from tests.collection_targets import FlakyTypeErrorStream, KeywordTypeErrorStream, RecordingStream
+from tests.collection_targets import (
+    FlakyTypeErrorStream,
+    InheritedContextLookup,
+    KeywordTypeErrorStream,
+    RecordingStream,
+)
 
 # Shared version kwargs for module deprecation call sites (see AGENTS.md Unification pattern).
 _DEPRS_CASE_MOD_ARGS: dict[str, Any] = {"deprecated_in": "1.0", "remove_in": "2.0"}
@@ -1251,8 +1256,8 @@ class TestRedirectCycle:
             async def resolve(index: int) -> int:
                 """Resolve the peer's module without inheriting its active guard entries."""
                 assert _redirect_guard.get() is None
-                own_key = (modules[index].__name__, "answer")
-                active = {own_key}
+                own_key = (modules[index].__name__, "answer", threading.get_ident())
+                active = frozenset({own_key})
                 token = _redirect_guard.set(active)
                 try:
                     ready[index].set()
@@ -1272,6 +1277,25 @@ class TestRedirectCycle:
         with pytest.warns(FutureWarning) as caught:
             assert asyncio.run(run_tasks()) == [42, 42]
         assert len(caught) == 2
+        assert _redirect_guard.get() is None
+
+    def test_thread_with_inherited_context_sees_no_cycle(
+        self, make_tmp_module: Callable[..., types.ModuleType]
+    ) -> None:
+        """A thread started in a copy of a resolving context makes its own lookup instead of reporting a cycle.
+
+        Free-threaded CPython 3.14 starts each new thread with a copy of the creating thread's context, so a thread
+        started while a redirect is in flight inherits the guard state. The target's ``__getattr__`` here hands the
+        lookup to such a thread, which resolves the same deprecated name again; that is a separate resolution, not a
+        re-entry of the outer one, and must return the target's answer rather than raise ``AttributeError``.
+        """
+        source = make_tmp_module("_test_guard_thread_source_tmp")
+        target = make_tmp_module("_test_guard_thread_target_tmp")
+        deprecated_module(source.__name__, target=target, stream=None, **_DEPRS_CASE_MOD_ARGS)
+        target.__getattr__ = InheritedContextLookup(source)  # type: ignore[method-assign]
+        with pytest.warns(FutureWarning, match="_test_guard_thread_source_tmp") as caught:
+            assert getattr(source, "value") == 7
+        assert len(caught) == 2  # the outer lookup and the worker's own lookup each warn
         assert _redirect_guard.get() is None
 
     @pytest.fixture

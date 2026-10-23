@@ -21,9 +21,10 @@ Three deprecation modes are supported:
 """
 
 import sys
+import threading
 import types
 import warnings
-from contextvars import ContextVar, Token
+from contextvars import ContextVar
 from typing import Any, Callable, Optional
 
 from deprecate._fatal import DeprecatedError, _resolve_as_exception
@@ -37,7 +38,7 @@ from deprecate.messaging import _consume_warn_budget, _emit, _format_deprecation
 #: decoration-time ``target is mod`` guard only rejects the trivial length-1 self-cycle; cycles of
 #: length >= 2 can only be detected at resolution time because the second module may be deprecated
 #: after the first.
-_redirect_guard: ContextVar[Optional[set[tuple[str, str]]]] = ContextVar("_redirect_guard", default=None)
+_redirect_guard: ContextVar[Optional[frozenset[tuple[str, str, int]]]] = ContextVar("_redirect_guard", default=None)
 
 #: Default warning template for a deprecated module (no target).
 _TEMPLATE_MODULE_NO_TARGET = (
@@ -192,18 +193,17 @@ def _resolve_missing_attr(
     existing_getattr: Optional[Callable[[str], Any]] = d.get("__deprecated_existing_getattr__")
 
     if target is not None:
-        # Cyclic-redirect guard: track this (module, name) resolution on a context-local set so a
-        # redirect cycle (A -> B -> A) raises a clean AttributeError instead of recursing to
-        # RecursionError with a warning emitted on every frame.
-        active = _redirect_guard.get()
-        token: Optional[Token[Optional[set[tuple[str, str]]]]] = None
-        if active is None:
-            active = set()
-            token = _redirect_guard.set(active)
-        key = (module_name, name)
+        # Cyclic-redirect guard: track this (module, name) resolution in the context so a redirect
+        # cycle (A -> B -> A) raises a clean AttributeError instead of recursing to RecursionError
+        # with a warning emitted on every frame.  Each entry is an immutable frozenset set anew for
+        # this lookup (never mutated in place), so copied contexts never share it; the key carries the
+        # thread id because a thread started in a copy of this context (free-threaded 3.14 does that by
+        # default) makes its own resolution, not a re-entry of this one.
+        active = _redirect_guard.get() or frozenset()
+        key = (module_name, name, threading.get_ident())
         if key in active:
             raise AttributeError(f"module {module_name!r} has no attribute {name!r}") from None
-        active.add(key)
+        token = _redirect_guard.set(active | {key})
         try:
             return getattr(target, name)
         except AttributeError:
@@ -213,9 +213,7 @@ def _resolve_missing_attr(
                 return existing_getattr(name)
             raise AttributeError(f"module {module_name!r} has no attribute {name!r}") from None
         finally:
-            active.discard(key)
-            if token is not None:
-                _redirect_guard.reset(token)
+            _redirect_guard.reset(token)
 
     if existing_getattr is not None:
         return existing_getattr(name)
