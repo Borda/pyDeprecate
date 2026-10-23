@@ -212,7 +212,7 @@
           "name": "Why does my deprecation warning point inside pyDeprecate or functools.py?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "pyDeprecate measures the location when a warning fires and reports the first frame outside the deprecate package, including stacked @deprecated layers, the @deprecated class front door and legacy target=None/True/False sentinels. A custom stream written in Python that forwards stacklevel to warnings.warn adds its own frame and lands one frame short; use warnings.warn, a functools.partial of it, or logging.warning instead. A @cached_property source warns from the functools frame that runs the getter."
+            "text": "pyDeprecate measures the location when a warning fires and reports the first frame outside the deprecate package, including stacked @deprecated layers, the @deprecated class front door and legacy target=None/True/False sentinels. A custom stream written in Python that forwards stacklevel to warnings.warn adds its own frame and lands one frame short; use warnings.warn, a functools.partial of it, or a bound logger method such as logging.getLogger().warning instead. The module-level logging.warning is correct only on Python 3.11 and newer; on 3.9 and 3.10 it adds one logging frame and the log record points one frame short. A @cached_property source warns from the functools frame that runs the getter."
           }
         },
         {
@@ -268,7 +268,7 @@
           "name": "Why did my object mutate despite setting read_only=True on deprecated_instance?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "read_only=True intercepts only the following standard collection mutator names: append, clear, discard, extend, insert, pop, remove, setdefault, update, add. These cover the mutating methods on Python's built-in list, dict, and set types. Custom method names such as register(), reload(), or set_value() are not in this list and pass through to the underlying object unchanged. Workaround: subclass the wrapped type and override the custom mutator method to raise AttributeError explicitly, then wrap an instance of that subclass."
+            "text": "read_only=True intercepts only the following standard collection mutator names: append, clear, discard, extend, insert, pop, remove, setdefault, update, add. These cover the mutating methods on Python's built-in list, dict, and set types. Custom method names such as register(), reload(), or set_value() are not in this list and pass through to the underlying object unchanged. Workaround: subclass the wrapped type and override the custom mutator method to raise AttributeError explicitly, then wrap an instance of that subclass. The guard is also off while skip_if evaluates True: attribute writes, item writes and deletes, and mutator calls then reach the wrapped object directly, because an active skip_if switches the whole deprecation machinery off."
           }
         },
         {
@@ -580,7 +580,7 @@
           "name": "Why did a failed proxy[key] lookup not warn?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Synchronous data-use operations warn only after success: a KeyError from proxy[key], a StopIteration from next(proxy), or an AttributeError from hasattr emits nothing and leaves the num_warns budget unspent. Async iteration and awaiting differ: __anext__ and __await__ warn when they obtain the underlying awaitable, before it runs, so a later async failure or exhaustion still consumes the budget. If warning delivery raises after context entry acquires a resource, the proxy invokes that same context’s exit method before propagating the error. Calling the proxy also warns before the call, like @deprecated. With as_exception=True, the proxy raises DeprecatedError before it touches the wrapped object for subscripts, iteration, unary and conversion operators, next(), context entry, async with, async iteration, await, in-place operators, and attrs_mapping attribute reads, so a missing key raises DeprecatedError rather than KeyError and a defaultdict gains no entry."
+            "text": "Synchronous data-use operations warn only after success: a KeyError from proxy[key] or an AttributeError from hasattr emits nothing and leaves the num_warns budget unspent. next(proxy) is the exception: it warns before advancing the wrapped iterator, so a failed warning delivery loses no item and an exhausting next() (StopIteration) spends the budget. Async iteration and awaiting differ: __anext__ and __await__ warn when they obtain the underlying awaitable, before it runs, so a later async failure or exhaustion still consumes the budget. If warning delivery raises after context entry acquires a resource, the proxy invokes that same context’s exit method before propagating the error. Calling the proxy also warns before the call, like @deprecated. With as_exception=True, the proxy raises DeprecatedError before it touches the wrapped object for subscripts, iteration, unary and conversion operators, next(), context entry, async with, async iteration, await, in-place operators, and attrs_mapping attribute reads, so a missing key raises DeprecatedError rather than KeyError and a defaultdict gains no entry."
           }
         },
         {

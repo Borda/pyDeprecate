@@ -245,8 +245,9 @@ def deprecated_callable(  # noqa: C901
             ``stacklevel`` parameter or ``**kwargs`` (:func:`warnings.warn` and its partials always qualify); a
             C-level callable without an introspectable signature gets the message alone and loses caller attribution.
             The ``stacklevel`` passed is counted from the frame that calls ``stream``, so it points at the caller
-            for :func:`warnings.warn`, a C-level :func:`functools.partial` of it, or :func:`logging.warning`; a
-            pure-Python stream that forwards it to ``warnings.warn`` adds its own frame and lands one frame short.
+            for :func:`warnings.warn` and a C-level :func:`functools.partial` of it; a pure-Python stream, and the
+            module-level :func:`logging.warning` before Python 3.11, land one frame short (see
+            ``deprecate._frames._caller_stacklevel`` for the full rule).
         num_warns: Number of times to show warning per function or per deprecated argument:
             - ``1`` (default): Show warning once per function/argument
             - ``-1``: Show warning on every call
@@ -510,8 +511,7 @@ def deprecated_callable(  # noqa: C901
         #   • async function wrapped by a decorator that does NOT propagate ``__wrapped__`` / use
         #     ``functools.wraps`` (``inspect.iscoroutinefunction`` walks ``__wrapped__``, not ``__call__``).
         #   • callable objects whose ``__call__`` is ``async def`` — use ``async def`` thin wrapper instead.
-        #   • ``functools.partial(async_fn)`` on Python ≤ 3.11 (``partial`` does not copy ``__wrapped__``).
-        # Workaround for all three: wrap the callable in a plain ``async def my_wrapper(*a, **kw): return
+        # Workaround for both: wrap the callable in a plain ``async def my_wrapper(*a, **kw): return
         # await callable(*a, **kw)`` before applying ``@deprecated``.
         if inspect.iscoroutinefunction(source):
 

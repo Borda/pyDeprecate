@@ -71,9 +71,12 @@ def _caller_stacklevel() -> int:
     frame outside it, never more than :data:`_MAX_FRAMES`.  Import-machinery frames are stepped over without counting,
     exactly as ``warnings.warn`` does.  The walk runs only when a warning is actually emitted.
 
-    The level is relative to the frame that calls the stream, so it is right for :func:`warnings.warn`, a C-level
-    :func:`functools.partial` of it, or :func:`logging.warning`.  A pure-Python stream that itself calls
-    ``warnings.warn(msg, stacklevel=stacklevel)`` adds its own frame and lands one frame short.
+    The level is relative to the frame that calls the stream, so it is right for :func:`warnings.warn` and a C-level
+    :func:`functools.partial` of it.  A bound ``Logger.warning`` (for example ``logging.getLogger().warning``) is right
+    on every supported Python, but the module-level :func:`logging.warning` is right only on Python 3.11 and newer: on
+    3.9 and 3.10 it adds one logging frame and the record points one frame short (bpo-45171).  A pure-Python stream
+    that itself calls ``warnings.warn(msg, stacklevel=stacklevel)`` adds its own frame and also lands one frame short.
+    Other docstrings and docs refer here for this rule.
 
     Returns:
         A ``stacklevel`` value of at least ``1``.
