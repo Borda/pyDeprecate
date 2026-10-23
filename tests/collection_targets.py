@@ -1576,6 +1576,26 @@ class CountingSkipCondition:
         return answer
 
 
+class OpaqueSignatureCallable:
+    """Named callable whose ``__signature__`` raises ``ValueError``, like a C-level callable without metadata.
+
+    A maintainer forwards a deprecated function to such a callable, or decorates one directly. pyDeprecate reads every
+    signature when it decorates; an unreadable source must still fail there, and an unreadable target must still fail
+    only on the forwarded call that needs its signature.
+    """
+
+    __name__ = "opaque_callable"
+
+    @property
+    def __signature__(self) -> Any:  # noqa: ANN401
+        """Always raise ``ValueError``, as ``inspect.signature`` does for an unsupported builtin."""
+        raise ValueError("no signature found for opaque_callable")
+
+    def __call__(self, *args: Any, **kwargs: Any) -> tuple[tuple[Any, ...], dict[str, Any]]:  # noqa: ANN401
+        """Return the call's arguments, so a test can see what reached the callable."""
+        return args, kwargs
+
+
 async def legacy_tick_stream() -> AsyncIterator[int]:
     """Async generator yielding ``1`` then ``2``: a deprecated async data stream whose items must outlive a failure."""
     yield 1

@@ -791,7 +791,14 @@ class _DeprecatedProxy:
         stream = cfg.stream
         if not stream:
             return
-        # Build the message before taking the lock: attrs_mapping miss returns None (no warning),
+        # Lock-free precheck, as in ``_emit_call_warning``: once this key's budget is spent the claim below refuses
+        # anyway, so a use past the budget skips building the message and walking ``_proxy_source_path``.  The
+        # authoritative check-then-increment still runs under ``state.lock``.
+        state = cfg.state
+        used = state.warned_calls if arg_name is None else state.warned_args.get(arg_name, 0)
+        if 0 <= cfg.num_warns <= used:
+            return
+        # Build the message before taking the lock: attrs_mapping miss returns None (no warning, no budget spent),
         # and message building is pure CPU work with no IO.
         msg = _build_proxy_warn_msg(self, arg_name, self._dep, cfg)
         if msg is None:
@@ -800,7 +807,6 @@ class _DeprecatedProxy:
         # per-argument or ``__attr__:`` attribute key is a one-key argument budget.  The check and the increment
         # run together under ``state.lock`` so concurrent first accesses cannot all pass the ``num_warns`` gate; the
         # warning itself is emitted outside the lock, so callers never serialise on a slow ``stream``.
-        state = cfg.state
         reason_callable = arg_name is None
         reason_argument = None if arg_name is None else {arg_name: None}
         with state.lock:

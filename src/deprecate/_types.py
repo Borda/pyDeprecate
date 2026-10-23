@@ -808,9 +808,14 @@ class _CallFacts:
         target_positional_only_order: Every target parameter name in declaration order when the target has
             POSITIONAL_ONLY parameters, otherwise empty.
         target_positional_names: The target's leading positional parameter names, up to its ``*args`` or its first
-            keyword-only parameter, which a surplus ``*args`` tail is forwarded after; ``None`` reads them from the
-            target on the forwarded call (also the value when the target signature could not be read at decoration,
-            so that call raises the signature error itself).
+            keyword-only parameter, which a surplus ``*args`` tail is forwarded after; ``None`` when the target
+            signature could not be read at decoration (the forwarded call then raises
+            :attr:`target_signature_error`), or when the facts were built by hand (the call reads the target).
+        source_defaults: Each source parameter that has a default, mapped to that default, in declaration order.  Left
+            out of equality and the hash, so the record stays hashable whatever the default values are.
+        target_signature_error: The ``TypeError`` or ``ValueError`` that reading a callable target's signature raised
+            at decoration, without its traceback; the forwarded call that needs the signature raises a copy of it.
+            ``None`` when the read succeeded or the target is a :class:`TargetMode`.  Left out of equality.
 
     """
 
@@ -825,6 +830,8 @@ class _CallFacts:
     target_positional_only: frozenset[str] = frozenset()
     target_positional_only_order: tuple[str, ...] = ()
     target_positional_names: Optional[tuple[str, ...]] = None
+    source_defaults: Mapping[str, Any] = field(default_factory=dict, compare=False)
+    target_signature_error: Optional[Exception] = field(default=None, compare=False)
 
 
 @dataclass

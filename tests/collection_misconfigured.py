@@ -237,6 +237,23 @@ def whole_with_mapping_deprecation(x: int = 1) -> int:
     return x
 
 
+def make_notify_mapping_no_budget() -> _DeprecatedCallable:
+    """Build a fresh NOTIFY + args_mapping wrapper with ``num_warns=0``: no FutureWarning, one misconfiguration notice.
+
+    A factory rather than a module-level wrapper, so the audit scans of this module do not count it and every test
+    gets a wrapper whose one-time notice is still due.
+
+    """
+
+    def notify_mapping_no_budget(x: int = 1) -> int:
+        return x
+
+    wrapper = deprecated(
+        target=TargetMode.NOTIFY, deprecated_in="0.1", remove_in="0.5", args_mapping={"old_x": "x"}, num_warns=0
+    )(notify_mapping_no_budget)
+    return cast(_DeprecatedCallable, wrapper)
+
+
 @deprecated(target=TargetMode.ARGS_REMAP, deprecated_in="0.1", remove_in="0.5")
 def args_only_no_mapping_deprecation(x: int = 1) -> int:
     """ARGS_REMAP without args_mapping — no-op; audit flags misconfigured_target."""

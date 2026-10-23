@@ -25,7 +25,7 @@ import warnings
 from collections.abc import Generator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from functools import lru_cache, partial
+from functools import partial
 from types import MappingProxyType, TracebackType
 from typing import Any, Callable, Optional, Union
 
@@ -77,27 +77,15 @@ def get_func_arguments_types_defaults(func: Callable) -> list[tuple[str, Any, An
     return func_arg_type_val
 
 
-@lru_cache(maxsize=256)
-def _get_signature_cached(func: Callable) -> inspect.Signature:
-    """Cache inspect.signature lookups for repeated calls.
+def _get_signature(func: Callable) -> inspect.Signature:
+    """Read the signature of a callable with :func:`inspect.signature`, without caching it.
 
-    Uses an LRU cache (maxsize=256) since function signatures are stable at runtime. The size balances reuse for common
-    callables without unbounded memory growth.
+    Read when a callable is decorated (through :func:`_signature_facts`) and by the audit helpers, never on a
+    deprecated call: the wrapper keeps the facts it needs.  No cache holds the callable, so reading its signature never
+    keeps it alive.
 
     """
     return inspect.signature(func)
-
-
-def _get_signature(func: Callable) -> inspect.Signature:
-    """Get function signature with caching when possible.
-
-    Falls back to uncached lookup for unhashable callables.
-
-    """
-    try:
-        return _get_signature_cached(func)
-    except TypeError:
-        return inspect.signature(func)
 
 
 #: Parameter kinds that can be filled by a positional argument, in the order a signature declares them.

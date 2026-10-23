@@ -9,6 +9,7 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 
 """
 
+import copy
 import inspect
 import sys
 import warnings
@@ -37,14 +38,7 @@ from deprecate.messaging import (
     _raise_warn_arguments,
     _raise_warn_callable,
 )
-from deprecate.utils import (
-    _get_signature,
-    _partial_chain,
-    _remap_kwargs,
-    _SigFacts,
-    _signature_facts,
-    get_func_arguments_types_defaults,
-)
+from deprecate.utils import _partial_chain, _remap_kwargs, _SigFacts, _signature_facts
 
 POSITIONAL_ONLY = Parameter.POSITIONAL_ONLY
 POSITIONAL_OR_KEYWORD = Parameter.POSITIONAL_OR_KEYWORD
@@ -499,12 +493,15 @@ def _prepare_target_call(
     return target
 
 
-def _raise_positional_arity_error(func: Callable, positional_params: list[inspect.Parameter], n_args: int) -> NoReturn:
+def _raise_positional_arity_error(
+    func: Callable, positional_names: tuple[str, ...], defaults: Mapping[str, Any], n_args: int
+) -> NoReturn:
     """Raise the curated ``TypeError`` for a call that passes more positional arguments than ``func`` declares.
 
     Args:
         func: Callable whose positional slots were exceeded; the message names it by ``__qualname__``.
-        positional_params: The positional-only and positional-or-keyword parameters of ``func``, in order.
+        positional_names: Names of the positional-only and positional-or-keyword parameters of ``func``, in order.
+        defaults: Each parameter of ``func`` that has a default, mapped to that default.
         n_args: Number of positional arguments the caller passed.
 
     Raises:
@@ -512,24 +509,19 @@ def _raise_positional_arity_error(func: Callable, positional_params: list[inspec
             defaults.
 
     """
-    required_positional_params = [param for param in positional_params if param.default is inspect.Parameter.empty]
-    if len(required_positional_params) == len(positional_params):
+    required_positional_names = [name for name in positional_names if name not in defaults]
+    if len(required_positional_names) == len(positional_names):
         raise TypeError(
-            f"{func.__qualname__}() takes {len(positional_params)} positional argument(s) but got "
+            f"{func.__qualname__}() takes {len(positional_names)} positional argument(s) but got "
             f"{n_args} positional argument(s)"
         )
     raise TypeError(
-        f"{func.__qualname__}() takes {len(required_positional_params)} to {len(positional_params)} "
+        f"{func.__qualname__}() takes {len(required_positional_names)} to {len(positional_names)} "
         f"positional argument(s) but got {n_args} positional argument(s)"
     )
 
 
-def _check_source_arity(
-    source: Callable,
-    args: tuple[Any, ...],
-    source_positional_names: tuple[str, ...],
-    source_has_var_positional: bool,
-) -> None:
+def _check_source_arity(source: Callable, args: tuple[Any, ...], facts: _CallFacts) -> None:
     """Reject surplus positional arguments before any deprecation warning fires or any warn budget is spent.
 
     A caller passing one positional argument too many gets the same curated ``TypeError`` whether or not the wrapper
@@ -539,25 +531,25 @@ def _check_source_arity(
     Args:
         source: The decorated callable.
         args: The positional arguments the caller passed.
-        source_positional_names: Names of the source's positional parameters before ``*args``, in order.
-        source_has_var_positional: ``True`` when ``source`` declares ``*args``.
+        facts: The wrapper's signature facts; ``source_positional_names``, ``source_has_var_positional`` and
+            ``source_defaults`` are read from them.
 
     Raises:
-        TypeError: When ``source`` has no ``*args`` and ``args`` is longer than ``source_positional_names``.
+        TypeError: When ``source`` has no ``*args`` and ``args`` is longer than ``facts.source_positional_names``.
 
     Example:
         >>> def source(a, b=0): pass
-        >>> _check_source_arity(source, (1, 2), ("a", "b"), False)
-        >>> _check_source_arity(source, (1, 2, 3), ("a", "b"), False)
+        >>> facts = _CallFacts(source_positional_names=("a", "b"), source_defaults={"b": 0})
+        >>> _check_source_arity(source, (1, 2), facts)
+        >>> _check_source_arity(source, (1, 2, 3), facts)
         Traceback (most recent call last):
         ...
         TypeError: source() takes 1 to 2 positional argument(s) but got 3 positional argument(s)
 
     """
-    if source_has_var_positional or len(args) <= len(source_positional_names):
+    if facts.source_has_var_positional or len(args) <= len(facts.source_positional_names):
         return
-    params = list(_get_signature(source).parameters.values())
-    _raise_positional_arity_error(source, _get_positional_params(params), len(args))
+    _raise_positional_arity_error(source, facts.source_positional_names, facts.source_defaults, len(args))
 
 
 def _is_verbatim_call(
@@ -604,62 +596,59 @@ def _is_verbatim_call(
         return True
     if dep_cfg.args_extra:
         return False
-    mapping = dep_cfg.args_mapping or {}
-    filled_slots = source_positional_names[: len(args)]
-    return not (any(name in kwargs for name in mapping) or any(name in mapping for name in filled_slots))
+    mapping_names = (dep_cfg.args_mapping or {}).keys()
+    # No old name passed by keyword, none filling a positional slot; ``isdisjoint`` runs at C speed on a dict.
+    return mapping_names.isdisjoint(kwargs) and mapping_names.isdisjoint(source_positional_names[: len(args)])
 
 
-def _update_kwargs_with_args(func: Callable, fn_args: tuple[Any, ...], fn_kwargs: dict[str, Any]) -> dict[str, Any]:
-    """Convert positional arguments to keyword arguments using function signature.
+def _update_kwargs_with_args(
+    func: Callable, fn_args: tuple[Any, ...], fn_kwargs: dict[str, Any], facts: _CallFacts
+) -> dict[str, Any]:
+    """Convert positional arguments to keyword arguments using the decoration-time parameter names.
 
-    This helper function takes positional arguments and converts them to keyword arguments by matching them with
-    parameter names from the function signature.  This enables consistent argument handling in the deprecation wrapper.
+    This helper takes positional arguments and converts them to keyword arguments by matching them with the source's
+    positional parameter names, read from its signature when it was decorated.  This enables consistent argument
+    handling in the deprecation wrapper.
 
     Args:
-        func: Function whose signature provides parameter names.
+        func: The decorated callable; a surplus positional argument raises a ``TypeError`` naming it.
         fn_args: Tuple of positional arguments passed to the function.
         fn_kwargs: Dictionary of keyword arguments already passed.
+        facts: The wrapper's signature facts (see :func:`_check_source_arity`).
 
     Returns:
         Dictionary combining converted positional arguments and existing kwargs, where positional args are now mapped
-        to their parameter names.  Conversion stops when encountering var-positional parameters (``*args``) because
-        they cannot be safely represented as keyword arguments.
+        to their parameter names.  Conversion stops at the var-positional parameter (``*args``) because its values
+        cannot be safely represented as keyword arguments.
+
+    Raises:
+        TypeError: When ``func`` has no ``*args`` and ``fn_args`` holds more values than it has positional parameters.
 
     Example:
         >>> from pprint import pprint
         >>> def example_func(a, b, c=3): pass
-        >>> pprint(_update_kwargs_with_args(example_func, (1, 2), {'c': 5}))
+        >>> facts = _build_call_facts(example_func, TargetMode.NOTIFY, None)
+        >>> pprint(_update_kwargs_with_args(example_func, (1, 2), {'c': 5}, facts))
         {'a': 1, 'b': 2, 'c': 5}
 
     """
     if not fn_args:
         return fn_kwargs
-    params = list(_get_signature(func).parameters.values())
-    positional_params = _get_positional_params(params)
-    has_var_positional = any(param.kind == inspect.Parameter.VAR_POSITIONAL for param in params)
-
-    if not has_var_positional and len(fn_args) > len(positional_params):
-        _raise_positional_arity_error(func, positional_params, len(fn_args))
+    _check_source_arity(func, fn_args, facts)
     updated_kwargs = dict(fn_kwargs)
-    for index, arg in enumerate(fn_args):
-        if index >= len(params):
-            break
-        param = params[index]
-        if param.kind == inspect.Parameter.VAR_POSITIONAL:
-            break
-        if param.kind in (POSITIONAL_ONLY, POSITIONAL_OR_KEYWORD):
-            updated_kwargs[param.name] = arg
+    # Positional parameters precede ``*args`` in every signature, so ``zip`` stops where the old loop broke off.
+    updated_kwargs.update(zip(facts.source_positional_names, fn_args))
     return updated_kwargs
 
 
-def _update_kwargs_with_defaults(func: Callable, fn_kwargs: dict[str, Any]) -> dict[str, Any]:
+def _update_kwargs_with_defaults(defaults: Mapping[str, Any], fn_kwargs: dict[str, Any]) -> dict[str, Any]:
     """Merge function default values with provided keyword arguments.
 
-    This helper fills in default parameter values from the function signature for any parameters not explicitly
-    provided.  Provided kwargs take precedence over defaults.
+    This helper fills in the default parameter values, read from the signature when the function was decorated, for
+    any parameters not explicitly provided.  Provided kwargs take precedence over defaults.
 
     Args:
-        func: Function whose signature provides default parameter values.
+        defaults: Each parameter that has a default, mapped to that default, in declaration order.
         fn_kwargs: Dictionary of keyword arguments provided by caller.
 
     Returns:
@@ -668,17 +657,14 @@ def _update_kwargs_with_defaults(func: Callable, fn_kwargs: dict[str, Any]) -> d
     Example:
         >>> from pprint import pprint
         >>> def example_func(a=1, b=2, c=3): pass
-        >>> pprint(_update_kwargs_with_defaults(example_func, {'b': 20}))
+        >>> pprint(_update_kwargs_with_defaults(_signature_facts(example_func).defaults, {'b': 20}))
         {'a': 1, 'b': 20, 'c': 3}
 
     Note:
         Parameters without defaults (inspect.Parameter.empty) are not included in the result.
 
     """
-    func_arg_type_val = get_func_arguments_types_defaults(func)
-    # fill by source defaults
-    fn_defaults = {arg[0]: arg[2] for arg in func_arg_type_val if arg[2] != inspect.Parameter.empty}
-    return dict(list(fn_defaults.items()) + list(fn_kwargs.items()))
+    return {**defaults, **fn_kwargs}
 
 
 def _renamed_defaults_owned_by_target(
@@ -696,9 +682,7 @@ def _renamed_defaults_owned_by_target(
     if not args_mapping or not callable(normalized_target):
         return frozenset()
     rename_targets = {new for new in args_mapping.values() if new is not None}
-    target_defaults = {
-        arg[0] for arg in get_func_arguments_types_defaults(normalized_target) if arg[2] is not inspect.Parameter.empty
-    }
+    target_defaults = _signature_facts(normalized_target).defaults
     renamed_with_target_default = {old for old, new in args_mapping.items() if new in target_defaults}
     return frozenset(rename_targets | renamed_with_target_default)
 
@@ -779,7 +763,7 @@ def _precompute_forward_defaults(
 
 
 def _merge_source_defaults(
-    source: Callable[..., Any],
+    source_defaults: Mapping[str, Any],
     normalized_target: Union[Callable[..., Any], TargetMode],
     kwargs: dict[str, Any],
     args_mapping: Optional[Mapping[str, Optional[str]]],
@@ -800,7 +784,8 @@ def _merge_source_defaults(
     arguments a partial binds are not considered — forwarding by name collides with the bound slot.
 
     Args:
-        source: The decorated callable whose signature provides the defaults.
+        source_defaults: The decorated callable's defaults, read from its signature at decoration
+            (:attr:`~deprecate._types._CallFacts.source_defaults`).
         normalized_target: The normalised target (callable or :class:`TargetMode`).
         kwargs: The caller's arguments, positionals already mapped to their parameter names.
         args_mapping: The wrapper's ``args_mapping``, or ``None``.
@@ -811,7 +796,7 @@ def _merge_source_defaults(
         The caller's arguments plus every source default the target does not own.
 
     """
-    full_defaults = _update_kwargs_with_defaults(source, kwargs)
+    full_defaults = _update_kwargs_with_defaults(source_defaults, kwargs)
     if forward_defaults is None:
         forward_defaults = _derive_forward_defaults(normalized_target, args_mapping)
     stale_renamed, partial_bound = forward_defaults
@@ -922,6 +907,10 @@ class _WrapperContext:
             ``TargetMode.ARGS_REMAP`` and for a callable target.
         cycle_guarded: Derived; ``True`` when the target is callable, so every call runs under the target-chain cycle
             guard (:func:`_enter_cycle_guard`).
+        fast_notify: Derived; ``True`` for ``TargetMode.NOTIFY`` unless ``as_exception=True`` makes every call fatal,
+            so a call after the warn budget is spent may skip the call plan (:func:`_skips_call_plan`).
+        fast_remap: Derived; ``True`` for ``TargetMode.ARGS_REMAP`` without ``args_extra`` over a source that is not
+            itself a ``@deprecated`` wrapper, so a caller using none of the deprecated names may skip the call plan.
 
     """
 
@@ -938,12 +927,20 @@ class _WrapperContext:
     forward_defaults: Optional[_ForwardDefaults] = None
     remap_active: bool = field(init=False)
     cycle_guarded: bool = field(init=False)
+    fast_notify: bool = field(init=False)
+    fast_remap: bool = field(init=False)
 
     def __post_init__(self) -> None:
         """Derive the per-wrapper flags the call path would otherwise recompute on every call."""
         forwards = callable(self.target)
         object.__setattr__(self, "cycle_guarded", forwards)
         object.__setattr__(self, "remap_active", forwards or self.target is TargetMode.ARGS_REMAP)
+        object.__setattr__(self, "fast_notify", self.target is TargetMode.NOTIFY and self.cfg.as_exception is not True)
+        object.__setattr__(
+            self,
+            "fast_remap",
+            self.target is TargetMode.ARGS_REMAP and not self.cfg.args_extra and not self.is_stacked,
+        )
 
 
 #: Handle returned by :func:`_enter_cycle_guard`: the active id-set and the token that installed it, or ``None`` when
@@ -1016,45 +1013,56 @@ def _leading_positional_slots(func: Callable[..., Any]) -> tuple[tuple[str, ...]
         (('a', 'b'), True)
 
     """
-    names: list[str] = []
-    for param in _get_signature(func).parameters.values():
-        if param.kind is Parameter.VAR_POSITIONAL:
-            return tuple(names), True
-        if param.kind not in (POSITIONAL_ONLY, POSITIONAL_OR_KEYWORD):
-            break
-        names.append(param.name)
-    return tuple(names), False
+    # Positional parameters precede ``*args`` in every signature, so they are exactly the leading positional slots.
+    facts = _signature_facts(func)
+    return facts.positional_names, facts.var_positional
 
 
 def _target_signature_facts(
     target: Union[Callable[..., Any], TargetMode],
-) -> tuple[_SigFacts, Optional[tuple[str, ...]]]:
+) -> tuple[_SigFacts, Optional[Exception]]:
     """Read a normalised target's signature once, keeping apart a mode target and an unreadable callable.
 
     Args:
         target: The normalised target returned by :func:`_normalize_target`.
 
     Returns:
-        Tuple of ``(facts, positional_names)``.  A :class:`TargetMode` gives empty facts and ``()``; a callable whose
-        signature cannot be read gives empty facts and ``None``, so its forwarded call raises the signature error
-        itself; any other callable gives its facts and their ``positional_names``.
+        Tuple of ``(facts, error)``.  A :class:`TargetMode` gives empty facts and no error; a callable whose signature
+        cannot be read gives empty facts and the ``TypeError`` or ``ValueError`` the read raised, without its
+        traceback, so its forwarded call can raise that error itself; any other callable gives its facts and no error.
 
     Example:
         >>> def target(a, /, b, *rest, c=1): pass
-        >>> facts, positional_names = _target_signature_facts(target)
-        >>> positional_names, sorted(facts.positional_only)
-        (('a', 'b'), ['a'])
-        >>> _target_signature_facts(TargetMode.NOTIFY)[1]
-        ()
+        >>> facts, error = _target_signature_facts(target)
+        >>> facts.positional_names, sorted(facts.positional_only), error
+        (('a', 'b'), ['a'], None)
+        >>> _target_signature_facts(TargetMode.NOTIFY) == (_SigFacts(), None)
+        True
 
     """
     if not callable(target):
-        return _SigFacts(), ()
-    try:
-        facts = _signature_facts(target)
-    except (TypeError, ValueError):
         return _SigFacts(), None
-    return facts, facts.positional_names
+    try:
+        return _signature_facts(target), None
+    except (TypeError, ValueError) as error:
+        return _SigFacts(), error.with_traceback(None)
+
+
+def _raise_target_signature_error(facts: _CallFacts) -> None:
+    """Raise, on a forwarded call, the error the target's signature read raised when the function was decorated.
+
+    A target whose signature cannot be read still decorates; the forwarded call that needs the signature raises a
+    fresh copy of the decoration-time error, as the call-time read this replaces did.  Does nothing when the read
+    succeeded or the facts were built by hand.
+
+    Raises:
+        TypeError: A copy of :attr:`~deprecate._types._CallFacts.target_signature_error`, when it is one.
+        ValueError: A copy of :attr:`~deprecate._types._CallFacts.target_signature_error`, when it is one.
+
+    """
+    error = facts.target_signature_error
+    if error is not None:
+        raise copy.copy(error)
 
 
 def _build_call_facts(
@@ -1088,7 +1096,7 @@ def _build_call_facts(
 
     """
     source_facts = _signature_facts(source)
-    target_facts, target_positional_names = _target_signature_facts(normalized_target)
+    target_facts, target_error = _target_signature_facts(normalized_target)
     _warn_target_positional_only(normalized_target, source, target_facts.positional_only, stream)
     # Source-side POSITIONAL_ONLY params: a call the wrapper rewrites (a triggered ARGS_REMAP rename, or ARGS_REMAP
     # with args_extra) converts positional args to kwargs internally, so the dispatcher must split these back out
@@ -1105,7 +1113,10 @@ def _build_call_facts(
         target_accepts_var_keyword=target_facts.var_keyword,
         target_positional_only=target_facts.positional_only,
         target_positional_only_order=target_facts.order if target_facts.positional_only else (),
-        target_positional_names=target_positional_names,
+        target_positional_names=None if target_error is not None else target_facts.positional_names,
+        # A plain dict, not the read-only view: the record must stay picklable (a proxy pickles its facts).
+        source_defaults=dict(source_facts.defaults),
+        target_signature_error=target_error,
     )
 
 
@@ -1133,7 +1144,10 @@ def _resolve_forward_kwargs(
     """
     source, target, mapping, extra = ctx.source, ctx.target, ctx.cfg.args_mapping, ctx.cfg.args_extra
     if reason_callable:
-        kwargs = _merge_source_defaults(source, target, kwargs, mapping, ctx.forward_defaults)
+        if ctx.forward_defaults is None:
+            # Not derivable at decoration because the target signature is unreadable: raise that error now.
+            _raise_target_signature_error(ctx.facts)
+        kwargs = _merge_source_defaults(ctx.facts.source_defaults, target, kwargs, mapping, ctx.forward_defaults)
     if mapping and ctx.remap_active:
         kwargs = _remap_kwargs(mapping, kwargs, name=source.__name__, stream=ctx.stream)
     if extra and ctx.remap_active:
@@ -1153,6 +1167,43 @@ def _resolve_forward_kwargs(
         accepts_var_keyword=facts.target_accepts_var_keyword,
     )
     return kwargs, target_func
+
+
+def _skips_call_plan(ctx: _WrapperContext, args: tuple[Any, ...], kwargs: Mapping[str, Any]) -> bool:
+    """Decide whether this call warns nothing and reaches the source unchanged, so the call plan can be skipped.
+
+    The wrappers ask after ``skip_if`` and before the cycle guard, which neither mode below needs (it guards callable
+    targets only).  A call qualifies only when :func:`_build_call_plan` would emit nothing and invoke
+    ``source(*args, **kwargs)`` as made:
+
+    - ``TargetMode.NOTIFY`` (:attr:`_WrapperContext.fast_notify`) once ``stream`` is ``None`` or the warn budget is
+      spent, and only while the deprecation is not fatal: the fatal switch is resolved on every call, because the
+      global, the :func:`~deprecate._fatal.as_exceptions` scope and the environment seed can change at runtime.
+    - ``TargetMode.ARGS_REMAP`` (:attr:`_WrapperContext.fast_remap`) when the caller uses none of the deprecated names
+      (:func:`_is_verbatim_call`), the call the plan short-circuits before any warning or fatal check.
+
+    Neither qualifies while the one-time misconfiguration warning is still due, nor with surplus positionals, for
+    which the plan raises the curated ``TypeError`` of :func:`_check_source_arity`.
+
+    Args:
+        ctx: The wrapper's context.
+        args: The positional arguments the caller passed.
+        kwargs: The keyword arguments the caller passed.
+
+    Returns:
+        ``True`` when the wrapper may call ``ctx.source(*args, **kwargs)`` directly.
+
+    """
+    if not (ctx.fast_notify or ctx.fast_remap):
+        return False
+    state, facts = ctx.state, ctx.facts
+    misconfig_due = ctx.cfg.misconfigured and ctx.stream and not state.warned_misconfigured
+    if misconfig_due or (not facts.source_has_var_positional and len(args) > len(facts.source_positional_names)):
+        return False
+    if ctx.fast_notify:
+        spent = not ctx.stream or (ctx.num_warns >= 0 and state.warned_calls >= ctx.num_warns)
+        return spent and not _resolve_as_exception(ctx.cfg.as_exception)
+    return _is_verbatim_call(ctx.target, ctx.cfg, args, kwargs, facts.source_positional_names)
 
 
 def _warn_misconfigured_once(ctx: _WrapperContext) -> None:
@@ -1288,13 +1339,13 @@ def _build_call_plan(ctx: _WrapperContext, args: tuple[Any, ...], kwargs: dict[s
     _warn_misconfigured_once(ctx)
     facts = ctx.facts
     # Surplus positionals raise the curated TypeError before any warning fires or any budget is spent.
-    _check_source_arity(ctx.source, args, facts.source_positional_names, facts.source_has_var_positional)
+    _check_source_arity(ctx.source, args, facts)
     # No rename, no injected extras and no forwarding target: the source gets the caller's arguments unchanged.
     verbatim = _is_verbatim_call(ctx.target, ctx.cfg, args, kwargs, facts.source_positional_names)
     # *args sources need the unremapped tuple; remapping happens on kwargs only.
     original_kwargs = dict(kwargs)
     if not verbatim:
-        kwargs = _update_kwargs_with_args(ctx.source, args, kwargs)
+        kwargs = _update_kwargs_with_args(ctx.source, args, kwargs, facts)
     reason_callable, reason_argument = _resolve_reasons(ctx, kwargs)
     if _is_short_circuit(ctx, reason_callable, reason_argument):
         return _CallPlan(short_circuit=True, original_kwargs=original_kwargs, resolved_kwargs=kwargs, verbatim=verbatim)
@@ -1395,7 +1446,7 @@ def _reorder_kwargs_for_surplus(
     Args:
         ctx: The wrapper's context; the slots come from ``ctx.facts.target_positional_names`` and
             ``target_accepts_var_positional``, and the source named in the curated ``TypeError`` is ``ctx.source``.
-        target_func: The forwarding target; its signature is read only when the facts carry no slot names.
+        target_func: The forwarding target; its signature is read only when hand-built facts carry no slot names.
         surplus: Positional tail beyond the source's named positional parameters
             (``args[ctx.facts.source_var_positional_prefix:]``).
         resolved_kwargs: Final kwargs assembled by :func:`_build_call_plan`.
@@ -1411,8 +1462,9 @@ def _reorder_kwargs_for_surplus(
     positional_names = ctx.facts.target_positional_names
     accepts_var_positional = ctx.facts.target_accepts_var_positional
     if positional_names is None:
-        # Not precomputed (hand-built facts, or a target signature unreadable at decoration): read it now, so an
-        # unreadable signature raises its own error on the forwarded call.
+        # A target signature unreadable at decoration raises its error on this forwarded call; hand-built facts carry
+        # no slot names and no error, so the slots are read from the target here.
+        _raise_target_signature_error(ctx.facts)
         positional_names, accepts_var_positional = _leading_positional_slots(target_func)
     source = ctx.source
     kw_args = dict(resolved_kwargs)

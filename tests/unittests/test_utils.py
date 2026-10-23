@@ -10,7 +10,6 @@ import pytest
 from deprecate import assert_no_warnings
 from deprecate.utils import (
     _get_signature,
-    _get_signature_cached,
     _remap_kwargs,
     _SigFacts,
     _signature_facts,
@@ -166,42 +165,20 @@ class TestSignatureFacts:
 
 
 class TestSignatureFunctions:
-    """Tests for _get_signature (with unhashable fallback) and _get_signature_cached (raw LRU)."""
+    """Tests for _get_signature, the uncached signature read used when a callable is decorated."""
 
-    @pytest.mark.parametrize(
-        "sig_func",
-        [
-            pytest.param(_get_signature, id="get-signature"),
-            pytest.param(_get_signature_cached, id="get-signature-cached"),
-        ],
-    )
-    def test_returns_valid_signature(self, sig_func: Callable) -> None:
+    def test_returns_valid_signature(self) -> None:
         """Returns a valid Signature with correct parameters for a standard annotated function."""
 
         def my_func(x: int, y: str = "hi") -> None:
             pass
 
-        sig = sig_func(my_func)
+        sig = _get_signature(my_func)
         assert isinstance(sig, inspect.Signature)
         assert list(sig.parameters) == ["x", "y"]
 
-    @pytest.mark.parametrize(
-        "sig_func",
-        [
-            pytest.param(_get_signature, id="get-signature"),
-            pytest.param(_get_signature_cached, id="get-signature-cached"),
-        ],
-    )
-    def test_repeated_calls_return_same_object(self, sig_func: Callable) -> None:
-        """Repeated calls return the identical Signature object, confirming LRU cache is active."""
-
-        def my_func(x: int) -> None:
-            pass
-
-        assert sig_func(my_func) is sig_func(my_func)
-
-    def test_unhashable_callable_falls_back_to_uncached(self) -> None:
-        """Unhashable callables cannot enter the LRU cache; _get_signature falls back to direct inspection."""
+    def test_reads_unhashable_callable(self) -> None:
+        """Unhashable callables are read like any other callable: without a cache nothing needs hashing."""
 
         class UnhashableCallable:
             __hash__ = None  # type: ignore[assignment]

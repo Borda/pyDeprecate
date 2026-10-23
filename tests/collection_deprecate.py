@@ -70,6 +70,7 @@ from tests.collection_targets import (
     ColorEnum,
     CombinedAttrsArgsSource,
     CombinedAttrsArgsTarget,
+    CountingSkipCondition,
     CrossGuardClassTargetNew,
     DerivedPositionalOnlyTarget,
     HostileSignatureCallable,
@@ -82,6 +83,7 @@ from tests.collection_targets import (
     NewEnum,
     NewIntEnum,
     NonStringNameCallable,
+    OpaqueSignatureCallable,
     Palette,
     PaletteEnum,
     PaletteOld,
@@ -3632,3 +3634,61 @@ DeprSourcePathStacked = deprecated_class(message_template=_SOURCE_PATH_TEMPLATE,
 depr_source_path_instance = deprecated_instance(
     SourcePathTarget(), name="source_path_target", message_template=_SOURCE_PATH_TEMPLATE, **_DEPRS_CASE_STD_INF_ARGS
 )
+
+
+# ---------------------------------------------------------------------------
+# Spent warn budget — calls after the one warning was delivered skip the call plan
+# ---------------------------------------------------------------------------
+
+
+@deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)
+def depr_notify_spent_budget(x: int, y: int = 1) -> int:
+    """Warn-only deprecation whose single ``FutureWarning`` is spent by the first call."""
+    return x + y
+
+
+@deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)
+async def depr_notify_spent_budget_async(x: int, y: int = 1) -> int:
+    """Async warn-only deprecation whose single ``FutureWarning`` is spent by the first awaited call."""
+    return x + y
+
+
+#: Counts every ``skip_if`` evaluation of :func:`depr_notify_skip_counted`; it never skips.
+notify_skip_condition = CountingSkipCondition()
+
+
+@deprecated(target=TargetMode.NOTIFY, skip_if=notify_skip_condition, **_DEPRS_CASE_STD_ARGS)
+def depr_notify_skip_counted(x: int) -> int:
+    """Warn-only deprecation behind a feature flag that is consulted on every call."""
+    return x
+
+
+# ---------------------------------------------------------------------------
+# Unreadable signatures — the error surfaces where it did before facts were read at decoration
+# ---------------------------------------------------------------------------
+
+
+@deprecated(target=OpaqueSignatureCallable(), args_mapping={"old_x": "x"}, **_DEPRS_CASE_STD_ARGS)
+def depr_opaque_target_renamed(x: int = 0, old_x: int = 0) -> Any:  # noqa: ANN401
+    """Forwards to a target whose signature cannot be read; the rename needs the target's defaults."""
+    return void(x, old_x)
+
+
+@deprecated(target=OpaqueSignatureCallable(), **_DEPRS_CASE_STD_ARGS)
+def depr_opaque_target_var_positional(*values: int) -> Any:  # noqa: ANN401
+    """Forwards a ``*args`` tail to a target whose signature cannot be read; the tail needs the target's slots."""
+    return void(values)
+
+
+def make_opaque_source_wrapper() -> Callable[..., Any]:
+    """Decorate a callable whose own signature cannot be read; the signature error is raised by this call."""
+    return deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)(OpaqueSignatureCallable())
+
+
+def make_transient_notify_pair() -> tuple[Callable[..., int], Callable[..., int]]:
+    """Build a fresh source function and its silent NOTIFY wrapper, for a test that drops both again."""
+
+    def transient_source(x: int, y: int = 1) -> int:
+        return x + y
+
+    return transient_source, deprecated(target=TargetMode.NOTIFY, stream=None, **_DEPRS_CASE_STD_ARGS)(transient_source)

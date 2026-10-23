@@ -163,7 +163,7 @@ class TestUpdateKwargsWithArgs:
         def my_func(a: int, b: int) -> None:
             pass
 
-        result = _update_kwargs_with_args(my_func, (), {"a": 1})
+        result = _update_kwargs_with_args(my_func, (), {"a": 1}, _build_call_facts(my_func, TargetMode.NOTIFY, None))
         assert result == {"a": 1}
 
     def test_maps_positional_to_param_names(self) -> None:
@@ -172,7 +172,9 @@ class TestUpdateKwargsWithArgs:
         def my_func(a: int, b: str, c: float = 3.0) -> None:
             pass
 
-        result = _update_kwargs_with_args(my_func, (1, "hello"), {})
+        result = _update_kwargs_with_args(
+            my_func, (1, "hello"), {}, _build_call_facts(my_func, TargetMode.NOTIFY, None)
+        )
         assert result == {"a": 1, "b": "hello"}
 
     def test_merges_with_existing_kwargs(self) -> None:
@@ -181,7 +183,9 @@ class TestUpdateKwargsWithArgs:
         def my_func(a: int, b: int, c: int = 0) -> None:
             pass
 
-        result = _update_kwargs_with_args(my_func, (10,), {"c": 99})
+        result = _update_kwargs_with_args(
+            my_func, (10,), {"c": 99}, _build_call_facts(my_func, TargetMode.NOTIFY, None)
+        )
         assert result == {"a": 10, "c": 99}
 
     def test_stops_at_var_positional(self) -> None:
@@ -190,7 +194,7 @@ class TestUpdateKwargsWithArgs:
         def my_func(a: int, *args: int) -> None:
             pass
 
-        result = _update_kwargs_with_args(my_func, (1, 2, 3), {})
+        result = _update_kwargs_with_args(my_func, (1, 2, 3), {}, _build_call_facts(my_func, TargetMode.NOTIFY, None))
         assert result == {"a": 1}
 
     def test_too_many_positional_raises_type_error(self) -> None:
@@ -200,7 +204,7 @@ class TestUpdateKwargsWithArgs:
             pass
 
         with pytest.raises(TypeError, match="takes 2 positional"):
-            _update_kwargs_with_args(my_func, (1, 2, 3), {})
+            _update_kwargs_with_args(my_func, (1, 2, 3), {}, _build_call_facts(my_func, TargetMode.NOTIFY, None))
 
 
 def test_class_target_uses_call_signature_for_validation() -> None:
@@ -218,7 +222,7 @@ class TestUpdateKwargsWithDefaults:
         def my_func(a: int = 1, b: int = 2, c: int = 3) -> None:
             pass
 
-        result = _update_kwargs_with_defaults(my_func, {})
+        result = _update_kwargs_with_defaults(_signature_facts(my_func).defaults, {})
         assert result == {"a": 1, "b": 2, "c": 3}
 
     def test_provided_kwargs_override_defaults(self) -> None:
@@ -227,7 +231,7 @@ class TestUpdateKwargsWithDefaults:
         def my_func(a: int = 1, b: int = 2, c: int = 3) -> None:
             pass
 
-        result = _update_kwargs_with_defaults(my_func, {"b": 20})
+        result = _update_kwargs_with_defaults(_signature_facts(my_func).defaults, {"b": 20})
         assert result == {"a": 1, "b": 20, "c": 3}
 
     def test_params_without_defaults_not_included(self) -> None:
@@ -236,7 +240,7 @@ class TestUpdateKwargsWithDefaults:
         def my_func(required: int, optional: int = 5) -> None:
             pass
 
-        result = _update_kwargs_with_defaults(my_func, {})
+        result = _update_kwargs_with_defaults(_signature_facts(my_func).defaults, {})
         assert result == {"optional": 5}
         assert "required" not in result
 
@@ -246,7 +250,7 @@ class TestUpdateKwargsWithDefaults:
         def my_func(a: int, b: str) -> None:
             pass
 
-        result = _update_kwargs_with_defaults(my_func, {"a": 7})
+        result = _update_kwargs_with_defaults(_signature_facts(my_func).defaults, {"a": 7})
         assert result == {"a": 7}
 
 
@@ -1745,8 +1749,12 @@ class TestForwardDefaultsPrecompute:
         """
         facts = _precompute_forward_defaults(target, mapping)
 
-        on_the_spot = _merge_source_defaults(source_with_forward_defaults, target, dict(kwargs), mapping)
-        precomputed = _merge_source_defaults(source_with_forward_defaults, target, dict(kwargs), mapping, facts)
+        on_the_spot = _merge_source_defaults(
+            _signature_facts(source_with_forward_defaults).defaults, target, dict(kwargs), mapping
+        )
+        precomputed = _merge_source_defaults(
+            _signature_facts(source_with_forward_defaults).defaults, target, dict(kwargs), mapping, facts
+        )
 
         assert (on_the_spot, precomputed) == (expected, expected)
 
@@ -1758,7 +1766,9 @@ class TestForwardDefaultsPrecompute:
         """
         facts = _ForwardDefaults(stale_renamed=frozenset({"level"}), partial_bound=frozenset())
 
-        merged = _merge_source_defaults(source_sharing_level_default, fn_shared_default_target, {"x": 5}, None, facts)
+        merged = _merge_source_defaults(
+            _signature_facts(source_sharing_level_default).defaults, fn_shared_default_target, {"x": 5}, None, facts
+        )
 
         assert merged == {"x": 5}
 

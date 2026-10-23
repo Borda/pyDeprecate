@@ -35,6 +35,7 @@ from deprecate._dispatch import (
     _precompute_forward_defaults,
     _reject_bare_decorator,
     _resolve_stored_target,
+    _skips_call_plan,
     _warn_stacking_misconfiguration,
     _WrapperContext,
 )
@@ -376,7 +377,9 @@ def _make_wrapper(ctx: _WrapperContext, *, is_async: bool, update_docstring: boo
     """Build the ``@deprecated`` wrapper around ``ctx.source`` and attach its deprecation metadata.
 
     The sync and async wrapper bodies differ only by ``await``: a call that ``skip_if`` skips runs the source
-    unchanged; any other call enters the target-chain cycle guard, builds the call plan and invokes it. The wrapper
+    unchanged; so does a call that warns nothing and needs no rewrite (:func:`~deprecate._dispatch._skips_call_plan`,
+    for example a ``TargetMode.NOTIFY`` call after the warn budget is spent), which only counts the call; any other
+    call enters the target-chain cycle guard, builds the call plan and invokes it. The wrapper
     carries the ``functools.wraps`` metadata of the source (``__wrapped__`` included), ``__deprecation_config__``
     (``ctx.cfg``), the PEP 702 ``__deprecated__`` message rendered from ``ctx.cfg``, and ``_state`` — the very
     ``ctx.state`` object, so a counter reset through the wrapper reaches the call path.
@@ -397,6 +400,9 @@ def _make_wrapper(ctx: _WrapperContext, *, is_async: bool, update_docstring: boo
         async def async_wrapped_fn(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
             if _eval_skip_if(ctx.skip_if):
                 return await ctx.source(*args, **kwargs)
+            if _skips_call_plan(ctx, args, kwargs):
+                ctx.state.called += 1
+                return await ctx.source(*args, **kwargs)
             handle = _enter_cycle_guard(ctx)
             try:
                 return await _invoke_async(ctx, _build_call_plan(ctx, args, kwargs), args)
@@ -411,6 +417,9 @@ def _make_wrapper(ctx: _WrapperContext, *, is_async: bool, update_docstring: boo
         @wraps(ctx.source)
         def wrapped_fn(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
             if _eval_skip_if(ctx.skip_if):
+                return ctx.source(*args, **kwargs)
+            if _skips_call_plan(ctx, args, kwargs):
+                ctx.state.called += 1
                 return ctx.source(*args, **kwargs)
             handle = _enter_cycle_guard(ctx)
             try:

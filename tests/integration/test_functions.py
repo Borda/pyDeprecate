@@ -10,12 +10,16 @@ Current test coverage:
 
 """
 
+import asyncio
+import gc
 import warnings
+import weakref
 from typing import Any, Callable, cast
 
 import pytest
 
-from deprecate import assert_no_warnings, deprecated
+import deprecate
+from deprecate import DeprecatedError, as_exceptions, assert_no_warnings, deprecated
 from deprecate._types import DeprecationConfig, _DeprecatedCallable
 from tests.collection_depr_legacy import decorated_pow_self as legacy_pow_self
 from tests.collection_depr_legacy import decorated_sum_warn_only as legacy_sum_warn_only
@@ -42,6 +46,11 @@ from tests.collection_deprecate import (
     depr_make_new_cls,
     depr_make_new_cls_mapped,
     depr_non_string_name_target,
+    depr_notify_skip_counted,
+    depr_notify_spent_budget,
+    depr_notify_spent_budget_async,
+    depr_opaque_target_renamed,
+    depr_opaque_target_var_positional,
     depr_pow_args,
     depr_pow_mix,
     depr_pow_self_double,
@@ -63,6 +72,9 @@ from tests.collection_deprecate import (
     deprecated_var_positional_overflow,
     deprecated_var_positional_remap,
     deprecated_var_positional_to_fixed,
+    make_opaque_source_wrapper,
+    make_transient_notify_pair,
+    notify_skip_condition,
     wrapped_pow_self,
     wrapped_pow_skip_if_func,
     wrapped_pow_skip_if_true,
@@ -73,6 +85,7 @@ from tests.collection_deprecate import (
     wrapped_sum_no_stream,
     wrapped_sum_warn_only,
 )
+from tests.collection_misconfigured import make_notify_mapping_no_budget
 from tests.collection_targets import NewCls, TimerDecorator, base_sum_kwargs, sample_function, timing_wrapper
 
 
@@ -962,3 +975,142 @@ class TestPartialTargetPrecedence:
         """
         with pytest.warns(FutureWarning):
             assert depr_scale_nested_partial(1) == 5
+
+
+class TestSpentBudgetFastPath:
+    """Calls after the warn budget is spent skip the call plan but keep every behaviour of the full path."""
+
+    def test_spent_budget_is_silent(self) -> None:
+        """A call after the one warning was delivered emits nothing and still returns the source's result.
+
+        A training loop calls a warn-only deprecated helper on every batch. The first call delivers the single
+        ``FutureWarning``; every later call must run the source body with the caller's own arguments, silently.
+        """
+        with pytest.warns(FutureWarning):
+            depr_notify_spent_budget(1)
+        with assert_no_warnings():
+            result = depr_notify_spent_budget(2, y=3)
+        assert result == 5
+
+    def test_async_spent_budget_is_silent(self) -> None:
+        """An awaited call after the one warning was delivered emits nothing and still returns the coroutine's result.
+
+        The async wrapper takes the same shortcut as the sync one once the budget is spent: an event-loop worker that
+        awaits a deprecated coroutine on every request warns once, then only pays for the awaited body.
+        """
+        with pytest.warns(FutureWarning):
+            asyncio.run(depr_notify_spent_budget_async(1))
+        with assert_no_warnings():
+            result = asyncio.run(depr_notify_spent_budget_async(2, y=3))
+        assert result == 5
+
+    def test_global_switch_after_spent_budget_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Turning ``deprecate.AS_EXCEPTIONS`` on after the budget is spent makes the next call raise.
+
+        A test suite switches to strict mode part-way through a session, after a deprecated helper already warned
+        once. The fatal switch is read on every call, so the spent budget must not let the call through, and the
+        raise must leave the budget counter untouched.
+        """
+        with pytest.warns(FutureWarning):
+            depr_notify_spent_budget(1)
+        monkeypatch.setattr(deprecate, "AS_EXCEPTIONS", True)
+        with pytest.raises(DeprecatedError):
+            depr_notify_spent_budget(1)
+        assert cast(_DeprecatedCallable, depr_notify_spent_budget)._state.warned_calls == 1
+
+    def test_scoped_switch_after_spent_budget_raises(self) -> None:
+        """An ``as_exceptions()`` block entered after the budget is spent makes the call inside it raise.
+
+        A consumer guards one critical section with ``with deprecate.as_exceptions():`` after the deprecated helper
+        already warned elsewhere. The scope is read on every call, so the call inside it raises and the budget counter
+        stays where the earlier warning left it.
+        """
+        with pytest.warns(FutureWarning):
+            depr_notify_spent_budget(1)
+        with as_exceptions(), pytest.raises(DeprecatedError):
+            depr_notify_spent_budget(1)
+        assert cast(_DeprecatedCallable, depr_notify_spent_budget)._state.warned_calls == 1
+
+    def test_surplus_positional_raises_curated_error(self) -> None:
+        """A call with one positional argument too many raises the curated ``TypeError`` after the budget is spent.
+
+        The full path rejects surplus positionals with pyDeprecate's own message before anything else; the shortcut
+        taken once the budget is spent must not hand the call to the source and surface Python's native message
+        instead.
+        """
+        with pytest.warns(FutureWarning):
+            depr_notify_spent_budget(1)
+        with pytest.raises(TypeError, match=r"takes 1 to 2 positional argument\(s\) but got 3"):
+            cast(Callable[..., int], depr_notify_spent_budget)(1, 2, 3)
+
+    def test_misconfigured_notice_fires_once(self) -> None:
+        """A misconfigured warn-only deprecation with ``num_warns=0`` emits its one-time ``UserWarning`` exactly once.
+
+        With a zero budget no ``FutureWarning`` is ever due, so every call qualifies for the shortcut. The one-time
+        misconfiguration notice must still reach the first caller, and only the first.
+        """
+        wrapper = make_notify_mapping_no_budget()
+        with pytest.warns(UserWarning, match="invalid deprecation configuration") as first_call:
+            wrapper(1)
+        with assert_no_warnings():
+            wrapper(2)
+        assert len(first_call) == 1
+
+    def test_skip_if_evaluated_on_every_call(self) -> None:
+        """A ``skip_if`` callable is consulted on every call, before and after the budget is spent.
+
+        A feature flag decides per call whether the deprecation applies; caching its answer once the budget is spent
+        would ignore a flag that flips later. Three calls must consult it three times.
+        """
+        calls_before = notify_skip_condition.calls
+        with pytest.warns(FutureWarning):
+            depr_notify_skip_counted(1)
+        depr_notify_skip_counted(2)
+        depr_notify_skip_counted(3)
+        assert notify_skip_condition.calls - calls_before == 3
+
+
+class TestUnreadableSignature:
+    """A signature that cannot be read fails at the same moment as before signature facts were read at decoration."""
+
+    def test_source_error_raised_at_decoration(self) -> None:
+        """Decorating a callable whose own signature cannot be read raises the ``inspect.signature`` error.
+
+        The wrapper needs the source's parameters for every call, so a C-level source without signature metadata
+        fails when it is decorated, at import time, rather than on its first call.
+        """
+        with pytest.raises(ValueError, match="no signature found"):
+            make_opaque_source_wrapper()
+
+    @pytest.mark.parametrize(
+        "func",
+        [
+            pytest.param(depr_opaque_target_renamed, id="rename-needs-target-defaults"),
+            pytest.param(depr_opaque_target_var_positional, id="surplus-needs-target-slots"),
+        ],
+    )
+    def test_target_error_raised_at_forwarded_call(self, func: Callable[..., Any]) -> None:
+        """A target whose signature cannot be read decorates fine and raises the signature error on the forwarded call.
+
+        The module that defines the wrapper imports cleanly; the error surfaces, after the deprecation warning, on the
+        call that needs the target's signature (its defaults for a rename, or its positional slots for a ``*args``
+        tail), as a ``ValueError`` from ``inspect.signature``.
+        """
+        with pytest.warns(FutureWarning), pytest.raises(ValueError, match="no signature found"):
+            func(1, 2)
+
+
+class TestDecoratedFunctionLifetime:
+    """Decorating a function does not keep it alive once the caller drops it."""
+
+    def test_source_released_with_wrapper(self) -> None:
+        """A decorated function and its wrapper are garbage-collected once both are dropped.
+
+        Plugins and tests build deprecated functions on the fly. A signature cache keyed by the function object would
+        keep every one of them, and whatever its closure holds, alive for the life of the process.
+        """
+        source, wrapper = make_transient_notify_pair()
+        source_ref = weakref.ref(source)
+        del source, wrapper
+        gc.collect()
+        assert source_ref() is None
