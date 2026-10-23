@@ -19,7 +19,7 @@ from deprecate._types import (
     _WrapperState,
 )
 from deprecate.audit import find_deprecation_wrappers, validate_deprecation_wrapper
-from deprecate.proxy import _DeprecatedProxy
+from deprecate.proxy import _DeprecatedProxy, _ProxySpec
 from tests.collection_chains import caller_stacked_args_enum_enum, caller_stacked_args_legacy_enum
 from tests.collection_targets import base_sum_kwargs
 
@@ -159,7 +159,7 @@ class TestHasDeprecationMeta:
 
     def test_returns_true_for_deprecated_proxy(self) -> None:
         """_DeprecatedProxy objects carry DeprecationConfig, so the guard returns True."""
-        proxy = _DeprecatedProxy(obj={}, name="x", deprecated_in="1.0", remove_in="2.0", stream=None)
+        proxy = _DeprecatedProxy(obj={}, spec=_ProxySpec(name="x", deprecated_in="1.0", remove_in="2.0", stream=None))
         assert _has_deprecation_meta(proxy) is True
 
     @pytest.mark.parametrize(
@@ -228,7 +228,7 @@ class TestHasDeprecationMeta:
 
     def test_meta_is_deprecation_info_instance(self) -> None:
         """The __deprecation_config__ attribute on a proxy is a typed DeprecationConfig dataclass."""
-        proxy = _DeprecatedProxy(obj={}, name="cfg", deprecated_in="1.0", remove_in="2.0", stream=None)
+        proxy = _DeprecatedProxy(obj={}, spec=_ProxySpec(name="cfg", deprecated_in="1.0", remove_in="2.0", stream=None))
         assert isinstance(object.__getattribute__(proxy, "__deprecation_config__"), DeprecationConfig)
 
 
