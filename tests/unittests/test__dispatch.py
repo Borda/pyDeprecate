@@ -4,11 +4,13 @@ import asyncio
 import concurrent.futures
 import contextvars
 import inspect
+import re
 import sys
 import threading
 import time
 import warnings
 from collections.abc import Iterator
+from dataclasses import replace
 from typing import Any, Callable, Optional, Union, cast
 from unittest import mock
 
@@ -16,6 +18,7 @@ import pytest
 
 from deprecate import TargetMode, assert_no_warnings, deprecated, void
 from deprecate._dispatch import (
+    _STACKING_MESSAGES,
     POSITIONAL_OR_KEYWORD,
     _build_call_facts,
     _build_call_plan,
@@ -32,11 +35,13 @@ from deprecate._dispatch import (
     _prepare_target_call,
     _reject_bare_decorator,
     _split_positional_only_kwargs,
+    _stacking_kind,
     _update_kwargs_with_args,
     _update_kwargs_with_defaults,
+    _warn_stacking_misconfiguration,
     _WrapperContext,
 )
-from deprecate._types import DeprecationConfig, _CallFacts, _DeprecatedCallable, _WrapperState
+from deprecate._types import DeprecationConfig, _CallFacts, _DeprecatedCallable, _WrapperState, get_deprecation_config
 from tests.collection_deprecate import (
     CrossGuardModuleLevel,
     CrossGuardOldClass,
@@ -72,6 +77,9 @@ from tests.collection_deprecate import (
     deprecated_positional_only_two_params_source,
     deprecated_positional_only_with_args_mapping_source,
     fn_shared_default,
+    loc_stack_callable_inner,
+    loc_stack_notify_inner,
+    loc_stack_remap_inner,
     make_depr_args_remap_notify_with_extra,
     make_depr_compute_power_stacked,
     make_depr_notify_callable_stacked,
@@ -544,6 +552,135 @@ class TestStackingGuards:
             warnings.simplefilter("always")
             fn(x=5)
         assert not [w for w in caught if issubclass(w.category, FutureWarning)]
+
+
+#: Outer-target value for each stacking kind; ATTRS_REMAP stands for any mode the table calls "other".
+_STACK_OUTER_TARGETS: dict[str, Union[TargetMode, Callable[..., Any]]] = {
+    "callable": double_value,
+    "notify": TargetMode.NOTIFY,
+    "args_remap": TargetMode.ARGS_REMAP,
+    "other": TargetMode.ATTRS_REMAP,
+}
+#: Existing deprecated wrapper carrying each inner stacking kind.
+_STACK_INNER_SOURCES: dict[str, Callable[..., Any]] = {
+    "callable": loc_stack_callable_inner,
+    "notify": loc_stack_notify_inner,
+    "args_remap": loc_stack_remap_inner,
+}
+_STACK_UNSUPPORTED = "has an unsupported @deprecated stacking combination."
+
+
+class TestStackingTable:
+    """The (outer kind, inner kind) table behind ``_warn_stacking_misconfiguration``."""
+
+    def test_covers_every_kind_pair(self) -> None:
+        """The table has exactly one entry for every pair of the four target kinds.
+
+        A missing pair would raise ``KeyError`` at decoration time for that stack, so the table must stay complete
+        when a kind is added.
+
+        """
+        kinds = set(_STACK_OUTER_TARGETS)
+        assert set(_STACKING_MESSAGES) == {(outer, inner) for outer in kinds for inner in kinds}
+
+    @pytest.mark.parametrize("kind", list(_STACK_OUTER_TARGETS))
+    def test_kind_of_target(self, kind: str) -> None:
+        """Each representative target maps to its own kind.
+
+        The table lookup is only as correct as the classification feeding it: a callable, ``NOTIFY``,
+        ``ARGS_REMAP`` and any other mode each land in their own row.
+
+        """
+        assert _stacking_kind(_STACK_OUTER_TARGETS[kind]) == kind
+
+    @pytest.mark.parametrize(
+        ("outer_kind", "inner_kind"),
+        [
+            pytest.param("args_remap", "args_remap", id="args_remap-over-args_remap"),
+            pytest.param("args_remap", "notify", id="args_remap-over-notify"),
+            pytest.param("notify", "callable", id="notify-over-callable"),
+        ],
+    )
+    def test_supported_pair_is_silent(self, outer_kind: str, inner_kind: str) -> None:
+        """The three supported stacks decorate without any warning.
+
+        Maintainers layer an argument rename over another rename or over a NOTIFY layer, or a NOTIFY layer over a
+        forwarding wrapper; none of these may produce a decoration-time ``UserWarning``.
+
+        """
+        with assert_no_warnings(UserWarning):
+            _warn_stacking_misconfiguration(_STACK_INNER_SOURCES[inner_kind], _STACK_OUTER_TARGETS[outer_kind])
+
+    @pytest.mark.parametrize(
+        ("outer_kind", "inner_kind", "expected"),
+        [
+            pytest.param(
+                "callable",
+                "callable",
+                "has a callable target stacked over another callable-target @deprecated.",
+                id="callable-over-callable",
+            ),
+            pytest.param(
+                "callable",
+                "notify",
+                "has a callable target stacked over @deprecated(NOTIFY).",
+                id="callable-over-notify",
+            ),
+            pytest.param(
+                "callable",
+                "args_remap",
+                "has a callable target stacked over @deprecated(ARGS_REMAP).",
+                id="callable-over-args_remap",
+            ),
+            pytest.param("notify", "notify", "has duplicate @deprecated(NOTIFY) layers.", id="notify-over-notify"),
+            pytest.param(
+                "notify",
+                "args_remap",
+                "has @deprecated(NOTIFY) stacked over @deprecated(ARGS_REMAP).",
+                id="notify-over-args_remap",
+            ),
+            pytest.param(
+                "args_remap",
+                "callable",
+                "has @deprecated(ARGS_REMAP) stacked over a callable-target @deprecated.",
+                id="args_remap-over-callable",
+            ),
+            pytest.param("other", "callable", _STACK_UNSUPPORTED, id="other-over-callable"),
+            pytest.param("other", "notify", _STACK_UNSUPPORTED, id="other-over-notify"),
+            pytest.param("other", "args_remap", _STACK_UNSUPPORTED, id="other-over-args_remap"),
+        ],
+    )
+    def test_unsupported_pair_warns(self, outer_kind: str, inner_kind: str, expected: str) -> None:
+        """Each unsupported stack emits one ``UserWarning`` naming the source, pointing at the caller.
+
+        The message text is a migration hint users act on, so every row keeps its exact opening sentence and the
+        shared ``v1.0`` sunset sentence, and the warning is attributed to the decorating code, not to pyDeprecate.
+
+        """
+        source = _STACK_INNER_SOURCES[inner_kind]
+        with pytest.warns(UserWarning, match=re.escape(expected)) as caught:
+            _warn_stacking_misconfiguration(source, _STACK_OUTER_TARGETS[outer_kind])
+        assert len(caught) == 1
+        assert str(caught[0].message).startswith(f"'{source.__name__}' {expected}")
+        assert str(caught[0].message).endswith(" Will be `TypeError` in `v1.0`.")
+        assert caught[0].filename == __file__
+
+    @pytest.mark.parametrize("outer_kind", list(_STACK_OUTER_TARGETS))
+    def test_other_inner_kind_warns(self, outer_kind: str, monkeypatch: pytest.MonkeyPatch) -> None:
+        """An inner layer whose stored mode is neither callable, NOTIFY nor ARGS_REMAP always gets the generic warning.
+
+        The public decorator rejects such modes, so this row is a defensive fallback: inner metadata is rewritten to
+        the proxy-only ``ATTRS_REMAP`` mode instead of building a wrapper the decorator would refuse.
+
+        """
+        source = loc_stack_notify_inner
+        config = get_deprecation_config(source)
+        assert config is not None
+        monkeypatch.setattr(source, "__deprecation_config__", replace(config, target=TargetMode.ATTRS_REMAP))
+        with pytest.warns(UserWarning, match=re.escape(_STACK_UNSUPPORTED)) as caught:
+            _warn_stacking_misconfiguration(source, _STACK_OUTER_TARGETS[outer_kind])
+        assert len(caught) == 1
+        assert str(caught[0].message) == (f"'{source.__name__}' {_STACK_UNSUPPORTED} Will be `TypeError` in `v1.0`.")
 
 
 class TestStackedArgsRemapNotify:
