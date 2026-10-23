@@ -16,7 +16,7 @@ from deprecate._dispatch import _build_call_facts, _WrapperContext
 from deprecate._types import _WrapperState
 from deprecate.proxy import _DeprecatedProxy
 from deprecate.routine import _build_callable_config, _make_wrapper, _validate_callable_source
-from tests.collection_deprecate import pep702_stacked
+from tests.collection_deprecate_forwarding import pep702_stacked
 from tests.collection_targets import (
     NewCls,
     Pep702StaticTarget,

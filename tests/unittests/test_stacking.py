@@ -16,7 +16,7 @@ import warnings
 import pytest
 
 from deprecate.proxy import _DeprecatedProxy, _ProxySpec, deprecated_class
-from tests.collection_deprecate import DepCombinedSingleCall, DepSelfCombinedTwoLayer, StackedAttrProxy
+from tests.collection_deprecate_forwarding import DepCombinedSingleCall, DepSelfCombinedTwoLayer, StackedAttrProxy
 from tests.collection_targets import (
     SelfDeprecatedModel,
     StackingArgsAttrsBase,

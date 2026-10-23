@@ -27,12 +27,12 @@ import deprecate.deprecation as _deprecation
 from deprecate import TargetMode, assert_no_warnings, deprecated, deprecated_callable, deprecated_class
 from deprecate._types import DeprecationConfig, _DeprecatedCallable
 from deprecate.proxy import _DeprecatedProxy
-from tests.collection_deprecate import (
+from tests.collection_deprecate import make_deprecated_notify_args_extra_alone_on_class
+from tests.collection_deprecate_regressions import (
     make_deprecated_attrs_remap_target_on_class,
     make_deprecated_auto_args_mapping_on_function,
     make_deprecated_explicit_auto_on_function,
     make_deprecated_front_door_skip_if_true_on_class,
-    make_deprecated_notify_args_extra_alone_on_class,
     make_deprecated_on_callable_without_name,
     make_deprecated_on_fresh_class,
     make_deprecated_on_fresh_class_silent,

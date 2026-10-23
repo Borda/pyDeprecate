@@ -17,10 +17,9 @@ from unittest import mock
 import pytest
 
 from deprecate import DeprecatedError, TargetMode, deprecated, deprecated_callable
-from tests.collection_deprecate import (
+from tests.collection_deprecate import depr_pow_args, depr_pow_skip_if_true_false
+from tests.collection_deprecate_regressions import (
     DescriptorSourcesHolder,
-    depr_pow_args,
-    depr_pow_skip_if_true_false,
     make_front_door_notify_on,
     make_positional_docstring_wrapper,
 )

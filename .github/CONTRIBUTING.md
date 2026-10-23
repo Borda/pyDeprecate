@@ -368,7 +368,9 @@ pyDeprecate/
 │           └── behavior/       # Observable changes in v0.N-to-v0.M.md snippets
 ├── tests/                               # Test suite
 │   ├── collection_targets.py            # Target functions (new implementations)
-│   ├── collection_deprecate.py          # Deprecated wrappers (@deprecated)
+│   ├── collection_deprecate.py          # Shared constants, core wrappers and stable audit/docs fixtures
+│   ├── collection_deprecate_forwarding.py # Argument/proxy forwarding, descriptors and async wrappers
+│   ├── collection_deprecate_regressions.py # Dispatch, fatal errors and behavior regression wrappers
 │   ├── collection_misconfigured.py      # Invalid configs for validation
 │   ├── collection_chains.py             # Chained deprecation patterns
 │   ├── collection_policy.py             # Wrappers breaking one governance policy rule each
@@ -420,7 +422,7 @@ Tests live in `tests/` and follow a **three-layer separation**:
 | File/Folder                   | Purpose                                                                                                                                                                      |
 | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `collection_targets.py`       | Target functions and classes (the "new" implementations that deprecated code forwards to)                                                                                    |
-| `collection_deprecate.py`     | Deprecated wrappers that use `@deprecated(...)` to forward to targets                                                                                                        |
+| `collection_deprecate*.py`    | Deprecated wrappers grouped into core/audit/docs, forwarding/async, and behavior regression sibling modules                                                                  |
 | `collection_misconfigured.py` | Intentionally invalid/ineffective deprecation configurations for validation testing                                                                                          |
 | `collection_chains.py`        | Multi-hop deprecation chains (deprecated → deprecated → target) for chain-detection tests                                                                                    |
 | `collection_policy.py`        | Correctly configured wrappers scheduled against project policy — one broken governance rule each, for `validate_deprecation_policy`                                          |
@@ -450,7 +452,7 @@ The integration suite also keeps characterization for positional and keyword for
 > - Use `print()` to display values; follow immediately with a `<details><summary>Output: <code>expression</code></summary>` block showing expected output.
 > - Do **not** use bare `assert` statements in top-level example code (e.g. `assert pt.x == 1.0`, `assert isinstance(obj, MyClass)`) — use `print()` instead so the value is visible rather than crashing with `AssertionError`. **Exception:** bare `assert` statements inside `def test_...` function bodies shown as pytest integration examples are allowed and idiomatic.
 > - Avoid placeholders that do not validate behavior.
-> - **Never import a fictional package name** in runnable examples — executable examples must import from actual test collection modules (`from tests import collection_deprecate`, `collection_misconfigured`, `collection_chains`, `collection_policy`, or `collection_pep702`). For CI-template snippets that intentionally show a placeholder import, add `# phmdoctest:skip — CI template: replace my_package with your actual package` as the first line of the code block so phmdoctest skips execution.
+> - **Never import a fictional package name** in runnable examples — executable examples must import from actual test collection modules (`from tests import collection_deprecate`, `collection_deprecate_forwarding`, `collection_deprecate_regressions`, `collection_misconfigured`, `collection_chains`, `collection_policy`, or `collection_pep702`). For CI-template snippets that intentionally show a placeholder import, add `# phmdoctest:skip — CI template: replace my_package with your actual package` as the first line of the code block so phmdoctest skips execution.
 
 > [!NOTE]
 >
@@ -465,7 +467,7 @@ The integration suite also keeps characterization for positional and keyword for
 
 > [!IMPORTANT]
 >
-> **Three-layer rule**: do not define target objects or deprecated wrappers directly inside `test_*.py` files. Place targets in `collection_targets.py`, deprecated wrappers in `collection_deprecate.py`, then import them in tests. This includes class definitions — do not define classes inside test functions; define them in the appropriate collection module instead.
+> **Three-layer rule**: do not define target objects or deprecated wrappers directly inside `test_*.py` files. Place targets in `collection_targets.py`, deprecated wrappers in `collection_deprecate*.py`, then import them in tests. This includes class definitions — do not define classes inside test functions; define them in the appropriate collection module instead.
 
 > [!IMPORTANT]
 >
@@ -501,7 +503,7 @@ The integration suite also keeps characterization for positional and keyword for
 >
 > If in doubt, extract. Move to a collection module when the fixture is shared across tests, models real migration behavior, or represents a reusable deprecated wrapper or target.
 
-**Fixture naming convention in `collection_deprecate.py`:**
+**Fixture naming convention in `collection_deprecate*.py`:**
 
 The prefix encodes whether the fixture exists in one form or two:
 
@@ -609,13 +611,13 @@ def depr_class_whole_mode_warns_on_call(x: int) -> int: ...
 
 - Minimum **3 call sites** before extracting — two occurrences stay inline.
 - Only group call sites where **all three** of `deprecated_in`, `remove_in`, and `num_warns` are identical (or all three omit `num_warns`). Sites that differ on any key stay inline.
-- `_class_deprecation_*` shared instances (see above) and `_DEPRS_CASE_*` constants both go in the **constants block at the top of `collection_deprecate.py`**, right after `_SHORT_MSG_FUNC` / `_SHORT_MSG_ARGS`. This makes version metadata scannable in one place.
+- `_class_deprecation_*` shared instances (see above) and `_DEPRS_CASE_*` constants both go in the **constants block at the top of `collection_deprecate.py`**, right after `_SHORT_MSG_FUNC` / `_SHORT_MSG_ARGS`. This makes version metadata scannable in one place. Sibling collection modules import shared constants and instances from there; the original module never imports from its siblings.
 - When adding a new fixture group that would form a third call site for an existing tuple, extract rather than inline.
 - **Exception — fixtures under `assert_type`:** a fixture whose *static* type is pinned by `assert_type` (currently `DeprecatedColorEnumFunctional` and `DeprecatedPaletteFunctionalFallback`, asserted in `tests/unittests/test_proxy.py`) spells its version kwargs out inline. mypy resolves an overloaded call against a `dict[str, Any]` splat by falling back to `Any`, which erases the overload the assertion exists to verify. Do not "unify" these back into a `_DEPRS_CASE_*` splat — the assertion would keep passing while proving nothing.
 
 **Docstrings in test collections:**
 
-Functions in `collection_deprecate.py`, `collection_misconfigured.py`, `collection_chains.py`, `collection_policy.py`, `collection_pep702.py`, and `collection_docstrings.py` must have Google-style docstrings with a **user-first focus** — describe the real-world scenario a user would encounter, not just the technical configuration. This keeps tests grounded in actual use cases and helps contributors understand *why* each deprecation pattern exists.
+Functions in `collection_deprecate*.py`, `collection_misconfigured.py`, `collection_chains.py`, `collection_policy.py`, `collection_pep702.py`, and `collection_docstrings.py` must have Google-style docstrings with a **user-first focus** — describe the real-world scenario a user would encounter, not just the technical configuration. This keeps tests grounded in actual use cases and helps contributors understand *why* each deprecation pattern exists.
 
 Use a one-line summary of the deprecation pattern, then an `Examples:` section describing the user scenario:
 

@@ -2,14 +2,14 @@
 
 This module provides an :func:`pytest.fixture` (``autouse=True``) that resets the mutable
 ``_WrapperState`` on every module-level deprecated wrapper exported from
-:mod:`tests.collection_deprecate` before each test runs.
+the ``tests.collection_deprecate*`` modules before each test runs.
 
 Why this matters
 ----------------
 
 Module-level :func:`@deprecated <deprecate.deprecation.deprecated>` wrappers in
-``tests/collection_deprecate.py`` are singletons whose warning counters (``warned_calls`` and
-``warned_args``) persist across tests once that module is imported.  When a wrapper is
+``tests/collection_deprecate*.py`` are singletons whose warning counters (``warned_calls`` and
+``warned_args``) persist across tests once their module is imported.  When a wrapper is
 configured with ``num_warns=1`` (the default), the first test that exercises it exhausts the
 budget; any subsequent test that asserts "no warning fired" via patterns like
 ``no_warning_call`` will silently pass for the wrong reason — the counter is spent, not the
@@ -18,7 +18,7 @@ underlying behaviour.
 Two file-scoped ``autouse`` fixtures already cover the **async** and **generator** wrappers
 in ``tests/integration/test_callable_kinds.py`` (see ``_reset_gen_state``, ``_reset_async_state``,
 ``_reset_async_gen_state``).  This conftest extends that reset to every other wrapper that
-lives at the module level of :mod:`tests.collection_deprecate`, including plain synchronous
+lives at the module level of the ``tests.collection_deprecate*`` modules, including plain synchronous
 functions, and every module-level ``_DeprecatedProxy`` (created by ``deprecated_class`` /
 ``deprecated_instance``), whose budget is the same ``_WrapperState`` kept in ``_cfg.state``.
 
@@ -44,7 +44,7 @@ The following are intentionally preserved:
 What this fixture does *not* cover
 -----------------------------------
 
-Wrappers and proxies defined outside :mod:`tests.collection_deprecate` (in a test module, another
+Wrappers and proxies defined outside the ``tests.collection_deprecate*`` modules (in a test module, an unrelated
 collection module, or the package itself, such as ``deprecate.audit.DeprecatedCallableInfo``) keep
 their counters across tests; tests using them reset ``_state`` / ``_cfg.state`` themselves.
 
@@ -52,6 +52,8 @@ their counters across tests; tests using them reset ``_state`` / ``_cfg.state`` 
 
 from __future__ import annotations
 
+from importlib import import_module
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
@@ -60,24 +62,24 @@ if TYPE_CHECKING:
     from deprecate._types import _WrapperState
 
 
-def _iter_wrapper_states(module: object) -> list[_WrapperState]:
-    """Return the warn-budget state of every module-level deprecated wrapper and proxy of *module*.
+def _iter_wrapper_states() -> list[_WrapperState]:
+    """Return each module-level wrapper or proxy's warning state once across all sibling collections.
 
-    A ``@deprecated`` wrapper keeps it as ``_state``; a ``_DeprecatedProxy`` keeps it as ``state`` on its
-    private ``_DeprecatedProxy__config``.  Both are read from the instance ``__dict__`` (``vars(module)``
-    plus a direct ``__dict__`` lookup) rather than through ``hasattr``/``getattr``, so
-    ``_DeprecatedProxy.__getattr__`` is never triggered.  This avoids emitting spurious
-    ``FutureWarning``s and consuming ``num_warns`` budgets during fixture traversal.
-
+    Discover ``collection_deprecate*.py`` beside this conftest, including modules unused by the selected tests.
+    Read each object's own dictionary so proxy attribute lookup cannot emit warnings or spend budgets.
+    Shared imports and aliases can expose the same state repeatedly; deduplicate by identity.
     """
-    found: list[_WrapperState] = []
-    for obj in vars(module).values():  # type: ignore[arg-type]
-        own = getattr(obj, "__dict__", {})
-        if "_state" in own:
-            found.append(own["_state"])
-        elif "_DeprecatedProxy__config" in own:
-            found.append(own["_DeprecatedProxy__config"].state)
-    return found
+    found: dict[int, _WrapperState] = {}
+    for path in sorted(Path(__file__).parent.glob("collection_deprecate*.py")):
+        module = import_module(f"tests.{path.stem}")
+        for obj in vars(module).values():
+            own = getattr(obj, "__dict__", {})
+            state = own.get("_state")
+            if state is None and "_DeprecatedProxy__config" in own:
+                state = own["_DeprecatedProxy__config"].state
+            if state is not None:
+                found[id(state)] = state
+    return list(found.values())
 
 
 #: Fixture modules that must not be *directly collected* as a test module by ``--doctest-modules``.
@@ -98,20 +100,19 @@ def _reset_collection_deprecate_state() -> None:
     """Reset every shared module-level wrapper's warning counters before each test.
 
     Runs before every test function (autouse).  See module docstring for full motivation.
-    The import is deferred to avoid loading ``tests.collection_deprecate`` at conftest
+    Collection imports are deferred to avoid loading ``tests.collection_deprecate*`` at conftest
     parse time, which conflicts with ``--doctest-modules`` collection when pytest resolves
     ``src/`` imports from the installed package rather than from ``src/``.
 
     """
     import deprecate.deprecation as _deprecation  # lazy: avoid poisoning sys.modules before src collection
-    import tests.collection_deprecate as _collection_deprecate
 
     # Reset the one-time ``@deprecated``-on-class dispatch cache so per-qualname warnings are observable
     # in every test regardless of order (the cache is process-global; without this reset the first test to
     # decorate a given class qualname consumes its one-time warning and later same-qualname tests see none).
     _deprecation._CLASS_DISPATCH_NOTIFIED.clear()
 
-    for state in _iter_wrapper_states(_collection_deprecate):
+    for state in _iter_wrapper_states():
         # Reset only the counter-style state.  ``warned_misconfigured`` is
         # intentionally NOT cleared — see module docstring.
         state.warned_calls = 0

@@ -33,7 +33,7 @@ from deprecate.messaging import (
     _validate_message_template,
 )
 from deprecate.utils import _partial_chain
-from tests.collection_deprecate import make_sum_deprecation_with_stream
+from tests.collection_deprecate_regressions import make_sum_deprecation_with_stream
 from tests.collection_targets import (
     CallableAdder,
     EqualMessageOnlyStream,
