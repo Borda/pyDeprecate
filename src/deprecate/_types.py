@@ -16,6 +16,10 @@ from typing import Any, Callable, Generic, Literal, Optional, Protocol, TypeVar,
 
 from deprecate._frames import _caller_stacklevel
 
+#: Release that removes the legacy spellings and turns misconfiguration warnings into ``TypeError``.
+#: Every runtime notice naming that sunset renders this value, so the version is set in one place.
+_MAJOR_BREAK_VERSION = "v1.0"
+
 
 class TargetMode(Enum):
     """Selects ``@deprecated`` behaviour when no callable replacement is provided.
@@ -105,7 +109,7 @@ class TargetMode(Enum):
             if emit:
                 warnings.warn(
                     "target=None is deprecated since `v0.8`; use `TargetMode.NOTIFY` instead."
-                    " Will be removed in `v1.0`.",
+                    f" Will be removed in `{_MAJOR_BREAK_VERSION}`.",
                     FutureWarning,
                     stacklevel=_caller_stacklevel(),
                 )
@@ -114,7 +118,7 @@ class TargetMode(Enum):
             if emit:
                 warnings.warn(
                     "target=True is deprecated since `v0.8`; use `TargetMode.ARGS_REMAP` instead."
-                    " Will be removed in `v1.0`.",
+                    f" Will be removed in `{_MAJOR_BREAK_VERSION}`.",
                     FutureWarning,
                     stacklevel=_caller_stacklevel(),
                 )
@@ -123,7 +127,7 @@ class TargetMode(Enum):
             if emit:
                 warnings.warn(
                     "`target=False` is not a valid deprecation mode and will be treated as `TargetMode.NOTIFY`."
-                    " This will be `TypeError` in `v1.0`.",
+                    f" This will be `TypeError` in `{_MAJOR_BREAK_VERSION}`.",
                     UserWarning,
                     stacklevel=_caller_stacklevel(),
                 )
@@ -180,7 +184,7 @@ class TargetMode(Enum):
                 if emit:
                     warnings.warn(
                         "`target=True` with `args_mapping` will resolve to `TargetMode.ARGS_REMAP`."
-                        " Will be `TypeError` in `v1.0`.",
+                        f" Will be `TypeError` in `{_MAJOR_BREAK_VERSION}`.",
                         FutureWarning,
                         stacklevel=_caller_stacklevel(),
                     )
@@ -188,7 +192,7 @@ class TargetMode(Enum):
             if emit:
                 warnings.warn(
                     "`target=True` without `args_mapping` resolves to `TargetMode.NOTIFY`"
-                    " (warns on every access). Will be `TypeError` in `v1.0`.",
+                    f" (warns on every access). Will be `TypeError` in `{_MAJOR_BREAK_VERSION}`.",
                     FutureWarning,
                     stacklevel=_caller_stacklevel(),
                 )
@@ -199,7 +203,8 @@ class TargetMode(Enum):
         if target is False:
             if emit:
                 warnings.warn(
-                    "`target=False` is not valid for `deprecated_class()`. Will be `TypeError` in `v1.0`.",
+                    "`target=False` is not valid for `deprecated_class()`."
+                    f" Will be `TypeError` in `{_MAJOR_BREAK_VERSION}`.",
                     UserWarning,
                     stacklevel=_caller_stacklevel(),
                 )
@@ -254,20 +259,20 @@ class TargetMode(Enum):
             messages.append(
                 f"`@deprecated(target=TargetMode.ARGS_REMAP)` on `{source_name}` requires "
                 "`args_mapping` to specify which arguments are being renamed. Without it the "
-                "decorator has zero effect. This will be `TypeError` in `v1.0`."
+                f"decorator has zero effect. This will be `TypeError` in `{_MAJOR_BREAK_VERSION}`."
             )
         if mode is cls.NOTIFY and args_mapping:
             messages.append(
                 f"`@deprecated(target=TargetMode.NOTIFY)` on `{source_name}` ignores "
                 "`args_mapping`. Omit `target` to auto-resolve to `TargetMode.ARGS_REMAP`, pass "
                 "`TargetMode.ARGS_REMAP` explicitly, or pass a callable target to forward the call. "
-                "This will be `TypeError` in `v1.0`."
+                f"This will be `TypeError` in `{_MAJOR_BREAK_VERSION}`."
             )
         if mode is cls.NOTIFY and args_extra:
             messages.append(
                 f"`@deprecated(target=TargetMode.NOTIFY)` on `{source_name}` ignores "
                 "`args_extra`. Use a callable target to forward with extra arguments. "
-                "This will be `TypeError` in `v1.0`."
+                f"This will be `TypeError` in `{_MAJOR_BREAK_VERSION}`."
             )
         if emit:
             for msg in messages:
@@ -345,7 +350,7 @@ class TargetMode(Enum):
             messages.append(
                 f"`deprecated_class(target=TargetMode.NOTIFY)` on `{source_name}` ignores "
                 "`attrs_mapping`. Omit `target` to auto-resolve to `TargetMode.ATTRS_REMAP`, or pass "
-                "`TargetMode.ATTRS_REMAP` explicitly. This will be `TypeError` in `v1.0`."
+                f"`TargetMode.ATTRS_REMAP` explicitly. This will be `TypeError` in `{_MAJOR_BREAK_VERSION}`."
             )
         if mode is cls.ARGS_REMAP and args_mapping and attrs_mapping:
             messages.append(
@@ -354,33 +359,33 @@ class TargetMode(Enum):
                 "renames only; `attrs_mapping` is inactive in this mode. "
                 "`DeprecationConfig.target` no longer reflects that `attrs_mapping` is also active. "
                 "Pass an explicit callable `target=<class>` to activate both mappings on the same proxy. "
-                "This will be `TypeError` in `v1.0`."
+                f"This will be `TypeError` in `{_MAJOR_BREAK_VERSION}`."
             )
         if mode is cls.ATTRS_REMAP and not attrs_mapping:
             messages.append(
                 f"`deprecated_class(target=TargetMode.ATTRS_REMAP)` on `{source_name}` requires "
                 "`attrs_mapping` to specify which attribute names are deprecated. Without it the "
-                "proxy has zero selective effect. This will be `TypeError` in `v1.0`."
+                f"proxy has zero selective effect. This will be `TypeError` in `{_MAJOR_BREAK_VERSION}`."
             )
         if mode is cls.ATTRS_REMAP and args_mapping:
             messages.append(
                 f"`deprecated_class(target=TargetMode.ATTRS_REMAP)` on `{source_name}` ignores `args_mapping`. "
                 "`ATTRS_REMAP` only governs attribute access; argument renames on `__call__` are not applied. "
                 "Use `target=<class>` (with both mappings) or `TargetMode.ARGS_REMAP` (with `args_mapping` only). "
-                "This will be `TypeError` in `v1.0`."
+                f"This will be `TypeError` in `{_MAJOR_BREAK_VERSION}`."
             )
         if mode is cls.ATTRS_REMAP and args_extra:
             messages.append(
                 f"`deprecated_class(target=TargetMode.ATTRS_REMAP)` on `{source_name}` ignores `args_extra`. "
                 "`ATTRS_REMAP` only governs attribute access; call-time kwarg injection is not applied. "
                 "Use `target=<class>` to forward calls with extra arguments. "
-                "This will be `TypeError` in `v1.0`."
+                f"This will be `TypeError` in `{_MAJOR_BREAK_VERSION}`."
             )
         if attrs_mapping is not None and len(attrs_mapping) == 0:
             messages.append(
                 f"`deprecated_class` on `{source_name}` received `attrs_mapping={{}}` (empty dict). "
                 "An empty mapping has no effect — remove it or add deprecated attribute names. "
-                "This will be `TypeError` in `v1.0`."
+                f"This will be `TypeError` in `{_MAJOR_BREAK_VERSION}`."
             )
         if emit:
             for msg in messages:

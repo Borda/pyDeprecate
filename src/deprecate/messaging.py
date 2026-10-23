@@ -18,7 +18,7 @@ from warnings import warn
 
 from deprecate._fatal import DeprecatedError
 from deprecate._frames import _caller_stacklevel
-from deprecate._types import DeprecationConfig, TargetMode, _WrapperState
+from deprecate._types import _MAJOR_BREAK_VERSION, DeprecationConfig, TargetMode, _WrapperState
 from deprecate.utils import _partial_chain, _unwrap_descriptor_target
 
 #: Memoised ``stacklevel`` decisions of :func:`_stream_accepts_stacklevel`: one entry per live ``stream`` object,
@@ -94,7 +94,7 @@ def _resolve_message_template_alias(
         )
     warn(
         "`template_mgs` is deprecated since `v0.12` (renamed to `message_template`);"
-        " use `message_template` instead. Will be removed in `v1.0`.",
+        f" use `message_template` instead. Will be removed in `{_MAJOR_BREAK_VERSION}`.",
         FutureWarning,
         stacklevel=_caller_stacklevel(),
     )

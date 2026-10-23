@@ -22,6 +22,7 @@ from typing import Any, Callable, NamedTuple, NoReturn, Optional, Union, cast
 from deprecate._fatal import _resolve_as_exception
 from deprecate._frames import _caller_stacklevel
 from deprecate._types import (
+    _MAJOR_BREAK_VERSION,
     DeprecationConfig,
     TargetMode,
     _CallFacts,
@@ -43,8 +44,6 @@ from deprecate.utils import (
     _signature_facts,
     get_func_arguments_types_defaults,
 )
-
-_MAJOR_BREAK_VERSION = "v1.0"
 
 POSITIONAL_ONLY = Parameter.POSITIONAL_ONLY
 POSITIONAL_OR_KEYWORD = Parameter.POSITIONAL_OR_KEYWORD
