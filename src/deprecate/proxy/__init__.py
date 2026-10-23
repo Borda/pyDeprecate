@@ -3,7 +3,7 @@
 Provides :func:`~deprecate.proxy.deprecated_instance` for wrapping any Python object with
 transparent deprecation warnings and optional read-only enforcement, and
 :func:`~deprecate.proxy.deprecated_class` as a class-level decorator with optional target
-redirection.
+redirection. Automatic class docstring injection preserves ``None`` when the wrapped class has no docstring.
 
 The public factories and typing contracts live here. Runtime and copy/pickle support live in
 :mod:`deprecate.proxy.core`, target and attribute validation in :mod:`deprecate.proxy.resolve`, and protocol
@@ -94,10 +94,10 @@ class _ClassDecorator(Protocol):
     """Decorator returned by :func:`deprecated_class` when no replacement class is given: the source keeps its type.
 
     At runtime every input comes back wrapped in a :class:`_DeprecatedProxy`. For a class input the static type stays
-    ``type[Cls]`` because the proxy is a truthful stand-in for it — ``isinstance`` (``__instancecheck__``), subclassing
-    (``__mro_entries__``), construction, and attribute access all forward to the class — and it matches what type
-    checkers (mypy, which ignores a class decorator's return type) infer for the ``@deprecated_class(...)`` decorator
-    form. An already-wrapped proxy (stacking) keeps its concrete proxy type.
+    ``type[Cls]`` because the proxy is a truthful stand-in for it — ``isinstance`` (``__instancecheck__``),
+    subclassing (``__mro_entries__``), construction, and attribute access all forward to the class — and it matches
+    what type checkers (mypy, which ignores a class decorator's return type) infer for the ``@deprecated_class(...)``
+    decorator form. An already-wrapped proxy (stacking) keeps its concrete proxy type.
 
     """
 
@@ -114,8 +114,8 @@ class _RedirectDecorator(Protocol[_NewT_co]):
     A redirecting proxy does not stand in for the class it wraps — ``isinstance``, construction, and attribute access
     all resolve against *target*, so ``deprecated_class(target=NewCls)(OldCls)`` is statically ``type[NewCls]``, never
     ``type[OldCls]`` (``OldCls`` instances are not instances of the alias).  The wrapped class is not part of the result
-    type, so it may be any class — including a bare ``type`` — and need not be related to *target*.  A source that is
-    already a proxy (stacking) keeps its concrete proxy type.
+    type, so it may be any class — including a bare ``type`` — and need not be related to *target*.  A source that
+    is already a proxy (stacking) keeps its concrete proxy type.
 
     """
 
@@ -282,7 +282,7 @@ def deprecated_class(
             The condition may be consulted more than once per proxy operation, so keep the callable cheap and
             stable; a callable that returns a non-``bool`` raises :class:`TypeError` at access time.
         update_docstring: If ``True``, inject a deprecation notice into the class docstring at decoration time (same
-            behaviour as ``@deprecated(update_docstring=True)``).
+            behaviour as ``@deprecated(update_docstring=True)``). A class with no docstring keeps ``__doc__ = None``.
         docstring_style: Output style for the injected notice when ``update_docstring=True``.  ``"auto"`` detects the
             doc engine at decoration time; ``"rst"`` emits a ``.. deprecated::`` directive; ``"mkdocs"`` /
             ``"markdown"`` emit a ``!!! warning`` admonition.
@@ -416,8 +416,9 @@ def deprecated_class(
         if update_docstring:
             # Use a SimpleNamespace shim so _update_docstring_with_deprecation can set __doc__ normally; then store
             # the result on the proxy via object.__setattr__ (bypassing the proxy's forwarding __setattr__).
+            # Read only instance metadata so a docless source cannot inherit the internal proxy class docstring.
             shim = types.SimpleNamespace(
-                __doc__=object.__getattribute__(proxy, "__doc__"), __deprecation_config__=proxy._dep
+                __doc__=object.__getattribute__(proxy, "__dict__").get("__doc__"), __deprecation_config__=proxy._dep
             )
             _update_docstring_with_deprecation(shim)
             object.__setattr__(proxy, "__doc__", shim.__doc__)

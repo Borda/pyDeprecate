@@ -79,7 +79,9 @@ from tests.collection_deprecate_regressions import (
     depr_notify_skip_counted,
     depr_notify_spent_budget,
     depr_notify_spent_budget_async,
+    depr_opaque_target_empty,
     depr_opaque_target_renamed,
+    depr_opaque_target_unmapped,
     depr_opaque_target_var_positional,
     depr_scale_nested_partial,
     depr_scale_partial,
@@ -87,6 +89,7 @@ from tests.collection_deprecate_regressions import (
     depr_scale_partial_no_default,
     depr_scale_partial_renamed,
     depr_sync_over_partial_async,
+    depr_zero_argument_target,
     make_opaque_source_wrapper,
     make_transient_notify_pair,
     notify_skip_condition,
@@ -1123,6 +1126,39 @@ class TestUnreadableSignature:
         """
         with pytest.warns(FutureWarning), pytest.raises(ValueError, match="no signature found"):
             func(1, 2)
+
+    @pytest.mark.parametrize(
+        ("args", "kwargs"),
+        [
+            pytest.param((1,), {}, id="positional-input"),
+            pytest.param((), {"x": 1}, id="keyword-input"),
+        ],
+    )
+    def test_unmapped_target_error_raised(self, args: tuple[int, ...], kwargs: dict[str, int]) -> None:
+        """Preserve the signature error when ordinary forwarding needs target keyword validation.
+
+        A deprecated function forwards directly to an extension callable without renaming any arguments. Whether
+        the caller supplies a positional or keyword value, the original signature error must reach the caller.
+        """
+        with pytest.warns(FutureWarning), pytest.raises(ValueError, match="no signature found for opaque_callable"):
+            depr_opaque_target_unmapped(*args, **kwargs)
+
+    def test_empty_target_call_needs_no_signature(self) -> None:
+        """Allow an opaque target to receive an empty call without inspecting its parameter names.
+
+        A parameterless legacy entry point forwards no values, so validating target keyword names is unnecessary.
+        """
+        with pytest.warns(FutureWarning):
+            assert depr_opaque_target_empty() == ((), {})
+
+    def test_readable_zero_argument_target_rejects_input(self) -> None:
+        """Keep keyword validation for a readable target with no parameters.
+
+        A renamed entry point has dropped its parameter entirely. Unlike an unreadable signature, an empty
+        readable signature proves the forwarded value is invalid and should retain the curated mapping error.
+        """
+        with pytest.warns(FutureWarning), pytest.raises(TypeError, match="arguments not accepted by target: "):
+            depr_zero_argument_target(1)
 
     def test_target_error_of_custom_type_raised(self) -> None:
         """A target signature error whose type needs more than the message still reaches the caller with that type.

@@ -7,6 +7,9 @@ resolution lives in :mod:`deprecate._validate` and the call-plan machinery in :m
 templates and emitters live in :mod:`deprecate.messaging`.  The legacy import path :mod:`deprecate.deprecation`
 re-exports the public decorators for backward compatibility.
 
+Callable targets with unreadable signatures can be decorated; forwarding that needs their signature raises the
+original introspection error at call time, including keyword validation without argument remapping.
+
 Key Components:
     - :func:`~deprecate.routine.deprecated_callable`: Canonical strict decorator (rejects classes)
     - :func:`~deprecate.routine.deprecated`: Front-door dispatcher over callables and classes

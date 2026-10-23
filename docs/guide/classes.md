@@ -7,6 +7,8 @@ description: Deprecating Python classes, Enums, dataclasses, module-level consta
 
 This page covers deprecation patterns for classes, Enums, dataclasses, and module-level constants: forwarding an old class name to a replacement, wrapping with a transparent proxy, deprecating only selected attributes, and stacking multiple deprecation layers for multi-version migrations. For function deprecation see [Functions](functions.md).
 
+With `deprecated_class(update_docstring=True)`, existing class documentation receives the deprecation notice. A class with `__doc__ = None` keeps `None`, without inheriting internal proxy documentation. The original class docstring is unchanged.
+
 ## `@deprecated` on a class
 
 `@deprecated` also accepts a class directly — it dispatches to `deprecated_class()` and produces an identical `_DeprecatedProxy`, so everything documented on the rest of this page applies to either form. The dispatch is permanent, not itself deprecated; it only adds a one-time informational `UserWarning` (suppressed by `stream=None`; the notice — not the dispatch — is removed in v1.0). See [Troubleshooting](../troubleshooting.md#userwarning-when-decorating-a-class) for the notice's per-class keying and suppression options. The notice cache is thread-safe and retains at most 4096 class keys in insertion order; an evicted class may receive the notice again.

@@ -18,6 +18,7 @@ from tests.collection_deprecate import (
 )
 from tests.collection_targets import (
     CountingSkipCondition,
+    DoclessTarget,
     HostileSignatureCallable,
     LazySignatureCallable,
     NewCls,
@@ -41,6 +42,7 @@ from tests.collection_targets import (
     raw_signature_patched,
     stream_wraps_warn_forwarding_stacklevel,
     wraps_chain_outer,
+    zero_argument_target,
 )
 
 # ========== deprecated_callable — strict callable-only alias fixtures ==========
@@ -1030,3 +1032,27 @@ def make_transient_notify_pair() -> tuple[Callable[..., int], Callable[..., int]
         return x + y
 
     return transient_source, deprecated(target=TargetMode.NOTIFY, stream=None, **_DEPRS_CASE_STD_ARGS)(transient_source)
+
+
+@deprecated(target=OpaqueSignatureCallable(), **_DEPRS_CASE_STD_INF_ARGS)
+def depr_opaque_target_unmapped(x: int) -> Any:  # noqa: ANN401
+    """Forward an ordinary parameter without renaming to a target with unreadable signature."""
+    return void(x)
+
+
+@deprecated(target=OpaqueSignatureCallable(), **_DEPRS_CASE_STD_INF_ARGS)
+def depr_opaque_target_empty() -> Any:  # noqa: ANN401
+    """Forward an empty call that needs no target signature validation."""
+    return void()
+
+
+depr_docless_class = deprecated_class(update_docstring=True, stream=None, **_DEPRS_CASE_STD_ARGS)(DoclessTarget)
+depr_documented_class = deprecated_class(
+    update_docstring=True, docstring_style="rst", stream=None, **_DEPRS_CASE_STD_ARGS
+)(NewCls)
+
+
+@deprecated(target=zero_argument_target, **_DEPRS_CASE_STD_INF_ARGS)
+def depr_zero_argument_target(x: int) -> Any:  # noqa: ANN401
+    """Forward a value to a readable target whose signature accepts no parameters."""
+    return void(x)

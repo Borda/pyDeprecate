@@ -1239,44 +1239,9 @@ ______________________________________________________________________
 
 **Q:** I have multiple coroutines all calling the same deprecated `async def` wrapper concurrently. The deprecation notice only appeared once, but I expected it to fire `num_warns` times. What happened?
 
-**A:** The `num_warns` warning quota is enforced by a lock and is thread-safe for **synchronous** wrappers — exactly `num_warns` warnings fire regardless of how many threads call the deprecated function simultaneously. For **concurrent async coroutines** sharing one deprecated wrapper, a race on the warning counter is still possible: one coroutine may read the counter, another may increment it, and the first may then emit or skip based on a stale value. The result is that fewer warnings than `num_warns` specifies may be emitted under high async concurrency.
+**A:** Concurrent async calls sharing one wrapper cannot race while reserving warning budgets. The async wrapper reaches warning dispatch before its first `await`, and the callable or per-argument budget check and reservation use the wrapper's lock. Each deprecated argument has its own `num_warns` budget, so that value is not one overall cap when calls use several deprecated arguments.
 
-**Workaround for async concurrency:** Set `num_warns=-1` to bypass the count gate entirely. With `num_warns=-1` the warning fires unconditionally on every call, so no race can suppress it.
-
-```python
-import asyncio
-from deprecate import deprecated
-
-
-async def new_fetch(url: str) -> bytes:
-    return url.encode()
-
-
-# num_warns=-1 emits the deprecation notice on every call regardless of concurrency
-@deprecated(target=new_fetch, deprecated_in="0.9", remove_in="1.0", num_warns=-1)
-async def old_fetch(url: str) -> bytes:
-    pass
-
-
-async def main():
-    urls = ["https://a.example.com", "https://b.example.com", "https://c.example.com"]
-    # All three tasks fire the deprecation notice — no race suppression possible
-    await asyncio.gather(*[old_fetch(u) for u in urls])
-
-
-print(asyncio.run(main()) is None)
-```
-
-<details>
-  <summary>Output: <code>asyncio.run(main()) is None</code></summary>
-
-```
-True
-```
-
-</details>
-
-If you need to assert exactly one warning fires in a test, run the deprecated coroutines sequentially rather than with `asyncio.gather`.
+The budget controls warning attempts, not an exact number of visible warning records. Standard warning filters may suppress records, and a custom warning stream may raise after a callable wrapper reserves its budget; callable warning delivery does not restore that reservation. Proxy delivery has separate rollback behavior. Set `num_warns=-1` only when unlimited warning attempts are intended, not to avoid a concurrency race.
 
 ______________________________________________________________________
 

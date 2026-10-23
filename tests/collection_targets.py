@@ -1870,3 +1870,12 @@ class SlowRecordingStream(RecordingStream):
 def stream_wraps_warn_forwarding_stacklevel(msg: str, stacklevel: int = 1) -> None:
     """Pure-Python stream copying ``warnings.warn`` metadata; adds its own frame to the forwarded ``stacklevel``."""
     warnings.warn(msg, stacklevel=stacklevel + 1)
+
+
+class DoclessTarget:  # noqa: D101 - intentionally lacks documentation for proxy docstring preservation
+    pass
+
+
+def zero_argument_target() -> int:
+    """Return a fixed value without accepting any forwarded arguments."""
+    return 7

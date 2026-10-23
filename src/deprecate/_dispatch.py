@@ -763,6 +763,9 @@ def _resolve_forward_kwargs(
     if not callable(target):
         return kwargs, None
     facts = ctx.facts
+    if kwargs:
+        # Empty cached names can mean an unreadable signature, not a target that rejects every keyword.
+        _raise_target_signature_error(facts)
     # ``None`` means the facts were not precomputed (a hand-built ``_CallFacts``); _prepare_target_call recomputes
     # them from the target. ``frozenset()`` is a valid cached value for zero-arg targets — it gates on identity
     # (``is not None``), not truthiness, to preserve the zero-arg cache hit.

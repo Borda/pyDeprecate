@@ -324,7 +324,7 @@
           "name": "Why do concurrent async calls to a deprecated wrapper emit fewer warnings than expected?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "_WrapperState fields (warned_calls, warned_args) are plain Python dataclass fields with no asyncio lock. Concurrent coroutines sharing one deprecated wrapper race on the warning counter, causing fewer warnings than num_warns specifies to be emitted. Workaround: set num_warns=-1 to bypass the count gate entirely — the warning then fires unconditionally on every call regardless of scheduling."
+            "text": "Concurrent async calls cannot race while reserving a deprecated callable's or argument's warning budget: the async wrapper reserves it under a per-wrapper lock before its first await. Each deprecated argument has an independent num_warns budget, and warning filters can suppress records. A custom stream can also fail after a callable wrapper reserves its budget; callable delivery does not roll that reservation back. Therefore num_warns controls warning attempts, not an exact number of visible records. Use num_warns=-1 only when unlimited warning attempts are intended."
           }
         },
         {

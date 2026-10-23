@@ -26,6 +26,8 @@ from deprecate.proxy.core import (
 from tests.collection_deprecate import DeprecatedColorEnum, ast_breadcrumb_source_dict, depr_ast_breadcrumb_dict
 from tests.collection_deprecate_forwarding import pep702_proxy_stacked
 from tests.collection_deprecate_regressions import (
+    depr_docless_class,
+    depr_documented_class,
     make_deprecated_hostile_signature_instance,
     make_deprecated_instance_over_marked_object,
     make_deprecated_instance_skip_if_true_read_only,
@@ -34,7 +36,9 @@ from tests.collection_misconfigured import make_stacked_legacy_proxy
 from tests.collection_pep702 import StackedAlias
 from tests.collection_targets import (
     ColorEnum,
+    DoclessTarget,
     HostileSignatureCallable,
+    NewCls,
     Pep702StaticTarget,
     SubclassableBase,
     _Pep702ProxyTarget,
@@ -1216,3 +1220,28 @@ class TestPackageIdentity:
         assert obj.__module__ == "deprecate.proxy"
         assert getattr(proxy_package, obj.__qualname__) is obj
         assert pickle.loads(pickle.dumps(obj)) is obj  # noqa: S301 - payload produced in this test
+
+
+class TestClassDocstringInjection:
+    """Class deprecation notices use only the wrapped class's documentation."""
+
+    def test_missing_docstring_preserved(self) -> None:
+        """Keep a docless class undocumented when automatic injection is enabled.
+
+        An autodoc consumer reading a deprecated alias must see the wrapped class's absent docstring rather than
+        documentation inherited from the proxy's implementation class.
+        """
+        assert DoclessTarget.__doc__ is None
+        assert depr_docless_class.__doc__ is None
+
+    def test_documented_class_receives_notice(self) -> None:
+        """Add the deprecation notice to an existing class docstring without mutating its source.
+
+        A class with existing API documentation still needs that documentation and its deprecation notice exposed
+        through the alias, while tools inspecting the original class retain its unchanged text.
+        """
+        assert NewCls.__doc__ is not None
+        assert depr_documented_class.__doc__ is not None
+        assert NewCls.__doc__ in depr_documented_class.__doc__
+        assert ".. deprecated:: 1.0" in depr_documented_class.__doc__
+        assert ".. deprecated::" not in NewCls.__doc__

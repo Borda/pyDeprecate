@@ -196,6 +196,8 @@ print(result)
 
 That's it! All calls to `addition()` are automatically forwarded to `compute_sum()` with a deprecation warning.
 
+A callable target whose signature cannot be inspected still decorates successfully. A forwarded call that needs that signature, including keyword validation without `args_mapping`, raises the original introspection error; an empty call requiring no signature validation can still succeed.
+
 > [!IMPORTANT]
 >
 > When `target=<callable>` is set, pyDeprecate intercepts the call **before** the body executes — the body is dead code under normal forwarding. **Exception**: if `skip_if` evaluates `True` at call time, the source body runs as the fallback, so keep a working implementation when combining `target=<callable>` with `skip_if`.
@@ -1237,7 +1239,7 @@ To deprecate attributes at different library versions, stack two `@deprecated_cl
 
 ### 📝 Automatic docstring updates
 
-You can automatically inject deprecation information into your function's docstring:
+You can automatically inject deprecation information into your function's docstring. With `deprecated_class(update_docstring=True)`, a class whose `__doc__` is `None` keeps `None`; internal proxy documentation is never substituted.
 
 <details>
 <summary>Example: <code>update_docstring=True</code> inserts a Sphinx deprecation notice before <code>Args:</code>/<code>Parameters</code></summary>
@@ -1509,7 +1511,7 @@ b'https://example.com'
 
 > [!NOTE]
 >
-> `@deprecated` also supports **async generator functions** (`async def` + `yield`). The warning fires when the wrapper is called and callers keep iterating with `async for`. For framework introspection and exact async warning-count caveats, see [Async functions](https://borda.github.io/pyDeprecate/stable/guide/async.html) and [Troubleshooting](https://borda.github.io/pyDeprecate/stable/troubleshooting.html#concurrent-async-calls-and-warning-counts).
+> `@deprecated` also supports **async generator functions** (`async def` + `yield`). The warning fires when the wrapper is called and callers keep iterating with `async for`. For framework introspection and async warning-budget behavior, see [Async functions](https://borda.github.io/pyDeprecate/stable/guide/async.html) and [Troubleshooting](https://borda.github.io/pyDeprecate/stable/troubleshooting.html#concurrent-async-calls-and-warning-counts).
 
 ## 🔇 Understanding the `void()` Helper
 

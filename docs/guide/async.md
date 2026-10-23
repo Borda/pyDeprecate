@@ -100,9 +100,9 @@ b'https://example.com'
 
 !!! warning "Concurrent coroutines and warning counts"
 
-    `_WrapperState` fields (`warned_calls`, `warned_args`) are plain dataclass fields — there is no asyncio lock protecting them. If multiple coroutines share one deprecated wrapper and run concurrently, they can race on the warning counter: the same wrapper may emit more or fewer warnings than `num_warns` specifies, depending on scheduling.
+    Warning-budget reservations are protected by a per-wrapper lock. An async wrapper reserves its callable or per-argument budget before its first `await`, so concurrent coroutines sharing the wrapper cannot race while reserving those counters. `num_warns` is a separate budget for each deprecated argument, so warnings for several deprecated arguments do not share one overall limit.
 
-    This is an accepted limitation for v0.9. If exact warning counts matter (for example in tests), either run deprecated coroutines sequentially or set `num_warns=-1` to bypass the gate entirely.
+    The budget controls warning attempts, not the number of visible warning records: Python warning filters can suppress records, and a custom warning stream can fail after a callable wrapper has reserved its budget. The callable wrapper does not restore that reservation after a delivery error. Use `num_warns=-1` only when unlimited warning attempts are intended, not as a concurrency workaround.
 
 ## Async generators
 
