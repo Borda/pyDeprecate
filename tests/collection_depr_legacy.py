@@ -4,7 +4,7 @@ This module mirrors a subset of :mod:`tests.collection_deprecate` fixtures but u
 (``target=None`` for warn-only and ``target=True`` for self-deprecation/ARGS_REMAP) directly, instead of the modern
 :class:`deprecate.TargetMode` enum values.
 
-These fixtures intentionally trigger the ``FutureWarning`` emitted by ``TargetMode._from_legacy()`` at decoration time.
+These fixtures intentionally trigger the ``FutureWarning`` emitted by ``_resolve_legacy_target()`` at decoration time.
 Those warnings are suppressed during test discovery via the targeted ``filterwarnings`` entries in ``pyproject.toml``
 (scoped by message regex AND originating module ``deprecate._types``).
 
@@ -31,7 +31,7 @@ _deprecation_warning = partial(warn, category=DeprecationWarning)
 
 
 # Legacy sentinel coverage: parallels ``decorated_sum_warn_only`` using ``target=None`` directly.
-# The FutureWarning emitted by ``TargetMode._from_legacy(None)`` is suppressed via the targeted
+# The FutureWarning emitted by ``_resolve_legacy_target(None)`` is suppressed via the targeted
 # ``filterwarnings`` entry in pyproject.toml (scoped by message + ``deprecate._types`` module).
 @deprecated(target=None, deprecated_in="0.2", remove_in="0.3")
 def decorated_sum_warn_only(a: int, b: int = 5) -> int:
@@ -40,7 +40,7 @@ def decorated_sum_warn_only(a: int, b: int = 5) -> int:
 
 
 # Legacy sentinel coverage: parallels ``decorated_pow_self`` using ``target=True`` directly.
-# The FutureWarning emitted by ``TargetMode._from_legacy(True)`` is suppressed via the targeted
+# The FutureWarning emitted by ``_resolve_legacy_target(True)`` is suppressed via the targeted
 # ``filterwarnings`` entry in pyproject.toml (scoped by message + ``deprecate._types`` module).
 @deprecated(target=True, deprecated_in="0.1", remove_in="0.5", args_mapping={"coef": "new_coef"})
 def decorated_pow_self(base: float, coef: float = 0, new_coef: float = 0) -> float:

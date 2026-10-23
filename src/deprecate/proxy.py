@@ -58,6 +58,7 @@ from deprecate._types import (
     _ProxyConfig,
     get_deprecation_config,
 )
+from deprecate._validate import _resolve_legacy_proxy_target, _validate_callable_mode, _validate_proxy_mode
 from deprecate.docstring.inject import _update_docstring_with_deprecation, normalize_docstring_style
 from deprecate.messaging import (
     TEMPLATE_ARGUMENT_MAPPING,
@@ -520,7 +521,7 @@ class _DeprecatedProxy:
         # path lets upstream callers fold their own pre-validated misconfig signals into the same flag.
         misconfigured = target is False or spec._misconfigured_override
         if isinstance(target, bool):
-            target = TargetMode._from_legacy_proxy(target, args_mapping=args_mapping)
+            target = _resolve_legacy_proxy_target(target, args_mapping=args_mapping)
         _dc_check = _DeprecatedProxy._get_static_attr_owner(
             target if target is not None and not isinstance(target, (TargetMode, bool)) else obj
         )
@@ -550,11 +551,11 @@ class _DeprecatedProxy:
         # validator returns True when any signal fired so we extend ``misconfigured`` accordingly —
         # ``DeprecationConfig.misconfigured`` becomes a single source of truth for all signals.
         if isinstance(target, TargetMode):
-            misconfigured |= TargetMode._validate(
+            misconfigured |= _validate_callable_mode(
                 target, spec.name, args_mapping=args_mapping, args_extra=spec.args_extra
             )
         # Proxy-specific validation: attrs_mapping combinations not covered by _validate().
-        misconfigured |= TargetMode._validate_proxy(
+        misconfigured |= _validate_proxy_mode(
             target,
             spec.name,
             attrs_mapping=attrs_mapping,
@@ -1224,7 +1225,7 @@ class _DeprecatedProxy:
           target.
         - Callable target without ``args_mapping``: warn (global budget), merge ``args_extra``, and forward to target.
         - :attr:`~deprecate._types.TargetMode.ATTRS_REMAP`: governs attribute access only; ``args_extra`` is
-          intentionally not applied on ``__call__`` — :meth:`~deprecate._types.TargetMode._validate_proxy`
+          intentionally not applied on ``__call__`` — :func:`~deprecate._validate._validate_proxy_mode`
           already warns about this misconfiguration at decoration time.
         - :attr:`~deprecate._types.TargetMode.NOTIFY`: always warn (global budget) and forward kwargs unchanged;
           ``args_extra`` is intentionally ignored (misconfig).

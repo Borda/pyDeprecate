@@ -2626,7 +2626,7 @@ def make_deprecated_notify_args_extra_alone_on_class() -> type:
     """Apply ``@deprecated`` with bare ``args_extra`` (no ``args_mapping``) to a fresh class.
 
     ``NOTIFY + args_extra`` alone does not auto-resolve to a forwarding mode — the proxy still flags it
-    as a misconfiguration via ``TargetMode._validate``. Used to prove the misconfig warning's reported
+    as a misconfiguration via ``_validate_callable_mode``. Used to prove the misconfig warning's reported
     location follows the dispatcher's stacklevel adjustment to this decoration site rather than pointing
     into ``deprecation.py``/``proxy.py`` internals.
 

@@ -3,9 +3,9 @@
 This module hosts :func:`deprecated_callable` (the strict callable-only decorator) and :func:`deprecated`
 (the friendly front door that dispatches classes to :func:`~deprecate.proxy.deprecated_class` and routes
 callables to :func:`deprecated_callable`), plus the decoration-time ``packing`` descriptors.  The target
-resolution and call-plan machinery lives in :mod:`deprecate._dispatch`; the warning templates and emitters
-in :mod:`deprecate.messaging`.  The legacy import path :mod:`deprecate.deprecation` re-exports the public
-decorators for backward compatibility.
+resolution lives in :mod:`deprecate._validate` and the call-plan machinery in :mod:`deprecate._dispatch`; the warning
+templates and emitters live in :mod:`deprecate.messaging`.  The legacy import path :mod:`deprecate.deprecation`
+re-exports the public decorators for backward compatibility.
 
 Key Components:
     - :func:`~deprecate.routine.deprecated_callable`: Canonical strict decorator (rejects classes)
@@ -23,20 +23,14 @@ from functools import cached_property, wraps
 from typing import Any, Callable, Literal, Optional, TypeVar, Union, cast
 
 from deprecate._dispatch import (
-    _DESCRIPTOR_SOURCE_TYPES,
     _build_call_facts,
     _build_call_plan,
-    _check_cross_class_method_target,
     _enter_cycle_guard,
     _exit_cycle_guard,
     _invoke_async,
     _invoke_sync,
-    _normalize_target,
     _precompute_forward_defaults,
-    _reject_bare_decorator,
-    _resolve_stored_target,
     _skips_call_plan,
-    _warn_stacking_misconfiguration,
     _WrapperContext,
 )
 from deprecate._frames import _caller_stacklevel
@@ -48,6 +42,15 @@ from deprecate._types import (
     _DeprecatedCallable,
     _has_deprecation_meta,
     _WrapperState,
+)
+from deprecate._validate import (
+    _DESCRIPTOR_SOURCE_TYPES,
+    _check_cross_class_method_target,
+    _normalize_target,
+    _reject_bare_decorator,
+    _resolve_stored_target,
+    _validate_callable_mode,
+    _warn_stacking_misconfiguration,
 )
 from deprecate.docstring.inject import _update_docstring_with_deprecation, normalize_docstring_style
 from deprecate.messaging import (
@@ -233,13 +236,13 @@ def _validate_callable_source(
     """Run the decoration-time guards of :func:`deprecated_callable` on a non-descriptor source.
 
     The guards run in this order, so the first problem found is the one reported: the missing-parentheses check
-    (:func:`~deprecate._dispatch._reject_bare_decorator`), the class rejection, the ``message_template`` probe, the
+    (:func:`~deprecate._validate._reject_bare_decorator`), the class rejection, the ``message_template`` probe, the
     missing-``deprecated_in`` notice, the cross-class method guard and the ``TargetMode.ATTRS_REMAP`` rejection.
 
     Args:
         source: The object ``packing`` received. A descriptor never reaches here: ``packing`` hands it to
             :func:`_packing_descriptor`, whose recursion validates the unwrapped function instead.
-        target: Raw ``target`` argument, before :func:`~deprecate._dispatch._normalize_target`.
+        target: Raw ``target`` argument, before :func:`~deprecate._validate._normalize_target`.
         is_static: ``True`` when *source* is the function unwrapped from a ``staticmethod``; skips the cross-class
             guard, since no ``self`` is passed.
         message_template: The resolved ``message_template`` (after the ``template_mgs`` alias).
@@ -318,16 +321,16 @@ def _build_callable_config(
     """Build the frozen :class:`~deprecate._types.DeprecationConfig` a ``@deprecated`` wrapper carries.
 
     Derives the per-source fields: ``name`` from *source*, the stored ``target``
-    (:func:`~deprecate._dispatch._resolve_stored_target`), ``misconfigured`` (legacy ``target=False`` or
+    (:func:`~deprecate._validate._resolve_stored_target`), ``misconfigured`` (legacy ``target=False`` or
     *function_misconfigured*) and the eight signature cache fields from *facts*. ``args_mapping`` and ``args_extra``
     are copied, so mutating the caller's dicts after decoration cannot reach the frozen config and silently change
     forwarding at call time. The keyword defaults equal the ``DeprecationConfig`` field defaults.
 
     Args:
         source: The decorated callable.
-        target: Raw ``target`` argument, before :func:`~deprecate._dispatch._normalize_target`.
+        target: Raw ``target`` argument, before :func:`~deprecate._validate._normalize_target`.
         facts: Signature facts from :func:`~deprecate._dispatch._build_call_facts`.
-        function_misconfigured: Result of :meth:`~deprecate._types.TargetMode._validate` for an explicit mode.
+        function_misconfigured: Result of :func:`~deprecate._validate._validate_callable_mode` for an explicit mode.
         deprecated_in: Version the source was deprecated in.
         remove_in: Version the source will be removed in.
         args_mapping: Caller's ``args_mapping``; stored as a copy.
@@ -650,7 +653,7 @@ def deprecated_callable(
         # re-running the guard here would report the wrong migration path.
         _function_misconfigured = False
         if isinstance(_target, TargetMode) and isinstance(target, TargetMode):
-            _function_misconfigured = TargetMode._validate(
+            _function_misconfigured = _validate_callable_mode(
                 _target, source.__name__, args_mapping=args_mapping, args_extra=args_extra
             )
         # Source and target signature facts, read once here so no call re-inspects either signature; this also fires
