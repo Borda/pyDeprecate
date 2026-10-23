@@ -170,6 +170,22 @@
         },
         {
           "@type": "Question",
+          "name": "Why does my deprecation warning point inside pyDeprecate or functools.py?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "pyDeprecate measures the location when a warning fires and reports the first frame outside the deprecate package, including stacked @deprecated layers, the @deprecated class front door and legacy target=None/True/False sentinels. A custom stream written in Python that forwards stacklevel to warnings.warn adds its own frame and lands one frame short; use warnings.warn, a functools.partial of it, or a bound logger method such as logging.getLogger().warning instead. The module-level logging.warning is correct only on Python 3.11 and newer; on 3.9 and 3.10 it adds one logging frame and the log record points one frame short. A @cached_property source warns from the functools frame that runs the getter."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "My singledispatch or __signature__-patched source receives keyword arguments",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "A TargetMode.NOTIFY wrapper, and a TargetMode.ARGS_REMAP wrapper whose caller uses no deprecated argument name, calls the source with the caller's arguments unchanged, so functools.singledispatch and __signature__-patched sources keep working. Two cases still differ from calling the source directly. When a caller passes a deprecated argument name to a TargetMode.ARGS_REMAP wrapper, by keyword or positionally, the wrapper rewrites the whole call into keyword arguments to rename it, and a wrapper with args_extra rewrites every call the same way; decorate a plain def that accepts the old and new names and calls the dispatcher positionally. The number of positional arguments is checked against inspect.signature(source), so a __signature__ that reports fewer positional parameters than the source accepts raises the curated TypeError; make __signature__ list every positional slot, or give it a *args parameter."
+          }
+        },
+        {
+          "@type": "Question",
           "name": "Can I subclass a class created by deprecated_class?",
           "acceptedAnswer": {
             "@type": "Answer",
@@ -213,7 +229,7 @@
           "name": "Why did my object mutate despite setting read_only=True on deprecated_instance?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "read_only=True intercepts only the following standard collection mutator names: append, clear, discard, extend, insert, pop, remove, setdefault, update, add. These cover the mutating methods on Python's built-in list, dict, and set types. Custom method names such as register(), reload(), or set_value() are not in this list and pass through to the underlying object unchanged. Workaround: subclass the wrapped type and override the custom mutator method to raise AttributeError explicitly, then wrap an instance of that subclass."
+            "text": "read_only=True intercepts only the following standard collection mutator names: append, clear, discard, extend, insert, pop, remove, setdefault, update, add. These cover the mutating methods on Python's built-in list, dict, and set types. Custom method names such as register(), reload(), or set_value() are not in this list and pass through to the underlying object unchanged. Workaround: subclass the wrapped type and override the custom mutator method to raise AttributeError explicitly, then wrap an instance of that subclass. The guard is also off while skip_if evaluates True: attribute writes, item writes and deletes, and mutator calls then reach the wrapped object directly, because an active skip_if switches the whole deprecation machinery off."
           }
         },
         {
@@ -466,10 +482,10 @@
         },
         {
           "@type": "Question",
-          "name": "I wrapped a functools.partial of an async def and the wrapper is not async — why?",
+          "name": "Why can't I decorate a functools.partial or callable wrapper?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "On Python 3.9–3.11, inspect.iscoroutinefunction(functools.partial(async_fn)) returns False — the partial object does not propagate the coroutine flag. pyDeprecate checks this flag to decide whether to produce an async wrapper, so wrapping a partial of an async def falls through to the sync wrapper path. Workaround: apply @deprecated directly to the async def, then use functools.partial on the already-deprecated async wrapper if you need preset arguments. This limitation is resolved in Python 3.12+."
+            "text": "@deprecated accepts Python functions, supported descriptors, and classes as sources. Callable wrappers such as functools.partial, functools.partialmethod, and singledispatchmethod are rejected with TypeError, including when their wrapped callable is async. Define a plain def or async def with the desired public signature and decorate that named function. For async targets, pyDeprecate follows inspect.iscoroutinefunction on the supported Python runtime; an async callable instance that returns an awaitable is a distinct kind and may not be recognized as a coroutine function. deprecated_instance is for deprecating an object alias, not as a substitute for decorating a function source."
           }
         },
         {
@@ -518,6 +534,22 @@
           "acceptedAnswer": {
             "@type": "Answer",
             "text": "Both are intended. num_warns budgets messages; a gate that stopped refusing after the first call would let a caller retrying inside except DeprecatedError straight through, so a fatal deprecation bypasses the budget, raises on every call, and leaves the warn counters untouched. stream=None silences the message, not the lifecycle state: the raise is the gate, and letting an unrelated cosmetic setting switch it off would be a trap in CI. The one switch that does suppress a fatal deprecation is skip_if, because a wrapper turned off by configuration is not a deprecation at that moment. For whole modules there is a flip side: a fatal deprecated_module raises on every public attribute access, including attribute-walking tools such as pytest collection, Sphinx autodoc, pickle, and copy, so expect those to stop at the module rather than skip it."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why did a failed proxy[key] lookup not warn?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Synchronous data-use operations warn only after success: a KeyError from proxy[key] or an AttributeError from hasattr emits nothing and leaves the num_warns budget unspent. next(proxy) is the exception: it warns before advancing the wrapped iterator, so a failed warning delivery loses no item and an exhausting next() (StopIteration) spends the budget. Async iteration and awaiting differ: __anext__ and __await__ warn when they obtain the underlying awaitable, before it runs, so a later async failure or exhaustion still consumes the budget. If warning delivery raises after context entry acquires a resource, the proxy invokes that same context’s exit method before propagating the error. Calling the proxy also warns before the call, like @deprecated. With as_exception=True, the proxy raises DeprecatedError before it touches the wrapped object for subscripts, iteration, unary and conversion operators, next(), context entry, async with, async iteration, await, in-place operators, and attrs_mapping attribute reads, so a missing key raises DeprecatedError rather than KeyError and a defaultdict gains no entry."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Can a deprecated_instance of a function be used as a class attribute (method)?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. The proxy implements the descriptor protocol: read through an instance, a proxy over a plain function (or a @deprecated wrapper) returns a bound method whose __func__ is the proxy, so Model().scale(2) calls legacy_scale(model, 2) and warns on the call, pointing at the calling line. The num_warns budget belongs to the proxy, so the default single warning is shared by every instance, and skip_if and as_exception behave as on a direct call. Read through the class, Model.scale is the proxy itself, so Model.scale(model, 2) works too. Proxies over data, classes, and non-function descriptors (property, classmethod, staticmethod objects) are returned as stored and never bound; decorate the underlying function with @deprecated instead."
           }
         },
         {
@@ -1770,10 +1802,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#i-wrapped-a-functoolspartial-of-an-async-def-and-the-wrapper-is-not-async" class="md-nav__link">
+  <a href="#why-cant-i-decorate-a-functoolspartial-or-callable-wrapper" class="md-nav__link">
     <span class="md-ellipsis">
       
-        I wrapped a functools.partial of an async def and the wrapper is not async
+        Why can't I decorate a functools.partial or callable wrapper?
       
     </span>
   </a>
@@ -2056,10 +2088,54 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#why-did-a-failed-proxykey-lookup-not-warn" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why did a failed proxy[key] lookup not warn?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#can-a-deprecated_instance-of-a-function-be-used-as-a-class-attribute-method" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Can a deprecated_instance of a function be used as a class attribute (method)?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#why-dont-mypy-pyright-or-my-ide-flag-functions-deprecated-with-pydeprecate" class="md-nav__link">
     <span class="md-ellipsis">
       
         Why don't mypy, pyright, or my IDE flag functions deprecated with pyDeprecate?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-does-my-deprecation-warning-point-inside-pydeprecate-or-functoolspy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why does my deprecation warning point inside pyDeprecate or functools.py?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#my-singledispatch-or-__signature__-patched-source-receives-keyword-arguments" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        My singledispatch or __signature__-patched source receives keyword arguments
       
     </span>
   </a>
@@ -2551,10 +2627,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#i-wrapped-a-functoolspartial-of-an-async-def-and-the-wrapper-is-not-async" class="md-nav__link">
+  <a href="#why-cant-i-decorate-a-functoolspartial-or-callable-wrapper" class="md-nav__link">
     <span class="md-ellipsis">
       
-        I wrapped a functools.partial of an async def and the wrapper is not async
+        Why can't I decorate a functools.partial or callable wrapper?
       
     </span>
   </a>
@@ -2837,10 +2913,54 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#why-did-a-failed-proxykey-lookup-not-warn" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why did a failed proxy[key] lookup not warn?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#can-a-deprecated_instance-of-a-function-be-used-as-a-class-attribute-method" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Can a deprecated_instance of a function be used as a class attribute (method)?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#why-dont-mypy-pyright-or-my-ide-flag-functions-deprecated-with-pydeprecate" class="md-nav__link">
     <span class="md-ellipsis">
       
         Why don't mypy, pyright, or my IDE flag functions deprecated with pyDeprecate?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-does-my-deprecation-warning-point-inside-pydeprecate-or-functoolspy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why does my deprecation warning point inside pyDeprecate or functools.py?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#my-singledispatch-or-__signature__-patched-source-receives-keyword-arguments" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        My singledispatch or __signature__-patched source receives keyword arguments
       
     </span>
   </a>
@@ -3625,6 +3745,7 @@
 <p><strong>Q:</strong> I passed <code>read_only=True</code> to <code>deprecated_instance()</code> but a method on my object still mutated its state. Why?</p>
 <p><strong>A:</strong> <code>read_only=True</code> intercepts only the following standard collection mutator names: <code>append</code>, <code>clear</code>, <code>discard</code>, <code>extend</code>, <code>insert</code>, <code>pop</code>, <code>remove</code>, <code>setdefault</code>, <code>update</code>, <code>add</code>. These cover the mutating methods on Python's built-in <code>list</code>, <code>dict</code>, and <code>set</code> types.</p>
 <p>Custom method names — for example <code>register()</code>, <code>reload()</code>, or <code>set_value()</code> — are not in this list and call through to the underlying object without any guard.</p>
+<p>The guard is also off while <code>skip_if</code> evaluates <code>True</code>: attribute writes, item writes and deletes (<code>proxy[key] = value</code>, <code>del proxy[key]</code>), and mutator calls then reach the wrapped object directly, because an active <code>skip_if</code> switches the whole deprecation machinery off.</p>
 <p><strong>Workaround:</strong> Subclass the wrapped object's type and override the custom mutator method to raise explicitly:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-47-1" name="__codelineno-47-1" href="#__codelineno-47-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">ReadOnlyRegistry</span><span class="p">(</span><span class="nb">dict</span><span class="p">):</span>
 <a id="__codelineno-47-2" name="__codelineno-47-2" href="#__codelineno-47-2"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">register</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">item</span><span class="p">):</span>
@@ -4000,10 +4121,9 @@
 <p>The <code>async def</code> wrapper is a true coroutine (<code>inspect.iscoroutinefunction(wrapper)</code> returns <code>True</code>), so the deprecation warning fires inside the coroutine body when execution begins — on <code>await</code>. Warnings for generators and async generators fire eagerly at call time; async functions are the exception because the wrapper itself is a coroutine.</p>
 </div>
 <hr />
-<h2 id="i-wrapped-a-functoolspartial-of-an-async-def-and-the-wrapper-is-not-async">I wrapped a <code>functools.partial</code> of an <code>async def</code> and the wrapper is not async<a class="headerlink" href="#i-wrapped-a-functoolspartial-of-an-async-def-and-the-wrapper-is-not-async" title="Permanent link">🔗</a></h2>
-<p><strong>Q:</strong> I applied <code>@deprecated</code> to a <code>functools.partial</code> of an <code>async def</code> function, but the resulting wrapper is synchronous — <code>inspect.iscoroutinefunction(wrapper)</code> returns <code>False</code> and <code>await wrapper(...)</code> raises a <code>TypeError</code>. What is happening?</p>
-<p><strong>A:</strong> On Python 3.9–3.11, <code>inspect.iscoroutinefunction(functools.partial(async_fn))</code> returns <code>False</code> — the <code>partial</code> object does not propagate the coroutine flag of its wrapped callable. pyDeprecate's async branch in <code>packing()</code> checks <code>inspect.iscoroutinefunction(source)</code> to decide whether to produce an <code>async def</code> wrapper, so wrapping a <code>partial</code> of an <code>async def</code> falls through to the sync wrapper path and yields a regular function instead of a coroutine function.</p>
-<p><strong>Workaround:</strong> Apply <code>@deprecated</code> to the <code>async def</code> directly, then use <code>functools.partial</code> on the already-deprecated async wrapper if you need preset arguments.</p>
+<h2 id="why-cant-i-decorate-a-functoolspartial-or-callable-wrapper">Why can't I decorate a <code>functools.partial</code> or callable wrapper?<a class="headerlink" href="#why-cant-i-decorate-a-functoolspartial-or-callable-wrapper" title="Permanent link">🔗</a></h2>
+<p><strong>Q:</strong> I applied <code>@deprecated</code> to a <code>functools.partial</code>, <code>functools.partialmethod</code>, or <code>singledispatchmethod</code>. Which callable forms can be decorated?</p>
+<p><strong>A:</strong> <code>@deprecated</code> accepts Python functions, supported descriptors, and classes as sources. Callable wrappers such as <code>functools.partial</code>, <code>functools.partialmethod</code>, and <code>singledispatchmethod</code> are rejected with <code>TypeError</code>; they do not become supported sources merely because their wrapped callable is async. Define a plain <code>def</code> or <code>async def</code> with the desired public signature and decorate that named function. For async targets, pyDeprecate follows <code>inspect.iscoroutinefunction</code> on the supported Python runtime; an async callable instance that returns an awaitable is a distinct kind and may not be recognized as a coroutine function. <code>deprecated_instance</code> is for deprecating an object alias, not a substitute for a decorated function source.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-71-1" name="__codelineno-71-1" href="#__codelineno-71-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
 <a id="__codelineno-71-2" name="__codelineno-71-2" href="#__codelineno-71-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">functools</span>
 <a id="__codelineno-71-3" name="__codelineno-71-3" href="#__codelineno-71-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
@@ -4032,7 +4152,6 @@
 
 </details>
 
-<p>This limitation is resolved in Python 3.12+ where <code>inspect.iscoroutinefunction</code> correctly handles <code>functools.partial</code> objects whose underlying callable is an <code>async def</code>.</p>
 <hr />
 <h2 id="a-non-async-decorator-applied-over-my-deprecated-async-wrapper-no-longer-looks-like-a-coroutine">A non-async decorator applied over my <code>@deprecated</code> async wrapper no longer looks like a coroutine<a class="headerlink" href="#a-non-async-decorator-applied-over-my-deprecated-async-wrapper-no-longer-looks-like-a-coroutine" title="Permanent link">🔗</a></h2>
 <p><strong>Q:</strong> I have <code>@my_decorator @deprecated(...) async def fn(...)</code>. After decoration, <code>inspect.iscoroutinefunction(fn)</code> returns <code>False</code> and asyncio frameworks (FastAPI route handlers, <code>asyncio.create_task</code>) reject it. Why?</p>
@@ -4661,9 +4780,33 @@
 <p><strong>Q:</strong> I set <code>num_warns=1</code> expecting one exception, or <code>stream=None</code> expecting silence, but every call to my fatal deprecation still raises.</p>
 <p><strong>A:</strong> Both are intended. <code>num_warns</code> budgets <em>messages</em>; a gate that stopped refusing after the first call would let a caller retrying inside <code>except DeprecatedError</code> straight through, so a fatal deprecation bypasses the budget and raises on every call, leaving the warn counters untouched. <code>stream=None</code> silences the message, not the lifecycle state — the raise is the gate, and making an unrelated cosmetic setting switch it off would be a trap in CI. The one switch that does suppress a fatal deprecation is <code>skip_if</code>: a wrapper turned off by configuration is not a deprecation at that moment. Note the flip side for whole modules: a fatal <code>deprecated_module</code> raises on every public attribute access, which includes attribute-walking tools such as pytest collection, Sphinx autodoc, <code>pickle</code>, and <code>copy</code> — expect those to stop at the module rather than skip it. pyDeprecate's own audit is unaffected — <code>find_deprecation_wrappers()</code> and the <code>pydeprecate</code> CLI read the module's <code>__dict__</code> instead of going through attribute access, so a fatal module is still discovered and reported normally.</p>
 <hr />
+<h2 id="why-did-a-failed-proxykey-lookup-not-warn">Why did a failed <code>proxy[key]</code> lookup not warn?<a class="headerlink" href="#why-did-a-failed-proxykey-lookup-not-warn" title="Permanent link">🔗</a></h2>
+<p><strong>Q:</strong> My code probes a deprecated mapping with <code>try: settings[key] except KeyError: ...</code>. The miss emitted no <code>FutureWarning</code>, but the next successful <code>settings["threshold"]</code> read did.</p>
+<p><strong>A:</strong> Synchronous data-use operations warn only after they succeed: a <code>KeyError</code> from <code>proxy[key]</code> or an <code>AttributeError</code> from <code>hasattr</code> emits nothing and leaves the <code>num_warns</code> budget unspent. <code>next(proxy)</code> is the exception: it warns before advancing the wrapped iterator, so a failed warning delivery loses no item and an exhausting <code>next()</code> (<code>StopIteration</code>) spends the budget. Async iteration and awaiting are different: <code>__anext__</code> and <code>__await__</code> warn when they obtain the underlying awaitable, before it runs, so a later async failure or exhaustion still consumes the budget. If warning delivery raises after context entry acquires a resource, the proxy invokes that same context’s exit method before propagating the error. Calling the proxy also warns before the call, like <code>@deprecated</code>, so a deprecated constructor that raises still reports the deprecation. With <code>as_exception=True</code>, the proxy raises <code>DeprecatedError</code> before it touches the wrapped object for subscripts, iteration, unary and conversion operators, <code>next()</code>, <code>with</code> and <code>async with</code> entry, async iteration, <code>await</code>, in-place operators such as <code>+=</code>, and <code>attrs_mapping</code> attribute reads — a missing key under a fatal deprecation therefore raises <code>DeprecatedError</code>, not <code>KeyError</code>, and a <code>defaultdict</code> gains no entry.</p>
+<hr />
+<h2 id="can-a-deprecated_instance-of-a-function-be-used-as-a-class-attribute-method">Can a <code>deprecated_instance</code> of a function be used as a class attribute (method)?<a class="headerlink" href="#can-a-deprecated_instance-of-a-function-be-used-as-a-class-attribute-method" title="Permanent link">🔗</a></h2>
+<p><strong>Q:</strong> I replaced a method with <code>class Model: scale = deprecated_instance(legacy_scale, ...)</code>. Does <code>Model().scale(2)</code> still pass the instance to <code>legacy_scale</code>?</p>
+<p><strong>A:</strong> Yes. The proxy implements the descriptor protocol: read through an instance, a proxy over a plain function (or a <code>@deprecated</code> wrapper) returns a bound method whose <code>__func__</code> is the proxy, so <code>Model().scale(2)</code> calls <code>legacy_scale(model, 2)</code> and warns on the call, pointing at the calling line. The <code>num_warns</code> budget belongs to the proxy, so the default single warning is shared by every instance, and <code>skip_if</code> and <code>as_exception</code> behave as on a direct call. Read through the class, <code>Model.scale</code> is the proxy itself, as a plain function would be, so <code>Model.scale(model, 2)</code> works too. Proxies over data, classes, and non-function descriptors (<code>property</code>, <code>classmethod</code>, <code>staticmethod</code> objects) are returned as stored and never bound; to deprecate one of those, decorate the underlying function with <code>@deprecated</code> instead. Releases without this binding called <code>legacy_scale(2)</code> and raised <code>TypeError: legacy_scale() missing 1 required positional argument</code>.</p>
+<hr />
 <h2 id="why-dont-mypy-pyright-or-my-ide-flag-functions-deprecated-with-pydeprecate">Why don't mypy, pyright, or my IDE flag functions deprecated with pyDeprecate?<a class="headerlink" href="#why-dont-mypy-pyright-or-my-ide-flag-functions-deprecated-with-pydeprecate" title="Permanent link">🔗</a></h2>
 <p><strong>Q:</strong> My deprecated function warns at runtime, but the editor shows no strikethrough and <code>mypy</code> / <code>pyright</code> report nothing when I call it.</p>
 <p><strong>A:</strong> Type checkers recognise a deprecation only when the decorator is literally <code>warnings.deprecated</code> (Python 3.13+) or <code>typing_extensions.deprecated</code> — they match the decorator by name, so no runtime decorator (pyDeprecate's included) can make them see it. Stack the PEP 702 decorator directly above pyDeprecate's: <code>@warnings.deprecated("Use</code>new_name<code>instead.", category=None)</code> over <code>@deprecated(...)</code>. Keep <code>category=None</code> (otherwise every call warns twice), write the message as a string literal (mypy silently ignores a constant or f-string), and import the module rather than the name so pyDeprecate's <code>deprecated</code> is not shadowed. mypy only reports it with <code>enable_error_code = ["deprecated"]</code>, pyright in CI with <code>reportDeprecated = "error"</code>. Over <code>@deprecated_class(...)</code>, both mypy and pyright flag the old class name. See <a href="guide/functions.html#static-type-checkers-pep-702">Functions → Static type checkers</a>.</p>
+<hr />
+<h2 id="why-does-my-deprecation-warning-point-inside-pydeprecate-or-functoolspy">Why does my deprecation warning point inside pyDeprecate or <code>functools.py</code>?<a class="headerlink" href="#why-does-my-deprecation-warning-point-inside-pydeprecate-or-functoolspy" title="Permanent link">🔗</a></h2>
+<p><strong>Q:</strong> A deprecation <code>FutureWarning</code> (or a pyDeprecate <code>UserWarning</code>) reports a file inside the <code>deprecate</code> package or <code>functools.py</code> instead of my line, so my module-scoped warning filter or <code>-W error</code> traceback does not match my code.</p>
+<p><strong>A:</strong> pyDeprecate measures the location when a warning fires and reports the first frame outside the <code>deprecate</code> package. That holds for call-time notices, decoration-time configuration warnings and audit diagnostics, including stacked <code>@deprecated</code> layers, the <code>@deprecated</code> class front door and legacy <code>target=None/True/False</code> sentinels. Two cases still report a different frame:</p>
+<ul>
+<li><strong>A custom <code>stream</code> written in Python.</strong> pyDeprecate passes the <code>stacklevel</code> counted from the frame that calls the stream. A Python function that forwards it to <code>warnings.warn</code> adds its own frame, so the warning lands one frame short, inside pyDeprecate. Use <code>warnings.warn</code>, a <code>functools.partial</code> of it, or a bound logger method such as <code>logging.getLogger().warning</code> as the stream, or add <code>1</code> to the <code>stacklevel</code> your stream receives before forwarding it. The module-level <code>logging.warning</code> is correct only on Python 3.11 and newer; on 3.9 and 3.10 it adds one logging frame, so the log record points one frame short.</li>
+<li><strong>A <code>@cached_property</code> source.</strong> The getter runs inside <code>functools.cached_property.__get__</code>, which is the first frame outside pyDeprecate, so the warning reports <code>functools.py</code>. Filter on the warning category or message instead of the module.</li>
+</ul>
+<hr />
+<h2 id="my-singledispatch-or-__signature__-patched-source-receives-keyword-arguments">My <code>singledispatch</code> or <code>__signature__</code>-patched source receives keyword arguments<a class="headerlink" href="#my-singledispatch-or-__signature__-patched-source-receives-keyword-arguments" title="Permanent link">🔗</a></h2>
+<p><strong>Q:</strong> A deprecated source built with <code>functools.singledispatch</code>, or one whose <code>__signature__</code> differs from its real call shape, fails with <code>TypeError: ... requires at least 1 positional argument</code>, receives keywords it did not expect, or rejects a call the plain function accepts.</p>
+<p><strong>A:</strong> A <code>TargetMode.NOTIFY</code> wrapper, and a <code>TargetMode.ARGS_REMAP</code> wrapper whose caller uses no deprecated argument name, calls the source with the caller's arguments unchanged, so positional dispatch keeps working there. Two cases still differ from calling the source directly:</p>
+<ul>
+<li><strong>A caller passes a deprecated argument name to a <code>TargetMode.ARGS_REMAP</code> wrapper.</strong> To rename the argument, the wrapper rewrites the whole call into keyword arguments, whether the old name was passed by keyword or filled positionally; a wrapper that sets <code>args_extra</code> rewrites every call the same way. A source that dispatches on its positional arguments then receives keywords. Keep the dispatching function out of the rename: decorate a plain <code>def</code> that accepts the old and new names and calls the dispatcher positionally.</li>
+<li><strong>A <code>__signature__</code> that reports fewer positional parameters than the source accepts.</strong> Before calling the source, the wrapper checks the number of positional arguments against <code>inspect.signature(source)</code>, so a call that fills more slots than the patched signature lists raises the curated <code>TypeError</code> (<code>... takes N positional argument(s) but got M positional argument(s)</code>) even though the real source would accept it. Make <code>__signature__</code> list every positional slot, or give it a <code>*args</code> parameter.</li>
+</ul>
 <hr />
 <h2 id="still-stuck">Still stuck?<a class="headerlink" href="#still-stuck" title="Permanent link">🔗</a></h2>
 <div class="admonition question">
@@ -4696,7 +4839,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 22, 2026 17:12:49 UTC">2026-10-22</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 23, 2026 14:56:30 UTC">2026-10-23</span>
   </span>
 
     

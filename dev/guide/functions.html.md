@@ -118,6 +118,50 @@ print(calculate(1, 2))
 
 </details>
 
+### Partial and callable-instance targets
+
+`target` accepts any callable, not only a named function or class: a `functools.partial` that presets some arguments, or an instance with `__call__`. The warning names what a caller can import — the function or class a partial wraps (innermost, for a nested partial), or the class of a callable instance. `deprecated_class` accepts a partial target too, for example `partial(NewWidget, theme="dark")`.
+
+A keyword the partial binds is the replacement's intended value, so the source's own default for that argument is not forwarded over it. Per argument the precedence is: a value the caller passes (by keyword or by position) > the keyword the partial binds > the source default.
+
+```python
+from functools import partial
+
+from deprecate import deprecated
+
+
+# NEW API — general rounding helper; the precision is a parameter
+def round_amount(amount: float, digits: int = 0) -> float:
+    return round(amount, digits)
+
+
+# DEPRECATED API — `round_price` always rounded to cents; it now forwards to `round_amount` with `digits=2` preset
+@deprecated(target=partial(round_amount, digits=2), deprecated_in="0.5", remove_in="1.0")
+def round_price(amount: float, digits: int = 4) -> float:
+    pass
+
+
+print(round_price(3.14159))  # warns: FutureWarning
+print(round_price(3.14159, digits=3))
+```
+
+<details>
+  <summary>Output: <code>round_price(3.14159)</code>, <code>round_price(3.14159, digits=3)</code></summary>
+
+```
+3.14
+3.142
+```
+
+</details>
+
+The first call gets the partial's `digits=2`, not the source default `digits=4`; the second call's explicit `digits=3` wins over both. The warning names the function the partial wraps: `` The `round_price` was deprecated since v0.5 in favor of `your_module.round_amount`. … ``.
+
+Two limits apply:
+
+- **Positional arguments bound by a partial are not supported.** pyDeprecate forwards arguments by name, and a slot the partial binds positionally is no longer a parameter of the partial, so with `partial(round_amount, 3.14159)` the first call raises `` TypeError: Failed mapping of `round_price`, arguments not accepted by target: ['amount'] ``. Bind keywords only (`partial(round_amount, digits=2)`).
+- **A `functools.partial`, `partialmethod` or `singledispatchmethod` cannot be the decorated source.** None of them has a function body for the wrapper to take over, so `@deprecated` raises `TypeError` naming the type. Wrap the alias in a plain `def` that calls it and decorate that function instead.
+
 ## Argument renaming and mapping
 
 Use `args_mapping` when the new function accepts the same arguments under different names. The decorator translates old parameter names to new ones at call time, so callers can keep passing the old names during the deprecation window without any manual mapping code.
@@ -170,7 +214,7 @@ print(depr_accuracy([1, 0, 1, 2], [0, 1, 1, 2], 1.23))
 
     Unlike `target=<callable>` (where the body is **dead code** under normal forwarding, but still executes as a fallback when `skip_if=True` at call time), `TargetMode.NOTIFY` runs the original function body after emitting the deprecation notice. You **must** keep a working implementation in the function body. An empty body (`pass`) will cause the function to return `None` instead of the intended value (the deprecation warning still fires).
 
-Use warn-only mode when a function is going away but has no replacement yet. The decorator emits a deprecation notice and then runs the function body normally. This is the right choice when callers need to update their own code, not switch to a different function.
+Use warn-only mode when a function is going away but has no replacement yet. The decorator emits a deprecation notice and then runs the function body normally: the source receives the caller's arguments unchanged, so a `functools.singledispatch` function or a source with a custom `__signature__` dispatches exactly as it does undecorated. An invalid call, such as a value passed both positionally and by keyword or a positional-only parameter passed by keyword, raises the same `TypeError` the undecorated function would, after the deprecation notice. This is the right choice when callers need to update their own code, not switch to a different function.
 
 Prefer spelling out `target=TargetMode.NOTIFY` — it makes the warn-only intent explicit at the call site. If you omit `target`, the `TargetMode.AUTO` default resolves to `TargetMode.NOTIFY` when no `args_mapping` is given, so this shorter form is equivalent:
 

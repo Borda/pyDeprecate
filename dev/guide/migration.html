@@ -100,7 +100,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-05-19",
-  "dateModified": "2026-10-06"
+  "dateModified": "2026-10-23"
 }
 </script>
 
@@ -990,6 +990,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#coming-from-v014x" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Coming from v0.14.x
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#coming-from-v013x" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1592,6 +1603,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#coming-from-v014x" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Coming from v0.14.x
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#coming-from-v013x" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1968,12 +1990,35 @@
 <li>Run your suite with <code>FutureWarning</code> promoted to an error, then run your pyDeprecate audit/expiry CI checks.</li>
 </ol>
 <p>This guide works at <strong>minor-line granularity</strong>. <code>v0.N.x</code> means the latest available bugfix release in that feature line. The paths assume your dependency constraint allows bugfix updates and that you update within <code>v0.N.x</code> before crossing to the next feature line. Patch and post releases are folded into their minor interval rather than receiving separate sections.</p>
-<p>Releases with no migration work are skipped. Where a later release superseded an intermediate behavior, the section describes the final v0.14.x development behavior.</p>
-<h3 id="coming-from-v013x">Coming from v0.13.x<a class="headerlink" href="#coming-from-v013x" title="Permanent link">🔗</a></h3>
+<p>Releases with no migration work are skipped. Where a later release superseded an intermediate behavior, the section describes the final v0.15.x development behavior.</p>
+<h3 id="coming-from-v014x">Coming from v0.14.x<a class="headerlink" href="#coming-from-v014x" title="Permanent link">🔗</a></h3>
 <div class="tabbed-set tabbed-alternate" data-tabs="1:2"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">Breaking changes</label><label for="__tabbed_1_2">Behavior changes</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
-<p>No breaking changes.</p>
+<ul>
+<li><strong>A function <code>deprecated_instance</code> stored as a class attribute now binds like a method, and only plain functions do.</strong> Instance access passes <code>self</code> to the wrapped function; use <code>staticmethod(deprecated_instance(...))</code> for static-style access. A <code>functools.partial</code>, bound method, builtin or Cython binding callable is served unbound and silent instead, so a deprecated <code>partial</code> class attribute is no longer bound by Python.</li>
+<li><strong><code>functools.partial</code>, <code>partialmethod</code> and <code>singledispatchmethod</code> sources now raise <code>TypeError</code> at decoration.</strong> This includes a named partial (given a <code>__name__</code> through <code>functools.update_wrapper</code>) that 0.14 accepted. Wrap the object in a plain <code>def</code> that calls it and decorate that <code>def</code>.</li>
+</ul>
+</div>
+<div class="tabbed-block">
+<ul>
+<li><strong>Calls that need no forwarding preserve the caller's positional and keyword argument form.</strong> A call that needs no forwarding, rename or extra argument reaches the source exactly as made; a call forwarded to a callable target is still passed by keyword. A custom stream that raises no longer leaves warning bookkeeping or emission context stuck, and a warning that fails to deliver does not spend the warning budget.</li>
+<li><strong>Warnings are attributed to the caller's module.</strong> They point at the user's call site and carry the caller's module name, so a warning filter keyed on <code>module="deprecate"</code> no longer matches them: an <code>ignore</code> filter that silenced them before now lets them through, and they raise under <code>-W error</code>. Key filters on the calling module instead.</li>
+<li><strong>Async proxy warnings are emitted when the underlying awaitable or async iterator is obtained.</strong> A later failure or exhaustion during <code>await</code> or <code>__anext__</code> still consumes the warning budget. If the warning itself fails, a coroutine the wrapped call created is closed, while one the wrapped object holds as an attribute (or is) is left usable. <code>next()</code> on a deprecated proxy now warns before the wrapped iterator advances, so a failed warning consumes no item; calling the proxy also warns first, as <code>@deprecated</code> does, while other synchronous operations still warn only after success, and in-place operators and <code>defaultdict</code> subscripts keep their effect if delivery fails.</li>
+<li><strong>A custom <code>stream</code> is called exactly once, with its signature read before the call.</strong> A stream that declares <code>**kwargs</code> receives <code>stacklevel=</code> and must accept or drop it (forward it to <code>warnings.warn</code> or <code>logging.warning</code>; <code>print(msg, **kwargs)</code> raises <code>TypeError</code>). Declare <code>def sink(msg)</code> to receive the message alone. A bare <code>(*args, **kwargs)</code> <code>functools.wraps</code> pass-through is judged by the callable it wraps, also when a <code>functools.partial</code> binds it, and a stream whose only parameter is named <code>stacklevel</code> receives the message alone.</li>
+<li><strong><code>skip_if</code> now covers item and in-place writes.</strong> With <code>skip_if</code> active, <code>proxy[key] = value</code>, <code>del proxy[key]</code> and in-place operators write to the wrapped object and the read-only guard does not apply. A fatal proxy (<code>as_exception=True</code>) raises <code>DeprecatedError</code> before a subscript, iteration or mapped attribute read touches the wrapped object.</li>
+</ul>
+</div>
+</div>
+</div>
+<h3 id="coming-from-v013x">Coming from v0.13.x<a class="headerlink" href="#coming-from-v013x" title="Permanent link">🔗</a></h3>
+<div class="tabbed-set tabbed-alternate" data-tabs="2:2"><input checked="checked" id="__tabbed_2_1" name="__tabbed_2" type="radio" /><input id="__tabbed_2_2" name="__tabbed_2" type="radio" /><div class="tabbed-labels"><label for="__tabbed_2_1">Breaking changes</label><label for="__tabbed_2_2">Behavior changes</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<ul>
+<li><strong>A function <code>deprecated_instance</code> stored as a class attribute now binds like a method, and only plain functions do.</strong> Instance access passes <code>self</code> to the wrapped function; use <code>staticmethod(deprecated_instance(...))</code> for static-style access. A <code>functools.partial</code>, bound method, builtin or Cython binding callable is served unbound and silent instead, so a deprecated <code>partial</code> class attribute is no longer bound by Python.</li>
+<li><strong><code>functools.partial</code>, <code>partialmethod</code> and <code>singledispatchmethod</code> sources now raise <code>TypeError</code> at decoration.</strong> This includes a named partial (given a <code>__name__</code> through <code>functools.update_wrapper</code>) that 0.14 accepted. Wrap the object in a plain <code>def</code> that calls it and decorate that <code>def</code>.</li>
+</ul>
 </div>
 <div class="tabbed-block">
 <ul>
@@ -1981,17 +2026,32 @@
 <li><strong><code>Old: DeprecationProxy[New] = deprecated_class(target=New, ...)(Cls)</code> no longer type-checks.</strong> A call-form <code>deprecated_class(...)</code> alias is typed as the class it forwards to (<code>type[New]</code> with a class <code>target</code>, otherwise the wrapped class), so drop the annotation. <code>DeprecationProxy[T]</code> remains the annotation for <code>deprecated_instance()</code> proxies.</li>
 <li><strong>Old names accepted only through <code>args_mapping</code> / <code>attrs_mapping</code> are reported on call-form aliases</strong> as <code>call-arg</code> / <code>attr-defined</code>, as the decorator form already did under mypy. To keep such call sites type-checking during the migration window, keep the old names in a legacy class body (decorator form) or wrap the alias in <code>cast(DeprecationProxy[New], ...)</code>; <code>isinstance</code> against the alias then stops type-checking.</li>
 <li><strong>Proxy-only attributes</strong> such as <code>__wrapped__</code> and <code>__deprecation_config__</code> are invisible on <code>type[New]</code>. Read them with <code>get_deprecation_config(Old)</code> or <code>inspect.unwrap(Old)</code>.</li>
-<li>Setting <code>__deprecated__</code> on a deprecated proxy now keeps the marker on the proxy, and deleting it no longer removes the wrapped object's own marker; reading it after deletion raises <code>AttributeError</code>. <code>copy.copy</code>, <code>copy.deepcopy</code>, and <code>pickle</code> keep a PEP 702 message written onto the proxy.</li>
+<li>
+<p>Setting <code>__deprecated__</code> on a deprecated proxy now keeps the marker on the proxy, and deleting it no longer removes the wrapped object's own marker; reading it after deletion raises <code>AttributeError</code>. <code>copy.copy</code>, <code>copy.deepcopy</code>, and <code>pickle</code> keep a PEP 702 message written onto the proxy.</p>
+</li>
+<li>
+<p><strong>Calls that need no forwarding preserve the caller's positional and keyword argument form.</strong> A call that needs no forwarding, rename or extra argument reaches the source exactly as made; a call forwarded to a callable target is still passed by keyword. A custom stream that raises no longer leaves warning bookkeeping or emission context stuck, and a warning that fails to deliver does not spend the warning budget.</p>
+</li>
+<li><strong>Warnings are attributed to the caller's module.</strong> They point at the user's call site and carry the caller's module name, so a warning filter keyed on <code>module="deprecate"</code> no longer matches them: an <code>ignore</code> filter that silenced them before now lets them through, and they raise under <code>-W error</code>. Key filters on the calling module instead.</li>
+<li><strong>Async proxy warnings are emitted when the underlying awaitable or async iterator is obtained.</strong> A later failure or exhaustion during <code>await</code> or <code>__anext__</code> still consumes the warning budget. If the warning itself fails, a coroutine the wrapped call created is closed, while one the wrapped object holds as an attribute (or is) is left usable. <code>next()</code> on a deprecated proxy now warns before the wrapped iterator advances, so a failed warning consumes no item; calling the proxy also warns first, as <code>@deprecated</code> does, while other synchronous operations still warn only after success, and in-place operators and <code>defaultdict</code> subscripts keep their effect if delivery fails.</li>
+<li><strong>A custom <code>stream</code> is called exactly once, with its signature read before the call.</strong> A stream that declares <code>**kwargs</code> receives <code>stacklevel=</code> and must accept or drop it (forward it to <code>warnings.warn</code> or <code>logging.warning</code>; <code>print(msg, **kwargs)</code> raises <code>TypeError</code>). Declare <code>def sink(msg)</code> to receive the message alone. A bare <code>(*args, **kwargs)</code> <code>functools.wraps</code> pass-through is judged by the callable it wraps, also when a <code>functools.partial</code> binds it, and a stream whose only parameter is named <code>stacklevel</code> receives the message alone.</li>
+<li><strong><code>skip_if</code> now covers item and in-place writes.</strong> With <code>skip_if</code> active, <code>proxy[key] = value</code>, <code>del proxy[key]</code> and in-place operators write to the wrapped object and the read-only guard does not apply. A fatal proxy (<code>as_exception=True</code>) raises <code>DeprecatedError</code> before a subscript, iteration or mapped attribute read touches the wrapped object.</li>
 </ul>
 </div>
 </div>
 </div>
 <h3 id="coming-from-v012x">Coming from v0.12.x<a class="headerlink" href="#coming-from-v012x" title="Permanent link">🔗</a></h3>
-<div class="tabbed-set tabbed-alternate" data-tabs="2:2"><input checked="checked" id="__tabbed_2_1" name="__tabbed_2" type="radio" /><input id="__tabbed_2_2" name="__tabbed_2" type="radio" /><div class="tabbed-labels"><label for="__tabbed_2_1">Breaking changes</label><label for="__tabbed_2_2">Behavior changes</label></div>
+<div class="tabbed-set tabbed-alternate" data-tabs="3:2"><input checked="checked" id="__tabbed_3_1" name="__tabbed_3" type="radio" /><input id="__tabbed_3_2" name="__tabbed_3" type="radio" /><div class="tabbed-labels"><label for="__tabbed_3_1">Breaking changes</label><label for="__tabbed_3_2">Behavior changes</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
 <ul>
-<li><strong><code>__deprecated__</code> is now a plain PEP 702-conformant message string, not the <code>DeprecationConfig</code> object.</strong> The config object moved to <code>__deprecation_config__</code>. Code reading <code>func.__deprecated__.target</code>, <code>.deprecated_in</code>, <code>.args_mapping</code>, or any other config field, or checking <code>isinstance(func.__deprecated__, DeprecationConfig)</code>, now gets a plain <code>str</code> and either raises <code>AttributeError</code> or evaluates <code>False</code>. Replace direct reads with the public <code>get_deprecation_config(obj)</code> helper, which also falls back to a legacy <code>__deprecated__</code>-as-config layout for objects built by a pre-v0.13 pyDeprecate release. Affects every wrapper kind — functions, methods, class proxies (<code>deprecated_class</code>), instance proxies (<code>deprecated_instance</code>), and modules (<code>deprecated_module</code>).</li>
+<li>
+<p><strong><code>__deprecated__</code> is now a plain PEP 702-conformant message string, not the <code>DeprecationConfig</code> object.</strong> The config object moved to <code>__deprecation_config__</code>. Code reading <code>func.__deprecated__.target</code>, <code>.deprecated_in</code>, <code>.args_mapping</code>, or any other config field, or checking <code>isinstance(func.__deprecated__, DeprecationConfig)</code>, now gets a plain <code>str</code> and either raises <code>AttributeError</code> or evaluates <code>False</code>. Replace direct reads with the public <code>get_deprecation_config(obj)</code> helper, which also falls back to a legacy <code>__deprecated__</code>-as-config layout for objects built by a pre-v0.13 pyDeprecate release. Affects every wrapper kind — functions, methods, class proxies (<code>deprecated_class</code>), instance proxies (<code>deprecated_instance</code>), and modules (<code>deprecated_module</code>).</p>
+</li>
+<li>
+<p><strong>A function <code>deprecated_instance</code> stored as a class attribute now binds like a method, and only plain functions do.</strong> Instance access passes <code>self</code> to the wrapped function; use <code>staticmethod(deprecated_instance(...))</code> for static-style access. A <code>functools.partial</code>, bound method, builtin or Cython binding callable is served unbound and silent instead, so a deprecated <code>partial</code> class attribute is no longer bound by Python.</p>
+</li>
+<li><strong><code>functools.partial</code>, <code>partialmethod</code> and <code>singledispatchmethod</code> sources now raise <code>TypeError</code> at decoration.</strong> This includes a named partial (given a <code>__name__</code> through <code>functools.update_wrapper</code>) that 0.14 accepted. Wrap the object in a plain <code>def</code> that calls it and decorate that <code>def</code>.</li>
 </ul>
 </div>
 <div class="tabbed-block">
@@ -2005,13 +2065,22 @@
 <li><strong><code>Old: DeprecationProxy[New] = deprecated_class(target=New, ...)(Cls)</code> no longer type-checks.</strong> A call-form <code>deprecated_class(...)</code> alias is typed as the class it forwards to (<code>type[New]</code> with a class <code>target</code>, otherwise the wrapped class), so drop the annotation. <code>DeprecationProxy[T]</code> remains the annotation for <code>deprecated_instance()</code> proxies.</li>
 <li><strong>Old names accepted only through <code>args_mapping</code> / <code>attrs_mapping</code> are reported on call-form aliases</strong> as <code>call-arg</code> / <code>attr-defined</code>, as the decorator form already did under mypy. To keep such call sites type-checking during the migration window, keep the old names in a legacy class body (decorator form) or wrap the alias in <code>cast(DeprecationProxy[New], ...)</code>; <code>isinstance</code> against the alias then stops type-checking.</li>
 <li><strong>Proxy-only attributes</strong> such as <code>__wrapped__</code> and <code>__deprecation_config__</code> are invisible on <code>type[New]</code>. Read them with <code>get_deprecation_config(Old)</code> or <code>inspect.unwrap(Old)</code>.</li>
-<li>Setting <code>__deprecated__</code> on a deprecated proxy now keeps the marker on the proxy, and deleting it no longer removes the wrapped object's own marker; reading it after deletion raises <code>AttributeError</code>. <code>copy.copy</code>, <code>copy.deepcopy</code>, and <code>pickle</code> keep a PEP 702 message written onto the proxy.</li>
+<li>
+<p>Setting <code>__deprecated__</code> on a deprecated proxy now keeps the marker on the proxy, and deleting it no longer removes the wrapped object's own marker; reading it after deletion raises <code>AttributeError</code>. <code>copy.copy</code>, <code>copy.deepcopy</code>, and <code>pickle</code> keep a PEP 702 message written onto the proxy.</p>
+</li>
+<li>
+<p><strong>Calls that need no forwarding preserve the caller's positional and keyword argument form.</strong> A call that needs no forwarding, rename or extra argument reaches the source exactly as made; a call forwarded to a callable target is still passed by keyword. A custom stream that raises no longer leaves warning bookkeeping or emission context stuck, and a warning that fails to deliver does not spend the warning budget.</p>
+</li>
+<li><strong>Warnings are attributed to the caller's module.</strong> They point at the user's call site and carry the caller's module name, so a warning filter keyed on <code>module="deprecate"</code> no longer matches them: an <code>ignore</code> filter that silenced them before now lets them through, and they raise under <code>-W error</code>. Key filters on the calling module instead.</li>
+<li><strong>Async proxy warnings are emitted when the underlying awaitable or async iterator is obtained.</strong> A later failure or exhaustion during <code>await</code> or <code>__anext__</code> still consumes the warning budget. If the warning itself fails, a coroutine the wrapped call created is closed, while one the wrapped object holds as an attribute (or is) is left usable. <code>next()</code> on a deprecated proxy now warns before the wrapped iterator advances, so a failed warning consumes no item; calling the proxy also warns first, as <code>@deprecated</code> does, while other synchronous operations still warn only after success, and in-place operators and <code>defaultdict</code> subscripts keep their effect if delivery fails.</li>
+<li><strong>A custom <code>stream</code> is called exactly once, with its signature read before the call.</strong> A stream that declares <code>**kwargs</code> receives <code>stacklevel=</code> and must accept or drop it (forward it to <code>warnings.warn</code> or <code>logging.warning</code>; <code>print(msg, **kwargs)</code> raises <code>TypeError</code>). Declare <code>def sink(msg)</code> to receive the message alone. A bare <code>(*args, **kwargs)</code> <code>functools.wraps</code> pass-through is judged by the callable it wraps, also when a <code>functools.partial</code> binds it, and a stream whose only parameter is named <code>stacklevel</code> receives the message alone.</li>
+<li><strong><code>skip_if</code> now covers item and in-place writes.</strong> With <code>skip_if</code> active, <code>proxy[key] = value</code>, <code>del proxy[key]</code> and in-place operators write to the wrapped object and the read-only guard does not apply. A fatal proxy (<code>as_exception=True</code>) raises <code>DeprecatedError</code> before a subscript, iteration or mapped attribute read touches the wrapped object.</li>
 </ul>
 </div>
 </div>
 </div>
 <h3 id="coming-from-v011x">Coming from v0.11.x<a class="headerlink" href="#coming-from-v011x" title="Permanent link">🔗</a></h3>
-<div class="tabbed-set tabbed-alternate" data-tabs="3:2"><input checked="checked" id="__tabbed_3_1" name="__tabbed_3" type="radio" /><input id="__tabbed_3_2" name="__tabbed_3" type="radio" /><div class="tabbed-labels"><label for="__tabbed_3_1">Breaking changes</label><label for="__tabbed_3_2">Behavior changes</label></div>
+<div class="tabbed-set tabbed-alternate" data-tabs="4:2"><input checked="checked" id="__tabbed_4_1" name="__tabbed_4" type="radio" /><input id="__tabbed_4_2" name="__tabbed_4" type="radio" /><div class="tabbed-labels"><label for="__tabbed_4_1">Breaking changes</label><label for="__tabbed_4_2">Behavior changes</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
 <ul>
@@ -2022,6 +2091,10 @@
 <li>
 <p><strong><code>__deprecated__</code> is now a plain PEP 702-conformant message string, not the <code>DeprecationConfig</code> object.</strong> The config object moved to <code>__deprecation_config__</code>. Code reading <code>func.__deprecated__.target</code>, <code>.deprecated_in</code>, <code>.args_mapping</code>, or any other config field, or checking <code>isinstance(func.__deprecated__, DeprecationConfig)</code>, now gets a plain <code>str</code> and either raises <code>AttributeError</code> or evaluates <code>False</code>. Replace direct reads with the public <code>get_deprecation_config(obj)</code> helper, which also falls back to a legacy <code>__deprecated__</code>-as-config layout for objects built by a pre-v0.13 pyDeprecate release. Affects every wrapper kind — functions, methods, class proxies (<code>deprecated_class</code>), instance proxies (<code>deprecated_instance</code>), and modules (<code>deprecated_module</code>).</p>
 </li>
+<li>
+<p><strong>A function <code>deprecated_instance</code> stored as a class attribute now binds like a method, and only plain functions do.</strong> Instance access passes <code>self</code> to the wrapped function; use <code>staticmethod(deprecated_instance(...))</code> for static-style access. A <code>functools.partial</code>, bound method, builtin or Cython binding callable is served unbound and silent instead, so a deprecated <code>partial</code> class attribute is no longer bound by Python.</p>
+</li>
+<li><strong><code>functools.partial</code>, <code>partialmethod</code> and <code>singledispatchmethod</code> sources now raise <code>TypeError</code> at decoration.</strong> This includes a named partial (given a <code>__name__</code> through <code>functools.update_wrapper</code>) that 0.14 accepted. Wrap the object in a plain <code>def</code> that calls it and decorate that <code>def</code>.</li>
 </ul>
 </div>
 <div class="tabbed-block">
@@ -2042,13 +2115,22 @@
 <li><strong><code>Old: DeprecationProxy[New] = deprecated_class(target=New, ...)(Cls)</code> no longer type-checks.</strong> A call-form <code>deprecated_class(...)</code> alias is typed as the class it forwards to (<code>type[New]</code> with a class <code>target</code>, otherwise the wrapped class), so drop the annotation. <code>DeprecationProxy[T]</code> remains the annotation for <code>deprecated_instance()</code> proxies.</li>
 <li><strong>Old names accepted only through <code>args_mapping</code> / <code>attrs_mapping</code> are reported on call-form aliases</strong> as <code>call-arg</code> / <code>attr-defined</code>, as the decorator form already did under mypy. To keep such call sites type-checking during the migration window, keep the old names in a legacy class body (decorator form) or wrap the alias in <code>cast(DeprecationProxy[New], ...)</code>; <code>isinstance</code> against the alias then stops type-checking.</li>
 <li><strong>Proxy-only attributes</strong> such as <code>__wrapped__</code> and <code>__deprecation_config__</code> are invisible on <code>type[New]</code>. Read them with <code>get_deprecation_config(Old)</code> or <code>inspect.unwrap(Old)</code>.</li>
-<li>Setting <code>__deprecated__</code> on a deprecated proxy now keeps the marker on the proxy, and deleting it no longer removes the wrapped object's own marker; reading it after deletion raises <code>AttributeError</code>. <code>copy.copy</code>, <code>copy.deepcopy</code>, and <code>pickle</code> keep a PEP 702 message written onto the proxy.</li>
+<li>
+<p>Setting <code>__deprecated__</code> on a deprecated proxy now keeps the marker on the proxy, and deleting it no longer removes the wrapped object's own marker; reading it after deletion raises <code>AttributeError</code>. <code>copy.copy</code>, <code>copy.deepcopy</code>, and <code>pickle</code> keep a PEP 702 message written onto the proxy.</p>
+</li>
+<li>
+<p><strong>Calls that need no forwarding preserve the caller's positional and keyword argument form.</strong> A call that needs no forwarding, rename or extra argument reaches the source exactly as made; a call forwarded to a callable target is still passed by keyword. A custom stream that raises no longer leaves warning bookkeeping or emission context stuck, and a warning that fails to deliver does not spend the warning budget.</p>
+</li>
+<li><strong>Warnings are attributed to the caller's module.</strong> They point at the user's call site and carry the caller's module name, so a warning filter keyed on <code>module="deprecate"</code> no longer matches them: an <code>ignore</code> filter that silenced them before now lets them through, and they raise under <code>-W error</code>. Key filters on the calling module instead.</li>
+<li><strong>Async proxy warnings are emitted when the underlying awaitable or async iterator is obtained.</strong> A later failure or exhaustion during <code>await</code> or <code>__anext__</code> still consumes the warning budget. If the warning itself fails, a coroutine the wrapped call created is closed, while one the wrapped object holds as an attribute (or is) is left usable. <code>next()</code> on a deprecated proxy now warns before the wrapped iterator advances, so a failed warning consumes no item; calling the proxy also warns first, as <code>@deprecated</code> does, while other synchronous operations still warn only after success, and in-place operators and <code>defaultdict</code> subscripts keep their effect if delivery fails.</li>
+<li><strong>A custom <code>stream</code> is called exactly once, with its signature read before the call.</strong> A stream that declares <code>**kwargs</code> receives <code>stacklevel=</code> and must accept or drop it (forward it to <code>warnings.warn</code> or <code>logging.warning</code>; <code>print(msg, **kwargs)</code> raises <code>TypeError</code>). Declare <code>def sink(msg)</code> to receive the message alone. A bare <code>(*args, **kwargs)</code> <code>functools.wraps</code> pass-through is judged by the callable it wraps, also when a <code>functools.partial</code> binds it, and a stream whose only parameter is named <code>stacklevel</code> receives the message alone.</li>
+<li><strong><code>skip_if</code> now covers item and in-place writes.</strong> With <code>skip_if</code> active, <code>proxy[key] = value</code>, <code>del proxy[key]</code> and in-place operators write to the wrapped object and the read-only guard does not apply. A fatal proxy (<code>as_exception=True</code>) raises <code>DeprecatedError</code> before a subscript, iteration or mapped attribute read touches the wrapped object.</li>
 </ul>
 </div>
 </div>
 </div>
 <h3 id="coming-from-v010x">Coming from v0.10.x<a class="headerlink" href="#coming-from-v010x" title="Permanent link">🔗</a></h3>
-<div class="tabbed-set tabbed-alternate" data-tabs="4:2"><input checked="checked" id="__tabbed_4_1" name="__tabbed_4" type="radio" /><input id="__tabbed_4_2" name="__tabbed_4" type="radio" /><div class="tabbed-labels"><label for="__tabbed_4_1">Breaking changes</label><label for="__tabbed_4_2">Behavior changes</label></div>
+<div class="tabbed-set tabbed-alternate" data-tabs="5:2"><input checked="checked" id="__tabbed_5_1" name="__tabbed_5" type="radio" /><input id="__tabbed_5_2" name="__tabbed_5" type="radio" /><div class="tabbed-labels"><label for="__tabbed_5_1">Breaking changes</label><label for="__tabbed_5_2">Behavior changes</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
 <ul>
@@ -2069,6 +2151,10 @@
 <li>
 <p><strong><code>__deprecated__</code> is now a plain PEP 702-conformant message string, not the <code>DeprecationConfig</code> object.</strong> The config object moved to <code>__deprecation_config__</code>. Code reading <code>func.__deprecated__.target</code>, <code>.deprecated_in</code>, <code>.args_mapping</code>, or any other config field, or checking <code>isinstance(func.__deprecated__, DeprecationConfig)</code>, now gets a plain <code>str</code> and either raises <code>AttributeError</code> or evaluates <code>False</code>. Replace direct reads with the public <code>get_deprecation_config(obj)</code> helper, which also falls back to a legacy <code>__deprecated__</code>-as-config layout for objects built by a pre-v0.13 pyDeprecate release. Affects every wrapper kind — functions, methods, class proxies (<code>deprecated_class</code>), instance proxies (<code>deprecated_instance</code>), and modules (<code>deprecated_module</code>).</p>
 </li>
+<li>
+<p><strong>A function <code>deprecated_instance</code> stored as a class attribute now binds like a method, and only plain functions do.</strong> Instance access passes <code>self</code> to the wrapped function; use <code>staticmethod(deprecated_instance(...))</code> for static-style access. A <code>functools.partial</code>, bound method, builtin or Cython binding callable is served unbound and silent instead, so a deprecated <code>partial</code> class attribute is no longer bound by Python.</p>
+</li>
+<li><strong><code>functools.partial</code>, <code>partialmethod</code> and <code>singledispatchmethod</code> sources now raise <code>TypeError</code> at decoration.</strong> This includes a named partial (given a <code>__name__</code> through <code>functools.update_wrapper</code>) that 0.14 accepted. Wrap the object in a plain <code>def</code> that calls it and decorate that <code>def</code>.</li>
 </ul>
 </div>
 <div class="tabbed-block">
@@ -2099,13 +2185,22 @@
 <li><strong><code>Old: DeprecationProxy[New] = deprecated_class(target=New, ...)(Cls)</code> no longer type-checks.</strong> A call-form <code>deprecated_class(...)</code> alias is typed as the class it forwards to (<code>type[New]</code> with a class <code>target</code>, otherwise the wrapped class), so drop the annotation. <code>DeprecationProxy[T]</code> remains the annotation for <code>deprecated_instance()</code> proxies.</li>
 <li><strong>Old names accepted only through <code>args_mapping</code> / <code>attrs_mapping</code> are reported on call-form aliases</strong> as <code>call-arg</code> / <code>attr-defined</code>, as the decorator form already did under mypy. To keep such call sites type-checking during the migration window, keep the old names in a legacy class body (decorator form) or wrap the alias in <code>cast(DeprecationProxy[New], ...)</code>; <code>isinstance</code> against the alias then stops type-checking.</li>
 <li><strong>Proxy-only attributes</strong> such as <code>__wrapped__</code> and <code>__deprecation_config__</code> are invisible on <code>type[New]</code>. Read them with <code>get_deprecation_config(Old)</code> or <code>inspect.unwrap(Old)</code>.</li>
-<li>Setting <code>__deprecated__</code> on a deprecated proxy now keeps the marker on the proxy, and deleting it no longer removes the wrapped object's own marker; reading it after deletion raises <code>AttributeError</code>. <code>copy.copy</code>, <code>copy.deepcopy</code>, and <code>pickle</code> keep a PEP 702 message written onto the proxy.</li>
+<li>
+<p>Setting <code>__deprecated__</code> on a deprecated proxy now keeps the marker on the proxy, and deleting it no longer removes the wrapped object's own marker; reading it after deletion raises <code>AttributeError</code>. <code>copy.copy</code>, <code>copy.deepcopy</code>, and <code>pickle</code> keep a PEP 702 message written onto the proxy.</p>
+</li>
+<li>
+<p><strong>Calls that need no forwarding preserve the caller's positional and keyword argument form.</strong> A call that needs no forwarding, rename or extra argument reaches the source exactly as made; a call forwarded to a callable target is still passed by keyword. A custom stream that raises no longer leaves warning bookkeeping or emission context stuck, and a warning that fails to deliver does not spend the warning budget.</p>
+</li>
+<li><strong>Warnings are attributed to the caller's module.</strong> They point at the user's call site and carry the caller's module name, so a warning filter keyed on <code>module="deprecate"</code> no longer matches them: an <code>ignore</code> filter that silenced them before now lets them through, and they raise under <code>-W error</code>. Key filters on the calling module instead.</li>
+<li><strong>Async proxy warnings are emitted when the underlying awaitable or async iterator is obtained.</strong> A later failure or exhaustion during <code>await</code> or <code>__anext__</code> still consumes the warning budget. If the warning itself fails, a coroutine the wrapped call created is closed, while one the wrapped object holds as an attribute (or is) is left usable. <code>next()</code> on a deprecated proxy now warns before the wrapped iterator advances, so a failed warning consumes no item; calling the proxy also warns first, as <code>@deprecated</code> does, while other synchronous operations still warn only after success, and in-place operators and <code>defaultdict</code> subscripts keep their effect if delivery fails.</li>
+<li><strong>A custom <code>stream</code> is called exactly once, with its signature read before the call.</strong> A stream that declares <code>**kwargs</code> receives <code>stacklevel=</code> and must accept or drop it (forward it to <code>warnings.warn</code> or <code>logging.warning</code>; <code>print(msg, **kwargs)</code> raises <code>TypeError</code>). Declare <code>def sink(msg)</code> to receive the message alone. A bare <code>(*args, **kwargs)</code> <code>functools.wraps</code> pass-through is judged by the callable it wraps, also when a <code>functools.partial</code> binds it, and a stream whose only parameter is named <code>stacklevel</code> receives the message alone.</li>
+<li><strong><code>skip_if</code> now covers item and in-place writes.</strong> With <code>skip_if</code> active, <code>proxy[key] = value</code>, <code>del proxy[key]</code> and in-place operators write to the wrapped object and the read-only guard does not apply. A fatal proxy (<code>as_exception=True</code>) raises <code>DeprecatedError</code> before a subscript, iteration or mapped attribute read touches the wrapped object.</li>
 </ul>
 </div>
 </div>
 </div>
 <h3 id="coming-from-v09x">Coming from v0.9.x<a class="headerlink" href="#coming-from-v09x" title="Permanent link">🔗</a></h3>
-<div class="tabbed-set tabbed-alternate" data-tabs="5:2"><input checked="checked" id="__tabbed_5_1" name="__tabbed_5" type="radio" /><input id="__tabbed_5_2" name="__tabbed_5" type="radio" /><div class="tabbed-labels"><label for="__tabbed_5_1">Breaking changes</label><label for="__tabbed_5_2">Behavior changes</label></div>
+<div class="tabbed-set tabbed-alternate" data-tabs="6:2"><input checked="checked" id="__tabbed_6_1" name="__tabbed_6" type="radio" /><input id="__tabbed_6_2" name="__tabbed_6" type="radio" /><div class="tabbed-labels"><label for="__tabbed_6_1">Breaking changes</label><label for="__tabbed_6_2">Behavior changes</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
 <ul>
@@ -2131,6 +2226,10 @@
 <li>
 <p><strong><code>__deprecated__</code> is now a plain PEP 702-conformant message string, not the <code>DeprecationConfig</code> object.</strong> The config object moved to <code>__deprecation_config__</code>. Code reading <code>func.__deprecated__.target</code>, <code>.deprecated_in</code>, <code>.args_mapping</code>, or any other config field, or checking <code>isinstance(func.__deprecated__, DeprecationConfig)</code>, now gets a plain <code>str</code> and either raises <code>AttributeError</code> or evaluates <code>False</code>. Replace direct reads with the public <code>get_deprecation_config(obj)</code> helper, which also falls back to a legacy <code>__deprecated__</code>-as-config layout for objects built by a pre-v0.13 pyDeprecate release. Affects every wrapper kind — functions, methods, class proxies (<code>deprecated_class</code>), instance proxies (<code>deprecated_instance</code>), and modules (<code>deprecated_module</code>).</p>
 </li>
+<li>
+<p><strong>A function <code>deprecated_instance</code> stored as a class attribute now binds like a method, and only plain functions do.</strong> Instance access passes <code>self</code> to the wrapped function; use <code>staticmethod(deprecated_instance(...))</code> for static-style access. A <code>functools.partial</code>, bound method, builtin or Cython binding callable is served unbound and silent instead, so a deprecated <code>partial</code> class attribute is no longer bound by Python.</p>
+</li>
+<li><strong><code>functools.partial</code>, <code>partialmethod</code> and <code>singledispatchmethod</code> sources now raise <code>TypeError</code> at decoration.</strong> This includes a named partial (given a <code>__name__</code> through <code>functools.update_wrapper</code>) that 0.14 accepted. Wrap the object in a plain <code>def</code> that calls it and decorate that <code>def</code>.</li>
 </ul>
 </div>
 <div class="tabbed-block">
@@ -2167,13 +2266,22 @@
 <li><strong><code>Old: DeprecationProxy[New] = deprecated_class(target=New, ...)(Cls)</code> no longer type-checks.</strong> A call-form <code>deprecated_class(...)</code> alias is typed as the class it forwards to (<code>type[New]</code> with a class <code>target</code>, otherwise the wrapped class), so drop the annotation. <code>DeprecationProxy[T]</code> remains the annotation for <code>deprecated_instance()</code> proxies.</li>
 <li><strong>Old names accepted only through <code>args_mapping</code> / <code>attrs_mapping</code> are reported on call-form aliases</strong> as <code>call-arg</code> / <code>attr-defined</code>, as the decorator form already did under mypy. To keep such call sites type-checking during the migration window, keep the old names in a legacy class body (decorator form) or wrap the alias in <code>cast(DeprecationProxy[New], ...)</code>; <code>isinstance</code> against the alias then stops type-checking.</li>
 <li><strong>Proxy-only attributes</strong> such as <code>__wrapped__</code> and <code>__deprecation_config__</code> are invisible on <code>type[New]</code>. Read them with <code>get_deprecation_config(Old)</code> or <code>inspect.unwrap(Old)</code>.</li>
-<li>Setting <code>__deprecated__</code> on a deprecated proxy now keeps the marker on the proxy, and deleting it no longer removes the wrapped object's own marker; reading it after deletion raises <code>AttributeError</code>. <code>copy.copy</code>, <code>copy.deepcopy</code>, and <code>pickle</code> keep a PEP 702 message written onto the proxy.</li>
+<li>
+<p>Setting <code>__deprecated__</code> on a deprecated proxy now keeps the marker on the proxy, and deleting it no longer removes the wrapped object's own marker; reading it after deletion raises <code>AttributeError</code>. <code>copy.copy</code>, <code>copy.deepcopy</code>, and <code>pickle</code> keep a PEP 702 message written onto the proxy.</p>
+</li>
+<li>
+<p><strong>Calls that need no forwarding preserve the caller's positional and keyword argument form.</strong> A call that needs no forwarding, rename or extra argument reaches the source exactly as made; a call forwarded to a callable target is still passed by keyword. A custom stream that raises no longer leaves warning bookkeeping or emission context stuck, and a warning that fails to deliver does not spend the warning budget.</p>
+</li>
+<li><strong>Warnings are attributed to the caller's module.</strong> They point at the user's call site and carry the caller's module name, so a warning filter keyed on <code>module="deprecate"</code> no longer matches them: an <code>ignore</code> filter that silenced them before now lets them through, and they raise under <code>-W error</code>. Key filters on the calling module instead.</li>
+<li><strong>Async proxy warnings are emitted when the underlying awaitable or async iterator is obtained.</strong> A later failure or exhaustion during <code>await</code> or <code>__anext__</code> still consumes the warning budget. If the warning itself fails, a coroutine the wrapped call created is closed, while one the wrapped object holds as an attribute (or is) is left usable. <code>next()</code> on a deprecated proxy now warns before the wrapped iterator advances, so a failed warning consumes no item; calling the proxy also warns first, as <code>@deprecated</code> does, while other synchronous operations still warn only after success, and in-place operators and <code>defaultdict</code> subscripts keep their effect if delivery fails.</li>
+<li><strong>A custom <code>stream</code> is called exactly once, with its signature read before the call.</strong> A stream that declares <code>**kwargs</code> receives <code>stacklevel=</code> and must accept or drop it (forward it to <code>warnings.warn</code> or <code>logging.warning</code>; <code>print(msg, **kwargs)</code> raises <code>TypeError</code>). Declare <code>def sink(msg)</code> to receive the message alone. A bare <code>(*args, **kwargs)</code> <code>functools.wraps</code> pass-through is judged by the callable it wraps, also when a <code>functools.partial</code> binds it, and a stream whose only parameter is named <code>stacklevel</code> receives the message alone.</li>
+<li><strong><code>skip_if</code> now covers item and in-place writes.</strong> With <code>skip_if</code> active, <code>proxy[key] = value</code>, <code>del proxy[key]</code> and in-place operators write to the wrapped object and the read-only guard does not apply. A fatal proxy (<code>as_exception=True</code>) raises <code>DeprecatedError</code> before a subscript, iteration or mapped attribute read touches the wrapped object.</li>
 </ul>
 </div>
 </div>
 </div>
 <h3 id="coming-from-v08x">Coming from v0.8.x<a class="headerlink" href="#coming-from-v08x" title="Permanent link">🔗</a></h3>
-<div class="tabbed-set tabbed-alternate" data-tabs="6:2"><input checked="checked" id="__tabbed_6_1" name="__tabbed_6" type="radio" /><input id="__tabbed_6_2" name="__tabbed_6" type="radio" /><div class="tabbed-labels"><label for="__tabbed_6_1">Breaking changes</label><label for="__tabbed_6_2">Behavior changes</label></div>
+<div class="tabbed-set tabbed-alternate" data-tabs="7:2"><input checked="checked" id="__tabbed_7_1" name="__tabbed_7" type="radio" /><input id="__tabbed_7_2" name="__tabbed_7" type="radio" /><div class="tabbed-labels"><label for="__tabbed_7_1">Breaking changes</label><label for="__tabbed_7_2">Behavior changes</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
 <ul>
@@ -2203,6 +2311,10 @@
 <li>
 <p><strong><code>__deprecated__</code> is now a plain PEP 702-conformant message string, not the <code>DeprecationConfig</code> object.</strong> The config object moved to <code>__deprecation_config__</code>. Code reading <code>func.__deprecated__.target</code>, <code>.deprecated_in</code>, <code>.args_mapping</code>, or any other config field, or checking <code>isinstance(func.__deprecated__, DeprecationConfig)</code>, now gets a plain <code>str</code> and either raises <code>AttributeError</code> or evaluates <code>False</code>. Replace direct reads with the public <code>get_deprecation_config(obj)</code> helper, which also falls back to a legacy <code>__deprecated__</code>-as-config layout for objects built by a pre-v0.13 pyDeprecate release. Affects every wrapper kind — functions, methods, class proxies (<code>deprecated_class</code>), instance proxies (<code>deprecated_instance</code>), and modules (<code>deprecated_module</code>).</p>
 </li>
+<li>
+<p><strong>A function <code>deprecated_instance</code> stored as a class attribute now binds like a method, and only plain functions do.</strong> Instance access passes <code>self</code> to the wrapped function; use <code>staticmethod(deprecated_instance(...))</code> for static-style access. A <code>functools.partial</code>, bound method, builtin or Cython binding callable is served unbound and silent instead, so a deprecated <code>partial</code> class attribute is no longer bound by Python.</p>
+</li>
+<li><strong><code>functools.partial</code>, <code>partialmethod</code> and <code>singledispatchmethod</code> sources now raise <code>TypeError</code> at decoration.</strong> This includes a named partial (given a <code>__name__</code> through <code>functools.update_wrapper</code>) that 0.14 accepted. Wrap the object in a plain <code>def</code> that calls it and decorate that <code>def</code>.</li>
 </ul>
 </div>
 <div class="tabbed-block">
@@ -2245,106 +2357,21 @@
 <li><strong><code>Old: DeprecationProxy[New] = deprecated_class(target=New, ...)(Cls)</code> no longer type-checks.</strong> A call-form <code>deprecated_class(...)</code> alias is typed as the class it forwards to (<code>type[New]</code> with a class <code>target</code>, otherwise the wrapped class), so drop the annotation. <code>DeprecationProxy[T]</code> remains the annotation for <code>deprecated_instance()</code> proxies.</li>
 <li><strong>Old names accepted only through <code>args_mapping</code> / <code>attrs_mapping</code> are reported on call-form aliases</strong> as <code>call-arg</code> / <code>attr-defined</code>, as the decorator form already did under mypy. To keep such call sites type-checking during the migration window, keep the old names in a legacy class body (decorator form) or wrap the alias in <code>cast(DeprecationProxy[New], ...)</code>; <code>isinstance</code> against the alias then stops type-checking.</li>
 <li><strong>Proxy-only attributes</strong> such as <code>__wrapped__</code> and <code>__deprecation_config__</code> are invisible on <code>type[New]</code>. Read them with <code>get_deprecation_config(Old)</code> or <code>inspect.unwrap(Old)</code>.</li>
-<li>Setting <code>__deprecated__</code> on a deprecated proxy now keeps the marker on the proxy, and deleting it no longer removes the wrapped object's own marker; reading it after deletion raises <code>AttributeError</code>. <code>copy.copy</code>, <code>copy.deepcopy</code>, and <code>pickle</code> keep a PEP 702 message written onto the proxy.</li>
+<li>
+<p>Setting <code>__deprecated__</code> on a deprecated proxy now keeps the marker on the proxy, and deleting it no longer removes the wrapped object's own marker; reading it after deletion raises <code>AttributeError</code>. <code>copy.copy</code>, <code>copy.deepcopy</code>, and <code>pickle</code> keep a PEP 702 message written onto the proxy.</p>
+</li>
+<li>
+<p><strong>Calls that need no forwarding preserve the caller's positional and keyword argument form.</strong> A call that needs no forwarding, rename or extra argument reaches the source exactly as made; a call forwarded to a callable target is still passed by keyword. A custom stream that raises no longer leaves warning bookkeeping or emission context stuck, and a warning that fails to deliver does not spend the warning budget.</p>
+</li>
+<li><strong>Warnings are attributed to the caller's module.</strong> They point at the user's call site and carry the caller's module name, so a warning filter keyed on <code>module="deprecate"</code> no longer matches them: an <code>ignore</code> filter that silenced them before now lets them through, and they raise under <code>-W error</code>. Key filters on the calling module instead.</li>
+<li><strong>Async proxy warnings are emitted when the underlying awaitable or async iterator is obtained.</strong> A later failure or exhaustion during <code>await</code> or <code>__anext__</code> still consumes the warning budget. If the warning itself fails, a coroutine the wrapped call created is closed, while one the wrapped object holds as an attribute (or is) is left usable. <code>next()</code> on a deprecated proxy now warns before the wrapped iterator advances, so a failed warning consumes no item; calling the proxy also warns first, as <code>@deprecated</code> does, while other synchronous operations still warn only after success, and in-place operators and <code>defaultdict</code> subscripts keep their effect if delivery fails.</li>
+<li><strong>A custom <code>stream</code> is called exactly once, with its signature read before the call.</strong> A stream that declares <code>**kwargs</code> receives <code>stacklevel=</code> and must accept or drop it (forward it to <code>warnings.warn</code> or <code>logging.warning</code>; <code>print(msg, **kwargs)</code> raises <code>TypeError</code>). Declare <code>def sink(msg)</code> to receive the message alone. A bare <code>(*args, **kwargs)</code> <code>functools.wraps</code> pass-through is judged by the callable it wraps, also when a <code>functools.partial</code> binds it, and a stream whose only parameter is named <code>stacklevel</code> receives the message alone.</li>
+<li><strong><code>skip_if</code> now covers item and in-place writes.</strong> With <code>skip_if</code> active, <code>proxy[key] = value</code>, <code>del proxy[key]</code> and in-place operators write to the wrapped object and the read-only guard does not apply. A fatal proxy (<code>as_exception=True</code>) raises <code>DeprecatedError</code> before a subscript, iteration or mapped attribute read touches the wrapped object.</li>
 </ul>
 </div>
 </div>
 </div>
 <h3 id="coming-from-v07x">Coming from v0.7.x<a class="headerlink" href="#coming-from-v07x" title="Permanent link">🔗</a></h3>
-<div class="tabbed-set tabbed-alternate" data-tabs="7:2"><input checked="checked" id="__tabbed_7_1" name="__tabbed_7" type="radio" /><input id="__tabbed_7_2" name="__tabbed_7" type="radio" /><div class="tabbed-labels"><label for="__tabbed_7_1">Breaking changes</label><label for="__tabbed_7_2">Behavior changes</label></div>
-<div class="tabbed-content">
-<div class="tabbed-block">
-<ul>
-<li>Replace <code>target=None</code> with <code>TargetMode.NOTIFY</code> or omit <code>target</code> for a warn-only decorator.</li>
-<li>Replace <code>target=True</code> with <code>TargetMode.ARGS_REMAP</code>.</li>
-<li>Replace <code>DeprecationWrapperInfo.empty_mapping</code> with <code>empty_args_mapping</code>, and <code>identity_mapping</code> with <code>identity_args_mapping</code>. The old properties warn and are removed in v1.0.</li>
-<li>If code inspects <code>wrapper.__deprecated__.target</code>, compare with a <code>TargetMode</code>, callable, or <code>None</code>. <code>DeprecationConfig.target</code> stores a normalized value, never legacy <code>True</code> or <code>False</code>.</li>
-<li>
-<p>Update external documentation bookmarks from flat paths such as <code>/pyDeprecate/troubleshooting.html</code> to the versioned <code>/pyDeprecate/stable/troubleshooting.html</code> layout.</p>
-</li>
-<li>
-<p><strong>Rename the CLI flag <code>--skip_errors</code> to <code>--exit-zero</code></strong> in every <code>check</code>, <code>expiry</code>, <code>chains</code>, and <code>all</code> command. The old flag is rejected. <code>--exit_zero</code> remains an underscore alias, but the dashed spelling is canonical.</p>
-</li>
-<li>
-<p><strong>Fix unsupported stacked decorators.</strong> Six shapes, including callable-over-callable, now emit <code>UserWarning</code> at decoration time and become <code>TypeError</code> in v1.0. The supported lifecycle stack is outer <code>ARGS_REMAP</code> plus inner <code>NOTIFY</code>.</p>
-</li>
-<li>
-<p><strong>Outer-order deprecated properties now warn on read, write, and delete.</strong> Under <code>filterwarnings=error::FutureWarning</code>, a setter or deleter that was previously silent now raises. If only reads should warn, keep inner order (<code>@property</code> outside <code>@deprecated</code>) or decorate only <code>fget</code>.</p>
-</li>
-<li>
-<p><strong>Update proxy detection.</strong> <code>proxy.__class__</code> reports the wrapped object's type for <code>isinstance</code> transparency. Use <code>type(proxy)</code> when you need to detect <code>_DeprecatedProxy</code> itself.</p>
-</li>
-<li><strong>Do not use an instance proxy as the second argument to <code>isinstance()</code> or <code>issubclass()</code>.</strong> This misuse now raises <code>TypeError</code> instead of returning <code>False</code>. Class-alias proxies remain valid there.</li>
-<li><strong>Review expiry CI scope.</strong> <code>validate_deprecation_expiry()</code> now defaults to <code>include_members=True</code>, so expired methods, constructors, descriptors, and properties can newly fail the gate. Pass <code>include_members=False</code> only when the old narrower scope is intentional.</li>
-<li><strong>Fix invalid <code>remove_in</code> versions.</strong> An unparsable <code>remove_in</code> now emits <code>UserWarning</code> during batch expiry instead of being skipped silently.</li>
-<li><strong>Fix misspelled CLI flags.</strong> Unknown flags now fail instead of being silently ignored.</li>
-<li>
-<p><strong>Use named <code>%</code> fields in custom message templates.</strong> Bare <code>%s</code> or <code>%d</code> conversions now raise <code>ValueError</code> when the decorator is applied.</p>
-</li>
-<li>
-<p><strong><code>@deprecated(target=TargetMode.ATTRS_REMAP)</code> now raises <code>TypeError</code> for a class source.</strong> It already raised for functions. <code>ATTRS_REMAP</code> needs the class-only <code>attrs_mapping</code> keyword, which the common front door does not expose, so a class source previously built a proxy that remapped nothing. Use <code>deprecated_class(attrs_mapping=...)</code>.</p>
-</li>
-<li>
-<p><strong>Rename <code>template_mgs</code> to <code>message_template</code></strong> on <code>deprecated()</code>, <code>deprecated_callable()</code>, <code>deprecated_class()</code>, and <code>deprecated_instance()</code>. The typo remains a warning alias until v1.0; supplying both names raises <code>TypeError</code>.</p>
-</li>
-<li>
-<p><strong><code>__deprecated__</code> is now a plain PEP 702-conformant message string, not the <code>DeprecationConfig</code> object.</strong> The config object moved to <code>__deprecation_config__</code>. Code reading <code>func.__deprecated__.target</code>, <code>.deprecated_in</code>, <code>.args_mapping</code>, or any other config field, or checking <code>isinstance(func.__deprecated__, DeprecationConfig)</code>, now gets a plain <code>str</code> and either raises <code>AttributeError</code> or evaluates <code>False</code>. Replace direct reads with the public <code>get_deprecation_config(obj)</code> helper, which also falls back to a legacy <code>__deprecated__</code>-as-config layout for objects built by a pre-v0.13 pyDeprecate release. Affects every wrapper kind — functions, methods, class proxies (<code>deprecated_class</code>), instance proxies (<code>deprecated_instance</code>), and modules (<code>deprecated_module</code>).</p>
-</li>
-</ul>
-</div>
-<div class="tabbed-block">
-<ul>
-<li>Omitting <code>deprecated_in</code> on a function or method emits <code>UserWarning</code> at decoration time. Add the version as part of every deprecation lifecycle.</li>
-<li><code>ARGS_REMAP</code> without <code>args_mapping</code>, <code>NOTIFY</code> with <code>args_mapping</code> or <code>args_extra</code>, and invalid <code>target=False</code> now warn immediately. These are migration failures, not harmless diagnostics; correct them before v1.0.</li>
-<li>
-<p>Omitting <code>target</code> is the canonical warn-only form. Its v0.12 default is <code>TargetMode.AUTO</code>, which resolves to <code>NOTIFY</code> when no mapping is present, so the user-visible result is unchanged.</p>
-</li>
-<li>
-<p>CLI scans suppress only warnings from <code>deprecate.*</code>; third-party warnings are now visible. CI that treats all warnings as errors may start failing on dependencies imported during a scan.</p>
-</li>
-<li>
-<p>Audit code sees the supported <code>ARGS_REMAP + NOTIFY</code> chain as <code>ChainType.STACKED</code>, not <code>ChainType.TARGET</code>.</p>
-</li>
-<li>
-<p>When a caller supplies both deprecated and replacement keyword names, the explicit replacement value now wins regardless of call-site order.</p>
-</li>
-<li>
-<p>Circular callable-target chains now raise a named <code>RuntimeError</code> instead of ending in <code>RecursionError</code>.</p>
-</li>
-<li>
-<p><code>repr()</code>, <code>str()</code>, equality, and hashing on a target-forwarding proxy now reflect the active target rather than the deprecated source.</p>
-</li>
-<li>In-place operators such as <code>proxy += 1</code> rebind the name to the unwrapped result. Later uses are silent; avoid in-place operators if the proxy must retain its warning budget.</li>
-<li><code>args_mapping</code>, <code>args_extra</code>, and <code>attrs_mapping</code> are copied at decoration time. Mutating the original dict later no longer changes forwarding behavior.</li>
-<li>Constructing an <code>attrs_mapping</code>-only class proxy is now silent; only access to a listed deprecated attribute warns.</li>
-<li>Concurrent calls now respect exactly the configured <code>num_warns</code> budget. Tests that accidentally relied on one warning per racing thread will see fewer warnings.</li>
-<li>
-<p>Recursive audits deduplicate re-exports, include deprecated private and dunder members, warn and skip submodules that fail to import, and ignore unrelated foreign objects that raise during metadata probing. Counts and rows can therefore change in both directions.</p>
-</li>
-<li>
-<p><code>@deprecated</code> now defaults to <code>TargetMode.AUTO</code>. It resolves at decoration time: a function/class with <code>args_mapping</code> becomes <code>ARGS_REMAP</code>; a source without a mapping becomes warn-only. <code>AUTO</code> is never stored in <code>DeprecationConfig</code>; do not pass it explicitly because it exists only as the front-door default.</p>
-</li>
-<li>Existing <code>@deprecated</code> use on a class remains supported; no code change or decorator rewrite is required. It permanently delegates to <code>deprecated_class()</code> and emits one informational <code>UserWarning</code> per module-qualified class. <code>stream=None</code> suppresses the notice. Only the notice, not backward support or delegation, is removed in v1.0.</li>
-<li><code>message_template</code> and <code>skip_if</code> supplied through <code>@deprecated</code> on a class now reach the proxy. <code>message_template</code> was previously dropped on that path.</li>
-<li>Non-callable sources now raise a direct <code>TypeError</code> pointing users to <code>deprecated_instance()</code> instead of failing later on <code>__name__</code>.</li>
-<li>
-<p>Explicit <code>target=TargetMode.NOTIFY</code> together with a mapping still emits <code>UserWarning</code>, stays <code>NOTIFY</code>, leaves the mapping inert, and is marked misconfigured — unchanged from v0.11.0, and a <code>TypeError</code> in v1.0. What changed is that an <em>omitted</em> <code>target</code> no longer lands here: it auto-resolves instead. Omit <code>target</code> to infer remapping, or select the matching remap mode explicitly.</p>
-</li>
-<li>
-<p>Griffe's <code>RuntimeDocstrings</code> extension now scopes its docstring-replacement guard to pyDeprecate's own <code>__deprecation_config__</code> metadata (<code>get_deprecation_config(obj) is not None</code>) instead of a bare truthiness check on <code>__deprecated__</code>. A foreign object decorated only with the stdlib's <code>warnings.deprecated</code> / <code>typing_extensions.deprecated</code> (string-valued <code>__deprecated__</code>, no pyDeprecate metadata) previously passed that truthy check too; it no longer does, since it was never meant to be replaced.</p>
-</li>
-<li>
-<p>v0.14 ships <code>py.typed</code>, so type checkers now read pyDeprecate's own types instead of treating every object as <code>Any</code>. Runtime behavior is unchanged; only checker output moves.</p>
-</li>
-<li><strong><code>Old: DeprecationProxy[New] = deprecated_class(target=New, ...)(Cls)</code> no longer type-checks.</strong> A call-form <code>deprecated_class(...)</code> alias is typed as the class it forwards to (<code>type[New]</code> with a class <code>target</code>, otherwise the wrapped class), so drop the annotation. <code>DeprecationProxy[T]</code> remains the annotation for <code>deprecated_instance()</code> proxies.</li>
-<li><strong>Old names accepted only through <code>args_mapping</code> / <code>attrs_mapping</code> are reported on call-form aliases</strong> as <code>call-arg</code> / <code>attr-defined</code>, as the decorator form already did under mypy. To keep such call sites type-checking during the migration window, keep the old names in a legacy class body (decorator form) or wrap the alias in <code>cast(DeprecationProxy[New], ...)</code>; <code>isinstance</code> against the alias then stops type-checking.</li>
-<li><strong>Proxy-only attributes</strong> such as <code>__wrapped__</code> and <code>__deprecation_config__</code> are invisible on <code>type[New]</code>. Read them with <code>get_deprecation_config(Old)</code> or <code>inspect.unwrap(Old)</code>.</li>
-<li>Setting <code>__deprecated__</code> on a deprecated proxy now keeps the marker on the proxy, and deleting it no longer removes the wrapped object's own marker; reading it after deletion raises <code>AttributeError</code>. <code>copy.copy</code>, <code>copy.deepcopy</code>, and <code>pickle</code> keep a PEP 702 message written onto the proxy.</li>
-</ul>
-</div>
-</div>
-</div>
-<h3 id="coming-from-v06x">Coming from v0.6.x<a class="headerlink" href="#coming-from-v06x" title="Permanent link">🔗</a></h3>
 <div class="tabbed-set tabbed-alternate" data-tabs="8:2"><input checked="checked" id="__tabbed_8_1" name="__tabbed_8" type="radio" /><input id="__tabbed_8_2" name="__tabbed_8" type="radio" /><div class="tabbed-labels"><label for="__tabbed_8_1">Breaking changes</label><label for="__tabbed_8_2">Behavior changes</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
@@ -2384,6 +2411,10 @@
 <li>
 <p><strong><code>__deprecated__</code> is now a plain PEP 702-conformant message string, not the <code>DeprecationConfig</code> object.</strong> The config object moved to <code>__deprecation_config__</code>. Code reading <code>func.__deprecated__.target</code>, <code>.deprecated_in</code>, <code>.args_mapping</code>, or any other config field, or checking <code>isinstance(func.__deprecated__, DeprecationConfig)</code>, now gets a plain <code>str</code> and either raises <code>AttributeError</code> or evaluates <code>False</code>. Replace direct reads with the public <code>get_deprecation_config(obj)</code> helper, which also falls back to a legacy <code>__deprecated__</code>-as-config layout for objects built by a pre-v0.13 pyDeprecate release. Affects every wrapper kind — functions, methods, class proxies (<code>deprecated_class</code>), instance proxies (<code>deprecated_instance</code>), and modules (<code>deprecated_module</code>).</p>
 </li>
+<li>
+<p><strong>A function <code>deprecated_instance</code> stored as a class attribute now binds like a method, and only plain functions do.</strong> Instance access passes <code>self</code> to the wrapped function; use <code>staticmethod(deprecated_instance(...))</code> for static-style access. A <code>functools.partial</code>, bound method, builtin or Cython binding callable is served unbound and silent instead, so a deprecated <code>partial</code> class attribute is no longer bound by Python.</p>
+</li>
+<li><strong><code>functools.partial</code>, <code>partialmethod</code> and <code>singledispatchmethod</code> sources now raise <code>TypeError</code> at decoration.</strong> This includes a named partial (given a <code>__name__</code> through <code>functools.update_wrapper</code>) that 0.14 accepted. Wrap the object in a plain <code>def</code> that calls it and decorate that <code>def</code>.</li>
 </ul>
 </div>
 <div class="tabbed-block">
@@ -2433,51 +2464,26 @@
 <li><strong><code>Old: DeprecationProxy[New] = deprecated_class(target=New, ...)(Cls)</code> no longer type-checks.</strong> A call-form <code>deprecated_class(...)</code> alias is typed as the class it forwards to (<code>type[New]</code> with a class <code>target</code>, otherwise the wrapped class), so drop the annotation. <code>DeprecationProxy[T]</code> remains the annotation for <code>deprecated_instance()</code> proxies.</li>
 <li><strong>Old names accepted only through <code>args_mapping</code> / <code>attrs_mapping</code> are reported on call-form aliases</strong> as <code>call-arg</code> / <code>attr-defined</code>, as the decorator form already did under mypy. To keep such call sites type-checking during the migration window, keep the old names in a legacy class body (decorator form) or wrap the alias in <code>cast(DeprecationProxy[New], ...)</code>; <code>isinstance</code> against the alias then stops type-checking.</li>
 <li><strong>Proxy-only attributes</strong> such as <code>__wrapped__</code> and <code>__deprecation_config__</code> are invisible on <code>type[New]</code>. Read them with <code>get_deprecation_config(Old)</code> or <code>inspect.unwrap(Old)</code>.</li>
-<li>Setting <code>__deprecated__</code> on a deprecated proxy now keeps the marker on the proxy, and deleting it no longer removes the wrapped object's own marker; reading it after deletion raises <code>AttributeError</code>. <code>copy.copy</code>, <code>copy.deepcopy</code>, and <code>pickle</code> keep a PEP 702 message written onto the proxy.</li>
+<li>
+<p>Setting <code>__deprecated__</code> on a deprecated proxy now keeps the marker on the proxy, and deleting it no longer removes the wrapped object's own marker; reading it after deletion raises <code>AttributeError</code>. <code>copy.copy</code>, <code>copy.deepcopy</code>, and <code>pickle</code> keep a PEP 702 message written onto the proxy.</p>
+</li>
+<li>
+<p><strong>Calls that need no forwarding preserve the caller's positional and keyword argument form.</strong> A call that needs no forwarding, rename or extra argument reaches the source exactly as made; a call forwarded to a callable target is still passed by keyword. A custom stream that raises no longer leaves warning bookkeeping or emission context stuck, and a warning that fails to deliver does not spend the warning budget.</p>
+</li>
+<li><strong>Warnings are attributed to the caller's module.</strong> They point at the user's call site and carry the caller's module name, so a warning filter keyed on <code>module="deprecate"</code> no longer matches them: an <code>ignore</code> filter that silenced them before now lets them through, and they raise under <code>-W error</code>. Key filters on the calling module instead.</li>
+<li><strong>Async proxy warnings are emitted when the underlying awaitable or async iterator is obtained.</strong> A later failure or exhaustion during <code>await</code> or <code>__anext__</code> still consumes the warning budget. If the warning itself fails, a coroutine the wrapped call created is closed, while one the wrapped object holds as an attribute (or is) is left usable. <code>next()</code> on a deprecated proxy now warns before the wrapped iterator advances, so a failed warning consumes no item; calling the proxy also warns first, as <code>@deprecated</code> does, while other synchronous operations still warn only after success, and in-place operators and <code>defaultdict</code> subscripts keep their effect if delivery fails.</li>
+<li><strong>A custom <code>stream</code> is called exactly once, with its signature read before the call.</strong> A stream that declares <code>**kwargs</code> receives <code>stacklevel=</code> and must accept or drop it (forward it to <code>warnings.warn</code> or <code>logging.warning</code>; <code>print(msg, **kwargs)</code> raises <code>TypeError</code>). Declare <code>def sink(msg)</code> to receive the message alone. A bare <code>(*args, **kwargs)</code> <code>functools.wraps</code> pass-through is judged by the callable it wraps, also when a <code>functools.partial</code> binds it, and a stream whose only parameter is named <code>stacklevel</code> receives the message alone.</li>
+<li><strong><code>skip_if</code> now covers item and in-place writes.</strong> With <code>skip_if</code> active, <code>proxy[key] = value</code>, <code>del proxy[key]</code> and in-place operators write to the wrapped object and the read-only guard does not apply. A fatal proxy (<code>as_exception=True</code>) raises <code>DeprecatedError</code> before a subscript, iteration or mapped attribute read touches the wrapped object.</li>
 </ul>
 </div>
 </div>
 </div>
-<h3 id="coming-from-v05x">Coming from v0.5.x<a class="headerlink" href="#coming-from-v05x" title="Permanent link">🔗</a></h3>
+<h3 id="coming-from-v06x">Coming from v0.6.x<a class="headerlink" href="#coming-from-v06x" title="Permanent link">🔗</a></h3>
 <div class="tabbed-set tabbed-alternate" data-tabs="9:2"><input checked="checked" id="__tabbed_9_1" name="__tabbed_9" type="radio" /><input id="__tabbed_9_2" name="__tabbed_9" type="radio" /><div class="tabbed-labels"><label for="__tabbed_9_1">Breaking changes</label><label for="__tabbed_9_2">Behavior changes</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
 <ul>
-<li>
-<p><strong>Fix cross-class method forwarding.</strong> Passing a class target to a non-<code>__init__</code> instance method now raises <code>TypeError</code> at decoration time instead of forwarding a <code>self</code> of the wrong type.</p>
-</li>
-<li>
-<p><strong>Replace API names deprecated until v1.0:</strong></p>
-<table>
-<thead>
-<tr>
-<th>Deprecated API</th>
-<th>Replacement</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>find_deprecated_callables</code></td>
-<td><code>find_deprecation_wrappers</code></td>
-</tr>
-<tr>
-<td><code>validate_deprecated_callable</code></td>
-<td><code>validate_deprecation_wrapper</code></td>
-</tr>
-<tr>
-<td><code>DeprecatedCallableInfo</code></td>
-<td><code>DeprecationWrapperInfo</code></td>
-</tr>
-<tr>
-<td><code>no_warning_call</code></td>
-<td><code>assert_no_warnings</code></td>
-</tr>
-</tbody>
-</table>
-</li>
-<li>
-<p>Replace <code>target=None</code> with <code>TargetMode.NOTIFY</code> or omit <code>target</code> for a warn-only decorator.</p>
-</li>
+<li>Replace <code>target=None</code> with <code>TargetMode.NOTIFY</code> or omit <code>target</code> for a warn-only decorator.</li>
 <li>Replace <code>target=True</code> with <code>TargetMode.ARGS_REMAP</code>.</li>
 <li>Replace <code>DeprecationWrapperInfo.empty_mapping</code> with <code>empty_args_mapping</code>, and <code>identity_mapping</code> with <code>identity_args_mapping</code>. The old properties warn and are removed in v1.0.</li>
 <li>If code inspects <code>wrapper.__deprecated__.target</code>, compare with a <code>TargetMode</code>, callable, or <code>None</code>. <code>DeprecationConfig.target</code> stores a normalized value, never legacy <code>True</code> or <code>False</code>.</li>
@@ -2512,16 +2518,15 @@
 <li>
 <p><strong><code>__deprecated__</code> is now a plain PEP 702-conformant message string, not the <code>DeprecationConfig</code> object.</strong> The config object moved to <code>__deprecation_config__</code>. Code reading <code>func.__deprecated__.target</code>, <code>.deprecated_in</code>, <code>.args_mapping</code>, or any other config field, or checking <code>isinstance(func.__deprecated__, DeprecationConfig)</code>, now gets a plain <code>str</code> and either raises <code>AttributeError</code> or evaluates <code>False</code>. Replace direct reads with the public <code>get_deprecation_config(obj)</code> helper, which also falls back to a legacy <code>__deprecated__</code>-as-config layout for objects built by a pre-v0.13 pyDeprecate release. Affects every wrapper kind — functions, methods, class proxies (<code>deprecated_class</code>), instance proxies (<code>deprecated_instance</code>), and modules (<code>deprecated_module</code>).</p>
 </li>
+<li>
+<p><strong>A function <code>deprecated_instance</code> stored as a class attribute now binds like a method, and only plain functions do.</strong> Instance access passes <code>self</code> to the wrapped function; use <code>staticmethod(deprecated_instance(...))</code> for static-style access. A <code>functools.partial</code>, bound method, builtin or Cython binding callable is served unbound and silent instead, so a deprecated <code>partial</code> class attribute is no longer bound by Python.</p>
+</li>
+<li><strong><code>functools.partial</code>, <code>partialmethod</code> and <code>singledispatchmethod</code> sources now raise <code>TypeError</code> at decoration.</strong> This includes a named partial (given a <code>__name__</code> through <code>functools.update_wrapper</code>) that 0.14 accepted. Wrap the object in a plain <code>def</code> that calls it and decorate that <code>def</code>.</li>
 </ul>
 </div>
 <div class="tabbed-block">
 <ul>
-<li>
-<p>Across the v0.6.x line, backward support for <code>@deprecated</code> on a class was restored through delegation to <code>deprecated_class()</code>. Existing class decorators need no rewrite for v0.12; delegation remains permanent and only its informational notice is scheduled for removal.</p>
-</li>
-<li>
-<p>Omitting <code>deprecated_in</code> on a function or method emits <code>UserWarning</code> at decoration time. Add the version as part of every deprecation lifecycle.</p>
-</li>
+<li>Omitting <code>deprecated_in</code> on a function or method emits <code>UserWarning</code> at decoration time. Add the version as part of every deprecation lifecycle.</li>
 <li><code>ARGS_REMAP</code> without <code>args_mapping</code>, <code>NOTIFY</code> with <code>args_mapping</code> or <code>args_extra</code>, and invalid <code>target=False</code> now warn immediately. These are migration failures, not harmless diagnostics; correct them before v1.0.</li>
 <li>
 <p>Omitting <code>target</code> is the canonical warn-only form. Its v0.12 default is <code>TargetMode.AUTO</code>, which resolves to <code>NOTIFY</code> when no mapping is present, so the user-visible result is unchanged.</p>
@@ -2566,12 +2571,21 @@
 <li><strong><code>Old: DeprecationProxy[New] = deprecated_class(target=New, ...)(Cls)</code> no longer type-checks.</strong> A call-form <code>deprecated_class(...)</code> alias is typed as the class it forwards to (<code>type[New]</code> with a class <code>target</code>, otherwise the wrapped class), so drop the annotation. <code>DeprecationProxy[T]</code> remains the annotation for <code>deprecated_instance()</code> proxies.</li>
 <li><strong>Old names accepted only through <code>args_mapping</code> / <code>attrs_mapping</code> are reported on call-form aliases</strong> as <code>call-arg</code> / <code>attr-defined</code>, as the decorator form already did under mypy. To keep such call sites type-checking during the migration window, keep the old names in a legacy class body (decorator form) or wrap the alias in <code>cast(DeprecationProxy[New], ...)</code>; <code>isinstance</code> against the alias then stops type-checking.</li>
 <li><strong>Proxy-only attributes</strong> such as <code>__wrapped__</code> and <code>__deprecation_config__</code> are invisible on <code>type[New]</code>. Read them with <code>get_deprecation_config(Old)</code> or <code>inspect.unwrap(Old)</code>.</li>
-<li>Setting <code>__deprecated__</code> on a deprecated proxy now keeps the marker on the proxy, and deleting it no longer removes the wrapped object's own marker; reading it after deletion raises <code>AttributeError</code>. <code>copy.copy</code>, <code>copy.deepcopy</code>, and <code>pickle</code> keep a PEP 702 message written onto the proxy.</li>
+<li>
+<p>Setting <code>__deprecated__</code> on a deprecated proxy now keeps the marker on the proxy, and deleting it no longer removes the wrapped object's own marker; reading it after deletion raises <code>AttributeError</code>. <code>copy.copy</code>, <code>copy.deepcopy</code>, and <code>pickle</code> keep a PEP 702 message written onto the proxy.</p>
+</li>
+<li>
+<p><strong>Calls that need no forwarding preserve the caller's positional and keyword argument form.</strong> A call that needs no forwarding, rename or extra argument reaches the source exactly as made; a call forwarded to a callable target is still passed by keyword. A custom stream that raises no longer leaves warning bookkeeping or emission context stuck, and a warning that fails to deliver does not spend the warning budget.</p>
+</li>
+<li><strong>Warnings are attributed to the caller's module.</strong> They point at the user's call site and carry the caller's module name, so a warning filter keyed on <code>module="deprecate"</code> no longer matches them: an <code>ignore</code> filter that silenced them before now lets them through, and they raise under <code>-W error</code>. Key filters on the calling module instead.</li>
+<li><strong>Async proxy warnings are emitted when the underlying awaitable or async iterator is obtained.</strong> A later failure or exhaustion during <code>await</code> or <code>__anext__</code> still consumes the warning budget. If the warning itself fails, a coroutine the wrapped call created is closed, while one the wrapped object holds as an attribute (or is) is left usable. <code>next()</code> on a deprecated proxy now warns before the wrapped iterator advances, so a failed warning consumes no item; calling the proxy also warns first, as <code>@deprecated</code> does, while other synchronous operations still warn only after success, and in-place operators and <code>defaultdict</code> subscripts keep their effect if delivery fails.</li>
+<li><strong>A custom <code>stream</code> is called exactly once, with its signature read before the call.</strong> A stream that declares <code>**kwargs</code> receives <code>stacklevel=</code> and must accept or drop it (forward it to <code>warnings.warn</code> or <code>logging.warning</code>; <code>print(msg, **kwargs)</code> raises <code>TypeError</code>). Declare <code>def sink(msg)</code> to receive the message alone. A bare <code>(*args, **kwargs)</code> <code>functools.wraps</code> pass-through is judged by the callable it wraps, also when a <code>functools.partial</code> binds it, and a stream whose only parameter is named <code>stacklevel</code> receives the message alone.</li>
+<li><strong><code>skip_if</code> now covers item and in-place writes.</strong> With <code>skip_if</code> active, <code>proxy[key] = value</code>, <code>del proxy[key]</code> and in-place operators write to the wrapped object and the read-only guard does not apply. A fatal proxy (<code>as_exception=True</code>) raises <code>DeprecatedError</code> before a subscript, iteration or mapped attribute read touches the wrapped object.</li>
 </ul>
 </div>
 </div>
 </div>
-<h3 id="coming-from-v04x">Coming from v0.4.x<a class="headerlink" href="#coming-from-v04x" title="Permanent link">🔗</a></h3>
+<h3 id="coming-from-v05x">Coming from v0.5.x<a class="headerlink" href="#coming-from-v05x" title="Permanent link">🔗</a></h3>
 <div class="tabbed-set tabbed-alternate" data-tabs="10:2"><input checked="checked" id="__tabbed_10_1" name="__tabbed_10" type="radio" /><input id="__tabbed_10_2" name="__tabbed_10" type="radio" /><div class="tabbed-labels"><label for="__tabbed_10_1">Breaking changes</label><label for="__tabbed_10_2">Behavior changes</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
@@ -2645,6 +2659,10 @@
 <li>
 <p><strong><code>__deprecated__</code> is now a plain PEP 702-conformant message string, not the <code>DeprecationConfig</code> object.</strong> The config object moved to <code>__deprecation_config__</code>. Code reading <code>func.__deprecated__.target</code>, <code>.deprecated_in</code>, <code>.args_mapping</code>, or any other config field, or checking <code>isinstance(func.__deprecated__, DeprecationConfig)</code>, now gets a plain <code>str</code> and either raises <code>AttributeError</code> or evaluates <code>False</code>. Replace direct reads with the public <code>get_deprecation_config(obj)</code> helper, which also falls back to a legacy <code>__deprecated__</code>-as-config layout for objects built by a pre-v0.13 pyDeprecate release. Affects every wrapper kind — functions, methods, class proxies (<code>deprecated_class</code>), instance proxies (<code>deprecated_instance</code>), and modules (<code>deprecated_module</code>).</p>
 </li>
+<li>
+<p><strong>A function <code>deprecated_instance</code> stored as a class attribute now binds like a method, and only plain functions do.</strong> Instance access passes <code>self</code> to the wrapped function; use <code>staticmethod(deprecated_instance(...))</code> for static-style access. A <code>functools.partial</code>, bound method, builtin or Cython binding callable is served unbound and silent instead, so a deprecated <code>partial</code> class attribute is no longer bound by Python.</p>
+</li>
+<li><strong><code>functools.partial</code>, <code>partialmethod</code> and <code>singledispatchmethod</code> sources now raise <code>TypeError</code> at decoration.</strong> This includes a named partial (given a <code>__name__</code> through <code>functools.update_wrapper</code>) that 0.14 accepted. Wrap the object in a plain <code>def</code> that calls it and decorate that <code>def</code>.</li>
 </ul>
 </div>
 <div class="tabbed-block">
@@ -2699,21 +2717,25 @@
 <li><strong><code>Old: DeprecationProxy[New] = deprecated_class(target=New, ...)(Cls)</code> no longer type-checks.</strong> A call-form <code>deprecated_class(...)</code> alias is typed as the class it forwards to (<code>type[New]</code> with a class <code>target</code>, otherwise the wrapped class), so drop the annotation. <code>DeprecationProxy[T]</code> remains the annotation for <code>deprecated_instance()</code> proxies.</li>
 <li><strong>Old names accepted only through <code>args_mapping</code> / <code>attrs_mapping</code> are reported on call-form aliases</strong> as <code>call-arg</code> / <code>attr-defined</code>, as the decorator form already did under mypy. To keep such call sites type-checking during the migration window, keep the old names in a legacy class body (decorator form) or wrap the alias in <code>cast(DeprecationProxy[New], ...)</code>; <code>isinstance</code> against the alias then stops type-checking.</li>
 <li><strong>Proxy-only attributes</strong> such as <code>__wrapped__</code> and <code>__deprecation_config__</code> are invisible on <code>type[New]</code>. Read them with <code>get_deprecation_config(Old)</code> or <code>inspect.unwrap(Old)</code>.</li>
-<li>Setting <code>__deprecated__</code> on a deprecated proxy now keeps the marker on the proxy, and deleting it no longer removes the wrapped object's own marker; reading it after deletion raises <code>AttributeError</code>. <code>copy.copy</code>, <code>copy.deepcopy</code>, and <code>pickle</code> keep a PEP 702 message written onto the proxy.</li>
+<li>
+<p>Setting <code>__deprecated__</code> on a deprecated proxy now keeps the marker on the proxy, and deleting it no longer removes the wrapped object's own marker; reading it after deletion raises <code>AttributeError</code>. <code>copy.copy</code>, <code>copy.deepcopy</code>, and <code>pickle</code> keep a PEP 702 message written onto the proxy.</p>
+</li>
+<li>
+<p><strong>Calls that need no forwarding preserve the caller's positional and keyword argument form.</strong> A call that needs no forwarding, rename or extra argument reaches the source exactly as made; a call forwarded to a callable target is still passed by keyword. A custom stream that raises no longer leaves warning bookkeeping or emission context stuck, and a warning that fails to deliver does not spend the warning budget.</p>
+</li>
+<li><strong>Warnings are attributed to the caller's module.</strong> They point at the user's call site and carry the caller's module name, so a warning filter keyed on <code>module="deprecate"</code> no longer matches them: an <code>ignore</code> filter that silenced them before now lets them through, and they raise under <code>-W error</code>. Key filters on the calling module instead.</li>
+<li><strong>Async proxy warnings are emitted when the underlying awaitable or async iterator is obtained.</strong> A later failure or exhaustion during <code>await</code> or <code>__anext__</code> still consumes the warning budget. If the warning itself fails, a coroutine the wrapped call created is closed, while one the wrapped object holds as an attribute (or is) is left usable. <code>next()</code> on a deprecated proxy now warns before the wrapped iterator advances, so a failed warning consumes no item; calling the proxy also warns first, as <code>@deprecated</code> does, while other synchronous operations still warn only after success, and in-place operators and <code>defaultdict</code> subscripts keep their effect if delivery fails.</li>
+<li><strong>A custom <code>stream</code> is called exactly once, with its signature read before the call.</strong> A stream that declares <code>**kwargs</code> receives <code>stacklevel=</code> and must accept or drop it (forward it to <code>warnings.warn</code> or <code>logging.warning</code>; <code>print(msg, **kwargs)</code> raises <code>TypeError</code>). Declare <code>def sink(msg)</code> to receive the message alone. A bare <code>(*args, **kwargs)</code> <code>functools.wraps</code> pass-through is judged by the callable it wraps, also when a <code>functools.partial</code> binds it, and a stream whose only parameter is named <code>stacklevel</code> receives the message alone.</li>
+<li><strong><code>skip_if</code> now covers item and in-place writes.</strong> With <code>skip_if</code> active, <code>proxy[key] = value</code>, <code>del proxy[key]</code> and in-place operators write to the wrapped object and the read-only guard does not apply. A fatal proxy (<code>as_exception=True</code>) raises <code>DeprecatedError</code> before a subscript, iteration or mapped attribute read touches the wrapped object.</li>
 </ul>
 </div>
 </div>
 </div>
-<h3 id="coming-from-v03x">Coming from v0.3.x<a class="headerlink" href="#coming-from-v03x" title="Permanent link">🔗</a></h3>
+<h3 id="coming-from-v04x">Coming from v0.4.x<a class="headerlink" href="#coming-from-v04x" title="Permanent link">🔗</a></h3>
 <div class="tabbed-set tabbed-alternate" data-tabs="11:2"><input checked="checked" id="__tabbed_11_1" name="__tabbed_11" type="radio" /><input id="__tabbed_11_2" name="__tabbed_11" type="radio" /><div class="tabbed-labels"><label for="__tabbed_11_1">Breaking changes</label><label for="__tabbed_11_2">Behavior changes</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
 <ul>
-<li><strong>Update warning filters and assertions from <code>DeprecationWarning</code> to <code>FutureWarning</code>.</strong> Application users now see the warnings under Python's default filters.</li>
-<li><strong>Run on Python 3.9 or newer.</strong> Python 3.8 support was removed.</li>
-<li>
-<p><strong>Review the license change from MIT to Apache-2.0</strong> if your distribution or compliance process records dependency licenses.</p>
-</li>
 <li>
 <p><strong>Fix cross-class method forwarding.</strong> Passing a class target to a non-<code>__init__</code> instance method now raises <code>TypeError</code> at decoration time instead of forwarding a <code>self</code> of the wrong type.</p>
 </li>
@@ -2783,13 +2805,14 @@
 <li>
 <p><strong><code>__deprecated__</code> is now a plain PEP 702-conformant message string, not the <code>DeprecationConfig</code> object.</strong> The config object moved to <code>__deprecation_config__</code>. Code reading <code>func.__deprecated__.target</code>, <code>.deprecated_in</code>, <code>.args_mapping</code>, or any other config field, or checking <code>isinstance(func.__deprecated__, DeprecationConfig)</code>, now gets a plain <code>str</code> and either raises <code>AttributeError</code> or evaluates <code>False</code>. Replace direct reads with the public <code>get_deprecation_config(obj)</code> helper, which also falls back to a legacy <code>__deprecated__</code>-as-config layout for objects built by a pre-v0.13 pyDeprecate release. Affects every wrapper kind — functions, methods, class proxies (<code>deprecated_class</code>), instance proxies (<code>deprecated_instance</code>), and modules (<code>deprecated_module</code>).</p>
 </li>
+<li>
+<p><strong>A function <code>deprecated_instance</code> stored as a class attribute now binds like a method, and only plain functions do.</strong> Instance access passes <code>self</code> to the wrapped function; use <code>staticmethod(deprecated_instance(...))</code> for static-style access. A <code>functools.partial</code>, bound method, builtin or Cython binding callable is served unbound and silent instead, so a deprecated <code>partial</code> class attribute is no longer bound by Python.</p>
+</li>
+<li><strong><code>functools.partial</code>, <code>partialmethod</code> and <code>singledispatchmethod</code> sources now raise <code>TypeError</code> at decoration.</strong> This includes a named partial (given a <code>__name__</code> through <code>functools.update_wrapper</code>) that 0.14 accepted. Wrap the object in a plain <code>def</code> that calls it and decorate that <code>def</code>.</li>
 </ul>
 </div>
 <div class="tabbed-block">
 <ul>
-<li>
-<p>Mapping errors now include the originating class or function name. Tests that assert complete error strings may need updated expected text.</p>
-</li>
 <li>
 <p>Across the v0.6.x line, backward support for <code>@deprecated</code> on a class was restored through delegation to <code>deprecated_class()</code>. Existing class decorators need no rewrite for v0.12; delegation remains permanent and only its informational notice is scheduled for removal.</p>
 </li>
@@ -2840,12 +2863,21 @@
 <li><strong><code>Old: DeprecationProxy[New] = deprecated_class(target=New, ...)(Cls)</code> no longer type-checks.</strong> A call-form <code>deprecated_class(...)</code> alias is typed as the class it forwards to (<code>type[New]</code> with a class <code>target</code>, otherwise the wrapped class), so drop the annotation. <code>DeprecationProxy[T]</code> remains the annotation for <code>deprecated_instance()</code> proxies.</li>
 <li><strong>Old names accepted only through <code>args_mapping</code> / <code>attrs_mapping</code> are reported on call-form aliases</strong> as <code>call-arg</code> / <code>attr-defined</code>, as the decorator form already did under mypy. To keep such call sites type-checking during the migration window, keep the old names in a legacy class body (decorator form) or wrap the alias in <code>cast(DeprecationProxy[New], ...)</code>; <code>isinstance</code> against the alias then stops type-checking.</li>
 <li><strong>Proxy-only attributes</strong> such as <code>__wrapped__</code> and <code>__deprecation_config__</code> are invisible on <code>type[New]</code>. Read them with <code>get_deprecation_config(Old)</code> or <code>inspect.unwrap(Old)</code>.</li>
-<li>Setting <code>__deprecated__</code> on a deprecated proxy now keeps the marker on the proxy, and deleting it no longer removes the wrapped object's own marker; reading it after deletion raises <code>AttributeError</code>. <code>copy.copy</code>, <code>copy.deepcopy</code>, and <code>pickle</code> keep a PEP 702 message written onto the proxy.</li>
+<li>
+<p>Setting <code>__deprecated__</code> on a deprecated proxy now keeps the marker on the proxy, and deleting it no longer removes the wrapped object's own marker; reading it after deletion raises <code>AttributeError</code>. <code>copy.copy</code>, <code>copy.deepcopy</code>, and <code>pickle</code> keep a PEP 702 message written onto the proxy.</p>
+</li>
+<li>
+<p><strong>Calls that need no forwarding preserve the caller's positional and keyword argument form.</strong> A call that needs no forwarding, rename or extra argument reaches the source exactly as made; a call forwarded to a callable target is still passed by keyword. A custom stream that raises no longer leaves warning bookkeeping or emission context stuck, and a warning that fails to deliver does not spend the warning budget.</p>
+</li>
+<li><strong>Warnings are attributed to the caller's module.</strong> They point at the user's call site and carry the caller's module name, so a warning filter keyed on <code>module="deprecate"</code> no longer matches them: an <code>ignore</code> filter that silenced them before now lets them through, and they raise under <code>-W error</code>. Key filters on the calling module instead.</li>
+<li><strong>Async proxy warnings are emitted when the underlying awaitable or async iterator is obtained.</strong> A later failure or exhaustion during <code>await</code> or <code>__anext__</code> still consumes the warning budget. If the warning itself fails, a coroutine the wrapped call created is closed, while one the wrapped object holds as an attribute (or is) is left usable. <code>next()</code> on a deprecated proxy now warns before the wrapped iterator advances, so a failed warning consumes no item; calling the proxy also warns first, as <code>@deprecated</code> does, while other synchronous operations still warn only after success, and in-place operators and <code>defaultdict</code> subscripts keep their effect if delivery fails.</li>
+<li><strong>A custom <code>stream</code> is called exactly once, with its signature read before the call.</strong> A stream that declares <code>**kwargs</code> receives <code>stacklevel=</code> and must accept or drop it (forward it to <code>warnings.warn</code> or <code>logging.warning</code>; <code>print(msg, **kwargs)</code> raises <code>TypeError</code>). Declare <code>def sink(msg)</code> to receive the message alone. A bare <code>(*args, **kwargs)</code> <code>functools.wraps</code> pass-through is judged by the callable it wraps, also when a <code>functools.partial</code> binds it, and a stream whose only parameter is named <code>stacklevel</code> receives the message alone.</li>
+<li><strong><code>skip_if</code> now covers item and in-place writes.</strong> With <code>skip_if</code> active, <code>proxy[key] = value</code>, <code>del proxy[key]</code> and in-place operators write to the wrapped object and the read-only guard does not apply. A fatal proxy (<code>as_exception=True</code>) raises <code>DeprecatedError</code> before a subscript, iteration or mapped attribute read touches the wrapped object.</li>
 </ul>
 </div>
 </div>
 </div>
-<h3 id="coming-from-v02x">Coming from v0.2.x<a class="headerlink" href="#coming-from-v02x" title="Permanent link">🔗</a></h3>
+<h3 id="coming-from-v03x">Coming from v0.3.x<a class="headerlink" href="#coming-from-v03x" title="Permanent link">🔗</a></h3>
 <div class="tabbed-set tabbed-alternate" data-tabs="12:2"><input checked="checked" id="__tabbed_12_1" name="__tabbed_12" type="radio" /><input id="__tabbed_12_2" name="__tabbed_12" type="radio" /><div class="tabbed-labels"><label for="__tabbed_12_1">Breaking changes</label><label for="__tabbed_12_2">Behavior changes</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
@@ -2924,6 +2956,10 @@
 <li>
 <p><strong><code>__deprecated__</code> is now a plain PEP 702-conformant message string, not the <code>DeprecationConfig</code> object.</strong> The config object moved to <code>__deprecation_config__</code>. Code reading <code>func.__deprecated__.target</code>, <code>.deprecated_in</code>, <code>.args_mapping</code>, or any other config field, or checking <code>isinstance(func.__deprecated__, DeprecationConfig)</code>, now gets a plain <code>str</code> and either raises <code>AttributeError</code> or evaluates <code>False</code>. Replace direct reads with the public <code>get_deprecation_config(obj)</code> helper, which also falls back to a legacy <code>__deprecated__</code>-as-config layout for objects built by a pre-v0.13 pyDeprecate release. Affects every wrapper kind — functions, methods, class proxies (<code>deprecated_class</code>), instance proxies (<code>deprecated_instance</code>), and modules (<code>deprecated_module</code>).</p>
 </li>
+<li>
+<p><strong>A function <code>deprecated_instance</code> stored as a class attribute now binds like a method, and only plain functions do.</strong> Instance access passes <code>self</code> to the wrapped function; use <code>staticmethod(deprecated_instance(...))</code> for static-style access. A <code>functools.partial</code>, bound method, builtin or Cython binding callable is served unbound and silent instead, so a deprecated <code>partial</code> class attribute is no longer bound by Python.</p>
+</li>
+<li><strong><code>functools.partial</code>, <code>partialmethod</code> and <code>singledispatchmethod</code> sources now raise <code>TypeError</code> at decoration.</strong> This includes a named partial (given a <code>__name__</code> through <code>functools.update_wrapper</code>) that 0.14 accepted. Wrap the object in a plain <code>def</code> that calls it and decorate that <code>def</code>.</li>
 </ul>
 </div>
 <div class="tabbed-block">
@@ -2981,12 +3017,21 @@
 <li><strong><code>Old: DeprecationProxy[New] = deprecated_class(target=New, ...)(Cls)</code> no longer type-checks.</strong> A call-form <code>deprecated_class(...)</code> alias is typed as the class it forwards to (<code>type[New]</code> with a class <code>target</code>, otherwise the wrapped class), so drop the annotation. <code>DeprecationProxy[T]</code> remains the annotation for <code>deprecated_instance()</code> proxies.</li>
 <li><strong>Old names accepted only through <code>args_mapping</code> / <code>attrs_mapping</code> are reported on call-form aliases</strong> as <code>call-arg</code> / <code>attr-defined</code>, as the decorator form already did under mypy. To keep such call sites type-checking during the migration window, keep the old names in a legacy class body (decorator form) or wrap the alias in <code>cast(DeprecationProxy[New], ...)</code>; <code>isinstance</code> against the alias then stops type-checking.</li>
 <li><strong>Proxy-only attributes</strong> such as <code>__wrapped__</code> and <code>__deprecation_config__</code> are invisible on <code>type[New]</code>. Read them with <code>get_deprecation_config(Old)</code> or <code>inspect.unwrap(Old)</code>.</li>
-<li>Setting <code>__deprecated__</code> on a deprecated proxy now keeps the marker on the proxy, and deleting it no longer removes the wrapped object's own marker; reading it after deletion raises <code>AttributeError</code>. <code>copy.copy</code>, <code>copy.deepcopy</code>, and <code>pickle</code> keep a PEP 702 message written onto the proxy.</li>
+<li>
+<p>Setting <code>__deprecated__</code> on a deprecated proxy now keeps the marker on the proxy, and deleting it no longer removes the wrapped object's own marker; reading it after deletion raises <code>AttributeError</code>. <code>copy.copy</code>, <code>copy.deepcopy</code>, and <code>pickle</code> keep a PEP 702 message written onto the proxy.</p>
+</li>
+<li>
+<p><strong>Calls that need no forwarding preserve the caller's positional and keyword argument form.</strong> A call that needs no forwarding, rename or extra argument reaches the source exactly as made; a call forwarded to a callable target is still passed by keyword. A custom stream that raises no longer leaves warning bookkeeping or emission context stuck, and a warning that fails to deliver does not spend the warning budget.</p>
+</li>
+<li><strong>Warnings are attributed to the caller's module.</strong> They point at the user's call site and carry the caller's module name, so a warning filter keyed on <code>module="deprecate"</code> no longer matches them: an <code>ignore</code> filter that silenced them before now lets them through, and they raise under <code>-W error</code>. Key filters on the calling module instead.</li>
+<li><strong>Async proxy warnings are emitted when the underlying awaitable or async iterator is obtained.</strong> A later failure or exhaustion during <code>await</code> or <code>__anext__</code> still consumes the warning budget. If the warning itself fails, a coroutine the wrapped call created is closed, while one the wrapped object holds as an attribute (or is) is left usable. <code>next()</code> on a deprecated proxy now warns before the wrapped iterator advances, so a failed warning consumes no item; calling the proxy also warns first, as <code>@deprecated</code> does, while other synchronous operations still warn only after success, and in-place operators and <code>defaultdict</code> subscripts keep their effect if delivery fails.</li>
+<li><strong>A custom <code>stream</code> is called exactly once, with its signature read before the call.</strong> A stream that declares <code>**kwargs</code> receives <code>stacklevel=</code> and must accept or drop it (forward it to <code>warnings.warn</code> or <code>logging.warning</code>; <code>print(msg, **kwargs)</code> raises <code>TypeError</code>). Declare <code>def sink(msg)</code> to receive the message alone. A bare <code>(*args, **kwargs)</code> <code>functools.wraps</code> pass-through is judged by the callable it wraps, also when a <code>functools.partial</code> binds it, and a stream whose only parameter is named <code>stacklevel</code> receives the message alone.</li>
+<li><strong><code>skip_if</code> now covers item and in-place writes.</strong> With <code>skip_if</code> active, <code>proxy[key] = value</code>, <code>del proxy[key]</code> and in-place operators write to the wrapped object and the read-only guard does not apply. A fatal proxy (<code>as_exception=True</code>) raises <code>DeprecatedError</code> before a subscript, iteration or mapped attribute read touches the wrapped object.</li>
 </ul>
 </div>
 </div>
 </div>
-<h3 id="coming-from-v01x">Coming from v0.1.x<a class="headerlink" href="#coming-from-v01x" title="Permanent link">🔗</a></h3>
+<h3 id="coming-from-v02x">Coming from v0.2.x<a class="headerlink" href="#coming-from-v02x" title="Permanent link">🔗</a></h3>
 <div class="tabbed-set tabbed-alternate" data-tabs="13:2"><input checked="checked" id="__tabbed_13_1" name="__tabbed_13" type="radio" /><input id="__tabbed_13_2" name="__tabbed_13" type="radio" /><div class="tabbed-labels"><label for="__tabbed_13_1">Breaking changes</label><label for="__tabbed_13_2">Behavior changes</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
@@ -3065,6 +3110,10 @@
 <li>
 <p><strong><code>__deprecated__</code> is now a plain PEP 702-conformant message string, not the <code>DeprecationConfig</code> object.</strong> The config object moved to <code>__deprecation_config__</code>. Code reading <code>func.__deprecated__.target</code>, <code>.deprecated_in</code>, <code>.args_mapping</code>, or any other config field, or checking <code>isinstance(func.__deprecated__, DeprecationConfig)</code>, now gets a plain <code>str</code> and either raises <code>AttributeError</code> or evaluates <code>False</code>. Replace direct reads with the public <code>get_deprecation_config(obj)</code> helper, which also falls back to a legacy <code>__deprecated__</code>-as-config layout for objects built by a pre-v0.13 pyDeprecate release. Affects every wrapper kind — functions, methods, class proxies (<code>deprecated_class</code>), instance proxies (<code>deprecated_instance</code>), and modules (<code>deprecated_module</code>).</p>
 </li>
+<li>
+<p><strong>A function <code>deprecated_instance</code> stored as a class attribute now binds like a method, and only plain functions do.</strong> Instance access passes <code>self</code> to the wrapped function; use <code>staticmethod(deprecated_instance(...))</code> for static-style access. A <code>functools.partial</code>, bound method, builtin or Cython binding callable is served unbound and silent instead, so a deprecated <code>partial</code> class attribute is no longer bound by Python.</p>
+</li>
+<li><strong><code>functools.partial</code>, <code>partialmethod</code> and <code>singledispatchmethod</code> sources now raise <code>TypeError</code> at decoration.</strong> This includes a named partial (given a <code>__name__</code> through <code>functools.update_wrapper</code>) that 0.14 accepted. Wrap the object in a plain <code>def</code> that calls it and decorate that <code>def</code>.</li>
 </ul>
 </div>
 <div class="tabbed-block">
@@ -3122,7 +3171,170 @@
 <li><strong><code>Old: DeprecationProxy[New] = deprecated_class(target=New, ...)(Cls)</code> no longer type-checks.</strong> A call-form <code>deprecated_class(...)</code> alias is typed as the class it forwards to (<code>type[New]</code> with a class <code>target</code>, otherwise the wrapped class), so drop the annotation. <code>DeprecationProxy[T]</code> remains the annotation for <code>deprecated_instance()</code> proxies.</li>
 <li><strong>Old names accepted only through <code>args_mapping</code> / <code>attrs_mapping</code> are reported on call-form aliases</strong> as <code>call-arg</code> / <code>attr-defined</code>, as the decorator form already did under mypy. To keep such call sites type-checking during the migration window, keep the old names in a legacy class body (decorator form) or wrap the alias in <code>cast(DeprecationProxy[New], ...)</code>; <code>isinstance</code> against the alias then stops type-checking.</li>
 <li><strong>Proxy-only attributes</strong> such as <code>__wrapped__</code> and <code>__deprecation_config__</code> are invisible on <code>type[New]</code>. Read them with <code>get_deprecation_config(Old)</code> or <code>inspect.unwrap(Old)</code>.</li>
-<li>Setting <code>__deprecated__</code> on a deprecated proxy now keeps the marker on the proxy, and deleting it no longer removes the wrapped object's own marker; reading it after deletion raises <code>AttributeError</code>. <code>copy.copy</code>, <code>copy.deepcopy</code>, and <code>pickle</code> keep a PEP 702 message written onto the proxy.</li>
+<li>
+<p>Setting <code>__deprecated__</code> on a deprecated proxy now keeps the marker on the proxy, and deleting it no longer removes the wrapped object's own marker; reading it after deletion raises <code>AttributeError</code>. <code>copy.copy</code>, <code>copy.deepcopy</code>, and <code>pickle</code> keep a PEP 702 message written onto the proxy.</p>
+</li>
+<li>
+<p><strong>Calls that need no forwarding preserve the caller's positional and keyword argument form.</strong> A call that needs no forwarding, rename or extra argument reaches the source exactly as made; a call forwarded to a callable target is still passed by keyword. A custom stream that raises no longer leaves warning bookkeeping or emission context stuck, and a warning that fails to deliver does not spend the warning budget.</p>
+</li>
+<li><strong>Warnings are attributed to the caller's module.</strong> They point at the user's call site and carry the caller's module name, so a warning filter keyed on <code>module="deprecate"</code> no longer matches them: an <code>ignore</code> filter that silenced them before now lets them through, and they raise under <code>-W error</code>. Key filters on the calling module instead.</li>
+<li><strong>Async proxy warnings are emitted when the underlying awaitable or async iterator is obtained.</strong> A later failure or exhaustion during <code>await</code> or <code>__anext__</code> still consumes the warning budget. If the warning itself fails, a coroutine the wrapped call created is closed, while one the wrapped object holds as an attribute (or is) is left usable. <code>next()</code> on a deprecated proxy now warns before the wrapped iterator advances, so a failed warning consumes no item; calling the proxy also warns first, as <code>@deprecated</code> does, while other synchronous operations still warn only after success, and in-place operators and <code>defaultdict</code> subscripts keep their effect if delivery fails.</li>
+<li><strong>A custom <code>stream</code> is called exactly once, with its signature read before the call.</strong> A stream that declares <code>**kwargs</code> receives <code>stacklevel=</code> and must accept or drop it (forward it to <code>warnings.warn</code> or <code>logging.warning</code>; <code>print(msg, **kwargs)</code> raises <code>TypeError</code>). Declare <code>def sink(msg)</code> to receive the message alone. A bare <code>(*args, **kwargs)</code> <code>functools.wraps</code> pass-through is judged by the callable it wraps, also when a <code>functools.partial</code> binds it, and a stream whose only parameter is named <code>stacklevel</code> receives the message alone.</li>
+<li><strong><code>skip_if</code> now covers item and in-place writes.</strong> With <code>skip_if</code> active, <code>proxy[key] = value</code>, <code>del proxy[key]</code> and in-place operators write to the wrapped object and the read-only guard does not apply. A fatal proxy (<code>as_exception=True</code>) raises <code>DeprecatedError</code> before a subscript, iteration or mapped attribute read touches the wrapped object.</li>
+</ul>
+</div>
+</div>
+</div>
+<h3 id="coming-from-v01x">Coming from v0.1.x<a class="headerlink" href="#coming-from-v01x" title="Permanent link">🔗</a></h3>
+<div class="tabbed-set tabbed-alternate" data-tabs="14:2"><input checked="checked" id="__tabbed_14_1" name="__tabbed_14" type="radio" /><input id="__tabbed_14_2" name="__tabbed_14" type="radio" /><div class="tabbed-labels"><label for="__tabbed_14_1">Breaking changes</label><label for="__tabbed_14_2">Behavior changes</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<ul>
+<li><strong>Update warning filters and assertions from <code>DeprecationWarning</code> to <code>FutureWarning</code>.</strong> Application users now see the warnings under Python's default filters.</li>
+<li><strong>Run on Python 3.9 or newer.</strong> Python 3.8 support was removed.</li>
+<li>
+<p><strong>Review the license change from MIT to Apache-2.0</strong> if your distribution or compliance process records dependency licenses.</p>
+</li>
+<li>
+<p><strong>Fix cross-class method forwarding.</strong> Passing a class target to a non-<code>__init__</code> instance method now raises <code>TypeError</code> at decoration time instead of forwarding a <code>self</code> of the wrong type.</p>
+</li>
+<li>
+<p><strong>Replace API names deprecated until v1.0:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Deprecated API</th>
+<th>Replacement</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>find_deprecated_callables</code></td>
+<td><code>find_deprecation_wrappers</code></td>
+</tr>
+<tr>
+<td><code>validate_deprecated_callable</code></td>
+<td><code>validate_deprecation_wrapper</code></td>
+</tr>
+<tr>
+<td><code>DeprecatedCallableInfo</code></td>
+<td><code>DeprecationWrapperInfo</code></td>
+</tr>
+<tr>
+<td><code>no_warning_call</code></td>
+<td><code>assert_no_warnings</code></td>
+</tr>
+</tbody>
+</table>
+</li>
+<li>
+<p>Replace <code>target=None</code> with <code>TargetMode.NOTIFY</code> or omit <code>target</code> for a warn-only decorator.</p>
+</li>
+<li>Replace <code>target=True</code> with <code>TargetMode.ARGS_REMAP</code>.</li>
+<li>Replace <code>DeprecationWrapperInfo.empty_mapping</code> with <code>empty_args_mapping</code>, and <code>identity_mapping</code> with <code>identity_args_mapping</code>. The old properties warn and are removed in v1.0.</li>
+<li>If code inspects <code>wrapper.__deprecated__.target</code>, compare with a <code>TargetMode</code>, callable, or <code>None</code>. <code>DeprecationConfig.target</code> stores a normalized value, never legacy <code>True</code> or <code>False</code>.</li>
+<li>
+<p>Update external documentation bookmarks from flat paths such as <code>/pyDeprecate/troubleshooting.html</code> to the versioned <code>/pyDeprecate/stable/troubleshooting.html</code> layout.</p>
+</li>
+<li>
+<p><strong>Rename the CLI flag <code>--skip_errors</code> to <code>--exit-zero</code></strong> in every <code>check</code>, <code>expiry</code>, <code>chains</code>, and <code>all</code> command. The old flag is rejected. <code>--exit_zero</code> remains an underscore alias, but the dashed spelling is canonical.</p>
+</li>
+<li>
+<p><strong>Fix unsupported stacked decorators.</strong> Six shapes, including callable-over-callable, now emit <code>UserWarning</code> at decoration time and become <code>TypeError</code> in v1.0. The supported lifecycle stack is outer <code>ARGS_REMAP</code> plus inner <code>NOTIFY</code>.</p>
+</li>
+<li>
+<p><strong>Outer-order deprecated properties now warn on read, write, and delete.</strong> Under <code>filterwarnings=error::FutureWarning</code>, a setter or deleter that was previously silent now raises. If only reads should warn, keep inner order (<code>@property</code> outside <code>@deprecated</code>) or decorate only <code>fget</code>.</p>
+</li>
+<li>
+<p><strong>Update proxy detection.</strong> <code>proxy.__class__</code> reports the wrapped object's type for <code>isinstance</code> transparency. Use <code>type(proxy)</code> when you need to detect <code>_DeprecatedProxy</code> itself.</p>
+</li>
+<li><strong>Do not use an instance proxy as the second argument to <code>isinstance()</code> or <code>issubclass()</code>.</strong> This misuse now raises <code>TypeError</code> instead of returning <code>False</code>. Class-alias proxies remain valid there.</li>
+<li><strong>Review expiry CI scope.</strong> <code>validate_deprecation_expiry()</code> now defaults to <code>include_members=True</code>, so expired methods, constructors, descriptors, and properties can newly fail the gate. Pass <code>include_members=False</code> only when the old narrower scope is intentional.</li>
+<li><strong>Fix invalid <code>remove_in</code> versions.</strong> An unparsable <code>remove_in</code> now emits <code>UserWarning</code> during batch expiry instead of being skipped silently.</li>
+<li><strong>Fix misspelled CLI flags.</strong> Unknown flags now fail instead of being silently ignored.</li>
+<li>
+<p><strong>Use named <code>%</code> fields in custom message templates.</strong> Bare <code>%s</code> or <code>%d</code> conversions now raise <code>ValueError</code> when the decorator is applied.</p>
+</li>
+<li>
+<p><strong><code>@deprecated(target=TargetMode.ATTRS_REMAP)</code> now raises <code>TypeError</code> for a class source.</strong> It already raised for functions. <code>ATTRS_REMAP</code> needs the class-only <code>attrs_mapping</code> keyword, which the common front door does not expose, so a class source previously built a proxy that remapped nothing. Use <code>deprecated_class(attrs_mapping=...)</code>.</p>
+</li>
+<li>
+<p><strong>Rename <code>template_mgs</code> to <code>message_template</code></strong> on <code>deprecated()</code>, <code>deprecated_callable()</code>, <code>deprecated_class()</code>, and <code>deprecated_instance()</code>. The typo remains a warning alias until v1.0; supplying both names raises <code>TypeError</code>.</p>
+</li>
+<li>
+<p><strong><code>__deprecated__</code> is now a plain PEP 702-conformant message string, not the <code>DeprecationConfig</code> object.</strong> The config object moved to <code>__deprecation_config__</code>. Code reading <code>func.__deprecated__.target</code>, <code>.deprecated_in</code>, <code>.args_mapping</code>, or any other config field, or checking <code>isinstance(func.__deprecated__, DeprecationConfig)</code>, now gets a plain <code>str</code> and either raises <code>AttributeError</code> or evaluates <code>False</code>. Replace direct reads with the public <code>get_deprecation_config(obj)</code> helper, which also falls back to a legacy <code>__deprecated__</code>-as-config layout for objects built by a pre-v0.13 pyDeprecate release. Affects every wrapper kind — functions, methods, class proxies (<code>deprecated_class</code>), instance proxies (<code>deprecated_instance</code>), and modules (<code>deprecated_module</code>).</p>
+</li>
+<li>
+<p><strong>A function <code>deprecated_instance</code> stored as a class attribute now binds like a method, and only plain functions do.</strong> Instance access passes <code>self</code> to the wrapped function; use <code>staticmethod(deprecated_instance(...))</code> for static-style access. A <code>functools.partial</code>, bound method, builtin or Cython binding callable is served unbound and silent instead, so a deprecated <code>partial</code> class attribute is no longer bound by Python.</p>
+</li>
+<li><strong><code>functools.partial</code>, <code>partialmethod</code> and <code>singledispatchmethod</code> sources now raise <code>TypeError</code> at decoration.</strong> This includes a named partial (given a <code>__name__</code> through <code>functools.update_wrapper</code>) that 0.14 accepted. Wrap the object in a plain <code>def</code> that calls it and decorate that <code>def</code>.</li>
+</ul>
+</div>
+<div class="tabbed-block">
+<ul>
+<li>
+<p>Mapping errors now include the originating class or function name. Tests that assert complete error strings may need updated expected text.</p>
+</li>
+<li>
+<p>Across the v0.6.x line, backward support for <code>@deprecated</code> on a class was restored through delegation to <code>deprecated_class()</code>. Existing class decorators need no rewrite for v0.12; delegation remains permanent and only its informational notice is scheduled for removal.</p>
+</li>
+<li>
+<p>Omitting <code>deprecated_in</code> on a function or method emits <code>UserWarning</code> at decoration time. Add the version as part of every deprecation lifecycle.</p>
+</li>
+<li><code>ARGS_REMAP</code> without <code>args_mapping</code>, <code>NOTIFY</code> with <code>args_mapping</code> or <code>args_extra</code>, and invalid <code>target=False</code> now warn immediately. These are migration failures, not harmless diagnostics; correct them before v1.0.</li>
+<li>
+<p>Omitting <code>target</code> is the canonical warn-only form. Its v0.12 default is <code>TargetMode.AUTO</code>, which resolves to <code>NOTIFY</code> when no mapping is present, so the user-visible result is unchanged.</p>
+</li>
+<li>
+<p>CLI scans suppress only warnings from <code>deprecate.*</code>; third-party warnings are now visible. CI that treats all warnings as errors may start failing on dependencies imported during a scan.</p>
+</li>
+<li>
+<p>Audit code sees the supported <code>ARGS_REMAP + NOTIFY</code> chain as <code>ChainType.STACKED</code>, not <code>ChainType.TARGET</code>.</p>
+</li>
+<li>
+<p>When a caller supplies both deprecated and replacement keyword names, the explicit replacement value now wins regardless of call-site order.</p>
+</li>
+<li>
+<p>Circular callable-target chains now raise a named <code>RuntimeError</code> instead of ending in <code>RecursionError</code>.</p>
+</li>
+<li>
+<p><code>repr()</code>, <code>str()</code>, equality, and hashing on a target-forwarding proxy now reflect the active target rather than the deprecated source.</p>
+</li>
+<li>In-place operators such as <code>proxy += 1</code> rebind the name to the unwrapped result. Later uses are silent; avoid in-place operators if the proxy must retain its warning budget.</li>
+<li><code>args_mapping</code>, <code>args_extra</code>, and <code>attrs_mapping</code> are copied at decoration time. Mutating the original dict later no longer changes forwarding behavior.</li>
+<li>Constructing an <code>attrs_mapping</code>-only class proxy is now silent; only access to a listed deprecated attribute warns.</li>
+<li>Concurrent calls now respect exactly the configured <code>num_warns</code> budget. Tests that accidentally relied on one warning per racing thread will see fewer warnings.</li>
+<li>
+<p>Recursive audits deduplicate re-exports, include deprecated private and dunder members, warn and skip submodules that fail to import, and ignore unrelated foreign objects that raise during metadata probing. Counts and rows can therefore change in both directions.</p>
+</li>
+<li>
+<p><code>@deprecated</code> now defaults to <code>TargetMode.AUTO</code>. It resolves at decoration time: a function/class with <code>args_mapping</code> becomes <code>ARGS_REMAP</code>; a source without a mapping becomes warn-only. <code>AUTO</code> is never stored in <code>DeprecationConfig</code>; do not pass it explicitly because it exists only as the front-door default.</p>
+</li>
+<li>Existing <code>@deprecated</code> use on a class remains supported; no code change or decorator rewrite is required. It permanently delegates to <code>deprecated_class()</code> and emits one informational <code>UserWarning</code> per module-qualified class. <code>stream=None</code> suppresses the notice. Only the notice, not backward support or delegation, is removed in v1.0.</li>
+<li><code>message_template</code> and <code>skip_if</code> supplied through <code>@deprecated</code> on a class now reach the proxy. <code>message_template</code> was previously dropped on that path.</li>
+<li>Non-callable sources now raise a direct <code>TypeError</code> pointing users to <code>deprecated_instance()</code> instead of failing later on <code>__name__</code>.</li>
+<li>
+<p>Explicit <code>target=TargetMode.NOTIFY</code> together with a mapping still emits <code>UserWarning</code>, stays <code>NOTIFY</code>, leaves the mapping inert, and is marked misconfigured — unchanged from v0.11.0, and a <code>TypeError</code> in v1.0. What changed is that an <em>omitted</em> <code>target</code> no longer lands here: it auto-resolves instead. Omit <code>target</code> to infer remapping, or select the matching remap mode explicitly.</p>
+</li>
+<li>
+<p>Griffe's <code>RuntimeDocstrings</code> extension now scopes its docstring-replacement guard to pyDeprecate's own <code>__deprecation_config__</code> metadata (<code>get_deprecation_config(obj) is not None</code>) instead of a bare truthiness check on <code>__deprecated__</code>. A foreign object decorated only with the stdlib's <code>warnings.deprecated</code> / <code>typing_extensions.deprecated</code> (string-valued <code>__deprecated__</code>, no pyDeprecate metadata) previously passed that truthy check too; it no longer does, since it was never meant to be replaced.</p>
+</li>
+<li>
+<p>v0.14 ships <code>py.typed</code>, so type checkers now read pyDeprecate's own types instead of treating every object as <code>Any</code>. Runtime behavior is unchanged; only checker output moves.</p>
+</li>
+<li><strong><code>Old: DeprecationProxy[New] = deprecated_class(target=New, ...)(Cls)</code> no longer type-checks.</strong> A call-form <code>deprecated_class(...)</code> alias is typed as the class it forwards to (<code>type[New]</code> with a class <code>target</code>, otherwise the wrapped class), so drop the annotation. <code>DeprecationProxy[T]</code> remains the annotation for <code>deprecated_instance()</code> proxies.</li>
+<li><strong>Old names accepted only through <code>args_mapping</code> / <code>attrs_mapping</code> are reported on call-form aliases</strong> as <code>call-arg</code> / <code>attr-defined</code>, as the decorator form already did under mypy. To keep such call sites type-checking during the migration window, keep the old names in a legacy class body (decorator form) or wrap the alias in <code>cast(DeprecationProxy[New], ...)</code>; <code>isinstance</code> against the alias then stops type-checking.</li>
+<li><strong>Proxy-only attributes</strong> such as <code>__wrapped__</code> and <code>__deprecation_config__</code> are invisible on <code>type[New]</code>. Read them with <code>get_deprecation_config(Old)</code> or <code>inspect.unwrap(Old)</code>.</li>
+<li>
+<p>Setting <code>__deprecated__</code> on a deprecated proxy now keeps the marker on the proxy, and deleting it no longer removes the wrapped object's own marker; reading it after deletion raises <code>AttributeError</code>. <code>copy.copy</code>, <code>copy.deepcopy</code>, and <code>pickle</code> keep a PEP 702 message written onto the proxy.</p>
+</li>
+<li>
+<p><strong>Calls that need no forwarding preserve the caller's positional and keyword argument form.</strong> A call that needs no forwarding, rename or extra argument reaches the source exactly as made; a call forwarded to a callable target is still passed by keyword. A custom stream that raises no longer leaves warning bookkeeping or emission context stuck, and a warning that fails to deliver does not spend the warning budget.</p>
+</li>
+<li><strong>Warnings are attributed to the caller's module.</strong> They point at the user's call site and carry the caller's module name, so a warning filter keyed on <code>module="deprecate"</code> no longer matches them: an <code>ignore</code> filter that silenced them before now lets them through, and they raise under <code>-W error</code>. Key filters on the calling module instead.</li>
+<li><strong>Async proxy warnings are emitted when the underlying awaitable or async iterator is obtained.</strong> A later failure or exhaustion during <code>await</code> or <code>__anext__</code> still consumes the warning budget. If the warning itself fails, a coroutine the wrapped call created is closed, while one the wrapped object holds as an attribute (or is) is left usable. <code>next()</code> on a deprecated proxy now warns before the wrapped iterator advances, so a failed warning consumes no item; calling the proxy also warns first, as <code>@deprecated</code> does, while other synchronous operations still warn only after success, and in-place operators and <code>defaultdict</code> subscripts keep their effect if delivery fails.</li>
+<li><strong>A custom <code>stream</code> is called exactly once, with its signature read before the call.</strong> A stream that declares <code>**kwargs</code> receives <code>stacklevel=</code> and must accept or drop it (forward it to <code>warnings.warn</code> or <code>logging.warning</code>; <code>print(msg, **kwargs)</code> raises <code>TypeError</code>). Declare <code>def sink(msg)</code> to receive the message alone. A bare <code>(*args, **kwargs)</code> <code>functools.wraps</code> pass-through is judged by the callable it wraps, also when a <code>functools.partial</code> binds it, and a stream whose only parameter is named <code>stacklevel</code> receives the message alone.</li>
+<li><strong><code>skip_if</code> now covers item and in-place writes.</strong> With <code>skip_if</code> active, <code>proxy[key] = value</code>, <code>del proxy[key]</code> and in-place operators write to the wrapped object and the read-only guard does not apply. A fatal proxy (<code>as_exception=True</code>) raises <code>DeprecatedError</code> before a subscript, iteration or mapped attribute read touches the wrapped object.</li>
 </ul>
 </div>
 </div>
@@ -3151,7 +3363,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 6, 2026 07:24:50 UTC">2026-10-06</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 23, 2026 14:56:30 UTC">2026-10-23</span>
   </span>
 
     

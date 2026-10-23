@@ -100,7 +100,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-04-21",
-  "dateModified": "2026-07-23"
+  "dateModified": "2026-10-23"
 }
 </script>
 
@@ -1703,13 +1703,19 @@
 </details>
 
 <h2 id="deprecation-output-sink-stream">Deprecation Output Sink (<code>stream</code>)<a class="headerlink" href="#deprecation-output-sink-stream" title="Permanent link">🔗</a></h2>
-<p><code>stream</code> controls where deprecation messages go. It accepts any callable with signature <code>(msg: str) -&gt; None</code>, or <code>None</code> to silence output entirely.</p>
+<p><code>stream</code> controls where deprecation messages go. It accepts a callable that can receive the warning message, or <code>None</code> to silence output entirely. pyDeprecate probes the callable signature to see whether it can also receive <code>stacklevel</code>; if that signature cannot be inspected, it falls back to calling the stream with the message only. In that fallback, a custom stream that forwards to <code>warnings.warn</code> cannot receive pyDeprecate's caller stack level.</p>
+<p>The stream runs exactly once per warning — a <code>TypeError</code> it raises is never retried — so the decision is made from its signature before the call:</p>
+<ul>
+<li>A stream that can take <code>stacklevel</code> as a keyword (a <code>stacklevel</code> parameter, or <code>**kwargs</code>) is called as <code>stream(msg, stacklevel=...)</code>; any other stream is called as <code>stream(msg)</code>.</li>
+<li>A stream that declares <code>**kwargs</code> is therefore handed <code>stacklevel=</code> and must accept or drop it: forward it to a callable that takes it (<code>warnings.warn</code>, <code>logging.warning</code>), never to one that rejects it, such as <code>print(msg, **kwargs)</code>, which raises <code>TypeError</code>. To receive the message alone, declare the stream without <code>**kwargs</code>.</li>
+<li>A bare <code>(*args, **kwargs)</code> pass-through built with <code>functools.wraps</code> is judged by the callable it wraps, so an adapter around a message-only sink stays message-only. A narrow stream that only copied another callable's metadata is judged by its own parameters.</li>
+</ul>
 <h3 id="default-futurewarning-via-warningswarn">Default: FutureWarning via <code>warnings.warn</code><a class="headerlink" href="#default-futurewarning-via-warningswarn" title="Permanent link">🔗</a></h3>
 <p>By default, <code>stream</code> is <code>functools.partial(warnings.warn, category=FutureWarning)</code>. In practice this means:</p>
 <ul>
 <li>Deprecation notices appear as <code>FutureWarning</code>, visible by default in scripts and interactive sessions.</li>
 <li>Standard warning filters apply — suppress with <code>warnings.filterwarnings("ignore", category=FutureWarning)</code> when needed.</li>
-<li>The traceback points to internal pyDeprecate wrapper code. For caller-level tracebacks, use a custom stream that calls <code>warnings.warn</code> with an appropriate <code>stacklevel</code>.</li>
+<li>The warning points at your line that calls the deprecated API, not at pyDeprecate's wrapper code: the location is measured when the warning fires, skipping every frame inside the <code>deprecate</code> package, so module-scoped warning filters and <code>-W error</code> tracebacks name your code. A custom stream receives the same <code>stacklevel</code>; one written in Python that forwards it to <code>warnings.warn</code> adds its own frame and lands one frame short — see <a href="../troubleshooting.html">Troubleshooting</a>.</li>
 </ul>
 <h3 id="silencing-deprecation-output-entirely">Silencing deprecation output entirely<a class="headerlink" href="#silencing-deprecation-output-entirely" title="Permanent link">🔗</a></h3>
 <p>Pass <code>stream=None</code> to disable all deprecation output for a specific function. Call forwarding still works — only the message is suppressed. This is useful for internal wrappers that exist solely for backwards compatibility without user-facing noise.</p>
@@ -1822,7 +1828,7 @@
 </details>
 
 <h3 id="custom-stream-callable">Custom stream callable<a class="headerlink" href="#custom-stream-callable" title="Permanent link">🔗</a></h3>
-<p>Any callable accepting a single string argument works. Here is an example that collects deprecation messages into a list for later processing:</p>
+<p>Any callable accepting the message as a single string argument works; one that also declares <code>stacklevel</code> or <code>**kwargs</code> is additionally passed <code>stacklevel=</code> and must accept or drop it (see <a href="#deprecation-output-sink-stream">Deprecation Output Sink</a>). Here is an example that collects deprecation messages into a list for later processing:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
 <a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>
 <a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="n">collected_warnings</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="p">[]</span>
@@ -1888,7 +1894,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="July 23, 2026 15:23:12 UTC">2026-07-23</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 23, 2026 14:56:30 UTC">2026-10-23</span>
   </span>
 
     
