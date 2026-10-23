@@ -39,6 +39,8 @@ from deprecate.utils import (
     _apply_args_mapping_collisions,
     _get_signature,
     _partial_chain,
+    _SigFacts,
+    _signature_facts,
     get_func_arguments_types_defaults,
 )
 
@@ -448,37 +450,6 @@ def _normalize_target(
     return target
 
 
-def _precompute_target_facts(
-    target: Union[Callable, TargetMode],
-) -> tuple[frozenset[str], bool, bool]:
-    """Extract decoration-time-stable signature facts of a forwarding target.
-
-    Computed once at decoration time and stored on :class:`~deprecate._types.DeprecationConfig`
-    so the call-time kwarg validation never re-inspects the target (previously an uncached
-    ``inspect.getfullargspec`` on every forwarded call).
-
-    Args:
-        target: Normalised target — a :class:`TargetMode` member or a callable.  Non-callables
-            return empty/``False`` facts because the dispatcher never forwards to them.
-
-    Returns:
-        Tuple ``(all_param_names, accepts_var_positional, accepts_var_keyword)`` where
-        ``all_param_names`` mirrors :func:`get_func_arguments_types_defaults` (every signature
-        parameter, including ``*args`` / ``**kwargs`` names).
-
-    """
-    if not callable(target):
-        return frozenset(), False, False
-    try:
-        params = _get_signature(target).parameters
-    except (TypeError, ValueError):
-        return frozenset(), False, False
-    all_names = frozenset(params)
-    accepts_var_positional = any(p.kind is inspect.Parameter.VAR_POSITIONAL for p in params.values())
-    accepts_var_keyword = any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values())
-    return all_names, accepts_var_positional, accepts_var_keyword
-
-
 def _prepare_target_call(
     source: Callable,
     target: Callable,
@@ -497,7 +468,7 @@ def _prepare_target_call(
         source: Deprecated callable being wrapped.
         target: Target callable to invoke (shall not be a class).
         kwargs: Keyword arguments after mapping and defaults.
-        target_arg_names: Pre-computed target parameter names (see :func:`_precompute_target_facts`).  When
+        target_arg_names: Pre-computed target parameter names (see :func:`_build_call_facts`).  When
             ``None`` the facts are derived from ``target`` on the spot — the decorator path always passes the
             cached values so the fallback only runs for direct/test callers.
         accepts_var_positional: Whether ``target`` declares ``*args`` (from the same pre-computed facts).
@@ -519,7 +490,9 @@ def _prepare_target_call(
 
     """
     if target_arg_names is None:
-        target_arg_names, accepts_var_positional, accepts_var_keyword = _precompute_target_facts(target)
+        target_facts = _signature_facts(target, empty_on_error=True)
+        target_arg_names = target_facts.names
+        accepts_var_positional, accepts_var_keyword = target_facts.var_positional, target_facts.var_keyword
 
     missed = [arg for arg in kwargs if arg not in target_arg_names]
     if missed and not accepts_var_keyword:
@@ -1059,14 +1032,35 @@ def _leading_positional_slots(func: Callable[..., Any]) -> tuple[tuple[str, ...]
     return tuple(names), False
 
 
-def _precompute_target_positional_names(target: Union[Callable[..., Any], TargetMode]) -> Optional[tuple[str, ...]]:
-    """Return the target's leading positional names, ``()`` for a non-callable, ``None`` for an unreadable signature."""
+def _target_signature_facts(
+    target: Union[Callable[..., Any], TargetMode],
+) -> tuple[_SigFacts, Optional[tuple[str, ...]]]:
+    """Read a normalised target's signature once, keeping apart a mode target and an unreadable callable.
+
+    Args:
+        target: The normalised target returned by :func:`_normalize_target`.
+
+    Returns:
+        Tuple of ``(facts, positional_names)``.  A :class:`TargetMode` gives empty facts and ``()``; a callable whose
+        signature cannot be read gives empty facts and ``None``, so its forwarded call raises the signature error
+        itself; any other callable gives its facts and their ``positional_names``.
+
+    Example:
+        >>> def target(a, /, b, *rest, c=1): pass
+        >>> facts, positional_names = _target_signature_facts(target)
+        >>> positional_names, sorted(facts.positional_only)
+        (('a', 'b'), ['a'])
+        >>> _target_signature_facts(TargetMode.NOTIFY)[1]
+        ()
+
+    """
     if not callable(target):
-        return ()
+        return _SigFacts(), ()
     try:
-        return _leading_positional_slots(target)[0]
+        facts = _signature_facts(target)
     except (TypeError, ValueError):
-        return None
+        return _SigFacts(), None
+    return facts, facts.positional_names
 
 
 def _build_call_facts(
@@ -1076,14 +1070,14 @@ def _build_call_facts(
 ) -> _CallFacts:
     """Derive the :class:`~deprecate._types._CallFacts` of a source and its normalised target at decoration time.
 
-    Reads the source signature once and the target signature through :func:`_detect_positional_only`,
-    :func:`_precompute_target_facts` and :func:`_leading_positional_slots`, so no call inspects either again.
+    Reads the source signature and the target signature once each through :func:`~deprecate.utils._signature_facts`,
+    so no call inspects either again.
 
     Args:
         source: The decorated callable.
         normalized_target: The normalised target returned by :func:`_normalize_target`.
-        stream: Warning stream; the POSITIONAL_ONLY target warning of :func:`_detect_positional_only` fires through
-            ``warnings.warn`` unless it is ``None``.
+        stream: Warning stream; the POSITIONAL_ONLY target warning of :func:`_warn_target_positional_only` fires
+            through ``warnings.warn`` unless it is ``None``.
 
     Returns:
         The facts the call-time dispatcher reads.
@@ -1099,26 +1093,25 @@ def _build_call_facts(
         (('a', 'b'), 2, ['a'])
 
     """
-    source_params = list(_get_signature(source).parameters.values())
-    var_positional_at = next((i for i, p in enumerate(source_params) if p.kind is Parameter.VAR_POSITIONAL), None)
+    source_facts = _signature_facts(source)
+    target_facts, target_positional_names = _target_signature_facts(normalized_target)
+    _warn_target_positional_only(normalized_target, source, target_facts.positional_only, stream)
     # Source-side POSITIONAL_ONLY params: a call the wrapper rewrites (a triggered ARGS_REMAP rename, or ARGS_REMAP
     # with args_extra) converts positional args to kwargs internally, so the dispatcher must split these back out
-    # before invoking the source body.  Verbatim calls keep the caller's shape and need no split.
-    source_positional_only = frozenset(p.name for p in source_params if p.kind is POSITIONAL_ONLY)
-    target_positional_only, target_positional_only_order = _detect_positional_only(normalized_target, source, stream)
-    target_all_names, accepts_var_positional, accepts_var_keyword = _precompute_target_facts(normalized_target)
+    # before invoking the source body.  Verbatim calls keep the caller's shape and need no split.  Both sides keep
+    # their declaration order only when they have POSITIONAL_ONLY params to split.
     return _CallFacts(
-        source_positional_names=tuple(p.name for p in _get_positional_params(source_params)),
-        source_has_var_positional=var_positional_at is not None,
-        source_var_positional_prefix=var_positional_at or 0,
-        source_positional_only=source_positional_only,
-        source_positional_only_order=tuple(p.name for p in source_params) if source_positional_only else (),
-        target_all_param_names=target_all_names,
-        target_accepts_var_positional=accepts_var_positional,
-        target_accepts_var_keyword=accepts_var_keyword,
-        target_positional_only=target_positional_only,
-        target_positional_only_order=target_positional_only_order,
-        target_positional_names=_precompute_target_positional_names(normalized_target),
+        source_positional_names=source_facts.positional_names,
+        source_has_var_positional=source_facts.var_positional,
+        source_var_positional_prefix=source_facts.var_positional_index or 0,
+        source_positional_only=source_facts.positional_only,
+        source_positional_only_order=source_facts.order if source_facts.positional_only else (),
+        target_all_param_names=target_facts.names,
+        target_accepts_var_positional=target_facts.var_positional,
+        target_accepts_var_keyword=target_facts.var_keyword,
+        target_positional_only=target_facts.positional_only,
+        target_positional_only_order=target_facts.order if target_facts.positional_only else (),
+        target_positional_names=target_positional_names,
     )
 
 
@@ -1322,38 +1315,25 @@ def _build_call_plan(ctx: _WrapperContext, args: tuple[Any, ...], kwargs: dict[s
     )
 
 
-def _detect_positional_only(
+def _warn_target_positional_only(
     target: Union[Callable, TargetMode],
     source: Callable,
+    target_positional_only: frozenset[str],
     stream: Optional[Callable],
-) -> tuple[frozenset[str], tuple[str, ...]]:
-    """Inspect *target* for POSITIONAL_ONLY parameters and emit a ``UserWarning`` when found.
+) -> None:
+    """Emit a ``UserWarning`` when a forwarding target declares POSITIONAL_ONLY parameters.
 
-    Called at decoration time so the warning fires once and the results are stored in
-    :class:`~deprecate._types.DeprecationConfig` for the call-time dispatcher.
+    Called at decoration time by :func:`_build_call_facts` so the warning fires once; the call-time dispatcher then
+    passes those values positionally.  ``self`` and ``cls`` are exempt: they are positional by nature.
 
     Args:
-        target: Normalised target from :func:`_normalize_target` — may be a
-            :class:`TargetMode` or a callable.  Non-callables return empty results immediately.
+        target: Normalised target from :func:`_normalize_target` — may be a :class:`TargetMode` or a callable;
+            used only in the warning message.
         source: The decorated callable; used only in the warning message.
+        target_positional_only: The target's POSITIONAL_ONLY parameter names (empty for a :class:`TargetMode`).
         stream: Warning stream; when ``None`` the warning is suppressed.
 
-    Returns:
-        Tuple of ``(target_positional_only, target_positional_only_order)`` where
-        ``target_positional_only`` is the frozenset of POSITIONAL_ONLY param names and
-        ``target_positional_only_order`` is the full parameter-name tuple in declaration order.
-
     """
-    if not callable(target):
-        return frozenset(), ()
-    try:
-        tgt_sig = inspect.signature(target)
-    except (TypeError, ValueError):
-        return frozenset(), ()
-    target_positional_only = frozenset(
-        name for name, p in tgt_sig.parameters.items() if p.kind is inspect.Parameter.POSITIONAL_ONLY
-    )
-    target_positional_only_order: tuple[str, ...] = tuple(tgt_sig.parameters.keys()) if target_positional_only else ()
     warn_set = target_positional_only - {"self", "cls"}
     if warn_set and stream is not None:
         warnings.warn(
@@ -1365,7 +1345,6 @@ def _detect_positional_only(
             UserWarning,
             stacklevel=_caller_stacklevel(),
         )
-    return target_positional_only, target_positional_only_order
 
 
 def _resolve_stored_target(

@@ -72,7 +72,7 @@ from deprecate.messaging import (
     _validate_message_template,
     deprecation_warning,
 )
-from deprecate.utils import _apply_args_mapping_collisions, _get_args_mapping_positional_only_keys, _is_dataclass_target
+from deprecate.utils import _apply_args_mapping_collisions, _is_dataclass_target, _SigFacts, _signature_facts
 
 
 def _is_dunder(name: str) -> bool:
@@ -568,13 +568,17 @@ class _DeprecatedProxy:
         target, args_mapping, _auto_expanded, _explicit_notify_attrs = _resolve_proxy_target(
             obj, target, args_mapping, attrs_mapping, _dc_check
         )
+        # Constructor signature of the active class, read once (a non-class active object has no constructor to
+        # inspect); both the kwargs-compatibility guard and the POSITIONAL_ONLY split data below derive from it.
+        _ctor_facts = _signature_facts(_dc_check, empty_on_error=True) if isinstance(_dc_check, type) else _SigFacts()
         # Kwargs-compatibility guard: detect args_mapping keys that remap to POSITIONAL_ONLY params.
-        _incompatible = _detect_proxy_positional_only(_dc_check, name, args_mapping)
+        _incompatible = _detect_proxy_positional_only(_dc_check, name, args_mapping, _ctor_facts.positional_only)
         # Constructor POSITIONAL_ONLY split data: the call path forwards remapped values
         # positionally (same split machinery as the @deprecated dispatcher) instead of the
         # historical pop-and-setattr fallback, which failed for required params, immutable
         # instances, and constructor-derived state.
-        _ctor_positional_only, _ctor_positional_only_order = _detect_ctor_positional_only(_dc_check)
+        _ctor_positional_only = _ctor_facts.positional_only
+        _ctor_positional_only_order = _ctor_facts.order if _ctor_positional_only else ()
         # Validate misconfig (NOTIFY+mapping, ARGS_REMAP+no-args_mapping, NOTIFY+args_extra). The
         # validator returns True when any signal fired so we extend ``misconfigured`` accordingly —
         # ``DeprecationConfig.misconfigured`` becomes a single source of truth for all signals.
@@ -1792,54 +1796,30 @@ def _resolve_proxy_target(
     return target, args_mapping, auto_expanded, explicit_notify_attrs
 
 
-def _detect_ctor_positional_only(dc_check: Any) -> tuple[frozenset[str], tuple[str, ...]]:  # noqa: ANN401
-    """Inspect the active class constructor for POSITIONAL_ONLY parameters.
-
-    Proxy twin of :func:`~deprecate._dispatch._detect_positional_only`: pre-computes the split
-    data consumed by :func:`_proxy_call_with_positional_split` so remapped kwargs bound to
-    positional-only constructor params can be forwarded positionally at call time.
-
-    Args:
-        dc_check: The resolved active object (target class when configured, wrapped object
-            otherwise).  Non-class objects yield empty results.
-
-    Returns:
-        Tuple of ``(positional_only, param_order)`` — the POSITIONAL_ONLY parameter names of the
-        constructor and the full parameter-name sequence in declaration order (``self`` excluded,
-        matching ``inspect.signature`` on a class).  Both empty when *dc_check* is not a class or
-        its constructor declares no positional-only params.
-
-    """
-    if not isinstance(dc_check, type):
-        return frozenset(), ()
-    try:
-        ctor_sig = inspect.signature(dc_check)
-    except (TypeError, ValueError):
-        return frozenset(), ()
-    positional_only = frozenset(
-        param_name
-        for param_name, param in ctor_sig.parameters.items()
-        if param.kind is inspect.Parameter.POSITIONAL_ONLY
-    )
-    param_order: tuple[str, ...] = tuple(ctor_sig.parameters) if positional_only else ()
-    return positional_only, param_order
-
-
 def _detect_proxy_positional_only(
     dc_check: Any,  # noqa: ANN401
     name: str,
     args_mapping: Optional[dict[str, Optional[str]]],
+    ctor_positional_only: frozenset[str],
 ) -> tuple[str, ...]:
     """Detect ``args_mapping`` keys that remap to POSITIONAL_ONLY constructor parameters.
 
-    Emits a ``UserWarning`` at decoration time and returns the incompatible old-key names so they can be recorded in
-    :class:`~deprecate._types.DeprecationConfig` for audit surfacing. Returns an empty tuple when no incompatibilities
-    are found.
+    When ``deprecated_class(args_mapping={"old": "new"}, ...)`` targets a class whose constructor declares ``new`` as
+    positional-only (``def __init__(self, new, /): ...``), a call with ``old=value`` cannot be forwarded as
+    ``new=value``.  Emits a ``UserWarning`` at decoration time and returns the incompatible old-key names so they can
+    be recorded in :class:`~deprecate._types.DeprecationConfig` for audit surfacing.  A ``None`` mapping value (drop)
+    is never incompatible.  Returns an empty tuple when no incompatibilities are found.
+
+    Args:
+        dc_check: The resolved active object; only a class is checked.
+        name: Display name of the deprecated object, used in the warning message.
+        args_mapping: The ``args_mapping`` being validated.
+        ctor_positional_only: POSITIONAL_ONLY parameter names of the constructor of ``dc_check``.
 
     """
     if not (args_mapping and isinstance(dc_check, type)):
         return ()
-    incompatible = _get_args_mapping_positional_only_keys(dc_check, args_mapping)
+    incompatible = tuple(old_key for old_key, new_key in args_mapping.items() if new_key in ctor_positional_only)
     if incompatible:
         warnings.warn(
             f"`args_mapping` on `{name}` remaps {list(incompatible)!r} to POSITIONAL_ONLY "

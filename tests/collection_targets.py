@@ -777,6 +777,15 @@ def positional_only_target(x: int, /, y: int = 0) -> int:
     return x + y
 
 
+def every_parameter_kind_target(a: int, /, b: int = 2, *rest: int, c: int, d: int = 4, **extra: int) -> None:
+    """Target declaring one parameter of every kind, two of them with defaults.
+
+    ``a`` is positional-only, ``b`` positional-or-keyword, ``rest`` the ``*args`` tail, ``c`` and ``d``
+    keyword-only and ``extra`` the ``**kwargs`` catch-all.  Read directly (not wrapped) by the
+    :func:`deprecate.utils._signature_facts` tests to check that one signature read classifies every kind.
+    """
+
+
 async def async_positional_only_target(x: int, /, y: int = 0) -> int:
     """Async target with one POSITIONAL_ONLY param for async dispatch tests.
 

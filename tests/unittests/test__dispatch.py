@@ -28,15 +28,16 @@ from deprecate._dispatch import (
     _merge_source_defaults,
     _normalize_target,
     _precompute_forward_defaults,
-    _precompute_target_facts,
     _prepare_target_call,
     _reject_bare_decorator,
     _split_positional_only_kwargs,
+    _target_signature_facts,
     _update_kwargs_with_args,
     _update_kwargs_with_defaults,
     _WrapperContext,
 )
 from deprecate._types import DeprecationConfig, _CallFacts, _DeprecatedCallable, _WrapperState
+from deprecate.utils import _signature_facts
 from tests.collection_deprecate import (
     CrossGuardModuleLevel,
     CrossGuardOldClass,
@@ -1156,21 +1157,21 @@ class TestTargetFactsPrecompute:
         assert cfg.target_accepts_var_keyword is False
 
     def test_precompute_reports_var_args_and_kwargs(self) -> None:
-        """`_precompute_target_facts` flags ``*args`` and ``**kwargs`` and collects every parameter name."""
+        """`_signature_facts` flags ``*args`` and ``**kwargs`` and collects every parameter name."""
 
         def _tgt(a: int, b: int = 2, *rest: int, **extra: int) -> None:
             """Throwaway signature carrying every parameter kind for the precompute helper."""
 
-        names, var_pos, var_kw = _precompute_target_facts(_tgt)
-        assert names == frozenset({"a", "b", "rest", "extra"})
-        assert var_pos is True
-        assert var_kw is True
+        facts = _signature_facts(_tgt)
+        assert facts.names == frozenset({"a", "b", "rest", "extra"})
+        assert facts.var_positional is True
+        assert facts.var_keyword is True
 
     def test_precompute_empty_for_non_callable_target(self) -> None:
         """A :class:`TargetMode` (non-callable) target yields empty facts — the dispatcher never forwards to it."""
-        names, var_pos, var_kw = _precompute_target_facts(TargetMode.NOTIFY)
-        assert names == frozenset()
-        assert (var_pos, var_kw) == (False, False)
+        facts, _ = _target_signature_facts(TargetMode.NOTIFY)
+        assert facts.names == frozenset()
+        assert (facts.var_positional, facts.var_keyword) == (False, False)
 
     def test_repr_excludes_cache_fields(self) -> None:
         """The precomputed cache fields stay out of ``repr`` so audit output and doc examples remain stable."""

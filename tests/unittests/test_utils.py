@@ -3,10 +3,102 @@
 import inspect
 import warnings
 from collections.abc import Callable
+from typing import Any, cast
 
 import pytest
 
-from deprecate.utils import _get_signature, _get_signature_cached, _warns_repr, get_func_arguments_types_defaults, void
+from deprecate.utils import (
+    _get_signature,
+    _get_signature_cached,
+    _SigFacts,
+    _signature_facts,
+    _warns_repr,
+    get_func_arguments_types_defaults,
+    void,
+)
+from tests.collection_targets import (
+    HostileSignatureCallable,
+    RequiredPositionalOnlyTarget,
+    UnintrospectableStream,
+    every_parameter_kind_target,
+)
+
+#: Not callable, so ``inspect.signature`` raises ``TypeError`` for it.
+_NON_CALLABLE = cast(Callable[..., Any], 42)
+
+
+class TestSignatureFacts:
+    """Tests for _signature_facts, the one reader of a callable's signature at decoration time."""
+
+    def test_classifies_every_parameter_kind(self) -> None:
+        """One read reports names, kinds, order and defaults of a signature carrying every parameter kind.
+
+        The decorator and the proxy derive all their call-time data (positional splits, ``*args`` forwarding,
+        keyword validation) from these facts instead of inspecting the same signature again, so a target that mixes
+        positional-only, positional-or-keyword, ``*args``, keyword-only and ``**kwargs`` parameters must come back
+        fully and correctly classified.
+        """
+        assert _signature_facts(every_parameter_kind_target) == _SigFacts(
+            names=frozenset({"a", "b", "rest", "c", "d", "extra"}),
+            positional_names=("a", "b"),
+            positional_only=frozenset({"a"}),
+            order=("a", "b", "rest", "c", "d", "extra"),
+            var_positional=True,
+            var_keyword=True,
+            defaults={"b": 2, "d": 4},
+            var_positional_index=2,
+        )
+
+    def test_class_reports_constructor_without_self(self) -> None:
+        """A class reports its constructor parameters, ``self`` excluded.
+
+        ``deprecated_class`` reads the constructor of the active class to find positional-only parameters that a
+        remapped keyword must be passed to positionally; ``self`` is supplied by Python and must not appear.
+        """
+        facts = _signature_facts(RequiredPositionalOnlyTarget)
+        assert facts.order == ("new_val",)
+        assert facts.positional_only == frozenset({"new_val"})
+        assert facts.defaults == {}
+
+    @pytest.mark.parametrize(
+        ("obj", "error"),
+        [
+            pytest.param(UnintrospectableStream(), ValueError, id="no-signature"),
+            pytest.param(_NON_CALLABLE, TypeError, id="non-callable"),
+        ],
+    )
+    def test_unreadable_signature_raises(self, obj: Callable[..., Any], error: type[Exception]) -> None:
+        """An unreadable signature raises the error ``inspect.signature`` raises.
+
+        The decorator rejects a source whose signature it cannot read, so the strict default must surface the
+        original ``TypeError`` or ``ValueError`` instead of silently describing a callable with no parameters.
+        """
+        with pytest.raises(error):
+            _signature_facts(obj)
+
+    @pytest.mark.parametrize(
+        "obj",
+        [
+            pytest.param(UnintrospectableStream(), id="no-signature"),
+            pytest.param(_NON_CALLABLE, id="non-callable"),
+        ],
+    )
+    def test_empty_on_error_returns_empty_facts(self, obj: Callable[..., Any]) -> None:
+        """``empty_on_error=True`` turns an unreadable signature into empty facts.
+
+        A forwarding target or a proxied class constructor that cannot be inspected (a C-level callable, a hostile
+        metaclass) must not break decoration: those callers treat it as having no positional-only parameters.
+        """
+        assert _signature_facts(obj, empty_on_error=True) == _SigFacts()
+
+    def test_empty_on_error_keeps_other_errors(self) -> None:
+        """Only ``TypeError`` and ``ValueError`` are swallowed; any other signature error propagates.
+
+        A ``__signature__`` descriptor raising ``RuntimeError`` is a bug in the inspected object, not an
+        unsupported signature, so it must reach the caller as it does from ``inspect.signature`` itself.
+        """
+        with pytest.raises(RuntimeError, match="deliberately unreadable"):
+            _signature_facts(HostileSignatureCallable(), empty_on_error=True)
 
 
 class TestSignatureFunctions:

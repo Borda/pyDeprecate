@@ -926,7 +926,7 @@ class TestValidateMappingCompatibility:
 
         ``args_mapping`` values of ``None`` denote warn-only (drop) entries — the proxy never
         attempts to forward the key as a kwarg, so there is no positional-only incompatibility
-        to report.  ``_get_args_mapping_positional_only_keys`` correctly skips ``None`` values;
+        to report.  ``deprecate.proxy._detect_proxy_positional_only`` correctly skips ``None`` values;
         this test pins that behaviour so a future refactor cannot introduce a false positive.
         """
         # Construct the proxy with a warn-only (None) mapping to the positional-only param name.
