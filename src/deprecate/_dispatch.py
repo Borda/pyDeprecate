@@ -15,7 +15,7 @@ import warnings
 from collections.abc import Mapping
 from functools import cached_property, partial, partialmethod, singledispatchmethod
 from inspect import Parameter
-from typing import Any, Callable, NoReturn, Optional, Union, cast
+from typing import Any, Callable, NamedTuple, NoReturn, Optional, Union, cast
 
 from deprecate._fatal import _resolve_as_exception
 from deprecate._frames import _caller_stacklevel
@@ -745,11 +745,87 @@ def _renamed_defaults_owned_by_target(
     return frozenset(rename_targets | renamed_with_target_default)
 
 
+class _ForwardDefaults(NamedTuple):
+    """Names that keep a source default out of a forwarded call, fixed once the function is decorated.
+
+    Both sets depend only on the target and on ``args_mapping``, never on the call, so a wrapper can derive them one
+    time (:func:`_precompute_forward_defaults`) and hand the same instance to every call instead of re-deriving them
+    on each one. Keep that instance in the wrapper's closure, not on
+    :class:`~deprecate._types.DeprecationConfig`, which is public through ``get_deprecation_config``.
+
+    Attributes:
+        stale_renamed: Source parameter names whose default an ``args_mapping`` rename makes stale (see
+            :func:`_renamed_defaults_owned_by_target`).
+        partial_bound: Keyword names bound anywhere in the target's ``functools.partial`` chain.
+
+    """
+
+    stale_renamed: frozenset[str]
+    partial_bound: frozenset[str]
+
+
+def _derive_forward_defaults(
+    normalized_target: Union[Callable[..., Any], TargetMode],
+    args_mapping: Optional[Mapping[str, Optional[str]]],
+) -> _ForwardDefaults:
+    """Derive the :class:`_ForwardDefaults` of one target and mapping on the spot.
+
+    Args:
+        normalized_target: The normalised target (callable or :class:`TargetMode`).
+        args_mapping: The wrapper's ``args_mapping``, or ``None``.
+
+    Returns:
+        The names a rename makes stale and the keywords the target's ``functools.partial`` chain binds.
+
+    Raises:
+        TypeError: When the target's signature cannot be read.
+        ValueError: When the target's signature cannot be read.
+
+    """
+    stale_renamed = _renamed_defaults_owned_by_target(normalized_target, args_mapping or {})
+    partial_bound = frozenset().union(*(layer.keywords for layer in _partial_chain(normalized_target)))
+    return _ForwardDefaults(stale_renamed, partial_bound)
+
+
+def _precompute_forward_defaults(
+    normalized_target: Union[Callable[..., Any], TargetMode],
+    args_mapping: Optional[Mapping[str, Optional[str]]],
+) -> Optional[_ForwardDefaults]:
+    """Derive a wrapper's :class:`_ForwardDefaults` once, at decoration time.
+
+    Hand the result to :func:`_build_call_plan` on every call; the forwarded-call path then skips the target
+    signature read and the ``functools.partial`` chain walk that would otherwise repeat per call.
+
+    Args:
+        normalized_target: The normalised target (callable or :class:`TargetMode`).
+        args_mapping: The wrapper's ``args_mapping``, or ``None``.
+
+    Returns:
+        The facts, or ``None`` when the target's signature cannot be read. Passing ``None`` on makes the call path
+        derive them itself, so the error an unreadable signature raises still surfaces on the first forwarded call
+        and decoration (import time) never fails because of it.
+
+    Example:
+        >>> from functools import partial
+        >>> def new(x, y=1, z=2): pass
+        >>> _precompute_forward_defaults(partial(new, z=5), None)
+        _ForwardDefaults(stale_renamed=frozenset(), partial_bound=frozenset({'z'}))
+        >>> sorted(_precompute_forward_defaults(new, {"old": "y"}).stale_renamed)
+        ['old', 'y']
+
+    """
+    try:
+        return _derive_forward_defaults(normalized_target, args_mapping)
+    except (TypeError, ValueError):
+        return None
+
+
 def _merge_source_defaults(
     source: Callable[..., Any],
     normalized_target: Union[Callable[..., Any], TargetMode],
     kwargs: dict[str, Any],
     args_mapping: Optional[Mapping[str, Optional[str]]],
+    forward_defaults: Optional[_ForwardDefaults] = None,
 ) -> dict[str, Any]:
     """Fill the source's defaults into the caller's *kwargs*, leaving out defaults the target owns.
 
@@ -770,17 +846,20 @@ def _merge_source_defaults(
         normalized_target: The normalised target (callable or :class:`TargetMode`).
         kwargs: The caller's arguments, positionals already mapped to their parameter names.
         args_mapping: The wrapper's ``args_mapping``, or ``None``.
+        forward_defaults: Facts precomputed at decoration time (:func:`_precompute_forward_defaults`). ``None``
+            derives them from ``normalized_target`` and ``args_mapping`` on the spot, on every call.
 
     Returns:
         The caller's arguments plus every source default the target does not own.
 
     """
     full_defaults = _update_kwargs_with_defaults(source, kwargs)
-    mapping = args_mapping or {}
-    stale_renamed = _renamed_defaults_owned_by_target(normalized_target, mapping)
-    partial_bound = frozenset().union(*(layer.keywords for layer in _partial_chain(normalized_target)))
+    if forward_defaults is None:
+        forward_defaults = _derive_forward_defaults(normalized_target, args_mapping)
+    stale_renamed, partial_bound = forward_defaults
     if not stale_renamed and not partial_bound:
         return full_defaults
+    mapping = args_mapping or {}
     return {
         name: value
         for name, value in full_defaults.items()
@@ -861,6 +940,7 @@ def _assemble_forwarded_call(
     dep_cfg: DeprecationConfig,
     stream: Optional[Callable[..., None]],
     reason_callable: bool,
+    forward_defaults: Optional[_ForwardDefaults] = None,
 ) -> tuple[dict[str, Any], Optional[Callable[..., Any]]]:
     """Build the final keyword arguments, and the validated target, for a call the wrapper has to rewrite.
 
@@ -875,13 +955,15 @@ def _assemble_forwarded_call(
         dep_cfg: The wrapper's configuration.
         stream: Warning stream, forwarded to the argument-collision check.
         reason_callable: ``True`` when the whole callable is deprecated (``NOTIFY`` or a callable target).
+        forward_defaults: Facts precomputed at decoration time, handed to :func:`_merge_source_defaults`; ``None``
+            derives them per call.
 
     Returns:
         Tuple of ``(kwargs, target_func)``; ``target_func`` is ``None`` unless ``normalized_target`` is callable.
 
     """
     if reason_callable:
-        kwargs = _merge_source_defaults(source, normalized_target, kwargs, dep_cfg.args_mapping)
+        kwargs = _merge_source_defaults(source, normalized_target, kwargs, dep_cfg.args_mapping, forward_defaults)
     if dep_cfg.args_mapping and (normalized_target is TargetMode.ARGS_REMAP or callable(normalized_target)):
         args_skip = [arg for arg in dep_cfg.args_mapping if not dep_cfg.args_mapping[arg]]
         _explicit_new = _apply_args_mapping_collisions(dep_cfg.args_mapping, kwargs, args_skip, source.__name__, stream)
@@ -921,6 +1003,7 @@ def _build_call_plan(
     source_has_var_positional: bool,
     source_is_stacked: bool,
     source_positional_names: Optional[tuple[str, ...]] = None,
+    forward_defaults: Optional[_ForwardDefaults] = None,
 ) -> _CallPlan:
     """Compute the dispatch plan shared by the sync and async wrappers inside :func:`deprecated`.
 
@@ -961,6 +1044,8 @@ def _build_call_plan(
             order; drives the arity pre-check and detects a deprecated argument filled positionally.  ``None`` derives
             them from ``source`` on the spot (see :func:`_source_positional_names`) — the decorator always passes the
             cached tuple, so the fallback only runs for direct callers.
+        forward_defaults: Decoration-time facts for the forwarded-call path (see
+            :func:`_precompute_forward_defaults`); ``None`` derives them on every forwarded call.
 
     Returns:
         A :class:`_CallPlan` describing the resolved dispatch outcome.  When :attr:`_CallPlan.verbatim` is set, the
@@ -1053,7 +1138,7 @@ def _build_call_plan(
     target_func: Optional[Callable[..., Any]] = None
     if not verbatim:
         kwargs, target_func = _assemble_forwarded_call(
-            source, normalized_target, kwargs, dep_cfg, stream, reason_callable
+            source, normalized_target, kwargs, dep_cfg, stream, reason_callable, forward_defaults
         )
 
     return _CallPlan(

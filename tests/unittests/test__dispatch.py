@@ -8,7 +8,7 @@ import threading
 import time
 import warnings
 from collections.abc import Iterator
-from typing import Any, Callable, cast
+from typing import Any, Callable, Optional, Union, cast
 
 import pytest
 
@@ -17,8 +17,11 @@ from deprecate._dispatch import (
     POSITIONAL_OR_KEYWORD,
     _build_call_plan,
     _find_class_body_qualname,
+    _ForwardDefaults,
     _get_positional_params,
+    _merge_source_defaults,
     _normalize_target,
+    _precompute_forward_defaults,
     _precompute_target_facts,
     _prepare_target_call,
     _reject_bare_decorator,
@@ -72,7 +75,11 @@ from tests.collection_targets import (
     call_signature_source,
     compute_power,
     double_value,
+    fn_shared_default_target,
+    fn_with_default,
     identity_value,
+    nested_partial_target,
+    partial_target,
     positional_only_target,
     positional_only_two_params_target,
     stacked_inner_target,
@@ -1524,6 +1531,148 @@ def test_source_is_stacked_skips_positional_conversion() -> None:
     future_warnings = [w for w in record if w.category is FutureWarning]
     assert result == 8.0, "Stacked wrapper must compute compute_power(2.0, scale=3.0) == 8.0"
     assert len(future_warnings) >= 1, "Inner NOTIFY layer must still fire its FutureWarning on a migrated caller"
+
+
+# ---------------------------------------------------------------------------
+# Forward-default facts — precomputed once per wrapper instead of on every forwarded call
+# ---------------------------------------------------------------------------
+
+
+def _source_with_defaults(x: int = 0, old_arg: int = 1, y: int = 0) -> None:
+    """Signature probe whose three defaults the forward-default tests keep or drop."""
+
+
+class TestForwardDefaultsPrecompute:
+    """Per-wrapper facts that decide which source defaults a forwarded call must not send to the target."""
+
+    @pytest.mark.parametrize(
+        ("target", "mapping", "stale_renamed", "partial_bound"),
+        [
+            pytest.param(
+                fn_with_default,
+                {"old_arg": "new_arg"},
+                {"old_arg", "new_arg"},
+                set(),
+                id="rename-onto-target-default",
+            ),
+            pytest.param(partial_target, None, set(), {"y"}, id="partial-bound-keyword"),
+            pytest.param(nested_partial_target, None, set(), {"y"}, id="nested-partial-inner-layer"),
+            pytest.param(double_value, None, set(), set(), id="plain-callable-without-mapping"),
+            pytest.param(
+                TargetMode.ARGS_REMAP, {"old_arg": "new_arg"}, set(), set(), id="target-mode-forwards-nothing"
+            ),
+        ],
+    )
+    def test_collects_names_a_forwarded_call_must_not_resend(
+        self,
+        target: Union[Callable[..., Any], TargetMode],
+        mapping: Optional[dict[str, Optional[str]]],
+        stale_renamed: set[str],
+        partial_bound: set[str],
+    ) -> None:
+        """The facts name the source defaults a rename makes stale and the keywords a partial target binds.
+
+        A library maintainer renames ``old_arg`` to ``new_arg`` where the replacement already defaults
+        ``new_arg``, or forwards to ``partial(new_scale, y=5)``. Both inputs are fixed once the function is
+        decorated, so the dispatcher derives the names one time and every later call reuses them.
+        """
+        facts = _precompute_forward_defaults(target, mapping)
+
+        assert facts == _ForwardDefaults(frozenset(stale_renamed), frozenset(partial_bound))
+
+    def test_unreadable_target_signature_yields_no_facts(self) -> None:
+        """A target whose signature cannot be read gives ``None`` so decoration still succeeds.
+
+        A C-level callable can refuse ``inspect.signature``. Today the failure surfaces on the first forwarded call
+        that carries an ``args_mapping``; computing the facts when the function is decorated must not move that
+        failure to import time, so the call-time path stays responsible for it.
+        """
+
+        class _OpaqueTarget:
+            @property
+            def __signature__(self) -> inspect.Signature:
+                raise ValueError("no signature found")
+
+            def __call__(self, *args: Any, **kwargs: Any) -> None:  # noqa: ANN401
+                """Accept anything; only the unreadable signature matters here."""
+
+        assert _precompute_forward_defaults(_OpaqueTarget(), {"old_arg": "new_arg"}) is None
+
+    @pytest.mark.parametrize(
+        ("target", "mapping", "kwargs", "expected"),
+        [
+            pytest.param(
+                fn_with_default, {"old_arg": "new_arg"}, {}, {"x": 0, "y": 0}, id="stale-renamed-default-dropped"
+            ),
+            pytest.param(partial_target, None, {}, {"x": 0, "old_arg": 1}, id="partial-bound-default-dropped"),
+            pytest.param(partial_target, None, {"y": 7}, {"x": 0, "old_arg": 1, "y": 7}, id="caller-value-kept"),
+            pytest.param(double_value, None, {}, {"x": 0, "old_arg": 1, "y": 0}, id="no-reason-keeps-every-default"),
+        ],
+    )
+    def test_merge_gives_same_result_with_or_without_supplied_facts(
+        self,
+        target: Callable[..., Any],
+        mapping: Optional[dict[str, Optional[str]]],
+        kwargs: dict[str, Any],
+        expected: dict[str, Any],
+    ) -> None:
+        """Passing the precomputed facts changes the speed of the merge, never its result.
+
+        The decorator hands the facts it computed at decoration time to every call, while direct callers pass nothing
+        and get them derived on the spot; both routes have to drop the same stale and partial-bound defaults.
+        """
+        facts = _precompute_forward_defaults(target, mapping)
+
+        on_the_spot = _merge_source_defaults(_source_with_defaults, target, dict(kwargs), mapping)
+        precomputed = _merge_source_defaults(_source_with_defaults, target, dict(kwargs), mapping, facts)
+
+        assert (on_the_spot, precomputed) == (expected, expected)
+
+    def test_merge_trusts_supplied_facts_over_the_target(self) -> None:
+        """Supplied facts are used as given: the merge does not look at the target a second time.
+
+        ``level`` is a plain shared parameter, so deriving the facts from ``fn_shared_default_target`` keeps its
+        source default. Facts that mark ``level`` stale drop it, which can only happen if the supplied value wins.
+        """
+        facts = _ForwardDefaults(stale_renamed=frozenset({"level"}), partial_bound=frozenset())
+
+        def source(x: int, level: int = 1) -> None:
+            """Signature probe sharing ``level`` with the target."""
+
+        merged = _merge_source_defaults(source, fn_shared_default_target, {"x": 5}, None, facts)
+
+        assert merged == {"x": 5}
+
+    def test_call_plan_forwards_supplied_facts_to_the_merge(self) -> None:
+        """`_build_call_plan` hands the supplied facts down, so a wrapper computes them once at decoration.
+
+        A forwarded call with ``level`` unset normally sends the source default ``level=1``; with facts that mark
+        ``level`` stale the resolved keywords carry only ``x``, proving the plan used the facts it was given.
+        """
+
+        def source(x: int, level: int = 1) -> None:
+            """Signature probe sharing ``level`` with the target."""
+
+        cfg = DeprecationConfig(deprecated_in="1.0", remove_in="2.0", name="src", target=fn_shared_default_target)
+        wrapper = _make_wrapper_stub(source, cfg)
+        facts = _ForwardDefaults(stale_renamed=frozenset({"level"}), partial_bound=frozenset())
+
+        plan = _build_call_plan(
+            wrapper_fn=wrapper,
+            source=source,
+            target=fn_shared_default_target,
+            normalized_target=fn_shared_default_target,
+            args=(),
+            kwargs={"x": 5},
+            dep_cfg=cfg,
+            stream=None,
+            num_warns=1,
+            source_has_var_positional=False,
+            source_is_stacked=False,
+            forward_defaults=facts,
+        )
+
+        assert plan.resolved_kwargs == {"x": 5}
 
 
 # ---------------------------------------------------------------------------
