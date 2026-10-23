@@ -69,8 +69,10 @@ class TestLazyAuditImport:
         code = (
             "import sys\n"
             "import deprecate\n"
-            "import deprecate.audit as audit\n"
+            "assert 'deprecate.audit' not in sys.modules\n"
             f"value = getattr(deprecate, {name!r})\n"
+            "assert 'deprecate.audit' in sys.modules\n"
+            "import deprecate.audit as audit\n"
             f"expected = audit if {name!r} == 'audit' else getattr(audit, {name!r})\n"
             "print(value is expected)\n"
         )
