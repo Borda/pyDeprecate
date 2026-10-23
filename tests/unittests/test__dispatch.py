@@ -84,6 +84,8 @@ from tests.collection_targets import (
     partial_target,
     positional_only_target,
     positional_only_two_params_target,
+    source_sharing_level_default,
+    source_with_forward_defaults,
     stacked_inner_target,
     stacked_outer_target,
 )
@@ -1540,10 +1542,6 @@ def test_source_is_stacked_skips_positional_conversion() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _source_with_defaults(x: int = 0, old_arg: int = 1, y: int = 0) -> None:
-    """Signature probe whose three defaults the forward-default tests keep or drop."""
-
-
 class TestForwardDefaultsPrecompute:
     """Per-wrapper facts that decide which source defaults a forwarded call must not send to the target."""
 
@@ -1637,8 +1635,8 @@ class TestForwardDefaultsPrecompute:
         """
         facts = _precompute_forward_defaults(target, mapping)
 
-        on_the_spot = _merge_source_defaults(_source_with_defaults, target, dict(kwargs), mapping)
-        precomputed = _merge_source_defaults(_source_with_defaults, target, dict(kwargs), mapping, facts)
+        on_the_spot = _merge_source_defaults(source_with_forward_defaults, target, dict(kwargs), mapping)
+        precomputed = _merge_source_defaults(source_with_forward_defaults, target, dict(kwargs), mapping, facts)
 
         assert (on_the_spot, precomputed) == (expected, expected)
 
@@ -1650,10 +1648,7 @@ class TestForwardDefaultsPrecompute:
         """
         facts = _ForwardDefaults(stale_renamed=frozenset({"level"}), partial_bound=frozenset())
 
-        def source(x: int, level: int = 1) -> None:
-            """Signature probe sharing ``level`` with the target."""
-
-        merged = _merge_source_defaults(source, fn_shared_default_target, {"x": 5}, None, facts)
+        merged = _merge_source_defaults(source_sharing_level_default, fn_shared_default_target, {"x": 5}, None, facts)
 
         assert merged == {"x": 5}
 
@@ -1663,17 +1658,13 @@ class TestForwardDefaultsPrecompute:
         A forwarded call with ``level`` unset normally sends the source default ``level=1``; with facts that mark
         ``level`` stale the resolved keywords carry only ``x``, proving the plan used the facts it was given.
         """
-
-        def source(x: int, level: int = 1) -> None:
-            """Signature probe sharing ``level`` with the target."""
-
         cfg = DeprecationConfig(deprecated_in="1.0", remove_in="2.0", name="src", target=fn_shared_default_target)
-        wrapper = _make_wrapper_stub(source, cfg)
+        wrapper = _make_wrapper_stub(source_sharing_level_default, cfg)
         facts = _ForwardDefaults(stale_renamed=frozenset({"level"}), partial_bound=frozenset())
 
         plan = _build_call_plan(
             wrapper_fn=wrapper,
-            source=source,
+            source=source_sharing_level_default,
             target=fn_shared_default_target,
             normalized_target=fn_shared_default_target,
             args=(),

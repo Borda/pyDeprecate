@@ -235,6 +235,19 @@ def fn_shared_default_target(x: int, level: int = 99) -> int:
     return level
 
 
+def source_sharing_level_default(x: int, level: int = 1) -> None:
+    """Signature probe sharing ``level`` with :func:`fn_shared_default_target`, with a different default (1)."""
+
+
+def source_with_forward_defaults(x: int = 0, old_arg: int = 1, y: int = 0) -> None:
+    """Signature probe whose three defaults the forward-default tests keep or drop.
+
+    ``old_arg`` is the name a rename makes stale and ``y`` the keyword a ``functools.partial`` target binds, so each
+    default is dropped by exactly one forward-default rule.
+
+    """
+
+
 def fn_remap_with_extra_body(new_arg: int = 0, injected: int = 0) -> int:
     """Source body for Fix 2 regression tests using TargetMode.ARGS_REMAP.
 
