@@ -542,25 +542,6 @@ _DEPRECATION_CONFIG_ATTR = "__deprecation_config__"
 _LEGACY_DEPRECATED_ATTR = "__deprecated__"
 
 
-@runtime_checkable
-class _HasDeprecationMeta(Protocol):
-    """Structural type for any callable that carries ``__deprecation_config__`` metadata.
-
-    Both ``@deprecated``-decorated functions and :class:`~deprecate.proxy._DeprecatedProxy` instances satisfy this
-    protocol once the decorator has been applied.
-
-    Module narrowing via :func:`_has_deprecation_meta` is metadata-only and does not imply a callable ``__call__``.
-
-    """
-
-    __deprecation_config__: DeprecationConfig
-    __name__: str
-
-    def __call__(self, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
-        """Call the deprecated object."""
-        raise NotImplementedError
-
-
 def get_deprecation_config(obj: Any) -> Optional[DeprecationConfig]:  # noqa: ANN401
     """Return the :class:`~deprecate._types.DeprecationConfig` metadata attached to *obj*, if any.
 
@@ -615,9 +596,9 @@ def get_deprecation_config(obj: Any) -> Optional[DeprecationConfig]:  # noqa: AN
 def _has_deprecation_meta(obj: Any) -> bool:  # noqa: ANN401
     """Return ``True`` if *obj* carries current or legacy deprecation metadata.
 
-    This predicate deliberately does not narrow to :class:`_HasDeprecationMeta`: legacy objects store their
-    configuration in ``__deprecated__`` and lack ``__deprecation_config__``. Consumers must resolve the value with
-    :func:`get_deprecation_config`.
+    This predicate only checks for metadata; it does not narrow the object's type. Legacy objects store their
+    configuration in ``__deprecated__`` and lack ``__deprecation_config__``, so consumers must resolve the value
+    with :func:`get_deprecation_config`.
 
     Args:
         obj: Any object to test.

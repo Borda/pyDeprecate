@@ -67,6 +67,7 @@ from tests.collection_deprecate import (
     depr_sync_over_partial_async,
     depr_timing_wrapper,
     depr_two_renames_warn_once,
+    depr_uncomparable_default,
     deprecated_async_var_positional_forward,
     deprecated_var_positional_forward,
     deprecated_var_positional_overflow,
@@ -86,11 +87,29 @@ from tests.collection_deprecate import (
     wrapped_sum_warn_only,
 )
 from tests.collection_misconfigured import make_notify_mapping_no_budget
-from tests.collection_targets import NewCls, TimerDecorator, base_sum_kwargs, sample_function, timing_wrapper
+from tests.collection_targets import (
+    NewCls,
+    TimerDecorator,
+    base_sum_kwargs,
+    sample_function,
+    timing_wrapper,
+    uncomparable_default,
+)
 
 
 class TestDeprecationWarnings:
     """Tests for basic deprecation warning behavior."""
+
+    def test_forwarded_default_uses_identity(self) -> None:
+        """Forward an omitted default without invoking its equality operators.
+
+        A deprecated callable may use an array-like default whose equality and inequality operators raise
+        TypeError. Filtering out inspect.Parameter.empty must preserve that default by identity so the
+        replacement receives the original object and the caller still gets a FutureWarning.
+        """
+        with pytest.warns(FutureWarning, match="The `depr_uncomparable_default` was deprecated since v1.0"):
+            result = depr_uncomparable_default()
+        assert result is uncomparable_default
 
     @pytest.mark.parametrize(
         ("func", "name"),
