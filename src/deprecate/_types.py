@@ -712,72 +712,14 @@ class DeprecationProxy(Protocol, Generic[_T_co]):
 
 
 @dataclass
-class _ProxyConfig:
-    """Private mutable runtime state for :class:`~deprecate.proxy._DeprecatedProxy`.
-
-    This is an internal type — not exported from the package and not referenced outside of :mod:`deprecate.proxy`.
-
-    Attributes:
-        obj: The wrapped (source) object.
-        stream: Callable used to emit warnings, or ``None`` to suppress them.
-        num_warns: Maximum number of warnings to emit; ``-1`` means unlimited.
-        read_only: When ``True``, write operations through the proxy raise :class:`AttributeError`.
-        args_extra: Optional dict of extra keyword arguments merged into forwarded calls after ``args_mapping`` has
-            been applied. Ignored when the proxy is in :attr:`~deprecate._types.TargetMode.NOTIFY` mode.
-        message_template: Optional custom warning-message template (``%``-style placeholders) that overrides the
-            built-in templates at warn time. ``None`` (default) keeps the built-in templates. See
-            :func:`~deprecate.proxy.deprecated_class` for the placeholder catalogue.
-        attrs_mapping: Optional mapping of deprecated attribute names to their canonical replacement names (or
-            ``None`` for warn-only).  When set, the proxy emits warnings only on access to listed names and forwards
-            all other reads/writes/deletes silently.  See :func:`~deprecate.proxy.deprecated_class` for full semantics.
-        skip_if: ``bool`` or zero-argument callable returning ``bool``.  When it evaluates ``True`` at access time,
-            the deprecation machinery is inactive for that operation — no warning, no attribute redirect, no argument
-            remapping, no target forwarding; the proxy transparently serves the wrapped source object.  May be
-            consulted more than once per proxy operation, so keep the callable cheap and stable.
-        warned: Mutable counter tracking how many global (callable-level) warnings have been emitted so far.
-        warned_args: Per-argument warning counts for argument-level deprecations. Keys are deprecated argument names;
-            values are emission counts.
-        lock: Guards the warn-quota check-then-act sequence (read counter → decide to emit → increment) so that
-            concurrent first accesses cannot all pass the ``num_warns`` gate and each emit a warning.  Excluded from
-            ``repr`` and equality — it is runtime machinery, not state identity.  A fresh lock is created on copy /
-            deepcopy rather than transferring the original mutex state.
-
-    """
-
-    obj: Any
-    stream: Optional[Callable[..., None]]
-    num_warns: int
-    read_only: bool
-    args_extra: Optional[dict[str, Any]] = None
-    message_template: Optional[str] = None
-    attrs_mapping: Optional[dict[str, Optional[str]]] = None
-    skip_if: Union[bool, Callable[[], bool]] = False
-    warned: int = 0
-    warned_args: dict[str, int] = field(default_factory=dict)
-    lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
-
-    def __deepcopy__(self, memo: dict[int, Any]) -> "_ProxyConfig":
-        return replace(
-            self,
-            obj=copy.deepcopy(self.obj, memo),
-            warned_args=copy.deepcopy(self.warned_args, memo),
-            lock=threading.Lock(),  # fresh lock — mutex state is not transferable
-        )
-
-    def __getstate__(self) -> dict[str, Any]:
-        return {k: v for k, v in self.__dict__.items() if k != "lock"}
-
-    def __setstate__(self, state: dict[str, Any]) -> None:
-        self.__dict__.update(state)
-        self.lock = threading.Lock()  # fresh lock — mutex state is not transferable
-
-
-@dataclass
 class _WrapperState:
-    """Private mutable runtime state for callable and module deprecation warning budgets.
+    """Private mutable runtime state for the deprecation warning budgets of callables, proxies and modules.
 
-    This is an internal type — not exported from the package. Callable wrappers use all counters; module deprecation
-    uses ``warned_calls`` and ``lock`` for its module-wide ``num_warns`` budget.
+    This is an internal type — not exported from the package. Callable wrappers use all counters; a
+    :class:`~deprecate.proxy._DeprecatedProxy` keeps one in :attr:`_ProxyConfig.state` and uses ``warned_calls`` for
+    its proxy-wide budget and ``warned_args`` for per-argument and ``__attr__:``-prefixed attribute budgets; module
+    deprecation uses ``warned_calls`` and ``lock`` for its module-wide ``num_warns`` budget.  A copy, a deep copy or an
+    unpickled state snapshots every counter into its own ``warned_args`` dict with a fresh lock.
 
     Attributes:
         called: Total invocation count, including calls where the warning was suppressed.
@@ -797,6 +739,23 @@ class _WrapperState:
     warned_args: dict[str, int] = field(default_factory=dict)
     warned_misconfigured: bool = False
     lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
+
+    def __copy__(self) -> "_WrapperState":
+        """Snapshot the counters into an independent state: its own ``warned_args`` dict and a fresh lock."""
+        return replace(self, warned_args=dict(self.warned_args), lock=threading.Lock())
+
+    def __deepcopy__(self, memo: dict[int, Any]) -> "_WrapperState":
+        """Snapshot like :meth:`__copy__`; the counters are ints keyed by str, so a dict copy is already deep."""
+        return self.__copy__()
+
+    def __getstate__(self) -> dict[str, Any]:
+        """Return the pickle state without the lock — a mutex cannot be pickled."""
+        return {k: v for k, v in self.__dict__.items() if k != "lock"}
+
+    def __setstate__(self, state: dict[str, Any]) -> None:
+        """Restore the counters and create a fresh lock — mutex state is not transferable."""
+        self.__dict__.update(state)
+        self.lock = threading.Lock()
 
 
 @runtime_checkable
@@ -861,6 +820,73 @@ class _CallFacts:
     target_positional_only: frozenset[str] = frozenset()
     target_positional_only_order: tuple[str, ...] = ()
     target_positional_names: Optional[tuple[str, ...]] = None
+
+
+@dataclass
+class _ProxyConfig:
+    """Private mutable runtime state for :class:`~deprecate.proxy._DeprecatedProxy`.
+
+    This is an internal type — not exported from the package and not referenced outside of :mod:`deprecate.proxy`.
+    Its import path and pickle layout are part of the proxy pickle contract: :meth:`__setstate__` still loads the
+    0.14 layout.
+
+    Attributes:
+        obj: The wrapped (source) object.
+        stream: Callable used to emit warnings, or ``None`` to suppress them.
+        num_warns: Maximum number of warnings to emit; ``-1`` means unlimited.
+        read_only: When ``True``, write operations through the proxy raise :class:`AttributeError`.
+        args_extra: Optional dict of extra keyword arguments merged into forwarded calls after ``args_mapping`` has
+            been applied. Ignored when the proxy is in :attr:`~deprecate._types.TargetMode.NOTIFY` mode.
+        message_template: Optional custom warning-message template (``%``-style placeholders) that overrides the
+            built-in templates at warn time. ``None`` (default) keeps the built-in templates. See
+            :func:`~deprecate.proxy.deprecated_class` for the placeholder catalogue.
+        attrs_mapping: Optional mapping of deprecated attribute names to their canonical replacement names (or
+            ``None`` for warn-only).  When set, the proxy emits warnings only on access to listed names and forwards
+            all other reads/writes/deletes silently.  See :func:`~deprecate.proxy.deprecated_class` for full semantics.
+        skip_if: ``bool`` or zero-argument callable returning ``bool``.  When it evaluates ``True`` at access time,
+            the deprecation machinery is inactive for that operation — no warning, no attribute redirect, no argument
+            remapping, no target forwarding; the proxy transparently serves the wrapped source object.  May be
+            consulted more than once per proxy operation, so keep the callable cheap and stable.
+        state: The warn budget — counters and the lock guarding their check-then-increment — shared machinery with
+            the ``@deprecated`` and module paths (:func:`~deprecate.messaging._consume_warn_budget`).  The
+            proxy-wide counter is ``state.warned_calls``; per-argument and ``__attr__:`` attribute keys live in
+            ``state.warned_args``.  A copy of the config snapshots the counters (see :class:`_WrapperState`).
+        facts: Call-time facts of the active constructor; only ``target_positional_only`` and
+            ``target_positional_only_order`` are used, by the positional-only split of a remapped call.
+
+    """
+
+    obj: Any
+    stream: Optional[Callable[..., None]]
+    num_warns: int
+    read_only: bool
+    args_extra: Optional[dict[str, Any]] = None
+    message_template: Optional[str] = None
+    attrs_mapping: Optional[dict[str, Optional[str]]] = None
+    skip_if: Union[bool, Callable[[], bool]] = False
+    state: _WrapperState = field(default_factory=_WrapperState)
+    facts: _CallFacts = field(default_factory=_CallFacts)
+
+    def __deepcopy__(self, memo: dict[int, Any]) -> "_ProxyConfig":
+        """Deep-copy the wrapped object and snapshot the warn budget; the frozen ``facts`` are shared."""
+        return replace(self, obj=copy.deepcopy(self.obj, memo), state=copy.deepcopy(self.state, memo))
+
+    def __setstate__(self, payload: dict[str, Any]) -> None:
+        """Restore a pickled config, migrating the 0.14 layout.
+
+        A 0.14 payload carries the budget as flat ``warned`` / ``warned_args`` fields and no ``state`` or ``facts``; the
+        counters move into a :class:`_WrapperState` and ``facts`` starts empty (``_reconstruct_proxy`` refills it from
+        the metadata).  A ``lock`` key, which no payload should carry, is dropped.
+
+        """
+        payload = dict(payload)
+        if "state" not in payload:
+            payload["state"] = _WrapperState(
+                warned_calls=payload.pop("warned", 0), warned_args=payload.pop("warned_args", {})
+            )
+        payload.pop("lock", None)
+        payload.setdefault("facts", _CallFacts())
+        self.__dict__.update(payload)
 
 
 @dataclass

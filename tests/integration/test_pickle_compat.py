@@ -16,9 +16,27 @@ from typing import Any
 
 import pytest
 
-from deprecate import DeprecatedError
-from deprecate.proxy import _DeprecatedProxy
-from tests.collection_deprecate import make_pickle_fatal_settings_proxy, make_pickle_settings_proxy
+from deprecate import DeprecatedError, get_deprecation_config
+from deprecate._types import DeprecationConfig, _ProxyConfig
+from deprecate.proxy import _DeprecatedProxy, _reconstruct_proxy
+from tests.collection_deprecate import (
+    DepPositionalOnlyRequired,
+    make_pickle_fatal_settings_proxy,
+    make_pickle_settings_proxy,
+)
+
+#: ``_ProxyConfig`` fields a 0.14.0 payload carries next to its flat ``warned`` / ``warned_args`` counters; read off
+#: the checked-in payloads above (0.14 had no ``state`` and no ``facts`` field).
+_PROXY_CONFIG_FIELDS_0_14 = (
+    "obj",
+    "stream",
+    "num_warns",
+    "read_only",
+    "args_extra",
+    "message_template",
+    "attrs_mapping",
+    "skip_if",
+)
 
 # Payloads generated once with the released pyDeprecate 0.14.0 wheel in a separate virtualenv (CPython 3.13.16,
 # ``pickle.HIGHEST_PROTOCOL == 5``), run in isolated mode (``python -I``) so the repository sources were not importable.
@@ -213,3 +231,30 @@ class TestPayloadFrom014:
         again = pickle.loads(pickle.dumps(loaded, protocol=pickle.HIGHEST_PROTOCOL))  # noqa: S301 - own round trip
 
         assert _identity(again) == _identity(loaded)
+
+
+class TestPositionalOnlyFactsFrom014:
+    """A 0.14-layout config, which carries no call-time ``facts``, keeps the positional-only constructor split."""
+
+    def test_rebuilds_positional_only_split(self) -> None:
+        """``_reconstruct_proxy`` rebuilds the split facts from the metadata, so a remapped keyword still lands.
+
+        A ``deprecated_class`` proxy whose ``args_mapping`` renames ``old_val`` to the positional-only ``new_val``
+        forwards that value positionally.  0.14 kept the split data only on ``DeprecationConfig``; the config read
+        from such a payload has no ``facts`` and, without the rebuild, the constructor would get ``new_val=`` as a
+        keyword and raise.  The config is restored through ``_ProxyConfig.__setstate__`` and ``_reconstruct_proxy``,
+        the two calls ``pickle.loads`` makes for a proxy payload (a class proxy pickles its class by reference, so no
+        checked-in 0.14 payload can carry one).
+        """
+        live_cfg = object.__getattribute__(DepPositionalOnlyRequired, "_DeprecatedProxy__config")
+        dep = get_deprecation_config(DepPositionalOnlyRequired)
+        assert isinstance(dep, DeprecationConfig)
+        cfg = _ProxyConfig.__new__(_ProxyConfig)
+        cfg.__setstate__(
+            {name: getattr(live_cfg, name) for name in _PROXY_CONFIG_FIELDS_0_14} | {"warned": 0, "warned_args": {}}
+        )
+        restored = _reconstruct_proxy(cfg, dep, None)
+        with pytest.warns(FutureWarning):
+            built = restored(old_val=7)
+        assert built.new_val == 7
+        assert cfg.facts.target_positional_only == dep.target_positional_only == frozenset({"new_val"})

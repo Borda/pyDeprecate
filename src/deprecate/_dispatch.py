@@ -1227,7 +1227,9 @@ def _emit_call_warning(
     should_warn = fatal
     if not fatal and ctx.stream and (num_warns < 0 or reason_argument or state.warned_calls < num_warns):
         with state.lock:
-            should_warn = _consume_warn_budget(state, num_warns, reason_callable, reason_argument)
+            should_warn = _consume_warn_budget(
+                state, num_warns, reason_callable=reason_callable, reason_argument=reason_argument
+            )
     if not should_warn:
         return
     if reason_callable:

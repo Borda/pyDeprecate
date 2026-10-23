@@ -41,9 +41,9 @@ class TestStackedDeprecatedClass:
 
     ``StackedAttrProxy`` is a module-level singleton defined in ``collection_deprecate``.
     Both layers use ``stream=None``, which causes ``_warn()`` to return before incrementing
-    ``_ProxyConfig.warned`` or ``warned_args`` — so warning state does not accumulate across
-    tests despite the shared reference.  If ``stream`` is ever set to a non-``None`` value,
-    tests become order-sensitive because ``num_warns=1`` (default) would silence later tests.
+    ``_ProxyConfig.state`` (``warned_calls`` or ``warned_args``) — so warning state does not accumulate
+    across tests despite the shared reference.  The project conftest also resets that state before
+    every test, as it does for every module-level proxy of ``collection_deprecate``.
 
     """
 

@@ -41,7 +41,6 @@ import math
 import operator
 import os
 import sys
-import threading
 import types
 import warnings
 from collections.abc import Iterator
@@ -55,6 +54,7 @@ from deprecate._types import (
     DeprecationConfig,
     DeprecationProxy,
     TargetMode,
+    _CallFacts,
     _ProxyConfig,
     get_deprecation_config,
 )
@@ -65,9 +65,11 @@ from deprecate.messaging import (
     TEMPLATE_WARNING_CALLABLE,
     TEMPLATE_WARNING_NO_TARGET,
     _callable_display_name,
+    _consume_warn_budget,
     _emit,
     _eval_skip_if,
     _format_deprecation_message,
+    _release_warn_budget,
     _render_static_deprecation_message,
     _resolve_message_template_alias,
     _validate_message_template,
@@ -79,71 +81,6 @@ from deprecate.utils import _is_dataclass_target, _remap_kwargs, _SigFacts, _sig
 def _is_dunder(name: str) -> bool:
     """Return whether *name* is a dunder attribute name (``__x__``) — introspection machinery, not user API."""
     return name.startswith("__") and name.endswith("__")
-
-
-def _consume_proxy_warn_budget(cfg: _ProxyConfig, arg_name: Optional[str]) -> bool:
-    """Claim one slot of a proxy's warn budget, returning whether the caller may emit the warning.
-
-    The quota check and the counter increment happen together under ``cfg.lock`` so concurrent first accesses
-    cannot all read the counter as ``0``, all pass the gate, and each emit a warning (check-then-act race).
-    Mirrors the decorator path's decide-and-increment-under-the-lock pattern; the warning itself is emitted by
-    the caller, outside the lock, to avoid serialising callers on a potentially slow ``stream`` callable.
-
-    Args:
-        cfg: The proxy's mutable runtime config holding the counters and the lock.
-        arg_name: A renamed argument's name for a per-argument budget, or ``None`` for the proxy-wide counter.
-
-    Returns:
-        ``True`` when a slot was claimed and the warning must be emitted, ``False`` when the budget is spent.
-
-    Examples:
-        >>> from deprecate._types import _ProxyConfig
-        >>> cfg = _ProxyConfig(obj=object(), stream=None, num_warns=1, read_only=False)
-        >>> _consume_proxy_warn_budget(cfg, None), _consume_proxy_warn_budget(cfg, None)
-        (True, False)
-
-    """
-    with cfg.lock:
-        if arg_name is not None:
-            arg_count = cfg.warned_args.get(arg_name, 0)
-            if cfg.num_warns < 0 or arg_count < cfg.num_warns:
-                cfg.warned_args[arg_name] = arg_count + 1
-                return True
-            return False
-        if cfg.num_warns < 0 or cfg.warned < cfg.num_warns:
-            cfg.warned += 1
-            return True
-        return False
-
-
-def _release_proxy_warn_budget(cfg: _ProxyConfig, arg_name: Optional[str]) -> None:
-    """Give back a slot claimed by :func:`_consume_proxy_warn_budget` whose warning was never delivered.
-
-    When the ``stream`` raises (a ``FutureWarning`` filter set to ``"error"``, a failing logging sink) the caller did
-    not receive the notice, so the slot returns to the budget and the next use warns again. An unlimited budget
-    (``num_warns < 0``) has no slot to return, so nothing changes.
-
-    Args:
-        cfg: The proxy's mutable runtime config holding the counters and the lock.
-        arg_name: The key the slot was claimed under, as for :func:`_consume_proxy_warn_budget`.
-
-    Examples:
-        >>> from deprecate._types import _ProxyConfig
-        >>> cfg = _ProxyConfig(obj=object(), stream=None, num_warns=1, read_only=False)
-        >>> _consume_proxy_warn_budget(cfg, None)
-        True
-        >>> _release_proxy_warn_budget(cfg, None)
-        >>> _consume_proxy_warn_budget(cfg, None)
-        True
-
-    """
-    if cfg.num_warns < 0:
-        return
-    with cfg.lock:
-        if arg_name is not None:
-            cfg.warned_args[arg_name] -= 1
-        else:
-            cfg.warned -= 1
 
 
 async def _sample_coroutine() -> None:
@@ -606,6 +543,11 @@ class _DeprecatedProxy:
             # ``DeprecationConfig`` below keeps it so audit can still show what the caller configured.
             attrs_mapping=None if _explicit_notify_attrs else attrs_mapping,
             skip_if=skip_if,
+            # Call-time home of the constructor POSITIONAL_ONLY split; the frozen config below mirrors the same two
+            # values for audit (and for 0.14 pickles, which ``_reconstruct_proxy`` rebuilds the facts from).
+            facts=_CallFacts(
+                target_positional_only=_ctor_positional_only, target_positional_only_order=_ctor_positional_only_order
+            ),
         )
         object.__setattr__(self, "_DeprecatedProxy__config", cfg)
         # Static deprecation metadata stored as a dunder attribute — readable by audit tools via
@@ -703,7 +645,7 @@ class _DeprecatedProxy:
 
         Strips the ``"__attr__:"`` prefix from *arg_name* to recover the attribute name visible to
         callers.  The prefix must be preserved in the *arg_name* passed by the caller so that the
-        per-attribute budget key in ``cfg.warned_args`` stays disjoint from any same-named
+        per-attribute budget key in ``cfg.state.warned_args`` stays disjoint from any same-named
         ``args_mapping`` key — this method intentionally does not reassign *arg_name*.  The
         attribute's ``%(source_path)s`` is ``f"{source_path}.{attr_name}"``.
 
@@ -755,11 +697,11 @@ class _DeprecatedProxy:
         object call the two halves themselves, so the operation and its warning share one ``skip_if`` evaluation.
 
         Args:
-            arg_name: When given, use per-argument warning tracking (``cfg.warned_args``) instead of the global
-                ``cfg.warned`` counter.  The warning is suppressed when the per-argument count has already reached
-                ``cfg.num_warns``.  When provided alongside an ``args_mapping`` entry, the emitted message uses the
-                per-argument template (`old -> new`) rather than the generic callable template — matching the
-                decorator's argument-deprecation form.
+            arg_name: When given, use per-argument warning tracking (``cfg.state.warned_args``) instead of the
+                proxy-wide ``cfg.state.warned_calls`` counter.  The warning is suppressed when the per-argument
+                count has already reached ``cfg.num_warns``.  When provided alongside an ``args_mapping`` entry, the
+                emitted message uses the per-argument template (`old -> new`) rather than the generic callable
+                template — matching the decorator's argument-deprecation form.
 
         """
         _, live = self._gate(arg_name=arg_name)
@@ -854,7 +796,18 @@ class _DeprecatedProxy:
         msg = _build_proxy_warn_msg(self, arg_name, self._dep, cfg)
         if msg is None:
             return
-        if not _consume_proxy_warn_budget(cfg, arg_name):
+        # One budget for every deprecation path: the proxy-wide counter is the callable-level ``warned_calls``; a
+        # per-argument or ``__attr__:`` attribute key is a one-key argument budget.  The check and the increment
+        # run together under ``state.lock`` so concurrent first accesses cannot all pass the ``num_warns`` gate; the
+        # warning itself is emitted outside the lock, so callers never serialise on a slow ``stream``.
+        state = cfg.state
+        reason_callable = arg_name is None
+        reason_argument = None if arg_name is None else {arg_name: None}
+        with state.lock:
+            claimed = _consume_warn_budget(
+                state, cfg.num_warns, reason_callable=reason_callable, reason_argument=reason_argument
+            )
+        if not claimed:
             return
         # Route the warning to the caller's frame rather than ``proxy.py``.  ``_emit`` decides from the stream's
         # signature whether to pass ``stacklevel``, so the stream is called exactly once and any ``TypeError`` it
@@ -863,7 +816,10 @@ class _DeprecatedProxy:
         try:
             _emit(stream, msg)
         except BaseException:
-            _release_proxy_warn_budget(cfg, arg_name)
+            with state.lock:
+                _release_warn_budget(
+                    state, cfg.num_warns, reason_callable=reason_callable, reason_argument=reason_argument
+                )
             raise
 
     def _deliver_or_release(
@@ -1352,7 +1308,7 @@ class _DeprecatedProxy:
 
         """
         cfg = self._cfg
-        new_cfg = replace(cfg, obj=copy.copy(cfg.obj), warned_args=dict(cfg.warned_args), lock=threading.Lock())
+        new_cfg = replace(cfg, obj=copy.copy(cfg.obj), state=copy.copy(cfg.state))
         doc = object.__getattribute__(self, "__dict__").get("__doc__")
         return _reconstruct_proxy(new_cfg, self._dep, doc, self._pep702_marker_state())
 
@@ -1597,7 +1553,7 @@ class _DeprecatedProxy:
 
 def _proxy_call_with_positional_split(
     ctor: Callable[..., Any],
-    dep: DeprecationConfig,
+    facts: _CallFacts,
     args: tuple[Any, ...],
     mapped_kwargs: dict[str, Any],
 ) -> Any:  # noqa: ANN401
@@ -1606,12 +1562,13 @@ def _proxy_call_with_positional_split(
     Adopts the ``@deprecated`` dispatcher's split approach: remapped values whose target parameter is positional-only
     are reordered into positional arguments by declaration order, after the ``consumed=len(args)`` slots the caller
     already filled positionally.  This keeps required positional-only params, immutable (frozen-dataclass-style)
-    instances, and constructor-derived state working — unlike the historical pop-and-``setattr`` fallback.
+    instances, and constructor-derived state working — unlike the historical pop-and-``setattr`` fallback.  The split
+    data comes from :attr:`~deprecate._types._ProxyConfig.facts`.
 
     """
-    if dep.target_positional_only:
+    if facts.target_positional_only:
         pos_args, kw_args = _split_positional_only_kwargs(
-            dep.target_positional_only_order, mapped_kwargs, dep.target_positional_only, consumed=len(args)
+            facts.target_positional_only_order, mapped_kwargs, facts.target_positional_only, consumed=len(args)
         )
         return ctor(*args, *pos_args, **kw_args)
     return ctor(*args, **mapped_kwargs)
@@ -1664,6 +1621,14 @@ def _reconstruct_proxy(
             Defaults to ``None`` so pickles written without it still load with the rendered message.
 
     """
+    # A 0.14 payload carries no ``facts`` (``_ProxyConfig.__setstate__`` starts them empty) but its metadata holds the
+    # constructor POSITIONAL_ONLY split; without this rebuild the restored proxy would pass those values by keyword.
+    if not cfg.facts.target_positional_only and dep.target_positional_only:
+        cfg.facts = replace(
+            cfg.facts,
+            target_positional_only=dep.target_positional_only,
+            target_positional_only_order=dep.target_positional_only_order,
+        )
     proxy_type = _proxy_type_for(cfg.obj)
     proxy = proxy_type.__new__(proxy_type)
     object.__setattr__(proxy, "_DeprecatedProxy__config", cfg)
@@ -1689,7 +1654,7 @@ def _proxy_call_args_remap(
             proxy._warn(arg_name=old_key)
     mapped_kwargs = _remap_kwargs(mapping, kwargs, name=dep.name, stream=cfg.stream)
     mapped_kwargs = proxy._merge_args_extra(mapped_kwargs)
-    return _proxy_call_with_positional_split(cfg.obj, dep, args, mapped_kwargs)
+    return _proxy_call_with_positional_split(cfg.obj, cfg.facts, args, mapped_kwargs)
 
 
 def _proxy_call_callable_with_mapping(
@@ -1708,7 +1673,7 @@ def _proxy_call_callable_with_mapping(
         proxy._warn()
     mapped_kwargs = _remap_kwargs(mapping, kwargs, name=dep.name, stream=proxy._cfg.stream)
     mapped_kwargs = proxy._merge_args_extra(mapped_kwargs)
-    return _proxy_call_with_positional_split(target_fn, dep, args, mapped_kwargs)
+    return _proxy_call_with_positional_split(target_fn, proxy._cfg.facts, args, mapped_kwargs)
 
 
 def _expand_dc_attrs_to_args(

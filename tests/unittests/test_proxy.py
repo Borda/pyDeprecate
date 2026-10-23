@@ -144,7 +144,7 @@ class TestProxyInit:
         assert cfg.num_warns == 3
         assert cfg.stream is None
         assert cfg.read_only is False
-        assert cfg.warned == 0
+        assert cfg.state.warned_calls == 0
         meta = object.__getattribute__(proxy, "__deprecation_config__")
         assert meta.name == "x"
         assert meta.deprecated_in == "1.0"
@@ -183,7 +183,7 @@ class TestProxyWarnBehavior:
             warnings.simplefilter("always")
             proxy._warn()
             proxy._warn()
-        assert object.__getattribute__(proxy, "_DeprecatedProxy__config").warned == 2
+        assert object.__getattribute__(proxy, "_DeprecatedProxy__config").state.warned_calls == 2
 
     def test_warn_stops_after_limit(self) -> None:
         """Warnings stop once num_warns threshold is reached."""
@@ -1389,8 +1389,16 @@ class TestPEP702ProxyStackingRegression:
         assert isinstance(instance, _Pep702ProxyTarget)
 
     def test_pep702_proxy_stacked_emits_pep702_deprecation_warning(self) -> None:
-        """Outer ``typing_extensions.deprecated`` emits its DeprecationWarning on call."""
-        with pytest.warns(DeprecationWarning, match="use `Pep702ProxyTarget`"):
+        """Outer ``typing_extensions.deprecated`` emits its DeprecationWarning on call, and the inner proxy still warns.
+
+        A library stacks the static-checker decorator over a ``deprecated_class`` alias.  One call must deliver both the
+        PEP 702 ``DeprecationWarning`` and pyDeprecate's own ``FutureWarning``; neither layer may swallow the other.
+
+        """
+        with (
+            pytest.warns(FutureWarning, match="`_Pep702ProxyTarget` was deprecated since v0.8"),
+            pytest.warns(DeprecationWarning, match="use `Pep702ProxyTarget`"),
+        ):
             pep702_proxy_stacked()
 
     @pytest.mark.parametrize(
@@ -1623,7 +1631,7 @@ class TestDeprecatedAttrs:
     """Selective per-attribute deprecation via ``attrs_mapping`` on ``deprecated_class``.
 
     Each test sets up an isolated proxy state because ``DeprecatedAttrsPalette`` and friends are
-    module-level singletons whose per-attribute warning counters (``_cfg.warned_args``) persist
+    module-level singletons whose per-attribute warning counters (``_cfg.state.warned_args``) persist
     across tests once consumed. The :meth:`_reset_proxy_state` autouse fixture clears those
     counters and re-seeds the canonical attribute values on the wrapped target so each test
     starts from the same baseline.
@@ -1632,11 +1640,10 @@ class TestDeprecatedAttrs:
 
     @pytest.fixture(autouse=True)
     def _reset_proxy_state(self) -> None:
-        """Reset module-level fixture proxies and re-seed the wrapped target attributes between tests.
+        """Re-seed the wrapped target attributes of the module-level fixture proxies between tests.
 
-        Required because ``_ProxyConfig.warned_args`` is *not* covered by the project conftest's ``_state`` reset
-        (the conftest targets ``@deprecated`` wrappers only).  Without this reset, a previous test consuming the
-        per-attribute budget would silently invalidate any subsequent test that asserts a warning fires.
+        The proxies' warn budgets (``_cfg.state``) are reset by the project conftest, which covers every module-level
+        proxy of :mod:`tests.collection_deprecate`; this fixture restores the wrapped objects' mutable attributes.
 
         """
         for proxy in (
@@ -1648,10 +1655,7 @@ class TestDeprecatedAttrs:
             DeprecatedAttrsPaletteWithStream,
             depr_read_only_attrs_list,
         ):
-            cfg = object.__getattribute__(proxy, "_DeprecatedProxy__config")
-            cfg.warned = 0
-            cfg.warned_args.clear()
-            source = cfg.obj
+            source = object.__getattribute__(proxy, "_DeprecatedProxy__config").obj
             if hasattr(source, "items"):
                 source.items.clear()
             if hasattr(source, "size"):
@@ -1983,7 +1987,7 @@ class TestDeprecatedAttrs:
             attrs_mapping={"alias": "canonical"}, deprecated_in="1.0", remove_in="2.0", num_warns=1
         )(TargetAlias)
         target_cfg = object.__getattribute__(target_proxy, "_DeprecatedProxy__config")
-        target_cfg.warned_args.clear()
+        target_cfg.state.warned_args.clear()
 
         class SourceAlias:
             old = "source_old"
@@ -1995,7 +1999,7 @@ class TestDeprecatedAttrs:
                 SourceAlias
             )
         assert not caught
-        assert target_cfg.warned_args == {}
+        assert target_cfg.state.warned_args == {}
 
     def test_delete_redirect_warns_and_deletes_canonical(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Deleting a deprecated attribute alias warns and deletes the canonical attribute.
@@ -2108,16 +2112,7 @@ class TestAttrsMappingCombinations:
 
     @pytest.fixture(autouse=True)
     def _reset_combination_state(self) -> None:
-        """Reset module-level combination fixture proxies and re-seed wrapped target attributes between tests."""
-        for proxy in (
-            DeprecatedAttrsExplicitMode,
-            DeprecatedAttrsPaletteAllThree,
-            DeprecatedAttrsPaletteNested,
-            DeprecatedAttrsPalette,
-        ):
-            cfg = object.__getattribute__(proxy, "_DeprecatedProxy__config")
-            cfg.warned = 0
-            cfg.warned_args.clear()
+        """Re-seed wrapped target attributes between tests; the conftest resets the fixture proxies' warn budgets."""
         # Re-seed canonical attributes so write-redirect tests start from baseline.
         Palette.colour = "red"
         Palette.text = "hello"

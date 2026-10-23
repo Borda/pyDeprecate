@@ -1,18 +1,106 @@
 """Unit tests for :mod:`deprecate._types` — :class:`DeprecationConfig` and the ``_has_deprecation_meta`` guard."""
 
+import copy
 import dataclasses
+import pickle
 from collections.abc import Callable
-from typing import cast
+from typing import Any, cast
 
 import pytest
 
 import tests.collection_misconfigured as clean_module
 from deprecate import TargetMode, deprecated, get_deprecation_config
-from deprecate._types import DeprecationConfig, _DeprecatedCallable, _has_deprecation_meta
+from deprecate._types import (
+    DeprecationConfig,
+    _CallFacts,
+    _DeprecatedCallable,
+    _has_deprecation_meta,
+    _ProxyConfig,
+    _WrapperState,
+)
 from deprecate.audit import find_deprecation_wrappers, validate_deprecation_wrapper
 from deprecate.proxy import _DeprecatedProxy
 from tests.collection_chains import caller_stacked_args_enum_enum, caller_stacked_args_legacy_enum
 from tests.collection_targets import base_sum_kwargs
+
+
+def _pickle_round_trip(obj: Any) -> Any:  # noqa: ANN401
+    """Pickle and unpickle *obj* at the highest protocol."""
+    return pickle.loads(pickle.dumps(obj, protocol=pickle.HIGHEST_PROTOCOL))  # noqa: S301 - payload made in this test
+
+
+def _proxy_config_state_0_14() -> dict[str, Any]:
+    """Return a fresh ``_ProxyConfig`` state dict in the 0.14 layout: flat counters, no ``state`` / ``facts``."""
+    return {
+        "obj": {"threshold": 0.5},
+        "stream": None,
+        "num_warns": 1,
+        "read_only": False,
+        "args_extra": None,
+        "message_template": None,
+        "attrs_mapping": None,
+        "skip_if": False,
+        "warned": 1,
+        "warned_args": {"old": 1},
+    }
+
+
+class TestWrapperStateDuplicates:
+    """A copied, deep-copied or unpickled ``_WrapperState`` snapshots the counters with its own lock and dict."""
+
+    @pytest.mark.parametrize(
+        "duplicate",
+        [
+            pytest.param(copy.copy, id="copy"),
+            pytest.param(copy.deepcopy, id="deepcopy"),
+            pytest.param(_pickle_round_trip, id="pickle"),
+        ],
+    )
+    def test_snapshots_counters(self, duplicate: Callable[[Any], Any]) -> None:
+        """The duplicate carries the same counters but shares neither the lock nor the ``warned_args`` dict.
+
+        A proxy copy or a pickled proxy must warn independently from its original: a shared ``warned_args`` dict
+        would let one spend the other's per-argument budget, and a mutex cannot be pickled or shared safely.
+        """
+        state = _WrapperState(called=3, warned_calls=1, warned_args={"old": 1}, warned_misconfigured=True)
+        dup = duplicate(state)
+        assert dup == state
+        assert dup.lock is not state.lock
+        assert dup.warned_args is not state.warned_args
+
+
+class TestProxyConfigSetstate:
+    """``_ProxyConfig.__setstate__`` migrates the flat 0.14 counters into the shared ``_WrapperState``."""
+
+    def test_migrates_0_14_counters(self) -> None:
+        """A 0.14 state dict's ``warned`` / ``warned_args`` become ``state``; ``facts`` defaults to empty.
+
+        Proxies pickled by 0.14 carry the budget as two flat fields; loading one today must keep the spent budget
+        (so a cached proxy does not warn a second time) in the one budget record every deprecation path shares.
+        """
+        cfg = _ProxyConfig.__new__(_ProxyConfig)
+        cfg.__setstate__(_proxy_config_state_0_14())
+        assert cfg.state == _WrapperState(warned_calls=1, warned_args={"old": 1})
+        assert cfg.facts == _CallFacts()
+        assert "warned" not in vars(cfg)
+        assert "warned_args" not in vars(cfg)
+
+    def test_round_trips_current_layout(self) -> None:
+        """A config pickled today comes back with the same counters and facts and a fresh lock.
+
+        The current layout already holds ``state`` and ``facts``; the migration branch must leave it untouched.
+        """
+        cfg = _ProxyConfig(
+            obj={"threshold": 0.5},
+            stream=None,
+            num_warns=1,
+            read_only=False,
+            state=_WrapperState(warned_calls=1),
+            facts=_CallFacts(target_positional_only=frozenset({"a"}), target_positional_only_order=("a",)),
+        )
+        restored = _pickle_round_trip(cfg)
+        assert restored == cfg
+        assert restored.state.lock is not cfg.state.lock
 
 
 class TestTemplateMgsAliasProperty:

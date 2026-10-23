@@ -638,23 +638,31 @@ def _eval_skip_if(skip_if: Union[bool, Callable[[], bool]]) -> bool:
 def _consume_warn_budget(
     state: _WrapperState,
     num_warns: int,
+    *,
     reason_callable: bool,
-    reason_argument: dict[str, Optional[str]],
+    reason_argument: Optional[Mapping[str, Optional[str]]] = None,
 ) -> bool:
     """Check the warn budget and consume one unit from it when a warning may fire.
 
-    Must be called while holding ``state.lock`` — the read-check-increment sequence is exactly
-    what the lock protects (see the thread-safety note at the call site).
+    The one budget implementation for ``@deprecated`` wrappers, ``deprecated_class`` / ``deprecated_instance``
+    proxies and deprecated modules.  Must be called while holding ``state.lock`` — the read-check-increment sequence
+    is exactly what the lock protects (see the thread-safety note at the call site).
 
     Args:
         state: Mutable per-wrapper counters.
         num_warns: Configured budget; negative means unlimited.
         reason_callable: Warning is for the deprecated callable itself — consumes ``warned_calls``.
         reason_argument: Deprecated argument names present in this call — consumes per-argument
-            budgets in ``warned_args``; takes precedence over the call counter for the check.
+            budgets in ``warned_args``; takes precedence over the call counter for the check.  A proxy passes
+            ``{key: None}`` for its per-argument or ``__attr__:`` attribute key.
 
     Returns:
         True when the caller should emit the warning (budget available and now consumed).
+
+    Example:
+        >>> state = _WrapperState()
+        >>> [_consume_warn_budget(state, 1, reason_callable=True) for _ in range(2)]
+        [True, False]
 
     """
     # The budget must track the warning variant that will be emitted:
@@ -675,3 +683,42 @@ def _consume_warn_budget(
             if num_warns < 0 or state.warned_args.get(arg, 0) < num_warns:
                 state.warned_args[arg] = state.warned_args.get(arg, 0) + 1
     return True
+
+
+def _release_warn_budget(
+    state: _WrapperState,
+    num_warns: int,
+    *,
+    reason_callable: bool,
+    reason_argument: Optional[Mapping[str, Optional[str]]] = None,
+) -> None:
+    """Give back the unit a successful :func:`_consume_warn_budget` claim took, when its warning was never delivered.
+
+    Used by the proxy when its ``stream`` raises (a ``FutureWarning`` filter set to ``"error"``, a failing logging
+    sink): the caller did not receive the notice, so the next use warns again.  Takes the same reason arguments as the
+    claim it undoes, and is exact for the callable counter and for a single argument key (the claims the proxy
+    makes).  An unlimited budget (``num_warns < 0``) has no unit to return, so nothing changes.  Must be called while
+    holding ``state.lock``.
+
+    Args:
+        state: Mutable per-wrapper counters.
+        num_warns: Configured budget; negative means unlimited.
+        reason_callable: The claim was for the callable-level counter ``warned_calls``.
+        reason_argument: The argument keys the claim consumed in ``warned_args``.
+
+    Example:
+        >>> state = _WrapperState()
+        >>> _consume_warn_budget(state, 1, reason_callable=True)
+        True
+        >>> _release_warn_budget(state, 1, reason_callable=True)
+        >>> _consume_warn_budget(state, 1, reason_callable=True)
+        True
+
+    """
+    if num_warns < 0:
+        return
+    if reason_callable:
+        state.warned_calls -= 1
+    elif reason_argument:
+        for arg in reason_argument:
+            state.warned_args[arg] -= 1

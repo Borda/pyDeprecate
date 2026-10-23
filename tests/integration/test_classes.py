@@ -344,14 +344,11 @@ def test_deprecated_class_attribute_set_at_decoration_time() -> None:
 
 
 class _ClassFormBase:
-    """Shared autouse reset fixture for deprecated_class() form-equivalence tests."""
+    """Shared base for deprecated_class() form-equivalence tests.
 
-    @pytest.fixture(autouse=True)
-    def _reset_proxy_state(self) -> None:
-        """Reset the proxy warn counter before each test for independence."""
-        for proxy in (WrappedEnum, DecoratedEnum, WrappedDataClass, DecoratedDataClass):
-            assert isinstance(proxy, _DeprecatedProxy)
-            proxy._cfg.warned = 0
+    The form proxies (``WrappedEnum``, ``DecoratedEnum``, ``WrappedDataClass``, ``DecoratedDataClass``) live in
+    :mod:`tests.collection_deprecate`, so the project conftest resets their warn budgets before each test.
+    """
 
 
 @pytest.mark.parametrize(("proxy", "name"), _ENUM_CASES)

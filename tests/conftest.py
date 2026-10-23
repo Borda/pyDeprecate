@@ -19,9 +19,8 @@ Two file-scoped ``autouse`` fixtures already cover the **async** and **generator
 in ``tests/integration/test_callable_kinds.py`` (see ``_reset_gen_state``, ``_reset_async_state``,
 ``_reset_async_gen_state``).  This conftest extends that reset to every other wrapper that
 lives at the module level of :mod:`tests.collection_deprecate`, including plain synchronous
-functions.  ``_DeprecatedProxy`` instances (created by ``deprecated_class``) are **not** covered —
-they store state in ``_cfg.warned`` rather than ``_state``; see the *What this fixture does not
-cover* section below.
+functions, and every module-level ``_DeprecatedProxy`` (created by ``deprecated_class`` /
+``deprecated_instance``), whose budget is the same ``_WrapperState`` kept in ``_cfg.state``.
 
 Reset semantics
 ---------------
@@ -47,34 +46,39 @@ The following are intentionally preserved:
 What this fixture does *not* cover
 -----------------------------------
 
-Class-proxy state (``_ProxyConfig.warned``) on ``_DeprecatedProxy`` instances is **separate**
-from ``_state`` and is a real cross-test leak surface for proxies configured with
-``num_warns=1`` (e.g. ``_class_deprecation_enum``, ``_class_deprecation_dataclass``).  Those
-proxies are reset by ``_ClassFormBase._reset_proxy_state`` in
-``tests/integration/test_classes.py``.  New tests that use ``num_warns=1`` proxies from
-``collection_deprecate`` must either inherit ``_ClassFormBase`` or add their own proxy-state
-reset.
+Wrappers and proxies defined outside :mod:`tests.collection_deprecate` (in a test module, another
+collection module, or the package itself, such as ``deprecate.audit.DeprecatedCallableInfo``) keep
+their counters across tests; tests using them reset ``_state`` / ``_cfg.state`` themselves.
 
 """
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import pytest
 
+if TYPE_CHECKING:
+    from deprecate._types import _WrapperState
 
-def _iter_wrapper_states(module: object) -> list[object]:
-    """Return every module-level attribute of *module* that carries a ``_state`` attribute.
 
-    Uses ``vars(module)`` (direct ``__dict__`` lookup) and checks for ``_state`` via the
-    instance ``__dict__`` rather than ``hasattr``, so ``_DeprecatedProxy.__getattr__`` is
-    never triggered.  This avoids emitting spurious ``FutureWarning``s and consuming
-    ``num_warns`` budgets during fixture traversal.
+def _iter_wrapper_states(module: object) -> list[_WrapperState]:
+    """Return the warn-budget state of every module-level deprecated wrapper and proxy of *module*.
+
+    A ``@deprecated`` wrapper keeps it as ``_state``; a ``_DeprecatedProxy`` keeps it as ``state`` on its
+    private ``_DeprecatedProxy__config``.  Both are read from the instance ``__dict__`` (``vars(module)``
+    plus a direct ``__dict__`` lookup) rather than through ``hasattr``/``getattr``, so
+    ``_DeprecatedProxy.__getattr__`` is never triggered.  This avoids emitting spurious
+    ``FutureWarning``s and consuming ``num_warns`` budgets during fixture traversal.
 
     """
-    found: list[object] = []
+    found: list[_WrapperState] = []
     for obj in vars(module).values():  # type: ignore[arg-type]
-        if "_state" in getattr(obj, "__dict__", {}):
-            found.append(obj)
+        own = getattr(obj, "__dict__", {})
+        if "_state" in own:
+            found.append(own["_state"])
+        elif "_DeprecatedProxy__config" in own:
+            found.append(own["_DeprecatedProxy__config"].state)
     return found
 
 
@@ -109,8 +113,7 @@ def _reset_collection_deprecate_state() -> None:
     # decorate a given class qualname consumes its one-time warning and later same-qualname tests see none).
     _deprecation._CLASS_DISPATCH_NOTIFIED.clear()
 
-    for wrapper in _iter_wrapper_states(_collection_deprecate):
-        state = wrapper._state  # type: ignore[attr-defined]
+    for state in _iter_wrapper_states(_collection_deprecate):
         # Reset only the counter-style state.  ``warned_misconfigured`` and ``called``
         # are intentionally NOT cleared — see module docstring.
         state.warned_calls = 0

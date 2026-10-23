@@ -15,15 +15,17 @@ from unittest.mock import MagicMock, Mock
 import pytest
 
 from deprecate import TargetMode, assert_no_warnings, deprecated
-from deprecate._types import DeprecationConfig
+from deprecate._types import DeprecationConfig, _WrapperState
 from deprecate.messaging import (
     _STREAM_DECISIONS,
     _callable_display_name,
+    _consume_warn_budget,
     _emit,
     _eval_skip_if,
     _raise_warn,
     _raise_warn_arguments,
     _raise_warn_callable,
+    _release_warn_budget,
     _render_static_deprecation_message,
     _resolve_message_template_alias,
     _stream_accepts_stacklevel,
@@ -69,6 +71,43 @@ from tests.collection_targets import (
     stream_with_stacklevel,
     stream_wraps_logging_warning,
 )
+
+
+class TestWarnBudgetRelease:
+    """``_release_warn_budget`` gives back exactly the slot ``_consume_warn_budget`` claimed."""
+
+    @pytest.mark.parametrize(
+        ("reason_callable", "reason_argument"),
+        [pytest.param(True, None, id="callable"), pytest.param(False, {"old": None}, id="argument")],
+    )
+    def test_released_slot_warns_again(
+        self, reason_callable: bool, reason_argument: dict[str, str | None] | None
+    ) -> None:
+        """A released slot can be claimed again by the next use.
+
+        When the ``stream`` raises (a warning filter set to ``"error"``, a failing logging sink) the caller never
+        saw the notice, so the proxy returns the slot and the next access must still warn, for the proxy-wide
+        counter and for a per-argument key alike.
+        """
+        state = _WrapperState()
+        with state.lock:
+            first = _consume_warn_budget(state, 1, reason_callable=reason_callable, reason_argument=reason_argument)
+            _release_warn_budget(state, 1, reason_callable=reason_callable, reason_argument=reason_argument)
+            again = _consume_warn_budget(state, 1, reason_callable=reason_callable, reason_argument=reason_argument)
+            spent = _consume_warn_budget(state, 1, reason_callable=reason_callable, reason_argument=reason_argument)
+        assert (first, again, spent) == (True, True, False)
+
+    def test_unlimited_budget_untouched(self) -> None:
+        """With ``num_warns=-1`` there is no slot to return, so the counter keeps its value.
+
+        An unlimited budget never blocks a warning; giving a slot back must not drive the counter below what was
+        actually emitted.
+        """
+        state = _WrapperState()
+        with state.lock:
+            _consume_warn_budget(state, -1, reason_callable=True)
+            _release_warn_budget(state, -1, reason_callable=True)
+        assert state.warned_calls == 1
 
 
 class TestCallableDisplayName:
