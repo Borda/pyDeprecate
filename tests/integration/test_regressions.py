@@ -1,4 +1,4 @@
-"""Regression tests for three bug fixes in `src/deprecate/deprecation.py`.
+"""Regression tests for four bug fixes in the ``@deprecated`` call path.
 
 Fix 1: Stale source default for the deprecated argument silently overrode the target callable's own default when the
 caller supplied neither name.
@@ -10,12 +10,19 @@ Fix 3: The class branch of ``@deprecated`` collapsed legacy ``target=None`` and 
 before delegating to :func:`deprecate.proxy.deprecated_class`, erasing both the NOTIFY-intent misconfig signal (3a) and
 the ``misconfigured=True`` audit flag (3b).
 
+Fix 4: The one-time call-time misconfiguration ``UserWarning`` checked and set its flag outside the state lock, so
+concurrent first calls to a misconfigured wrapper could each emit it.
+
 Three-layer rule: the deprecated wrappers and target callables live in ``tests/collection_deprecate.py``,
 ``tests/collection_misconfigured.py``, and ``tests/collection_targets.py``. This module only contains assertions.
 
 """
 
+import concurrent.futures
+import sys
+import threading
 import warnings
+from collections.abc import Iterator
 from typing import Callable, cast
 
 import pytest
@@ -29,7 +36,38 @@ from tests.collection_misconfigured import (
     make_class_target_false,
     make_class_target_false_with_args_mapping,
     make_class_target_none_with_args_mapping,
+    make_notify_mapping_no_budget,
 )
+
+#: Threads released together into one wrapper by the concurrency regression test.
+_RACE_THREADS = 8
+#: Calls each of those threads makes.
+_RACE_CALLS_PER_THREAD = 2000
+
+
+@pytest.fixture
+def _rapid_thread_switching() -> Iterator[None]:
+    """Hand the GIL over after almost every bytecode so a check-then-set window is hit, then restore the interval."""
+    previous = sys.getswitchinterval()
+    sys.setswitchinterval(1e-6)
+    yield
+    sys.setswitchinterval(previous)
+
+
+def _call_from_threads(func: Callable[[int], int], threads: int, calls: int) -> None:
+    """Call *func* ``calls`` times from each of ``threads`` workers released together; re-raise any worker error."""
+    barrier = threading.Barrier(threads, timeout=30)
+
+    def hammer() -> None:
+        """Wait for every worker, then call *func* back to back."""
+        barrier.wait()
+        for value in range(calls):
+            func(value)
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
+        futures = [executor.submit(hammer) for _ in range(threads)]
+        for future in futures:
+            future.result()
 
 
 class TestFix1StaleSourceDefault:
@@ -198,3 +236,22 @@ class TestFix3bTargetFalseOnClass:
             cls = make_class_target_false_with_args_mapping()
         info = validate_deprecation_wrapper(cls)
         assert info.misconfigured_target is True
+
+
+class TestFix4MisconfigNoticeUnderThreads:
+    """Fix 4 — the one-time misconfiguration ``UserWarning`` stays one-time when first calls race."""
+
+    @pytest.mark.usefixtures("_rapid_thread_switching")
+    def test_concurrent_first_calls_warn_once(self) -> None:
+        """Eight threads calling a fresh misconfigured wrapper 2000 times each get exactly one misconfiguration warning.
+
+        A service starts a pool of worker threads that all call the same misconfigured deprecated function at once.
+        Every first call sees the notice still due; without the lock each of them emits it, flooding the log with
+        copies of a notice documented as one-time. The wrapper has ``num_warns=0``, so the misconfiguration notice is
+        the only warning any call can emit. The workers start inside the capture so that, on interpreters where
+        warning capture is context-local, every worker reports into it.
+        """
+        wrapper = make_notify_mapping_no_budget()
+        with pytest.warns(UserWarning, match="invalid deprecation configuration") as record:
+            _call_from_threads(wrapper, _RACE_THREADS, _RACE_CALLS_PER_THREAD)
+        assert len(record) == 1

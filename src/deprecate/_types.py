@@ -727,19 +727,18 @@ class _WrapperState:
     unpickled state snapshots every counter into its own ``warned_args`` dict with a fresh lock.
 
     Attributes:
-        called: Total invocation count, including calls where the warning was suppressed.
         warned_calls: Number of callable-level deprecation warnings emitted so far.
         warned_args: Per-argument warning counts for argument-level deprecations. Keys are deprecated argument names;
             values are emission counts.
-        warned_misconfigured: ``True`` after the one-time misconfiguration UserWarning has been emitted at call time.
-        lock: Guards the warn-quota check-then-act sequence (read counter → decide to emit → increment) so that
-            concurrent first calls cannot all pass the ``num_warns`` gate and each emit a warning.  Only the warn
-            path takes this lock; the ``called`` counter is a best-effort diagnostic and stays lock-free.  Excluded
-            from ``repr`` and equality — it is runtime machinery, not state identity.
+        warned_misconfigured: ``True`` once the one-time misconfiguration UserWarning is claimed at call time; the
+            call that sets it emits the warning.
+        lock: Guards the check-then-act sequences of the warn quota (read counter → decide to emit → increment) and
+            of the ``warned_misconfigured`` flag, so that concurrent first calls cannot all pass a gate and each emit
+            a warning.  Only the warn paths take this lock.  Excluded from ``repr`` and equality — it is runtime
+            machinery, not state identity.
 
     """
 
-    called: int = 0
     warned_calls: int = 0
     warned_args: dict[str, int] = field(default_factory=dict)
     warned_misconfigured: bool = False
@@ -758,8 +757,12 @@ class _WrapperState:
         return {k: v for k, v in self.__dict__.items() if k != "lock"}
 
     def __setstate__(self, state: dict[str, Any]) -> None:
-        """Restore the counters and create a fresh lock — mutex state is not transferable."""
-        self.__dict__.update(state)
+        """Restore the counters and create a fresh lock — mutex state is not transferable.
+
+        A state pickled while the write-only ``called`` counter still existed carries that key; it is dropped.
+
+        """
+        self.__dict__.update({k: v for k, v in state.items() if k != "called"})
         self.lock = threading.Lock()
 
 

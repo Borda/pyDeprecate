@@ -401,7 +401,6 @@ def _make_wrapper(ctx: _WrapperContext, *, is_async: bool, update_docstring: boo
             if _eval_skip_if(ctx.skip_if):
                 return await ctx.source(*args, **kwargs)
             if _skips_call_plan(ctx, args, kwargs):
-                ctx.state.called += 1
                 return await ctx.source(*args, **kwargs)
             handle = _enter_cycle_guard(ctx)
             try:
@@ -419,7 +418,6 @@ def _make_wrapper(ctx: _WrapperContext, *, is_async: bool, update_docstring: boo
             if _eval_skip_if(ctx.skip_if):
                 return ctx.source(*args, **kwargs)
             if _skips_call_plan(ctx, args, kwargs):
-                ctx.state.called += 1
                 return ctx.source(*args, **kwargs)
             handle = _enter_cycle_guard(ctx)
             try:

@@ -40,8 +40,6 @@ The following are intentionally preserved:
   shared misconfigured wrapper depend silently on whether a prior test already consumed the
   one-time slot: ``assert_no_warnings(UserWarning)`` may pass because the counter is spent, not
   because the wrapper is correctly configured.  Both directions require explicit per-test setup.
-* ``called`` is **not** reset — it counts every invocation (including suppressed ones) and
-  is not used to gate warning emission.
 
 What this fixture does *not* cover
 -----------------------------------
@@ -114,7 +112,7 @@ def _reset_collection_deprecate_state() -> None:
     _deprecation._CLASS_DISPATCH_NOTIFIED.clear()
 
     for state in _iter_wrapper_states(_collection_deprecate):
-        # Reset only the counter-style state.  ``warned_misconfigured`` and ``called``
-        # are intentionally NOT cleared — see module docstring.
+        # Reset only the counter-style state.  ``warned_misconfigured`` is
+        # intentionally NOT cleared — see module docstring.
         state.warned_calls = 0
         state.warned_args.clear()

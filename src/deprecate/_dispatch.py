@@ -1207,16 +1207,26 @@ def _skips_call_plan(ctx: _WrapperContext, args: tuple[Any, ...], kwargs: Mappin
 
 
 def _warn_misconfigured_once(ctx: _WrapperContext) -> None:
-    """Emit the one-time call-time ``UserWarning`` of a misconfigured wrapper, unless ``stream`` is ``None``."""
+    """Emit the one-time call-time ``UserWarning`` of a misconfigured wrapper, unless ``stream`` is ``None``.
+
+    The flag check-then-set runs under ``ctx.state.lock``, so concurrent first calls flip it exactly once; only the call
+    that flipped it emits, outside the lock.
+
+    """
     state = ctx.state
-    if ctx.cfg.misconfigured and ctx.stream and not state.warned_misconfigured:
+    # Lock-free pre-check: a correctly configured or already-notified wrapper never touches the lock.
+    if not (ctx.cfg.misconfigured and ctx.stream) or state.warned_misconfigured:
+        return
+    with state.lock:
+        flipped = not state.warned_misconfigured
+        state.warned_misconfigured = True
+    if flipped:
         warnings.warn(
             f"'{ctx.source.__name__}' has an invalid deprecation configuration;"
             f" verify your `@deprecated(target=...)` arguments. Will be TypeError in {_MAJOR_BREAK_VERSION}.",
             UserWarning,
             stacklevel=_caller_stacklevel(),
         )
-        state.warned_misconfigured = True
 
 
 def _resolve_reasons(ctx: _WrapperContext, kwargs: Mapping[str, Any]) -> tuple[bool, dict[str, Optional[str]]]:
@@ -1315,14 +1325,14 @@ def _emit_call_warning(
 def _build_call_plan(ctx: _WrapperContext, args: tuple[Any, ...], kwargs: dict[str, Any]) -> _CallPlan:
     """Compute the dispatch plan shared by the sync and async wrappers inside :func:`deprecated`.
 
-    The wrappers differ only by ``await`` on the final source or target call.  In order, this counts the call, emits
-    the one-time misconfiguration warning (:func:`_warn_misconfigured_once`), rejects surplus positionals
+    The wrappers differ only by ``await`` on the final source or target call.  In order, this emits the one-time
+    misconfiguration warning (:func:`_warn_misconfigured_once`), rejects surplus positionals
     (:func:`_check_source_arity`), decides the verbatim pass-through (:func:`_is_verbatim_call`), maps positionals to
     keywords, resolves the warning reasons (:func:`_resolve_reasons`), short-circuits a migrated caller, emits the
     budgeted deprecation warning (:func:`_emit_call_warning`) and assembles the forwarded keywords
     (:func:`_resolve_forward_kwargs`).
 
-    Side effects: mutates ``ctx.state`` (bumps ``called``, optionally ``warned_calls`` / ``warned_args``, and sets
+    Side effects: mutates ``ctx.state`` (optionally bumps ``warned_calls`` / ``warned_args``, and sets
     ``warned_misconfigured`` on the first misconfiguration warning) and emits the warnings named above.
 
     Args:
@@ -1335,7 +1345,6 @@ def _build_call_plan(ctx: _WrapperContext, args: tuple[Any, ...], kwargs: dict[s
         positionals were not converted to keywords and the source is invoked with the caller's arguments unchanged.
 
     """
-    ctx.state.called += 1
     _warn_misconfigured_once(ctx)
     facts = ctx.facts
     # Surplus positionals raise the curated TypeError before any warning fires or any budget is spent.

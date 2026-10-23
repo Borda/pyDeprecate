@@ -1465,8 +1465,6 @@ def test_callable_target_round_trip_returns_target_func() -> None:
     assert plan.target_func is double_value
     assert plan.resolved_kwargs == {"x": 3}
     assert plan.reason_argument == {}
-    # State must be bumped exactly once per call.
-    assert ctx.state.called == 1
 
 
 # ---------------------------------------------------------------------------

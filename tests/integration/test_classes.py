@@ -222,7 +222,7 @@ class TestDeprecatedClassMethod:
 
     @pytest.fixture(autouse=True)
     def _reset_method_state(self) -> None:
-        """Reset warned_calls and called so each test gets a fresh warning budget."""
+        """Reset warned_calls so each test gets a fresh warning budget."""
         for method in (
             ServiceCls.old_warn_method,
             ServiceCls.old_redirect_method,
@@ -232,7 +232,6 @@ class TestDeprecatedClassMethod:
             LegacyServiceCls.self_renamed_method,
         ):
             state = cast(_DeprecatedCallable, method)._state
-            state.called = 0
             state.warned_calls = 0
 
     @pytest.mark.parametrize("service_cls", _SERVICE_CLS_CASES)

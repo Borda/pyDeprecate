@@ -62,11 +62,26 @@ class TestWrapperStateDuplicates:
         A proxy copy or a pickled proxy must warn independently from its original: a shared ``warned_args`` dict
         would let one spend the other's per-argument budget, and a mutex cannot be pickled or shared safely.
         """
-        state = _WrapperState(called=3, warned_calls=1, warned_args={"old": 1}, warned_misconfigured=True)
+        state = _WrapperState(warned_calls=1, warned_args={"old": 1}, warned_misconfigured=True)
         dup = duplicate(state)
         assert dup == state
         assert dup.lock is not state.lock
         assert dup.warned_args is not state.warned_args
+
+
+class TestWrapperStateSetstate:
+    """``_WrapperState.__setstate__`` restores the warn budgets from a pickled state dict."""
+
+    def test_ignores_removed_called_counter(self) -> None:
+        """A state dict that still carries the removed ``called`` counter loads without it.
+
+        A wrapper state pickled before the write-only ``called`` counter was dropped still holds that key. Loading it
+        must keep every warn budget and leave no stray ``called`` attribute on the restored state.
+        """
+        state = _WrapperState.__new__(_WrapperState)
+        state.__setstate__({"called": 3, "warned_calls": 1, "warned_args": {"old": 1}, "warned_misconfigured": True})
+        assert state == _WrapperState(warned_calls=1, warned_args={"old": 1}, warned_misconfigured=True)
+        assert "called" not in vars(state)
 
 
 class TestProxyConfigSetstate:

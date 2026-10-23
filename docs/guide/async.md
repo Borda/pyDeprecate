@@ -100,7 +100,7 @@ b'https://example.com'
 
 !!! warning "Concurrent coroutines and warning counts"
 
-    `_WrapperState` fields (`called`, `warned_calls`, `warned_args`) are plain dataclass fields — there is no asyncio lock protecting them. If multiple coroutines share one deprecated wrapper and run concurrently, they can race on the warning counter: the same wrapper may emit more or fewer warnings than `num_warns` specifies, depending on scheduling.
+    `_WrapperState` fields (`warned_calls`, `warned_args`) are plain dataclass fields — there is no asyncio lock protecting them. If multiple coroutines share one deprecated wrapper and run concurrently, they can race on the warning counter: the same wrapper may emit more or fewer warnings than `num_warns` specifies, depending on scheduling.
 
     This is an accepted limitation for v0.9. If exact warning counts matter (for example in tests), either run deprecated coroutines sequentially or set `num_warns=-1` to bypass the gate entirely.
 
