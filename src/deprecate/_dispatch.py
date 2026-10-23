@@ -63,7 +63,7 @@ def _reject_bare_decorator(source: Any) -> None:  # noqa: ANN401
 
     """
     _reject_functools_wrapper_source(source)
-    if not callable(source) and not isinstance(source, (classmethod, staticmethod, property, cached_property)):
+    if not callable(source) and not isinstance(source, _DESCRIPTOR_SOURCE_TYPES):
         raise TypeError(
             f"`@deprecated` must be called with parentheses, e.g. "
             f"`@deprecated(target=..., deprecated_in=..., remove_in=...)`; got a non-callable "

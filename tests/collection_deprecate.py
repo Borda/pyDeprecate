@@ -98,6 +98,7 @@ from tests.collection_targets import (
     StackingArgsAttrsBase,
     SubclassableBase,
     TimerDecorator,
+    UncomparableDefault,
     WithInjected,
     _DelOnlyPropTarget,  # private alias — see H3 fdel-only fixtures below
     _InnerOrderPropTarget,  # private alias — see H2 inner-order fixtures below
@@ -137,12 +138,14 @@ from tests.collection_targets import (
     power_with_new_coef,
     raw_signature_patched,
     return_b,
+    return_default_value,
     return_z,
     single_positional_target,
     stream_wraps_warn_forwarding_stacklevel,
     timing_wrapper,
     tracked_identity,
     trio_positional_target,
+    uncomparable_default,
     var_positional_remap_body,
     var_positional_target,
     wraps_chain_outer,
@@ -1579,6 +1582,12 @@ def fn_shared_default(x: int, level: int = 1) -> int:
 
     """
     return void(x, level)
+
+
+@deprecated(target=return_default_value, **_DEPRS_CASE_STD_ARGS)
+def depr_uncomparable_default(value: UncomparableDefault = uncomparable_default) -> UncomparableDefault:
+    """Forward a default whose equality operators raise instead of returning a boolean."""
+    return void(value)
 
 
 @deprecated(

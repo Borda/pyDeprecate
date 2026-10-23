@@ -74,6 +74,26 @@ def identity_value(x: int) -> int:
     return x
 
 
+class UncomparableDefault:
+    """Default value that rejects equality comparisons, like an array with ambiguous truth values."""
+
+    def __eq__(self, other: object) -> bool:
+        """Reject equality checks so default filtering must use identity."""
+        raise TypeError("default values must not be compared for equality")
+
+    def __ne__(self, other: object) -> bool:
+        """Reject inequality checks so default filtering must use identity."""
+        raise TypeError("default values must not be compared for inequality")
+
+
+uncomparable_default = UncomparableDefault()
+
+
+def return_default_value(value: UncomparableDefault) -> UncomparableDefault:
+    """Return the exact default object received by the forwarding target."""
+    return value
+
+
 def stacked_chain_identity(base: int) -> int:
     """Return the base input unchanged for stacked TargetMode chain fixtures."""
     return base
@@ -1174,6 +1194,7 @@ moduleless_function.__module__ = None  # type: ignore[assignment]
 partial_of_double = functools.partial(double_value)
 partialmethod_of_double = functools.partialmethod(double_value)
 singledispatchmethod_of_double = functools.singledispatchmethod(double_value)
+property_of_partial = property(partial_of_double)
 
 
 class SideEffectBox:
