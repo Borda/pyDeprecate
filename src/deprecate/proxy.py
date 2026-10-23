@@ -178,14 +178,23 @@ def _held_by(owner: Any) -> list[Any]:  # noqa: ANN401
     """List *owner* and the objects it references directly, looking one level into an instance ``__dict__``.
 
     Depending on the Python version, :func:`gc.get_referents` reports an instance's attribute values directly or through
-    its ``__dict__``, so both shapes are expanded.
+    its ``__dict__``, so both shapes are expanded. A deprecation proxy is followed down its ``__wrapped__`` chain, so
+    the object at the bottom of any stack of proxies counts as held by the outermost one.
 
     """
-    held = [owner]
-    for ref in gc.get_referents(owner):
-        held.append(ref)
-        if type(ref) is dict:
-            held.extend(ref.values())
+    held: list[Any] = []
+    seen: set[int] = set()
+    while id(owner) not in seen:
+        seen.add(id(owner))
+        held.append(owner)
+        for ref in gc.get_referents(owner):
+            held.append(ref)
+            if type(ref) is dict:
+                held.extend(ref.values())
+        if not isinstance(owner, _DeprecatedProxy):
+            break
+        # Read the slot directly: attribute access through the proxy would warn.
+        owner = object.__getattribute__(owner, "__wrapped__")
     return held
 
 
@@ -201,8 +210,8 @@ def _close_abandoned(acquired: Any, owner: Any, *exc_info: Any) -> None:  # noqa
     coroutine the object stores, a synchronous ``__anext__`` can return a cached coroutine, and a stacked proxy acquires
     from the inner proxy, which holds the wrapped coroutine. Closing a borrowed coroutine breaks the retry with
     ``cannot reuse already awaited coroutine``, so the coroutine is left open whenever *owner* is it or references it,
-    directly or through its instance ``__dict__``. A coroutine stored deeper inside the owner (for example in a list
-    attribute) is not detected and is closed.
+    directly or through its instance ``__dict__``, looking through any stack of deprecation proxies. A coroutine stored
+    deeper inside the owner (in a list attribute or on a helper object it holds) is not detected and is closed.
 
     Everything else is left untouched, because it can be a view of the wrapped object itself: an async generator's
     ``asend`` awaitable (on CPython 3.13 and later closing it finishes the generator, so later iteration would end

@@ -77,6 +77,7 @@ from tests.collection_deprecate import (
     make_flaky_attr_alias,
     make_read_only_inplace_proxy,
     make_read_only_settings_proxy,
+    make_silent_proxy_stack,
     make_skip_gated_target_proxy,
     make_switching_entry_proxy,
     make_warn_after_success_proxy,
@@ -4683,14 +4684,17 @@ class TestAsyncAcquisitionCleanup:
                 _acquire_anext(proxy)
         assert asyncio.run(_await_once(source.__anext__())) == [1, 2]
 
-    def test_failed_delivery_through_stacked_proxy_keeps_wrapped_coroutine(self) -> None:
-        """A failed ``await`` delivery on an outer proxy leaves usable the coroutine an inner proxy wraps.
+    @pytest.mark.parametrize("silent_layers", [1, 2])
+    def test_failed_delivery_through_stacked_proxy_keeps_wrapped_coroutine(self, silent_layers: int) -> None:
+        """A failed ``await`` delivery on an outer proxy leaves usable the coroutine inner proxies wrap.
 
-        The outer proxy acquires the await iterator from the inner proxy, not from the coroutine, so the owner is the
-        inner proxy. The coroutine is still the inner proxy's wrapped object and must not be closed.
+        The outer proxy acquires the await iterator from the next proxy down, not from the coroutine, so the owner is a
+        proxy. With two inner layers that owner wraps another proxy, so the coroutine sits at the bottom of the stack;
+        it is still the wrapped object and must not be closed.
         """
         source = legacy_snapshot()
-        proxy = make_warn_after_success_proxy(make_warn_after_success_proxy(source, stream=None))
+        inner = make_silent_proxy_stack(source, silent_layers)
+        proxy = make_warn_after_success_proxy(inner)
         with warnings.catch_warnings():
             warnings.simplefilter("error", FutureWarning)
             with pytest.raises(FutureWarning):

@@ -3271,6 +3271,16 @@ def make_warn_after_success_proxy(obj: object, **overrides: Any) -> Any:  # noqa
     return deprecated_instance(obj, **{"name": "legacy_box", **_DEPRS_CASE_STD_ARGS, **overrides})
 
 
+def make_silent_proxy_stack(obj: object, layers: int) -> Any:  # noqa: ANN401
+    """Wrap *obj* in *layers* silent ``legacy_box`` proxies, each wrapping the previous one.
+
+    ``stream=None`` keeps the inner layers from warning, so only a proxy stacked on top reports the deprecation.
+    """
+    for _ in range(layers):
+        obj = make_warn_after_success_proxy(obj, stream=None)
+    return obj
+
+
 # ========== Proxies stored as class attributes: descriptor binding ==========
 
 
