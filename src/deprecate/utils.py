@@ -198,44 +198,53 @@ def _is_dataclass_target(cls: Any) -> bool:  # noqa: ANN401
     return isinstance(cls, type) and dataclasses.is_dataclass(cls)
 
 
-def _apply_args_mapping_collisions(
-    args_mapping: dict[str, Optional[str]],
-    kwargs: dict[str, Any],
-    args_skip: Any,  # noqa: ANN401 - accepts list or set
+def _remap_kwargs(
+    mapping: Mapping[str, Optional[str]],
+    kwargs: Mapping[str, Any],
+    *,
     name: str,
-    stream: Any,  # noqa: ANN401 - truthy check; callable in deprecation path
+    stream: Optional[Callable[..., Any]],
 ) -> dict[str, Any]:
-    """Return snapshot of explicit new-name values for collision pairs and emit UserWarning per collision.
+    """Rename deprecated keyword arguments to their new names and drop the ones mapped to ``None``.
 
-    A collision occurs when a caller supplies both the deprecated old argument name and its mapped new name
-    simultaneously.  The new-name value always wins; this function snapshots it before the remap overwrites
-    it and warns the caller that the old name was ignored.
+    Shared by the ``@deprecated`` dispatcher and the ``deprecated_class`` / ``deprecated_instance`` proxy.  A
+    collision occurs when a caller supplies both a deprecated name and the new name it maps to: the new-name value
+    always wins, whatever the keyword order, and one ``UserWarning`` per pair says the old name was ignored.  A key
+    whose mapped value is another falsy value (``""``) keeps its old name.
 
     Args:
-        args_mapping: Mapping of old argument names to new names (``None`` = drop).
-        kwargs: Current keyword arguments at the call site.
-        args_skip: Names whose mapped value is ``None`` (drop); excluded from collision detection.
-        name: Callable name used in the warning message.
-        stream: Warning stream; falsy value suppresses all warnings.
+        mapping: The ``args_mapping`` — old argument name to new name, or ``None`` to drop the argument.
+        kwargs: The keyword arguments to remap; not modified.
+        name: Callable name used in the collision warning.
+        stream: Warning stream; a falsy value (``None``) suppresses the collision warning, not the remap.
 
     Returns:
-        Dict of ``{new_k: kwargs[new_k]}`` for each detected collision pair (empty when no collisions).
+        A new dict with the remapped keyword arguments.
+
+    Example:
+        >>> _remap_kwargs({"old": "new", "gone": None}, {"old": 1, "gone": 2, "keep": 3}, name="f", stream=None)
+        {'new': 1, 'keep': 3}
+        >>> _remap_kwargs({"old": "new"}, {"new": 6, "old": 5}, name="f", stream=None)
+        {'new': 6}
 
     """
-    collision_pairs = [
-        (old_k, new_k)
-        for old_k, new_k in args_mapping.items()
-        if new_k is not None and old_k in kwargs and new_k in kwargs and new_k not in args_skip
+    dropped = {old for old, new in mapping.items() if new is None}
+    collisions = [
+        (old, new)
+        for old, new in mapping.items()
+        if new is not None and old in kwargs and new in kwargs and new not in dropped
     ]
-    explicit_new: dict[str, Any] = {new_k: kwargs[new_k] for _, new_k in collision_pairs}
-    if collision_pairs and stream:
-        for old_k, new_k in collision_pairs:
+    if stream:
+        for old, new in collisions:
             warnings.warn(
-                f"Both `{old_k}` (deprecated) and `{new_k}` were supplied to `{name}()`; `{old_k}` is ignored.",
+                f"Both `{old}` (deprecated) and `{new}` were supplied to `{name}()`; `{old}` is ignored.",
                 UserWarning,
                 stacklevel=_caller_stacklevel(),
             )
-    return explicit_new
+    remapped = {(mapping.get(key) or key): value for key, value in kwargs.items() if key not in dropped}
+    # The rename above is last-write-wins on the key order; restore every explicitly passed new-name value.
+    remapped.update({new: kwargs[new] for _, new in collisions})
+    return remapped
 
 
 def _warns_repr(warns: list[warnings.WarningMessage]) -> list[Union[Warning, str]]:

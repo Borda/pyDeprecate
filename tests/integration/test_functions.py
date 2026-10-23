@@ -711,6 +711,33 @@ class TestVarPositionalForwarding:
         result = deprecated_var_positional_remap(1, 2, new_kwarg="world")
         assert result == (1, 2, "world")
 
+    @pytest.mark.parametrize(
+        "kwargs",
+        [
+            pytest.param({"new_kwarg": "world", "old_kwarg": "hello"}, id="new-first"),
+            pytest.param({"old_kwarg": "hello", "new_kwarg": "world"}, id="old-first"),
+        ],
+    )
+    def test_args_remap_with_var_positional_new_kwarg_wins(self, kwargs: dict[str, str]) -> None:
+        """The new-name value wins on a ``*args`` source when both names are passed, whatever their order.
+
+        A half-migrated caller passes both ``old_kwarg`` and ``new_kwarg`` to an ARGS_REMAP source that declares
+        ``*args``.  The collision ``UserWarning`` says the old name is ignored, so the source must receive the new
+        value; before the fix the ``*args`` branch renamed the caller's keywords with a last-write-wins comprehension
+        and the old value won whenever it was passed after the new one.  The warning fires once, from the caller's
+        line.
+        """
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            result = deprecated_var_positional_remap(1, 2, **kwargs)
+        collisions = [w for w in caught if issubclass(w.category, UserWarning)]
+        assert result == (1, 2, "world")
+        assert [str(w.message) for w in collisions] == [
+            "Both `old_kwarg` (deprecated) and `new_kwarg` were supplied to `deprecated_var_positional_remap()`;"
+            " `old_kwarg` is ignored."
+        ]
+        assert collisions[0].filename == __file__
+
 
 class TestTemplateMgsAliasOnFunctionEntryPoint:
     """The deprecated ``template_mgs`` alias resolves through the ``@deprecated`` function entry point.

@@ -892,8 +892,9 @@ class TestArgsMapping:
         """ARGS_REMAP proxy: new-name value wins regardless of whether old or new kwarg is listed first.
 
         Before the precedence fix, ``proxy(new_key=6, old_key=5)`` produced ``new_key=5``
-        because the dict-comprehension last-write-wins in ``_apply_args_mapping`` caused the
-        ``old_key→new_key`` rename to overwrite the explicit ``new_key=6`` entry.
+        because the dict-comprehension last-write-wins in the proxy's ``args_mapping`` rename (now
+        ``deprecate.utils._remap_kwargs``) caused the ``old_key→new_key`` rename to overwrite the explicit
+        ``new_key=6`` entry.
         This path exercises ``_proxy_call_args_remap`` (no callable target, ARGS_REMAP mode).
         """
         with pytest.warns(FutureWarning):
@@ -1270,8 +1271,9 @@ class TestProxyArgsMappingBehavior:
         """Callable-target proxy: new-name value wins regardless of whether old or new kwarg is listed first.
 
         Before the precedence fix, calling with ``new_key=6, old_key=5`` produced ``new_key=5``
-        because the dict-comprehension last-write-wins in ``_apply_args_mapping`` caused
-        the ``old_key→new_key`` rename to overwrite the explicit ``new_key=6`` entry.
+        because the dict-comprehension last-write-wins in the proxy's ``args_mapping`` rename (now
+        ``deprecate.utils._remap_kwargs``) caused the ``old_key→new_key`` rename to overwrite the explicit
+        ``new_key=6`` entry.
         Exercises ``_proxy_call_callable_with_mapping`` (has a callable target, not ARGS_REMAP mode).
         """
         proxy = _DeprecatedProxy(

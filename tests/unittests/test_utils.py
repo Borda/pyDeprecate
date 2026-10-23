@@ -7,9 +7,11 @@ from typing import Any, cast
 
 import pytest
 
+from deprecate import assert_no_warnings
 from deprecate.utils import (
     _get_signature,
     _get_signature_cached,
+    _remap_kwargs,
     _SigFacts,
     _signature_facts,
     _warns_repr,
@@ -25,6 +27,68 @@ from tests.collection_targets import (
 
 #: Not callable, so ``inspect.signature`` raises ``TypeError`` for it.
 _NON_CALLABLE = cast(Callable[..., Any], 42)
+
+#: ``args_mapping`` with one rename and one drop (``None``) entry, shared by the ``_remap_kwargs`` tests.
+_RENAME_AND_DROP = {"old": "new", "gone": None}
+
+
+class TestRemapKwargs:
+    """Tests for _remap_kwargs, the one ``args_mapping`` rename shared by the decorator and the proxy."""
+
+    def test_renames_and_drops(self) -> None:
+        """A deprecated name is renamed, a ``None``-mapped name is dropped and other keywords pass through.
+
+        This is the everyday migration: the caller still uses the old keyword, the mapping retires another one
+        entirely, and unrelated keywords must reach the callee untouched, without any collision warning.
+        """
+        kwargs = {"old": 1, "gone": 2, "keep": 3}
+        with assert_no_warnings():
+            result = _remap_kwargs(_RENAME_AND_DROP, kwargs, name="old_func", stream=warnings.warn)
+        assert result == {"new": 1, "keep": 3}
+        assert kwargs == {"old": 1, "gone": 2, "keep": 3}
+
+    @pytest.mark.parametrize(
+        "kwargs",
+        [
+            pytest.param({"new": 6, "old": 5}, id="new-first"),
+            pytest.param({"old": 5, "new": 6}, id="old-first"),
+        ],
+    )
+    def test_explicit_new_name_wins(self, kwargs: dict[str, int]) -> None:
+        """When both the old and the new name are passed, the new value wins and one ``UserWarning`` names the pair.
+
+        A half-migrated caller passes both names; the keyword order must not decide the outcome, and the warning
+        must point at the line that made the call.
+        """
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            result = _remap_kwargs(_RENAME_AND_DROP, kwargs, name="old_func", stream=warnings.warn)
+        assert result == {"new": 6}
+        assert [str(w.message) for w in caught] == [
+            "Both `old` (deprecated) and `new` were supplied to `old_func()`; `old` is ignored."
+        ]
+        assert caught[0].category is UserWarning
+        assert caught[0].filename == __file__
+
+    def test_silent_without_stream(self) -> None:
+        """``stream=None`` resolves a collision the same way but emits no warning.
+
+        A wrapper silenced with ``stream=None``, or a second rename of keywords whose collision was already
+        reported, must not warn again.
+        """
+        with assert_no_warnings():
+            result = _remap_kwargs(_RENAME_AND_DROP, {"old": 5, "new": 6}, name="old_func", stream=None)
+        assert result == {"new": 6}
+
+    def test_empty_mapping_returns_copy(self) -> None:
+        """An empty mapping returns an equal but separate dict.
+
+        Callers merge ``args_extra`` into the result, so it must never alias the caller's keyword dict.
+        """
+        kwargs = {"keep": 1}
+        result = _remap_kwargs({}, kwargs, name="old_func", stream=warnings.warn)
+        assert result == kwargs
+        assert result is not kwargs
 
 
 class TestSignatureFacts:

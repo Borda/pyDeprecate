@@ -72,7 +72,7 @@ from deprecate.messaging import (
     _validate_message_template,
     deprecation_warning,
 )
-from deprecate.utils import _apply_args_mapping_collisions, _is_dataclass_target, _SigFacts, _signature_facts
+from deprecate.utils import _is_dataclass_target, _remap_kwargs, _SigFacts, _signature_facts
 
 
 def _is_dunder(name: str) -> bool:
@@ -928,24 +928,6 @@ class _DeprecatedProxy:
             return target
         return self._cfg.obj
 
-    def _apply_args_mapping(self, kwargs: dict[str, Any]) -> dict[str, Any]:
-        """Apply args_mapping to *kwargs*, renaming or dropping keys as configured.
-
-        When both the old key and its mapped new-name key are present in *kwargs*, the explicit new-name value wins over
-        the renamed old-name value.
-
-        """
-        args_mapping = self._dep.args_mapping
-        if not args_mapping or not kwargs:
-            return kwargs
-        args_to_drop = {k for k, v in args_mapping.items() if v is None}
-        explicit_new = _apply_args_mapping_collisions(
-            args_mapping, kwargs, args_to_drop, self._dep.name, self._cfg.stream
-        )
-        result = {(args_mapping.get(k) or k): v for k, v in kwargs.items() if k not in args_to_drop}
-        result.update(explicit_new)
-        return result
-
     def _merge_args_extra(self, kwargs: dict[str, Any]) -> dict[str, Any]:
         """Merge :attr:`_ProxyConfig.args_extra` into *kwargs*; extra values win."""
         args_extra = self._cfg.args_extra
@@ -1703,7 +1685,7 @@ def _proxy_call_args_remap(
     for old_key in mapping:
         if old_key in kwargs:
             proxy._warn(arg_name=old_key)
-    mapped_kwargs = proxy._apply_args_mapping(kwargs)
+    mapped_kwargs = _remap_kwargs(mapping, kwargs, name=dep.name, stream=cfg.stream)
     mapped_kwargs = proxy._merge_args_extra(mapped_kwargs)
     return _proxy_call_with_positional_split(cfg.obj, dep, args, mapped_kwargs)
 
@@ -1722,7 +1704,7 @@ def _proxy_call_callable_with_mapping(
             proxy._warn(arg_name=old_key)
     if not any(old_key in kwargs for old_key in mapping):
         proxy._warn()
-    mapped_kwargs = proxy._apply_args_mapping(kwargs)
+    mapped_kwargs = _remap_kwargs(mapping, kwargs, name=dep.name, stream=proxy._cfg.stream)
     mapped_kwargs = proxy._merge_args_extra(mapped_kwargs)
     return _proxy_call_with_positional_split(target_fn, dep, args, mapped_kwargs)
 

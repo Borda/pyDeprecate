@@ -36,9 +36,9 @@ from deprecate.messaging import (
     _raise_warn_callable,
 )
 from deprecate.utils import (
-    _apply_args_mapping_collisions,
     _get_signature,
     _partial_chain,
+    _remap_kwargs,
     _SigFacts,
     _signature_facts,
     get_func_arguments_types_defaults,
@@ -1141,11 +1141,7 @@ def _resolve_forward_kwargs(
     if reason_callable:
         kwargs = _merge_source_defaults(source, target, kwargs, mapping, ctx.forward_defaults)
     if mapping and ctx.remap_active:
-        args_skip = [arg for arg in mapping if not mapping[arg]]
-        _explicit_new = _apply_args_mapping_collisions(mapping, kwargs, args_skip, source.__name__, ctx.stream)
-        kwargs = {(mapping.get(arg) or arg): val for arg, val in kwargs.items() if arg not in args_skip}
-        if _explicit_new:
-            kwargs.update(_explicit_new)
+        kwargs = _remap_kwargs(mapping, kwargs, name=source.__name__, stream=ctx.stream)
     if extra and ctx.remap_active:
         kwargs.update(extra)
     if not callable(target):
@@ -1439,16 +1435,15 @@ def _var_positional_source_kwargs(ctx: _WrapperContext, plan: _CallPlan) -> dict
 
     Only the caller-supplied keywords are used, never ``resolved_kwargs``, which also holds the positional-to-keyword
     conversions that would double-pass with ``*args``.  A rewritten call applies the ``args_mapping`` rename to them (a
-    no-op for a caller already on the new names) and merges ``args_extra`` last, so the injected keywords reach the
-    source whether or not the caller used a deprecated name.
+    no-op for a caller already on the new names; an explicit new-name value wins over a renamed old one) and merges
+    ``args_extra`` last, so the injected keywords reach the source whether or not the caller used a deprecated name.
 
     """
     if plan.short_circuit:
         return plan.original_kwargs
-    mapping = ctx.cfg.args_mapping or {}
-    kw_args = {
-        (mapping.get(k) or k): v for k, v in plan.original_kwargs.items() if k not in mapping or mapping[k] is not None
-    }
+    # Silent rename (``stream=None``): these keywords are a subset of the resolved keywords, whose rename in
+    # _resolve_forward_kwargs already emitted every collision UserWarning once for this call.
+    kw_args = _remap_kwargs(ctx.cfg.args_mapping or {}, plan.original_kwargs, name=ctx.source.__name__, stream=None)
     if ctx.cfg.args_extra:
         kw_args.update(ctx.cfg.args_extra)
     return kw_args
