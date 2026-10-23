@@ -1646,17 +1646,24 @@ def stream_passthrough_warn(*args: Any, **kwargs: Any) -> None:  # noqa: ANN401
     warnings.warn(*args, **kwargs)
 
 
-def stream_cycle_a(*args: Any, **kwargs: Any) -> None:  # noqa: ANN401
-    """Bare pass-through whose ``__wrapped__`` points at ``stream_cycle_b``, which points back here."""
+def make_stream_cycle() -> Callable[..., None]:
+    """Build two bare pass-through streams whose ``__wrapped__`` attributes point at each other; return the first.
 
+    A ``__wrapped__`` loop is the one shape ``inspect.unwrap`` refuses with ``ValueError``. The pair is built on demand,
+    not at import: doctest collection calls ``inspect.unwrap`` on every module-level function, so a module-level loop
+    would break collection of this whole module.
+    """
 
-def stream_cycle_b(*args: Any, **kwargs: Any) -> None:  # noqa: ANN401
-    """Bare pass-through whose ``__wrapped__`` points back at ``stream_cycle_a``."""
+    def stream_cycle_a(*args: Any, **kwargs: Any) -> None:  # noqa: ANN401
+        """Bare pass-through whose ``__wrapped__`` points at ``stream_cycle_b``, which points back here."""
 
+    def stream_cycle_b(*args: Any, **kwargs: Any) -> None:  # noqa: ANN401
+        """Bare pass-through whose ``__wrapped__`` points back at ``stream_cycle_a``."""
 
-# Assigned after both exist: a ``__wrapped__`` loop is the one shape ``inspect.unwrap`` refuses with ``ValueError``.
-setattr(stream_cycle_a, "__wrapped__", stream_cycle_b)
-setattr(stream_cycle_b, "__wrapped__", stream_cycle_a)
+    # Assigned after both exist, so each can name the other.
+    setattr(stream_cycle_a, "__wrapped__", stream_cycle_b)
+    setattr(stream_cycle_b, "__wrapped__", stream_cycle_a)
+    return stream_cycle_a
 
 
 class PassThroughMessageOnlyStream:

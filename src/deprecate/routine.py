@@ -31,6 +31,7 @@ from deprecate._dispatch import (
     _invoke_async,
     _invoke_sync,
     _normalize_target,
+    _precompute_forward_defaults,
     _precompute_target_facts,
     _reject_bare_decorator,
     _resolve_stored_target,
@@ -477,6 +478,9 @@ def deprecated_callable(  # noqa: C901
         # caller's original dict after decoration (which would silently change forwarding behavior at call time).
         _args_mapping = dict(args_mapping) if isinstance(args_mapping, dict) else args_mapping
         _args_extra = dict(args_extra) if isinstance(args_extra, dict) else args_extra
+        # Which source defaults a forwarded call must drop depends only on the target and the mapping, so derive
+        # it once here and hand it to every call; ``None`` (unreadable target signature) defers it to call time.
+        _forward_defaults = _precompute_forward_defaults(_target, _args_mapping)
         dep_meta = DeprecationConfig(
             deprecated_in=deprecated_in,
             remove_in=remove_in,
@@ -555,6 +559,7 @@ def deprecated_callable(  # noqa: C901
                         source_has_var_positional=source_has_var_positional,
                         source_is_stacked=_source_is_stacked,
                         source_positional_names=_source_positional_names,
+                        forward_defaults=_forward_defaults,
                     )
                     return await _invoke_async(source, plan, _dep_cfg, source_has_var_positional, args)
                 finally:
@@ -619,6 +624,7 @@ def deprecated_callable(  # noqa: C901
                     source_has_var_positional=source_has_var_positional,
                     source_is_stacked=_source_is_stacked,
                     source_positional_names=_source_positional_names,
+                    forward_defaults=_forward_defaults,
                 )
                 return _invoke_sync(source, plan, _dep_cfg, source_has_var_positional, args)
             finally:

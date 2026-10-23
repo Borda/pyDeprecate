@@ -9,6 +9,7 @@ import time
 import warnings
 from collections.abc import Iterator
 from typing import Any, Callable, Optional, Union, cast
+from unittest import mock
 
 import pytest
 
@@ -49,6 +50,7 @@ from tests.collection_deprecate import (
     dep_fib_silent,
     dep_non_cycle_old_fn,
     depr_pow_args,
+    depr_scale_partial_every_call,
     depr_target_mode_args_only_with_args_extra_injects_kwargs,
     deprecated_args_remap_positional_only_source,
     deprecated_async_args_remap_positional_only_source,
@@ -1597,6 +1599,18 @@ class TestForwardDefaultsPrecompute:
                 """Accept anything; only the unreadable signature matters here."""
 
         assert _precompute_forward_defaults(_OpaqueTarget(), {"old_arg": "new_arg"}) is None
+
+    def test_decorated_call_reuses_decoration_time_facts(self) -> None:
+        """A forwarded call through a decorated function never re-derives the facts.
+
+        ``depr_scale_partial_every_call`` forwards to ``partial(new_scale, y=5)`` on every call. The decorator computed
+        its facts when it wrapped the function, so a hot loop of calls must not walk the target signature or the
+        partial chain again; the call still drops the stale source default and lets the partial's ``y=5`` win.
+        """
+        with mock.patch("deprecate._dispatch._derive_forward_defaults") as derive, pytest.warns(FutureWarning):
+            result = depr_scale_partial_every_call(3)
+
+        assert (derive.call_count, result) == (0, 15)
 
     @pytest.mark.parametrize(
         ("target", "mapping", "kwargs", "expected"),

@@ -739,10 +739,12 @@ class _DeprecatedProxy:
     def _gate(self, *, arg_name: Optional[str] = None, read_only_op: Optional[str] = None) -> tuple[Any, bool]:
         """Decide once whether this operation's deprecation is live, refusing a fatal one before the object is used.
 
-        Every operation that warns makes this decision exactly once: ``skip_if`` is evaluated here (through
-        :meth:`_activation`) and nowhere else in the operation, and the returned pair carries the decision to the
-        operation itself and to :meth:`_deliver`. A ``skip_if`` callable that changes its answer between calls
-        therefore cannot serve one object and warn about another, and it is not paid for twice.
+        Every read and data-use operation that gates here makes this decision exactly once: ``skip_if`` is evaluated
+        here (through :meth:`_activation`) and nowhere else in the operation, and the returned pair carries the
+        decision to the operation itself and to :meth:`_deliver`. A ``skip_if`` callable that changes its answer
+        between calls therefore cannot serve one object and warn about another, and it is not paid for twice. Calls
+        (``__call__``) and writes (``__setattr__``, ``__setitem__`` and their deletes) still check ``skip_if`` on their
+        own before reaching the forwarding helpers, so they may consult it more than once.
 
         This is the single place that refuses a fatal deprecation ahead of the operation. Proxy operations with an
         effect on the wrapped object (subscript, iteration, ``round``, the unary and conversion forwards,
