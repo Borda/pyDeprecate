@@ -261,6 +261,69 @@ def _check_cross_class_method_target(source: Callable, target: Callable) -> None
     )
 
 
+_STACKING_CALLABLE = "callable"
+_STACKING_NOTIFY = "notify"
+_STACKING_ARGS_REMAP = "args_remap"
+_STACKING_OTHER = "other"
+
+_UNSUPPORTED_STACKING_MESSAGE = (
+    f"'{{name}}' has an unsupported @deprecated stacking combination. Will be `TypeError` in `{_MAJOR_BREAK_VERSION}`."
+)
+_STACKING_MESSAGES: dict[tuple[str, str], Optional[str]] = {
+    (_STACKING_CALLABLE, _STACKING_CALLABLE): (
+        "'{name}' has a callable target stacked over another callable-target @deprecated. Stacking a callable "
+        "target over another callable target is not supported. This will raise `TypeError` at call time. Will be "
+        f"`TypeError` in `{_MAJOR_BREAK_VERSION}`."
+    ),
+    (_STACKING_CALLABLE, _STACKING_NOTIFY): (
+        "'{name}' has a callable target stacked over @deprecated(NOTIFY). The inner function-deprecated warning "
+        "will not fire at call time; the inner layer is bypassed while the callable target is still invoked. "
+        "Collapse to a single @deprecated(target=<callable>) and remove the inner @deprecated(NOTIFY). Will be "
+        f"`TypeError` in `{_MAJOR_BREAK_VERSION}`."
+    ),
+    (_STACKING_CALLABLE, _STACKING_ARGS_REMAP): (
+        "'{name}' has a callable target stacked over @deprecated(ARGS_REMAP). The arg-rename warning will not fire "
+        "at call time; the inner layer is bypassed. Collapse to: @deprecated(target=<callable>, "
+        f"args_mapping={{{{...}}}}). Will be `TypeError` in `{_MAJOR_BREAK_VERSION}`."
+    ),
+    (_STACKING_CALLABLE, _STACKING_OTHER): _UNSUPPORTED_STACKING_MESSAGE,
+    (_STACKING_NOTIFY, _STACKING_CALLABLE): None,
+    (_STACKING_NOTIFY, _STACKING_NOTIFY): (
+        "'{name}' has duplicate @deprecated(NOTIFY) layers. Update the existing decorator's `deprecated_in`, "
+        f"`remove_in`, or `message_template` instead. Will be `TypeError` in `{_MAJOR_BREAK_VERSION}`."
+    ),
+    (_STACKING_NOTIFY, _STACKING_ARGS_REMAP): (
+        "'{name}' has @deprecated(NOTIFY) stacked over @deprecated(ARGS_REMAP). Reverse the decorator order: put "
+        "@deprecated(ARGS_REMAP, ...) outermost (on top) and @deprecated(NOTIFY, ...) below it. Will be "
+        f"`TypeError` in `{_MAJOR_BREAK_VERSION}`."
+    ),
+    (_STACKING_NOTIFY, _STACKING_OTHER): _UNSUPPORTED_STACKING_MESSAGE,
+    (_STACKING_ARGS_REMAP, _STACKING_CALLABLE): (
+        "'{name}' has @deprecated(ARGS_REMAP) stacked over a callable-target @deprecated. Update the inner "
+        "@deprecated(target=<callable>, args_mapping={{...}}) instead of stacking. Will be `TypeError` in "
+        f"`{_MAJOR_BREAK_VERSION}`."
+    ),
+    (_STACKING_ARGS_REMAP, _STACKING_NOTIFY): None,
+    (_STACKING_ARGS_REMAP, _STACKING_ARGS_REMAP): None,
+    (_STACKING_ARGS_REMAP, _STACKING_OTHER): _UNSUPPORTED_STACKING_MESSAGE,
+    (_STACKING_OTHER, _STACKING_CALLABLE): _UNSUPPORTED_STACKING_MESSAGE,
+    (_STACKING_OTHER, _STACKING_NOTIFY): _UNSUPPORTED_STACKING_MESSAGE,
+    (_STACKING_OTHER, _STACKING_ARGS_REMAP): _UNSUPPORTED_STACKING_MESSAGE,
+    (_STACKING_OTHER, _STACKING_OTHER): _UNSUPPORTED_STACKING_MESSAGE,
+}
+
+
+def _stacking_kind(target: object) -> str:
+    """Classify a normalized target for the stacking compatibility table."""
+    if callable(target):
+        return _STACKING_CALLABLE
+    if target is TargetMode.NOTIFY:
+        return _STACKING_NOTIFY
+    if target is TargetMode.ARGS_REMAP:
+        return _STACKING_ARGS_REMAP
+    return _STACKING_OTHER
+
+
 def _warn_stacking_misconfiguration(source: Callable, outer_target: Union[TargetMode, Callable]) -> None:
     """Emit ``UserWarning`` at decoration time for unsupported stacking combinations.
 
@@ -273,84 +336,15 @@ def _warn_stacking_misconfiguration(source: Callable, outer_target: Union[Target
     - ``NOTIFY`` (outer) + ``callable`` (inner): outer NOTIFY warns callers the function is going
       away; inner callable handles forwarding.
 
-    Unsupported combinations (six cases) produce ``UserWarning`` at decoration time; all others
-    are silently accepted.  The three supported combinations are: ``ARGS_REMAP`` (outer) +
-    ``ARGS_REMAP`` (inner), ``ARGS_REMAP`` (outer) + ``NOTIFY`` (inner), and ``NOTIFY`` (outer) +
-    ``callable`` (inner).
+    All other combinations produce ``UserWarning`` at decoration time.
 
     """
     inner_config = get_deprecation_config(source)
     if inner_config is None:
         raise TypeError(f"'{source.__name__}' no longer carries valid deprecation metadata.")
-    inner_target = inner_config.target
-    name = source.__name__
-
-    if callable(outer_target) and callable(inner_target):
-        warnings.warn(
-            f"'{name}' has a callable target stacked over another callable-target @deprecated."
-            " Stacking a callable target over another callable target is not supported."
-            " This will raise `TypeError` at call time."
-            f" Will be `TypeError` in `{_MAJOR_BREAK_VERSION}`.",
-            UserWarning,
-            stacklevel=_caller_stacklevel(),
-        )
-    elif callable(outer_target) and inner_target is TargetMode.ARGS_REMAP:
-        warnings.warn(
-            f"'{name}' has a callable target stacked over @deprecated(ARGS_REMAP)."
-            " The arg-rename warning will not fire at call time; the inner layer is bypassed."
-            " Collapse to: @deprecated(target=<callable>, args_mapping={...})."
-            f" Will be `TypeError` in `{_MAJOR_BREAK_VERSION}`.",
-            UserWarning,
-            stacklevel=_caller_stacklevel(),
-        )
-    elif callable(outer_target) and inner_target is TargetMode.NOTIFY:
-        warnings.warn(
-            f"'{name}' has a callable target stacked over @deprecated(NOTIFY)."
-            " The inner function-deprecated warning will not fire at call time; the inner layer is bypassed"
-            " while the callable target is still invoked."
-            " Collapse to a single @deprecated(target=<callable>) and remove the inner @deprecated(NOTIFY)."
-            f" Will be `TypeError` in `{_MAJOR_BREAK_VERSION}`.",
-            UserWarning,
-            stacklevel=_caller_stacklevel(),
-        )
-    elif outer_target is TargetMode.ARGS_REMAP and callable(inner_target):
-        warnings.warn(
-            f"'{name}' has @deprecated(ARGS_REMAP) stacked over a callable-target @deprecated."
-            " Update the inner @deprecated(target=<callable>, args_mapping={...}) instead of stacking."
-            f" Will be `TypeError` in `{_MAJOR_BREAK_VERSION}`.",
-            UserWarning,
-            stacklevel=_caller_stacklevel(),
-        )
-    elif outer_target is TargetMode.NOTIFY and inner_target is TargetMode.NOTIFY:
-        warnings.warn(
-            f"'{name}' has duplicate @deprecated(NOTIFY) layers."
-            " Update the existing decorator's `deprecated_in`, `remove_in`, or `message_template` instead."
-            f" Will be `TypeError` in `{_MAJOR_BREAK_VERSION}`.",
-            UserWarning,
-            stacklevel=_caller_stacklevel(),
-        )
-    elif outer_target is TargetMode.NOTIFY and inner_target is TargetMode.ARGS_REMAP:
-        warnings.warn(
-            f"'{name}' has @deprecated(NOTIFY) stacked over @deprecated(ARGS_REMAP)."
-            " Reverse the decorator order: put @deprecated(ARGS_REMAP, ...) outermost (on top)"
-            " and @deprecated(NOTIFY, ...) below it."
-            f" Will be `TypeError` in `{_MAJOR_BREAK_VERSION}`.",
-            UserWarning,
-            stacklevel=_caller_stacklevel(),
-        )
-    elif (
-        (outer_target is TargetMode.ARGS_REMAP and inner_target is TargetMode.ARGS_REMAP)
-        or (outer_target is TargetMode.ARGS_REMAP and inner_target is TargetMode.NOTIFY)
-        or (outer_target is TargetMode.NOTIFY and callable(inner_target))
-    ):
-        pass  # supported combinations — silently accepted
-    else:
-        warnings.warn(
-            f"'{name}' has an unsupported @deprecated stacking combination."
-            f" Will be `TypeError` in `{_MAJOR_BREAK_VERSION}`.",
-            UserWarning,
-            stacklevel=_caller_stacklevel(),
-        )
+    message = _STACKING_MESSAGES[(_stacking_kind(outer_target), _stacking_kind(inner_config.target))]
+    if message is not None:
+        warnings.warn(message.format(name=source.__name__), UserWarning, stacklevel=_caller_stacklevel())
 
 
 def _normalize_target(
