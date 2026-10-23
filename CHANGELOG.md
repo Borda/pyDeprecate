@@ -10,6 +10,10 @@
 - **`pydeprecate all --output FILE`.** `all` can now also save the deprecation table it appends, as `status --output` does; a failure to write the file is reported but never changes the exit code. ([#245](https://github.com/Borda/pyDeprecate/pull/245))
 - **`--report-json FILE` on every CLI subcommand.** Writes the run's machine-readable record — the deprecation table of the scan that ran, plus every audit gap with its kind, detail and a remedy hint — on exit `0` or `1`; a usage error writes none, and a failed write never changes the exit code. The GitHub Action builds its gap annotations and job summary from it, so a single-gate summary now covers exactly the gate's scan. ([#245](https://github.com/Borda/pyDeprecate/pull/245))
 
+### Fixed
+
+- **Callable forwarding and proxy warning edge cases.** Forwarded calls preserve the caller's positional and keyword arguments; warnings retain the user call location and warning-filter behavior, and warning state is cleaned up if a custom stream raises. Context entry also releases the acquired resource when warning delivery fails; skipped in-place writes bypass the read-only guard. Function-proxy class attributes now bind like methods, while static-style access should use `staticmethod`. Async proxy operations warn when `__await__` or `__anext__` obtains the underlying awaitable, so a later deferred failure or exhaustion still consumes the warning budget. ([#250](https://github.com/Borda/pyDeprecate/pull/250))
+
 ### Changed
 
 - **Stricter CLI argument handling.** A boolean flag now accepts only `true`, `false`, `1` or `0` (case-insensitive) in both `--flag value` and `--flag=value` forms, and any other value exits `2`; a second positional path for `check`, `policy` or `chains`, and private `--_*` options such as `--_advisory`, exit `2` as well. Scanning a directory that holds several top-level packages (for example a repository root with `mypkg/` and `tests/`) now fails with a non-zero exit and a "contains multiple packages" error instead of passing silently on an empty scan; src-layout and single-package roots resolve as before. ([#243](https://github.com/Borda/pyDeprecate/pull/243))

@@ -1351,13 +1351,11 @@ async def test_old_fetch_warns():
 
 ______________________________________________________________________
 
-## I wrapped a `functools.partial` of an `async def` and the wrapper is not async
+## Why can't I decorate a `functools.partial` or callable wrapper?
 
-**Q:** I applied `@deprecated` to a `functools.partial` of an `async def` function, but the resulting wrapper is synchronous — `inspect.iscoroutinefunction(wrapper)` returns `False` and `await wrapper(...)` raises a `TypeError`. What is happening?
+**Q:** I applied `@deprecated` to a `functools.partial`, `functools.partialmethod`, or `singledispatchmethod`. Which callable forms can be decorated?
 
-**A:** On Python 3.9–3.11, `inspect.iscoroutinefunction(functools.partial(async_fn))` returns `False` — the `partial` object does not propagate the coroutine flag of its wrapped callable. pyDeprecate's async branch in `packing()` checks `inspect.iscoroutinefunction(source)` to decide whether to produce an `async def` wrapper, so wrapping a `partial` of an `async def` falls through to the sync wrapper path and yields a regular function instead of a coroutine function.
-
-**Workaround:** Apply `@deprecated` to the `async def` directly, then use `functools.partial` on the already-deprecated async wrapper if you need preset arguments.
+**A:** `@deprecated` accepts Python functions, supported descriptors, and classes as sources. Callable wrappers such as `functools.partial`, `functools.partialmethod`, and `singledispatchmethod` are rejected with `TypeError`; they do not become supported sources merely because their wrapped callable is async. Define a plain `def` or `async def` with the desired public signature and decorate that named function. For async targets, pyDeprecate follows `inspect.iscoroutinefunction` on the supported Python runtime; an async callable instance that returns an awaitable is a distinct kind and may not be recognized as a coroutine function. `deprecated_instance` is for deprecating an object alias, not a substitute for a decorated function source.
 
 ```python
 import asyncio
@@ -1389,8 +1387,6 @@ https://example.com
 ```
 
 </details>
-
-This limitation is resolved in Python 3.12+ where `inspect.iscoroutinefunction` correctly handles `functools.partial` objects whose underlying callable is an `async def`.
 
 ______________________________________________________________________
 
@@ -2205,7 +2201,7 @@ ______________________________________________________________________
 
 **Q:** My code probes a deprecated mapping with `try: settings[key] except KeyError: ...`. The miss emitted no `FutureWarning`, but the next successful `settings["threshold"]` read did.
 
-**A:** That is intended. A `deprecated_instance` or `deprecated_class` proxy warns only after a data-use operation succeeds: subscripts, iteration, unary and binary operators, context-manager entry, async iteration, `await`, and `attrs_mapping` attribute reads all run first and warn afterwards. A probe that fails — a `KeyError` from `proxy[key]`, a `StopIteration` from `next(proxy)`, an `AttributeError` from `hasattr` — emits nothing and leaves the `num_warns` budget unspent, so the default one warning still reaches the first real use. Calling the proxy is the one exception: like `@deprecated`, it warns before the call, so a deprecated constructor that raises still reports the deprecation. With `as_exception=True`, the proxy raises `DeprecatedError` before it touches the wrapped object for subscripts, iteration, unary and conversion operators, `next()`, `with` and `async with` entry, async iteration, `await`, in-place operators such as `+=`, and `attrs_mapping` attribute reads — a missing key under a fatal deprecation therefore raises `DeprecatedError`, not `KeyError`, and a `defaultdict` gains no entry.
+**A:** Synchronous data-use operations warn only after they succeed: a `KeyError` from `proxy[key]`, a `StopIteration` from `next(proxy)`, or an `AttributeError` from `hasattr` emits nothing and leaves the `num_warns` budget unspent. Async iteration and awaiting are different: `__anext__` and `__await__` warn when they obtain the underlying awaitable, before it runs, so a later async failure or exhaustion still consumes the budget. If warning delivery raises after context entry acquires a resource, the proxy invokes that same context’s exit method before propagating the error. Calling the proxy also warns before the call, like `@deprecated`, so a deprecated constructor that raises still reports the deprecation. With `as_exception=True`, the proxy raises `DeprecatedError` before it touches the wrapped object for subscripts, iteration, unary and conversion operators, `next()`, `with` and `async with` entry, async iteration, `await`, in-place operators such as `+=`, and `attrs_mapping` attribute reads — a missing key under a fatal deprecation therefore raises `DeprecatedError`, not `KeyError`, and a `defaultdict` gains no entry.
 
 ______________________________________________________________________
 

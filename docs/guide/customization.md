@@ -109,7 +109,7 @@ print(train(lr=0.001))
 
 ## Deprecation Output Sink (`stream`)
 
-`stream` controls where deprecation messages go. It accepts any callable with signature `(msg: str) -> None`, or `None` to silence output entirely.
+`stream` controls where deprecation messages go. It accepts a callable that can receive the warning message, or `None` to silence output entirely. pyDeprecate probes the callable signature to see whether it can also receive `stacklevel`; if that signature cannot be inspected, it falls back to calling the stream with the message only. In that fallback, a custom stream that forwards to `warnings.warn` cannot receive pyDeprecate's caller stack level.
 
 ### Default: FutureWarning via `warnings.warn`
 
