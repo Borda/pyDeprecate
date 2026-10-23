@@ -672,6 +672,20 @@ def depr_pow_self_double(base: float, c1: float = 0, c2: float = 0, nc1: float =
     return base ** (c1 + c2 + nc1 + nc2)
 
 
+@deprecated(
+    target=TargetMode.ARGS_REMAP, **_DEPRS_CASE_STD_ARGS, num_warns=1, args_mapping={"old_x": "x", "old_y": "y"}
+)
+def depr_two_renames_warn_once(x: int = 0, y: int = 0, old_x: int = 0, old_y: int = 0) -> int:
+    """Self-deprecation renaming two parameters, each with its own one-warning budget.
+
+    Examples:
+        A caller that already received the `old_x` notice and later passes `old_x` and `old_y` together is
+        told only about `old_y`.
+
+    """
+    return add_values(x, y)
+
+
 @deprecated(TargetMode.ARGS_REMAP, "0.3", "0.6", args_mapping={"c1": "nc1"}, message_template=_SHORT_MSG_ARGS)
 @deprecated(TargetMode.ARGS_REMAP, "0.4", "0.7", args_mapping={"nc1": "nc2"}, message_template=_SHORT_MSG_ARGS)
 def depr_pow_self_twice(base: float, c1: float = 0, nc1: float = 0, nc2: float = 2) -> float:

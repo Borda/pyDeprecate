@@ -19,6 +19,7 @@ from deprecate._types import DeprecationConfig, _WrapperState
 from deprecate.messaging import (
     _STREAM_DECISIONS,
     _callable_display_name,
+    _consume_argument_warn_budget,
     _consume_warn_budget,
     _emit,
     _eval_skip_if,
@@ -108,6 +109,40 @@ class TestWarnBudgetRelease:
             _consume_warn_budget(state, -1, reason_callable=True)
             _release_warn_budget(state, -1, reason_callable=True)
         assert state.warned_calls == 1
+
+
+class TestConsumeArgumentWarnBudget:
+    """``_consume_argument_warn_budget`` returns and consumes only the arguments still under their own budget."""
+
+    @pytest.mark.parametrize(
+        ("warned_args", "num_warns", "expected", "expected_counts"),
+        [
+            pytest.param({}, 1, {"old_x": "x", "old_y": None}, {"old_x": 1, "old_y": 1}, id="fresh-all-named"),
+            pytest.param({"old_x": 1}, 1, {"old_y": None}, {"old_x": 1, "old_y": 1}, id="spent-arg-left-out"),
+            pytest.param({"old_x": 1, "old_y": 1}, 1, {}, {"old_x": 1, "old_y": 1}, id="all-spent-empty"),
+            pytest.param(
+                {"old_x": 5, "old_y": 5}, -1, {"old_x": "x", "old_y": None}, {"old_x": 6, "old_y": 6}, id="unlimited"
+            ),
+        ],
+    )
+    def test_returns_arguments_under_budget(
+        self,
+        warned_args: dict[str, int],
+        num_warns: int,
+        expected: dict[str, str | None],
+        expected_counts: dict[str, int],
+    ) -> None:
+        """Only arguments under budget are returned, and only their counters move.
+
+        A call passes two deprecated arguments, ``old_x`` (renamed) and ``old_y`` (dropped), after some earlier calls
+        already spent part of the budget.  The warning built from the result must name each argument at most
+        ``num_warns`` times, keep the original order, and stay empty when nothing is left to report; an unlimited
+        budget names every argument and still counts each use.
+        """
+        state = _WrapperState(warned_args=dict(warned_args))
+        with state.lock:
+            named = _consume_argument_warn_budget(state, num_warns, {"old_x": "x", "old_y": None})
+        assert (named, list(named), state.warned_args) == (expected, list(expected), expected_counts)
 
 
 class TestCallableDisplayName:

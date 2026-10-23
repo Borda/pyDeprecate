@@ -32,6 +32,7 @@ from deprecate._types import (
 )
 from deprecate.messaging import (
     _callable_display_name,
+    _consume_argument_warn_budget,
     _consume_warn_budget,
     _raise_warn_arguments,
     _raise_warn_callable,
@@ -1204,7 +1205,8 @@ def _emit_call_warning(
     """Spend the warn budget and deliver this call's deprecation warning, or raise it when the deprecation is fatal.
 
     The callable reason warns through :func:`_raise_warn_callable`, the argument-rename reason through
-    :func:`_raise_warn_arguments`; the budget check-then-increment runs under ``ctx.state.lock``.
+    :func:`_raise_warn_arguments`, naming only the arguments still under their own budget (a fatal deprecation names
+    all of them); the budget check-then-increment runs under ``ctx.state.lock``.
 
     Args:
         ctx: The wrapper's context.
@@ -1223,12 +1225,16 @@ def _emit_call_warning(
     # counters stay untouched, so flipping the global switch off mid-process restores ordinary warn-once.
     state, cfg, num_warns = ctx.state, ctx.cfg, ctx.num_warns
     fatal = _resolve_as_exception(cfg.as_exception)
-    should_warn = fatal
+    should_warn, arguments = fatal, reason_argument
     if not fatal and ctx.stream and (num_warns < 0 or reason_argument or state.warned_calls < num_warns):
         with state.lock:
-            should_warn = _consume_warn_budget(
-                state, num_warns, reason_callable=reason_callable, reason_argument=reason_argument
-            )
+            if reason_callable:
+                should_warn = _consume_warn_budget(state, num_warns, reason_callable=True)
+            else:
+                # Name only the arguments still under their own budget: one already warned about up to
+                # ``num_warns`` times is not listed again when it reappears next to a fresh one.
+                arguments = _consume_argument_warn_budget(state, num_warns, reason_argument)
+                should_warn = bool(arguments)
     if not should_warn:
         return
     if reason_callable:
@@ -1243,11 +1249,11 @@ def _emit_call_warning(
             message_template=cfg.message_template,
             as_exception=fatal,
         )
-    elif reason_argument:
+    elif arguments:
         _raise_warn_arguments(
             stream=ctx.stream,
             source=ctx.source,
-            arguments=reason_argument,
+            arguments=arguments,
             deprecated_in=cfg.deprecated_in,
             remove_in=cfg.remove_in,
             message_template=cfg.message_template,

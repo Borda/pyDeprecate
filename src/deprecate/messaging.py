@@ -653,11 +653,13 @@ def _consume_warn_budget(
         num_warns: Configured budget; negative means unlimited.
         reason_callable: Warning is for the deprecated callable itself — consumes ``warned_calls``.
         reason_argument: Deprecated argument names present in this call — consumes per-argument
-            budgets in ``warned_args``; takes precedence over the call counter for the check.  A proxy passes
-            ``{key: None}`` for its per-argument or ``__attr__:`` attribute key.
+            budgets in ``warned_args`` through :func:`_consume_argument_warn_budget` when ``reason_callable`` is
+            ``False``.  A proxy passes ``{key: None}`` for its per-argument or ``__attr__:`` attribute key.
 
     Returns:
-        True when the caller should emit the warning (budget available and now consumed).
+        True when the caller should emit the warning (budget available and now consumed).  For the argument reason
+        this means at least one argument is still under budget; a caller that names the arguments in its warning
+        uses :func:`_consume_argument_warn_budget` directly to learn which ones.
 
     Example:
         >>> state = _WrapperState()
@@ -668,21 +670,53 @@ def _consume_warn_budget(
     # The budget must track the warning variant that will be emitted:
     # - callable-level warnings consume warned_calls
     # - argument-level warnings consume warned_args
-    if reason_callable:
-        nb_warned = state.warned_calls
-    elif reason_argument:
-        nb_warned = min((state.warned_args.get(arg, 0) for arg in reason_argument), default=0)
-    else:
-        nb_warned = state.warned_calls
-    if num_warns >= 0 and nb_warned >= num_warns:
+    if reason_argument and not reason_callable:
+        return bool(_consume_argument_warn_budget(state, num_warns, reason_argument))
+    if num_warns >= 0 and state.warned_calls >= num_warns:
         return False
     if reason_callable:
         state.warned_calls += 1
-    elif reason_argument:
-        for arg in reason_argument:
-            if num_warns < 0 or state.warned_args.get(arg, 0) < num_warns:
-                state.warned_args[arg] = state.warned_args.get(arg, 0) + 1
     return True
+
+
+def _consume_argument_warn_budget(
+    state: _WrapperState,
+    num_warns: int,
+    reason_argument: Mapping[str, Optional[str]],
+) -> dict[str, Optional[str]]:
+    """Consume one unit from each deprecated argument's own budget and return the arguments that may be named.
+
+    Each deprecated argument has its own budget in ``state.warned_args``.  Only the arguments still under budget are
+    returned and consumed; an argument whose budget is spent is left out, so a later warning does not name it again.
+    Must be called while holding ``state.lock``, like :func:`_consume_warn_budget`.
+
+    Args:
+        state: Mutable per-wrapper counters.
+        num_warns: Configured budget; negative means unlimited.
+        reason_argument: Deprecated argument names present in this call, mapped to their new names.
+
+    Returns:
+        The entries of ``reason_argument`` still under budget, in their original order.  An empty dict means no
+        warning should be emitted.
+
+    Example:
+        >>> state = _WrapperState()
+        >>> _consume_argument_warn_budget(state, 1, {"old_x": "x"})
+        {'old_x': 'x'}
+        >>> _consume_argument_warn_budget(state, 1, {"old_x": "x", "old_y": "y"})
+        {'old_y': 'y'}
+        >>> _consume_argument_warn_budget(state, 1, {"old_x": "x", "old_y": "y"})
+        {}
+
+    """
+    under_budget = {
+        arg: new_arg
+        for arg, new_arg in reason_argument.items()
+        if num_warns < 0 or state.warned_args.get(arg, 0) < num_warns
+    }
+    for arg in under_budget:
+        state.warned_args[arg] = state.warned_args.get(arg, 0) + 1
+    return under_budget
 
 
 def _release_warn_budget(

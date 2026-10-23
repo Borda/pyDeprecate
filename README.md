@@ -2474,7 +2474,7 @@ Hi!
 
 **Problem:** You don't see the deprecation warning.
 
-**Cause:** By default, warnings are shown **only once per function** (`num_warns=1`) to prevent log spam. For per-argument deprecation (when using `args_mapping` with `TargetMode.ARGS_REMAP`), each deprecated argument has its own warning counter, meaning warnings for different arguments are tracked independently.
+**Cause:** By default, warnings are shown **only once per function** (`num_warns=1`) to prevent log spam. For per-argument deprecation (when using `args_mapping` with `TargetMode.ARGS_REMAP`), each deprecated argument has its own warning counter, meaning warnings for different arguments are tracked independently. A warning for a call that uses several deprecated arguments names only those whose counter is not yet spent, so an argument you were already warned about is not listed again.
 
 <details>
 <summary>Solutions</summary>

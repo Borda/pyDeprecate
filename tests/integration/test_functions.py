@@ -57,6 +57,7 @@ from tests.collection_deprecate import (
     depr_scale_partial_renamed,
     depr_sync_over_partial_async,
     depr_timing_wrapper,
+    depr_two_renames_warn_once,
     deprecated_async_var_positional_forward,
     deprecated_var_positional_forward,
     deprecated_var_positional_overflow,
@@ -311,6 +312,22 @@ class TestArgumentMapping:
         # Result is 32 because: c1->nc1=3, c2->nc2=4, but nc2=2 (user wins), so 2**(0+0+3+2)=32
         with pytest.warns(FutureWarning, match="The `depr_pow_self_double` uses depr. args:"):
             assert depr_pow_self_double(2, c1=3, c2=4, nc2=2) == 32
+
+    def test_spent_argument_not_listed_again(self) -> None:
+        """A later rename warning names only the arguments whose own budget is not spent yet.
+
+        With ``num_warns=1`` a caller first passes ``old_x`` and receives its one notice. A later call passes
+        ``old_x`` and ``old_y`` together: ``old_y`` still owes its notice, but the budget of ``old_x`` is spent, so
+        naming it again would break the one-warning promise and repeat a migration hint the caller already has.
+        """
+        with pytest.warns(FutureWarning, match="`old_x` -> `x`"):
+            depr_two_renames_warn_once(old_x=1)
+        with pytest.warns(FutureWarning) as record:
+            assert depr_two_renames_warn_once(old_x=1, old_y=2) == 3
+        assert [str(w.message) for w in record] == [
+            "The `depr_two_renames_warn_once` uses deprecated arguments: `old_y` -> `y`."
+            " They were deprecated since v1.0 and will be removed in v2.0."
+        ]
 
     def test_chain_deprecated(self) -> None:
         """Test chaining deprecation wrappers, calling with deprecated argument."""
