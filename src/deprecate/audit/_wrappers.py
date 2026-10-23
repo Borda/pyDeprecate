@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 if TYPE_CHECKING:
     pass
 
+from deprecate._frames import _caller_stacklevel
 from deprecate._types import DeprecationConfig, TargetMode, _has_deprecation_meta, get_deprecation_config
 from deprecate.proxy import _DeprecatedProxy
 from deprecate.utils import get_func_arguments_types_defaults
@@ -153,7 +154,7 @@ class DeprecationWrapperInfo:
         warnings.warn(
             "'empty_mapping' was renamed to 'empty_args_mapping' in 0.8 and will be removed in 1.0.",
             DeprecationWarning,
-            stacklevel=2,
+            stacklevel=_caller_stacklevel(),
         )
         return self.empty_args_mapping
 
@@ -173,7 +174,7 @@ class DeprecationWrapperInfo:
         warnings.warn(
             "'identity_mapping' was renamed to 'identity_args_mapping' in 0.8 and will be removed in 1.0.",
             DeprecationWarning,
-            stacklevel=2,
+            stacklevel=_caller_stacklevel(),
         )
         return self.identity_args_mapping
 
@@ -211,7 +212,7 @@ def _dwi_compat_init(self: DeprecationWrapperInfo, *args: object, **kwargs: obje
                 f"'{old}' was renamed to '{new}' in 0.8 and will be removed in 1.0."
                 " Update your code to use the new name.",
                 DeprecationWarning,
-                stacklevel=2,
+                stacklevel=_caller_stacklevel(),
             )
             old_value = kwargs.pop(old)  # always remove old kwarg so it isn't forwarded
             if new in kwargs:

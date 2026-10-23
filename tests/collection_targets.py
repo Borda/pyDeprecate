@@ -5,12 +5,15 @@ This module provides base functions that are used as targets for deprecated func
 """
 
 import functools
+import inspect
+import logging
 import time
+import types
 import warnings
-from collections.abc import AsyncIterator, Generator, Iterator
+from collections.abc import AsyncIterator, Coroutine, Generator, Iterator
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Optional
+from typing import Any, Callable, ClassVar, Optional
 
 import typing_extensions
 
@@ -230,6 +233,19 @@ def fn_shared_default_target(x: int, level: int = 99) -> int:
 
     """
     return level
+
+
+def source_sharing_level_default(x: int, level: int = 1) -> None:
+    """Signature probe sharing ``level`` with :func:`fn_shared_default_target`, with a different default (1)."""
+
+
+def source_with_forward_defaults(x: int = 0, old_arg: int = 1, y: int = 0) -> None:
+    """Signature probe whose three defaults the forward-default tests keep or drop.
+
+    ``old_arg`` is the name a rename makes stale and ``y`` the keyword a ``functools.partial`` target binds, so each
+    default is dropped by exactly one forward-default rule.
+
+    """
 
 
 def fn_remap_with_extra_body(new_arg: int = 0, injected: int = 0) -> int:
@@ -989,3 +1005,740 @@ class HostileSignatureCallable:
     def __signature__(self) -> Any:  # noqa: ANN401
         """Always raise ``RuntimeError`` — stands in for any descriptor that cannot be introspected."""
         raise RuntimeError("`__signature__` is deliberately unreadable")
+
+
+# ========== Characterization fixtures: call shapes and warning locations ==========
+
+# Sources whose runtime call shape differs from what ``inspect.signature`` reports, plus callable objects
+# without a usable ``__name__`` and a side-effect-counting container.  Wrapped in
+# :mod:`tests.collection_deprecate` and exercised by ``tests/integration/test_call_transparency.py`` and
+# ``tests/integration/test_warning_locations.py``, which pin today's behaviour before internal refactors.
+
+
+@functools.singledispatch
+def area_dispatch(shape: object) -> str:
+    """Describe a shape by its type — generic fallback of a ``functools.singledispatch`` source.
+
+    ``singledispatch`` dispatches on the type of the first *positional* argument and raises ``TypeError`` when
+    called with keywords only, so a wrapper that rewrites positionals into keywords breaks it.
+    """
+    return f"generic:{shape}"
+
+
+@area_dispatch.register
+def _area_dispatch_int(shape: int) -> str:
+    """Describe a square by its integer side length."""
+    return f"int:{shape}"
+
+
+@area_dispatch.register
+def _area_dispatch_str(shape: str) -> str:
+    """Describe a shape by its name."""
+    return f"str:{shape}"
+
+
+def raw_signature_patched(*args: object, **kwargs: object) -> tuple[tuple[object, ...], dict[str, object]]:
+    """Return the raw ``(args, kwargs)`` it received while ``__signature__`` advertises a single ``x`` parameter.
+
+    Mirrors C-accelerated wrappers and argument-clinic shims whose real call shape (``*args, **kwargs``) differs
+    from the signature they report, so the observed return value shows exactly how a wrapper forwarded the call.
+    """
+    return args, kwargs
+
+
+raw_signature_patched.__signature__ = inspect.Signature(  # type: ignore[attr-defined]
+    [inspect.Parameter("x", inspect.Parameter.POSITIONAL_OR_KEYWORD)]
+)
+
+
+def kwargs_rejecting_inner(func: Callable[..., int]) -> Callable[..., int]:
+    """Wrap *func* in a ``functools.wraps`` forwarder whose inner body rejects keyword arguments.
+
+    ``inspect.signature`` follows ``__wrapped__`` and reports *func*'s named parameters, but the forwarder itself
+    only passes positionals through — the common shape of hand-written decorator layers in user code.
+    """
+
+    @functools.wraps(func)
+    def inner(*args: object, **kwargs: object) -> int:
+        if kwargs:
+            raise TypeError(f"{func.__name__}() forwarder accepts positional arguments only, got {sorted(kwargs)}")
+        return func(*args)
+
+    return inner
+
+
+@kwargs_rejecting_inner
+def wraps_chain_outer(value: int) -> int:
+    """Double *value* behind a positional-only ``functools.wraps`` forwarder (see :func:`kwargs_rejecting_inner`)."""
+    return value * 2
+
+
+def new_scale(x: int, y: int = 1) -> int:
+    """Scale *x* by *y* — replacement callable bound through :data:`partial_target`."""
+    return x * y
+
+
+#: ``functools.partial`` replacement target; a partial object has no ``__name__`` of its own.
+partial_target = functools.partial(new_scale, y=5)
+
+
+class CallableAdder:
+    """Callable object adding a fixed offset — an instance target that has no ``__name__`` of its own."""
+
+    def __init__(self, offset: int = 1) -> None:
+        """Store the offset added on every call."""
+        self.offset = offset
+
+    def __call__(self, x: int) -> int:
+        """Return ``x`` plus the stored offset."""
+        return x + self.offset
+
+
+#: Callable-instance replacement target (instances of :class:`CallableAdder` carry no ``__name__``).
+callable_adder_target = CallableAdder(offset=10)
+
+
+def _build_nested_partial_target() -> "functools.partial[int]":
+    """Return ``partial(partial(new_scale, y=5))`` with the inner layer kept intact.
+
+    CPython flattens ``partial(partial(f, ...))`` into one layer unless the inner object carries an instance
+    attribute, so the inner partial gets one; the result is a genuine two-level chain whose bound keyword ``y``
+    lives on the inner layer only.
+    """
+    inner = functools.partial(new_scale, y=5)
+    inner.__dict__["origin"] = "nested"
+    return functools.partial(inner)
+
+
+#: Two-level ``functools.partial`` chain over :func:`new_scale` binding ``y=5`` on the inner layer.
+nested_partial_target = _build_nested_partial_target()
+
+#: ``functools.partial`` over :class:`NewCls` binding ``d`` — a class replacement with a preset constructor keyword.
+partial_new_cls_target = functools.partial(NewCls, d="preset")
+
+
+class NonStringNameCallable:
+    """Callable whose ``__name__`` is a property returning an ``int`` rather than a string.
+
+    A warning renderer must not trust ``__name__`` blindly: here it exists but is not a name, so the display falls
+    back to the type name.
+    """
+
+    @property
+    def __name__(self) -> int:
+        """Return a non-string value where a name is expected."""
+        return 42
+
+    def __call__(self, x: int) -> int:
+        """Return *x* unchanged."""
+        return x
+
+
+#: Async replacement wrapped in ``functools.partial`` — awaitable target without a ``__name__`` of its own.
+partial_async_target = functools.partial(async_target)
+
+
+def moduleless_function(x: int) -> int:
+    """Return *x* unchanged — its ``__module__`` is cleared below, as for code built with ``exec`` or ``types``."""
+    return x
+
+
+moduleless_function.__module__ = None  # type: ignore[assignment]
+
+#: ``functools`` wrapper kinds that are not functions: each lacks a function body ``@deprecated`` could wrap.
+partial_of_double = functools.partial(double_value)
+partialmethod_of_double = functools.partialmethod(double_value)
+singledispatchmethod_of_double = functools.singledispatchmethod(double_value)
+
+
+class SideEffectBox:
+    """Container counting every ``__iadd__``, ``__enter__`` and ``__next__`` call; ``fail=True`` makes them raise.
+
+    Wrapped by a ``deprecated_instance`` proxy, the counters show how often the proxy actually invoked each operation
+    on the wrapped object, and the failure flag lets a test observe what the proxy does when the operation raises.
+    """
+
+    def __init__(self, items: tuple[int, ...] = (1, 2), fail: bool = False) -> None:
+        """Store the items to iterate over and whether every counted operation should raise."""
+        self.items = list(items)
+        self.fail = fail
+        self.calls: dict[str, int] = {"__iadd__": 0, "__enter__": 0, "__next__": 0}
+        self._cursor = 0
+
+    def _record(self, operation: str) -> None:
+        """Count *operation* and raise ``RuntimeError`` when the box was built with ``fail=True``."""
+        self.calls[operation] += 1
+        if self.fail:
+            raise RuntimeError(f"SideEffectBox.{operation} failed on purpose")
+
+    def __iadd__(self, other: int) -> "SideEffectBox":
+        """Append *other* in place."""
+        self._record("__iadd__")
+        self.items.append(other)
+        return self
+
+    def __enter__(self) -> "SideEffectBox":
+        """Enter the context and return the box itself."""
+        self._record("__enter__")
+        return self
+
+    def __exit__(self, *exc_info: object) -> None:
+        """Leave the context without suppressing exceptions."""
+
+    def __iter__(self) -> "SideEffectBox":
+        """Restart iteration over the stored items."""
+        self._cursor = 0
+        return self
+
+    def __next__(self) -> int:
+        """Return the next stored item."""
+        self._record("__next__")
+        if self._cursor >= len(self.items):
+            raise StopIteration
+        self._cursor += 1
+        return self.items[self._cursor - 1]
+
+
+class FlakyProtocolBox(SideEffectBox):
+    """``SideEffectBox`` that also counts the pure, async and call protocols a deprecation proxy forwards.
+
+    Subscript, iteration, negation, ``round``, ``__aiter__``, ``async with`` entry, ``__anext__``, ``await`` and calling
+    each record themselves in ``calls`` and raise ``RuntimeError`` while ``fail`` is set — the same contract as the
+    inherited ``__iadd__``/``__enter__``/``__next__``. A test can therefore show whether a failed operation consumed the
+    proxy's warn budget, and whether a fatal deprecation reached the wrapped object at all.
+    """
+
+    def __init__(self, items: tuple[int, ...] = (1, 2), fail: bool = False) -> None:
+        """Store the items and extend the call counters with every additionally recorded protocol."""
+        super().__init__(items, fail)
+        recorded = ("__getitem__", "__iter__", "__neg__", "__round__", "__aiter__", "__aenter__", "__anext__")
+        self.calls.update(dict.fromkeys((*recorded, "__await__", "__call__"), 0))
+
+    def __getitem__(self, index: int) -> int:
+        """Return the stored item at *index*."""
+        self._record("__getitem__")
+        return self.items[index]
+
+    def __iter__(self) -> "FlakyProtocolBox":
+        """Restart iteration over the stored items."""
+        self._record("__iter__")
+        self._cursor = 0
+        return self
+
+    def __neg__(self) -> int:
+        """Return the negated sum of the stored items."""
+        self._record("__neg__")
+        return -sum(self.items)
+
+    def __round__(self, ndigits: Optional[int] = None) -> int:
+        """Return the sum of the stored items, which is already a whole number."""
+        self._record("__round__")
+        return sum(self.items)
+
+    def __aiter__(self) -> "FlakyProtocolBox":
+        """Restart async iteration over the stored items."""
+        self._record("__aiter__")
+        self._cursor = 0
+        return self
+
+    async def __aenter__(self) -> "FlakyProtocolBox":
+        """Enter the async context and return the box itself."""
+        self._record("__aenter__")
+        return self
+
+    async def __aexit__(self, *exc_info: object) -> None:
+        """Leave the async context without suppressing exceptions."""
+
+    def __anext__(self) -> Coroutine[Any, Any, int]:
+        """Record the step synchronously, then return the awaitable that produces the next stored item."""
+        self._record("__anext__")
+        return self._next_item()
+
+    async def _next_item(self) -> int:
+        """Produce the next stored item, ending async iteration once the items run out."""
+        if self._cursor >= len(self.items):
+            raise StopAsyncIteration
+        self._cursor += 1
+        return self.items[self._cursor - 1]
+
+    def __await__(self) -> Generator[Any, None, list[int]]:
+        """Record the await synchronously, then delegate to a coroutine that returns the stored items."""
+        self._record("__await__")
+        return self._snapshot().__await__()
+
+    async def _snapshot(self) -> list[int]:
+        """Return a copy of the stored items."""
+        return list(self.items)
+
+    def __call__(self) -> int:
+        """Return how many items the box holds."""
+        self._record("__call__")
+        return len(self.items)
+
+
+class DecliningInplaceOperand:
+    """Number-like operand whose ``__iadd__`` declines with ``NotImplemented`` so Python falls back to ``__add__``.
+
+    A deprecation proxy forwarding ``proxy += 1`` first tries the in-place hook; when that declines, Python retries the
+    plain ``__add__`` on the proxy. The proxy must warn once for the whole statement, not once per attempted hook.
+    """
+
+    def __init__(self, value: int) -> None:
+        """Store the wrapped integer value."""
+        self.value = value
+
+    def __iadd__(self, other: int) -> Any:  # noqa: ANN401
+        """Decline the in-place form so the interpreter falls back to ``__add__``."""
+        return NotImplemented
+
+    def __add__(self, other: int) -> "DecliningInplaceOperand":
+        """Return a new operand holding the sum."""
+        return DecliningInplaceOperand(self.value + other)
+
+
+class _FlakyClassAttribute:
+    """Class-level descriptor returning ``3``; counts reads on its owner and raises while the ``fail`` flag is set."""
+
+    def __get__(self, instance: Optional[object], owner: "type[FlakyAttrHost]") -> int:
+        """Count the read on the owning class, then return the value, or raise when that class is flagged to fail."""
+        owner.reads += 1
+        if owner.fail:
+            raise RuntimeError("FlakyAttrHost.total failed on purpose")
+        return 3
+
+
+class FlakyAttrHost:
+    """Class whose ``total`` attribute raises on read while the class-level ``fail`` flag is set.
+
+    Wrapped by ``deprecated_class(attrs_mapping={"legacy_total": "total"})``, it lets a test make the redirected lookup
+    fail and then succeed under the same deprecated name, which is what the per-name warn budget is keyed on. The
+    class-level ``reads`` counter records every execution of the ``total`` getter, so a test can show it never ran.
+    Build a fresh subclass per test with :func:`make_flaky_attr_host` so the flag and counter never leak between tests.
+    """
+
+    fail: ClassVar[bool] = False
+    reads: ClassVar[int] = 0
+    total = _FlakyClassAttribute()
+
+
+def make_flaky_attr_host() -> "type[FlakyAttrHost]":
+    """Return a fresh ``FlakyAttrHost`` subclass with its own ``fail`` flag and ``reads`` counter (``False``, ``0``)."""
+    return type("FlakyAttrHost", (FlakyAttrHost,), {"fail": False, "reads": 0})
+
+
+# ========== Plain function stored as a class attribute: the proxy binds like a method ==========
+
+
+def legacy_host_scale(host: Any, factor: int) -> tuple[Any, int]:  # noqa: ANN401
+    """Return the receiving *host* together with *factor*, so a test sees which object the call was bound to.
+
+    A host class stores this function as a method; wrapped in ``deprecated_instance`` it must still receive the
+    instance as its first argument when called through an instance, exactly as the undeprecated function would.
+    """
+    return host, factor
+
+
+# ========== Stream fixtures: how a warning reaches a custom ``stream`` ==========
+
+# Stand-ins for the ``stream=`` callables users pass to ``@deprecated``, ``deprecated_instance`` and
+# ``deprecated_module``.  The plain functions cover the signature shapes ``_stream_accepts_stacklevel`` must
+# classify; the recording classes count every invocation, so a test can prove the stream ran exactly once.
+
+
+class LocCustomModuleType(types.ModuleType):
+    """Module subclass standing in for a lazy loader's module class, which ``deprecated_module`` overwrites."""
+
+
+def stream_message_only(msg: str) -> None:
+    """Stream that takes only the message, like a ``print``-style sink with no ``stacklevel`` support."""
+
+
+@functools.wraps(logging.warning)
+def stream_wraps_logging_warning(msg: str) -> None:
+    """Message-only stream copying ``logging.warning``'s metadata, so ``__wrapped__`` has a wider signature."""
+
+
+def stream_with_stacklevel(msg: str, stacklevel: int = 1) -> None:
+    """Stream that accepts ``stacklevel`` as an ordinary keyword-capable parameter."""
+
+
+def stream_positional_only_message(msg: str, /, stacklevel: int = 1) -> None:
+    """Stream whose message is positional-only while ``stacklevel`` can still be passed by keyword."""
+
+
+def stream_positional_only_stacklevel(msg: str, stacklevel: int = 1, /) -> None:
+    """Stream whose ``stacklevel`` is positional-only, so ``stacklevel=`` by keyword is rejected."""
+
+
+def stream_keyword_only_stacklevel(msg: str, *, stacklevel: int = 1) -> None:
+    """Stream that accepts ``stacklevel`` only as a keyword-only parameter."""
+
+
+def stream_var_keyword(msg: str, **kwargs: Any) -> None:  # noqa: ANN401
+    """Stream that soaks up any keyword, ``stacklevel`` included, through ``**kwargs``."""
+
+
+def stream_var_positional_named_stacklevel(msg: str, *stacklevel: int) -> None:
+    """Stream with a ``*stacklevel`` catch-all — the name matches but no keyword binding is possible."""
+
+
+class RecordingStream:
+    """Stream that records every call's message and keyword arguments and accepts ``stacklevel``.
+
+    A logging handler or metrics sink plugged in as ``stream=`` has side effects, so how many times the deprecation
+    machinery invokes it is observable behaviour.  ``calls`` holds one ``(msg, kwargs)`` pair per invocation.
+    """
+
+    def __init__(self) -> None:
+        """Start with an empty call log."""
+        self.calls: list[tuple[str, dict[str, Any]]] = []
+
+    def __call__(self, msg: str, stacklevel: int = 1) -> None:
+        """Record the message together with the ``stacklevel`` it was handed."""
+        self.calls.append((msg, {"stacklevel": stacklevel}))
+
+
+class MessageOnlyRecordingStream:
+    """Stream that records every message and has no ``stacklevel`` parameter at all."""
+
+    def __init__(self) -> None:
+        """Start with an empty call log."""
+        self.calls: list[str] = []
+
+    def __call__(self, msg: str) -> None:
+        """Record the message."""
+        self.calls.append(msg)
+
+
+class KeywordTypeErrorStream(RecordingStream):
+    """Stream that accepts ``stacklevel`` but fails inside its own body with a ``TypeError`` mentioning "keyword".
+
+    Models a handler whose internal bug raises ``TypeError("unexpected keyword in handler")`` — text that a
+    message-sniffing retry would mistake for a rejected ``stacklevel`` keyword and answer by invoking the stream a
+    second time.
+    """
+
+    def __call__(self, msg: str, stacklevel: int = 1) -> None:
+        """Record the call, then raise the handler's own ``TypeError``."""
+        super().__call__(msg, stacklevel=stacklevel)
+        raise TypeError("unexpected keyword in handler")
+
+
+class FlakyTypeErrorStream(RecordingStream):
+    """Stream that accepts ``stacklevel`` and raises an unrelated ``TypeError`` on its first call only.
+
+    Models a sink that fails once (a lazily configured handler, say) and works afterwards; the first failure must
+    reach the caller instead of being swallowed and silently retried.
+    """
+
+    def __call__(self, msg: str, stacklevel: int = 1) -> None:
+        """Record the call and raise on the first one."""
+        super().__call__(msg, stacklevel=stacklevel)
+        if len(self.calls) == 1:
+            raise TypeError("unsupported operand type(s) for +: 'int' and 'str'")
+
+
+class UnintrospectableStream(RecordingStream):
+    """Stream whose ``__signature__`` raises ``ValueError``, so ``inspect.signature`` cannot describe it.
+
+    Stands in for C-level callables without signature metadata: the deprecation machinery cannot tell whether it
+    accepts ``stacklevel``, so it must call it with the message alone and exactly once.
+    """
+
+    @property
+    def __signature__(self) -> Any:  # noqa: ANN401
+        """Always raise ``ValueError``, as ``inspect.signature`` does for an unsupported builtin."""
+        raise ValueError("no signature found for this stream")
+
+    def __call__(self, msg: str, stacklevel: Optional[int] = None) -> None:
+        """Record the message and whether ``stacklevel`` was passed (``None`` means it was not)."""
+        self.calls.append((msg, {} if stacklevel is None else {"stacklevel": stacklevel}))
+
+
+class UnhashableStream(RecordingStream):
+    """Stream that cannot be hashed, so any memoised per-stream decision must fall back to an uncached check.
+
+    Defining ``__eq__`` without ``__hash__`` is the everyday way a user-written callable class ends up unhashable.
+    """
+
+    def __eq__(self, other: object) -> bool:
+        """Compare by call log, which is what makes the instance unhashable."""
+        return isinstance(other, UnhashableStream) and other.calls == self.calls
+
+    __hash__ = None  # type: ignore[assignment]
+
+
+class RecordingEntryContext:
+    """Record context acquisition and cleanup, including errors supplied to cleanup."""
+
+    def __init__(self, *, fail: bool = False, suppress: bool = False) -> None:
+        """Configure entry failure and cleanup suppression independently."""
+        self.fail = fail
+        self.suppress = suppress
+        self.entries = 0
+        self.exits: list[tuple[Any, ...]] = []
+
+    def __enter__(self) -> "RecordingEntryContext":
+        """Acquire once, or raise before acquisition completes."""
+        self.entries += 1
+        if self.fail:
+            raise RuntimeError("entry failed")
+        return self
+
+    def __exit__(self, *exc_info: object) -> bool:
+        """Record the exact exception information and optionally suppress it."""
+        self.exits.append(exc_info)
+        return self.suppress
+
+    async def __aenter__(self) -> "RecordingEntryContext":
+        """Acquire through the asynchronous protocol."""
+        return self.__enter__()
+
+    async def __aexit__(self, *exc_info: object) -> bool:
+        """Record asynchronous cleanup and optionally suppress its exception."""
+        return self.__exit__(*exc_info)
+
+
+class RuntimeSignatureStream(UnintrospectableStream):
+    """Represent a working stream whose metadata descriptor fails unexpectedly."""
+
+    def __init__(self, *, fail: bool = False) -> None:
+        """Configure a distinct callback failure after recording delivery."""
+        super().__init__()
+        self.fail = fail
+
+    @property
+    def __signature__(self) -> Any:  # noqa: ANN401
+        """Raise a descriptor error rather than an unsupported-signature error."""
+        raise RuntimeError("signature metadata failed")
+
+    def __call__(self, msg: str, stacklevel: Optional[int] = None) -> None:
+        """Record delivery once and optionally raise the callback's own error."""
+        super().__call__(msg, stacklevel)
+        if self.fail:
+            raise RuntimeError("callback failed")
+
+
+class DeferredFailureAwaitable:
+    """Fail while driving an acquired await iterator, rather than during acquisition."""
+
+    def __await__(self) -> Generator[Any, None, int]:
+        """Acquire an iterator whose first advancement raises."""
+        return self._fail().__await__()
+
+    async def _fail(self) -> int:
+        """Raise after the await iterator has already been obtained."""
+        raise RuntimeError("deferred await failed")
+
+
+class CountingSkipCondition:
+    """``skip_if`` callable that counts how often a proxy consults it and answers from a scripted sequence.
+
+    A feature flag read from configuration or the environment is the usual ``skip_if``: it may be slow, and its answer
+    may change between two reads. ``answers`` lists the replies in call order; the last one repeats once the list is
+    used up, so ``(False,)`` never skips and ``(False, True)`` is live for the first read only.
+    """
+
+    def __init__(self, answers: tuple[bool, ...] = (False,)) -> None:
+        """Store the scripted replies and start the call counter at zero."""
+        self.answers = answers
+        self.calls = 0
+
+    def __call__(self) -> bool:
+        """Return the next scripted reply and count the call."""
+        answer = self.answers[min(self.calls, len(self.answers) - 1)]
+        self.calls += 1
+        return answer
+
+
+async def legacy_tick_stream() -> AsyncIterator[int]:
+    """Async generator yielding ``1`` then ``2``: a deprecated async data stream whose items must outlive a failure."""
+    yield 1
+    yield 2
+
+
+async def legacy_snapshot() -> list[int]:
+    """Coroutine returning ``[1, 2]``; its coroutine object is wrapped directly as a deprecated awaitable."""
+    return [1, 2]
+
+
+class PendingSnapshotBox:
+    """Awaitable whose ``__await__`` hands out the await iterator of a coroutine it created once and keeps."""
+
+    def __init__(self) -> None:
+        """Create the one coroutine every ``await`` of this box delegates to."""
+        self.pending = legacy_snapshot()
+
+    def __await__(self) -> Generator[Any, None, list[int]]:
+        """Delegate to the stored coroutine, so awaiting the box twice reuses one coroutine object."""
+        return self.pending.__await__()
+
+
+class CachedStepIterator:
+    """Async iterator whose synchronous ``__anext__`` returns a coroutine it keeps until that step is awaited."""
+
+    def __init__(self) -> None:
+        """Create the coroutine the next step hands out."""
+        self.cached = legacy_snapshot()
+
+    def __aiter__(self) -> "CachedStepIterator":
+        """Return the iterator itself."""
+        return self
+
+    def __anext__(self) -> Coroutine[Any, Any, list[int]]:
+        """Return the stored coroutine instead of creating a new one per step."""
+        return self.cached
+
+
+# ========== Stream fixtures: signatures where the positional message slot decides ==========
+
+# ``_stream_accepts_stacklevel`` binds the real call ``stream(msg, stacklevel=...)``, so a parameter named
+# ``stacklevel`` only counts when the message does not already occupy it.
+
+
+def stream_message_named_stacklevel(stacklevel: str) -> None:
+    """Stream whose single parameter is called ``stacklevel`` — the positional message lands in it."""
+
+
+def stream_var_positional_keyword_only_stacklevel(*args: str, stacklevel: int = 1) -> None:
+    """Stream that takes the message through ``*args`` and ``stacklevel`` as a keyword-only parameter."""
+
+
+class MessageNamedStacklevelRecordingStream:
+    """Stream recording its single parameter, which happens to be called ``stacklevel``."""
+
+    def __init__(self) -> None:
+        """Start with an empty call log."""
+        self.calls: list[str] = []
+
+    def __call__(self, stacklevel: str) -> None:
+        """Record what arrived in the ``stacklevel`` parameter — the deprecation message."""
+        self.calls.append(stacklevel)
+
+
+# ========== Stream fixtures: streams the decision memo must tell apart ==========
+
+
+class EqualStreamMixin:
+    """Make every instance compare and hash equal, as a value-object style callable class might.
+
+    A memo keyed by ``==`` / ``hash`` would hand the first decision made for one such instance to all the others.
+    """
+
+    def __eq__(self, other: object) -> bool:
+        """Equal to any other instance of this mixin, whatever its ``__call__`` signature."""
+        return isinstance(other, EqualStreamMixin)
+
+    def __hash__(self) -> int:
+        """Constant hash, so equal instances also collide in any hash-keyed table."""
+        return 0
+
+
+class EqualMessageOnlyStream(EqualStreamMixin, MessageOnlyRecordingStream):
+    """Equal-by-value stream that takes only the message."""
+
+
+class EqualStacklevelStream(EqualStreamMixin, RecordingStream):
+    """Equal-by-value stream that also accepts ``stacklevel``."""
+
+
+class SlottedStream:
+    """Stream that cannot be weakly referenced: ``__slots__`` without ``__weakref__`` leaves no slot for it."""
+
+    __slots__ = ()
+
+    def __call__(self, msg: str, stacklevel: int = 1) -> None:
+        """Accept the message and ``stacklevel`` without recording anything."""
+
+
+# ========== Stream fixtures: ``functools.wraps`` pass-throughs and ``**kwargs`` forwarders ==========
+
+# A logging adapter or metrics decorator is typically a bare ``(*args, **kwargs)`` pass-through; what it forwards to
+# decides whether ``stacklevel=`` is acceptable, so ``_stream_accepts_stacklevel`` classifies it by the wrapped stream.
+
+
+@functools.wraps(stream_message_only)
+def stream_passthrough_message_only(*args: Any, **kwargs: Any) -> None:  # noqa: ANN401
+    """Bare pass-through around a message-only stream, as a ``functools.wraps`` decorator produces."""
+    stream_message_only(*args, **kwargs)
+
+
+@functools.wraps(stream_with_stacklevel)
+def stream_passthrough_with_stacklevel(*args: Any, **kwargs: Any) -> None:  # noqa: ANN401
+    """Bare pass-through around a stream that accepts ``stacklevel``."""
+    stream_with_stacklevel(*args, **kwargs)
+
+
+@functools.wraps(stream_passthrough_message_only)
+def stream_passthrough_of_passthrough(*args: Any, **kwargs: Any) -> None:  # noqa: ANN401
+    """Pass-through stacked on a pass-through, so the message-only stream sits two layers down."""
+    stream_passthrough_message_only(*args, **kwargs)
+
+
+@functools.wraps(stream_wraps_logging_warning)
+def stream_passthrough_of_narrow_wraps(*args: Any, **kwargs: Any) -> None:  # noqa: ANN401
+    """Pass-through around a narrow ``(msg)`` stream that itself copied ``logging.warning``'s metadata."""
+    stream_wraps_logging_warning(*args, **kwargs)
+
+
+@functools.wraps(warnings.warn)
+def stream_passthrough_warn(*args: Any, **kwargs: Any) -> None:  # noqa: ANN401
+    """Bare pass-through around :func:`warnings.warn`, which always accepts ``stacklevel``."""
+    warnings.warn(*args, **kwargs)
+
+
+def make_stream_cycle() -> Callable[..., None]:
+    """Build two bare pass-through streams whose ``__wrapped__`` attributes point at each other; return the first.
+
+    A ``__wrapped__`` loop is the one shape ``inspect.unwrap`` refuses with ``ValueError``. The pair is built on demand,
+    not at import: doctest collection calls ``inspect.unwrap`` on every module-level function, so a module-level loop
+    would break collection of this whole module.
+    """
+
+    def stream_cycle_a(*args: Any, **kwargs: Any) -> None:  # noqa: ANN401
+        """Bare pass-through whose ``__wrapped__`` points at ``stream_cycle_b``, which points back here."""
+
+    def stream_cycle_b(*args: Any, **kwargs: Any) -> None:  # noqa: ANN401
+        """Bare pass-through whose ``__wrapped__`` points back at ``stream_cycle_a``."""
+
+    # Assigned after both exist, so each can name the other.
+    setattr(stream_cycle_a, "__wrapped__", stream_cycle_b)
+    setattr(stream_cycle_b, "__wrapped__", stream_cycle_a)
+    return stream_cycle_a
+
+
+class PassThroughMessageOnlyStream:
+    """Bare ``(*args, **kwargs)`` pass-through that records through the message-only stream it wraps.
+
+    Instance counterpart of the ``functools.wraps`` function fixtures: ``__wrapped__`` names the message-only
+    recorder, so the stream must be called with the message alone or the recorder rejects the extra keyword.
+    """
+
+    def __init__(self) -> None:
+        """Wrap a fresh message-only recorder and expose its call log."""
+        self.inner = MessageOnlyRecordingStream()
+        self.__wrapped__ = self.inner
+        self.calls = self.inner.calls
+
+    def __call__(self, *args: Any, **kwargs: Any) -> None:  # noqa: ANN401
+        """Forward everything unchanged to the wrapped recorder."""
+        self.inner(*args, **kwargs)
+
+
+class SlowRecordingStream(RecordingStream):
+    """Recording stream that pauses briefly before logging, so concurrent deliveries overlap.
+
+    Stands in for a sink with real latency (a network log handler, say) under multi-threaded use: the pause is a yield
+    point that lets other threads reach the warn budget while one delivery is still in progress.
+    """
+
+    def __call__(self, msg: str, stacklevel: int = 1) -> None:
+        """Pause, then record the call."""
+        time.sleep(0.001)
+        super().__call__(msg, stacklevel=stacklevel)
+
+
+@functools.wraps(warnings.warn)
+def stream_wraps_warn_forwarding_stacklevel(msg: str, stacklevel: int = 1) -> None:
+    """Pure-Python stream copying ``warnings.warn`` metadata; adds its own frame to the forwarded ``stacklevel``."""
+    warnings.warn(msg, stacklevel=stacklevel + 1)

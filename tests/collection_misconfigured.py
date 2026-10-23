@@ -216,8 +216,8 @@ self_ref_typed.__deprecation_config__ = replace(deprecated_info, target=self_ref
 # ---------------------------------------------------------------------------
 # TargetMode misconfiguration fixtures
 # Construction-time UserWarnings/FutureWarnings are expected; they are suppressed via the
-# targeted `filterwarnings` entries in pyproject.toml (scoped by message + `deprecate._types`
-# module) so they do not pollute test output at module import time.
+# targeted `filterwarnings` entries in pyproject.toml (scoped by message + `tests`
+# module prefix) so they do not pollute test output at module import time.
 # ---------------------------------------------------------------------------
 
 

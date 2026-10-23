@@ -27,8 +27,9 @@ import warnings
 from typing import Any, Callable, Optional
 
 from deprecate._fatal import DeprecatedError, _resolve_as_exception
+from deprecate._frames import _caller_stacklevel
 from deprecate._types import DeprecationConfig, TargetMode, _WrapperState, get_deprecation_config
-from deprecate.messaging import _consume_warn_budget, _format_deprecation_message, _validate_message_template
+from deprecate.messaging import _consume_warn_budget, _emit, _format_deprecation_message, _validate_message_template
 
 #: Thread-local set of ``(module_name, attr_name)`` pairs currently being resolved through a redirect
 #: ``target``. Guards against cyclic redirects (e.g. ``A`` redirects to ``B`` and ``B`` back to ``A``):
@@ -155,13 +156,11 @@ def _emit_module_warning(
         if not should_warn:
             return
     if stream is not None:
-        try:
-            stream(warn_msg, stacklevel=3)
-        except TypeError:
-            # stream does not accept stacklevel (e.g. print, logging.warning).
-            stream(warn_msg)
+        # ``_emit`` passes ``stacklevel`` only when the stream's signature accepts it and never retries, so a
+        # ``TypeError`` raised inside the stream propagates.
+        _emit(stream, warn_msg)
     else:
-        warnings.warn(warn_msg, FutureWarning, stacklevel=3)
+        warnings.warn(warn_msg, FutureWarning, stacklevel=_caller_stacklevel())
 
 
 def _resolve_missing_attr(
@@ -376,7 +375,13 @@ def deprecated_module(
         stream: Callable used to emit the warning instead of :func:`warnings.warn`.  Pass ``None`` (default) to use
             the standard :mod:`warnings` machinery.  Subject to the same ``num_warns`` budget as every other
             emission path: a custom ``stream`` (e.g. ``logging.warning``) stops being invoked once the budget is
-            exhausted, exactly like the default :func:`warnings.warn` path.
+            exhausted, exactly like the default :func:`warnings.warn` path.  A custom ``stream`` is called once per
+            warning, with ``stacklevel=`` only when its signature declares a ``stacklevel`` parameter or ``**kwargs``;
+            a C-level callable without an introspectable signature gets the message alone and loses caller attribution.
+            The ``stacklevel`` passed is counted from the frame that calls ``stream``, so it points at the caller
+            for :func:`warnings.warn` and a C-level :func:`functools.partial` of it; a pure-Python stream, and the
+            module-level :func:`logging.warning` before Python 3.11, land one frame short (see
+            ``deprecate._frames._caller_stacklevel`` for the full rule).
         message_template: Optional custom warning message.  When supplied it *replaces* the built-in
             redirect/version notice entirely — it is not appended to it.  Plain text without any ``%`` renders
             verbatim; a literal ``%`` must be escaped as ``%%``.  The ``%``-style placeholders ``%(source_name)s``
@@ -439,7 +444,7 @@ def deprecated_module(
             " Deprecation notices and expiry audits will omit the `deprecated_in` version."
             " Pass `deprecated_in` for a meaningful deprecation notice.",
             UserWarning,
-            stacklevel=2,
+            stacklevel=_caller_stacklevel(),
         )
 
     mod = sys.modules[module_name]
@@ -484,7 +489,7 @@ def deprecated_module(
                 f"`deprecated_module`: module {module_name!r} is already deprecated with a different"
                 " configuration; second call ignored. The original deprecation config is retained.",
                 UserWarning,
-                stacklevel=2,
+                stacklevel=_caller_stacklevel(),
             )
         return
 
@@ -497,7 +502,7 @@ def deprecated_module(
             f" ({type(mod).__name__!r}) — overwriting with `_DeprecatedModuleWrapper`;"
             " any behaviour from the prior subclass is lost.",
             UserWarning,
-            stacklevel=2,
+            stacklevel=_caller_stacklevel(),
         )
 
     # Read any pre-existing PEP 562 __getattr__ hook so bespoke module-level routing survives.
@@ -525,7 +530,7 @@ def deprecated_module(
         warnings.warn(
             f"`deprecated_module`: pre-existing `__getattr__` found on {module_name!r} — chaining.",
             UserWarning,
-            stacklevel=2,
+            stacklevel=_caller_stacklevel(),
         )
         vars(mod)["__deprecated_existing_getattr__"] = existing_getattr
     mod.__deprecation_config__ = new_config  # type: ignore[attr-defined]

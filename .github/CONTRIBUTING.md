@@ -332,6 +332,7 @@ pyDeprecate/
 │   ├── deprecation.py          # Front door: deprecated() dispatcher (functions/methods -> routine, classes -> proxy)
 │   ├── routine.py              # Function/method decorator: deprecated_callable() (strict) + packing descriptors
 │   ├── _dispatch.py            # Target resolution + call-plan engine (decoration-time guards, call-time forwarding)
+│   ├── _frames.py              # Caller-frame walk: _caller_stacklevel() points every warning at user code
 │   ├── messaging.py            # Warning message templates + emitters (shared with proxy.py)
 │   ├── _properties.py          # property descriptors: _DeprecatedProperty, _StrictProperty
 │   ├── proxy.py                # Instance/class proxy: deprecated_class(), deprecated_instance()
@@ -364,23 +365,27 @@ pyDeprecate/
 │       └── _deltas/
 │           ├── breaking/       # Required rewrites in v0.N-to-v0.M.md snippets
 │           └── behavior/       # Observable changes in v0.N-to-v0.M.md snippets
-├── tests/                      # Test suite
-│   ├── collection_targets.py       # Target functions (new implementations)
-│   ├── collection_deprecate.py     # Deprecated wrappers (@deprecated)
-│   ├── collection_misconfigured.py # Invalid configs for validation
-│   ├── collection_chains.py        # Chained deprecation patterns
-│   ├── collection_policy.py        # Wrappers breaking one governance policy rule each
-│   ├── collection_pep702.py        # PEP 702 decorator stacked over pyDeprecate, plus PEP 702-only symbols
-│   ├── collection_docstrings.py    # Fixtures for update_docstring=True behaviour
-│   ├── collection_modules/         # Fixture modules for deprecated_module() integration tests
-│   ├── integration/                # End-to-end tests via the public API
-│   │   ├── test_action.py          # GitHub Action: runner subprocess runs and action.yml parity
-│   │   └── test_agent_plugin.py    # Codex/Claude plugin catalog and manifest parity
-│   └── unittests/                  # Focused tests for private/internal helpers
-│       ├── audit/                  # One test__<module>.py per audit submodule (_wrappers, _scan, _lifecycle, _policy, _report)
-│       └── cli/                    # One test_<module>.py per _cli submodule; test_cli.py covers cli() in __init__.py
+├── tests/                               # Test suite
+│   ├── collection_targets.py            # Target functions (new implementations)
+│   ├── collection_deprecate.py          # Deprecated wrappers (@deprecated)
+│   ├── collection_misconfigured.py      # Invalid configs for validation
+│   ├── collection_chains.py             # Chained deprecation patterns
+│   ├── collection_policy.py             # Wrappers breaking one governance policy rule each
+│   ├── collection_pep702.py             # PEP 702 decorator stacked over pyDeprecate, plus PEP 702-only symbols
+│   ├── collection_docstrings.py         # Fixtures for update_docstring=True behaviour
+│   ├── collection_modules/              # Fixture modules for deprecated_module() integration tests
+│   ├── integration/                     # End-to-end tests via the public API
+│   │   ├── test_action.py               # GitHub Action: runner subprocess runs and action.yml parity
+│   │   ├── test_agent_plugin.py         # Codex/Claude plugin catalog and manifest parity
+│   │   ├── test_call_transparency.py    # Positional/keyword forwarding and warning behavior for wrapped callables
+│   │   ├── test_dispatch_class_route.py # Callable-kind dispatch and rejection of unsupported source objects
+│   │   ├── test_pickle_compat.py        # Proxy pickle round-trips and compatibility boundaries
+│   │   └── test_warning_locations.py    # User-facing warning locations and filter behavior
+│   └── unittests/                       # Focused tests for private/internal helpers
+│       ├── audit/                       # One test__<module>.py per audit submodule (_wrappers, _scan, _lifecycle, _policy, _report)
+│       └── cli/                         # One test_<module>.py per _cli submodule; test_cli.py covers cli() in __init__.py
 ├── .github/
-│   ├── scripts/                # Self-contained helper scripts (plugin compat-floor check, GitHub Action runner)
+│   ├── scripts/                # Self-contained helpers, including plugin compat-floor, GitHub Action, and call-overhead benchmark scripts
 │   ├── skills/code-review/     # Shared specialist review process for GitHub-hosted and local agents
 │   ├── workflows/              # CI/CD pipelines
 │   └── *.md                    # Documentation and guidelines
@@ -425,6 +430,8 @@ Tests live in `tests/` and follow a **three-layer separation**:
 | `unittests/`                  | Focused tests for **private/internal helpers**, each file mirroring one source module                                                                                        |
 
 **`integration/`** — Each file covers one area of the public surface (functions, classes, audit, utils, docstrings, README examples, agent-plugin manifests, or the GitHub Action runner). Tests call `@deprecated`-decorated code as a user would and assert on warnings, return values, and forwarded types. `test_readme.py` is generated by `phmdoctest` from README code blocks; `test_agent_plugin.py` verifies that both host catalogs resolve the same local plugin skills and aligned manifests; `test_action.py` runs the action runner as a subprocess and checks `action.yml` parity with the runner and CLI.
+
+The integration suite also keeps characterization for positional and keyword forwarding, callable-kind dispatch, warning frame/filter behavior, and proxy pickle compatibility. The optional call-overhead benchmark lives in `.github/scripts/bench_call_overhead.py`; it is not a pytest test.
 
 > [!IMPORTANT]
 >

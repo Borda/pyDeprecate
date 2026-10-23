@@ -27,14 +27,17 @@ from deprecate._dispatch import (
     _build_call_plan,
     _check_cross_class_method_target,
     _detect_positional_only,
+    _get_positional_params,
     _invoke_async,
     _invoke_sync,
     _normalize_target,
+    _precompute_forward_defaults,
     _precompute_target_facts,
     _reject_bare_decorator,
     _resolve_stored_target,
     _warn_stacking_misconfiguration,
 )
+from deprecate._frames import _caller_stacklevel
 from deprecate._properties import _DeprecatedProperty
 from deprecate._types import (
     DeprecationConfig,
@@ -71,7 +74,6 @@ def _packing_descriptor(  # noqa: C901 — property-path guards (fget/fset/fdel 
     target: Union[bool, None, Callable, TargetMode, staticmethod, classmethod],
     args_mapping: Optional[dict[str, Optional[str]]],
     args_extra: Optional[dict[str, Any]],
-    _stacklevel: int,
 ) -> Optional[Callable]:
     """Wrap descriptor sources (classmethod/staticmethod/property/cached_property).
 
@@ -89,8 +91,6 @@ def _packing_descriptor(  # noqa: C901 — property-path guards (fget/fset/fdel 
             validation guards only.
         args_mapping: Raw ``args_mapping`` argument; used for ``property`` validation only.
         args_extra: Raw ``args_extra`` argument; used for ``property`` validation only.
-        _stacklevel: Threaded through to recursive *packing_fn* calls so the decoration-site
-            stacklevel stays correct across nesting levels.
 
     Returns:
         Wrapped descriptor when *source* is a descriptor, or ``None`` when *source* is a
@@ -110,7 +110,7 @@ def _packing_descriptor(  # noqa: C901 — property-path guards (fget/fset/fdel 
         # the wrong type") does not apply — thread ``_is_static`` through so ``packing`` skips the guard
         # for the unwrapped function, whose qualname alone cannot reveal it was a staticmethod.
         _is_static = isinstance(source, staticmethod)
-        wrapped_inner = packing_fn(source.__func__, _stacklevel + 2, _is_static=_is_static)
+        wrapped_inner = packing_fn(source.__func__, _is_static=_is_static)
         return classmethod(wrapped_inner) if isinstance(source, classmethod) else staticmethod(wrapped_inner)  # type: ignore[return-value]
 
     if isinstance(source, property):
@@ -162,30 +162,24 @@ def _packing_descriptor(  # noqa: C901 — property-path guards (fget/fset/fdel 
         # Otherwise pass None so property() inherits the deprecation-injected fget.__doc__.
         explicit_doc = source.__doc__ if (source.fget is None or source.__doc__ != source.fget.__doc__) else None
 
-        # Closure captured on the returned ``_DeprecatedProperty`` so chain-style
+        # ``packing_fn`` is captured on the returned ``_DeprecatedProperty`` so chain-style
         # ``@value.setter`` / ``@value.deleter`` can re-wrap freshly-supplied accessors
         # with the same packing config (message_template, stream, deprecated_in, remove_in,
-        # num_warns, skip_if, stacklevel). args_mapping / args_extra / callable target are
+        # num_warns, skip_if). args_mapping / args_extra / callable target are
         # blocked above by TypeError guards and are never reachable here.
         # Without this, ``property.setter(fn)`` would build a plain ``property`` whose new
         # accessor is raw — silently dropping the deprecation warning on attribute writes.
-        _accessor_sl = _stacklevel + 2
-
-        def _wrap_accessor(fn: Callable) -> Callable:
-            """Apply packing_fn to a property accessor with the adjusted stacklevel."""
-            return packing_fn(fn, _accessor_sl)
-
         return _DeprecatedProperty(  # type: ignore[return-value]
-            packing_fn(source.fget, _stacklevel + 2) if source.fget is not None else None,
-            packing_fn(source.fset, _stacklevel + 2) if source.fset is not None else None,
-            packing_fn(source.fdel, _stacklevel + 2) if source.fdel is not None else None,
+            packing_fn(source.fget) if source.fget is not None else None,
+            packing_fn(source.fset) if source.fset is not None else None,
+            packing_fn(source.fdel) if source.fdel is not None else None,
             explicit_doc,
-            _wrap=_wrap_accessor,
+            _wrap=packing_fn,
         )
 
     if isinstance(source, cached_property):
         # Order-agnostic @cached_property: unwrap → deprecate func → rewrap.
-        return cached_property(packing_fn(source.func, _stacklevel + 2))  # type: ignore[return-value]
+        return cached_property(packing_fn(source.func))  # type: ignore[return-value]
 
     return None
 
@@ -248,6 +242,13 @@ def deprecated_callable(  # noqa: C901
         remove_in: Version when the function will be removed (e.g., "2.0.0"). Default is empty string.
         stream: Function to output warnings (default: :func:`~deprecate.deprecation.deprecation_warning`, which is
             :func:`warnings.warn` with ``FutureWarning`` category). Set to ``None`` to disable warnings entirely.
+            A custom ``stream`` is called once per warning, with ``stacklevel=`` only when its signature declares a
+            ``stacklevel`` parameter or ``**kwargs`` (:func:`warnings.warn` and its partials always qualify); a
+            C-level callable without an introspectable signature gets the message alone and loses caller attribution.
+            The ``stacklevel`` passed is counted from the frame that calls ``stream``, so it points at the caller
+            for :func:`warnings.warn` and a C-level :func:`functools.partial` of it; a pure-Python stream, and the
+            module-level :func:`logging.warning` before Python 3.11, land one frame short (see
+            ``deprecate._frames._caller_stacklevel`` for the full rule).
         num_warns: Number of times to show warning per function or per deprecated argument:
             - ``1`` (default): Show warning once per function/argument
             - ``-1``: Show warning on every call
@@ -369,7 +370,6 @@ def deprecated_callable(  # noqa: C901
 
     def packing(  # noqa: C901
         source: Union[Callable, classmethod, staticmethod, property, cached_property],
-        _stacklevel: int = 2,
         _is_static: bool = False,
     ) -> Callable:
         _reject_bare_decorator(source)
@@ -381,7 +381,7 @@ def deprecated_callable(  # noqa: C901
                 " callable-only form. Use `@deprecated_class(...)` to deprecate a class, or `@deprecated`"
                 " for automatic class/callable dispatch."
             )
-        _descriptor_result = _packing_descriptor(source, packing, target, args_mapping, args_extra, _stacklevel)
+        _descriptor_result = _packing_descriptor(source, packing, target, args_mapping, args_extra)
         if _descriptor_result is not None:
             return _descriptor_result
         # mypy narrowing: _packing_descriptor handles all descriptor types via early return;
@@ -402,7 +402,7 @@ def deprecated_callable(  # noqa: C901
                 " Deprecation notices and generated documentation will omit the `deprecated_in` version."
                 " Pass `deprecated_in` for a meaningful deprecation notice.",
                 UserWarning,
-                stacklevel=_stacklevel,
+                stacklevel=_caller_stacklevel(),
             )
         # Cross-class guard runs before remapping; class targets skip it because
         # constructor forwarding (target=NewCls on __init__) is always valid.
@@ -428,9 +428,7 @@ def deprecated_callable(  # noqa: C901
 
         if _has_deprecation_meta(source):
             _source_is_stacked = True
-            # +1: this warning has one packing frame above it; when routed through the `deprecated`
-            # dispatcher a second frame is added, so the site-pointing stacklevel tracks `_stacklevel`.
-            _warn_stacking_misconfiguration(source, _target, _stacklevel + 1)
+            _warn_stacking_misconfiguration(source, _target)
         else:
             _source_is_stacked = False
 
@@ -439,7 +437,7 @@ def deprecated_callable(  # noqa: C901
         _function_misconfigured = False
         if isinstance(_target, TargetMode) and isinstance(target, TargetMode):
             _function_misconfigured = TargetMode._validate(
-                _target, source.__name__, args_mapping=args_mapping, args_extra=args_extra, stacklevel=_stacklevel + 1
+                _target, source.__name__, args_mapping=args_mapping, args_extra=args_extra
             )
 
         _source_params = list(_get_signature(source).parameters.values())
@@ -451,10 +449,13 @@ def deprecated_callable(  # noqa: C901
             if source_has_var_positional
             else 0
         )
-        # Source-side POSITIONAL_ONLY params: the wrapper converts positional args to kwargs
-        # internally, so the dispatcher must split these back out before invoking the source
-        # body (NOTIFY / ARGS_REMAP / migrated-caller short-circuit) — mirror of the
-        # target-side machinery below.
+        # Positional parameter names before *args, in order: the call-time arity pre-check and the detection of a
+        # deprecated argument filled positionally read them instead of converting every call to keywords.
+        _source_positional_names = tuple(param.name for param in _get_positional_params(_source_params))
+        # Source-side POSITIONAL_ONLY params: a call the wrapper rewrites (a triggered ARGS_REMAP
+        # rename, or ARGS_REMAP with args_extra) converts positional args to kwargs internally, so
+        # the dispatcher must split these back out before invoking the source body — mirror of the
+        # target-side machinery below.  Verbatim calls keep the caller's shape and need no split.
         _source_positional_only = frozenset(
             param.name for param in _source_params if param.kind is inspect.Parameter.POSITIONAL_ONLY
         )
@@ -462,9 +463,7 @@ def deprecated_callable(  # noqa: C901
             tuple(param.name for param in _source_params) if _source_positional_only else ()
         )
 
-        _target_positional_only, _target_positional_only_order = _detect_positional_only(
-            _target, source, stream, _stacklevel + 1
-        )
+        _target_positional_only, _target_positional_only_order = _detect_positional_only(_target, source, stream)
         # Precompute the target signature facts the call-time kwarg validation needs (accepted-name set
         # and var-arg flags) so no forwarded call re-inspects the target via inspect.getfullargspec.
         (
@@ -479,6 +478,9 @@ def deprecated_callable(  # noqa: C901
         # caller's original dict after decoration (which would silently change forwarding behavior at call time).
         _args_mapping = dict(args_mapping) if isinstance(args_mapping, dict) else args_mapping
         _args_extra = dict(args_extra) if isinstance(args_extra, dict) else args_extra
+        # Which source defaults a forwarded call must drop depends only on the target and the mapping, so derive
+        # it once here and hand it to every call; ``None`` (unreadable target signature) defers it to call time.
+        _forward_defaults = _precompute_forward_defaults(_target, _args_mapping)
         dep_meta = DeprecationConfig(
             deprecated_in=deprecated_in,
             remove_in=remove_in,
@@ -513,8 +515,7 @@ def deprecated_callable(  # noqa: C901
         #   • async function wrapped by a decorator that does NOT propagate ``__wrapped__`` / use
         #     ``functools.wraps`` (``inspect.iscoroutinefunction`` walks ``__wrapped__``, not ``__call__``).
         #   • callable objects whose ``__call__`` is ``async def`` — use ``async def`` thin wrapper instead.
-        #   • ``functools.partial(async_fn)`` on Python ≤ 3.11 (``partial`` does not copy ``__wrapped__``).
-        # Workaround for all three: wrap the callable in a plain ``async def my_wrapper(*a, **kw): return
+        # Workaround for both: wrap the callable in a plain ``async def my_wrapper(*a, **kw): return
         # await callable(*a, **kw)`` before applying ``@deprecated``.
         if inspect.iscoroutinefunction(source):
 
@@ -557,6 +558,8 @@ def deprecated_callable(  # noqa: C901
                         num_warns=num_warns,
                         source_has_var_positional=source_has_var_positional,
                         source_is_stacked=_source_is_stacked,
+                        source_positional_names=_source_positional_names,
+                        forward_defaults=_forward_defaults,
                     )
                     return await _invoke_async(source, plan, _dep_cfg, source_has_var_positional, args)
                 finally:
@@ -620,6 +623,8 @@ def deprecated_callable(  # noqa: C901
                     num_warns=num_warns,
                     source_has_var_positional=source_has_var_positional,
                     source_is_stacked=_source_is_stacked,
+                    source_positional_names=_source_positional_names,
+                    forward_defaults=_forward_defaults,
                 )
                 return _invoke_sync(source, plan, _dep_cfg, source_has_var_positional, args)
             finally:
@@ -638,6 +643,6 @@ def deprecated_callable(  # noqa: C901
 
         return wrapped_fn
 
-    # ``packing`` also takes private ``_stacklevel``/``_is_static`` arguments the front door passes; the public
+    # ``packing`` also takes a private ``_is_static`` argument the front door passes; the public
     # contract is the identity signature above.
     return cast(Callable[[_SourceT], _SourceT], packing)

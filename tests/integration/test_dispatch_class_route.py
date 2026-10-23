@@ -11,8 +11,9 @@ callable or an existing class proxy.
 
 """
 
+import re
 import warnings
-from typing import cast
+from typing import Any, cast
 
 import pytest
 
@@ -40,8 +41,19 @@ from tests.collection_deprecate import (
     make_deprecated_with_args_mapping_on_class_default_target,
     make_deprecated_with_attrs_mapping_kwarg,
     make_deprecated_with_message_template_on_class,
+    make_front_door_notify_on,
+    make_front_door_redirect_on,
+    make_strict_callable_notify_on,
 )
-from tests.collection_targets import Palette
+from tests.collection_targets import (
+    Palette,
+    partial_of_double,
+    partialmethod_of_double,
+    singledispatchmethod_of_double,
+)
+
+#: Message fragment shared by every ``functools`` wrapper-kind rejection: the workaround a user can act on.
+_WRAP_IN_DEF_HINT = r"Wrap it in a plain `def` that calls it"
 
 
 class TestClassDispatchInformationalWarning:
@@ -384,27 +396,74 @@ class TestCallableInstanceWithoutName:
             make_deprecated_on_callable_without_name()
 
     def test_partial_of_function_raises_type_error(self) -> None:
-        """``functools.partial(some_function)`` as a source raises the same nameless-callable ``TypeError``.
+        """``functools.partial(some_function)`` as a source raises the dedicated ``functools.partial`` ``TypeError``.
 
-        ``functools.partial`` objects never carry ``__name__`` — this proves the guard generalises beyond a
-        hand-written ``__call__`` class to the stdlib ``partial`` kind called out in the dispatcher's callable-kind
-        matrix.
+        ``functools.partial`` objects never carry ``__name__`` and have no function body to wrap. Pointing the
+        user at ``deprecated_instance`` would be wrong advice for a callable alias, so the rejection names the
+        ``functools.partial`` type and the workaround (wrap it in a plain ``def``) instead.
 
         """
-        with pytest.raises(TypeError, match="deprecated_instance"):
+        with pytest.raises(TypeError, match=r"`functools\.partial` object"):
             make_deprecated_on_partial_of_function()
 
     def test_partial_of_class_raises_type_error_not_class_dispatch(self) -> None:
-        """``functools.partial(SomeClass)`` is rejected as a nameless callable — it is never class-dispatched.
+        """``functools.partial(SomeClass)`` is rejected as a ``functools.partial`` — it is never class-dispatched.
 
         ``inspect.isclass`` is ``False`` on a ``functools.partial`` object even when it wraps a class, so the
-        dispatcher must NOT silently treat it as a class (which would lose proxy semantics) — it falls into the
-        callable bucket and is rejected there for lacking ``__name__``, documenting that
+        dispatcher must NOT silently treat it as a class (which would lose proxy semantics) — it is rejected with
+        the same ``functools.partial`` message as a partial of a function, documenting that
         ``functools.partial``-of-a-class is out of scope by design.
 
         """
-        with pytest.raises(TypeError, match="deprecated_instance"):
+        with pytest.raises(TypeError, match=r"`functools\.partial` object"):
             make_deprecated_on_partial_of_class()
+
+
+class TestFunctoolsWrapperSource:
+    """``functools`` wrapper kinds as the decorated source get one dedicated rejection on every entry point."""
+
+    @pytest.mark.parametrize(
+        "decorate",
+        [
+            pytest.param(make_front_door_notify_on, id="front-door-notify"),
+            pytest.param(make_front_door_redirect_on, id="front-door-callable-target"),
+            pytest.param(make_strict_callable_notify_on, id="deprecated-callable"),
+        ],
+    )
+    @pytest.mark.parametrize(
+        ("source", "kind"),
+        [
+            pytest.param(partial_of_double, "functools.partial", id="partial"),
+            pytest.param(partialmethod_of_double, "functools.partialmethod", id="partialmethod"),
+            pytest.param(singledispatchmethod_of_double, "functools.singledispatchmethod", id="singledispatchmethod"),
+        ],
+    )
+    def test_rejection_names_kind_and_workaround(self, decorate: Any, source: object, kind: str) -> None:  # noqa: ANN401
+        """Decorating a ``partial``/``partialmethod``/``singledispatchmethod`` names the type and the ``def`` fix.
+
+        A maintainer applies ``@deprecated`` to a ``functools`` alias, often inside a class body. Before, the
+        message depended on the route: "use ``deprecated_instance``", "must be called with parentheses", or an
+        ``AttributeError`` from ``deprecated_callable``. None of these helps. Every route now raises one
+        ``TypeError`` that names the wrapper type and the workaround (wrap the alias in a plain ``def``).
+
+        The subject is the library, not one decorator: the same message is raised from the ``deprecated_callable``
+        route, where a claim that "``@deprecated`` cannot decorate" the object would name the wrong entry point.
+
+        """
+        with pytest.raises(
+            TypeError, match=rf"^pyDeprecate cannot deprecate a `{re.escape(kind)}` object.*{_WRAP_IN_DEF_HINT}"
+        ):
+            decorate(source)
+
+    def test_nameless_callable_instance_keeps_instance_advice(self) -> None:
+        """A hand-written ``__call__`` object without ``__name__`` still gets the ``deprecated_instance`` advice.
+
+        The dedicated message covers the three ``functools`` wrapper kinds only; a plain callable object is a
+        real instance that ``deprecated_instance`` can wrap, so its existing guidance must not change.
+
+        """
+        with pytest.raises(TypeError, match="deprecated_instance"):
+            make_deprecated_on_callable_without_name()
 
 
 class TestDispatcherStacking:

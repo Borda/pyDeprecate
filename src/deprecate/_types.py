@@ -14,6 +14,8 @@ from dataclasses import dataclass, field, replace
 from enum import Enum
 from typing import Any, Callable, Generic, Literal, Optional, Protocol, TypeVar, Union, runtime_checkable
 
+from deprecate._frames import _caller_stacklevel
+
 
 class TargetMode(Enum):
     """Selects ``@deprecated`` behaviour when no callable replacement is provided.
@@ -70,19 +72,19 @@ class TargetMode(Enum):
         cls,
         target: Union[None, bool],
         *,
-        stacklevel: Optional[int] = 3,
+        emit: bool = True,
     ) -> "TargetMode":
         """Convert ``target`` sentinel (``None`` / ``True`` / ``False``) to :class:`~deprecate._types.TargetMode`.
 
         Backwards-compatibility shim for the :func:`~deprecate.deprecated` decorator.  Each sentinel is mapped to its
-        modern equivalent and a deprecation warning is emitted.  Pass ``stacklevel=None`` to suppress all warnings.
+        modern equivalent and a deprecation warning is emitted.  Pass ``emit=False`` to suppress all warnings.
 
         Args:
             target: Legacy sentinel — ``None`` → :attr:`~deprecate._types.TargetMode.NOTIFY`,
                 ``True`` → :attr:`~deprecate._types.TargetMode.ARGS_REMAP`,
                 ``False`` → :attr:`~deprecate._types.TargetMode.NOTIFY` (not a valid mode; :class:`TypeError` in v1.0).
-            stacklevel: Stack level forwarded to :func:`warnings.warn`.  Pass ``None`` to suppress all warnings
-                entirely.  Defaults to ``3``.
+            emit: Whether to warn about the legacy sentinel.  Pass ``False`` to convert silently.  The warning points
+                at the first frame outside the ``deprecate`` package.  Defaults to ``True``.
 
         Returns:
             The corresponding :class:`~deprecate._types.TargetMode` member.
@@ -91,39 +93,39 @@ class TargetMode(Enum):
             TypeError: If ``target`` is anything other than ``None``, ``True``, or ``False``.
 
         Examples:
-            >>> TargetMode._from_legacy(None, stacklevel=None)
+            >>> TargetMode._from_legacy(None, emit=False)
             <TargetMode.NOTIFY: 'notify'>
-            >>> TargetMode._from_legacy(True, stacklevel=None)
+            >>> TargetMode._from_legacy(True, emit=False)
             <TargetMode.ARGS_REMAP: 'args_remap'>
-            >>> TargetMode._from_legacy(False, stacklevel=None)
+            >>> TargetMode._from_legacy(False, emit=False)
             <TargetMode.NOTIFY: 'notify'>
 
         """
         if target is None:
-            if stacklevel is not None:
+            if emit:
                 warnings.warn(
                     "target=None is deprecated since `v0.8`; use `TargetMode.NOTIFY` instead."
                     " Will be removed in `v1.0`.",
                     FutureWarning,
-                    stacklevel=stacklevel,
+                    stacklevel=_caller_stacklevel(),
                 )
             return cls.NOTIFY
         if target is True:
-            if stacklevel is not None:
+            if emit:
                 warnings.warn(
                     "target=True is deprecated since `v0.8`; use `TargetMode.ARGS_REMAP` instead."
                     " Will be removed in `v1.0`.",
                     FutureWarning,
-                    stacklevel=stacklevel,
+                    stacklevel=_caller_stacklevel(),
                 )
             return cls.ARGS_REMAP
         if target is False:
-            if stacklevel is not None:
+            if emit:
                 warnings.warn(
                     "`target=False` is not a valid deprecation mode and will be treated as `TargetMode.NOTIFY`."
                     " This will be `TypeError` in `v1.0`.",
                     UserWarning,
-                    stacklevel=stacklevel,
+                    stacklevel=_caller_stacklevel(),
                 )
             return cls.NOTIFY
         raise TypeError(
@@ -136,14 +138,14 @@ class TargetMode(Enum):
         target: Any,  # noqa: ANN401
         *,
         args_mapping: Optional[Mapping[str, Optional[str]]] = None,
-        stacklevel: Optional[int] = 3,
+        emit: bool = True,
     ) -> "Union[Callable[..., Any], TargetMode, None]":
         """Normalise a proxy-specific legacy ``target`` sentinel for :func:`~deprecate.proxy.deprecated_class`.
 
         ``True`` and ``False`` are invalid for the proxy context and normalise to ``None`` — the proxy's
         unset-target value (or :attr:`~deprecate._types.TargetMode.ARGS_REMAP` when ``args_mapping`` is
         non-empty) after emitting a warning, so any configured mapping still auto-resolves like an omitted
-        target. All other values pass through unchanged.  Pass ``stacklevel=None`` to suppress warnings.
+        target. All other values pass through unchanged.  Pass ``emit=False`` to suppress warnings.
 
         Args:
             target: Raw ``target`` value from the caller.  Only ``True`` and ``False`` trigger normalisation;
@@ -152,8 +154,8 @@ class TargetMode(Enum):
                 not provided. When ``target=True`` and ``args_mapping`` is non-empty the result is
                 :attr:`~deprecate._types.TargetMode.ARGS_REMAP` instead of
                 :attr:`~deprecate._types.TargetMode.NOTIFY`, and a :class:`FutureWarning` is emitted.
-            stacklevel: Stack level forwarded to :func:`warnings.warn`.  Pass ``None`` to suppress all warnings.
-                Defaults to ``3``.
+            emit: Whether to warn about the legacy sentinel.  Pass ``False`` to convert silently.  The warning points
+                at the first frame outside the ``deprecate`` package.  Defaults to ``True``.
 
         Returns:
             :attr:`~deprecate._types.TargetMode.ARGS_REMAP` when ``target=True`` and ``args_mapping`` is non-empty;
@@ -161,11 +163,11 @@ class TargetMode(Enum):
             ``False``; otherwise ``target`` unchanged.
 
         Examples:
-            >>> TargetMode._from_legacy_proxy(True, stacklevel=None) is None
+            >>> TargetMode._from_legacy_proxy(True, emit=False) is None
             True
-            >>> TargetMode._from_legacy_proxy(True, args_mapping={"old": "new"}, stacklevel=None)
+            >>> TargetMode._from_legacy_proxy(True, args_mapping={"old": "new"}, emit=False)
             <TargetMode.ARGS_REMAP: 'args_remap'>
-            >>> TargetMode._from_legacy_proxy(False, stacklevel=None) is None
+            >>> TargetMode._from_legacy_proxy(False, emit=False) is None
             True
             >>> TargetMode._from_legacy_proxy(None) is None
             True
@@ -175,31 +177,31 @@ class TargetMode(Enum):
         """
         if target is True:
             if args_mapping:
-                if stacklevel is not None:
+                if emit:
                     warnings.warn(
                         "`target=True` with `args_mapping` will resolve to `TargetMode.ARGS_REMAP`."
                         " Will be `TypeError` in `v1.0`.",
                         FutureWarning,
-                        stacklevel=stacklevel,
+                        stacklevel=_caller_stacklevel(),
                     )
                 return cls.ARGS_REMAP
-            if stacklevel is not None:
+            if emit:
                 warnings.warn(
                     "`target=True` without `args_mapping` resolves to `TargetMode.NOTIFY`"
                     " (warns on every access). Will be `TypeError` in `v1.0`.",
                     FutureWarning,
-                    stacklevel=stacklevel,
+                    stacklevel=_caller_stacklevel(),
                 )
             # ``None`` (the proxy's unset value), not NOTIFY: legacy sentinels behave like an omitted
             # target, so a configured ``attrs_mapping`` still auto-resolves instead of being flagged as an
             # explicit-NOTIFY conflict.
             return None
         if target is False:
-            if stacklevel is not None:
+            if emit:
                 warnings.warn(
                     "`target=False` is not valid for `deprecated_class()`. Will be `TypeError` in `v1.0`.",
                     UserWarning,
-                    stacklevel=stacklevel,
+                    stacklevel=_caller_stacklevel(),
                 )
             return None
         return target
@@ -212,7 +214,7 @@ class TargetMode(Enum):
         args_mapping: Optional[Mapping[str, Optional[str]]] = None,
         args_extra: Optional[dict[str, Any]] = None,
         *,
-        stacklevel: Optional[int] = 2,
+        emit: bool = True,
     ) -> bool:
         """Validate :class:`~deprecate._types.TargetMode` against supplied configuration and emit misconfig warnings.
 
@@ -229,20 +231,21 @@ class TargetMode(Enum):
                 provided.
             args_extra: The ``args_extra`` dict supplied to :func:`~deprecate.deprecated`, or ``None`` when not
                 provided.
-            stacklevel: Stack level forwarded to :func:`warnings.warn` so that reported locations point at the
-                decorator application site.  Pass ``None`` to suppress all warnings.  Defaults to ``2``.
+            emit: Whether to warn about each misconfiguration found.  Pass ``False`` to only report it through the
+                return value.  The warning points at the first frame outside the ``deprecate`` package — the
+                decorator application site.  Defaults to ``True``.
 
         Returns:
             ``True`` if any misconfiguration was detected, ``False`` if the configuration is valid.
 
         Examples:
-            >>> TargetMode._validate(TargetMode.ARGS_REMAP, "my_func", args_mapping=None, stacklevel=None)
+            >>> TargetMode._validate(TargetMode.ARGS_REMAP, "my_func", args_mapping=None, emit=False)
             True
-            >>> TargetMode._validate(TargetMode.NOTIFY, "my_func", args_mapping={"old": "new"}, stacklevel=None)
+            >>> TargetMode._validate(TargetMode.NOTIFY, "my_func", args_mapping={"old": "new"}, emit=False)
             True
-            >>> TargetMode._validate(TargetMode.NOTIFY, "my_func", args_extra={"bias": 1}, stacklevel=None)
+            >>> TargetMode._validate(TargetMode.NOTIFY, "my_func", args_extra={"bias": 1}, emit=False)
             True
-            >>> TargetMode._validate(TargetMode.NOTIFY, "my_func", stacklevel=None)
+            >>> TargetMode._validate(TargetMode.NOTIFY, "my_func", emit=False)
             False
 
         """
@@ -266,9 +269,9 @@ class TargetMode(Enum):
                 "`args_extra`. Use a callable target to forward with extra arguments. "
                 "This will be `TypeError` in `v1.0`."
             )
-        if stacklevel is not None:
+        if emit:
             for msg in messages:
-                warnings.warn(msg, UserWarning, stacklevel=stacklevel)
+                warnings.warn(msg, UserWarning, stacklevel=_caller_stacklevel())
         return bool(messages)
 
     @classmethod
@@ -280,7 +283,7 @@ class TargetMode(Enum):
         args_mapping: Optional[Mapping[str, Optional[str]]] = None,
         args_extra: Optional[dict[str, Any]] = None,
         *,
-        stacklevel: Optional[int] = 2,
+        emit: bool = True,
     ) -> bool:
         """Validate proxy-specific configuration: ``attrs_mapping`` combinations.
 
@@ -300,7 +303,8 @@ class TargetMode(Enum):
             args_extra: The ``args_extra`` dict, forwarded here so we can detect the
                 ``ATTRS_REMAP + args_extra`` combination — ``ATTRS_REMAP`` governs attribute access only and
                 does not honour call-time kwarg injection.
-            stacklevel: Forwarded to :func:`warnings.warn`. Pass ``None`` to suppress warnings. Defaults to ``2``.
+            emit: Whether to warn about each misconfiguration found.  Pass ``False`` to only report it through the
+                return value.  Defaults to ``True``.
 
         Returns:
             ``True`` if any misconfiguration was detected, ``False`` otherwise.
@@ -308,27 +312,27 @@ class TargetMode(Enum):
         Examples:
             >>> # Explicit NOTIFY + attrs_mapping is contradictory — only TargetMode.AUTO (the factory
             >>> # default, i.e. an omitted ``target``) auto-resolves a mapping to ATTRS_REMAP.
-            >>> TargetMode._validate_proxy(TargetMode.NOTIFY, "Cls", attrs_mapping={"a": "b"}, stacklevel=None)
+            >>> TargetMode._validate_proxy(TargetMode.NOTIFY, "Cls", attrs_mapping={"a": "b"}, emit=False)
             True
-            >>> TargetMode._validate_proxy(TargetMode.ATTRS_REMAP, "Cls", attrs_mapping=None, stacklevel=None)
+            >>> TargetMode._validate_proxy(TargetMode.ATTRS_REMAP, "Cls", attrs_mapping=None, emit=False)
             True
-            >>> TargetMode._validate_proxy(TargetMode.ATTRS_REMAP, "Cls", attrs_mapping={}, stacklevel=None)
+            >>> TargetMode._validate_proxy(TargetMode.ATTRS_REMAP, "Cls", attrs_mapping={}, emit=False)
             True
-            >>> TargetMode._validate_proxy(TargetMode.ATTRS_REMAP, "Cls", attrs_mapping={"a": "b"}, stacklevel=None)
+            >>> TargetMode._validate_proxy(TargetMode.ATTRS_REMAP, "Cls", attrs_mapping={"a": "b"}, emit=False)
             False
             >>> TargetMode._validate_proxy(
             ...     TargetMode.ARGS_REMAP, "Cls",
-            ...     args_mapping={"old": "new"}, attrs_mapping={"a": "b"}, stacklevel=None,
+            ...     args_mapping={"old": "new"}, attrs_mapping={"a": "b"}, emit=False,
             ... )
             True
             >>> TargetMode._validate_proxy(
             ...     TargetMode.ATTRS_REMAP, "Cls",
-            ...     args_mapping={"old": "new"}, attrs_mapping={"a": "b"}, stacklevel=None,
+            ...     args_mapping={"old": "new"}, attrs_mapping={"a": "b"}, emit=False,
             ... )
             True
             >>> TargetMode._validate_proxy(
             ...     TargetMode.ATTRS_REMAP, "Cls",
-            ...     attrs_mapping={"a": "b"}, args_extra={"bias": 1}, stacklevel=None,
+            ...     attrs_mapping={"a": "b"}, args_extra={"bias": 1}, emit=False,
             ... )
             True
 
@@ -378,9 +382,9 @@ class TargetMode(Enum):
                 "An empty mapping has no effect — remove it or add deprecated attribute names. "
                 "This will be `TypeError` in `v1.0`."
             )
-        if stacklevel is not None:
+        if emit:
             for msg in messages:
-                warnings.warn(msg, UserWarning, stacklevel=stacklevel)
+                warnings.warn(msg, UserWarning, stacklevel=_caller_stacklevel())
         return bool(messages)
 
 
@@ -827,22 +831,24 @@ class _CallPlan:
     Attributes:
         short_circuit: ``True`` when the wrapper must call ``source`` directly (no warning, no remap, no target
             lookup) — this is the "migrated caller using the new arg name" fast path before any warning logic runs.
-            The wrapper calls ``source(**resolved_kwargs)`` for sources without ``*args``, or
-            ``source(*args, **original_kwargs)`` when the source declares a var-positional parameter so that
-            extra positional arguments are forwarded correctly.  When ``True``, :attr:`resolved_kwargs` equals the
-            kwargs after :func:`_update_kwargs_with_args`, before defaults / remap / extras are applied.
+            Such a call needs no rename and no injected extras, so it is always :attr:`verbatim` too and the wrapper
+            calls ``source(*args, **original_kwargs)``.
         original_kwargs: A shallow copy of the wrapper's incoming ``kwargs`` (before positional args were converted to
             keyword form).  Used by the var-positional branch when no argument-rename reason fired, so that the source
             sees its original positional/keyword shape.
-        resolved_kwargs: Final kwargs after defaults injection, ``args_mapping`` remap, and ``args_extra`` merge when
-            the normal planning path runs.  On the :attr:`short_circuit` path, this instead holds the kwargs produced
-            immediately after :func:`_update_kwargs_with_args`, and that is what the wrapper passes to ``source``.
+        resolved_kwargs: Final kwargs after positional-to-keyword conversion, defaults injection, ``args_mapping``
+            remap, and ``args_extra`` merge when the wrapper rewrites the call.  On a :attr:`verbatim` plan nothing is
+            converted, so this holds the caller's keyword arguments unchanged.
         reason_argument: Subset of ``args_mapping`` whose old-arg names appeared in the caller's kwargs.  Non-empty
             value means the argument-rename warning fired (or was suppressed by ``num_warns`` quota).  Empty when the
             warning reason was callable-deprecation or when no rename was triggered.
         target_func: Resolved target callable when forwarding is required, or ``None`` when the source body should be
             invoked instead.  ``None`` for :attr:`TargetMode.NOTIFY` and :attr:`TargetMode.ARGS_REMAP`; a validated
             callable when the user passed a forwarding target.
+        verbatim: ``True`` when the call needs no forwarding target, no argument rename and no ``args_extra``
+            injection, so the wrapper invokes ``source(*args, **original_kwargs)`` exactly as the caller made the
+            call.  A ``functools.singledispatch`` source or one with a patched ``__signature__`` then keeps working.
+            Decided by :func:`deprecate._dispatch._is_verbatim_call`; the warning and the budget are unaffected.
 
     """
 
@@ -851,3 +857,4 @@ class _CallPlan:
     resolved_kwargs: dict[str, Any]
     reason_argument: dict[str, Optional[str]] = field(default_factory=dict)
     target_func: Optional[Callable[..., Any]] = None
+    verbatim: bool = False

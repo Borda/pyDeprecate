@@ -79,7 +79,7 @@ class TestNoWarningCallAlias:
         msg = str(depr_warns[0].message)
         assert "no_warning_call" in msg
         assert "assert_no_warnings" in msg
-        # Warning fires in ``__init__`` with ``stacklevel=2``, landing on the ``no_warning_call(...)`` call line.
+        # Warning fires in ``__init__`` and walks past pyDeprecate frames, landing on the ``no_warning_call(...)`` line.
         assert os.path.basename(depr_warns[0].filename) == "test_utils.py"
 
     def test_passes_when_no_warning_raised(self) -> None:

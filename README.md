@@ -259,9 +259,9 @@ Most alternatives emit a deprecation notice. pyDeprecate is for migrations where
 <details>
   <summary><strong>Key Advantages & Feature Breakdown</strong></summary>
 
-- **Simple Warnings**: Emits standard Python warnings, compatible with default error handling tools.
+- **Simple Warnings**: Emits standard Python warnings, compatible with default error handling tools. Proxy context entry releases an acquired resource if warning delivery raises.
 - **Auto-Forward Calls**: Automatically redirects calls to the new function, ensuring the deprecated code is *never* executed.
-- **Generator / Async**: Works natively with generator functions (`def fn(): yield`), `async def` coroutines, and async generators (`async def fn(): yield`) — the deprecation warning fires at call time regardless of callable type, and the wrapper preserves the correct introspection flags (`iscoroutinefunction`, etc.).
+- **Generator / Async**: Works natively with generator functions, `async def` coroutines, and async generators. Generator warnings fire when the wrapper is called; coroutine warnings fire when awaited, and the wrapper preserves the relevant introspection flags.
 - **Argument Mapping**: Seamlessly translates old API arguments to new ones, handling complex renames and restructuring.
 - **Argument Deprecation**: Warns when specific arguments are used, even if the function itself isn't deprecated.
 - **Docstring Updates**: Automatically appends deprecation notices to the function's docstring.

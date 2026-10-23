@@ -6,7 +6,7 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 
 import enum
 import inspect
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from contextlib import suppress
 from typing import TYPE_CHECKING, Any, Optional, Union
 
@@ -23,7 +23,9 @@ from deprecate.audit._lifecycle import (
 )
 from deprecate.audit._scan import find_deprecation_wrappers
 from deprecate.audit._wrappers import DeprecationWrapperInfo, _format_report_symbol
+from deprecate.messaging import _callable_display_name
 from deprecate.proxy import _DeprecatedProxy
+from deprecate.utils import _partial_chain
 
 
 class TableStyle(str, enum.Enum):
@@ -80,10 +82,28 @@ def _format_report_target(target: Any) -> str:  # noqa: ANN401
         config = get_deprecation_config(target)
         return config.name if config is not None else type(target).__name__
     if callable(target):
-        target_module = getattr(target, "__module__", "")
-        target_name = getattr(target, "__qualname__", getattr(target, "__name__", str(target)))
-        return f"{target_module}.{target_name}" if target_module else target_name
+        return _format_callable_target(target)
     return str(target)
+
+
+def _format_callable_target(target: Callable[..., Any]) -> str:
+    """Name a callable replacement target by its dotted path, never by a memory-address ``repr``.
+
+    A ``functools.partial`` is named by the callable it wraps, so ``partial(pkg.new, b=7)`` reports ``pkg.new`` like the
+    runtime warning does. ``__qualname__`` is preferred so a method keeps its class (``pkg.Cls.meth``); an object with
+    no string ``__qualname__``/``__name__`` of its own, such as a callable instance, is named the way the runtime
+    warning names it (:func:`~deprecate.messaging._callable_display_name`).
+
+    """
+    chain = _partial_chain(target)
+    base = chain[-1].func if chain else target
+    name = getattr(base, "__qualname__", None)
+    if not isinstance(name, str):
+        name = getattr(base, "__name__", None)
+    if not isinstance(name, str):
+        return _callable_display_name(base)[1]
+    module = getattr(base, "__module__", None)
+    return f"{module}.{name}" if isinstance(module, str) and module else name
 
 
 def _format_report_api_type(info: DeprecationWrapperInfo) -> str:

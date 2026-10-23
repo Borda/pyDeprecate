@@ -45,19 +45,28 @@ from dataclasses import dataclass
 from enum import Enum
 from functools import cached_property, partial
 from types import SimpleNamespace
-from typing import Any, Callable
+from typing import Any, Callable, Optional
 from warnings import catch_warnings, simplefilter, warn
 
 import typing_extensions
 from sklearn.metrics import accuracy_score
 
-from deprecate import TargetMode, deprecated, deprecated_callable, deprecated_class, deprecated_instance, void
+from deprecate import (
+    TargetMode,
+    deprecated,
+    deprecated_callable,
+    deprecated_class,
+    deprecated_instance,
+    deprecated_module,
+    void,
+)
 from deprecate.proxy import _DeprecatedProxy
 from tests.collection_targets import (
     AutoExpandDC,
     AutoExpandInitFalseDC,
     AutoExpandOverriddenInitDC,
     AutoExpandReqDC,
+    CallableAdder,
     ColorEnum,
     CombinedAttrsArgsSource,
     CombinedAttrsArgsTarget,
@@ -72,6 +81,7 @@ from tests.collection_targets import (
     NewDataClass,
     NewEnum,
     NewIntEnum,
+    NonStringNameCallable,
     Palette,
     PaletteEnum,
     PaletteOld,
@@ -79,15 +89,18 @@ from tests.collection_targets import (
     RequiredPositionalOnlyTarget,
     SelfDeprecatedModel,
     SelfOnlyPositionalOnlyTarget,
+    SideEffectBox,
     SomeTargetClass,
     StackedAttrTarget,
     StackingArgsAttrsBase,
+    SubclassableBase,
     TimerDecorator,
     WithInjected,
     _DelOnlyPropTarget,  # private alias — see H3 fdel-only fixtures below
     _InnerOrderPropTarget,  # private alias — see H2 inner-order fixtures below
     _Pep702ProxyTarget,  # private alias — see B1b regression fixture below
     add_values,
+    area_dispatch,
     async_gen_target,
     async_non_cycle_double,
     async_positional_only_target,
@@ -96,6 +109,7 @@ from tests.collection_targets import (
     base_pow_args,
     base_sum_kwargs,
     both_old_new_target,
+    callable_adder_target,
     compute_power,
     cross_guard_standalone_increment,
     del_only_prop_fdel,
@@ -108,19 +122,27 @@ from tests.collection_targets import (
     gen_target,
     identity_value,
     increment_value,
+    legacy_host_scale,
+    nested_partial_target,
     non_cycle_double,
+    partial_async_target,
+    partial_new_cls_target,
+    partial_target,
     pep702_target,
     positional_only_target,
     positional_only_two_params_target,
     power_with_new_coef,
+    raw_signature_patched,
     return_b,
     return_z,
     single_positional_target,
+    stream_wraps_warn_forwarding_stacklevel,
     timing_wrapper,
     tracked_identity,
     trio_positional_target,
     var_positional_remap_body,
     var_positional_target,
+    wraps_chain_outer,
 )
 
 _deprecation_warning = partial(warn, category=DeprecationWarning)
@@ -2821,11 +2843,11 @@ def make_deprecated_on_callable_without_name() -> Any:  # noqa: ANN401
 
 
 def make_deprecated_on_partial_of_function() -> Any:  # noqa: ANN401
-    """Apply ``@deprecated`` to ``functools.partial(double_value)`` — raises ``TypeError`` (no ``__name__``).
+    """Apply ``@deprecated`` to ``functools.partial(double_value)`` — raises the dedicated ``functools.partial`` error.
 
-    ``functools.partial`` objects never carry ``__name__`` — this is the same guard as
-    ``make_deprecated_on_callable_without_name``, exercised via the stdlib ``partial`` kind called out explicitly
-    in the dispatcher's callable-kind matrix.
+    ``functools.partial`` objects never carry ``__name__`` and have no function body to wrap. Unlike
+    ``make_deprecated_on_callable_without_name`` (a hand-written ``__call__`` object, pointed at
+    ``deprecated_instance``), the rejection names the ``functools.partial`` type and the wrap-in-a-``def`` fix.
 
     """
     return deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)(partial(double_value))
@@ -2835,8 +2857,8 @@ def make_deprecated_on_partial_of_class() -> Any:  # noqa: ANN401
     """Apply ``@deprecated`` to ``functools.partial(NewCls)`` — documents partial-of-class routing.
 
     ``functools.partial(NewCls)`` is NOT class-dispatched (``inspect.isclass`` is ``False`` on a ``partial``
-    object) — it falls into the callable bucket and is rejected there for lacking ``__name__``, the same
-    ``TypeError`` as any other nameless callable. This proves the dispatcher never silently treats a
+    object) — it falls into the callable bucket and is rejected there with the dedicated ``functools.partial``
+    ``TypeError``, the same as a partial of a function. This proves the dispatcher never silently treats a
     partial-wrapped class as a class, which would lose proxy semantics (isinstance/pickling/etc).
 
     """
@@ -3057,3 +3079,497 @@ class DescriptorSourcesHolder:
     def legacy_helper(x: int) -> int:
         """Deprecated staticmethod."""
         return x
+
+
+# ========== Characterization fixtures: warning locations and call shapes ==========
+#
+# One wrapper per pyDeprecate warn site for ``tests/integration/test_warning_locations.py`` (where does the warning
+# point?) and one per call shape for ``tests/integration/test_call_transparency.py`` (what does the source receive?).
+# Both files pin today's behaviour so internal refactors of the dispatch and stacklevel machinery are proven against it.
+#
+# Budgets: module-level ``@deprecated`` wrappers below (including the inner layers of stacks, bound to their own module
+# names on purpose) are reset before every test by ``tests/conftest.py`` and keep the default ``num_warns=1``.  Proxies
+# and class-body descriptor wrappers are out of that fixture's reach, so they use ``num_warns=-1`` and no test depends
+# on execution order.  Decoration-time warnings come from ``make_loc_*`` factories: the decorating statement of each
+# factory carries a ``# warn-site`` marker so the test can compute the exact line the warning has to point at.
+
+
+@deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)
+def loc_notify(x: int) -> int:
+    """Warn-only source — its call-time ``FutureWarning`` must point at the caller's line."""
+    return x * 2
+
+
+def make_loc_audit_wrapper(remove_in: str) -> Callable[..., Any]:
+    """Build a warn-only wrapper deprecated in ``1.0`` with the given ``remove_in`` for the audit-gate location rows.
+
+    Built on demand rather than defined at module level, so audit scans of this module never see the deliberately
+    unusable ``remove_in`` values (a typo'd version, an epoch change) and emit their diagnostics elsewhere.
+
+    """
+
+    def loc_audit_source(x: int) -> int:
+        """Warn-only source scanned by the audit-gate location rows."""
+        return x
+
+    return deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in=remove_in)(loc_audit_source)
+
+
+@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old_x": "x"}, **_DEPRS_CASE_STD_ARGS)
+def loc_args_remap(x: int = 0, old_x: int = 0) -> int:
+    """Self-rename source (``old_x`` -> ``x``) — argument ``FutureWarning`` and collision ``UserWarning`` site."""
+    return x
+
+
+@deprecated(target=double_value, **_DEPRS_CASE_STD_ARGS)
+def loc_forward(x: int) -> int:
+    """Forwarding source — the callable-target ``FutureWarning`` must point at the caller's line."""
+    return void(x)
+
+
+def _loc_stack_lifecycle_source(x: int = 0, old_x: int = 0) -> int:
+    """Body of the supported ARGS_REMAP-over-NOTIFY lifecycle stack."""
+    return x
+
+
+#: Inner NOTIFY layer of the supported lifecycle stack (bound to a module name so its budget is reset per test).
+loc_stack_notify_inner = deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)(_loc_stack_lifecycle_source)
+#: Supported stack: the outer layer renames ``old_x``, the inner layer deprecates the whole function.
+loc_stack_remap_over_notify = deprecated(
+    target=TargetMode.ARGS_REMAP, args_mapping={"old_x": "x"}, **_DEPRS_CASE_STD_ARGS
+)(loc_stack_notify_inner)
+
+
+def _loc_stack_forward_source(x: int) -> int:
+    """Body of the supported NOTIFY-over-callable stack; never runs because the inner layer forwards."""
+    return void(x)
+
+
+#: Inner forwarding layer of the supported NOTIFY-over-callable stack.
+loc_stack_callable_inner = deprecated(target=double_value, **_DEPRS_CASE_STD_ARGS)(_loc_stack_forward_source)
+#: Supported stack: the outer NOTIFY layer (``v1.5``) announces removal, the inner layer (``v1.0``) forwards.
+loc_stack_notify_over_callable = deprecated(target=TargetMode.NOTIFY, deprecated_in="1.5", remove_in="2.0")(
+    loc_stack_callable_inner
+)
+
+
+def _loc_stack_rename_chain_source(a: int = 0, b: int = 0, c: int = 0) -> int:
+    """Body of the supported two-step rename stack (``a`` -> ``b`` first, ``b`` -> ``c`` later)."""
+    return c
+
+
+#: Inner ARGS_REMAP layer of the two-step rename stack (``b`` -> ``c``).
+loc_stack_remap_inner = deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"b": "c"}, **_DEPRS_CASE_STD_ARGS)(
+    _loc_stack_rename_chain_source
+)
+#: Supported stack: outer layer renames ``a`` -> ``b``; a caller passing ``b`` and ``c`` collides in the inner layer.
+loc_stack_remap_over_remap = deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"a": "b"}, **_DEPRS_CASE_STD_ARGS)(
+    loc_stack_remap_inner
+)
+
+
+def _loc_positional_only_source(x: int, y: int = 0) -> int:
+    """Source forwarding to ``positional_only_target``, whose ``x`` parameter is positional-only."""
+    return void(x, y)
+
+
+def make_loc_legacy_none_sentinel() -> Callable[..., Any]:
+    """Decorate through the ``@deprecated`` front door with the legacy ``target=None`` sentinel.
+
+    The legacy-sentinel ``FutureWarning`` has to point at the ``# warn-site`` line, the user's decoration site.
+    """
+    decorator = deprecated(target=None, **_DEPRS_CASE_STD_ARGS)
+    return decorator(identity_value)  # warn-site
+
+
+def make_loc_decoration_misconfig() -> Callable[..., Any]:
+    """Decorate with ``TargetMode.NOTIFY`` plus an ignored ``args_mapping`` — decoration-time misconfig warning."""
+    decorator = deprecated(target=TargetMode.NOTIFY, args_mapping={"old_x": "x"}, **_DEPRS_CASE_STD_ARGS)
+    return decorator(identity_value)  # warn-site
+
+
+def make_loc_missing_deprecated_in() -> Callable[..., Any]:
+    """Decorate without ``deprecated_in`` — decoration-time missing-version ``UserWarning``."""
+    decorator = deprecated(target=TargetMode.NOTIFY, remove_in="2.0")
+    return decorator(identity_value)  # warn-site
+
+
+def make_loc_positional_only_target() -> Callable[..., Any]:
+    """Decorate with a target that declares a positional-only parameter — decoration-time ``UserWarning``."""
+    decorator = deprecated(target=positional_only_target, **_DEPRS_CASE_STD_ARGS)
+    return decorator(_loc_positional_only_source)  # warn-site
+
+
+def make_loc_class_dispatch_notice() -> Any:  # noqa: ANN401
+    """Apply ``@deprecated`` to a fresh class — the one-time class-dispatch ``UserWarning`` at decoration time."""
+
+    class LocLegacyWidget:
+        """Plain class deprecated through the ``@deprecated`` front door."""
+
+    decorator = deprecated(**_DEPRS_CASE_STD_ARGS)
+    return decorator(LocLegacyWidget)  # warn-site
+
+
+#: Mapping proxy for the ``__getattr__`` / ``__getitem__`` / ``__iter__`` sites.
+loc_proxy_mapping = deprecated_instance({"threshold": 0.5}, name="loc_proxy_mapping", **_DEPRS_CASE_STD_INF_ARGS)
+#: Number proxy for the binary- and unary-operator sites.
+loc_proxy_number = deprecated_instance(5, name="loc_proxy_number", **_DEPRS_CASE_STD_INF_ARGS)
+#: Callable-object proxy for the ``__call__`` site.
+loc_proxy_callable = deprecated_instance(CallableAdder(offset=1), name="loc_proxy_callable", **_DEPRS_CASE_STD_INF_ARGS)
+#: Deprecated base-class alias for the ``__mro_entries__`` site (``class Child(LocProxyBase): ...``).
+LocProxyBase = deprecated_class(**_DEPRS_CASE_STD_INF_ARGS)(SubclassableBase)
+
+
+def make_loc_side_effect_box_proxy() -> Any:  # noqa: ANN401
+    """Wrap a fresh ``SideEffectBox`` for the in-place-operator, ``__enter__`` and iteration sites."""
+    return deprecated_instance(SideEffectBox(), name="loc_proxy_box", **_DEPRS_CASE_STD_INF_ARGS)
+
+
+#: Constructor-rename proxy (``ARGS_REMAP``, no ``target``) for the per-argument and collision constructor sites.
+loc_proxy_ctor_remap = deprecated_class(args_mapping={"name": "label"}, **_DEPRS_CASE_STD_INF_ARGS)(NewDataClass)
+
+# Configurable decoration-time factories: each applies one entry point to *source* on its ``# warn-site`` line, with
+# *config* overriding the standard version pair (``deprecated_in=""`` drops it).  Decorator-factory warnings (the
+# ``template_mgs`` alias) and decorator-application warnings therefore share the same expected line.
+
+
+def make_loc_front_door(source: Any, **config: Any) -> Any:  # noqa: ANN401
+    """Decorate *source* through the ``@deprecated`` front door configured by *config*."""
+    return deprecated(**{**_DEPRS_CASE_STD_ARGS, **config})(source)  # warn-site
+
+
+def make_loc_callable_direct(source: Any, **config: Any) -> Any:  # noqa: ANN401
+    """Decorate *source* with the strict ``deprecated_callable`` configured by *config*."""
+    return deprecated_callable(**{**_DEPRS_CASE_STD_ARGS, **config})(source)  # warn-site
+
+
+def make_loc_class_direct(source: Any, **config: Any) -> Any:  # noqa: ANN401
+    """Wrap the class *source* with ``deprecated_class`` configured by *config*."""
+    return deprecated_class(**{**_DEPRS_CASE_STD_ARGS, **config})(source)  # warn-site
+
+
+def make_loc_instance(source: Any, **config: Any) -> Any:  # noqa: ANN401
+    """Wrap the object *source* with ``deprecated_instance`` configured by *config*."""
+    return deprecated_instance(source, **{**_DEPRS_CASE_STD_ARGS, **config})  # warn-site
+
+
+def make_loc_module(name: str, **config: Any) -> None:  # noqa: ANN401
+    """Deprecate the registered module *name* in place with ``deprecated_module`` configured by *config*."""
+    deprecated_module(name, **{**_DEPRS_CASE_STD_ARGS, **config})  # warn-site
+
+
+# ========== Warn-after-success proxies: a failed operation must not spend the warn budget ==========
+
+
+def make_warn_after_success_proxy(obj: object, **overrides: Any) -> Any:  # noqa: ANN401
+    """Wrap *obj* as the deprecated ``legacy_box`` instance with the default one-warning budget.
+
+    *overrides* replace any ``deprecated_instance`` keyword — ``as_exception=True`` for the fatal rows, ``skip_if=True``
+    for the inactive rows, ``num_warns=-1`` to see every emission. The caller keeps its own reference to *obj*, so it
+    can flip a failure flag without reading through the proxy (which would itself warn).
+    """
+    return deprecated_instance(obj, **{"name": "legacy_box", **_DEPRS_CASE_STD_ARGS, **overrides})
+
+
+def make_silent_proxy_stack(obj: object, layers: int) -> Any:  # noqa: ANN401
+    """Wrap *obj* in *layers* silent ``legacy_box`` proxies, each wrapping the previous one.
+
+    ``stream=None`` keeps the inner layers from warning, so only a proxy stacked on top reports the deprecation.
+    """
+    for _ in range(layers):
+        obj = make_warn_after_success_proxy(obj, stream=None)
+    return obj
+
+
+# ========== Proxies stored as class attributes: descriptor binding ==========
+
+
+def make_deprecated_method_host(**overrides: Any) -> type[Any]:  # noqa: ANN401
+    """Build a fresh host class whose ``scale`` method is a ``deprecated_instance`` of a plain function.
+
+    The proxy lives in the class body, so instance access goes through its ``__get__`` and must bind the wrapped
+    function like a method. Built per call so every test starts with an unspent warn budget. *overrides* replace any
+    ``deprecated_instance`` keyword — ``skip_if=True``, ``as_exception=True``, ``num_warns=-1``.
+    """
+
+    class MethodHost:
+        """Host class carrying the deprecated ``scale`` method."""
+
+        scale = deprecated_instance(legacy_host_scale, **{"name": "scale", **_DEPRS_CASE_STD_ARGS, **overrides})
+
+    return MethodHost
+
+
+def make_deprecated_data_host() -> type[Any]:
+    """Build a fresh host class holding a deprecated dict constant and a deprecated class alias as class attributes.
+
+    Neither wrapped object binds (a ``dict`` instance and a class are not descriptors), so instance access must return
+    the very proxy stored in the class body, exactly as before the proxy gained ``__get__``.
+    """
+
+    class DataHost:
+        """Host class carrying non-binding deprecated class attributes."""
+
+        defaults = deprecated_instance({"threshold": 0.5}, name="defaults", stream=None, **_DEPRS_CASE_STD_ARGS)
+        Palette = deprecated_class(stream=None, **_DEPRS_CASE_STD_ARGS)(Palette)
+
+    return DataHost
+
+
+def make_read_only_settings_proxy(*, skip_if: bool) -> Any:  # noqa: ANN401
+    """Wrap a fresh dict as the read-only ``legacy_settings`` instance with the given ``skip_if`` condition."""
+    return deprecated_instance(
+        {"threshold": 0.5, "enabled": True},
+        name="legacy_settings",
+        read_only=True,
+        skip_if=skip_if,
+        **_DEPRS_CASE_STD_ARGS,
+    )
+
+
+def make_flaky_attr_alias(host: type, **overrides: Any) -> Any:  # noqa: ANN401
+    """Wrap *host* in ``deprecated_class`` renaming ``legacy_total`` to ``total``, one warning per deprecated name.
+
+    *overrides* replace any ``deprecated_class`` keyword, e.g. ``as_exception=True`` for the fatal row.
+    """
+    return deprecated_class(attrs_mapping={"legacy_total": "total"}, **{**_DEPRS_CASE_STD_ARGS, **overrides})(host)
+
+
+class LocDescriptorHost:
+    """Descriptor sources (decorator above the descriptor) for the call-time warning-location tests.
+
+    Class-body wrappers are not module-level, so ``tests/conftest.py`` cannot reset them: unlimited budget.
+    """
+
+    @deprecated(**_DEPRS_CASE_STD_INF_ARGS)  # type: ignore[prop-decorator]
+    @property
+    def legacy_value(self) -> int:
+        """Deprecated read-only property."""
+        return 1
+
+    @deprecated(**_DEPRS_CASE_STD_INF_ARGS)  # type: ignore[prop-decorator]
+    @cached_property
+    def legacy_cached(self) -> int:
+        """Deprecated cached property; read it on a fresh instance, the cache skips the getter afterwards."""
+        return 2
+
+    @deprecated(**_DEPRS_CASE_STD_INF_ARGS)
+    @classmethod
+    def legacy_factory(cls, x: int) -> int:
+        """Deprecated classmethod."""
+        return x
+
+    @deprecated(**_DEPRS_CASE_STD_INF_ARGS)
+    @staticmethod
+    def legacy_helper(x: int) -> int:
+        """Deprecated staticmethod."""
+        return x
+
+
+@deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)
+async def loc_async_notify(x: int) -> int:
+    """Async warn-only source — the warning fires when awaited and must point at the awaiting line."""
+    return x * 2
+
+
+#: NOTIFY over a ``functools.singledispatch`` source, which dispatches on its first positional argument.
+shape_notify_area_dispatch = deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)(area_dispatch)
+#: NOTIFY over a source whose ``__signature__`` reports ``(x)`` while its real shape is ``(*args, **kwargs)``.
+shape_notify_raw_signature = deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)(raw_signature_patched)
+#: NOTIFY over a ``functools.wraps`` forwarder that rejects keyword arguments.
+shape_notify_wraps_chain = deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)(wraps_chain_outer)
+#: NOTIFY over a source whose first parameter ``x`` is positional-only.
+shape_notify_positional_only = deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)(positional_only_target)
+
+
+@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old": "new"}, **_DEPRS_CASE_STD_ARGS)
+def shape_remap_old_new(old: Optional[int] = None, new: Optional[int] = None) -> tuple[Optional[int], Optional[int]]:
+    """Self-rename source (``old`` -> ``new``) that returns exactly what it received."""
+    return old, new
+
+
+@deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)
+def shape_notify_two_params(a: int, b: int = 0) -> tuple[int, int]:
+    """Warn-only source with two positional slots, for the arity-error characterization."""
+    return a, b
+
+
+#: ARGS_REMAP over a ``functools.singledispatch`` source; ``figure`` is the deprecated spelling of ``shape``.
+shape_remap_area_dispatch = deprecated(
+    target=TargetMode.ARGS_REMAP, args_mapping={"figure": "shape"}, **_DEPRS_CASE_STD_ARGS
+)(area_dispatch)
+
+
+@deprecated(
+    target=TargetMode.ARGS_REMAP, args_mapping={"old": "new"}, args_extra={"flag": True}, **_DEPRS_CASE_STD_ARGS
+)
+def shape_remap_with_extra(
+    old: Optional[int] = None, new: Optional[int] = None, flag: bool = False
+) -> tuple[Optional[int], Optional[int], bool]:
+    """Self-rename source that also gets ``flag`` injected by ``args_extra``; returns exactly what it received."""
+    return old, new, flag
+
+
+def make_pickle_settings_proxy() -> Any:  # noqa: ANN401
+    """Wrap a fresh settings dict in a ``deprecated_instance`` proxy with the default one-warning budget.
+
+    ``tests/integration/test_pickle_compat.py`` holds payloads pickled by pyDeprecate 0.14.0 from a proxy built with
+    exactly these arguments; keep them in sync or the payload-versus-fresh comparisons stop meaning anything.
+    """
+    return deprecated_instance({"threshold": 0.5, "enabled": True}, name="legacy_settings", **_DEPRS_CASE_STD_ARGS)
+
+
+# ---------------------------------------------------------------------------
+# Callable-kind targets without a ``__name__`` of their own (partial, callable instance)
+# ---------------------------------------------------------------------------
+
+
+@deprecated(target=partial_target, **_DEPRS_CASE_STD_ARGS)
+def depr_scale_partial(x: int, y: int = 0) -> int:
+    """Forward to ``partial(new_scale, y=5)``; the source default ``y=0`` differs from the partial-bound ``y=5``."""
+    return void(x, y)
+
+
+@deprecated(target=partial_target, **_DEPRS_CASE_STD_INF_ARGS)
+def depr_scale_partial_every_call(x: int, y: int = 0) -> int:
+    """Forward to ``partial(new_scale, y=5)`` and warn on every call (``num_warns=-1``)."""
+    return void(x, y)
+
+
+@deprecated(target=partial_target, **_DEPRS_CASE_STD_ARGS)
+def depr_scale_partial_no_default(x: int) -> int:
+    """Forward to ``partial(new_scale, y=5)`` from a source that has no ``y`` parameter at all."""
+    return void(x)
+
+
+@deprecated(target=partial_target, args_mapping={"factor": "y"}, **_DEPRS_CASE_STD_ARGS)
+def depr_scale_partial_renamed(x: int, factor: int = 0) -> int:
+    """Forward to ``partial(new_scale, y=5)`` renaming ``factor`` to the partial-bound ``y``."""
+    return void(x, factor)
+
+
+@deprecated(target=nested_partial_target, **_DEPRS_CASE_STD_ARGS)
+def depr_scale_nested_partial(x: int, y: int = 0) -> int:
+    """Forward to a two-level partial chain whose inner layer binds ``y=5``."""
+    return void(x, y)
+
+
+@deprecated(target=callable_adder_target, **_DEPRS_CASE_STD_ARGS)
+def depr_add_callable_instance(x: int) -> int:
+    """Forward to the ``CallableAdder(offset=10)`` instance."""
+    return void(x)
+
+
+@deprecated(target=NonStringNameCallable(), **_DEPRS_CASE_STD_ARGS)
+def depr_non_string_name_target(x: int) -> int:
+    """Forward to a callable whose ``__name__`` is a non-string property."""
+    return void(x)
+
+
+@deprecated(target=max, **_DEPRS_CASE_STD_ARGS)
+def depr_builtin_max_target(a: int, b: int) -> int:
+    """Name the C builtin ``max`` as the replacement (only the static ``__deprecated__`` text is exercised)."""
+    return void(a, b)
+
+
+@deprecated(target=partial_async_target, **_DEPRS_CASE_STD_ARGS)
+def depr_sync_over_partial_async(x: int) -> int:
+    """Sync source forwarding to ``partial(async_target)`` — the dispatcher refuses to call it."""
+    return void(x)
+
+
+@deprecated_class(target=partial_new_cls_target, **_DEPRS_CASE_STD_ARGS)
+class LegacyPresetCls:
+    """Legacy class replaced by ``NewCls`` with ``d`` preset through ``functools.partial(NewCls, d="preset")``."""
+
+    def __init__(self, c: float) -> None:
+        """Store *c* — never runs, construction is forwarded to the partial."""
+        self.c = c
+
+
+def make_front_door_notify_on(source: Any) -> Any:  # noqa: ANN401
+    """Apply the ``@deprecated`` front door with ``TargetMode.NOTIFY`` to *source*."""
+    return deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)(source)
+
+
+def make_front_door_redirect_on(source: Any) -> Any:  # noqa: ANN401
+    """Apply the ``@deprecated`` front door with a callable ``target`` to *source*."""
+    return deprecated(target=double_value, **_DEPRS_CASE_STD_ARGS)(source)
+
+
+def make_strict_callable_notify_on(source: Any) -> Any:  # noqa: ANN401
+    """Apply the strict ``deprecated_callable`` form with ``TargetMode.NOTIFY`` to *source*."""
+    return deprecated_callable(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)(source)
+
+
+def make_read_only_inplace_proxy(obj: object, flag: dict[str, bool]) -> Any:  # noqa: ANN401
+    """Wrap an object with a dynamically skipped read-only guard and fatal gate."""
+    return deprecated_instance(
+        obj,
+        name="legacy_box",
+        read_only=True,
+        skip_if=lambda: flag["skip"],
+        as_exception=True,
+        **_DEPRS_CASE_STD_ARGS,
+    )
+
+
+def make_switching_entry_proxy(source: object, target: object) -> Any:  # noqa: ANN401
+    """Change the active context during failed warning delivery to test cleanup ownership."""
+    flag = {"skip": False}
+
+    def failing_stream(message: str) -> None:
+        """Switch to the source before propagating the delivery failure."""
+        flag["skip"] = True
+        raise RuntimeError("delivery failed")
+
+    return _DeprecatedProxy(
+        obj=source,
+        target=target,
+        name="legacy_context",
+        stream=failing_stream,
+        skip_if=lambda: flag["skip"],
+        **_DEPRS_CASE_STD_ARGS,
+    )
+
+
+def make_skip_gated_target_proxy(source: object, target: object, skip_if: Callable[[], bool]) -> Any:  # noqa: ANN401
+    """Wrap *source* as ``legacy_box`` forwarding to *target* while *skip_if* is false, with the default budget."""
+    return _DeprecatedProxy(obj=source, target=target, name="legacy_box", skip_if=skip_if, **_DEPRS_CASE_STD_ARGS)
+
+
+def make_deprecated_partial_host() -> type[Any]:
+    """Build a fresh host class whose ``double`` attribute is a ``deprecated_instance`` of ``partial(double_value)``.
+
+    A ``functools.partial`` is callable and, from Python 3.13, defines ``__get__`` (it warns on 3.13 and binds on 3.14).
+    The proxy must serve it unbound on every version, so ``host.double(3)`` calls ``double_value(3)``.
+    """
+
+    class PartialHost:
+        """Host class carrying a deprecated ``functools.partial`` as a class attribute."""
+
+        double = deprecated_instance(partial(double_value), name="double", **_DEPRS_CASE_STD_ARGS)
+
+    return PartialHost
+
+
+def make_sum_deprecation_with_stream(stream: Callable[..., Any]) -> Callable[..., int]:
+    """Deprecate ``original_sum`` in favour of ``base_sum_kwargs``, delivering every warning through ``stream``."""
+    return deprecated(target=base_sum_kwargs, deprecated_in="1.0", remove_in="2.0", num_warns=-1, stream=stream)(
+        original_sum
+    )
+
+
+def make_pickle_fatal_settings_proxy() -> Any:  # noqa: ANN401
+    """Wrap a fresh settings dict in a ``deprecated_instance`` proxy that raises ``DeprecatedError`` instead of warning.
+
+    Same data and name as :func:`make_pickle_settings_proxy`, but ``as_exception=True`` — the one non-default setting
+    ``tests/integration/test_pickle_compat.py`` pickles besides the default and the spent-budget proxy.
+    """
+    return deprecated_instance({"threshold": 0.5, "enabled": True}, name="legacy_settings", **_DEPRS_CASE_FATAL_ARGS)
+
+
+@deprecated(target=TargetMode.NOTIFY, stream=stream_wraps_warn_forwarding_stacklevel, **_DEPRS_CASE_STD_ARGS)
+def loc_notify_wrapped_stream(x: int) -> int:
+    """Warn-only source delivering through a ``functools.wraps`` stream that has its own ``stacklevel`` parameter."""
+    return x * 2

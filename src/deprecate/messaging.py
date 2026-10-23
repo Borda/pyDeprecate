@@ -8,18 +8,25 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 
 """
 
+import inspect
 import re
+import weakref
 from collections.abc import Mapping
 from functools import partial
-from typing import Callable, Optional, Union
+from typing import Any, Callable, Optional, Union
 from warnings import warn
 
 from deprecate._fatal import DeprecatedError
+from deprecate._frames import _caller_stacklevel
 from deprecate._types import DeprecationConfig, TargetMode, _WrapperState
-from deprecate.utils import _unwrap_descriptor_target
+from deprecate.utils import _partial_chain, _unwrap_descriptor_target
 
-# caller → wrapped_fn → _raise_warn_callable/_raise_warn_arguments → _raise_warn → warnings.warn
-_DEFAULT_STACKLEVEL_TO_CALLER: int = 4
+#: Memoised ``stacklevel`` decisions of :func:`_stream_accepts_stacklevel`: one entry per live ``stream`` object,
+#: keyed by ``id(stream)``.  Each entry pairs the decision with a *weak* reference to its stream.  A hit counts only
+#: while that reference still resolves to the very same object, so an id recycled after garbage collection, or a
+#: second stream that merely compares ``==`` (and hashes) equal, can never borrow another stream's answer, and the
+#: memo never keeps a stream alive.
+_STREAM_DECISIONS: dict[int, tuple["weakref.ReferenceType[Any]", bool]] = {}
 
 
 #: Default template warning message for redirecting callable
@@ -60,8 +67,6 @@ _MESSAGE_TEMPLATE_PROBE_ARGS: dict[str, str] = {
 def _resolve_message_template_alias(
     message_template: Optional[str],
     template_mgs: Optional[str],
-    *,
-    stacklevel: int = 3,
 ) -> Optional[str]:
     """Fold the deprecated ``template_mgs`` keyword into ``message_template``.
 
@@ -73,7 +78,6 @@ def _resolve_message_template_alias(
     Args:
         message_template: The value of the canonical ``message_template`` argument (may be ``None``).
         template_mgs: The value of the deprecated ``template_mgs`` alias (``None`` when not supplied).
-        stacklevel: Stack level forwarded to :func:`warnings.warn` so the notice points at the caller.
 
     Returns:
         The resolved ``message_template`` value.
@@ -92,7 +96,7 @@ def _resolve_message_template_alias(
         "`template_mgs` is deprecated since `v0.12` (renamed to `message_template`);"
         " use `message_template` instead. Will be removed in `v1.0`.",
         FutureWarning,
-        stacklevel=stacklevel,
+        stacklevel=_caller_stacklevel(),
     )
     return template_mgs
 
@@ -132,7 +136,6 @@ def _raise_warn(
     stream: Optional[Callable],
     source: Callable,
     message_template: str,
-    stacklevel: int = _DEFAULT_STACKLEVEL_TO_CALLER,
     as_exception: bool = False,
     **extras: str,
 ) -> None:
@@ -146,8 +149,6 @@ def _raise_warn(
             together with ``as_exception=True``, where the message is raised and never written to a stream.
         source: The deprecated function/method being wrapped.
         message_template: Python format string with placeholders for message variables.
-        stacklevel: Passed to ``warnings.warn`` so the warning points to the user's call site.  Default 4 accounts for
-            the ``_raise_warn → _raise_warn_callable/_raise_warn_arguments → wrapped_fn → caller`` chain.
         as_exception: When ``True``, raise :class:`~deprecate._fatal.DeprecatedError` carrying the rendered
             message instead of writing it to ``stream`` — the fatal-deprecation path (``as_exception=True`` or
             ``deprecate.AS_EXCEPTIONS``).  The text is identical either way, so an author maintains one message.
@@ -182,13 +183,177 @@ def _raise_warn(
     # ``stream`` is Optional only to let the fatal path above accept a silenced wrapper; every caller gates on
     # a truthy stream once ``as_exception`` is False.
     assert stream is not None  # noqa: S101
+    _emit(stream, msg)
+
+
+def _inspect_stream_accepts_stacklevel(stream: Callable[..., Any]) -> bool:
+    """Decide from its signature whether ``stream`` can be called as ``stream(msg, stacklevel=...)``.
+
+    Uncached core of :func:`_stream_accepts_stacklevel`; see there for the decision rules.
+
+    """
     try:
-        stream(msg, stacklevel=stacklevel)
-    except TypeError as _exc:
-        if "stacklevel" in str(_exc) or "keyword" in str(_exc):
-            stream(msg)
-        else:
-            raise
+        # Look through ``functools.wraps``-style pass-throughs: a layer whose own signature is a bare
+        # ``(*args, **kwargs)`` says nothing about what it forwards, so the callable it wraps decides. Every layer that
+        # declares parameters of its own stops the walk, because that signature is what actually gets called — a
+        # ``functools.wraps(logging.warning)`` stream written as ``(msg)`` stays message-only.
+        stream = inspect.unwrap(stream, stop=_declares_own_parameters)
+        layers = _partial_chain(stream)
+        if layers:
+            # ``inspect.unwrap`` stops at a partial, whose signature is derived from what it binds. When that is a
+            # bare pass-through, the partial's signature is the pass-through's ``(*args, **kwargs)`` and says nothing,
+            # so judge the same partial layers rebuilt over the callable the pass-through forwards to.
+            core = inspect.unwrap(layers[-1].func, stop=_declares_own_parameters)
+            if core is not layers[-1].func:
+                for layer in reversed(layers):
+                    core = partial(core, *layer.args, **layer.keywords)
+                return _inspect_stream_accepts_stacklevel(core)
+        # Identity, not introspection: ``warnings.warn`` is a C builtin whose signature support varies across Python
+        # versions, and it always accepts ``stacklevel``.
+        if (layers[-1].func if layers else stream) is warn:
+            return True
+        signature = inspect.signature(stream, follow_wrapped=False)
+    except Exception:
+        # User-provided metadata descriptors can raise arbitrary exceptions. Only introspection is defensive:
+        # call with the message alone rather than guess, and let any callback error propagate without retry.
+        return False
+    return _binds_message_and_stacklevel(signature)
+
+
+def _declares_own_parameters(layer: Callable[..., Any]) -> bool:
+    """Stop :func:`inspect.unwrap` at ``layer`` unless its own signature is just ``(*args, **kwargs)``.
+
+    ``follow_wrapped=False`` keeps the lookup on the layer itself rather than on the callable it copied metadata from.
+
+    """
+    kinds = [param.kind for param in inspect.signature(layer, follow_wrapped=False).parameters.values()]
+    return kinds != [inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD]
+
+
+def _binds_message_and_stacklevel(signature: inspect.Signature) -> bool:
+    """Tell whether ``signature`` accepts the exact call ``_emit`` makes: one positional message plus ``stacklevel=``.
+
+    Binding mirrors the real call, so the positional message occupies the first slot before ``stacklevel`` is
+    considered: ``def sink(stacklevel)`` is rejected (``stacklevel`` is already taken by the message), while
+    ``def sink(*args, stacklevel=None)`` and ``def sink(msg, **kwargs)`` are accepted.
+
+    """
+    try:
+        signature.bind("", stacklevel=0)
+    except TypeError:
+        return False
+    return True
+
+
+def _decision_evictor(key: int) -> Callable[["weakref.ReferenceType[Any]"], None]:
+    """Build the weak-reference callback that drops the memo entry of ``key`` once its stream is garbage-collected."""
+    # Bound now rather than looked up on ``_STREAM_DECISIONS`` later: the callback can run during interpreter shutdown,
+    # when module globals may already be cleared.
+    pop = _STREAM_DECISIONS.pop
+
+    def evict(_ref: "weakref.ReferenceType[Any]") -> None:
+        pop(key, None)
+
+    return evict
+
+
+def _stream_accepts_stacklevel(stream: Callable[..., Any]) -> bool:
+    """Tell whether ``stream`` can receive ``stacklevel=`` as a keyword argument, deciding once per stream object.
+
+    Decision rules, in order:
+
+    1. A stream whose own signature is a bare ``(*args, **kwargs)`` and that carries ``__wrapped__`` (the shape a
+       :func:`functools.wraps` pass-through decorator produces) is replaced by the callable it wraps, layer by layer,
+       until a layer declares parameters of its own; the rules below then apply to that callable. A narrow stream that
+       merely copied ``logging.warning``'s metadata with ``functools.wraps`` declares its own parameters, so it is
+       judged as written.
+    2. ``warnings.warn`` itself, or a (nested) :func:`functools.partial` of it, accepts ``stacklevel``.
+    3. Otherwise, when :func:`inspect.signature` describes ``stream``, it accepts ``stacklevel`` if that signature
+       binds the call ``stream(msg, stacklevel=...)``: the positional message fills the first slot, then ``stacklevel``
+       must bind by keyword (a keyword-capable ``stacklevel`` parameter other than the one the message lands in, or
+       ``**kwargs``). ``def sink(stacklevel)`` therefore receives the message alone. A stream that declares
+       ``**kwargs`` is thereby promised ``stacklevel=`` and must accept or drop it, not hand it to a callable that
+       rejects it.
+    4. When :func:`inspect.signature` (or the ``__wrapped__`` lookup) raises an :class:`Exception` (missing or
+       failing signature metadata), the answer is ``False``: the stream is called with the message alone, which costs
+       caller attribution for a stream that would have accepted ``stacklevel``. Exceptions from calling the stream
+       still propagate.
+
+    The answer is memoised per live stream object, by identity and through a weak reference: ``==``-equal streams with
+    different signatures each keep their own answer (an unhashable stream included), and the memo never keeps a stream
+    alive. A stream that cannot be weakly referenced, such as an instance of a ``__slots__`` class without
+    ``__weakref__``, is inspected afresh on every call.
+
+    Args:
+        stream: The ``stream=`` callable configured on a deprecation wrapper.
+
+    Returns:
+        ``True`` when ``stream(msg, stacklevel=...)`` is the right call, ``False`` for ``stream(msg)``.
+
+    Example:
+        >>> import logging, warnings
+        >>> _stream_accepts_stacklevel(warnings.warn), _stream_accepts_stacklevel(logging.warning)
+        (True, True)
+        >>> def message_only(msg): pass
+        >>> _stream_accepts_stacklevel(message_only)
+        False
+        >>> import functools
+        >>> @functools.wraps(message_only)
+        ... def pass_through(*args, **kwargs): return message_only(*args, **kwargs)
+        >>> _stream_accepts_stacklevel(pass_through)
+        False
+
+    """
+    key = id(stream)
+    entry = _STREAM_DECISIONS.get(key)
+    if entry is not None and entry[0]() is stream:
+        return entry[1]
+    decision = _inspect_stream_accepts_stacklevel(stream)
+    try:
+        ref = weakref.ref(stream, _decision_evictor(key))
+    except TypeError:
+        # No weak reference possible, so nothing safe to anchor a memo entry to: decide afresh on the next emission.
+        return decision
+    # Plain dict reads and writes are atomic under the GIL. Two threads racing past the lookup both compute the same
+    # deterministic decision and the last write wins, so no lock is needed.
+    _STREAM_DECISIONS[key] = (ref, decision)
+    return decision
+
+
+def _emit(stream: Callable[..., Any], msg: str) -> None:
+    """Write ``msg`` to ``stream`` exactly once, passing ``stacklevel`` only when the stream accepts it.
+
+    The single delivery point for every custom-stream deprecation message.  Whether ``stacklevel`` is passed is
+    decided before the call (:func:`_stream_accepts_stacklevel`), never by retrying after a failure, so the stream
+    runs once and any exception it raises — :class:`TypeError` included — propagates unchanged.
+
+    The ``stacklevel`` value is measured here by :func:`~deprecate._frames._caller_stacklevel`, relative to this
+    frame, so it lands on the first frame outside the ``deprecate`` package for :func:`warnings.warn` or a C-level
+    :func:`functools.partial` of it.  A pure-Python stream that forwards ``stacklevel`` to ``warnings.warn`` adds
+    its own frame and lands one frame short.
+
+    Contract for a stream declaring ``**kwargs`` (``def sink(msg, **kwargs)``): it receives ``stacklevel=`` and must
+    forward it to a callable that accepts it (``warnings.warn``, ``logging.warning``) or drop it. Forwarding all
+    keywords to a callable that rejects ``stacklevel`` (``print(msg, **kwargs)``) raises :class:`TypeError`; declare
+    the stream as ``def sink(msg)`` instead and it is called with the message alone.
+
+    Args:
+        stream: The ``stream=`` callable configured on a deprecation wrapper.
+        msg: The fully rendered deprecation message.
+
+    Example:
+        >>> import warnings
+        >>> with warnings.catch_warnings(record=True) as caught:
+        ...     warnings.simplefilter("always")
+        ...     _emit(warnings.warn, "old_func is deprecated")
+        >>> str(caught[0].message)
+        'old_func is deprecated'
+
+    """
+    if _stream_accepts_stacklevel(stream):
+        stream(msg, stacklevel=_caller_stacklevel())
+    else:
+        stream(msg)
 
 
 def _format_deprecation_message(
@@ -243,9 +408,7 @@ def _render_static_deprecation_message(dep: DeprecationConfig, source_name: str,
             argument_map=argument_map,
         )
     if callable(dep.target):
-        target_name = getattr(dep.target, "__name__", str(dep.target))
-        target_module = getattr(dep.target, "__module__", "")
-        target_path = f"{target_module}.{target_name}" if target_module else target_name
+        target_name, target_path = _callable_display_name(dep.target)
         return _format_deprecation_message(
             dep.message_template or TEMPLATE_WARNING_CALLABLE,
             source_name,
@@ -265,6 +428,44 @@ def _render_static_deprecation_message(dep: DeprecationConfig, source_name: str,
     )
 
 
+def _callable_display_name(obj: Any) -> tuple[str, str]:  # noqa: ANN401
+    """Return the ``(name, dotted_path)`` pair a warning shows for *obj*, for any callable or object, never raising.
+
+    A ``target`` can be any callable — a ``functools.partial`` or a callable instance has no ``__name__`` of its own,
+    and an arbitrary object may expose a non-string ``__name__``. Resolution, in order:
+
+    1. Unwrap nested ``functools.partial`` layers to the innermost ``.func`` (see :func:`_partial_chain`).
+    2. A base with a string ``__name__`` is named by it, with its own ``__module__``.
+    3. Anything else (callable instance, plain object) is named by its type and the type's module.
+    4. The path is ``f"{module}.{name}"`` when the module is a non-empty string, else just the name — so a
+       function or class renders exactly as ``f"{target.__module__}.{target.__name__}"`` always did.
+
+    Args:
+        obj: The object to name; usually the ``target`` given to ``@deprecated`` or ``deprecated_class``.
+
+    Returns:
+        Tuple of the display name and the dotted path used for the ``target_name`` / ``target_path`` placeholders.
+
+    Example:
+        >>> from functools import partial
+        >>> _callable_display_name(max)
+        ('max', 'builtins.max')
+        >>> _callable_display_name(partial(max, default=0))
+        ('max', 'builtins.max')
+
+    """
+    chain = _partial_chain(obj)
+    base = chain[-1].func if chain else obj
+    name = getattr(base, "__name__", None)
+    if isinstance(name, str):
+        module = getattr(base, "__module__", None)
+    else:
+        name = type(base).__name__
+        module = type(base).__module__
+    path = f"{module}.{name}" if isinstance(module, str) and module else name
+    return name, path
+
+
 def _source_display_name(source: Callable) -> str:
     """Return display name: class name for ``__init__``, function name otherwise."""
     return source.__qualname__.split(".")[-2] if source.__name__ == "__init__" else source.__name__
@@ -277,7 +478,6 @@ def _raise_warn_callable(
     deprecated_in: str,
     remove_in: str,
     message_template: Optional[str] = None,
-    stacklevel: int = _DEFAULT_STACKLEVEL_TO_CALLER,
     as_exception: bool = False,
 ) -> None:
     """Issue deprecation warning for callable (function/class) deprecation.
@@ -297,7 +497,6 @@ def _raise_warn_callable(
         remove_in: Version when the source will be removed (e.g., "2.0.0").
         message_template: Custom message template. If None, uses :data:`TEMPLATE_WARNING_CALLABLE` when a target
             callable is provided, otherwise :data:`TEMPLATE_WARNING_NO_TARGET`.
-        stacklevel: Passed through to :func:`_raise_warn`; default 4 points to the user's call site.
         as_exception: Passed through to :func:`_raise_warn` — raise instead of warn; see its docstring.
 
     Template Variables Available:
@@ -329,8 +528,8 @@ def _raise_warn_callable(
     # is always False, so without this unwrap the no-target template fires incorrectly.
     target = _unwrap_descriptor_target(target)
     if callable(target):
-        target_name = target.__name__
-        target_path = f"{target.__module__}.{target_name}"
+        # ``functools.partial`` and callable-instance targets carry no ``__name__``; the helper names them.
+        target_name, target_path = _callable_display_name(target)
         template_warn = TEMPLATE_WARNING_CALLABLE
     else:
         target_name, target_path = "", ""
@@ -339,7 +538,6 @@ def _raise_warn_callable(
         stream=stream,
         source=source,
         message_template=message_template or template_warn,
-        stacklevel=stacklevel,
         as_exception=as_exception,
         deprecated_in=deprecated_in,
         remove_in=remove_in,
@@ -355,7 +553,6 @@ def _raise_warn_arguments(
     deprecated_in: str,
     remove_in: str,
     message_template: Optional[str] = None,
-    stacklevel: int = _DEFAULT_STACKLEVEL_TO_CALLER,
     as_exception: bool = False,
 ) -> None:
     """Issue deprecation warning for deprecated function arguments.
@@ -371,7 +568,6 @@ def _raise_warn_arguments(
         deprecated_in: Version when arguments were marked deprecated (e.g., "1.0.0").
         remove_in: Version when arguments will be removed (e.g., "2.0.0").
         message_template: Custom message template. If None, uses default template.
-        stacklevel: Passed through to :func:`_raise_warn`; default 4 points to the user's call site.
         as_exception: Passed through to :func:`_raise_warn` — raise instead of warn; see its docstring.
 
     Template Variables Available:
@@ -400,7 +596,6 @@ def _raise_warn_arguments(
         stream,
         source,
         message_template or TEMPLATE_WARNING_ARGUMENTS,
-        stacklevel=stacklevel,
         as_exception=as_exception,
         deprecated_in=deprecated_in,
         remove_in=remove_in,

@@ -22,10 +22,11 @@ import inspect
 import warnings
 from collections.abc import Generator
 from contextlib import contextmanager
-from functools import lru_cache
+from functools import lru_cache, partial
 from types import TracebackType
 from typing import Any, Callable, Optional, Union
 
+from deprecate._frames import _caller_stacklevel
 from deprecate._types import TargetMode
 
 
@@ -114,7 +115,6 @@ def _apply_args_mapping_collisions(
     args_skip: Any,  # noqa: ANN401 - accepts list or set
     name: str,
     stream: Any,  # noqa: ANN401 - truthy check; callable in deprecation path
-    stacklevel: int,
 ) -> dict[str, Any]:
     """Return snapshot of explicit new-name values for collision pairs and emit UserWarning per collision.
 
@@ -128,7 +128,6 @@ def _apply_args_mapping_collisions(
         args_skip: Names whose mapped value is ``None`` (drop); excluded from collision detection.
         name: Callable name used in the warning message.
         stream: Warning stream; falsy value suppresses all warnings.
-        stacklevel: Passed to ``warnings.warn``; caller is responsible for counting frames above this function.
 
     Returns:
         Dict of ``{new_k: kwargs[new_k]}`` for each detected collision pair (empty when no collisions).
@@ -145,7 +144,7 @@ def _apply_args_mapping_collisions(
             warnings.warn(
                 f"Both `{old_k}` (deprecated) and `{new_k}` were supplied to `{name}()`; `{old_k}` is ignored.",
                 UserWarning,
-                stacklevel=stacklevel,
+                stacklevel=_caller_stacklevel(),
             )
     return explicit_new
 
@@ -303,7 +302,7 @@ class no_warning_call:  # noqa: N801 - kept for backward compatibility with prio
             "`deprecate.utils.no_warning_call` is deprecated in `0.6` and will be removed in `1.0`; "
             "use `deprecate.utils.assert_no_warnings` instead.",
             DeprecationWarning,
-            stacklevel=2,
+            stacklevel=_caller_stacklevel(),
         )
         self._warning_type = warning_type
         self._match = match
@@ -364,3 +363,36 @@ def _unwrap_descriptor_target(
     if isinstance(target, (staticmethod, classmethod)):
         return target.__func__
     return target
+
+
+#: Upper bound on ``functools.partial`` layers walked by :func:`_partial_chain` — a guard against pathological
+#: (or self-referencing) chains; real code nests one or two layers.
+_MAX_PARTIAL_DEPTH = 32
+
+
+def _partial_chain(obj: Any) -> tuple[partial, ...]:  # noqa: ANN401
+    """Return the ``functools.partial`` layers wrapping *obj*, outermost first (empty for anything else).
+
+    CPython flattens ``partial(partial(f, ...))`` into one layer unless the inner partial carries instance
+    attributes, so a chain can be deeper than one; the walk stops after :data:`_MAX_PARTIAL_DEPTH` layers.
+
+    Args:
+        obj: Any object; usually a ``target`` handed to ``@deprecated``.
+
+    Returns:
+        The partial objects from the outermost to the innermost; the innermost one's ``.func`` is the wrapped base.
+
+    Example:
+        >>> from functools import partial
+        >>> def scale(x, y=1): return x * y
+        >>> [layer.keywords for layer in _partial_chain(partial(scale, y=5))]
+        [{'y': 5}]
+        >>> _partial_chain(scale)
+        ()
+
+    """
+    layers: list[partial] = []
+    while isinstance(obj, partial) and len(layers) < _MAX_PARTIAL_DEPTH:
+        layers.append(obj)
+        obj = obj.func
+    return tuple(layers)

@@ -882,6 +882,8 @@ ______________________________________________________________________
 
 Custom method names — for example `register()`, `reload()`, or `set_value()` — are not in this list and call through to the underlying object without any guard.
 
+The guard is also off while `skip_if` evaluates `True`: attribute writes, item writes and deletes (`proxy[key] = value`, `del proxy[key]`), and mutator calls then reach the wrapped object directly, because an active `skip_if` switches the whole deprecation machinery off.
+
 **Workaround:** Subclass the wrapped object's type and override the custom mutator method to raise explicitly:
 
 ```python
@@ -1349,13 +1351,11 @@ async def test_old_fetch_warns():
 
 ______________________________________________________________________
 
-## I wrapped a `functools.partial` of an `async def` and the wrapper is not async
+## Why can't I decorate a `functools.partial` or callable wrapper?
 
-**Q:** I applied `@deprecated` to a `functools.partial` of an `async def` function, but the resulting wrapper is synchronous — `inspect.iscoroutinefunction(wrapper)` returns `False` and `await wrapper(...)` raises a `TypeError`. What is happening?
+**Q:** I applied `@deprecated` to a `functools.partial`, `functools.partialmethod`, or `singledispatchmethod`. Which callable forms can be decorated?
 
-**A:** On Python 3.9–3.11, `inspect.iscoroutinefunction(functools.partial(async_fn))` returns `False` — the `partial` object does not propagate the coroutine flag of its wrapped callable. pyDeprecate's async branch in `packing()` checks `inspect.iscoroutinefunction(source)` to decide whether to produce an `async def` wrapper, so wrapping a `partial` of an `async def` falls through to the sync wrapper path and yields a regular function instead of a coroutine function.
-
-**Workaround:** Apply `@deprecated` to the `async def` directly, then use `functools.partial` on the already-deprecated async wrapper if you need preset arguments.
+**A:** `@deprecated` accepts Python functions, supported descriptors, and classes as sources. Callable wrappers such as `functools.partial`, `functools.partialmethod`, and `singledispatchmethod` are rejected with `TypeError`; they do not become supported sources merely because their wrapped callable is async. Define a plain `def` or `async def` with the desired public signature and decorate that named function. For async targets, pyDeprecate follows `inspect.iscoroutinefunction` on the supported Python runtime; an async callable instance that returns an awaitable is a distinct kind and may not be recognized as a coroutine function. `deprecated_instance` is for deprecating an object alias, not a substitute for a decorated function source.
 
 ```python
 import asyncio
@@ -1387,8 +1387,6 @@ https://example.com
 ```
 
 </details>
-
-This limitation is resolved in Python 3.12+ where `inspect.iscoroutinefunction` correctly handles `functools.partial` objects whose underlying callable is an `async def`.
 
 ______________________________________________________________________
 
@@ -2199,11 +2197,49 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
+## Why did a failed `proxy[key]` lookup not warn?
+
+**Q:** My code probes a deprecated mapping with `try: settings[key] except KeyError: ...`. The miss emitted no `FutureWarning`, but the next successful `settings["threshold"]` read did.
+
+**A:** Synchronous data-use operations warn only after they succeed: a `KeyError` from `proxy[key]` or an `AttributeError` from `hasattr` emits nothing and leaves the `num_warns` budget unspent. `next(proxy)` is the exception: it warns before advancing the wrapped iterator, so a failed warning delivery loses no item and an exhausting `next()` (`StopIteration`) spends the budget. Async iteration and awaiting are different: `__anext__` and `__await__` warn when they obtain the underlying awaitable, before it runs, so a later async failure or exhaustion still consumes the budget. If warning delivery raises after context entry acquires a resource, the proxy invokes that same context’s exit method before propagating the error. Calling the proxy also warns before the call, like `@deprecated`, so a deprecated constructor that raises still reports the deprecation. With `as_exception=True`, the proxy raises `DeprecatedError` before it touches the wrapped object for subscripts, iteration, unary and conversion operators, `next()`, `with` and `async with` entry, async iteration, `await`, in-place operators such as `+=`, and `attrs_mapping` attribute reads — a missing key under a fatal deprecation therefore raises `DeprecatedError`, not `KeyError`, and a `defaultdict` gains no entry.
+
+______________________________________________________________________
+
+## Can a `deprecated_instance` of a function be used as a class attribute (method)?
+
+**Q:** I replaced a method with `class Model: scale = deprecated_instance(legacy_scale, ...)`. Does `Model().scale(2)` still pass the instance to `legacy_scale`?
+
+**A:** Yes. The proxy implements the descriptor protocol: read through an instance, a proxy over a plain function (or a `@deprecated` wrapper) returns a bound method whose `__func__` is the proxy, so `Model().scale(2)` calls `legacy_scale(model, 2)` and warns on the call, pointing at the calling line. The `num_warns` budget belongs to the proxy, so the default single warning is shared by every instance, and `skip_if` and `as_exception` behave as on a direct call. Read through the class, `Model.scale` is the proxy itself, as a plain function would be, so `Model.scale(model, 2)` works too. Proxies over data, classes, and non-function descriptors (`property`, `classmethod`, `staticmethod` objects) are returned as stored and never bound; to deprecate one of those, decorate the underlying function with `@deprecated` instead. Releases without this binding called `legacy_scale(2)` and raised `TypeError: legacy_scale() missing 1 required positional argument`.
+
+______________________________________________________________________
+
 ## Why don't mypy, pyright, or my IDE flag functions deprecated with pyDeprecate?
 
 **Q:** My deprecated function warns at runtime, but the editor shows no strikethrough and `mypy` / `pyright` report nothing when I call it.
 
 **A:** Type checkers recognise a deprecation only when the decorator is literally `warnings.deprecated` (Python 3.13+) or `typing_extensions.deprecated` — they match the decorator by name, so no runtime decorator (pyDeprecate's included) can make them see it. Stack the PEP 702 decorator directly above pyDeprecate's: `@warnings.deprecated("Use `new_name` instead.", category=None)` over `@deprecated(...)`. Keep `category=None` (otherwise every call warns twice), write the message as a string literal (mypy silently ignores a constant or f-string), and import the module rather than the name so pyDeprecate's `deprecated` is not shadowed. mypy only reports it with `enable_error_code = ["deprecated"]`, pyright in CI with `reportDeprecated = "error"`. Over `@deprecated_class(...)`, both mypy and pyright flag the old class name. See [Functions → Static type checkers](guide/functions.md#static-type-checkers-pep-702).
+
+______________________________________________________________________
+
+## Why does my deprecation warning point inside pyDeprecate or `functools.py`?
+
+**Q:** A deprecation `FutureWarning` (or a pyDeprecate `UserWarning`) reports a file inside the `deprecate` package or `functools.py` instead of my line, so my module-scoped warning filter or `-W error` traceback does not match my code.
+
+**A:** pyDeprecate measures the location when a warning fires and reports the first frame outside the `deprecate` package. That holds for call-time notices, decoration-time configuration warnings and audit diagnostics, including stacked `@deprecated` layers, the `@deprecated` class front door and legacy `target=None/True/False` sentinels. Two cases still report a different frame:
+
+- **A custom `stream` written in Python.** pyDeprecate passes the `stacklevel` counted from the frame that calls the stream. A Python function that forwards it to `warnings.warn` adds its own frame, so the warning lands one frame short, inside pyDeprecate. Use `warnings.warn`, a `functools.partial` of it, or a bound logger method such as `logging.getLogger().warning` as the stream, or add `1` to the `stacklevel` your stream receives before forwarding it. The module-level `logging.warning` is correct only on Python 3.11 and newer; on 3.9 and 3.10 it adds one logging frame, so the log record points one frame short.
+- **A `@cached_property` source.** The getter runs inside `functools.cached_property.__get__`, which is the first frame outside pyDeprecate, so the warning reports `functools.py`. Filter on the warning category or message instead of the module.
+
+______________________________________________________________________
+
+## My `singledispatch` or `__signature__`-patched source receives keyword arguments
+
+**Q:** A deprecated source built with `functools.singledispatch`, or one whose `__signature__` differs from its real call shape, fails with `TypeError: ... requires at least 1 positional argument`, receives keywords it did not expect, or rejects a call the plain function accepts.
+
+**A:** A `TargetMode.NOTIFY` wrapper, and a `TargetMode.ARGS_REMAP` wrapper whose caller uses no deprecated argument name, calls the source with the caller's arguments unchanged, so positional dispatch keeps working there. Two cases still differ from calling the source directly:
+
+- **A caller passes a deprecated argument name to a `TargetMode.ARGS_REMAP` wrapper.** To rename the argument, the wrapper rewrites the whole call into keyword arguments, whether the old name was passed by keyword or filled positionally; a wrapper that sets `args_extra` rewrites every call the same way. A source that dispatches on its positional arguments then receives keywords. Keep the dispatching function out of the rename: decorate a plain `def` that accepts the old and new names and calls the dispatcher positionally.
+- **A `__signature__` that reports fewer positional parameters than the source accepts.** Before calling the source, the wrapper checks the number of positional arguments against `inspect.signature(source)`, so a call that fills more slots than the patched signature lists raises the curated `TypeError` (`... takes N positional argument(s) but got M positional argument(s)`) even though the real source would accept it. Make `__signature__` list every positional slot, or give it a `*args` parameter.
 
 ______________________________________________________________________
 

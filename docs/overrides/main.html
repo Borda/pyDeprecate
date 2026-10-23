@@ -209,6 +209,22 @@
         },
         {
           "@type": "Question",
+          "name": "Why does my deprecation warning point inside pyDeprecate or functools.py?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "pyDeprecate measures the location when a warning fires and reports the first frame outside the deprecate package, including stacked @deprecated layers, the @deprecated class front door and legacy target=None/True/False sentinels. A custom stream written in Python that forwards stacklevel to warnings.warn adds its own frame and lands one frame short; use warnings.warn, a functools.partial of it, or a bound logger method such as logging.getLogger().warning instead. The module-level logging.warning is correct only on Python 3.11 and newer; on 3.9 and 3.10 it adds one logging frame and the log record points one frame short. A @cached_property source warns from the functools frame that runs the getter."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "My singledispatch or __signature__-patched source receives keyword arguments",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "A TargetMode.NOTIFY wrapper, and a TargetMode.ARGS_REMAP wrapper whose caller uses no deprecated argument name, calls the source with the caller's arguments unchanged, so functools.singledispatch and __signature__-patched sources keep working. Two cases still differ from calling the source directly. When a caller passes a deprecated argument name to a TargetMode.ARGS_REMAP wrapper, by keyword or positionally, the wrapper rewrites the whole call into keyword arguments to rename it, and a wrapper with args_extra rewrites every call the same way; decorate a plain def that accepts the old and new names and calls the dispatcher positionally. The number of positional arguments is checked against inspect.signature(source), so a __signature__ that reports fewer positional parameters than the source accepts raises the curated TypeError; make __signature__ list every positional slot, or give it a *args parameter."
+          }
+        },
+        {
+          "@type": "Question",
           "name": "Can I subclass a class created by deprecated_class?",
           "acceptedAnswer": {
             "@type": "Answer",
@@ -252,7 +268,7 @@
           "name": "Why did my object mutate despite setting read_only=True on deprecated_instance?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "read_only=True intercepts only the following standard collection mutator names: append, clear, discard, extend, insert, pop, remove, setdefault, update, add. These cover the mutating methods on Python's built-in list, dict, and set types. Custom method names such as register(), reload(), or set_value() are not in this list and pass through to the underlying object unchanged. Workaround: subclass the wrapped type and override the custom mutator method to raise AttributeError explicitly, then wrap an instance of that subclass."
+            "text": "read_only=True intercepts only the following standard collection mutator names: append, clear, discard, extend, insert, pop, remove, setdefault, update, add. These cover the mutating methods on Python's built-in list, dict, and set types. Custom method names such as register(), reload(), or set_value() are not in this list and pass through to the underlying object unchanged. Workaround: subclass the wrapped type and override the custom mutator method to raise AttributeError explicitly, then wrap an instance of that subclass. The guard is also off while skip_if evaluates True: attribute writes, item writes and deletes, and mutator calls then reach the wrapped object directly, because an active skip_if switches the whole deprecation machinery off."
           }
         },
         {
@@ -505,10 +521,10 @@
         },
         {
           "@type": "Question",
-          "name": "I wrapped a functools.partial of an async def and the wrapper is not async — why?",
+          "name": "Why can't I decorate a functools.partial or callable wrapper?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "On Python 3.9–3.11, inspect.iscoroutinefunction(functools.partial(async_fn)) returns False — the partial object does not propagate the coroutine flag. pyDeprecate checks this flag to decide whether to produce an async wrapper, so wrapping a partial of an async def falls through to the sync wrapper path. Workaround: apply @deprecated directly to the async def, then use functools.partial on the already-deprecated async wrapper if you need preset arguments. This limitation is resolved in Python 3.12+."
+            "text": "@deprecated accepts Python functions, supported descriptors, and classes as sources. Callable wrappers such as functools.partial, functools.partialmethod, and singledispatchmethod are rejected with TypeError, including when their wrapped callable is async. Define a plain def or async def with the desired public signature and decorate that named function. For async targets, pyDeprecate follows inspect.iscoroutinefunction on the supported Python runtime; an async callable instance that returns an awaitable is a distinct kind and may not be recognized as a coroutine function. deprecated_instance is for deprecating an object alias, not as a substitute for decorating a function source."
           }
         },
         {
@@ -557,6 +573,22 @@
           "acceptedAnswer": {
             "@type": "Answer",
             "text": "Both are intended. num_warns budgets messages; a gate that stopped refusing after the first call would let a caller retrying inside except DeprecatedError straight through, so a fatal deprecation bypasses the budget, raises on every call, and leaves the warn counters untouched. stream=None silences the message, not the lifecycle state: the raise is the gate, and letting an unrelated cosmetic setting switch it off would be a trap in CI. The one switch that does suppress a fatal deprecation is skip_if, because a wrapper turned off by configuration is not a deprecation at that moment. For whole modules there is a flip side: a fatal deprecated_module raises on every public attribute access, including attribute-walking tools such as pytest collection, Sphinx autodoc, pickle, and copy, so expect those to stop at the module rather than skip it."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why did a failed proxy[key] lookup not warn?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Synchronous data-use operations warn only after success: a KeyError from proxy[key] or an AttributeError from hasattr emits nothing and leaves the num_warns budget unspent. next(proxy) is the exception: it warns before advancing the wrapped iterator, so a failed warning delivery loses no item and an exhausting next() (StopIteration) spends the budget. Async iteration and awaiting differ: __anext__ and __await__ warn when they obtain the underlying awaitable, before it runs, so a later async failure or exhaustion still consumes the budget. If warning delivery raises after context entry acquires a resource, the proxy invokes that same context’s exit method before propagating the error. Calling the proxy also warns before the call, like @deprecated. With as_exception=True, the proxy raises DeprecatedError before it touches the wrapped object for subscripts, iteration, unary and conversion operators, next(), context entry, async with, async iteration, await, in-place operators, and attrs_mapping attribute reads, so a missing key raises DeprecatedError rather than KeyError and a defaultdict gains no entry."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Can a deprecated_instance of a function be used as a class attribute (method)?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. The proxy implements the descriptor protocol: read through an instance, a proxy over a plain function (or a @deprecated wrapper) returns a bound method whose __func__ is the proxy, so Model().scale(2) calls legacy_scale(model, 2) and warns on the call, pointing at the calling line. The num_warns budget belongs to the proxy, so the default single warning is shared by every instance, and skip_if and as_exception behave as on a direct call. Read through the class, Model.scale is the proxy itself, so Model.scale(model, 2) works too. Proxies over data, classes, and non-function descriptors (property, classmethod, staticmethod objects) are returned as stored and never bound; decorate the underlying function with @deprecated instead."
           }
         },
         {
