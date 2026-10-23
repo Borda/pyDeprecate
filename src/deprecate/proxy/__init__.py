@@ -63,6 +63,7 @@ from deprecate.messaging import (
     _resolve_message_template_alias,
     deprecation_warning,
 )
+from deprecate.proxy import dunders  # noqa: F401 # imported for its side effect: installs the forwarders
 from deprecate.proxy.core import (
     _DeprecatedProxy,
     _proxy_call_global,  # noqa: F401 # re-exported: imported by tests

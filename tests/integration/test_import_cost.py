@@ -111,3 +111,22 @@ class TestLazyAuditImport:
         """
         with pytest.raises(AttributeError, match="module 'deprecate' has no attribute 'no_such_name'"):
             _ = deprecate.no_such_name
+
+
+class TestProxyPackageImport:
+    """``import deprecate`` alone gives proxies their full protocol forwarding."""
+
+    def test_installs_forwarding_dunders(self) -> None:
+        """A proxy built right after a bare ``import deprecate`` forwards operators and the context protocol.
+
+        The operator and context-manager forwarders live in their own module of the proxy package and are installed
+        onto the proxy class when that module is imported. A program that never imports the module itself must still
+        get a proxy that supports ``+`` and ``with``, so the package has to load it on its own.
+
+        """
+        code = (
+            "import deprecate\n"
+            "proxy = deprecate.deprecated_instance([1, 2], deprecated_in='1.0', remove_in='2.0', stream=None)\n"
+            "print(proxy + [3], hasattr(type(proxy), '__enter__'))\n"
+        )
+        assert _run_isolated(code) == "[1, 2, 3] True"

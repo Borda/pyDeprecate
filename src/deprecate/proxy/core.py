@@ -12,7 +12,7 @@ import sys
 import types
 from collections.abc import Iterator
 from dataclasses import dataclass, replace
-from typing import Any, Callable, Optional, SupportsIndex, Union, cast
+from typing import TYPE_CHECKING, Any, Callable, Optional, SupportsIndex, Union, cast
 
 from deprecate._dispatch import _split_positional_only_kwargs
 from deprecate._fatal import DeprecatedError, _resolve_as_exception
@@ -189,14 +189,16 @@ class _DeprecatedProxy:
     __wrapped__: Any
     __signature__: Any
 
-    # Installed by proxy.dunders during package import; declared here for static consumers of the proxy type.
-    __enter__: Callable[[], Any]
-    __exit__: Callable[..., Any]
-    __aenter__: Callable[[], Any]
-    __aexit__: Callable[..., Any]
-    __aiter__: Callable[[], Any]
-    __anext__: Callable[[], Any]
-    __await__: Callable[[], Any]
+    if TYPE_CHECKING:
+        # Installed by :mod:`deprecate.proxy.dunders` when the package is imported; declared here so type checkers
+        # see the context-manager, async-iteration and await protocols as methods of the proxy type.
+        def __enter__(self) -> Any: ...  # noqa: ANN401
+        def __exit__(self, *exc_info: Any) -> Any: ...  # noqa: ANN401
+        async def __aenter__(self) -> Any: ...  # noqa: ANN401
+        async def __aexit__(self, *exc_info: Any) -> Any: ...  # noqa: ANN401
+        def __aiter__(self) -> Any: ...  # noqa: ANN401
+        def __anext__(self) -> Any: ...  # noqa: ANN401
+        def __await__(self) -> Any: ...  # noqa: ANN401
 
     @staticmethod
     def _get_static_attr_owner(obj: Any) -> Any:  # noqa: ANN401
