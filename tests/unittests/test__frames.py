@@ -22,6 +22,8 @@ _RECURSIVE_SRC = (
 _EMIT_SRC = "def emit():\n    warnings.warn('probe', UserWarning, stacklevel=_caller_stacklevel())\n"
 #: Body of a pass-through frame; compiled under an import-bootstrap filename it mimics ``importlib._bootstrap``.
 _TRAMPOLINE_SRC = "def trampoline(fn):\n    return fn()\n"
+#: Body of an internal bridge that keeps the frame walk inside the package until it reaches the outer caller.
+_BRIDGE_SRC = "def bridge():\n    return trampoline(emit)\n"
 #: Body of an internal frame that calls its argument, so an internal frame sits above the trampoline.
 _OUTER_SRC = "def outer(fn):\n    return fn()\n"
 #: Filename ``warnings.warn`` treats as an import-machinery frame (contains ``importlib`` and ``_bootstrap``).
@@ -185,7 +187,9 @@ class TestAgreesWithWarnings:
         outer = _namespaced("deprecate.x", _OUTER_SRC, "outer")
         trampoline = _namespaced("importlib._bootstrap", _TRAMPOLINE_SRC, "trampoline", filename=_BOOTSTRAP_FILENAME)
         emit = _namespaced("deprecate.x", _EMIT_SRC, "emit")
+        bridge = _namespaced("deprecate.x", _BRIDGE_SRC, "bridge")
+        bridge.__globals__.update(trampoline=trampoline, emit=emit)
         expected_line = sys._getframe().f_lineno + 2
         with pytest.warns(UserWarning, match="probe") as record:
-            outer(lambda: trampoline(emit))
+            outer(bridge)
         assert (record[0].filename, record[0].lineno) == (__file__, expected_line)
