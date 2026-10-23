@@ -27,7 +27,7 @@ from deprecate.audit import (
     validate_deprecation_wrapper,
 )
 from deprecate.audit._scan import _SKIPPED_MODULES, _collect_skipped_modules, _member_has_deprecation_meta, _scan_class
-from deprecate.proxy import _DeprecatedProxy, deprecated_class
+from deprecate.proxy import _DeprecatedProxy, _ProxySpec, deprecated_class
 
 
 class _SideEffectScanModule:
@@ -61,7 +61,10 @@ class TestFindDeprecationWrappersWarningBudget:
         lookup. Static inspection must avoid consuming the proxy warning budget.
 
         """
-        proxy = _DeprecatedProxy(obj={}, name="scan_test", deprecated_in="1.0", remove_in="2.0", num_warns=1)
+        proxy = _DeprecatedProxy(
+            obj={},
+            spec=_ProxySpec(name="scan_test", deprecated_in="1.0", remove_in="2.0", num_warns=1),
+        )
         fake_mod = _SideEffectScanModule(proxy)
 
         find_deprecation_wrappers(fake_mod, recursive=False)

@@ -14,7 +14,7 @@ from deprecate.audit import (
     validate_deprecation_wrapper,
 )
 from deprecate.audit._wrappers import _classify_member_api_type
-from deprecate.proxy import _DeprecatedProxy
+from deprecate.proxy import _DeprecatedProxy, _ProxySpec
 from tests.collection_chains import caller_via_notify_layer
 from tests.collection_targets import ColorEnum
 
@@ -32,7 +32,10 @@ class TestValidateDeprecationWrapperWithProxy:
 
     def test_proxy_without_target_no_effect_false(self) -> None:
         """Proxy with no forwarding target is effective (still emits warnings) → no_effect=False."""
-        proxy = _DeprecatedProxy(obj={}, name="legacy_cfg", deprecated_in="1.0", remove_in="2.0", stream=None)
+        proxy = _DeprecatedProxy(
+            obj={},
+            spec=_ProxySpec(name="legacy_cfg", deprecated_in="1.0", remove_in="2.0", stream=None),
+        )
         result = validate_deprecation_wrapper(proxy)
         assert result.function == "legacy_cfg"
         assert result.no_effect is False
@@ -41,7 +44,8 @@ class TestValidateDeprecationWrapperWithProxy:
     def test_proxy_with_callable_target_no_effect_false(self) -> None:
         """Proxy forwarding to a callable target is effective → no_effect=False."""
         proxy = _DeprecatedProxy(
-            obj={}, name="old_enum", deprecated_in="1.0", remove_in="2.0", target=ColorEnum, stream=None
+            obj={},
+            spec=_ProxySpec(name="old_enum", deprecated_in="1.0", remove_in="2.0", target=ColorEnum, stream=None),
         )
         result = validate_deprecation_wrapper(proxy)
         assert result.function == "old_enum"
@@ -52,12 +56,14 @@ class TestValidateDeprecationWrapperWithProxy:
         """Proxy __call__ is (*args, **kwargs) so signature check is skipped — invalid_args is always []."""
         proxy = _DeprecatedProxy(
             obj={},
-            name="mapped",
-            deprecated_in="1.0",
-            remove_in="2.0",
-            target=ColorEnum,
-            args_mapping={"old_key": "value"},
-            stream=None,
+            spec=_ProxySpec(
+                name="mapped",
+                deprecated_in="1.0",
+                remove_in="2.0",
+                target=ColorEnum,
+                args_mapping={"old_key": "value"},
+                stream=None,
+            ),
         )
         result = validate_deprecation_wrapper(proxy)
         assert result.deprecated_info.args_mapping == {"old_key": "value"}
@@ -67,12 +73,14 @@ class TestValidateDeprecationWrapperWithProxy:
         """Proxy with an identity args_mapping entry still detects it — invalid_args stays []."""
         proxy = _DeprecatedProxy(
             obj={},
-            name="identity_mapped",
-            deprecated_in="1.0",
-            remove_in="2.0",
-            target=ColorEnum,
-            args_mapping={"value": "value"},
-            stream=None,
+            spec=_ProxySpec(
+                name="identity_mapped",
+                deprecated_in="1.0",
+                remove_in="2.0",
+                target=ColorEnum,
+                args_mapping={"value": "value"},
+                stream=None,
+            ),
         )
         result = validate_deprecation_wrapper(proxy)
         assert result.identity_args_mapping == ["value"]
@@ -82,12 +90,14 @@ class TestValidateDeprecationWrapperWithProxy:
         """Proxy with target=None and args_mapping: invalid_args=[] and no_effect=False (still warns)."""
         proxy = _DeprecatedProxy(
             obj={},
-            name="warn_only_mapped",
-            deprecated_in="1.0",
-            remove_in="2.0",
-            target=None,
-            args_mapping={"x": "y"},
-            stream=None,
+            spec=_ProxySpec(
+                name="warn_only_mapped",
+                deprecated_in="1.0",
+                remove_in="2.0",
+                target=None,
+                args_mapping={"x": "y"},
+                stream=None,
+            ),
         )
         result = validate_deprecation_wrapper(proxy)
         assert result.invalid_args == []
@@ -103,11 +113,13 @@ class TestValidateDeprecationWrapperWithProxy:
 
         proxy = _DeprecatedProxy(
             obj=Palette,
-            name="Palette",
-            deprecated_in="1.0",
-            remove_in="2.0",
-            attrs_mapping={"a": "b", "b": "c"},
-            stream=None,
+            spec=_ProxySpec(
+                name="Palette",
+                deprecated_in="1.0",
+                remove_in="2.0",
+                attrs_mapping={"a": "b", "b": "c"},
+                stream=None,
+            ),
         )
         result = validate_deprecation_wrapper(proxy)
         assert result.chain_type is ChainType.STACKED
@@ -119,7 +131,8 @@ class TestValidateDeprecationWrapperWithProxy:
 
         """
         proxy = _DeprecatedProxy(
-            obj={}, name="SourceName", deprecated_in="1.0", remove_in="2.0", target=ColorEnum, stream=None
+            obj={},
+            spec=_ProxySpec(name="SourceName", deprecated_in="1.0", remove_in="2.0", target=ColorEnum, stream=None),
         )
         result = validate_deprecation_wrapper(proxy)
         assert result.function == "SourceName"
@@ -127,7 +140,7 @@ class TestValidateDeprecationWrapperWithProxy:
 
     def test_proxy_empty_args_mapping_true_when_no_args_mapping(self) -> None:
         """Proxy with args_mapping=None reports empty_args_mapping=True."""
-        proxy = _DeprecatedProxy(obj={}, name="x", deprecated_in="1.0", remove_in="2.0", stream=None)
+        proxy = _DeprecatedProxy(obj={}, spec=_ProxySpec(name="x", deprecated_in="1.0", remove_in="2.0", stream=None))
         result = validate_deprecation_wrapper(proxy)
         assert result.deprecated_info.args_mapping is None
         assert result.empty_args_mapping is True
@@ -306,7 +319,8 @@ class TestProxySelfReferenceDetection:
         check never matched and a no-op self-referential proxy was reported as effective.
         """
         proxy = _DeprecatedProxy(
-            obj=_AudTargetCls, target=_AudTargetCls, name="_AudTargetCls", deprecated_in="1.0", remove_in="2.0"
+            obj=_AudTargetCls,
+            spec=_ProxySpec(target=_AudTargetCls, name="_AudTargetCls", deprecated_in="1.0", remove_in="2.0"),
         )
         info = validate_deprecation_wrapper(proxy)
         assert info.self_reference is True
@@ -321,11 +335,13 @@ class TestProxySelfReferenceDetection:
         """
         proxy = _DeprecatedProxy(
             obj=_AudTargetCls,
-            target=_AudTargetCls,
-            name="_AudTargetCls",
-            deprecated_in="1.0",
-            remove_in="2.0",
-            args_mapping={"old_x": "new_x"},
+            spec=_ProxySpec(
+                target=_AudTargetCls,
+                name="_AudTargetCls",
+                deprecated_in="1.0",
+                remove_in="2.0",
+                args_mapping={"old_x": "new_x"},
+            ),
         )
         info = validate_deprecation_wrapper(proxy)
         assert info.self_reference is False
@@ -340,11 +356,13 @@ class TestProxySelfReferenceDetection:
         """
         proxy = _DeprecatedProxy(
             obj=_AudAttrsMappingTarget,
-            target=_AudAttrsMappingTarget,
-            name="_AudAttrsMappingTarget",
-            deprecated_in="1.0",
-            remove_in="2.0",
-            attrs_mapping={"old_attr": "new_attr"},
+            spec=_ProxySpec(
+                target=_AudAttrsMappingTarget,
+                name="_AudAttrsMappingTarget",
+                deprecated_in="1.0",
+                remove_in="2.0",
+                attrs_mapping={"old_attr": "new_attr"},
+            ),
         )
         info = validate_deprecation_wrapper(proxy)
         assert info.self_reference is False

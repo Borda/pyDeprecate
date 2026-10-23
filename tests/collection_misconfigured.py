@@ -26,7 +26,7 @@ from typing import cast
 
 from deprecate import deprecated, void
 from deprecate._types import DeprecationConfig, TargetMode, _DeprecatedCallable
-from deprecate.proxy import _DeprecatedProxy, deprecated_class
+from deprecate.proxy import _DeprecatedProxy, _ProxySpec, deprecated_class
 
 # Construction-time UserWarning is expected for empty/None args_mapping; it is suppressed via the
 # targeted `filterwarnings` entries in pyproject.toml (scoped by message + `deprecate._types` module).
@@ -87,10 +87,7 @@ def make_legacy_metadata_proxy() -> _DeprecatedProxy:
 
     legacy_proxy = _DeprecatedProxy(
         obj=_LegacyClass,
-        name="LegacyClass",
-        deprecated_in="0.12",
-        remove_in="1.0",
-        stream=None,
+        spec=_ProxySpec(name="LegacyClass", deprecated_in="0.12", remove_in="1.0", stream=None),
     )
     config = object.__getattribute__(legacy_proxy, "__deprecation_config__")
     object.__delattr__(legacy_proxy, "__deprecation_config__")

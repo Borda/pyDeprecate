@@ -60,7 +60,7 @@ from deprecate import (
     deprecated_module,
     void,
 )
-from deprecate.proxy import _DeprecatedProxy
+from deprecate.proxy import _DeprecatedProxy, _ProxySpec
 from tests.collection_targets import (
     AutoExpandDC,
     AutoExpandInitFalseDC,
@@ -1280,11 +1280,13 @@ depr_config_dict_read_only = deprecated_instance(_DEPR_CONFIG_DICT.copy(), **_DE
 
 depr_read_only_attrs_list = _DeprecatedProxy(
     obj=MutableAttrsList(),
-    name="legacy_mutable_attrs_list",
-    **_DEPRS_CASE_STD_INF_ARGS,
-    stream=None,
-    read_only=True,
-    attrs_mapping={"push": "append"},
+    spec=_ProxySpec(
+        name="legacy_mutable_attrs_list",
+        **_DEPRS_CASE_STD_INF_ARGS,
+        stream=None,
+        read_only=True,
+        attrs_mapping={"push": "append"},
+    ),
 )
 
 
@@ -3552,17 +3554,22 @@ def make_switching_entry_proxy(source: object, target: object) -> Any:  # noqa: 
 
     return _DeprecatedProxy(
         obj=source,
-        target=target,
-        name="legacy_context",
-        stream=failing_stream,
-        skip_if=lambda: flag["skip"],
-        **_DEPRS_CASE_STD_ARGS,
+        spec=_ProxySpec(
+            target=target,
+            name="legacy_context",
+            stream=failing_stream,
+            skip_if=lambda: flag["skip"],
+            **_DEPRS_CASE_STD_ARGS,
+        ),
     )
 
 
 def make_skip_gated_target_proxy(source: object, target: object, skip_if: Callable[[], bool]) -> Any:  # noqa: ANN401
     """Wrap *source* as ``legacy_box`` forwarding to *target* while *skip_if* is false, with the default budget."""
-    return _DeprecatedProxy(obj=source, target=target, name="legacy_box", skip_if=skip_if, **_DEPRS_CASE_STD_ARGS)
+    return _DeprecatedProxy(
+        obj=source,
+        spec=_ProxySpec(target=target, name="legacy_box", skip_if=skip_if, **_DEPRS_CASE_STD_ARGS),
+    )
 
 
 def make_deprecated_partial_host() -> type[Any]:
