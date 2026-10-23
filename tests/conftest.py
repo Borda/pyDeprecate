@@ -104,8 +104,8 @@ def _reset_collection_deprecate_state() -> None:
     import deprecate.deprecation as _deprecation  # lazy: avoid poisoning sys.modules before src collection
     import tests.collection_deprecate as _collection_deprecate
 
-    # Reset the one-time ``@deprecated``-on-class dispatch dedup set so per-qualname warnings are observable
-    # in every test regardless of order (the set is process-global; without this reset the first test to
+    # Reset the one-time ``@deprecated``-on-class dispatch cache so per-qualname warnings are observable
+    # in every test regardless of order (the cache is process-global; without this reset the first test to
     # decorate a given class qualname consumes its one-time warning and later same-qualname tests see none).
     _deprecation._CLASS_DISPATCH_NOTIFIED.clear()
 

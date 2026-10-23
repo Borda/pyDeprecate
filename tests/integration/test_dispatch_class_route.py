@@ -11,12 +11,19 @@ callable or an existing class proxy.
 
 """
 
+import concurrent.futures
 import re
+import sys
+import threading
+import time
+import types
 import warnings
-from typing import Any, cast
+from collections.abc import Iterator
+from typing import Any, Callable, cast
 
 import pytest
 
+import deprecate.deprecation as _deprecation
 from deprecate import TargetMode, assert_no_warnings, deprecated, deprecated_callable, deprecated_class
 from deprecate._types import DeprecationConfig, _DeprecatedCallable
 from deprecate.proxy import _DeprecatedProxy
@@ -54,6 +61,42 @@ from tests.collection_targets import (
 
 #: Message fragment shared by every ``functools`` wrapper-kind rejection: the workaround a user can act on.
 _WRAP_IN_DEF_HINT = r"Wrap it in a plain `def` that calls it"
+
+
+@pytest.fixture
+def rapid_thread_switching() -> Iterator[None]:
+    """Restore the interpreter's scheduling interval after exercising concurrent decoration."""
+    previous = sys.getswitchinterval()
+    sys.setswitchinterval(1e-6)
+    try:
+        yield
+    finally:
+        sys.setswitchinterval(previous)
+
+
+def _yield_dispatch_lines(frame: types.FrameType, event: str, arg: object) -> Callable:
+    """Allow another worker to run between dispatch lines so an unlocked check/add reliably races."""
+    if event == "line" and frame.f_code.co_name == "_packing_class_source":
+        time.sleep(0.001)
+    return _yield_dispatch_lines
+
+
+def _generated_classes(prefix: str, count: int) -> list[type]:
+    """Build ``count`` fresh classes named ``<prefix>0`` … in this module, as a plugin host would create them."""
+    return [type(f"{prefix}{index}", (), {"__module__": __name__}) for index in range(count)]
+
+
+def _dispatch_key(source: type) -> str:
+    """Return the module-qualified key the class dispatch notice cache stores for ``source``."""
+    return f"{source.__module__}.{source.__qualname__}"
+
+
+def _decorate_each_silently(sources: list[type]) -> None:
+    """Decorate every class through the front door, discarding the dispatch notices they emit."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        for source in sources:
+            make_front_door_notify_on(source)
 
 
 class TestClassDispatchInformationalWarning:
@@ -97,6 +140,80 @@ class TestClassDispatchInformationalWarning:
 
         with assert_no_warnings(UserWarning):
             make_deprecated_on_fresh_class()  # second application of the same class — must stay silent
+
+    @pytest.mark.usefixtures("rapid_thread_switching")
+    def test_concurrent_decoration_warns_once(self) -> None:
+        """Eight concurrent decorations of one class produce exactly one dispatch notice.
+
+        Plugin loaders can decorate the same class from several worker threads. All workers begin together,
+        and a line tracer yields between dispatch steps to expose a check-then-add race reliably. Warning capture
+        surrounds all workers so their warning contexts cannot overwrite each other.
+        """
+        source = type("ConcurrentService", (), {"__module__": __name__})
+        barrier = threading.Barrier(8, timeout=10)
+
+        def decorate() -> object:
+            """Apply the existing collection wrapper after every worker reaches the barrier."""
+            previous_trace = sys.gettrace()
+            sys.settrace(_yield_dispatch_lines)
+            try:
+                barrier.wait()
+                return make_front_door_notify_on(source)
+            finally:
+                sys.settrace(previous_trace)
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+                futures = [executor.submit(decorate) for _ in range(8)]
+                results = [future.result(timeout=10) for future in futures]
+
+        assert len(results) == 8
+        assert all(isinstance(result, _DeprecatedProxy) for result in results)
+        assert len(caught) == 1
+        assert caught[0].category is UserWarning
+        assert str(caught[0].message) == (
+            "`@deprecated` on class `ConcurrentService` now dispatches to `@deprecated_class`."
+        )
+
+    def test_notice_cache_keeps_newest_keys_at_bound(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Past its bound the notice cache drops the oldest class key and keeps the newest ones.
+
+        A long-lived plugin host can decorate an unbounded stream of dynamically named classes; the cache must stay
+        at its limit, in insertion order, instead of growing with every class. The limit is lowered for the test.
+
+        """
+        monkeypatch.setattr(_deprecation, "_CLASS_DISPATCH_NOTICE_LIMIT", 3)
+        sources = _generated_classes("BoundedService", 4)
+        _decorate_each_silently(sources)
+        assert list(_deprecation._CLASS_DISPATCH_NOTIFIED) == [_dispatch_key(source) for source in sources[1:]]
+
+    def test_evicted_class_gets_notice_again(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A class whose key was evicted receives the one-time notice a second time.
+
+        This is the documented cost of the bound: once enough newer classes pushed a key out, decorating that class
+        again is indistinguishable from a first decoration.
+
+        """
+        monkeypatch.setattr(_deprecation, "_CLASS_DISPATCH_NOTICE_LIMIT", 2)
+        sources = _generated_classes("EvictedService", 3)
+        _decorate_each_silently(sources)
+        with pytest.warns(UserWarning, match="EvictedService0") as repeated:
+            make_front_door_notify_on(sources[0])
+        assert len(repeated) == 1
+
+    def test_retained_class_stays_silent(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A class still held in the bounded cache gets no second notice.
+
+        Decorating the same class twice inside the bound is the common case (a reload, a second registry); it must
+        stay quiet exactly as with an unbounded cache.
+
+        """
+        monkeypatch.setattr(_deprecation, "_CLASS_DISPATCH_NOTICE_LIMIT", 2)
+        sources = _generated_classes("RetainedService", 2)
+        _decorate_each_silently(sources)
+        with assert_no_warnings(UserWarning):
+            make_front_door_notify_on(sources[1])
 
     def test_qualname_collision_across_modules_both_warn(self) -> None:
         """Two distinct classes sharing a ``__qualname__`` in different modules each get their own notice.

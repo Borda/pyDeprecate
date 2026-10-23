@@ -6,6 +6,7 @@ stack-level correctness.  Fixture modules live in ``tests/collection_modules/``.
 
 from __future__ import annotations
 
+import asyncio
 import concurrent.futures
 import importlib
 import sys
@@ -31,7 +32,7 @@ from deprecate import (
 from deprecate._types import DeprecationConfig
 from deprecate.audit._lifecycle import _check_deprecated_wrapper_expiry
 from deprecate.audit._wrappers import _format_report_symbol
-from deprecate.module import deprecated_module
+from deprecate.module import _redirect_guard, deprecated_module
 from tests.collection_targets import FlakyTypeErrorStream, KeywordTypeErrorStream, RecordingStream
 
 # Shared version kwargs for module deprecation call sites (see AGENTS.md Unification pattern).
@@ -1227,6 +1228,86 @@ class TestAttrsMappingShadowsDict:
 class TestRedirectCycle:
     """Redirect cycles longer than the trivial self-target must fail cleanly, not recurse forever."""
 
+    def test_async_tasks_keep_active_resolutions_separate(
+        self, make_tmp_module: Callable[..., types.ModuleType]
+    ) -> None:
+        """Suspended task contexts do not mistake another task's redirect for a cycle.
+
+        Attribute lookup is synchronous, so seed each task's in-flight outer resolution explicitly before an
+        await. Each task then resolves the other module through the public redirect path while its peer still
+        holds that same key. Nested lookups must preserve the outer set, and finishing must restore None.
+        """
+        target = make_tmp_module("_test_async_guard_target_tmp")
+        target.answer = 42  # type: ignore[attr-defined]
+        modules = [make_tmp_module(f"_test_async_guard_{index}_tmp") for index in range(2)]
+        for mod in modules:
+            deprecated_module(mod.__name__, target=target, stream=None, **_DEPRS_CASE_MOD_ARGS)
+
+        async def run_tasks() -> list[int]:
+            """Keep both simulated outer resolutions alive until both nested lookups finish."""
+            ready = [asyncio.Event(), asyncio.Event()]
+            resolved = [asyncio.Event(), asyncio.Event()]
+
+            async def resolve(index: int) -> int:
+                """Resolve the peer's module without inheriting its active guard entries."""
+                assert _redirect_guard.get() is None
+                own_key = (modules[index].__name__, "answer")
+                active = {own_key}
+                token = _redirect_guard.set(active)
+                try:
+                    ready[index].set()
+                    await asyncio.wait_for(ready[1 - index].wait(), timeout=10)
+                    value = getattr(modules[1 - index], "answer")
+                    assert _redirect_guard.get() is active
+                    assert active == {own_key}
+                    resolved[index].set()
+                    await asyncio.wait_for(resolved[1 - index].wait(), timeout=10)
+                finally:
+                    _redirect_guard.reset(token)
+                assert _redirect_guard.get() is None
+                return value
+
+            return list(await asyncio.gather(resolve(0), resolve(1)))
+
+        with pytest.warns(FutureWarning) as caught:
+            assert asyncio.run(run_tasks()) == [42, 42]
+        assert len(caught) == 2
+        assert _redirect_guard.get() is None
+
+    @pytest.fixture
+    def redirected_source(self, make_tmp_module: Callable[..., types.ModuleType]) -> types.ModuleType:
+        """Return a deprecated module that redirects missing attributes to a target holding ``answer = 42``."""
+        target = make_tmp_module("_test_guard_cleanup_target_tmp")
+        target.answer = 42  # type: ignore[attr-defined]
+        source = make_tmp_module("_test_guard_cleanup_source_tmp")
+        deprecated_module(source.__name__, target=target, stream=None, **_DEPRS_CASE_MOD_ARGS)
+        return source
+
+    def test_guard_released_after_redirect(self, redirected_source: types.ModuleType) -> None:
+        """A successful redirected lookup leaves no guard set behind in the calling context.
+
+        The next lookup from the same context must start from a fresh guard; a leftover set would make a later,
+        unrelated redirect of the same name look like a cycle.
+
+        """
+        with pytest.warns(FutureWarning):
+            assert getattr(redirected_source, "answer") == 42
+        assert _redirect_guard.get() is None
+
+    def test_guard_released_after_failed_redirect(self, redirected_source: types.ModuleType) -> None:
+        """A redirected lookup missing from the target raises the plain ``AttributeError`` and releases the guard.
+
+        The failing path exits through an exception, so the guard reset must run in the ``finally`` branch, and the
+        public message must name the deprecated module and the missing attribute exactly.
+
+        """
+        with (
+            pytest.warns(FutureWarning),
+            pytest.raises(AttributeError, match="^module '_test_guard_cleanup_source_tmp' has no attribute 'missing'$"),
+        ):
+            getattr(redirected_source, "missing")
+        assert _redirect_guard.get() is None
+
     def test_mutual_redirect_raises_attribute_error(self, make_tmp_module: Callable[..., types.ModuleType]) -> None:
         """``A`` redirecting to ``B`` and ``B`` back to ``A`` yields ``AttributeError``, not ``RecursionError``.
 
@@ -1245,7 +1326,7 @@ class TestRedirectCycle:
                 _ = sys.modules["_test_cycle_a_tmp"].ghost  # type: ignore[attr-defined]
 
     def test_normal_redirect_unaffected_by_cycle_guard(self, make_tmp_module: Callable[..., types.ModuleType]) -> None:
-        """A non-cyclic redirect still forwards correctly after the guard clears its thread-local state.
+        """A non-cyclic redirect still forwards correctly after the guard clears its context-local state.
 
         The cycle guard tracks in-flight ``(module, name)`` resolutions and must discard them once a lookup
         completes, so an ordinary redirect to a live target returns the target's value on every call — the

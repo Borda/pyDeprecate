@@ -21,9 +21,9 @@ Three deprecation modes are supported:
 """
 
 import sys
-import threading
 import types
 import warnings
+from contextvars import ContextVar, Token
 from typing import Any, Callable, Optional
 
 from deprecate._fatal import DeprecatedError, _resolve_as_exception
@@ -31,13 +31,13 @@ from deprecate._frames import _caller_stacklevel
 from deprecate._types import DeprecationConfig, TargetMode, _WrapperState, get_deprecation_config
 from deprecate.messaging import _consume_warn_budget, _emit, _format_deprecation_message, _validate_message_template
 
-#: Thread-local set of ``(module_name, attr_name)`` pairs currently being resolved through a redirect
+#: Context-local set of ``(module_name, attr_name)`` pairs currently being resolved through a redirect
 #: ``target``. Guards against cyclic redirects (e.g. ``A`` redirects to ``B`` and ``B`` back to ``A``):
 #: without it, a missing-attribute lookup recurses A -> B -> A -> ... until ``RecursionError``. The
 #: decoration-time ``target is mod`` guard only rejects the trivial length-1 self-cycle; cycles of
 #: length >= 2 can only be detected at resolution time because the second module may be deprecated
 #: after the first.
-_redirect_guard = threading.local()
+_redirect_guard: ContextVar[Optional[set[tuple[str, str]]]] = ContextVar("_redirect_guard", default=None)
 
 #: Default warning template for a deprecated module (no target).
 _TEMPLATE_MODULE_NO_TARGET = (
@@ -192,13 +192,14 @@ def _resolve_missing_attr(
     existing_getattr: Optional[Callable[[str], Any]] = d.get("__deprecated_existing_getattr__")
 
     if target is not None:
-        # Cyclic-redirect guard: track this (module, name) resolution on a thread-local set so a
+        # Cyclic-redirect guard: track this (module, name) resolution on a context-local set so a
         # redirect cycle (A -> B -> A) raises a clean AttributeError instead of recursing to
         # RecursionError with a warning emitted on every frame.
-        active: Optional[set[tuple[str, str]]] = getattr(_redirect_guard, "active", None)
+        active = _redirect_guard.get()
+        token: Optional[Token[Optional[set[tuple[str, str]]]]] = None
         if active is None:
             active = set()
-            _redirect_guard.active = active
+            token = _redirect_guard.set(active)
         key = (module_name, name)
         if key in active:
             raise AttributeError(f"module {module_name!r} has no attribute {name!r}") from None
@@ -213,6 +214,8 @@ def _resolve_missing_attr(
             raise AttributeError(f"module {module_name!r} has no attribute {name!r}") from None
         finally:
             active.discard(key)
+            if token is not None:
+                _redirect_guard.reset(token)
 
     if existing_getattr is not None:
         return existing_getattr(name)

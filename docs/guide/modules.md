@@ -52,7 +52,7 @@ deprecated_module(
 
 ## Mode 2 — redirect to a replacement module
 
-Use this when you rename an entire module. Attribute lookups that are missing from the old module's `__dict__` are forwarded to `new_calculator`, so callers get both a warning and the correct value. Real attributes already defined in the old module (functions, constants) are served from its `__dict__` directly — they warn but are not forwarded.
+Use this when you rename an entire module. Attribute lookups that are missing from the old module's `__dict__` are forwarded to `new_calculator`, so callers get both a warning and the correct value. Real attributes already defined in the old module (functions, constants) are served from its `__dict__` directly — they warn but are not forwarded. Redirect cycle detection uses context-local state and restores the prior state when the outer lookup finishes. Cyclic redirects raise `AttributeError` rather than recursing indefinitely.
 
 ```python
 # phmdoctest:skip — CI template; new_calculator is not installed
