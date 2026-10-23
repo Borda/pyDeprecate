@@ -4710,8 +4710,8 @@ class TestFailedDeliveryRestoresBudget:
         stream = FlakyTypeErrorStream()
         proxy = make_warn_after_success_proxy(FlakyProtocolBox(), stream=stream)
         with pytest.raises(TypeError, match="unsupported operand"):
-            proxy[0]
-        proxy[0]
+            _ = proxy[0]
+        _ = proxy[0]
         assert len(stream.calls) == 2
 
     def test_raising_stream_retries_per_attribute_slot(self) -> None:
