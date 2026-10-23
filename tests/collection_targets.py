@@ -1549,6 +1549,34 @@ async def legacy_snapshot() -> list[int]:
     return [1, 2]
 
 
+class PendingSnapshotBox:
+    """Awaitable whose ``__await__`` hands out the await iterator of a coroutine it created once and keeps."""
+
+    def __init__(self) -> None:
+        """Create the one coroutine every ``await`` of this box delegates to."""
+        self.pending = legacy_snapshot()
+
+    def __await__(self) -> Generator[Any, None, list[int]]:
+        """Delegate to the stored coroutine, so awaiting the box twice reuses one coroutine object."""
+        return self.pending.__await__()
+
+
+class CachedStepIterator:
+    """Async iterator whose synchronous ``__anext__`` returns a coroutine it keeps until that step is awaited."""
+
+    def __init__(self) -> None:
+        """Create the coroutine the next step hands out."""
+        self.cached = legacy_snapshot()
+
+    def __aiter__(self) -> "CachedStepIterator":
+        """Return the iterator itself."""
+        return self
+
+    def __anext__(self) -> Coroutine[Any, Any, list[int]]:
+        """Return the stored coroutine instead of creating a new one per step."""
+        return self.cached
+
+
 # ========== Stream fixtures: signatures where the positional message slot decides ==========
 
 # ``_stream_accepts_stacklevel`` binds the real call ``stream(msg, stacklevel=...)``, so a parameter named

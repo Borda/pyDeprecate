@@ -199,6 +199,15 @@ def _inspect_stream_accepts_stacklevel(stream: Callable[..., Any]) -> bool:
         # ``functools.wraps(logging.warning)`` stream written as ``(msg)`` stays message-only.
         stream = inspect.unwrap(stream, stop=_declares_own_parameters)
         layers = _partial_chain(stream)
+        if layers:
+            # ``inspect.unwrap`` stops at a partial, whose signature is derived from what it binds. When that is a
+            # bare pass-through, the partial's signature is the pass-through's ``(*args, **kwargs)`` and says nothing,
+            # so judge the same partial layers rebuilt over the callable the pass-through forwards to.
+            core = inspect.unwrap(layers[-1].func, stop=_declares_own_parameters)
+            if core is not layers[-1].func:
+                for layer in reversed(layers):
+                    core = partial(core, *layer.args, **layer.keywords)
+                return _inspect_stream_accepts_stacklevel(core)
         # Identity, not introspection: ``warnings.warn`` is a C builtin whose signature support varies across Python
         # versions, and it always accepts ``stacklevel``.
         if (layers[-1].func if layers else stream) is warn:

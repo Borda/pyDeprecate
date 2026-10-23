@@ -35,6 +35,7 @@ Example:
 """
 
 import copy
+import gc
 import inspect
 import math
 import operator
@@ -173,19 +174,40 @@ def _exit_acquired(context: Any, *exc_info: Any) -> None:  # noqa: ANN401
     context.__exit__(*exc_info)
 
 
+def _held_by(owner: Any) -> list[Any]:  # noqa: ANN401
+    """List *owner* and the objects it references directly, looking one level into an instance ``__dict__``.
+
+    Depending on the Python version, :func:`gc.get_referents` reports an instance's attribute values directly or through
+    its ``__dict__``, so both shapes are expanded.
+
+    """
+    held = [owner]
+    for ref in gc.get_referents(owner):
+        held.append(ref)
+        if type(ref) is dict:
+            held.extend(ref.values())
+    return held
+
+
 def _close_abandoned(acquired: Any, owner: Any, *exc_info: Any) -> None:  # noqa: ANN401
     """Close a coroutine that an acquiring call created, so it is not left behind unawaited.
 
     When warning delivery fails after ``__anext__`` or ``__await__`` returned, the caller never awaits what it got, and
     the garbage collector would report ``coroutine ... was never awaited`` on top of the real error. An unstarted
-    coroutine closes without running its body, so closing is safe for what the call created fresh: a coroutine (an
-    ``async def __anext__``) or the await iterator of one (``__await__`` returning ``helper().__await__()``).
+    coroutine closes without running its body, so closing is safe for what the call created fresh: a coroutine (from
+    ``__anext__``) or the await iterator of one (``__await__`` returning ``helper().__await__()``).
+
+    The result type alone does not prove the call created it: ``__await__`` can return the await iterator of a
+    coroutine the object stores, a synchronous ``__anext__`` can return a cached coroutine, and a stacked proxy acquires
+    from the inner proxy, which holds the wrapped coroutine. Closing a borrowed coroutine breaks the retry with
+    ``cannot reuse already awaited coroutine``, so the coroutine is left open whenever *owner* is it or references it,
+    directly or through its instance ``__dict__``. A coroutine stored deeper inside the owner (for example in a list
+    attribute) is not detected and is closed.
 
     Everything else is left untouched, because it can be a view of the wrapped object itself: an async generator's
     ``asend`` awaitable (on CPython 3.13 and later closing it finishes the generator, so later iteration would end
-    with no items) and the await iterator of a wrapped coroutine object (closing it closes that coroutine). On CPython
-    3.13 and later an abandoned ``asend`` still reports that it was never awaited; keeping the stream usable wins.
-    Other awaitables (futures, plain generators) need no cleanup.
+    with no items). On CPython 3.13 and later an abandoned ``asend`` still reports that it was never awaited; keeping
+    the stream usable wins. Other awaitables (futures, plain generators) need no cleanup.
 
     Args:
         acquired: The awaitable or await iterator the wrapped object returned.
@@ -194,8 +216,15 @@ def _close_abandoned(acquired: Any, owner: Any, *exc_info: Any) -> None:  # noqa
 
     """
     kind = type(acquired)
-    if kind is types.CoroutineType or (kind is _COROUTINE_WRAPPER_TYPE and type(owner) is not types.CoroutineType):
-        acquired.close()
+    if kind is types.CoroutineType:
+        coroutine = acquired
+    elif kind is _COROUTINE_WRAPPER_TYPE:
+        coroutine = next((ref for ref in gc.get_referents(acquired) if type(ref) is types.CoroutineType), None)
+    else:
+        return
+    if coroutine is None or any(ref is coroutine for ref in _held_by(owner)):
+        return
+    acquired.close()
 
 
 class _DeprecatedProxy:

@@ -384,16 +384,19 @@ class TestRaiseWarnStacklevel:
         assert len(calls) == 1
         assert "stacklevel" in calls[0][1]
 
-    def test_passthrough_stream_delivers_through_decorator(self) -> None:
+    @pytest.mark.parametrize(
+        "as_partial", [pytest.param(False, id="adapter"), pytest.param(True, id="partial-of-adapter")]
+    )
+    def test_passthrough_stream_delivers_through_decorator(self, as_partial: bool) -> None:
         """A ``functools.wraps``-style pass-through around a message-only sink works as ``@deprecated(stream=...)``.
 
         A team wraps its message-only logging sink in a bare ``(*args, **kwargs)`` adapter and plugs the adapter in as
-        ``stream=``. Calling the deprecated function must deliver the message once and still forward the call; it
-        must not fail on every call with "unexpected keyword argument 'stacklevel'" because the adapter's
-        ``**kwargs`` looked as if it accepted the keyword.
+        ``stream=``, directly or through a ``functools.partial``. Calling the deprecated function must deliver the
+        message once and still forward the call; it must not fail on every call with "unexpected keyword argument
+        'stacklevel'" because the adapter's ``**kwargs`` looked as if it accepted the keyword.
         """
         stream = PassThroughMessageOnlyStream()
-        deprecated_sum = make_sum_deprecation_with_stream(stream)
+        deprecated_sum = make_sum_deprecation_with_stream(functools.partial(stream) if as_partial else stream)
         result = deprecated_sum(1, 2)
         assert (result, stream.calls) == (
             3,
@@ -451,6 +454,17 @@ class TestStreamAcceptsStacklevel:
             pytest.param(make_stream_cycle(), False, id="wrapped-cycle"),
             pytest.param(functools.partial(stream_with_stacklevel), True, id="partial-of-python-stream"),
             pytest.param(functools.partial(stream_message_only), False, id="partial-of-message-only"),
+            pytest.param(
+                functools.partial(stream_passthrough_message_only), False, id="partial-of-passthrough-of-message-only"
+            ),
+            pytest.param(
+                functools.partial(stream_passthrough_with_stacklevel), True, id="partial-of-passthrough-of-stacklevel"
+            ),
+            pytest.param(
+                functools.partial(stream_passthrough_with_stacklevel, "fixed"),
+                False,
+                id="partial-binding-message-of-passthrough",
+            ),
             pytest.param(Mock(), True, id="mock"),
             pytest.param(UnintrospectableStream(), False, id="signature-raises"),
         ],

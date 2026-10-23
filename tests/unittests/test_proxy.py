@@ -87,6 +87,7 @@ from tests.collection_pep702 import StackedAlias
 from tests.collection_targets import (
     AsyncManagedResource,
     AutoExpandDC,
+    CachedStepIterator,
     ColorEnum,
     CombinedAttrsArgsSource,
     CombinedAttrsArgsTarget,
@@ -104,6 +105,7 @@ from tests.collection_targets import (
     Palette,
     PaletteEnum,
     PaletteOld,
+    PendingSnapshotBox,
     Pep702StaticTarget,
     PositionalOnlyTarget,
     RecordingEntryContext,
@@ -4591,6 +4593,11 @@ async def _collect(stream: Any) -> list[Any]:  # noqa: ANN401
     return [item async for item in stream]
 
 
+async def _await_once(awaitable: Any) -> Any:  # noqa: ANN401
+    """Await *awaitable* once and return its result."""
+    return await awaitable
+
+
 class TestAsyncAcquisitionCleanup:
     """A failed warning delivery after ``__anext__``/``__await__`` must not abandon what the acquisition created."""
 
@@ -4646,6 +4653,49 @@ class TestAsyncAcquisitionCleanup:
             with pytest.raises(FutureWarning):
                 _acquire_await(proxy)
         assert asyncio.run(source) == [1, 2]
+
+    def test_failed_delivery_keeps_stored_coroutine_awaitable(self) -> None:
+        """A failed ``await`` delivery leaves usable a coroutine that the awaitable stores and reuses.
+
+        A custom awaitable creates its coroutine once and returns that coroutine's await iterator from every
+        ``__await__``. The iterator has the same type as one created fresh, but closing it would close the stored
+        coroutine, so the caller's retry would raise ``cannot reuse already awaited coroutine``.
+        """
+        box = PendingSnapshotBox()
+        proxy = make_warn_after_success_proxy(box)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", FutureWarning)
+            with pytest.raises(FutureWarning):
+                _acquire_await(proxy)
+        assert asyncio.run(_await_once(box)) == [1, 2]
+
+    def test_failed_delivery_keeps_cached_step_awaitable(self) -> None:
+        """A failed ``__anext__`` delivery leaves usable a coroutine that the iterator caches for its next step.
+
+        A synchronous ``__anext__`` can return a coroutine the iterator keeps instead of creating one per step. That
+        coroutine is a ``coroutine`` like a fresh one, so the proxy must see that the iterator still holds it.
+        """
+        source = CachedStepIterator()
+        proxy = make_warn_after_success_proxy(source)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", FutureWarning)
+            with pytest.raises(FutureWarning):
+                _acquire_anext(proxy)
+        assert asyncio.run(_await_once(source.__anext__())) == [1, 2]
+
+    def test_failed_delivery_through_stacked_proxy_keeps_wrapped_coroutine(self) -> None:
+        """A failed ``await`` delivery on an outer proxy leaves usable the coroutine an inner proxy wraps.
+
+        The outer proxy acquires the await iterator from the inner proxy, not from the coroutine, so the owner is the
+        inner proxy. The coroutine is still the inner proxy's wrapped object and must not be closed.
+        """
+        source = legacy_snapshot()
+        proxy = make_warn_after_success_proxy(make_warn_after_success_proxy(source, stream=None))
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", FutureWarning)
+            with pytest.raises(FutureWarning):
+                _acquire_await(proxy)
+        assert asyncio.run(_await_once(source)) == [1, 2]
 
 
 class TestFailedDeliveryRestoresBudget:
