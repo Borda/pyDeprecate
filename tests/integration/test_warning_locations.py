@@ -43,6 +43,7 @@ from tests.collection_deprecate import (
     loc_async_notify,
     loc_forward,
     loc_notify,
+    loc_notify_wrapped_stream,
     loc_proxy_callable,
     loc_proxy_ctor_remap,
     loc_proxy_mapping,
@@ -119,6 +120,12 @@ class TestCallTimeExpressionSites:
         ("operation", "category", "match"),
         [
             pytest.param(lambda: loc_notify(1), FutureWarning, "`loc_notify` was deprecated", id="notify-call"),
+            pytest.param(
+                lambda: loc_notify_wrapped_stream(1),
+                UserWarning,
+                "`loc_notify_wrapped_stream` was deprecated",
+                id="notify-call-wraps-decorated-stream",
+            ),
             pytest.param(lambda: loc_args_remap(old_x=1), FutureWarning, "uses deprecated arguments", id="args-remap"),
             pytest.param(lambda: loc_forward(1), FutureWarning, "in favor of", id="callable-target-forward"),
             pytest.param(lambda: loc_args_remap(x=2, old_x=1), UserWarning, "were supplied", id="args-collision"),
@@ -200,8 +207,8 @@ class TestCallTimeExpressionSites:
 
         A user filters warnings per module or turns them into errors to find the code that still needs migrating; both
         only work when the reported location is the user's own line.  Every expression-shaped warn site of the
-        callable, proxy, module and descriptor paths is exercised once, and stacked wrappers are checked layer by layer
-        so the outer layer's correct location stays pinned while the inner layer's known defect is tracked.
+        callable, proxy, module and descriptor paths is exercised once, and each layer of a stacked wrapper is checked
+        separately, so the outer and the inner layer both have to report the user's line.
 
         """
         with warnings.catch_warnings(record=True) as caught:

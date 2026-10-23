@@ -1675,3 +1675,22 @@ class PassThroughMessageOnlyStream:
     def __call__(self, *args: Any, **kwargs: Any) -> None:  # noqa: ANN401
         """Forward everything unchanged to the wrapped recorder."""
         self.inner(*args, **kwargs)
+
+
+class SlowRecordingStream(RecordingStream):
+    """Recording stream that pauses briefly before logging, so concurrent deliveries overlap.
+
+    Stands in for a sink with real latency (a network log handler, say) under multi-threaded use: the pause is a yield
+    point that lets other threads reach the warn budget while one delivery is still in progress.
+    """
+
+    def __call__(self, msg: str, stacklevel: int = 1) -> None:
+        """Pause, then record the call."""
+        time.sleep(0.001)
+        super().__call__(msg, stacklevel=stacklevel)
+
+
+@functools.wraps(warnings.warn)
+def stream_wraps_warn_forwarding_stacklevel(msg: str, stacklevel: int = 1) -> None:
+    """Pure-Python stream copying ``warnings.warn`` metadata; adds its own frame to the forwarded ``stacklevel``."""
+    warnings.warn(msg, stacklevel=stacklevel + 1)

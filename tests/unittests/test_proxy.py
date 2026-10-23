@@ -2,16 +2,20 @@
 
 import abc
 import asyncio
+import concurrent.futures
+import contextlib
 import copy
 import gc
 import inspect
+import itertools
 import math
 import os
 import pickle
+import sys
 import threading
 import warnings
 from collections import defaultdict
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass as dc_decorator
 from enum import Enum
 from types import MethodType
@@ -104,6 +108,7 @@ from tests.collection_targets import (
     PositionalOnlyTarget,
     RecordingEntryContext,
     RecordingStream,
+    SlowRecordingStream,
     SomeTargetClass,
     SubclassableBase,
     WithInjected,
@@ -4688,3 +4693,55 @@ class TestFailedDeliveryRestoresBudget:
             warnings.simplefilter("always")
             _drive_enter(proxy)
         assert _future_warning_count(caught) == 1
+
+
+#: Budget-spending proxy operations raced across threads; each factory builds a fresh source that is safe to share.
+_THREADED_BUDGET_OPS = [
+    pytest.param(_drive_getitem, lambda: [1, 2], id="getitem"),
+    pytest.param(_drive_enter, contextlib.nullcontext, id="enter"),
+    pytest.param(_drive_next, itertools.count, id="next"),
+]
+
+
+class TestWarnBudgetThreadSafety:
+    """The proxy's warn budget holds when many threads use the proxy at the same moment.
+
+    Spending the budget is a check-then-act sequence: read the warned counter, compare it with ``num_warns``, then
+    increment it. Without the proxy's lock, concurrent first uses could all read an unspent counter and each emit a
+    warning. Mirrors ``TestWarnQuotaThreadSafety`` in ``tests/unittests/test__dispatch.py`` for the callable path.
+    """
+
+    @pytest.fixture
+    def _aggressive_thread_switching(self) -> Iterator[None]:
+        """Force frequent GIL hand-offs so the check-then-act window is actually exercised, then restore it."""
+        previous = sys.getswitchinterval()
+        sys.setswitchinterval(1e-6)
+        yield
+        sys.setswitchinterval(previous)
+
+    @pytest.mark.usefixtures("_aggressive_thread_switching")
+    @pytest.mark.parametrize(("drive", "make_source"), _THREADED_BUDGET_OPS)
+    def test_num_warns_one_emits_once_across_threads(
+        self, drive: Callable[[Any], object], make_source: Callable[[], object]
+    ) -> None:
+        """16 threads released together onto a ``num_warns=1`` proxy deliver exactly one warning.
+
+        A worker pool shares one deprecated object: every worker subscripts it, enters it as a context, or pulls the
+        next value from it, all at once. The migration notice must reach the sink once, not once per thread that
+        happened to arrive before the first delivery finished. A barrier releases all workers together and the sink
+        pauses while delivering, so the threads contend on the budget at the same time. ``getitem`` and context entry
+        warn after the operation succeeds and ``next`` warns before it advances; both orders share one budget.
+        """
+        stream = SlowRecordingStream()
+        proxy = make_warn_after_success_proxy(make_source(), stream=stream)
+        n_threads = 16
+        barrier = threading.Barrier(n_threads)
+
+        def worker(_ignored: int) -> None:
+            """Block until every thread has arrived, then use the deprecated proxy simultaneously."""
+            barrier.wait()
+            drive(proxy)
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=n_threads) as pool:
+            list(pool.map(worker, range(n_threads)))
+        assert len(stream.calls) == 1

@@ -16,8 +16,9 @@ from typing import Any
 
 import pytest
 
+from deprecate import DeprecatedError
 from deprecate.proxy import _DeprecatedProxy
-from tests.collection_deprecate import make_pickle_settings_proxy
+from tests.collection_deprecate import make_pickle_fatal_settings_proxy, make_pickle_settings_proxy
 
 # Payloads generated once with the released pyDeprecate 0.14.0 wheel in a separate virtualenv (CPython 3.13.16,
 # ``pickle.HIGHEST_PROTOCOL == 5``), run in isolated mode (``python -I``) so the repository sources were not importable.
@@ -131,6 +132,41 @@ class TestFreshRoundTrip:
             values = (restored["threshold"], restored["enabled"])
 
         assert (values, _future_warning_texts(caught)) == ((0.5, True), [_WARNING_TEXT])
+
+    @pytest.mark.parametrize("protocol", _PROTOCOLS)
+    def test_spent_budget_stays_silent(self, protocol: int) -> None:
+        """An unpickled proxy whose single warning was already spent never warns again.
+
+        A deprecated settings object is read once in the parent process (the one allowed warning) and then sent to a
+        worker: the ``warned`` counter travels in the payload, so the copy must not spend a second budget and repeat the
+        warning on every worker.
+
+        """
+        proxy = make_pickle_settings_proxy()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            _ = proxy["threshold"]
+        restored = pickle.loads(pickle.dumps(proxy, protocol=protocol))  # noqa: S301 - payload produced in this test
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            values = (restored["threshold"], restored["enabled"])
+
+        assert (values, _future_warning_texts(caught)) == ((0.5, True), [])
+
+    @pytest.mark.parametrize("protocol", _PROTOCOLS)
+    def test_fatal_proxy_still_raises(self, protocol: int) -> None:
+        """An unpickled proxy built with ``as_exception=True`` still raises ``DeprecatedError`` on first use.
+
+        A fatal deprecation is a closed door: a copy sent to another process must not quietly turn back into a warn-once
+        proxy, so the non-default ``as_exception`` setting has to survive the round trip.
+
+        """
+        restored = pickle.loads(  # noqa: S301 - payload produced in this test
+            pickle.dumps(make_pickle_fatal_settings_proxy(), protocol=protocol)
+        )
+
+        with pytest.raises(DeprecatedError, match="legacy_settings"):
+            _ = restored["threshold"]
 
 
 class TestPayloadFrom014:

@@ -136,6 +136,7 @@ from tests.collection_targets import (
     return_b,
     return_z,
     single_positional_target,
+    stream_wraps_warn_forwarding_stacklevel,
     timing_wrapper,
     tracked_identity,
     trio_positional_target,
@@ -3547,3 +3548,18 @@ def make_sum_deprecation_with_stream(stream: Callable[..., Any]) -> Callable[...
     return deprecated(target=base_sum_kwargs, deprecated_in="1.0", remove_in="2.0", num_warns=-1, stream=stream)(
         original_sum
     )
+
+
+def make_pickle_fatal_settings_proxy() -> Any:  # noqa: ANN401
+    """Wrap a fresh settings dict in a ``deprecated_instance`` proxy that raises ``DeprecatedError`` instead of warning.
+
+    Same data and name as :func:`make_pickle_settings_proxy`, but ``as_exception=True`` — the one non-default setting
+    ``tests/integration/test_pickle_compat.py`` pickles besides the default and the spent-budget proxy.
+    """
+    return deprecated_instance({"threshold": 0.5, "enabled": True}, name="legacy_settings", **_DEPRS_CASE_FATAL_ARGS)
+
+
+@deprecated(target=TargetMode.NOTIFY, stream=stream_wraps_warn_forwarding_stacklevel, **_DEPRS_CASE_STD_ARGS)
+def loc_notify_wrapped_stream(x: int) -> int:
+    """Warn-only source delivering through a ``functools.wraps`` stream that has its own ``stacklevel`` parameter."""
+    return x * 2
