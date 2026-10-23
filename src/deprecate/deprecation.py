@@ -209,8 +209,9 @@ def deprecated(
             :func:`warnings.warn` with ``FutureWarning`` category). Set to ``None`` to disable warnings entirely —
             this also silences the one-time class-dispatch notice described under ``Warns`` below.
             The ``stacklevel`` passed is counted from the frame that calls ``stream``, so it points at the caller
-            for :func:`warnings.warn`, a C-level :func:`functools.partial` of it, or :func:`logging.warning`; a
-            pure-Python stream that forwards it to ``warnings.warn`` adds its own frame and lands one frame short.
+            for :func:`warnings.warn` and a C-level :func:`functools.partial` of it; a pure-Python stream, and the
+            module-level :func:`logging.warning` before Python 3.11, land one frame short (see
+            ``deprecate._frames._caller_stacklevel`` for the full rule).
         num_warns: Number of times to show the warning, per callable/attribute name or per proxy access:
             - ``1`` (default): Show warning once
             - ``-1``: Show warning on every call/access

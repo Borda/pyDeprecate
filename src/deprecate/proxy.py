@@ -251,8 +251,9 @@ class _DeprecatedProxy:
             ``stacklevel`` parameter or ``**kwargs``; a C-level callable without an introspectable signature gets the
             message alone and loses caller attribution.
             The ``stacklevel`` passed is counted from the frame that calls ``stream``, so it points at the caller
-            for :func:`warnings.warn`, a C-level :func:`functools.partial` of it, or :func:`logging.warning`; a
-            pure-Python stream that forwards it to ``warnings.warn`` adds its own frame and lands one frame short.
+            for :func:`warnings.warn` and a C-level :func:`functools.partial` of it; a pure-Python stream, and the
+            module-level :func:`logging.warning` before Python 3.11, land one frame short (see
+            ``deprecate._frames._caller_stacklevel`` for the full rule).
         message_template: Optional custom warning message template that overrides the built-in templates.  When ``None``
             (default), the built-in template for the active scenario is used (callable-target, no-target, or
             per-argument).  See :func:`~deprecate.proxy.deprecated_class` for the available ``%``-style placeholders.
@@ -2033,8 +2034,9 @@ def deprecated_class(
             ``stacklevel`` parameter or ``**kwargs``; a C-level callable without an introspectable signature gets the
             message alone and loses caller attribution.
             The ``stacklevel`` passed is counted from the frame that calls ``stream``, so it points at the caller
-            for :func:`warnings.warn`, a C-level :func:`functools.partial` of it, or :func:`logging.warning`; a
-            pure-Python stream that forwards it to ``warnings.warn`` adds its own frame and lands one frame short.
+            for :func:`warnings.warn` and a C-level :func:`functools.partial` of it; a pure-Python stream, and the
+            module-level :func:`logging.warning` before Python 3.11, land one frame short (see
+            ``deprecate._frames._caller_stacklevel`` for the full rule).
         message_template: Optional custom warning message template that overrides the built-in templates.  When ``None``
             (default), the built-in template for the active scenario is used (callable-target, no-target, or
             per-argument for ``args_mapping``).  Available ``%``-style placeholders:
@@ -2285,8 +2287,9 @@ def deprecated_instance(
             warning, with ``stacklevel=`` only when its signature declares a ``stacklevel`` parameter or ``**kwargs``;
             a C-level callable without an introspectable signature gets the message alone and loses caller attribution.
             The ``stacklevel`` passed is counted from the frame that calls ``stream``, so it points at the caller
-            for :func:`warnings.warn`, a C-level :func:`functools.partial` of it, or :func:`logging.warning`; a
-            pure-Python stream that forwards it to ``warnings.warn`` adds its own frame and lands one frame short.
+            for :func:`warnings.warn` and a C-level :func:`functools.partial` of it; a pure-Python stream, and the
+            module-level :func:`logging.warning` before Python 3.11, land one frame short (see
+            ``deprecate._frames._caller_stacklevel`` for the full rule).
         message_template: Optional custom warning message template that overrides the built-in templates.  When ``None``
             (default), the built-in template for the active scenario is used.  See
             :func:`~deprecate.proxy.deprecated_class` for the available ``%``-style placeholders.

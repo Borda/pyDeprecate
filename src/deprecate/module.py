@@ -379,8 +379,9 @@ def deprecated_module(
             warning, with ``stacklevel=`` only when its signature declares a ``stacklevel`` parameter or ``**kwargs``;
             a C-level callable without an introspectable signature gets the message alone and loses caller attribution.
             The ``stacklevel`` passed is counted from the frame that calls ``stream``, so it points at the caller
-            for :func:`warnings.warn`, a C-level :func:`functools.partial` of it, or :func:`logging.warning`; a
-            pure-Python stream that forwards it to ``warnings.warn`` adds its own frame and lands one frame short.
+            for :func:`warnings.warn` and a C-level :func:`functools.partial` of it; a pure-Python stream, and the
+            module-level :func:`logging.warning` before Python 3.11, land one frame short (see
+            ``deprecate._frames._caller_stacklevel`` for the full rule).
         message_template: Optional custom warning message.  When supplied it *replaces* the built-in
             redirect/version notice entirely — it is not appended to it.  Plain text without any ``%`` renders
             verbatim; a literal ``%`` must be escaped as ``%%``.  The ``%``-style placeholders ``%(source_name)s``
