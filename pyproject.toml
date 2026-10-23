@@ -124,15 +124,16 @@ ini_options.xfail_strict = true
 # Suppress only the specific legacy-sentinel warnings emitted by `TargetMode.from_legacy()`
 # and the construction-time misconfig warnings from `TargetMode.validate()` so that legacy
 # test fixtures can be imported at module load without polluting test output.  Patterns are
-# scoped by message regex AND originating module (`deprecate._types`) so that warnings of
-# the same class from any other source still surface.
+# scoped by message regex AND originating module (the `tests` package and its submodules;
+# `tests(\.|\Z)` does not prefix-match unrelated modules such as `tests_helper`) so that
+# warnings of the same class from any other source still surface.
 ini_options.filterwarnings = [
-  "ignore:`target=False` is not a valid deprecation mode.*:UserWarning:tests",
-  "ignore:.*ignores `args_extra`\\..*:UserWarning:tests",
-  "ignore:.*ignores `args_mapping`\\..*:UserWarning:tests",
-  "ignore:.*requires `args_mapping` to specify which arguments are being renamed.*:UserWarning:tests",
-  "ignore:target=None is deprecated since `v0\\.8`.*:FutureWarning:tests",
-  "ignore:target=True is deprecated since `v0\\.8`.*:FutureWarning:tests",
+  "ignore:`target=False` is not a valid deprecation mode.*:UserWarning:tests(\\.|\\Z)",
+  "ignore:.*ignores `args_extra`\\..*:UserWarning:tests(\\.|\\Z)",
+  "ignore:.*ignores `args_mapping`\\..*:UserWarning:tests(\\.|\\Z)",
+  "ignore:.*requires `args_mapping` to specify which arguments are being renamed.*:UserWarning:tests(\\.|\\Z)",
+  "ignore:target=None is deprecated since `v0\\.8`.*:FutureWarning:tests(\\.|\\Z)",
+  "ignore:target=True is deprecated since `v0\\.8`.*:FutureWarning:tests(\\.|\\Z)",
 ]
 ini_options.junit_duration_report = "call"
 # filterwarnings = [ "error::FutureWarning" ]

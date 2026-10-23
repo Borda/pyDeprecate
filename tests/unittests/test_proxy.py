@@ -3981,7 +3981,7 @@ class TestWarnAfterSuccess:
         with warnings.catch_warnings(record=True) as missed:
             warnings.simplefilter("always")
             with pytest.raises(KeyError):
-                proxy["missing"]
+                _ = proxy["missing"]
         with warnings.catch_warnings(record=True) as found:
             warnings.simplefilter("always")
             value = proxy["threshold"]
@@ -3996,7 +3996,7 @@ class TestWarnAfterSuccess:
         """
         proxy = make_warn_after_success_proxy({"threshold": 0.5}, as_exception=True)
         with pytest.raises(DeprecatedError, match="legacy_box"):
-            proxy["missing"]
+            _ = proxy["missing"]
 
     def test_fatal_missing_key_leaves_defaultdict_unchanged(self) -> None:
         """A fatal subscript on a ``defaultdict`` raises without inserting the missing key.
@@ -4008,7 +4008,7 @@ class TestWarnAfterSuccess:
         source: defaultdict[str, list[int]] = defaultdict(list)
         proxy = make_warn_after_success_proxy(source, as_exception=True)
         with pytest.raises(DeprecatedError, match="legacy_box"):
-            proxy["missing"]
+            _ = proxy["missing"]
         assert dict(source) == {}
 
     def test_declined_inplace_operator_warns_once(self) -> None:

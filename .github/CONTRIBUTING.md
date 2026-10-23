@@ -365,25 +365,25 @@ pyDeprecate/
 │       └── _deltas/
 │           ├── breaking/       # Required rewrites in v0.N-to-v0.M.md snippets
 │           └── behavior/       # Observable changes in v0.N-to-v0.M.md snippets
-├── tests/                      # Test suite
-│   ├── collection_targets.py       # Target functions (new implementations)
-│   ├── collection_deprecate.py     # Deprecated wrappers (@deprecated)
-│   ├── collection_misconfigured.py # Invalid configs for validation
-│   ├── collection_chains.py        # Chained deprecation patterns
-│   ├── collection_policy.py        # Wrappers breaking one governance policy rule each
-│   ├── collection_pep702.py        # PEP 702 decorator stacked over pyDeprecate, plus PEP 702-only symbols
-│   ├── collection_docstrings.py    # Fixtures for update_docstring=True behaviour
-│   ├── collection_modules/         # Fixture modules for deprecated_module() integration tests
-│   ├── integration/                # End-to-end tests via the public API
-│   │   ├── test_action.py          # GitHub Action: runner subprocess runs and action.yml parity
-│   │   ├── test_agent_plugin.py    # Codex/Claude plugin catalog and manifest parity
-│   │   ├── test_call_transparency.py # Positional/keyword forwarding and warning behavior for wrapped callables
+├── tests/                               # Test suite
+│   ├── collection_targets.py            # Target functions (new implementations)
+│   ├── collection_deprecate.py          # Deprecated wrappers (@deprecated)
+│   ├── collection_misconfigured.py      # Invalid configs for validation
+│   ├── collection_chains.py             # Chained deprecation patterns
+│   ├── collection_policy.py             # Wrappers breaking one governance policy rule each
+│   ├── collection_pep702.py             # PEP 702 decorator stacked over pyDeprecate, plus PEP 702-only symbols
+│   ├── collection_docstrings.py         # Fixtures for update_docstring=True behaviour
+│   ├── collection_modules/              # Fixture modules for deprecated_module() integration tests
+│   ├── integration/                     # End-to-end tests via the public API
+│   │   ├── test_action.py               # GitHub Action: runner subprocess runs and action.yml parity
+│   │   ├── test_agent_plugin.py         # Codex/Claude plugin catalog and manifest parity
+│   │   ├── test_call_transparency.py    # Positional/keyword forwarding and warning behavior for wrapped callables
 │   │   ├── test_dispatch_class_route.py # Callable-kind dispatch and rejection of unsupported source objects
-│   │   ├── test_pickle_compat.py   # Proxy pickle round-trips and compatibility boundaries
-│   │   └── test_warning_locations.py # User-facing warning locations and filter behavior
-│   └── unittests/                  # Focused tests for private/internal helpers
-│       ├── audit/                  # One test__<module>.py per audit submodule (_wrappers, _scan, _lifecycle, _policy, _report)
-│       └── cli/                    # One test_<module>.py per _cli submodule; test_cli.py covers cli() in __init__.py
+│   │   ├── test_pickle_compat.py        # Proxy pickle round-trips and compatibility boundaries
+│   │   └── test_warning_locations.py    # User-facing warning locations and filter behavior
+│   └── unittests/                       # Focused tests for private/internal helpers
+│       ├── audit/                       # One test__<module>.py per audit submodule (_wrappers, _scan, _lifecycle, _policy, _report)
+│       └── cli/                         # One test_<module>.py per _cli submodule; test_cli.py covers cli() in __init__.py
 ├── .github/
 │   ├── scripts/                # Self-contained helpers, including plugin compat-floor, GitHub Action, and call-overhead benchmark scripts
 │   ├── skills/code-review/     # Shared specialist review process for GitHub-hosted and local agents

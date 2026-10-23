@@ -126,7 +126,7 @@ class TestFreshRoundTrip:
         still available, so two reads on the copy produce exactly one ``FutureWarning``.
 
         """
-        restored = pickle.loads(pickle.dumps(make_pickle_settings_proxy(), protocol=protocol))  # noqa: S301
+        restored = pickle.loads(pickle.dumps(make_pickle_settings_proxy(), protocol=protocol))  # noqa: S301 - own round trip
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             values = (restored["threshold"], restored["enabled"])
@@ -210,6 +210,6 @@ class TestPayloadFrom014:
         """
         loaded = _load(payload)
 
-        again = pickle.loads(pickle.dumps(loaded, protocol=pickle.HIGHEST_PROTOCOL))  # noqa: S301
+        again = pickle.loads(pickle.dumps(loaded, protocol=pickle.HIGHEST_PROTOCOL))  # noqa: S301 - own round trip
 
         assert _identity(again) == _identity(loaded)
