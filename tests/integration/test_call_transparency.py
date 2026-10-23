@@ -13,11 +13,12 @@ from typing import Any, Callable
 
 import pytest
 
-from tests.collection_deprecate import (
+from tests.collection_deprecate import loc_stack_notify_over_callable, loc_stack_remap_over_notify
+from tests.collection_deprecate_forwarding import (
     deprecated_gapped_positional_only_source,
     deprecated_var_positional_forward,
-    loc_stack_notify_over_callable,
-    loc_stack_remap_over_notify,
+)
+from tests.collection_deprecate_regressions import (
     shape_notify_area_dispatch,
     shape_notify_positional_only,
     shape_notify_raw_signature,

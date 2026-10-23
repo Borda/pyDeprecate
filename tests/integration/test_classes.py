@@ -30,6 +30,8 @@ from tests.collection_deprecate import (
     WrappedEnum,
     depr_class_args_only_mode_warns_on_deprecated_arg,
     depr_class_whole_mode_warns_on_call,
+)
+from tests.collection_deprecate_forwarding import (
     make_class_omitted_target_with_args,
     make_class_target_args_remap,
     make_class_target_notify_with_args,
@@ -346,7 +348,7 @@ class _ClassFormBase:
     """Shared base for deprecated_class() form-equivalence tests.
 
     The form proxies (``WrappedEnum``, ``DecoratedEnum``, ``WrappedDataClass``, ``DecoratedDataClass``) live in
-    :mod:`tests.collection_deprecate`, so the project conftest resets their warn budgets before each test.
+    the ``tests.collection_deprecate*`` modules, so the project conftest resets their warn budgets before each test.
     """
 
 

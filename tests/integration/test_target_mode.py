@@ -36,14 +36,16 @@ from tests.collection_deprecate import (
     depr_target_mode_args_only_with_args_extra_injects_kwargs,
     depr_target_mode_whole_executes_original_body,
     depr_target_mode_whole_warns_on_every_call,
+    make_target_mode_args_only_without_args_mapping_warns,
+    make_target_mode_whole_with_args_extra_warns,
+    make_target_mode_whole_with_args_mapping_warns,
+)
+from tests.collection_deprecate_forwarding import (
     make_callable_target_no_versions_warns,
     make_default_target_no_versions_warns,
     make_default_target_with_versions,
     make_explicit_notify_no_versions_warns,
     make_partial_version_no_guard_warn,
-    make_target_mode_args_only_without_args_mapping_warns,
-    make_target_mode_whole_with_args_extra_warns,
-    make_target_mode_whole_with_args_mapping_warns,
 )
 from tests.collection_targets import tracked_identity_calls
 

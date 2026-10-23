@@ -13,7 +13,7 @@ the ``misconfigured=True`` audit flag (3b).
 Fix 4: The one-time call-time misconfiguration ``UserWarning`` checked and set its flag outside the state lock, so
 concurrent first calls to a misconfigured wrapper could each emit it.
 
-Three-layer rule: the deprecated wrappers and target callables live in ``tests/collection_deprecate.py``,
+Three-layer rule: the deprecated wrappers and target callables live in ``tests/collection_deprecate*.py``,
 ``tests/collection_misconfigured.py``, and ``tests/collection_targets.py``. This module only contains assertions.
 
 """
@@ -31,7 +31,7 @@ from deprecate import TargetMode, assert_no_warnings
 from deprecate._types import _DeprecatedCallable
 from deprecate.audit import validate_deprecation_wrapper
 from tests.collection_depr_legacy import fn_remap_with_extra as legacy_fn_remap_with_extra
-from tests.collection_deprecate import fn_old_default, fn_remap_with_extra
+from tests.collection_deprecate_forwarding import fn_old_default, fn_remap_with_extra
 from tests.collection_misconfigured import (
     make_class_target_false,
     make_class_target_false_with_args_mapping,

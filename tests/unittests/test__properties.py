@@ -13,7 +13,8 @@ from deprecate import TargetMode, deprecated
 from deprecate import property as strict_property
 from deprecate._properties import _DeprecatedProperty, _StrictProperty
 from deprecate.audit import validate_deprecation_expiry
-from tests.collection_deprecate import DelOnlyDeprecatedPropCls, InnerOrderDeprecatedPropCls, ServiceCls
+from tests.collection_deprecate import InnerOrderDeprecatedPropCls, ServiceCls
+from tests.collection_deprecate_forwarding import DelOnlyDeprecatedPropCls
 
 
 class TestDescriptorOrderAgnostic:

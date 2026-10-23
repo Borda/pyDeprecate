@@ -36,14 +36,11 @@ from deprecate.audit import (
 from deprecate.utils import no_warning_call
 from tests import collection_deprecate
 from tests.collection_deprecate import (
-    LocDescriptorHost,
     LocProxyBase,
     MappedDataClass,
     loc_args_remap,
-    loc_async_notify,
     loc_forward,
     loc_notify,
-    loc_notify_wrapped_stream,
     loc_proxy_callable,
     loc_proxy_ctor_remap,
     loc_proxy_mapping,
@@ -67,6 +64,7 @@ from tests.collection_deprecate import (
     make_loc_positional_only_target,
     make_loc_side_effect_box_proxy,
 )
+from tests.collection_deprecate_regressions import LocDescriptorHost, loc_async_notify, loc_notify_wrapped_stream
 from tests.collection_misconfigured import args_only_no_mapping_deprecation
 from tests.collection_targets import (
     LocCustomModuleType,

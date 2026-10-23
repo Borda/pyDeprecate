@@ -22,21 +22,20 @@ import pytest
 
 from deprecate import deprecated
 from deprecate._types import _DeprecatedCallable
-from tests.collection_deprecate import (
+from tests.collection_deprecate import decorated_sum_calls_inf, make_async_stacked_notify
+from tests.collection_deprecate_forwarding import (
     async_args_remap,
     async_callable,
     async_gen_args_remap,
     async_gen_callable,
     async_gen_notify,
     async_notify,
-    decorated_sum_calls_inf,
     deprecated_async_positional_only_to_sync,
     deprecated_async_var_positional_to_sync,
     gen_args_remap,
     gen_callable,
     gen_notify,
     gen_notify_unlimited,
-    make_async_stacked_notify,
 )
 
 # Pair each wrapper with the argument it expects.  ``gen_args_remap`` is the only one with a

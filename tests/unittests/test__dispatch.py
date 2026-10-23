@@ -34,21 +34,25 @@ from deprecate._dispatch import (
 from deprecate._types import DeprecationConfig, _CallFacts, _DeprecatedCallable, _WrapperState
 from deprecate.utils import _signature_facts
 from tests.collection_deprecate import (
-    OldPositionalOnlyClass,
-    OldSelfOnlyClass,
     dep_async_cycle_fn_a,
     dep_async_cycle_fn_b,
-    dep_async_non_cycle_old_fn,
     dep_cycle_fn_a,
     dep_cycle_fn_b,
+    depr_pow_args,
+    depr_target_mode_args_only_with_args_extra_injects_kwargs,
+    make_depr_args_remap_notify_with_extra,
+    make_depr_compute_power_stacked,
+    make_depr_notify_callable_stacked,
+)
+from tests.collection_deprecate_forwarding import (
+    OldPositionalOnlyClass,
+    OldSelfOnlyClass,
+    dep_async_non_cycle_old_fn,
     dep_fib_callable,
     dep_fib_notify,
     dep_fib_remap,
     dep_fib_silent,
     dep_non_cycle_old_fn,
-    depr_pow_args,
-    depr_scale_partial_every_call,
-    depr_target_mode_args_only_with_args_extra_injects_kwargs,
     deprecated_args_remap_positional_only_source,
     deprecated_async_args_remap_positional_only_source,
     deprecated_async_gapped_positional_only_source,
@@ -63,11 +67,9 @@ from tests.collection_deprecate import (
     deprecated_positional_only_two_params_source,
     deprecated_positional_only_with_args_mapping_source,
     fn_shared_default,
-    make_depr_args_remap_notify_with_extra,
-    make_depr_compute_power_stacked,
-    make_depr_notify_callable_stacked,
     make_deprecated_positional_only_num_warns_one,
 )
+from tests.collection_deprecate_regressions import depr_scale_partial_every_call
 from tests.collection_misconfigured import target_false_deprecation
 from tests.collection_targets import (
     KeywordCallTarget,
