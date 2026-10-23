@@ -91,6 +91,7 @@ from tests.collection_targets import (
     SelfOnlyPositionalOnlyTarget,
     SideEffectBox,
     SomeTargetClass,
+    SourcePathTarget,
     StackedAttrTarget,
     StackingArgsAttrsBase,
     SubclassableBase,
@@ -3583,3 +3584,37 @@ def make_pickle_fatal_settings_proxy() -> Any:  # noqa: ANN401
 def loc_notify_wrapped_stream(x: int) -> int:
     """Warn-only source delivering through a ``functools.wraps`` stream that has its own ``stacklevel`` parameter."""
     return x * 2
+
+
+# ========== Proxy ``%(source_path)s`` in a custom ``message_template`` ==========
+# Unlimited budget (proxies are not reset between tests by ``tests/conftest.py``), so every access warns.
+
+#: Custom template rendering the path next to the name, so one assertion pins both placeholders.
+_SOURCE_PATH_TEMPLATE = "%(source_path)s :: %(source_name)s"
+
+#: Whole-class deprecation of :class:`tests.collection_targets.SourcePathTarget` — path is module-qualified.
+DeprSourcePathClass = deprecated_class(message_template=_SOURCE_PATH_TEMPLATE, **_DEPRS_CASE_STD_INF_ARGS)(
+    SourcePathTarget
+)
+
+#: Selective attribute deprecation — one redirect (``old_attr`` -> ``new_attr``) and one warn-only entry.
+DeprSourcePathAttrs = deprecated_class(
+    attrs_mapping={"old_attr": "new_attr", "gone_attr": None},
+    message_template=_SOURCE_PATH_TEMPLATE,
+    **_DEPRS_CASE_STD_INF_ARGS,
+)(SourcePathTarget)
+
+#: Constructor keyword rename ``old`` -> ``new``.
+DeprSourcePathArgs = deprecated_class(
+    args_mapping={"old": "new"}, message_template=_SOURCE_PATH_TEMPLATE, **_DEPRS_CASE_STD_INF_ARGS
+)(SourcePathTarget)
+
+#: Outer proxy stacked over :data:`DeprSourcePathClass` — renders the path of the class both layers wrap.
+DeprSourcePathStacked = deprecated_class(message_template=_SOURCE_PATH_TEMPLATE, **_DEPRS_CASE_STD_INF_ARGS)(
+    DeprSourcePathClass
+)
+
+#: Instance proxy — an instance has no module of its own, so the path is the given ``name``.
+depr_source_path_instance = deprecated_instance(
+    SourcePathTarget(), name="source_path_target", message_template=_SOURCE_PATH_TEMPLATE, **_DEPRS_CASE_STD_INF_ARGS
+)

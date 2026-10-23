@@ -777,6 +777,22 @@ def positional_only_target(x: int, /, y: int = 0) -> int:
     return x + y
 
 
+class SourcePathTarget:
+    """Plain class whose proxies render ``%(source_path)s`` in a custom ``message_template``.
+
+    ``new_attr`` is the replacement an ``attrs_mapping`` redirects to; ``gone_attr`` is a warn-only (``None``-mapped)
+    attribute; ``new`` is the constructor keyword an ``args_mapping`` renames to.  Wrapped by the
+    ``DeprSourcePath*`` proxies and ``depr_source_path_instance`` in :mod:`tests.collection_deprecate`.
+    """
+
+    new_attr = "new"
+    gone_attr = "gone"
+
+    def __init__(self, new: int = 0) -> None:
+        """Store the constructor value."""
+        self.new = new
+
+
 def every_parameter_kind_target(a: int, /, b: int = 2, *rest: int, c: int, d: int = 4, **extra: int) -> None:
     """Target declaring one parameter of every kind, two of them with defaults.
 

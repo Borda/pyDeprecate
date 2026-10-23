@@ -53,6 +53,10 @@ from tests.collection_deprecate import (
     DeprecatedColorEnum,
     DeprecatedColorEnumFunctional,
     DeprecatedPaletteFunctionalFallback,
+    DeprSourcePathArgs,
+    DeprSourcePathAttrs,
+    DeprSourcePathClass,
+    DeprSourcePathStacked,
     MappedColorEnum,
     MappedDataClass,
     MappedDropArgDataClass,
@@ -64,6 +68,7 @@ from tests.collection_deprecate import (
     ast_breadcrumb_source_dict,
     depr_ast_breadcrumb_dict,
     depr_read_only_attrs_list,
+    depr_source_path_instance,
     make_deprecated_class_attrs_skip_if_true,
     make_deprecated_class_skip_if_flag,
     make_deprecated_class_skip_if_non_bool,
@@ -4801,3 +4806,77 @@ class TestWarnBudgetThreadSafety:
         with concurrent.futures.ThreadPoolExecutor(max_workers=n_threads) as pool:
             list(pool.map(worker, range(n_threads)))
         assert len(stream.calls) == 1
+
+
+#: Module-qualified path of :class:`tests.collection_targets.SourcePathTarget`, as a proxy template renders it.
+_SOURCE_PATH_CLASS = "tests.collection_targets.SourcePathTarget"
+
+
+class TestProxySourcePath:
+    """``%(source_path)s`` in a proxy ``message_template`` renders the documented module-qualified path.
+
+    The placeholder table documents ``source_path`` as the fully qualified path of the deprecated object.  Proxies
+    used to render the bare name in its place, so a template written to show where the deprecated class lives lost the
+    module.  Default templates never use the placeholder, so their text is unchanged.
+    """
+
+    def test_class_call_renders_module_path(self) -> None:
+        """Instantiating a deprecated class renders ``module.ClassName``.
+
+        A maintainer deprecates a whole class with a template that names its import path, so users can grep their
+        code for it; constructing the class must show that path, not the bare class name.
+        """
+        with pytest.warns(FutureWarning) as record:
+            DeprSourcePathClass()
+        assert str(record[0].message) == f"{_SOURCE_PATH_CLASS} :: SourcePathTarget"
+
+    def test_argument_renders_module_path(self) -> None:
+        """A renamed constructor keyword renders the class path in its per-argument warning.
+
+        A caller still passing the deprecated ``old`` keyword gets the argument warning; its ``source_path`` is the
+        class path, the same as for the whole-class warning.
+        """
+        with pytest.warns(FutureWarning) as record:
+            DeprSourcePathArgs(old=1)
+        assert [str(w.message) for w in record] == [f"{_SOURCE_PATH_CLASS} :: SourcePathTarget"]
+
+    @pytest.mark.parametrize(
+        "attr", [pytest.param("old_attr", id="redirect"), pytest.param("gone_attr", id="warn-only")]
+    )
+    def test_attribute_renders_attribute_path(self, attr: str) -> None:
+        """A deprecated ``attrs_mapping`` attribute renders ``module.ClassName.attr``.
+
+        Selective attribute deprecation names the attribute in ``source_name``; its ``source_path`` extends the class
+        path with the attribute, for a redirected and for a warn-only (``None``-mapped) entry alike.
+        """
+        with pytest.warns(FutureWarning) as record:
+            getattr(DeprSourcePathAttrs, attr)
+        assert str(record[0].message) == f"{_SOURCE_PATH_CLASS}.{attr} :: {attr}"
+
+    def test_instance_renders_name(self) -> None:
+        """An instance proxy renders its ``name``: an instance has no module of its own.
+
+        ``deprecated_instance`` wraps an object such as a module-level config value; the only stable path it has is
+        the name the maintainer gave it.
+        """
+        with pytest.warns(FutureWarning) as record:
+            _ = depr_source_path_instance.new
+        assert str(record[0].message) == "source_path_target :: source_path_target"
+
+    def test_static_message_renders_module_path(self) -> None:
+        """The PEP 702 ``__deprecated__`` string renders the same path as the runtime warning.
+
+        Type checkers and IDEs show ``__deprecated__`` without running the code; it must agree with what the warning
+        says at runtime.
+        """
+        assert DeprSourcePathClass.__deprecated__ == f"{_SOURCE_PATH_CLASS} :: SourcePathTarget"
+
+    def test_stacked_renders_wrapped_module_path(self) -> None:
+        """An outer proxy stacked over another renders the path of the class both layers wrap.
+
+        Stacking a second ``deprecated_class`` over an existing proxy must not degrade the outer warning to the bare
+        name: the outer layer names the same class, so it shows the same module-qualified path.
+        """
+        with pytest.warns(FutureWarning) as record:
+            DeprSourcePathStacked()
+        assert {str(w.message) for w in record} == {f"{_SOURCE_PATH_CLASS} :: SourcePathTarget"}

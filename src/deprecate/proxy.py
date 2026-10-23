@@ -67,6 +67,7 @@ from deprecate.messaging import (
     _callable_display_name,
     _emit,
     _eval_skip_if,
+    _format_deprecation_message,
     _render_static_deprecation_message,
     _resolve_message_template_alias,
     _validate_message_template,
@@ -627,7 +628,9 @@ class _DeprecatedProxy:
             target_positional_only_order=_ctor_positional_only_order,
         )
         object.__setattr__(self, "__deprecation_config__", dep_meta)
-        object.__setattr__(self, "__deprecated__", _render_static_deprecation_message(dep_meta, name, name))
+        object.__setattr__(
+            self, "__deprecated__", _render_static_deprecation_message(dep_meta, name, _proxy_source_path(obj, name))
+        )
         # Expose the wrapped object's docstring as an instance attribute so that external tools (autodoc,
         # mkdocstrings/griffe) see the source class's documentation rather than _DeprecatedProxy's own class docstring.
         _doc = getattr(obj, "__doc__", None)
@@ -694,13 +697,15 @@ class _DeprecatedProxy:
         attrs_mapping: dict[str, Optional[str]],
         target: Any,  # noqa: ANN401
         custom_template: Optional[str],
+        source_path: str,
     ) -> Optional[str]:
         """Build the warning message for a deprecated ``attrs_mapping`` attribute access.
 
         Strips the ``"__attr__:"`` prefix from *arg_name* to recover the attribute name visible to
         callers.  The prefix must be preserved in the *arg_name* passed by the caller so that the
         per-attribute budget key in ``cfg.warned_args`` stays disjoint from any same-named
-        ``args_mapping`` key — this method intentionally does not reassign *arg_name*.
+        ``args_mapping`` key — this method intentionally does not reassign *arg_name*.  The
+        attribute's ``%(source_path)s`` is ``f"{source_path}.{attr_name}"``.
 
         Returns:
             The formatted warning string, or ``None`` when *attr_name* is not registered in
@@ -711,29 +716,25 @@ class _DeprecatedProxy:
         if attr_name not in attrs_mapping:
             return None
         new_attr = attrs_mapping[attr_name]
+        attr_path = f"{source_path}.{attr_name}"
         if new_attr is not None:
             owner = self._target_display_name(target, dep.name) if not isinstance(target, TargetMode) else dep.name
-            target_path = f"{owner}.{new_attr}"
-            template = custom_template or TEMPLATE_WARNING_CALLABLE
-            return template % {
-                "source_name": attr_name,
-                "source_path": attr_name,
-                "deprecated_in": dep.deprecated_in,
-                "remove_in": dep.remove_in,
-                "target_name": new_attr,
-                "target_path": target_path,
-                "argument_map": "",
-            }
-        template = custom_template or TEMPLATE_WARNING_NO_TARGET
-        return template % {
-            "source_name": attr_name,
-            "source_path": attr_name,
-            "deprecated_in": dep.deprecated_in,
-            "remove_in": dep.remove_in,
-            "target_name": "",
-            "target_path": "",
-            "argument_map": "",
-        }
+            return _format_deprecation_message(
+                custom_template or TEMPLATE_WARNING_CALLABLE,
+                attr_name,
+                attr_path,
+                deprecated_in=dep.deprecated_in,
+                remove_in=dep.remove_in,
+                target_name=new_attr,
+                target_path=f"{owner}.{new_attr}",
+            )
+        return _format_deprecation_message(
+            custom_template or TEMPLATE_WARNING_NO_TARGET,
+            attr_name,
+            attr_path,
+            deprecated_in=dep.deprecated_in,
+            remove_in=dep.remove_in,
+        )
 
     def _shall_skip(self) -> bool:
         """Evaluate the ``skip_if`` condition — ``True`` means the deprecation machinery is inactive.
@@ -1629,7 +1630,8 @@ def _restore_pep702_marker(
 
     """
     if marker is None:
-        object.__setattr__(proxy, "__deprecated__", _render_static_deprecation_message(dep, dep.name, dep.name))
+        source_path = _proxy_source_path(object.__getattribute__(proxy, "_DeprecatedProxy__config").obj, dep.name)
+        object.__setattr__(proxy, "__deprecated__", _render_static_deprecation_message(dep, dep.name, source_path))
     elif marker:
         object.__setattr__(proxy, "__deprecated__", marker[0])
 
@@ -1815,6 +1817,39 @@ def _detect_proxy_positional_only(
     return incompatible
 
 
+def _proxy_source_path(obj: Any, name: str) -> str:  # noqa: ANN401
+    """Return the ``%(source_path)s`` of a proxy over *obj* displayed as *name*.
+
+    A wrapped class or plain function renders as ``f"{obj.__module__}.{name}"``; any other object (an instance, a
+    builtin) has no module of its own and renders as *name*.  A stacked proxy is looked through to the object the
+    innermost proxy wraps, read via ``object.__getattribute__`` so no deprecated attribute access fires; the type
+    checks use ``type(obj)`` for the same reason.  Defensive cycle guard as in :meth:`_get_static_attr_owner`.
+
+    Args:
+        obj: The object the proxy wraps (its ``_ProxyConfig.obj``).
+        name: Display name of the proxy (``DeprecationConfig.name``).
+
+    Returns:
+        The module-qualified path, or *name* when *obj* has no module of its own.
+
+    Example:
+        >>> from collections import OrderedDict
+        >>> _proxy_source_path(OrderedDict, "OrderedDict"), _proxy_source_path(OrderedDict(), "cfg")
+        ('collections.OrderedDict', 'cfg')
+
+    """
+    seen: set[int] = set()
+    while issubclass(type(obj), _DeprecatedProxy):
+        if id(obj) in seen:
+            break
+        seen.add(id(obj))
+        obj = object.__getattribute__(obj, "_DeprecatedProxy__config").obj
+    if not issubclass(type(obj), (type, types.FunctionType)):
+        return name
+    module = getattr(obj, "__module__", None)
+    return f"{module}.{name}" if isinstance(module, str) and module else name
+
+
 def _build_proxy_warn_msg(
     proxy: _DeprecatedProxy,
     arg_name: Optional[str],
@@ -1823,51 +1858,43 @@ def _build_proxy_warn_msg(
 ) -> Optional[str]:
     """Build the warning message string for a proxy warning emission.
 
+    Every branch renders through :func:`~deprecate.messaging._format_deprecation_message`, so placeholders the branch
+    does not fill render as empty strings, as on the ``@deprecated`` path.  ``%(source_path)s`` comes from
+    :func:`_proxy_source_path`.
+
     Returns ``None`` when the warning should be suppressed (``attrs_mapping`` lookup miss).
 
     """
     target: Any = dep.target
     args_mapping = dep.args_mapping
     custom_template = cfg.message_template
+    source_path = _proxy_source_path(cfg.obj, dep.name)
+    versions = {"deprecated_in": dep.deprecated_in, "remove_in": dep.remove_in}
 
     if arg_name is not None and args_mapping and arg_name in args_mapping:
         new_arg = args_mapping[arg_name]
-        argument_map = TEMPLATE_ARGUMENT_MAPPING % {"old_arg": arg_name, "new_arg": str(new_arg)}
-        template = custom_template or TEMPLATE_WARNING_ARGUMENTS
-        return template % {
-            "source_name": dep.name,
-            "source_path": dep.name,
-            "deprecated_in": dep.deprecated_in,
-            "remove_in": dep.remove_in,
-            "target_name": str(new_arg) if new_arg is not None else "",
-            "target_path": "",
-            "argument_map": argument_map,
-        }
+        return _format_deprecation_message(
+            custom_template or TEMPLATE_WARNING_ARGUMENTS,
+            dep.name,
+            source_path,
+            target_name=str(new_arg) if new_arg is not None else "",
+            argument_map=TEMPLATE_ARGUMENT_MAPPING % {"old_arg": arg_name, "new_arg": str(new_arg)},
+            **versions,
+        )
     if arg_name is not None and arg_name.startswith("__attr__:") and dep.attrs_mapping is not None:
-        return proxy._build_attr_warning_msg(arg_name, dep, dep.attrs_mapping, target, custom_template)
+        return proxy._build_attr_warning_msg(arg_name, dep, dep.attrs_mapping, target, custom_template, source_path)
     if callable(target):
         # ``functools.partial`` and callable-instance targets carry no ``__name__``; the helper names them.
         target_name, target_path = _callable_display_name(target)
-        template = custom_template or TEMPLATE_WARNING_CALLABLE
-        return template % {
-            "source_name": dep.name,
-            "source_path": dep.name,
-            "deprecated_in": dep.deprecated_in,
-            "remove_in": dep.remove_in,
-            "target_name": target_name,
-            "target_path": target_path,
-            "argument_map": "",
-        }
-    template = custom_template or TEMPLATE_WARNING_NO_TARGET
-    return template % {
-        "source_name": dep.name,
-        "source_path": dep.name,
-        "deprecated_in": dep.deprecated_in,
-        "remove_in": dep.remove_in,
-        "target_name": "",
-        "target_path": "",
-        "argument_map": "",
-    }
+        return _format_deprecation_message(
+            custom_template or TEMPLATE_WARNING_CALLABLE,
+            dep.name,
+            source_path,
+            target_name=target_name,
+            target_path=target_path,
+            **versions,
+        )
+    return _format_deprecation_message(custom_template or TEMPLATE_WARNING_NO_TARGET, dep.name, source_path, **versions)
 
 
 #: What ``deprecated_class`` accepts for decoration: a plain class, or an already-wrapped proxy when
