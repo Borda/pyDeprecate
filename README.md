@@ -1415,6 +1415,8 @@ deprecated_module(__name__, deprecated_in="2.0", remove_in="3.0", message_templa
 
 **Mode 2 — redirect** (forward missing-attr lookups to a replacement module, useful when renaming):
 
+A context copied during a redirect can resolve the same name again once that lookup finishes, including when the lookup raises an exception. Active redirect cycles still raise `AttributeError`.
+
 ```python
 # phmdoctest:skip — CI template: replace new_calculator with your actual module
 # old_calculator.py

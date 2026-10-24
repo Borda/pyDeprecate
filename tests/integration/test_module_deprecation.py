@@ -32,8 +32,9 @@ from deprecate import (
 from deprecate._types import DeprecationConfig
 from deprecate.audit._lifecycle import _check_deprecated_wrapper_expiry
 from deprecate.audit._wrappers import _format_report_symbol
-from deprecate.module import _redirect_guard, deprecated_module
+from deprecate.module import _redirect_guard, _RedirectResolution, deprecated_module
 from tests.collection_targets import (
+    ContextCapturingLookup,
     FlakyTypeErrorStream,
     InheritedContextLookup,
     KeywordTypeErrorStream,
@@ -1233,6 +1234,38 @@ class TestAttrsMappingShadowsDict:
 class TestRedirectCycle:
     """Redirect cycles longer than the trivial self-target must fail cleanly, not recurse forever."""
 
+    @pytest.mark.parametrize("fail_first", [False, True])
+    @pytest.mark.parametrize("nested", [False, True])
+    def test_copied_context_releases_completed_resolution(
+        self, make_tmp_module: Callable[..., types.ModuleType], fail_first: bool, nested: bool
+    ) -> None:
+        """A context captured by a redirect target can resolve the same name after the lookup finishes.
+
+        A lazy target may capture a context when scheduling later work. Both successful and failed lookups must
+        release every completed redirect in that snapshot, including ancestors in a multi-module redirect chain.
+        """
+        source = make_tmp_module("_test_captured_source_tmp")
+        target = make_tmp_module("_test_captured_target_tmp")
+        lookup = ContextCapturingLookup(fail_first)
+        target.__getattr__ = lookup  # type: ignore[method-assign]
+        if nested:
+            intermediate = make_tmp_module("_test_captured_intermediate_tmp")
+            deprecated_module(intermediate.__name__, target=target, **_DEPRS_CASE_MOD_ARGS)
+            target = intermediate
+        deprecated_module(source.__name__, target=target, **_DEPRS_CASE_MOD_ARGS)
+
+        if fail_first:
+            with pytest.warns(FutureWarning), pytest.raises(AttributeError, match="answer"):
+                getattr(source, "answer")
+        else:
+            with pytest.warns(FutureWarning):
+                assert getattr(source, "answer") == 42
+        captured = lookup.contexts[0]
+        for _ in range(2):
+            with pytest.warns(FutureWarning):
+                assert captured.run(getattr, source, "answer") == 42
+        assert _redirect_guard.get() is None
+
     def test_async_tasks_keep_active_resolutions_separate(
         self, make_tmp_module: Callable[..., types.ModuleType]
     ) -> None:
@@ -1257,14 +1290,16 @@ class TestRedirectCycle:
                 """Resolve the peer's module without inheriting its active guard entries."""
                 assert _redirect_guard.get() is None
                 own_key = (modules[index].__name__, "answer", threading.get_ident())
-                active = frozenset({own_key})
+                resolution = _RedirectResolution(own_key)
+                active = (resolution,)
                 token = _redirect_guard.set(active)
                 try:
                     ready[index].set()
                     await asyncio.wait_for(ready[1 - index].wait(), timeout=10)
                     value = getattr(modules[1 - index], "answer")
                     assert _redirect_guard.get() is active
-                    assert active == {own_key}
+                    assert resolution.active
+                    assert resolution.key == own_key
                     resolved[index].set()
                     await asyncio.wait_for(resolved[1 - index].wait(), timeout=10)
                 finally:

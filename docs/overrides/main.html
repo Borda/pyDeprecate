@@ -393,6 +393,14 @@
         },
         {
           "@type": "Question",
+          "name": "Can a context copied during a module redirect resolve the same name later?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. Redirect guards expire when the original lookup finishes, whether it returns a value or raises an exception. Later work in a copied context can resolve the same name normally. A cyclic redirect that re-enters the same name during an active lookup on the same thread still raises AttributeError."
+          }
+        },
+        {
+          "@type": "Question",
           "name": "Does a deprecation warning survive copy.copy, copy.deepcopy, and pickle?",
           "acceptedAnswer": {
             "@type": "Answer",

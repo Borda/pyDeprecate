@@ -1643,6 +1643,22 @@ class LazySignatureCallable(OpaqueSignatureCallable):
         raise SignatureNotBuiltError("lazy_callable", "not built yet")
 
 
+class ContextCapturingLookup:
+    """Capture a redirect's context before returning an answer or failing its first lookup."""
+
+    def __init__(self, fail_first: bool) -> None:
+        """Configure the first lookup and retain every context captured by the target."""
+        self.fail_first = fail_first
+        self.contexts: list[contextvars.Context] = []
+
+    def __call__(self, name: str) -> int:
+        """Capture the in-flight redirect context and resolve the requested answer."""
+        self.contexts.append(contextvars.copy_context())
+        if name != "answer" or (self.fail_first and len(self.contexts) == 1):
+            raise AttributeError(name)
+        return 42
+
+
 class InheritedContextLookup:
     """Module ``__getattr__`` that answers a name by looking it up again from a thread started in a copied context.
 

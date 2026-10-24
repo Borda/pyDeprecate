@@ -1889,6 +1889,14 @@ deprecated_module(
 
 ______________________________________________________________________
 
+## Can a context copied during a module redirect resolve the same name later?
+
+**Q:** A redirect target captures `contextvars.copy_context()` while resolving a missing attribute. Can later work in that context access the same deprecated attribute?
+
+**A:** Yes. Redirect guards expire when the original lookup finishes, whether it returns a value or raises an exception. Later work in a copied context can resolve the same name normally. A cyclic redirect that re-enters the same name during an active lookup on the same thread still raises `AttributeError`.
+
+______________________________________________________________________
+
 ## Does `from old_calculator import *` still trigger the deprecation warning?
 
 **Q:** I used `from old_calculator import *` after calling `deprecated_module()` on it. Does that star import emit a `FutureWarning`, or does it slip through silently?
