@@ -8,8 +8,17 @@ from typing import TYPE_CHECKING
 import pytest
 
 import deprecate
+import deprecate.proxy as proxy_package
 from deprecate import DeprecationProxy
-from deprecate._types import TargetMode
+from deprecate._fatal import DeprecatedError
+from deprecate._types import DeprecationConfig, TargetMode
+from deprecate.docstring.inject import normalize_docstring_style
+from deprecate.messaging import (
+    TEMPLATE_ARGUMENT_MAPPING,
+    TEMPLATE_WARNING_ARGUMENTS,
+    TEMPLATE_WARNING_CALLABLE,
+    TEMPLATE_WARNING_NO_TARGET,
+)
 from deprecate.proxy import deprecated_class, deprecated_instance
 from deprecate.proxy.core import _DeprecatedProxy
 from tests.collection_deprecate import (
@@ -377,6 +386,28 @@ class TestDeprecatedProtocol:
         """
         assert not hasattr(deprecate, legacy_name)
         assert legacy_name not in deprecate.__all__
+
+    @pytest.mark.parametrize(
+        ("name", "canonical"),
+        [
+            pytest.param("DeprecationConfig", DeprecationConfig, id="DeprecationConfig"),
+            pytest.param("DeprecatedError", DeprecatedError, id="DeprecatedError"),
+            pytest.param("normalize_docstring_style", normalize_docstring_style, id="normalize_docstring_style"),
+            pytest.param("TEMPLATE_ARGUMENT_MAPPING", TEMPLATE_ARGUMENT_MAPPING, id="TEMPLATE_ARGUMENT_MAPPING"),
+            pytest.param("TEMPLATE_WARNING_ARGUMENTS", TEMPLATE_WARNING_ARGUMENTS, id="TEMPLATE_WARNING_ARGUMENTS"),
+            pytest.param("TEMPLATE_WARNING_CALLABLE", TEMPLATE_WARNING_CALLABLE, id="TEMPLATE_WARNING_CALLABLE"),
+            pytest.param("TEMPLATE_WARNING_NO_TARGET", TEMPLATE_WARNING_NO_TARGET, id="TEMPLATE_WARNING_NO_TARGET"),
+        ],
+    )
+    def test_pre_split_names_still_reachable(self, name: str, canonical: object) -> None:
+        """A public-looking name the single-module ``deprecate.proxy`` exposed is still an attribute of the package.
+
+        Before ``deprecate.proxy`` became a package, code could write ``from deprecate.proxy import
+        TEMPLATE_WARNING_CALLABLE`` (or ``DeprecationConfig``, ``DeprecatedError``, ...) because the module imported
+        those names.  Such an import must keep working after the split and must hand back the very object its
+        defining module holds, not a copy that could drift from it.
+        """
+        assert getattr(proxy_package, name) is canonical
 
     def test_runtime_checkable_protocol(self) -> None:
         """``DeprecationProxy`` is ``@runtime_checkable``: ``isinstance`` works on proxy instances.

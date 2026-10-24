@@ -134,6 +134,18 @@ class TestFreshRoundTrip:
         assert _identity(restored) == _identity(proxy)
 
     @pytest.mark.parametrize("protocol", _PROTOCOLS)
+    def test_payload_names_no_post_0_14_class(self, protocol: int) -> None:
+        """The payload references no private class that 0.14 lacks, so an older release can still load it.
+
+        A cache or queue shared by processes on different pyDeprecate releases holds proxies pickled by either one.
+        0.14 has neither ``_WrapperState`` on the proxy config nor ``_CallFacts``; a payload naming either would fail
+        to load there with ``AttributeError: Can't get attribute``.
+        """
+        payload = pickle.dumps(make_pickle_settings_proxy(), protocol=protocol)
+
+        assert (b"_CallFacts" in payload, b"_WrapperState" in payload) == (False, False)
+
+    @pytest.mark.parametrize("protocol", _PROTOCOLS)
     def test_restored_proxy_warns_once(self, protocol: int) -> None:
         """An unpickled proxy with the default budget warns on its first use and stays silent afterwards.
 

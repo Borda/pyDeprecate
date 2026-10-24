@@ -100,22 +100,44 @@ class TestProxyConfigSetstate:
         assert "warned" not in vars(cfg)
         assert "warned_args" not in vars(cfg)
 
-    def test_round_trips_current_layout(self) -> None:
-        """A config pickled today comes back with the same counters and facts and a fresh lock.
+    def test_round_trips_counters(self) -> None:
+        """A config pickled today comes back with the same counters, a fresh lock and empty ``facts``.
 
-        The current layout already holds ``state`` and ``facts``; the migration branch must leave it untouched.
+        The payload uses the 0.14 layout, so ``facts`` is not carried: it starts empty and ``_reconstruct_proxy``
+        refills the positional-only split from the frozen metadata, which mirrors it.
         """
         cfg = _ProxyConfig(
             obj={"threshold": 0.5},
             stream=None,
             num_warns=1,
             read_only=False,
-            state=_WrapperState(warned_calls=1),
+            state=_WrapperState(warned_calls=1, warned_args={"old": 1}),
             facts=_CallFacts(target_positional_only=frozenset({"a"}), target_positional_only_order=("a",)),
         )
         restored = _pickle_round_trip(cfg)
-        assert restored == cfg
+        assert restored == dataclasses.replace(cfg, facts=_CallFacts())
         assert restored.state.lock is not cfg.state.lock
+
+
+class TestProxyConfigGetstate:
+    """``_ProxyConfig.__getstate__`` writes the 0.14 layout, so proxies pickled today still load on 0.14."""
+
+    def test_emits_0_14_layout(self) -> None:
+        """The pickled state holds the eight config fields plus flat ``warned`` / ``warned_args`` counters.
+
+        A cache shared by processes on different pyDeprecate releases holds proxies pickled by either one.  0.14
+        restores a config by updating its ``__dict__``, so a ``state`` or ``facts`` entry would name private classes it
+        does not have; flat counters carry the spent budget in a form both releases read.
+        """
+        cfg = _ProxyConfig(
+            obj={"threshold": 0.5},
+            stream=None,
+            num_warns=1,
+            read_only=False,
+            state=_WrapperState(warned_calls=1, warned_args={"old": 1}, warned_misconfigured=True),
+            facts=_CallFacts(target_positional_only=frozenset({"a"}), target_positional_only_order=("a",)),
+        )
+        assert cfg.__getstate__() == _proxy_config_state_0_14()
 
 
 class TestTemplateMgsAliasProperty:
