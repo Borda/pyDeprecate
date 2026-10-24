@@ -472,6 +472,9 @@ class _CallFacts:
         target_signature_error: The ``TypeError`` or ``ValueError`` that reading a callable target's signature raised
             at decoration, without its traceback; the forwarded call that needs the signature raises a copy of it.
             ``None`` when the read succeeded or the target is a :class:`TargetMode`.  Left out of equality.
+        source_positional_limit: Derived, never passed in: the most positional arguments the source accepts, or
+            ``None`` when it declares ``*args`` and accepts any number.  The one place the arity rule lives; the
+            arity check and the call-plan fast path compare ``len(args)`` against it.  Left out of equality.
 
     """
 
@@ -488,6 +491,12 @@ class _CallFacts:
     target_positional_names: Optional[tuple[str, ...]] = None
     source_defaults: Mapping[str, Any] = field(default_factory=dict, compare=False)
     target_signature_error: Optional[Exception] = field(default=None, compare=False)
+    source_positional_limit: Optional[int] = field(init=False, default=None, compare=False, repr=False)
+
+    def __post_init__(self) -> None:
+        """Derive :attr:`source_positional_limit` from the source's positional parameters."""
+        limit = None if self.source_has_var_positional else len(self.source_positional_names)
+        object.__setattr__(self, "source_positional_limit", limit)
 
 
 @dataclass
@@ -495,8 +504,8 @@ class _ProxyConfig:
     """Private mutable runtime state for :class:`~deprecate.proxy._DeprecatedProxy`.
 
     This is an internal type — not exported from the package and not referenced outside of :mod:`deprecate.proxy`.
-    Its import path and pickle layout are part of the proxy pickle contract: :meth:`__setstate__` still loads the
-    0.14 layout.
+    Its import path and pickle layout are part of the proxy pickle contract: :meth:`__getstate__` writes the 0.14 layout
+    and :meth:`__setstate__` loads it, so proxy pickles stay loadable across 0.14 and this release in both directions.
 
     Attributes:
         obj: The wrapped (source) object.
@@ -538,6 +547,22 @@ class _ProxyConfig:
     def __deepcopy__(self, memo: dict[int, Any]) -> "_ProxyConfig":
         """Deep-copy the wrapped object and snapshot the warn budget; the frozen ``facts`` are shared."""
         return replace(self, obj=copy.deepcopy(self.obj, memo), state=copy.deepcopy(self.state, memo))
+
+    def __getstate__(self) -> dict[str, Any]:
+        """Return the pickle state in the 0.14 layout, so a proxy pickled by this release also loads on 0.14.
+
+        The budget is written as flat ``warned`` / ``warned_args`` counters; neither ``state`` nor ``facts`` is
+        written, because 0.14 restores the config by updating its ``__dict__`` and cannot import either private class.
+        Nothing is lost: a proxy reads only ``warned_calls`` and ``warned_args`` of its state (never
+        ``warned_misconfigured``), :meth:`__setstate__` moves the flat counters back into a fresh
+        :class:`_WrapperState`, and ``_reconstruct_proxy`` refills ``facts`` from the frozen metadata, which mirrors its
+        positional-only split.
+
+        """
+        payload = {key: value for key, value in self.__dict__.items() if key not in ("state", "facts")}
+        payload["warned"] = self.state.warned_calls
+        payload["warned_args"] = dict(self.state.warned_args)
+        return payload
 
     def __setstate__(self, payload: dict[str, Any]) -> None:
         """Restore a pickled config, migrating the 0.14 layout.

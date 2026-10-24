@@ -27,6 +27,7 @@ from deprecate.messaging import (
     _raise_warn_arguments,
     _raise_warn_callable,
     _release_warn_budget,
+    _render_argument_map,
     _render_static_deprecation_message,
     _resolve_message_template_alias,
     _stream_accepts_stacklevel,
@@ -366,6 +367,61 @@ class TestRaiseWarnArguments:
 
         _raise_warn_arguments(stream, my_func, {"old": "new"}, "1.0", "2.0", message_template="map: %(argument_map)s")
         assert stream.call_args[0][0].startswith("map: ")
+
+    def test_kept_name_renders_as_kept(self) -> None:
+        """An argument mapped to ``""`` renders as kept instead of as an arrow to an empty name.
+
+        ``args_mapping={"a": ""}`` keeps the argument under its old name while still warning when a caller passes it.
+        The call-time warning must say the name is kept; an arrow to an empty name reads like a rename to nothing.
+        """
+        stream = MagicMock()
+        _raise_warn_arguments(stream, base_sum_kwargs, {"a": ""}, "1.0", "2.0")
+        assert stream.call_args[0][0] == (
+            "The `base_sum_kwargs` uses deprecated arguments: `a` (kept)."
+            " They were deprecated since v1.0 and will be removed in v2.0."
+        )
+
+
+class TestRenderArgumentMap:
+    """The ``%(argument_map)s`` value renders a kept (``""``-mapped) argument without an arrow to an empty name."""
+
+    @pytest.mark.parametrize(
+        ("arguments", "expected"),
+        [
+            pytest.param({"old": "new"}, "`old` -> `new`", id="rename"),
+            pytest.param({"gone": None}, "`gone` -> `None`", id="drop"),
+            pytest.param({"same": ""}, "`same` (kept)", id="kept"),
+            pytest.param(
+                {"old": "new", "gone": None, "same": ""}, "`old` -> `new`, `gone` -> `None`, `same` (kept)", id="mixed"
+            ),
+            pytest.param({}, "", id="empty"),
+        ],
+    )
+    def test_renders_each_mapping_kind(self, arguments: dict[str, str | None], expected: str) -> None:
+        """A rename and a drop keep the arrow form; only a ``""``-mapped argument renders as kept.
+
+        The ``None`` rendering is pinned in the README and the guides, so only the empty-string case changes; a mixed
+        mapping keeps the configured order and an empty mapping renders nothing.
+        """
+        assert _render_argument_map(arguments) == expected
+
+    def test_static_message_renders_kept_name(self) -> None:
+        """The PEP 702 ``__deprecated__`` string of an ``ARGS_REMAP`` config renders a ``""``-mapped name as kept.
+
+        Type checkers and IDEs show the decoration-time message without running the code; for an argument that keeps
+        its old name it must read the same as the call-time warning, not as an arrow to an empty name.
+        """
+        config = DeprecationConfig(
+            name="old_api",
+            target=TargetMode.ARGS_REMAP,
+            args_mapping={"old": ""},
+            deprecated_in="1.0",
+            remove_in="2.0",
+        )
+        assert _render_static_deprecation_message(config, "old_api", "pkg.old_api") == (
+            "The `old_api` uses deprecated arguments: `old` (kept)."
+            " They were deprecated since v1.0 and will be removed in v2.0."
+        )
 
 
 class TestTemplateMgsValidation:

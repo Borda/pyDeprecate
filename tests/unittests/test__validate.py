@@ -549,8 +549,12 @@ class TestFromLegacyErrors:
         ],
     )
     def test_raises_type_error_for_non_sentinel(self, bad_value: object) -> None:
-        """_from_legacy raises TypeError for any value that is not None, True, or False."""
-        with pytest.raises(TypeError, match="_from_legacy` accepts only None, True, or False"):
+        """A legacy ``target`` that is not None, True, or False raises a TypeError naming the user-facing input.
+
+        A caller passes an unsupported value where the legacy boolean ``target`` sentinel is expected.  The error
+        must describe that input, not an internal helper, so it stays accurate however the private resolver is named.
+        """
+        with pytest.raises(TypeError, match="^Legacy `target` accepts only None, True, or False; got "):
             _resolve_legacy_target(cast(bool, bad_value), emit=False)
 
 

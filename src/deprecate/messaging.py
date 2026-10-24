@@ -42,6 +42,8 @@ TEMPLATE_WARNING_ARGUMENTS = (
 )
 #: Template for mapping from old to new examples
 TEMPLATE_ARGUMENT_MAPPING = "`%(old_arg)s` -> `%(new_arg)s`"
+#: Template for an argument mapped to ``""``, which keeps its old name (see :func:`_render_argument_map`)
+_TEMPLATE_ARGUMENT_KEPT = "`%(old_arg)s` (kept)"
 #: Default template warning message for no target func/method
 TEMPLATE_WARNING_NO_TARGET = (
     "The `%(source_name)s` was deprecated since v%(deprecated_in)s. It will be removed in v%(remove_in)s."
@@ -376,6 +378,35 @@ def _format_deprecation_message(
     return message_template % msg_args
 
 
+def _render_argument_map(arguments: Mapping[str, Optional[str]]) -> str:
+    """Render the ``%(argument_map)s`` value for deprecated arguments: one comma-separated entry per argument.
+
+    Shared by every argument-warning path — the ``@deprecated`` call-time warning (:func:`_raise_warn_arguments`), the
+    decoration-time ``__deprecated__`` string (:func:`_render_static_deprecation_message`) and the proxy per-argument
+    warning — so they render each mapping identically.  A rename renders through :data:`TEMPLATE_ARGUMENT_MAPPING`, and
+    so does a dropped argument (``None`` renders as ``None``).  An argument mapped to another falsy value (``""``) keeps
+    its old name when the call is remapped (:func:`deprecate.utils._remap_kwargs`), so it renders as kept instead of as
+    an arrow to an empty name.
+
+    Args:
+        arguments: Deprecated argument names mapped to their new names, ``None`` (dropped) or ``""`` (kept).
+
+    Returns:
+        The rendered entries joined by ``", "``; an empty string for an empty mapping.
+
+    Example:
+        >>> _render_argument_map({"old": "new", "gone": None, "same": ""})
+        '`old` -> `new`, `gone` -> `None`, `same` (kept)'
+
+    """
+    return ", ".join(
+        _TEMPLATE_ARGUMENT_KEPT % {"old_arg": old}
+        if new is not None and not new
+        else TEMPLATE_ARGUMENT_MAPPING % {"old_arg": old, "new_arg": str(new)}
+        for old, new in arguments.items()
+    )
+
+
 def _render_static_deprecation_message(dep: DeprecationConfig, source_name: str, source_path: str) -> str:
     """Render the PEP-702-conformant ``__deprecated__`` message string for *dep* at decoration time.
 
@@ -396,10 +427,7 @@ def _render_static_deprecation_message(dep: DeprecationConfig, source_name: str,
 
     """
     if dep.target is TargetMode.ARGS_REMAP:
-        argument_map = ", ".join(
-            TEMPLATE_ARGUMENT_MAPPING % {"old_arg": old, "new_arg": str(new)}
-            for old, new in (dep.args_mapping or {}).items()
-        )
+        argument_map = _render_argument_map(dep.args_mapping or {})
         return _format_deprecation_message(
             dep.message_template or TEMPLATE_WARNING_ARGUMENTS,
             source_name,
@@ -574,7 +602,8 @@ def _raise_warn_arguments(
     Template Variables Available:
         - source_name: Function name (e.g., "my_func")
         - source_path: Full path (e.g., "mymodule.my_func")
-        - argument_map: Formatted string showing mappings (e.g., "`old` -> `new`")
+        - argument_map: Formatted string showing mappings (e.g., "`old` -> `new`"; an argument mapped to ``""``
+          keeps its name and renders as "`old` (kept)") — see :func:`_render_argument_map`
         - deprecated_in: Version parameter value
         - remove_in: Version parameter value
 
@@ -592,7 +621,6 @@ def _raise_warn_arguments(
         >>> #           They were deprecated since v1.0 and will be removed in v2.0."
 
     """
-    args_map = ", ".join(TEMPLATE_ARGUMENT_MAPPING % {"old_arg": a, "new_arg": str(b)} for a, b in arguments.items())
     _raise_warn(
         stream,
         source,
@@ -600,7 +628,7 @@ def _raise_warn_arguments(
         as_exception=as_exception,
         deprecated_in=deprecated_in,
         remove_in=remove_in,
-        argument_map=args_map,
+        argument_map=_render_argument_map(arguments),
     )
 
 

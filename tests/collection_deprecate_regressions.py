@@ -34,6 +34,7 @@ from tests.collection_targets import (
     double_value,
     identity_value,
     legacy_host_scale,
+    make_module_raising_class,
     nested_partial_target,
     partial_async_target,
     partial_new_cls_target,
@@ -766,6 +767,22 @@ def shape_remap_var_positional_with_extra(
     return values, old, new, flag
 
 
+@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old": "new"}, args_extra={"new": 5}, **_DEPRS_CASE_STD_ARGS)
+def shape_remap_var_positional_extra_fills_slot(
+    new: int = 0, *values: int, **others: int
+) -> tuple[int, tuple[int, ...], dict[str, int]]:
+    """``new`` leads a ``*values`` tail and ``args_extra`` injects ``new`` as well; returns what it received."""
+    return new, values, others
+
+
+@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old": "new"}, **_DEPRS_CASE_STD_ARGS)
+def shape_remap_var_positional_rename_fills_slot(
+    new: int = 0, *values: int, **others: int
+) -> tuple[int, tuple[int, ...], dict[str, int]]:
+    """``new`` leads a ``*values`` tail and ``old`` is renamed to it; returns what it received."""
+    return new, values, others
+
+
 def make_pickle_settings_proxy() -> Any:  # noqa: ANN401
     """Wrap a fresh settings dict in a ``deprecated_instance`` proxy with the default one-warning budget.
 
@@ -968,6 +985,17 @@ DeprSourcePathStacked = deprecated_class(message_template=_SOURCE_PATH_TEMPLATE,
 depr_source_path_instance = deprecated_instance(
     SourcePathTarget(), name="source_path_target", message_template=_SOURCE_PATH_TEMPLATE, **_DEPRS_CASE_STD_INF_ARGS
 )
+
+
+def make_depr_module_raising_class(metaclass: type) -> Any:  # noqa: ANN401
+    """Deprecate a fresh class whose *metaclass* refuses a dynamic ``__module__`` lookup.
+
+    Decorating at call time keeps the refusing class out of module scans; the proxy renders ``%(source_path)s`` from the
+    class's own namespace (see :func:`tests.collection_targets.make_module_raising_class`).
+    """
+    return deprecated_class(message_template=_SOURCE_PATH_TEMPLATE, **_DEPRS_CASE_STD_INF_ARGS)(
+        make_module_raising_class(metaclass)
+    )
 
 
 # ---------------------------------------------------------------------------

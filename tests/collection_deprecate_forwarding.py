@@ -1,7 +1,8 @@
 """Deprecated wrappers for argument forwarding, proxy mappings, descriptors and async callables."""
 
+import asyncio
 from collections.abc import AsyncIterator, Iterator
-from typing import Callable
+from typing import Any, Callable
 from warnings import catch_warnings, simplefilter
 
 import typing_extensions
@@ -38,11 +39,13 @@ from tests.collection_targets import (
     async_gen_target,
     async_non_cycle_double,
     async_positional_only_target,
+    async_suspending_double,
     async_target,
     async_var_positional_target,
     both_old_new_target,
     del_only_prop_fdel,
     fib_recursive,
+    fn_kept_name_target,
     fn_remap_with_extra_body,
     fn_shared_default_target,
     fn_with_default,
@@ -72,6 +75,12 @@ ProxyArgsRemapAuto = deprecated_class(**_DEPRS_CASE_TGT_MODE_ARGS, args_mapping=
 ProxyCallableWithArgsMapping = deprecated_class(
     **_DEPRS_CASE_TGT_MODE_ARGS, target=SomeTargetClass, args_mapping={"old_key": "new_key"}
 )(SomeTargetClass)
+
+
+# Proxy: args_mapping value "" keeps the old argument name (here it is also the target's own name)
+ProxyArgsMappedToEmpty = deprecated_class(**_DEPRS_CASE_TGT_MODE_INF_ARGS, args_mapping={"new_key": ""})(
+    SomeTargetClass
+)
 
 
 # ========== Fix-set fixtures: misconfig and feature parity additions ==========
@@ -182,6 +191,16 @@ def depr_collision_old_new_extra_wins(old: int = 0, new: int = 0) -> int:
     the caller passed.
     """
     return void(old, new)
+
+
+@deprecated(target=fn_kept_name_target, **_DEPRS_CASE_TGT_MODE_INF_ARGS, args_mapping={"level": ""})
+def depr_args_mapping_empty_keeps_name(level: int = 0) -> int:
+    """Source whose ``args_mapping`` value ``""`` keeps the argument name ``level`` when forwarding.
+
+    A caller still passing ``level=...`` is warned, and the value must reach the target under the same name.
+
+    """
+    return void(level)
 
 
 # ========== Regression fixtures: Fix 1 + Fix 2 ==========
@@ -940,6 +959,43 @@ def dep_non_cycle_old_fn(x: int) -> int:
 async def dep_async_non_cycle_old_fn(x: int) -> int:
     """Async deprecated wrapper forwarding to async_non_cycle_double — never forms a cycle."""
     return x
+
+
+# ========== Tasks spawned inside a guarded call ==========
+
+
+@deprecated(target=async_suspending_double, **_DEPRS_CASE_STD_ARGS)
+async def dep_async_suspending_old_fn(x: int) -> int:
+    """Async deprecated wrapper whose target stays in flight across a task switch."""
+    return x
+
+
+async def _async_sibling_pair_target(x: int) -> list[int]:
+    """Target of ``dep_async_sibling_pair_old_fn``: runs two sibling calls of one deprecated wrapper concurrently."""
+    return list(await asyncio.gather(dep_async_suspending_old_fn(x), dep_async_suspending_old_fn(x + 1)))
+
+
+@deprecated(target=_async_sibling_pair_target, **_DEPRS_CASE_STD_ARGS)
+async def dep_async_sibling_pair_old_fn(x: int) -> list[int]:
+    """Async deprecated wrapper whose target gathers two sibling calls of another deprecated wrapper."""
+    return [x]
+
+
+_dep_async_task_cycle: dict[str, Any] = {}
+
+
+async def _async_task_cycle_target(x: int) -> int:
+    """Target that re-enters its own deprecated wrapper from a spawned task while the outer call is in flight."""
+    return await asyncio.create_task(_dep_async_task_cycle["fn"](x))
+
+
+@deprecated(target=_async_task_cycle_target, **_DEPRS_CASE_STD_ARGS)
+async def dep_async_task_cycle_fn(x: int) -> int:
+    """Async deprecated wrapper whose target calls it again from a new task: a cycle across a task boundary."""
+    return x
+
+
+_dep_async_task_cycle["fn"] = dep_async_task_cycle_fn
 
 
 # ========== Recursive deprecated function fixtures ==========

@@ -53,14 +53,23 @@ from typing import (
     overload,
 )
 
+from deprecate._fatal import DeprecatedError  # noqa: F401 # re-exported: pre-split import path
 from deprecate._frames import _caller_stacklevel
 from deprecate._types import (
+    DeprecationConfig,  # noqa: F401 # re-exported: pre-split import path
     DeprecationProxy,
     TargetMode,
     get_deprecation_config,
 )
-from deprecate.docstring.inject import _update_docstring_with_deprecation
+from deprecate.docstring.inject import (
+    _update_docstring_with_deprecation,
+    normalize_docstring_style,  # noqa: F401 # re-exported: pre-split import path
+)
 from deprecate.messaging import (
+    TEMPLATE_ARGUMENT_MAPPING,  # noqa: F401 # re-exported: pre-split import path
+    TEMPLATE_WARNING_ARGUMENTS,  # noqa: F401 # re-exported: pre-split import path
+    TEMPLATE_WARNING_CALLABLE,  # noqa: F401 # re-exported: pre-split import path
+    TEMPLATE_WARNING_NO_TARGET,  # noqa: F401 # re-exported: pre-split import path
     _resolve_message_template_alias,
     deprecation_warning,
 )
@@ -94,10 +103,10 @@ class _ClassDecorator(Protocol):
     """Decorator returned by :func:`deprecated_class` when no replacement class is given: the source keeps its type.
 
     At runtime every input comes back wrapped in a :class:`_DeprecatedProxy`. For a class input the static type stays
-    ``type[Cls]`` because the proxy is a truthful stand-in for it — ``isinstance`` (``__instancecheck__``),
-    subclassing (``__mro_entries__``), construction, and attribute access all forward to the class — and it matches
-    what type checkers (mypy, which ignores a class decorator's return type) infer for the ``@deprecated_class(...)``
-    decorator form. An already-wrapped proxy (stacking) keeps its concrete proxy type.
+    ``type[Cls]`` because the proxy is a truthful stand-in for it — ``isinstance`` (``__instancecheck__``), subclassing
+    (``__mro_entries__``), construction, and attribute access all forward to the class — and it matches what type
+    checkers (mypy, which ignores a class decorator's return type) infer for the ``@deprecated_class(...)`` decorator
+    form. An already-wrapped proxy (stacking) keeps its concrete proxy type.
 
     """
 
@@ -114,8 +123,8 @@ class _RedirectDecorator(Protocol[_NewT_co]):
     A redirecting proxy does not stand in for the class it wraps — ``isinstance``, construction, and attribute access
     all resolve against *target*, so ``deprecated_class(target=NewCls)(OldCls)`` is statically ``type[NewCls]``, never
     ``type[OldCls]`` (``OldCls`` instances are not instances of the alias).  The wrapped class is not part of the result
-    type, so it may be any class — including a bare ``type`` — and need not be related to *target*.  A source that
-    is already a proxy (stacking) keeps its concrete proxy type.
+    type, so it may be any class — including a bare ``type`` — and need not be related to *target*.  A source that is
+    already a proxy (stacking) keeps its concrete proxy type.
 
     """
 
@@ -219,8 +228,8 @@ def deprecated_class(
             - ``%(remove_in)s`` — value of the ``remove_in`` argument
             - ``%(target_name)s`` — target class name (only when *target* is callable)
             - ``%(target_path)s`` — fully-qualified target path (only when *target* is callable)
-            - ``%(argument_map)s`` — formatted ``\`old\` -> \`new\``` string (only for per-argument warnings
-              emitted by ``args_mapping``)
+            - ``%(argument_map)s`` — formatted ``\`old\` -> \`new\``` string, or ``\`old\` (kept)`` for an argument
+              mapped to ``""`` (only for per-argument warnings emitted by ``args_mapping``)
 
             Example: ``"v%(deprecated_in)s: ``%(source_name)s`` -> ``%(target_name)s``"``.
         args_mapping: Optional dict remapping keyword argument names when the decorated class is called.  Keys are

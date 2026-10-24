@@ -8,6 +8,7 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 
 """
 
+import contextlib
 import copy
 import inspect
 import warnings
@@ -149,7 +150,8 @@ def _check_source_arity(source: Callable, args: tuple[Any, ...], facts: _CallFac
         TypeError: source() takes 1 to 2 positional argument(s) but got 3 positional argument(s)
 
     """
-    if facts.source_has_var_positional or len(args) <= len(facts.source_positional_names):
+    limit = facts.source_positional_limit
+    if limit is None or len(args) <= limit:
         return
     _raise_positional_arity_error(source, facts.source_positional_names, facts.source_defaults, len(args))
 
@@ -203,17 +205,18 @@ def _is_verbatim_call(
     return mapping_names.isdisjoint(kwargs) and mapping_names.isdisjoint(source_positional_names[: len(args)])
 
 
-def _update_kwargs_with_args(
-    func: Callable, fn_args: tuple[Any, ...], fn_kwargs: dict[str, Any], facts: _CallFacts
-) -> dict[str, Any]:
+def _update_kwargs_with_args(fn_args: tuple[Any, ...], fn_kwargs: dict[str, Any], facts: _CallFacts) -> dict[str, Any]:
     """Convert positional arguments to keyword arguments using the decoration-time parameter names.
 
     This helper takes positional arguments and converts them to keyword arguments by matching them with the source's
     positional parameter names, read from its signature when it was decorated.  This enables consistent argument
     handling in the deprecation wrapper.
 
+    The caller has already rejected surplus positionals with :func:`_check_source_arity` (:func:`_build_call_plan` does
+    so before any other work), so this helper does not check the arity again.  Values beyond the named positional
+    parameters are left unconverted instead of raising.
+
     Args:
-        func: The decorated callable; a surplus positional argument raises a ``TypeError`` naming it.
         fn_args: Tuple of positional arguments passed to the function.
         fn_kwargs: Dictionary of keyword arguments already passed.
         facts: The wrapper's signature facts (see :func:`_check_source_arity`).
@@ -223,20 +226,16 @@ def _update_kwargs_with_args(
         to their parameter names.  Conversion stops at the var-positional parameter (``*args``) because its values
         cannot be safely represented as keyword arguments.
 
-    Raises:
-        TypeError: When ``func`` has no ``*args`` and ``fn_args`` holds more values than it has positional parameters.
-
     Example:
         >>> from pprint import pprint
         >>> def example_func(a, b, c=3): pass
         >>> facts = _build_call_facts(example_func, TargetMode.NOTIFY, None)
-        >>> pprint(_update_kwargs_with_args(example_func, (1, 2), {'c': 5}, facts))
+        >>> pprint(_update_kwargs_with_args((1, 2), {'c': 5}, facts))
         {'a': 1, 'b': 2, 'c': 5}
 
     """
     if not fn_args:
         return fn_kwargs
-    _check_source_arity(func, fn_args, facts)
     updated_kwargs = dict(fn_kwargs)
     # Positional parameters precede ``*args`` in every signature, so ``zip`` stops where the old loop broke off.
     updated_kwargs.update(zip(facts.source_positional_names, fn_args))
@@ -545,17 +544,39 @@ class _WrapperContext:
         )
 
 
-#: Handle returned by :func:`_enter_cycle_guard`: the active id-set and the token that installed it, or ``None`` when
-#: the wrapper does not run under the guard.
-_CycleGuardHandle = Optional[tuple[set[int], Optional["Token[Optional[set[int]]]"]]]
+class _CycleEntry:
+    """Track one guarded call's lifetime across contexts copied while it is running.
 
-# ContextVar storing the active-wrapper id-set for the current async task or sync call stack.
-# Each asyncio.Task inherits a snapshot of the parent context at creation time; because this
-# ContextVar defaults to None and is only set() to a fresh set() inside the wrapper call, tasks
-# spawned from user code (e.g. asyncio.gather) see None and create independent sets — no sharing.
-# A synchronous recursive chain (same task/stack) shares one set — correct for cycle detection.
+    A task or ``contextvars.copy_context()`` made inside the call keeps the entry it copied after the call returned.
+    The copy shares this object, so clearing :attr:`active` on exit expires the entry in every copy at once.  A plain
+    ``__slots__`` class rather than a dataclass: one is created per guarded call, and its construction shows up in the
+    per-call benchmark.
+
+    Attributes:
+        source_id: ``id()`` of the guarded wrapper's source callable.
+        active: ``True`` while the call is in flight.
+
+    """
+
+    __slots__ = ("active", "source_id")
+
+    def __init__(self, source_id: int) -> None:
+        self.source_id = source_id
+        self.active = True
+
+
+#: Handle returned by :func:`_enter_cycle_guard`: the call's entry and the token that installed the chain containing it,
+#: or ``None`` when the wrapper does not run under the guard.
+_CycleGuardHandle = Optional[tuple[_CycleEntry, "Token[Optional[tuple[_CycleEntry, ...]]]"]]
+
+# ContextVar holding the chain of guarded calls in flight for the current async task or sync call stack.
+# The chain is an immutable tuple, replaced on every entry and restored on every exit, never mutated in place, so a
+# task or context spawned inside a guarded call starts from a snapshot of the chain and sets its own successor
+# without touching its siblings.  Sibling tasks therefore never see each other's calls as a cycle, while a call that
+# re-enters a wrapper still in flight on its own chain, from the same stack or from a spawned task, does raise.
+# The entries are shared with copied contexts only so that a finished call can expire in them (see ``_CycleEntry``).
 # Only ``_enter_cycle_guard`` / ``_exit_cycle_guard`` below read or write it.
-_cycle_detection: ContextVar[Optional[set[int]]] = ContextVar("_cycle_detection", default=None)
+_cycle_detection: ContextVar[Optional[tuple[_CycleEntry, ...]]] = ContextVar("_cycle_detection", default=None)
 
 
 def _enter_cycle_guard(ctx: _WrapperContext) -> _CycleGuardHandle:
@@ -577,29 +598,35 @@ def _enter_cycle_guard(ctx: _WrapperContext) -> _CycleGuardHandle:
     """
     if not ctx.cycle_guarded:
         return None
-    active = _cycle_detection.get()
-    token: Optional[Token[Optional[set[int]]]] = None
-    if active is None:
-        active = set()
-        token = _cycle_detection.set(active)
-    if id(ctx.source) in active:
-        source_name = getattr(ctx.source, "__qualname__", repr(ctx.source))
-        raise RuntimeError(
-            f"Circular deprecation cycle detected: `{source_name}` re-entered"
-            " via its own target chain. Point to a non-deprecated final implementation."
-        )
-    active.add(id(ctx.source))
-    return active, token
+    source_id = id(ctx.source)
+    chain = _cycle_detection.get()
+    entry = _CycleEntry(source_id)
+    if chain:
+        # Entries of calls that finished after a context was copied are dropped, so a stale copy cannot raise.
+        chain = tuple(other for other in chain if other.active)
+        if any(other.source_id == source_id for other in chain):
+            source_name = getattr(ctx.source, "__qualname__", repr(ctx.source))
+            raise RuntimeError(
+                f"Circular deprecation cycle detected: `{source_name}` re-entered"
+                " via its own target chain. Point to a non-deprecated final implementation."
+            )
+        chain += (entry,)
+    else:
+        chain = (entry,)
+    return entry, _cycle_detection.set(chain)
 
 
 def _exit_cycle_guard(ctx: _WrapperContext, handle: _CycleGuardHandle) -> None:
-    """Undo :func:`_enter_cycle_guard`: drop ``ctx.source`` from the active set and restore the outer value."""
+    """Undo :func:`_enter_cycle_guard`: expire the call's entry and restore the chain from before the call.
+
+    ``ctx`` is not read; it stays so both guard functions take the wrapper context the same way.
+
+    """
     if handle is None:
         return
-    active, token = handle
-    active.discard(id(ctx.source))
-    if token is not None:
-        _cycle_detection.reset(token)
+    entry, token = handle
+    entry.active = False
+    _cycle_detection.reset(token)
 
 
 def _leading_positional_slots(func: Callable[..., Any]) -> tuple[tuple[str, ...], bool]:
@@ -650,12 +677,46 @@ def _target_signature_facts(
         return _SigFacts(), error.with_traceback(None)
 
 
+def _rebuild_exception(error: Exception) -> Exception:
+    """Return a new exception of the same type as ``error`` without calling its constructor.
+
+    Copies ``args`` and the instance ``__dict__``, so an error type whose constructor takes more than the message
+    (and cannot be rebuilt from ``args``) keeps its attributes.  Values held in ``__slots__`` are not carried over.
+
+    Raises:
+        TypeError: When the type's ``__new__`` needs arguments.
+
+    """
+    rebuilt = type(error).__new__(type(error))
+    rebuilt.args = error.args
+    rebuilt.__dict__.update(vars(error))
+    return rebuilt
+
+
+def _fresh_signature_error(error: Exception) -> Exception:
+    """Return a never-raised error equal to ``error``, so raising it again cannot touch ``error``.
+
+    Tries, in order, :func:`copy.copy`, a rebuild that skips the constructor (:func:`_rebuild_exception`), and finally a
+    plain ``TypeError`` or ``ValueError`` carrying the message.  The last step loses the error's own type but is still
+    caught by the documented base type; no step returns ``error`` itself.
+
+    """
+    # Broad on purpose: a user-defined ``__reduce__``, ``__new__`` or ``__init__`` may raise anything.
+    with contextlib.suppress(Exception):
+        return copy.copy(error)
+    with contextlib.suppress(Exception):
+        return _rebuild_exception(error)
+    return (TypeError if isinstance(error, TypeError) else ValueError)(*error.args)
+
+
 def _raise_target_signature_error(facts: _CallFacts) -> None:
     """Raise, on a forwarded call, the error the target's signature read raised when the function was decorated.
 
     A target whose signature cannot be read still decorates; the forwarded call that needs the signature raises a
-    fresh copy of the decoration-time error, as the call-time read this replaces did.  Does nothing when the read
-    succeeded or the facts were built by hand.
+    fresh copy of the decoration-time error (:func:`_fresh_signature_error`), as the call-time read this replaces did.
+    The stored error is never raised itself: raising one shared object would grow its traceback on every call and
+    overwrite its ``__context__`` across threads.  Does nothing when the read succeeded or the facts were built by
+    hand.
 
     Raises:
         TypeError: A copy of :attr:`~deprecate._types._CallFacts.target_signature_error`, when it is one.
@@ -665,11 +726,7 @@ def _raise_target_signature_error(facts: _CallFacts) -> None:
     error = facts.target_signature_error
     if error is None:
         return
-    try:
-        fresh = copy.copy(error)
-    except Exception:  # an error type that cannot be rebuilt from its ``args``: raise it as stored
-        fresh = error
-    raise fresh
+    raise _fresh_signature_error(error)
 
 
 def _build_call_facts(
@@ -809,7 +866,8 @@ def _skips_call_plan(ctx: _WrapperContext, args: tuple[Any, ...], kwargs: Mappin
         return False
     state, facts = ctx.state, ctx.facts
     misconfig_due = ctx.cfg.misconfigured and ctx.stream and not state.warned_misconfigured
-    if misconfig_due or (not facts.source_has_var_positional and len(args) > len(facts.source_positional_names)):
+    limit = facts.source_positional_limit
+    if misconfig_due or (limit is not None and len(args) > limit):
         return False
     if ctx.fast_notify:
         spent = not ctx.stream or (ctx.num_warns >= 0 and state.warned_calls >= ctx.num_warns)
@@ -965,7 +1023,7 @@ def _build_call_plan(ctx: _WrapperContext, args: tuple[Any, ...], kwargs: dict[s
     # *args sources need the unremapped tuple; remapping happens on kwargs only.
     original_kwargs = dict(kwargs)
     if not verbatim:
-        kwargs = _update_kwargs_with_args(ctx.source, args, kwargs, facts)
+        kwargs = _update_kwargs_with_args(args, kwargs, facts)
     reason_callable, reason_argument = _resolve_reasons(ctx, kwargs)
     if _is_short_circuit(ctx, reason_callable, reason_argument):
         return _CallPlan(short_circuit=True, original_kwargs=original_kwargs, resolved_kwargs=kwargs, verbatim=verbatim)
@@ -1039,23 +1097,44 @@ def _reorder_kwargs_for_surplus(
     return pos_args, kw_args
 
 
-def _var_positional_source_kwargs(ctx: _WrapperContext, plan: _CallPlan) -> dict[str, Any]:
-    """Return the keywords a source declaring ``*args`` receives next to the caller's own positional tuple.
+def _var_positional_source_call(
+    ctx: _WrapperContext, plan: _CallPlan, args: tuple[Any, ...]
+) -> tuple[list[Any], dict[str, Any]]:
+    """Return the ``(pos_args, kw_args)`` a source declaring ``*args`` receives.
 
     Only the caller-supplied keywords are used, never ``resolved_kwargs``, which also holds the positional-to-keyword
     conversions that would double-pass with ``*args``.  A rewritten call applies the ``args_mapping`` rename to them (a
     no-op for a caller already on the new names; an explicit new-name value wins over a renamed old one) and merges
     ``args_extra`` last, so the injected keywords reach the source whether or not the caller used a deprecated name.
 
+    The caller's positional tuple fills the leading named parameters, so a name the rewrite adds as a keyword while
+    the tuple already binds it would be passed twice.  It is reconciled against the bound prefix instead, with the same
+    precedence a source without ``*args`` gets:
+
+    - a keyword the *rename* produced for a positionally bound name is dropped, because the positional value wins; a
+      keyword the caller passed itself is kept, so a genuine duplicate still raises Python's own ``TypeError``;
+    - an ``args_extra`` value for a positionally bound name replaces that positional value, because ``args_extra``
+      wins over both.
+
     """
     if plan.short_circuit:
-        return plan.original_kwargs
+        return list(args), plan.original_kwargs
+    pos_args = list(args)
+    bound = ctx.facts.source_positional_names[: len(args)]
+    original = plan.original_kwargs
     # Silent rename (``stream=None``): these keywords are a subset of the resolved keywords, whose rename in
     # _resolve_forward_kwargs already emitted every collision UserWarning once for this call.
-    kw_args = _remap_kwargs(ctx.cfg.args_mapping or {}, plan.original_kwargs, name=ctx.source.__name__, stream=None)
-    if ctx.cfg.args_extra:
-        kw_args.update(ctx.cfg.args_extra)
-    return kw_args
+    kw_args = _remap_kwargs(ctx.cfg.args_mapping or {}, original, name=ctx.source.__name__, stream=None)
+    for name in bound:
+        if name not in original:
+            kw_args.pop(name, None)
+    extra = ctx.cfg.args_extra
+    if extra:
+        kw_args.update(extra)
+        for index, name in enumerate(bound):
+            if name in extra:
+                pos_args[index] = kw_args.pop(name)
+    return pos_args, kw_args
 
 
 def _resolve_source_call_shape(
@@ -1069,8 +1148,8 @@ def _resolve_source_call_shape(
 
     - A :attr:`~deprecate._types._CallPlan.verbatim` plan returns the caller's own positional tuple and keywords
       unchanged — no rename, no injected extras and no defaults merge apply, so no split is needed either.
-    - ``*args`` sources keep their original positional tuple; the keywords come from
-      :func:`_var_positional_source_kwargs`.
+    - ``*args`` sources keep their original positional tuple, reconciled with the rewritten keywords by
+      :func:`_var_positional_source_call` so no parameter is bound twice.
     - Sources declaring POSITIONAL_ONLY params get those split back out of the resolved
       kwargs — the wrapper converted them to keyword form internally, but the source body
       cannot accept them as keywords.
@@ -1081,7 +1160,7 @@ def _resolve_source_call_shape(
         return list(args), plan.original_kwargs
     facts = ctx.facts
     if facts.source_has_var_positional:
-        return list(args), _var_positional_source_kwargs(ctx, plan)
+        return _var_positional_source_call(ctx, plan, args)
     if facts.source_positional_only:
         return _split_positional_only_kwargs(
             facts.source_positional_only_order, plan.resolved_kwargs, facts.source_positional_only

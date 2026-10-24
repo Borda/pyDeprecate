@@ -20,7 +20,6 @@ from deprecate._types import DeprecationConfig, TargetMode, _CallFacts, _ProxyCo
 from deprecate._validate import _resolve_legacy_proxy_target, _validate_callable_mode, _validate_proxy_mode
 from deprecate.docstring.inject import normalize_docstring_style
 from deprecate.messaging import (
-    TEMPLATE_ARGUMENT_MAPPING,
     TEMPLATE_WARNING_ARGUMENTS,
     TEMPLATE_WARNING_CALLABLE,
     TEMPLATE_WARNING_NO_TARGET,
@@ -30,6 +29,7 @@ from deprecate.messaging import (
     _eval_skip_if,
     _format_deprecation_message,
     _release_warn_budget,
+    _render_argument_map,
     _render_static_deprecation_message,
     _validate_message_template,
     deprecation_warning,
@@ -1434,9 +1434,17 @@ def _proxy_source_path(obj: Any, name: str) -> str:  # noqa: ANN401
             break
         seen.add(id(obj))
         obj = object.__getattribute__(obj, "_DeprecatedProxy__config").obj
-    if not issubclass(type(obj), (type, types.FunctionType)):
+    if issubclass(type(obj), type):
+        # Read the class's own ``__module__`` entry through ``type``'s descriptor: a dynamic lookup dispatches through
+        # the metaclass, whose ``__getattribute__`` or ``__module__`` property may raise anything.
+        try:
+            module = type.__dict__["__module__"].__get__(obj, type(obj))
+        except AttributeError:
+            return name
+    elif issubclass(type(obj), types.FunctionType):
+        module = getattr(obj, "__module__", None)
+    else:
         return name
-    module = getattr(obj, "__module__", None)
     return f"{module}.{name}" if isinstance(module, str) and module else name
 
 
@@ -1468,7 +1476,7 @@ def _build_proxy_warn_msg(
             dep.name,
             source_path,
             target_name=str(new_arg) if new_arg is not None else "",
-            argument_map=TEMPLATE_ARGUMENT_MAPPING % {"old_arg": arg_name, "new_arg": str(new_arg)},
+            argument_map=_render_argument_map({arg_name: new_arg}),
             **versions,
         )
     if arg_name is not None and arg_name.startswith("__attr__:") and dep.attrs_mapping is not None:

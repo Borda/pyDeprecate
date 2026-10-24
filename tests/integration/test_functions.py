@@ -61,6 +61,7 @@ from tests.collection_deprecate import (
     wrapped_sum_warn_only,
 )
 from tests.collection_deprecate_forwarding import (
+    depr_args_mapping_empty_keeps_name,
     depr_collision_old_new,
     depr_collision_old_new_extra_wins,
     depr_uncomparable_default,
@@ -396,6 +397,16 @@ class TestArgumentMapping:
             warnings.simplefilter("ignore", FutureWarning)
             result = depr_collision_old_new(old=42)
         assert result == 42
+
+    def test_args_mapping_empty_string_keeps_old_name(self) -> None:
+        """``args_mapping={"level": ""}`` forwards the caller's ``level`` to the target under the same name.
+
+        A caller still passes the keyword the wrapper has always accepted; ``""`` means the name is kept, so the value
+        must reach the target unchanged (not dropped to the target's default) and the call must still warn.
+        """
+        with pytest.warns(FutureWarning):
+            result = depr_args_mapping_empty_keeps_name(level=5)
+        assert result == 5
 
     def test_new_kwarg_wins_when_both_old_and_new_provided_old_first(self) -> None:
         """When old and new kwarg both passed (old first), the explicit new-name value wins.
@@ -1098,6 +1109,16 @@ class TestSpentBudgetFastPath:
         assert notify_skip_condition.calls - calls_before == 3
 
 
+def _unreadable_signature_error_depths(call: Callable[[], Any], times: int) -> list[int]:
+    """Call ``call`` ``times`` times, expecting a signature error each time, and return each traceback's length."""
+    depths: list[int] = []
+    for _ in range(times):
+        with pytest.raises(SignatureNotBuiltError) as caught:
+            call()
+        depths.append(len(caught.traceback))
+    return depths
+
+
 class TestUnreadableSignature:
     """A signature that cannot be read fails at the same moment as before signature facts were read at decoration."""
 
@@ -1172,6 +1193,19 @@ class TestUnreadableSignature:
             pytest.raises(SignatureNotBuiltError, match="^lazy_callable: not built yet$"),
         ):
             depr_lazy_signature_target_renamed(1, 2)
+
+    def test_repeated_calls_keep_traceback_length(self) -> None:
+        """Forwarded calls that keep failing on an unreadable target signature raise equally long tracebacks.
+
+        A service keeps calling a deprecated function whose target is a lazily built framework callable and catches
+        the error each time.  Raising the one error stored at decoration made its traceback grow by the frames of
+        every call; each call must raise its own copy instead.
+        """
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", FutureWarning)
+            depths = _unreadable_signature_error_depths(lambda: depr_lazy_signature_target_renamed(1, 2), times=4)
+
+        assert len(set(depths)) == 1
 
 
 class TestDecoratedFunctionLifetime:

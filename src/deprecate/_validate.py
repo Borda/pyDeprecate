@@ -86,9 +86,7 @@ def _resolve_legacy_target(
                 stacklevel=_caller_stacklevel(),
             )
         return TargetMode.NOTIFY
-    raise TypeError(
-        f"`TargetMode._from_legacy` accepts only None, True, or False; got {type(target).__name__}: {target!r}."
-    )
+    raise TypeError(f"Legacy `target` accepts only None, True, or False; got {type(target).__name__}: {target!r}.")
 
 
 def _resolve_legacy_proxy_target(

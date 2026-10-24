@@ -4,6 +4,7 @@ This module provides base functions that are used as targets for deprecated func
 
 """
 
+import asyncio
 import contextvars
 import functools
 import inspect
@@ -243,6 +244,17 @@ def fn_with_default(new_arg: int = 99) -> int:
 
     """
     return new_arg
+
+
+def fn_kept_name_target(level: int = -1) -> int:
+    """Target callable whose parameter keeps the name the deprecated wrapper already uses.
+
+    Used by the ``args_mapping={"level": ""}`` fixtures: ``""`` means "keep the old argument name", so a caller's
+    ``level=...`` must reach this target unchanged.  The default ``-1`` differs from every value the tests pass, so a
+    dropped argument shows up as ``-1`` instead of passing unnoticed.
+
+    """
+    return level
 
 
 def fn_shared_default_target(x: int, level: int = 99) -> int:
@@ -815,6 +827,34 @@ class SourcePathTarget:
         self.new = new
 
 
+class ModuleRaisingGetattributeMeta(type):
+    """Metaclass whose ``__getattribute__`` raises on ``__module__``: a dynamic module lookup on its classes fails."""
+
+    def __getattribute__(cls, name: str) -> Any:  # noqa: ANN401
+        """Refuse ``__module__``; delegate every other attribute to ``type``."""
+        if name == "__module__":
+            raise RuntimeError("dynamic __module__ lookup refused")
+        return super().__getattribute__(name)
+
+
+class ModuleRaisingPropertyMeta(type):
+    """Metaclass declaring ``__module__`` as a raising property, which shadows each class's own ``__module__``."""
+
+    @property
+    def __module__(cls) -> str:  # type: ignore[override]
+        """Refuse the lookup — the class's own namespace still holds the real module name."""
+        raise RuntimeError("dynamic __module__ lookup refused")
+
+
+def make_module_raising_class(metaclass: type) -> type:
+    """Build a fresh ``ModuleRaisingTarget`` class under *metaclass*, whose ``__module__`` lookup raises.
+
+    Built on call, not at import, so module scans (audit, docs examples) never meet a class whose attribute lookup
+    raises.  The class namespace records this module, which is the path a deprecation proxy over it should render.
+    """
+    return metaclass("ModuleRaisingTarget", (), {"__module__": __name__, "__doc__": "Class with a refusing metaclass."})
+
+
 def every_parameter_kind_target(a: int, /, b: int = 2, *rest: int, c: int, d: int = 4, **extra: int) -> None:
     """Target declaring one parameter of every kind, two of them with defaults.
 
@@ -934,6 +974,16 @@ async def async_non_cycle_double(x: int) -> int:
 
     Wrapped by ``dep_async_non_cycle_old_fn`` in :mod:`tests.collection_deprecate`.
     """
+    return x * 2
+
+
+async def async_suspending_double(x: int) -> int:
+    """Async target that yields to the event loop once before doubling its input.
+
+    Wrapped by ``dep_async_suspending_old_fn`` in :mod:`tests.collection_deprecate_forwarding`.  A guarded call that
+    stays in flight across a task switch is what lets a sibling task observe it, so the switch must really happen.
+    """
+    await asyncio.sleep(0)
     return x * 2
 
 
@@ -1626,6 +1676,18 @@ class SignatureNotBuiltError(ValueError):
         """Build the message from the callable's name and the reason its signature is not available."""
         super().__init__(f"{name}: {reason}")
         self.reason = reason
+
+
+class SignatureNeedsContextError(ValueError):
+    """``ValueError`` subclass that can be neither copied nor rebuilt, because its ``__new__`` demands the arguments."""
+
+    def __new__(cls, name: str, reason: str) -> "SignatureNeedsContextError":
+        """Require the callable's name and the reason, so ``cls()`` and ``cls(*args)`` both raise ``TypeError``."""
+        return super().__new__(cls, f"{name}: {reason}")
+
+    def __init__(self, name: str, reason: str) -> None:
+        """Build the message from the callable's name and the reason its signature is not available."""
+        super().__init__(f"{name}: {reason}")
 
 
 class LazySignatureCallable(OpaqueSignatureCallable):

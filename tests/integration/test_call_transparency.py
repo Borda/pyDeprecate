@@ -26,6 +26,8 @@ from tests.collection_deprecate_regressions import (
     shape_notify_wraps_chain,
     shape_remap_area_dispatch,
     shape_remap_old_new,
+    shape_remap_var_positional_extra_fills_slot,
+    shape_remap_var_positional_rename_fills_slot,
     shape_remap_var_positional_with_extra,
     shape_remap_with_extra,
 )
@@ -210,6 +212,46 @@ class TestArgsRemapCallShape:
             result = shape_remap_var_positional_with_extra(1, 2, **kwargs)
 
         assert (result, _warning_lines(caught)) == (((1, 2), None, 3, True), expected_warnings)
+
+    def test_args_extra_overrides_positionally_filled_name(self) -> None:
+        """``args_extra`` wins over a value the caller passed positionally, as it does for a source without ``*args``.
+
+        A library injects ``new=5`` into a function that takes ``new`` first and then collects a ``*values`` tail.
+        ``f(1, 2)`` fills ``new`` by position, so the injected value replaces that positional slot instead of being
+        passed a second time, which Python rejects with "multiple values for argument".
+        """
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            result = shape_remap_var_positional_extra_fills_slot(1, 2)
+
+        assert (result, _warning_lines(caught)) == ((5, (2,), {}), [])
+
+    def test_positional_value_wins_over_renamed_keyword(self) -> None:
+        """A value passed by position beats the deprecated keyword that renames to the same parameter.
+
+        A caller still passing the old keyword next to positional arguments, ``f(8, 9, old=7)``, fills ``new`` twice
+        once ``old`` is renamed.  The positional value wins, as the collision warning says ("``old`` is ignored"),
+        and the call reaches the source instead of failing with "multiple values for argument".
+        """
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            result = shape_remap_var_positional_rename_fills_slot(8, 9, old=7)
+
+        assert (result, [line.split(":")[0] for line in _warning_lines(caught)]) == (
+            (8, (9,), {}),
+            ["FutureWarning", "UserWarning"],
+        )
+
+    def test_callers_own_duplicate_still_raises(self) -> None:
+        """A caller that passes the same parameter both by position and by keyword still gets Python's error.
+
+        Only a duplicate the rename produced is dropped.  ``f(8, 9, old=7, new=3)`` names ``new`` twice on its own, a
+        genuine caller mistake that must not be hidden behind a silently chosen value.
+        """
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            with pytest.raises(TypeError, match="multiple values for argument 'new'"):
+                shape_remap_var_positional_rename_fills_slot(8, 9, old=7, new=3)  # type: ignore[misc]
 
 
 class TestArityError:

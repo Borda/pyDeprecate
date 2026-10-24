@@ -7,6 +7,7 @@ import inspect
 import sys
 import threading
 import time
+import traceback
 import warnings
 from collections.abc import Iterator
 from typing import Any, Callable, Optional, Union, cast
@@ -19,12 +20,14 @@ from deprecate._dispatch import (
     _build_call_facts,
     _build_call_plan,
     _cycle_detection,
+    _CycleEntry,
     _enter_cycle_guard,
     _exit_cycle_guard,
     _ForwardDefaults,
     _merge_source_defaults,
     _precompute_forward_defaults,
     _prepare_target_call,
+    _raise_target_signature_error,
     _split_positional_only_kwargs,
     _target_signature_facts,
     _update_kwargs_with_args,
@@ -48,6 +51,8 @@ from tests.collection_deprecate_forwarding import (
     OldPositionalOnlyClass,
     OldSelfOnlyClass,
     dep_async_non_cycle_old_fn,
+    dep_async_sibling_pair_old_fn,
+    dep_async_task_cycle_fn,
     dep_fib_callable,
     dep_fib_notify,
     dep_fib_remap,
@@ -74,6 +79,8 @@ from tests.collection_misconfigured import target_false_deprecation
 from tests.collection_targets import (
     KeywordCallTarget,
     NewCls,
+    SignatureNeedsContextError,
+    SignatureNotBuiltError,
     call_signature_source,
     compute_power,
     double_value,
@@ -99,7 +106,7 @@ class TestUpdateKwargsWithArgs:
         def my_func(a: int, b: int) -> None:
             pass
 
-        result = _update_kwargs_with_args(my_func, (), {"a": 1}, _build_call_facts(my_func, TargetMode.NOTIFY, None))
+        result = _update_kwargs_with_args((), {"a": 1}, _build_call_facts(my_func, TargetMode.NOTIFY, None))
         assert result == {"a": 1}
 
     def test_maps_positional_to_param_names(self) -> None:
@@ -108,9 +115,7 @@ class TestUpdateKwargsWithArgs:
         def my_func(a: int, b: str, c: float = 3.0) -> None:
             pass
 
-        result = _update_kwargs_with_args(
-            my_func, (1, "hello"), {}, _build_call_facts(my_func, TargetMode.NOTIFY, None)
-        )
+        result = _update_kwargs_with_args((1, "hello"), {}, _build_call_facts(my_func, TargetMode.NOTIFY, None))
         assert result == {"a": 1, "b": "hello"}
 
     def test_merges_with_existing_kwargs(self) -> None:
@@ -119,9 +124,7 @@ class TestUpdateKwargsWithArgs:
         def my_func(a: int, b: int, c: int = 0) -> None:
             pass
 
-        result = _update_kwargs_with_args(
-            my_func, (10,), {"c": 99}, _build_call_facts(my_func, TargetMode.NOTIFY, None)
-        )
+        result = _update_kwargs_with_args((10,), {"c": 99}, _build_call_facts(my_func, TargetMode.NOTIFY, None))
         assert result == {"a": 10, "c": 99}
 
     def test_stops_at_var_positional(self) -> None:
@@ -130,17 +133,25 @@ class TestUpdateKwargsWithArgs:
         def my_func(a: int, *args: int) -> None:
             pass
 
-        result = _update_kwargs_with_args(my_func, (1, 2, 3), {}, _build_call_facts(my_func, TargetMode.NOTIFY, None))
+        result = _update_kwargs_with_args((1, 2, 3), {}, _build_call_facts(my_func, TargetMode.NOTIFY, None))
         assert result == {"a": 1}
 
-    def test_too_many_positional_raises_type_error(self) -> None:
-        """Passing more positional args than the function has positional params raises TypeError."""
 
-        def my_func(a: int, b: int) -> None:
-            pass
+def test_call_plan_rejects_surplus_positionals() -> None:
+    """Passing more positional args than the source has positional params raises the curated TypeError.
 
-        with pytest.raises(TypeError, match="takes 2 positional"):
-            _update_kwargs_with_args(my_func, (1, 2, 3), {}, _build_call_facts(my_func, TargetMode.NOTIFY, None))
+    The arity check lives in ``_build_call_plan`` (before any warning or budget is spent) and runs once per call;
+    ``_update_kwargs_with_args`` relies on it and no longer repeats it.
+    """
+
+    def my_func(a: int, b: int) -> None:
+        pass
+
+    cfg = DeprecationConfig(deprecated_in="1.0", remove_in="2.0", name="src", target=TargetMode.NOTIFY)
+    ctx = _make_context(my_func, cfg, TargetMode.NOTIFY)
+
+    with pytest.raises(TypeError, match="takes 2 positional"):
+        _build_call_plan(ctx, (1, 2, 3), {})
 
 
 def test_class_target_uses_call_signature_for_validation() -> None:
@@ -631,6 +642,34 @@ class TestCycleDetection:
         )
         assert results == [2, 4, 6]
 
+    @pytest.mark.asyncio
+    async def test_sibling_tasks_spawned_inside_guarded_call_are_independent(self) -> None:
+        """Sibling tasks gathered inside a guarded call never see each other's entries as a cycle.
+
+        A deprecated endpoint forwards to a handler that fans out two concurrent calls of another deprecated
+        coroutine, both of which stay in flight across a task switch.  The tasks copy the outer call's context; if they
+        also shared its mutable active set, the second sibling would find the first one's entry there and raise a
+        spurious "Circular deprecation cycle" although the call chain never loops.
+        """
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", FutureWarning)
+            result = await dep_async_sibling_pair_old_fn(1)
+
+        assert result == [2, 4]
+
+    @pytest.mark.asyncio
+    async def test_reentry_from_spawned_task_still_raises(self) -> None:
+        """A wrapper called again from a task spawned inside its own in-flight call is still a cycle.
+
+        The task copies the context of the call that is still running, so it inherits that call's entry: a target
+        chain that loops back through a new task is as circular as one that loops back directly, and must raise
+        instead of recursing until the event loop is exhausted.
+        """
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", FutureWarning)
+            with pytest.raises(RuntimeError, match=r"Circular deprecation cycle detected.*dep_async_task_cycle_fn"):
+                await dep_async_task_cycle_fn(1)
+
 
 class TestRecursiveDeprecation:
     """Deprecated wrappers on recursive functions — warning fires once, recursion converges."""
@@ -846,6 +885,98 @@ class TestTargetFactsPrecompute:
                 accepts_var_positional=False,
                 accepts_var_keyword=False,
             )
+
+
+def _raise_signature_errors(facts: _CallFacts, times: int) -> list[BaseException]:
+    """Run the forwarded-call signature error ``times`` times and return each error that reached the caller."""
+    raised: list[BaseException] = []
+    for _ in range(times):
+        with pytest.raises((TypeError, ValueError)) as caught:
+            _raise_target_signature_error(facts)
+        raised.append(caught.value)
+    return raised
+
+
+def _traceback_depth(error: BaseException) -> int:
+    """Return the number of frames recorded in the traceback of ``error``."""
+    return len(list(traceback.walk_tb(error.__traceback__)))
+
+
+_SIGNATURE_ERROR_CASES = [
+    pytest.param(ValueError, ("no signature found",), ValueError, id="copyable"),
+    pytest.param(SignatureNotBuiltError, ("lazy", "not built yet"), SignatureNotBuiltError, id="rebuilt-without-init"),
+    pytest.param(SignatureNeedsContextError, ("lazy", "not built yet"), ValueError, id="base-type-fallback"),
+]
+
+
+class TestRaiseTargetSignatureError:
+    """A forwarded call raises a fresh copy of the signature error stored at decoration, never the stored object."""
+
+    @pytest.mark.parametrize(("error_type", "error_args", "expected_type"), _SIGNATURE_ERROR_CASES)
+    def test_stored_error_is_never_raised(
+        self, error_type: type[Exception], error_args: tuple[str, ...], expected_type: type[Exception]
+    ) -> None:
+        """Every forwarded call raises a new object and the stored error is left without a traceback.
+
+        A library whose signature error cannot be rebuilt from its ``args`` used to be raised as stored: the one
+        wrapper-lifetime object collected a longer traceback on every call and had its ``__context__`` overwritten
+        by whichever thread raised it last.  Whatever way the copy is made, the stored object stays untouched.
+        """
+        stored = error_type(*error_args)
+        raised = _raise_signature_errors(_CallFacts(target_signature_error=stored), 3)
+
+        assert (
+            [error is stored for error in raised],
+            stored.__traceback__,
+            len({id(error) for error in raised}),
+        ) == ([False, False, False], None, 3)
+
+    @pytest.mark.parametrize(("error_type", "error_args", "expected_type"), _SIGNATURE_ERROR_CASES)
+    def test_traceback_length_stays_constant(
+        self, error_type: type[Exception], error_args: tuple[str, ...], expected_type: type[Exception]
+    ) -> None:
+        """Repeated forwarded calls raise errors whose tracebacks are equally long.
+
+        A service keeps calling a deprecated function whose target signature is unreadable and catches the error
+        each time.  A traceback that grows by the frames of every call leaks memory for the life of the wrapper.
+        """
+        raised = _raise_signature_errors(_CallFacts(target_signature_error=error_type(*error_args)), 4)
+
+        assert len({_traceback_depth(error) for error in raised}) == 1
+
+    @pytest.mark.parametrize(("error_type", "error_args", "expected_type"), _SIGNATURE_ERROR_CASES)
+    def test_raised_error_keeps_type_and_message(
+        self, error_type: type[Exception], error_args: tuple[str, ...], expected_type: type[Exception]
+    ) -> None:
+        """The raised error has the stored type, or the base type it derives from, and the stored message.
+
+        Callers catch the documented base type (``TypeError`` or ``ValueError``); a framework's own subclass is kept
+        whenever it can be rebuilt, and degrades to that base type with its message when it cannot.
+        """
+        stored = error_type(*error_args)
+        raised = _raise_signature_errors(_CallFacts(target_signature_error=stored), 1)[0]
+
+        assert (type(raised), str(raised)) == (expected_type, str(stored))
+
+    def test_rebuilt_error_keeps_its_attributes(self) -> None:
+        """An error rebuilt without calling its constructor still carries the attributes it was created with.
+
+        A framework error that records why the signature is missing in an attribute must expose it on the forwarded
+        call exactly as on the error read at decoration.
+        """
+        stored = SignatureNotBuiltError("lazy", "not built yet")
+
+        raised = _raise_signature_errors(_CallFacts(target_signature_error=stored), 1)[0]
+
+        assert getattr(raised, "reason", None) == "not built yet"
+
+    def test_no_stored_error_raises_nothing(self) -> None:
+        """Facts without a stored signature error leave the forwarded call alone.
+
+        A target whose signature was read at decoration (or hand-built facts) has nothing to re-raise, so the call
+        returns instead of raising; an exception here fails the test.
+        """
+        _raise_target_signature_error(_CallFacts())
 
 
 def _make_context(
@@ -1226,17 +1357,35 @@ def _guarded_reentry_error(ctx: _WrapperContext) -> str:
     return str(err.value)
 
 
-def _guard_value_after_exit(ctx: _WrapperContext) -> Optional[set[int]]:
+def _guard_value_after_exit(ctx: _WrapperContext) -> Optional[tuple[_CycleEntry, ...]]:
     """Enter and exit the cycle guard of ``ctx`` once, then return what the guard's context variable holds."""
     _exit_cycle_guard(ctx, _enter_cycle_guard(ctx))
     return _cycle_detection.get()
 
 
+def _context_copied_inside_guard(ctx: _WrapperContext) -> contextvars.Context:
+    """Enter the cycle guard of ``ctx``, copy the current context while the call is in flight, then exit."""
+    handle = _enter_cycle_guard(ctx)
+    copied = contextvars.copy_context()
+    _exit_cycle_guard(ctx, handle)
+    return copied
+
+
+def _chain_with_inner_inside_outer(outer: _WrapperContext, inner: _WrapperContext) -> tuple[int, ...]:
+    """Enter the cycle guard of ``outer``, then of ``inner``, and return the source ids on the chain at that point."""
+    outer_handle = _enter_cycle_guard(outer)
+    inner_handle = _enter_cycle_guard(inner)
+    chain = tuple(entry.source_id for entry in cast(tuple[_CycleEntry, ...], _cycle_detection.get()))
+    _exit_cycle_guard(inner, inner_handle)
+    _exit_cycle_guard(outer, outer_handle)
+    return chain
+
+
 async def _hold_guard_across_task_switch(ctx: _WrapperContext) -> set[int]:
-    """Enter the cycle guard, yield to the event loop, and return a copy of this task's active set before exiting."""
+    """Enter the cycle guard, yield to the event loop, and return the ids this task's chain holds before exiting."""
     handle = _enter_cycle_guard(ctx)
     await asyncio.sleep(0)
-    active = set(cast(set[int], _cycle_detection.get()))
+    active = {entry.source_id for entry in cast(tuple[_CycleEntry, ...], _cycle_detection.get())}
     _exit_cycle_guard(ctx, handle)
     return active
 
@@ -1326,6 +1475,25 @@ class TestBuildCallFacts:
         assert _build_call_facts(source, target, None) == expected
 
 
+class TestSourcePositionalLimit:
+    """The positional-argument limit derived once per wrapper, shared by the arity check and the fast path."""
+
+    @pytest.mark.parametrize(
+        ("source", "limit"),
+        [
+            pytest.param(positional_only_target, 2, id="fixed-positionals"),
+            pytest.param(var_positional_target, None, id="var-positional-accepts-any"),
+        ],
+    )
+    def test_limit_follows_the_source_signature(self, source: Callable[..., Any], limit: Optional[int]) -> None:
+        """A source with ``*args`` has no limit; any other source accepts as many positionals as it names.
+
+        Both the surplus-positional check and the call-plan fast path read this one value, so a source declaring
+        ``*args`` is never rejected and a fixed-arity source is rejected on exactly one argument too many.
+        """
+        assert _build_call_facts(source, TargetMode.NOTIFY, None).source_positional_limit == limit
+
+
 class TestWrapperContext:
     """The per-wrapper context the call path reads instead of re-deriving flags on every call."""
 
@@ -1372,8 +1540,8 @@ class TestCycleGuard:
     def test_exit_restores_outer_value(self) -> None:
         """Leaving the outermost guarded call resets the context variable to its value before the call.
 
-        The first guarded call in a call stack installs a fresh active set; once it returns, a later unrelated call
-        must start from an empty state again rather than inherit a stale set.
+        The first guarded call in a call stack installs a chain holding its own entry; once it returns, a later
+        unrelated call must start from an empty state again rather than inherit a stale chain.
         """
         ctx = _make_context(double_value, _FACTS_CFG, double_value)
 
@@ -1388,6 +1556,34 @@ class TestCycleGuard:
         ctx = _make_context(double_value, _FACTS_CFG, double_value)
 
         assert asyncio.run(_gather_guarded_tasks(ctx)) == [{id(double_value)}, {id(double_value)}]
+
+    def test_copied_context_releases_finished_call(self) -> None:
+        """A context copied while a guarded call was in flight does not report that call once it has finished.
+
+        A target may snapshot its context to schedule later work, for example ``loop.call_soon`` with an explicit
+        context.  When that work calls the same wrapper after the first call returned, it is a new call and not a
+        re-entry, so the copy must not keep the finished call's entry alive.
+        """
+        ctx = _make_context(double_value, _FACTS_CFG, double_value)
+        copied = contextvars.Context().run(_context_copied_inside_guard, ctx)
+
+        message = copied.run(_guarded_reentry_error, ctx)
+
+        assert message.startswith("Circular deprecation cycle detected: `double_value` re-entered")
+
+    def test_unrelated_wrapper_in_copied_context_is_not_a_cycle(self) -> None:
+        """A copied context that still holds an in-flight call lets a different wrapper run.
+
+        While the first call is in flight, a thread or task started from its context calls another deprecated
+        function.  Only a repeat of a wrapper already in flight is a cycle; the other wrapper just joins the chain.
+        """
+        outer = _make_context(double_value, _FACTS_CFG, double_value)
+        inner = _make_context(identity_value, _FACTS_CFG, identity_value)
+
+        assert contextvars.Context().run(_chain_with_inner_inside_outer, outer, inner) == (
+            id(double_value),
+            id(identity_value),
+        )
 
 
 # ---------------------------------------------------------------------------

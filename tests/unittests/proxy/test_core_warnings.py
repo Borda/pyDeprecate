@@ -6,14 +6,15 @@ import threading
 import warnings
 from collections import defaultdict
 from collections.abc import Callable, Iterator
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
 from deprecate import DeprecatedError
+from deprecate._types import DeprecationConfig
 from deprecate.proxy import deprecated_class, deprecated_instance
-from deprecate.proxy.core import _DeprecatedProxy, _ProxySpec
-from tests.collection_deprecate import MappedColorEnum
+from deprecate.proxy.core import _build_proxy_warn_msg, _DeprecatedProxy, _ProxySpec
+from tests.collection_deprecate import MappedColorEnum, MappedDataClass
 from tests.collection_deprecate_forwarding import ProxyArgsRemapForArgWarnMessage
 from tests.collection_deprecate_regressions import (
     DeprSourcePathArgs,
@@ -21,6 +22,7 @@ from tests.collection_deprecate_regressions import (
     DeprSourcePathClass,
     DeprSourcePathStacked,
     depr_source_path_instance,
+    make_depr_module_raising_class,
     make_flaky_attr_alias,
     make_skip_gated_target_proxy,
     make_warn_after_success_proxy,
@@ -33,6 +35,9 @@ from tests.collection_targets import (
     FlakyTypeErrorStream,
     KeywordTypeErrorStream,
     MessageOnlyRecordingStream,
+    ModuleRaisingGetattributeMeta,
+    ModuleRaisingPropertyMeta,
+    NewDataClass,
     RecordingEntryContext,
     RecordingStream,
     SlowRecordingStream,
@@ -717,6 +722,31 @@ class TestWarnBudgetThreadSafety:
         assert len(stream.calls) == 1
 
 
+class TestProxyArgumentMap:
+    """The proxy per-argument warning renders ``%(argument_map)s`` the same way as the ``@deprecated`` path."""
+
+    def test_kept_name_renders_as_kept(self) -> None:
+        """A constructor keyword mapped to ``""`` renders as kept instead of as an arrow to an empty name.
+
+        A deprecated class keeps a constructor keyword under its old name (``args_mapping={"name": ""}``) while still
+        warning when a caller passes it.  The proxy builds that warning itself, so it must render the kept name exactly
+        like the function wrapper does.
+        """
+        dep = DeprecationConfig(
+            name="MappedDataClass",
+            target=NewDataClass,
+            args_mapping={"name": ""},
+            deprecated_in="1.0",
+            remove_in="2.0",
+        )
+        proxy = cast(_DeprecatedProxy, MappedDataClass)
+        cfg = object.__getattribute__(proxy, "_DeprecatedProxy__config")
+        assert _build_proxy_warn_msg(proxy, "name", dep, cfg) == (
+            "The `MappedDataClass` uses deprecated arguments: `name` (kept)."
+            " They were deprecated since v1.0 and will be removed in v2.0."
+        )
+
+
 class TestProxySourcePath:
     """``%(source_path)s`` in a proxy ``message_template`` renders the documented module-qualified path.
 
@@ -785,3 +815,24 @@ class TestProxySourcePath:
         with pytest.warns(FutureWarning) as record:
             DeprSourcePathStacked()
         assert {str(w.message) for w in record} == {f"{_SOURCE_PATH_CLASS} :: SourcePathTarget"}
+
+    @pytest.mark.parametrize(
+        "metaclass",
+        [
+            pytest.param(ModuleRaisingGetattributeMeta, id="getattribute-raises"),
+            pytest.param(ModuleRaisingPropertyMeta, id="module-property-raises"),
+        ],
+    )
+    def test_refusing_metaclass_renders_module_path(self, metaclass: type) -> None:
+        """A class whose metaclass refuses a dynamic ``__module__`` lookup still decorates and warns with its path.
+
+        A framework class may use a metaclass that intercepts attribute lookups and raises on names it does not serve.
+        Deprecating such a class must not crash at decoration or at the first warning: the path comes from the class's
+        own namespace, which still records the module it was defined in.
+        """
+        proxy = make_depr_module_raising_class(metaclass)
+        with pytest.warns(FutureWarning) as record:
+            proxy()
+        assert [str(w.message) for w in record] == [
+            "tests.collection_targets.ModuleRaisingTarget :: ModuleRaisingTarget"
+        ]
