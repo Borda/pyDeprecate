@@ -16,6 +16,7 @@ from deprecate.proxy import deprecated_class, deprecated_instance
 from deprecate.proxy.core import _DeprecatedProxy, _proxy_call_global, _ProxySpec
 from tests.collection_deprecate import MappedColorEnum, MappedDataClass, MappedDropArgDataClass
 from tests.collection_deprecate_forwarding import (
+    ProxyArgsMappedToEmpty,
     ProxyArgsRemapAuto,
     ProxyArgsRemapForArgWarnMessage,
     ProxyCallableWithArgsMapping,
@@ -272,6 +273,16 @@ class TestProxyArgsMappingBehavior:
             warnings.simplefilter("always")
             ProxyArgsRemapAuto(new_key=1)
         assert not caught
+
+    def test_empty_string_mapping_keeps_old_name_and_warns(self) -> None:
+        """A proxy with ``args_mapping={"new_key": ""}`` forwards ``new_key`` unchanged and still warns.
+
+        The caller passes a keyword whose mapping says "keep this name"; the constructor must receive the value under
+        the original name (not fall back to its default) while the deprecated class still emits its warning.
+        """
+        with pytest.warns(FutureWarning):
+            instance = ProxyArgsMappedToEmpty(new_key=3)
+        assert instance.new_key == 3
 
     def test_callable_target_with_args_mapping_warns_on_old_arg(self) -> None:
         """Proxy forwarding to callable target warns per old arg name when present in kwargs."""

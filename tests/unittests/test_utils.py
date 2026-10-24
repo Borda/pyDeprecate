@@ -3,7 +3,7 @@
 import inspect
 import warnings
 from collections.abc import Callable
-from typing import Any, cast
+from typing import Any, Optional, cast
 
 import pytest
 
@@ -78,6 +78,32 @@ class TestRemapKwargs:
         with assert_no_warnings():
             result = _remap_kwargs(_RENAME_AND_DROP, {"old": 5, "new": 6}, name="old_func", stream=None)
         assert result == {"new": 6}
+
+    @pytest.mark.parametrize(
+        ("mapping", "kwargs", "expected"),
+        [
+            # "" alone: the deprecated name stays as it is.
+            pytest.param({"kept": ""}, {"kept": 1, "keep": 2}, {"kept": 1, "keep": 2}, id="keep-only"),
+            # "" next to a rename and a drop: each entry is resolved on its own.
+            pytest.param(
+                {"kept": "", "old": "new", "gone": None},
+                {"kept": 1, "old": 2, "gone": 3},
+                {"kept": 1, "new": 2},
+                id="keep-beside-rename-and-drop",
+            ),
+        ],
+    )
+    def test_empty_string_keeps_old_name(
+        self, mapping: dict[str, Optional[str]], kwargs: dict[str, int], expected: dict[str, int]
+    ) -> None:
+        """A key mapped to ``""`` keeps its old name instead of being renamed or dropped.
+
+        A library that retires a keyword's deprecation warning but not the keyword itself maps it to ``""``; the
+        caller's value must still reach the callee under the original name, without any collision warning.
+        """
+        with assert_no_warnings():
+            result = _remap_kwargs(mapping, kwargs, name="old_func", stream=warnings.warn)
+        assert result == expected
 
     def test_empty_mapping_returns_copy(self) -> None:
         """An empty mapping returns an equal but separate dict.
