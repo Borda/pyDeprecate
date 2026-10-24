@@ -22,7 +22,8 @@ from deprecate import (
     find_deprecation_wrappers,
 )
 from tests import collection_modules
-from tests.collection_deprecate import (
+from tests.collection_deprecate import wrapped_sum
+from tests.collection_deprecate_regressions import (
     DeprecatedScopedSwitchWidget,
     FatalLegacyWidget,
     FatalLegacyWidgetViaFrontDoor,
@@ -38,7 +39,6 @@ from tests.collection_deprecate import (
     depr_scoped_switch_settings,
     depr_scoped_switch_warn_only,
     fatal_legacy_settings,
-    wrapped_sum,
 )
 from tests.collection_modules import fatal_utils, old_stats
 from tests.collection_targets import (

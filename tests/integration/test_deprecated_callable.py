@@ -13,7 +13,7 @@ import pytest
 
 from deprecate import deprecated_callable
 from deprecate._types import _DeprecatedCallable
-from tests.collection_deprecate import (
+from tests.collection_deprecate_regressions import (
     HolderWithDeprecatedCallableMethod,
     deprecated_callable_double,
     deprecated_double_twin,

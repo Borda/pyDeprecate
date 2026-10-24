@@ -41,7 +41,7 @@ from pydeprecate import deprecated  # wrong — no such module
 
 **Q:** I applied `@deprecated` directly to a class and got `` UserWarning: `@deprecated` on class `MyClass` now dispatches to `@deprecated_class`. `` Is this a problem, and how do I stop it?
 
-**A:** No — since v0.12, `@deprecated` on a class is first-class supported and permanent. It dispatches to `@deprecated_class()` under the hood and produces an identical `_DeprecatedProxy`; nothing is broken and nothing needs migrating. The `UserWarning` is a one-time informational notice — it fires at most once per class (keyed by module + qualified name, not bare name — same-named classes in different modules each warn), not on every decoration — telling you that the dispatch happened. Only this notice — not the dispatch support itself — is removed entirely, in v1.0.
+**A:** No — since v0.12, `@deprecated` on a class is first-class supported and permanent. It dispatches to `@deprecated_class()` under the hood and produces an identical `_DeprecatedProxy`; nothing is broken and nothing needs migrating. The `UserWarning` is a one-time informational notice — it fires at most once per class (keyed by module + qualified name, not bare name — same-named classes in different modules each warn), not on every decoration — telling you that the dispatch happened. Only this notice — not the dispatch support itself — is removed entirely, in v1.0. The notice cache is thread-safe and retains at most 4096 class keys in insertion order; an evicted class may receive the notice again.
 
 You have two ways to quiet it, and one alternative pattern for a different use case:
 
@@ -359,7 +359,7 @@ Hi!
 
 **A:** By default, pyDeprecate emits the deprecation message only once per function (`num_warns=1`) to avoid log spam. After the first call, subsequent calls are silent. Set `num_warns=-1` for unlimited emissions or `num_warns=N` for exactly `N` emissions.
 
-For per-argument deprecation (when using `args_mapping` with `TargetMode.ARGS_REMAP`), each deprecated argument has its own independent message counter — so deprecation messages for different arguments are tracked separately and each fires once by default.
+For per-argument deprecation (when using `args_mapping` with `TargetMode.ARGS_REMAP`), each deprecated argument has its own independent message counter — so deprecation messages for different arguments are tracked separately and each fires once by default. A message for a call that uses several deprecated arguments names only those whose counter is not yet spent, so an argument you were already warned about is not listed again.
 
 ```python
 # Minimal replacement function for examples
@@ -1239,44 +1239,9 @@ ______________________________________________________________________
 
 **Q:** I have multiple coroutines all calling the same deprecated `async def` wrapper concurrently. The deprecation notice only appeared once, but I expected it to fire `num_warns` times. What happened?
 
-**A:** The `num_warns` warning quota is enforced by a lock and is thread-safe for **synchronous** wrappers — exactly `num_warns` warnings fire regardless of how many threads call the deprecated function simultaneously. For **concurrent async coroutines** sharing one deprecated wrapper, a race on the warning counter is still possible: one coroutine may read the counter, another may increment it, and the first may then emit or skip based on a stale value. The result is that fewer warnings than `num_warns` specifies may be emitted under high async concurrency.
+**A:** Concurrent async calls sharing one wrapper cannot race while reserving warning budgets. The async wrapper reaches warning dispatch before its first `await`, and the callable or per-argument budget check and reservation use the wrapper's lock. Each deprecated argument has its own `num_warns` budget, so that value is not one overall cap when calls use several deprecated arguments.
 
-**Workaround for async concurrency:** Set `num_warns=-1` to bypass the count gate entirely. With `num_warns=-1` the warning fires unconditionally on every call, so no race can suppress it.
-
-```python
-import asyncio
-from deprecate import deprecated
-
-
-async def new_fetch(url: str) -> bytes:
-    return url.encode()
-
-
-# num_warns=-1 emits the deprecation notice on every call regardless of concurrency
-@deprecated(target=new_fetch, deprecated_in="0.9", remove_in="1.0", num_warns=-1)
-async def old_fetch(url: str) -> bytes:
-    pass
-
-
-async def main():
-    urls = ["https://a.example.com", "https://b.example.com", "https://c.example.com"]
-    # All three tasks fire the deprecation notice — no race suppression possible
-    await asyncio.gather(*[old_fetch(u) for u in urls])
-
-
-print(asyncio.run(main()) is None)
-```
-
-<details>
-  <summary>Output: <code>asyncio.run(main()) is None</code></summary>
-
-```
-True
-```
-
-</details>
-
-If you need to assert exactly one warning fires in a test, run the deprecated coroutines sequentially rather than with `asyncio.gather`.
+The budget controls warning attempts, not an exact number of visible warning records. Standard warning filters may suppress records, and a custom warning stream may raise after a callable wrapper reserves its budget; callable warning delivery does not restore that reservation. Proxy delivery has separate rollback behavior. Set `num_warns=-1` only when unlimited warning attempts are intended, not to avoid a concurrency race.
 
 ______________________________________________________________________
 
@@ -1921,6 +1886,14 @@ deprecated_module(
 )
 # old_calculator.add(1, 2)  # invokes FutureWarning path + returns new_calculator.add(1, 2)
 ```
+
+______________________________________________________________________
+
+## Can a context copied during a module redirect resolve the same name later?
+
+**Q:** A redirect target captures `contextvars.copy_context()` while resolving a missing attribute. Can later work in that context access the same deprecated attribute?
+
+**A:** Yes. Redirect guards expire when the original lookup finishes, whether it returns a value or raises an exception. Later work in a copied context can resolve the same name normally. A cyclic redirect that re-enters the same name during an active lookup on the same thread still raises `AttributeError`.
 
 ______________________________________________________________________
 

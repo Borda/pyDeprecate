@@ -19,6 +19,7 @@ from warnings import warn
 from deprecate._fatal import DeprecatedError
 from deprecate._frames import _caller_stacklevel
 from deprecate._types import DeprecationConfig, TargetMode, _WrapperState
+from deprecate._validate import _MAJOR_BREAK_VERSION
 from deprecate.utils import _partial_chain, _unwrap_descriptor_target
 
 #: Memoised ``stacklevel`` decisions of :func:`_stream_accepts_stacklevel`: one entry per live ``stream`` object,
@@ -41,6 +42,8 @@ TEMPLATE_WARNING_ARGUMENTS = (
 )
 #: Template for mapping from old to new examples
 TEMPLATE_ARGUMENT_MAPPING = "`%(old_arg)s` -> `%(new_arg)s`"
+#: Template for an argument mapped to ``""``, which keeps its old name (see :func:`_render_argument_map`)
+_TEMPLATE_ARGUMENT_KEPT = "`%(old_arg)s` (kept)"
 #: Default template warning message for no target func/method
 TEMPLATE_WARNING_NO_TARGET = (
     "The `%(source_name)s` was deprecated since v%(deprecated_in)s. It will be removed in v%(remove_in)s."
@@ -94,7 +97,7 @@ def _resolve_message_template_alias(
         )
     warn(
         "`template_mgs` is deprecated since `v0.12` (renamed to `message_template`);"
-        " use `message_template` instead. Will be removed in `v1.0`.",
+        f" use `message_template` instead. Will be removed in `{_MAJOR_BREAK_VERSION}`.",
         FutureWarning,
         stacklevel=_caller_stacklevel(),
     )
@@ -375,6 +378,35 @@ def _format_deprecation_message(
     return message_template % msg_args
 
 
+def _render_argument_map(arguments: Mapping[str, Optional[str]]) -> str:
+    """Render the ``%(argument_map)s`` value for deprecated arguments: one comma-separated entry per argument.
+
+    Shared by every argument-warning path — the ``@deprecated`` call-time warning (:func:`_raise_warn_arguments`), the
+    decoration-time ``__deprecated__`` string (:func:`_render_static_deprecation_message`) and the proxy per-argument
+    warning — so they render each mapping identically.  A rename renders through :data:`TEMPLATE_ARGUMENT_MAPPING`, and
+    so does a dropped argument (``None`` renders as ``None``).  An argument mapped to another falsy value (``""``) keeps
+    its old name when the call is remapped (:func:`deprecate.utils._remap_kwargs`), so it renders as kept instead of as
+    an arrow to an empty name.
+
+    Args:
+        arguments: Deprecated argument names mapped to their new names, ``None`` (dropped) or ``""`` (kept).
+
+    Returns:
+        The rendered entries joined by ``", "``; an empty string for an empty mapping.
+
+    Example:
+        >>> _render_argument_map({"old": "new", "gone": None, "same": ""})
+        '`old` -> `new`, `gone` -> `None`, `same` (kept)'
+
+    """
+    return ", ".join(
+        _TEMPLATE_ARGUMENT_KEPT % {"old_arg": old}
+        if new is not None and not new
+        else TEMPLATE_ARGUMENT_MAPPING % {"old_arg": old, "new_arg": str(new)}
+        for old, new in arguments.items()
+    )
+
+
 def _render_static_deprecation_message(dep: DeprecationConfig, source_name: str, source_path: str) -> str:
     """Render the PEP-702-conformant ``__deprecated__`` message string for *dep* at decoration time.
 
@@ -395,10 +427,7 @@ def _render_static_deprecation_message(dep: DeprecationConfig, source_name: str,
 
     """
     if dep.target is TargetMode.ARGS_REMAP:
-        argument_map = ", ".join(
-            TEMPLATE_ARGUMENT_MAPPING % {"old_arg": old, "new_arg": str(new)}
-            for old, new in (dep.args_mapping or {}).items()
-        )
+        argument_map = _render_argument_map(dep.args_mapping or {})
         return _format_deprecation_message(
             dep.message_template or TEMPLATE_WARNING_ARGUMENTS,
             source_name,
@@ -522,7 +551,7 @@ def _raise_warn_callable(
         >>> #           `__main__.new_func`. It will be removed in v2.0."
 
     """
-    # Unwrap descriptor: _build_call_plan passes the raw (pre-normalization) target so
+    # Unwrap descriptor: _emit_call_warning passes the raw (pre-normalization) target so
     # the warning can name the class rather than __init__.  For descriptor targets,
     # callable(staticmethod(fn)) is False on Python 3.9 and callable(classmethod(fn))
     # is always False, so without this unwrap the no-target template fires incorrectly.
@@ -573,7 +602,8 @@ def _raise_warn_arguments(
     Template Variables Available:
         - source_name: Function name (e.g., "my_func")
         - source_path: Full path (e.g., "mymodule.my_func")
-        - argument_map: Formatted string showing mappings (e.g., "`old` -> `new`")
+        - argument_map: Formatted string showing mappings (e.g., "`old` -> `new`"; an argument mapped to ``""``
+          keeps its name and renders as "`old` (kept)") — see :func:`_render_argument_map`
         - deprecated_in: Version parameter value
         - remove_in: Version parameter value
 
@@ -591,7 +621,6 @@ def _raise_warn_arguments(
         >>> #           They were deprecated since v1.0 and will be removed in v2.0."
 
     """
-    args_map = ", ".join(TEMPLATE_ARGUMENT_MAPPING % {"old_arg": a, "new_arg": str(b)} for a, b in arguments.items())
     _raise_warn(
         stream,
         source,
@@ -599,47 +628,160 @@ def _raise_warn_arguments(
         as_exception=as_exception,
         deprecated_in=deprecated_in,
         remove_in=remove_in,
-        argument_map=args_map,
+        argument_map=_render_argument_map(arguments),
     )
+
+
+def _eval_skip_if(skip_if: Union[bool, Callable[[], bool]]) -> bool:
+    """Evaluate a ``skip_if`` condition; ``True`` means the deprecation machinery stays inactive for this use.
+
+    The one implementation shared by the callable wrappers and the deprecation proxy.  A non-callable value is
+    converted with ``bool()``; a callable is invoked with no arguments and must return a strict ``bool``.
+
+    Args:
+        skip_if: A static condition or a zero-argument callable returning ``bool``.
+
+    Returns:
+        The evaluated condition.
+
+    Raises:
+        TypeError: If ``skip_if`` is a callable that does not return a ``bool``.
+
+    Example:
+        >>> _eval_skip_if(False)
+        False
+        >>> _eval_skip_if(lambda: True)
+        True
+        >>> _eval_skip_if(lambda: 1)
+        Traceback (most recent call last):
+        ...
+        TypeError: User function 'skip_if' shall return bool, but got: <class 'int'>
+
+    """
+    shall_skip = skip_if() if callable(skip_if) else bool(skip_if)
+    if not isinstance(shall_skip, bool):
+        raise TypeError(f"User function 'skip_if' shall return bool, but got: {type(shall_skip)}")
+    return shall_skip
 
 
 def _consume_warn_budget(
     state: _WrapperState,
     num_warns: int,
+    *,
     reason_callable: bool,
-    reason_argument: dict[str, Optional[str]],
+    reason_argument: Optional[Mapping[str, Optional[str]]] = None,
 ) -> bool:
     """Check the warn budget and consume one unit from it when a warning may fire.
 
-    Must be called while holding ``state.lock`` — the read-check-increment sequence is exactly
-    what the lock protects (see the thread-safety note at the call site).
+    The one budget implementation for ``@deprecated`` wrappers, ``deprecated_class`` / ``deprecated_instance``
+    proxies and deprecated modules.  Must be called while holding ``state.lock`` — the read-check-increment sequence
+    is exactly what the lock protects (see the thread-safety note at the call site).
 
     Args:
         state: Mutable per-wrapper counters.
         num_warns: Configured budget; negative means unlimited.
         reason_callable: Warning is for the deprecated callable itself — consumes ``warned_calls``.
         reason_argument: Deprecated argument names present in this call — consumes per-argument
-            budgets in ``warned_args``; takes precedence over the call counter for the check.
+            budgets in ``warned_args`` through :func:`_consume_argument_warn_budget` when ``reason_callable`` is
+            ``False``.  A proxy passes ``{key: None}`` for its per-argument or ``__attr__:`` attribute key.
 
     Returns:
-        True when the caller should emit the warning (budget available and now consumed).
+        True when the caller should emit the warning (budget available and now consumed).  For the argument reason
+        this means at least one argument is still under budget; a caller that names the arguments in its warning
+        uses :func:`_consume_argument_warn_budget` directly to learn which ones.
+
+    Example:
+        >>> state = _WrapperState()
+        >>> [_consume_warn_budget(state, 1, reason_callable=True) for _ in range(2)]
+        [True, False]
 
     """
     # The budget must track the warning variant that will be emitted:
     # - callable-level warnings consume warned_calls
     # - argument-level warnings consume warned_args
-    if reason_callable:
-        nb_warned = state.warned_calls
-    elif reason_argument:
-        nb_warned = min((state.warned_args.get(arg, 0) for arg in reason_argument), default=0)
-    else:
-        nb_warned = state.warned_calls
-    if num_warns >= 0 and nb_warned >= num_warns:
+    if reason_argument and not reason_callable:
+        return bool(_consume_argument_warn_budget(state, num_warns, reason_argument))
+    if num_warns >= 0 and state.warned_calls >= num_warns:
         return False
     if reason_callable:
         state.warned_calls += 1
+    return True
+
+
+def _consume_argument_warn_budget(
+    state: _WrapperState,
+    num_warns: int,
+    reason_argument: Mapping[str, Optional[str]],
+) -> dict[str, Optional[str]]:
+    """Consume one unit from each deprecated argument's own budget and return the arguments that may be named.
+
+    Each deprecated argument has its own budget in ``state.warned_args``.  Only the arguments still under budget are
+    returned and consumed; an argument whose budget is spent is left out, so a later warning does not name it again.
+    Must be called while holding ``state.lock``, like :func:`_consume_warn_budget`.
+
+    Args:
+        state: Mutable per-wrapper counters.
+        num_warns: Configured budget; negative means unlimited.
+        reason_argument: Deprecated argument names present in this call, mapped to their new names.
+
+    Returns:
+        The entries of ``reason_argument`` still under budget, in their original order.  An empty dict means no
+        warning should be emitted.
+
+    Example:
+        >>> state = _WrapperState()
+        >>> _consume_argument_warn_budget(state, 1, {"old_x": "x"})
+        {'old_x': 'x'}
+        >>> _consume_argument_warn_budget(state, 1, {"old_x": "x", "old_y": "y"})
+        {'old_y': 'y'}
+        >>> _consume_argument_warn_budget(state, 1, {"old_x": "x", "old_y": "y"})
+        {}
+
+    """
+    under_budget = {
+        arg: new_arg
+        for arg, new_arg in reason_argument.items()
+        if num_warns < 0 or state.warned_args.get(arg, 0) < num_warns
+    }
+    for arg in under_budget:
+        state.warned_args[arg] = state.warned_args.get(arg, 0) + 1
+    return under_budget
+
+
+def _release_warn_budget(
+    state: _WrapperState,
+    num_warns: int,
+    *,
+    reason_callable: bool,
+    reason_argument: Optional[Mapping[str, Optional[str]]] = None,
+) -> None:
+    """Give back the unit a successful :func:`_consume_warn_budget` claim took, when its warning was never delivered.
+
+    Used by the proxy when its ``stream`` raises (a ``FutureWarning`` filter set to ``"error"``, a failing logging
+    sink): the caller did not receive the notice, so the next use warns again.  Takes the same reason arguments as the
+    claim it undoes, and is exact for the callable counter and for a single argument key (the claims the proxy
+    makes).  An unlimited budget (``num_warns < 0``) has no unit to return, so nothing changes.  Must be called while
+    holding ``state.lock``.
+
+    Args:
+        state: Mutable per-wrapper counters.
+        num_warns: Configured budget; negative means unlimited.
+        reason_callable: The claim was for the callable-level counter ``warned_calls``.
+        reason_argument: The argument keys the claim consumed in ``warned_args``.
+
+    Example:
+        >>> state = _WrapperState()
+        >>> _consume_warn_budget(state, 1, reason_callable=True)
+        True
+        >>> _release_warn_budget(state, 1, reason_callable=True)
+        >>> _consume_warn_budget(state, 1, reason_callable=True)
+        True
+
+    """
+    if num_warns < 0:
+        return
+    if reason_callable:
+        state.warned_calls -= 1
     elif reason_argument:
         for arg in reason_argument:
-            if num_warns < 0 or state.warned_args.get(arg, 0) < num_warns:
-                state.warned_args[arg] = state.warned_args.get(arg, 0) + 1
-    return True
+            state.warned_args[arg] -= 1

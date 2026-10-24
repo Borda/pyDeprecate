@@ -45,7 +45,7 @@ class TestFormatReportProxyTarget:
 
         mid_cfg = object.__getattribute__(mid, "_DeprecatedProxy__config")
         assert formatted == "MidApi"
-        assert mid_cfg.warned == 0
+        assert mid_cfg.state.warned_calls == 0
 
     def test_legacy_proxy_target_formatted_through_public_fallback(self) -> None:
         """Format a proxy target that carries only the pre-v0.13 metadata attribute.
@@ -61,7 +61,7 @@ class TestFormatReportProxyTarget:
 
         proxy_config = object.__getattribute__(target, "_DeprecatedProxy__config")
         assert formatted == "LegacyClass"
-        assert proxy_config.warned == 0
+        assert proxy_config.state.warned_calls == 0
 
 
 class TestFormatReportCallableTarget:

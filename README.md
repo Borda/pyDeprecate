@@ -196,6 +196,8 @@ print(result)
 
 That's it! All calls to `addition()` are automatically forwarded to `compute_sum()` with a deprecation warning.
 
+A callable target whose signature cannot be inspected still decorates successfully. A forwarded call that needs that signature, including keyword validation without `args_mapping`, raises the original introspection error; an empty call requiring no signature validation can still succeed.
+
 > [!IMPORTANT]
 >
 > When `target=<callable>` is set, pyDeprecate intercepts the call **before** the body executes — the body is dead code under normal forwarding. **Exception**: if `skip_if` evaluates `True` at call time, the source body runs as the fallback, so keep a working implementation when combining `target=<callable>` with `skip_if`.
@@ -1237,7 +1239,7 @@ To deprecate attributes at different library versions, stack two `@deprecated_cl
 
 ### 📝 Automatic docstring updates
 
-You can automatically inject deprecation information into your function's docstring:
+You can automatically inject deprecation information into your function's docstring. With `deprecated_class(update_docstring=True)`, a class whose `__doc__` is `None` keeps `None`; internal proxy documentation is never substituted.
 
 <details>
 <summary>Example: <code>update_docstring=True</code> inserts a Sphinx deprecation notice before <code>Args:</code>/<code>Parameters</code></summary>
@@ -1413,6 +1415,8 @@ deprecated_module(__name__, deprecated_in="2.0", remove_in="3.0", message_templa
 
 **Mode 2 — redirect** (forward missing-attr lookups to a replacement module, useful when renaming):
 
+A context copied during a redirect can resolve the same name again once that lookup finishes, including when the lookup raises an exception. Active redirect cycles still raise `AttributeError`.
+
 ```python
 # phmdoctest:skip — CI template: replace new_calculator with your actual module
 # old_calculator.py
@@ -1509,7 +1513,7 @@ b'https://example.com'
 
 > [!NOTE]
 >
-> `@deprecated` also supports **async generator functions** (`async def` + `yield`). The warning fires when the wrapper is called and callers keep iterating with `async for`. For framework introspection and exact async warning-count caveats, see [Async functions](https://borda.github.io/pyDeprecate/stable/guide/async.html) and [Troubleshooting](https://borda.github.io/pyDeprecate/stable/troubleshooting.html#concurrent-async-calls-and-warning-counts).
+> `@deprecated` also supports **async generator functions** (`async def` + `yield`). The warning fires when the wrapper is called and callers keep iterating with `async for`. For framework introspection and async warning-budget behavior, see [Async functions](https://borda.github.io/pyDeprecate/stable/guide/async.html) and [Troubleshooting](https://borda.github.io/pyDeprecate/stable/troubleshooting.html#concurrent-async-calls-and-warning-counts).
 
 ## 🔇 Understanding the `void()` Helper
 
@@ -2312,7 +2316,7 @@ print(predict_batch(1))
 
 ### ⚠ UserWarning: `` `@deprecated` on class … now dispatches to `@deprecated_class` ``
 
-**Not a problem** — since v0.12, `@deprecated` on a class is first-class supported and permanent: it dispatches to `@deprecated_class()` and produces an identical `_DeprecatedProxy`. The `UserWarning` is a one-time informational notice, fired at most once per class (keyed by module + qualified name — same-named classes in different modules each warn) per process, telling you that the dispatch happened. Only this notice — not the dispatch support — is removed entirely, in v1.0.
+**Not a problem** — since v0.12, `@deprecated` on a class is first-class supported and permanent: it dispatches to `@deprecated_class()` and produces an identical `_DeprecatedProxy`. The `UserWarning` is a one-time informational notice, fired at most once per class (keyed by module + qualified name — same-named classes in different modules each warn) per process, telling you that the dispatch happened. Only this notice — not the dispatch support — is removed entirely, in v1.0. The notice cache is thread-safe and retains at most 4096 class keys in insertion order; an evicted class may receive the notice again.
 
 **To quiet it:** apply `@deprecated_class()` directly (same result, no notice, and required to reach class-only options such as `attrs_mapping`), or pass `stream=None`.
 
@@ -2474,7 +2478,7 @@ Hi!
 
 **Problem:** You don't see the deprecation warning.
 
-**Cause:** By default, warnings are shown **only once per function** (`num_warns=1`) to prevent log spam. For per-argument deprecation (when using `args_mapping` with `TargetMode.ARGS_REMAP`), each deprecated argument has its own warning counter, meaning warnings for different arguments are tracked independently.
+**Cause:** By default, warnings are shown **only once per function** (`num_warns=1`) to prevent log spam. For per-argument deprecation (when using `args_mapping` with `TargetMode.ARGS_REMAP`), each deprecated argument has its own warning counter, meaning warnings for different arguments are tracked independently. A warning for a call that uses several deprecated arguments names only those whose counter is not yet spent, so an argument you were already warned about is not listed again.
 
 <details>
 <summary>Solutions</summary>

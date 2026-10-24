@@ -4,9 +4,12 @@ This module provides base functions that are used as targets for deprecated func
 
 """
 
+import asyncio
+import contextvars
 import functools
 import inspect
 import logging
+import threading
 import time
 import types
 import warnings
@@ -72,6 +75,26 @@ def add_values(x: int, y: int) -> int:
 def identity_value(x: int) -> int:
     """Return the original input value."""
     return x
+
+
+class UncomparableDefault:
+    """Default value that rejects equality comparisons, like an array with ambiguous truth values."""
+
+    def __eq__(self, other: object) -> bool:
+        """Reject equality checks so default filtering must use identity."""
+        raise TypeError("default values must not be compared for equality")
+
+    def __ne__(self, other: object) -> bool:
+        """Reject inequality checks so default filtering must use identity."""
+        raise TypeError("default values must not be compared for inequality")
+
+
+uncomparable_default = UncomparableDefault()
+
+
+def return_default_value(value: UncomparableDefault) -> UncomparableDefault:
+    """Return the exact default object received by the forwarding target."""
+    return value
 
 
 def stacked_chain_identity(base: int) -> int:
@@ -221,6 +244,17 @@ def fn_with_default(new_arg: int = 99) -> int:
 
     """
     return new_arg
+
+
+def fn_kept_name_target(level: int = -1) -> int:
+    """Target callable whose parameter keeps the name the deprecated wrapper already uses.
+
+    Used by the ``args_mapping={"level": ""}`` fixtures: ``""`` means "keep the old argument name", so a caller's
+    ``level=...`` must reach this target unchanged.  The default ``-1`` differs from every value the tests pass, so a
+    dropped argument shows up as ``-1`` instead of passing unnoticed.
+
+    """
+    return level
 
 
 def fn_shared_default_target(x: int, level: int = 99) -> int:
@@ -777,6 +811,59 @@ def positional_only_target(x: int, /, y: int = 0) -> int:
     return x + y
 
 
+class SourcePathTarget:
+    """Plain class whose proxies render ``%(source_path)s`` in a custom ``message_template``.
+
+    ``new_attr`` is the replacement an ``attrs_mapping`` redirects to; ``gone_attr`` is a warn-only (``None``-mapped)
+    attribute; ``new`` is the constructor keyword an ``args_mapping`` renames to.  Wrapped by the
+    ``DeprSourcePath*`` proxies and ``depr_source_path_instance`` in :mod:`tests.collection_deprecate`.
+    """
+
+    new_attr = "new"
+    gone_attr = "gone"
+
+    def __init__(self, new: int = 0) -> None:
+        """Store the constructor value."""
+        self.new = new
+
+
+class ModuleRaisingGetattributeMeta(type):
+    """Metaclass whose ``__getattribute__`` raises on ``__module__``: a dynamic module lookup on its classes fails."""
+
+    def __getattribute__(cls, name: str) -> Any:  # noqa: ANN401
+        """Refuse ``__module__``; delegate every other attribute to ``type``."""
+        if name == "__module__":
+            raise RuntimeError("dynamic __module__ lookup refused")
+        return super().__getattribute__(name)
+
+
+class ModuleRaisingPropertyMeta(type):
+    """Metaclass declaring ``__module__`` as a raising property, which shadows each class's own ``__module__``."""
+
+    @property
+    def __module__(cls) -> str:  # type: ignore[override]
+        """Refuse the lookup — the class's own namespace still holds the real module name."""
+        raise RuntimeError("dynamic __module__ lookup refused")
+
+
+def make_module_raising_class(metaclass: type) -> type:
+    """Build a fresh ``ModuleRaisingTarget`` class under *metaclass*, whose ``__module__`` lookup raises.
+
+    Built on call, not at import, so module scans (audit, docs examples) never meet a class whose attribute lookup
+    raises.  The class namespace records this module, which is the path a deprecation proxy over it should render.
+    """
+    return metaclass("ModuleRaisingTarget", (), {"__module__": __name__, "__doc__": "Class with a refusing metaclass."})
+
+
+def every_parameter_kind_target(a: int, /, b: int = 2, *rest: int, c: int, d: int = 4, **extra: int) -> None:
+    """Target declaring one parameter of every kind, two of them with defaults.
+
+    ``a`` is positional-only, ``b`` positional-or-keyword, ``rest`` the ``*args`` tail, ``c`` and ``d``
+    keyword-only and ``extra`` the ``**kwargs`` catch-all.  Read directly (not wrapped) by the
+    :func:`deprecate.utils._signature_facts` tests to check that one signature read classifies every kind.
+    """
+
+
 async def async_positional_only_target(x: int, /, y: int = 0) -> int:
     """Async target with one POSITIONAL_ONLY param for async dispatch tests.
 
@@ -887,6 +974,16 @@ async def async_non_cycle_double(x: int) -> int:
 
     Wrapped by ``dep_async_non_cycle_old_fn`` in :mod:`tests.collection_deprecate`.
     """
+    return x * 2
+
+
+async def async_suspending_double(x: int) -> int:
+    """Async target that yields to the event loop once before doubling its input.
+
+    Wrapped by ``dep_async_suspending_old_fn`` in :mod:`tests.collection_deprecate_forwarding`.  A guarded call that
+    stays in flight across a task switch is what lets a sibling task observe it, so the switch must really happen.
+    """
+    await asyncio.sleep(0)
     return x * 2
 
 
@@ -1149,6 +1246,7 @@ moduleless_function.__module__ = None  # type: ignore[assignment]
 partial_of_double = functools.partial(double_value)
 partialmethod_of_double = functools.partialmethod(double_value)
 singledispatchmethod_of_double = functools.singledispatchmethod(double_value)
+property_of_partial = property(partial_of_double)
 
 
 class SideEffectBox:
@@ -1551,6 +1649,114 @@ class CountingSkipCondition:
         return answer
 
 
+class OpaqueSignatureCallable:
+    """Named callable whose ``__signature__`` raises ``ValueError``, like a C-level callable without metadata.
+
+    A maintainer forwards a deprecated function to such a callable, or decorates one directly. pyDeprecate reads every
+    signature when it decorates; an unreadable source must still fail there, and an unreadable target must still fail
+    only on the forwarded call that needs its signature.
+    """
+
+    __name__ = "opaque_callable"
+
+    @property
+    def __signature__(self) -> Any:  # noqa: ANN401
+        """Always raise ``ValueError``, as ``inspect.signature`` does for an unsupported builtin."""
+        raise ValueError("no signature found for opaque_callable")
+
+    def __call__(self, *args: Any, **kwargs: Any) -> tuple[tuple[Any, ...], dict[str, Any]]:  # noqa: ANN401
+        """Return the call's arguments, so a test can see what reached the callable."""
+        return args, kwargs
+
+
+class SignatureNotBuiltError(ValueError):
+    """``ValueError`` subclass whose constructor takes more than the message, so it cannot be rebuilt from ``args``."""
+
+    def __init__(self, name: str, reason: str) -> None:
+        """Build the message from the callable's name and the reason its signature is not available."""
+        super().__init__(f"{name}: {reason}")
+        self.reason = reason
+
+
+class SignatureNeedsContextError(ValueError):
+    """``ValueError`` subclass that can be neither copied nor rebuilt, because its ``__new__`` demands the arguments."""
+
+    def __new__(cls, name: str, reason: str) -> "SignatureNeedsContextError":
+        """Require the callable's name and the reason, so ``cls()`` and ``cls(*args)`` both raise ``TypeError``."""
+        return super().__new__(cls, f"{name}: {reason}")
+
+    def __init__(self, name: str, reason: str) -> None:
+        """Build the message from the callable's name and the reason its signature is not available."""
+        super().__init__(f"{name}: {reason}")
+
+
+class LazySignatureCallable(OpaqueSignatureCallable):
+    """Named callable whose ``__signature__`` raises :class:`SignatureNotBuiltError` while the signature is not built.
+
+    Frameworks that build signatures lazily raise their own error type until the signature exists. A deprecated
+    function forwarding to such a callable must surface that error on the forwarded call, with its own type.
+    """
+
+    __name__ = "lazy_callable"
+
+    @property
+    def __signature__(self) -> Any:  # noqa: ANN401
+        """Always raise :class:`SignatureNotBuiltError`."""
+        raise SignatureNotBuiltError("lazy_callable", "not built yet")
+
+
+class ContextCapturingLookup:
+    """Capture a redirect's context before returning an answer or failing its first lookup."""
+
+    def __init__(self, fail_first: bool) -> None:
+        """Configure the first lookup and retain every context captured by the target."""
+        self.fail_first = fail_first
+        self.contexts: list[contextvars.Context] = []
+
+    def __call__(self, name: str) -> int:
+        """Capture the in-flight redirect context and resolve the requested answer."""
+        self.contexts.append(contextvars.copy_context())
+        if name != "answer" or (self.fail_first and len(self.contexts) == 1):
+            raise AttributeError(name)
+        return 42
+
+
+class InheritedContextLookup:
+    """Module ``__getattr__`` that answers a name by looking it up again from a thread started in a copied context.
+
+    Free-threaded CPython 3.14 starts every new thread with a copy of the creating thread's context. A module
+    attribute resolved through a redirect may hand work to such a thread, which then makes its own lookup of the same
+    name; that nested lookup answers ``7``. The outer call returns what the worker got (or re-raises its error).
+    """
+
+    def __init__(self, source: types.ModuleType) -> None:
+        """Remember the deprecated module the worker looks the name up on."""
+        self.source = source
+        self.depth = 0
+
+    def __call__(self, name: str) -> Any:  # noqa: ANN401
+        """Resolve *name* from a worker thread running in a copy of the current context."""
+        if self.depth:
+            return 7
+        self.depth += 1
+        outcome: list[Any] = []
+        context = contextvars.copy_context()
+        worker = threading.Thread(target=self._lookup, args=(context, name, outcome))
+        worker.start()
+        worker.join(timeout=10)
+        self.depth -= 1
+        if isinstance(outcome[0], Exception):
+            raise outcome[0]
+        return outcome[0]
+
+    def _lookup(self, context: contextvars.Context, name: str, outcome: list[Any]) -> None:
+        """Look *name* up on the source module inside *context*, recording the value or the ``AttributeError``."""
+        try:
+            outcome.append(context.run(getattr, self.source, name))
+        except AttributeError as err:
+            outcome.append(err)
+
+
 async def legacy_tick_stream() -> AsyncIterator[int]:
     """Async generator yielding ``1`` then ``2``: a deprecated async data stream whose items must outlive a failure."""
     yield 1
@@ -1742,3 +1948,12 @@ class SlowRecordingStream(RecordingStream):
 def stream_wraps_warn_forwarding_stacklevel(msg: str, stacklevel: int = 1) -> None:
     """Pure-Python stream copying ``warnings.warn`` metadata; adds its own frame to the forwarded ``stacklevel``."""
     warnings.warn(msg, stacklevel=stacklevel + 1)
+
+
+class DoclessTarget:  # noqa: D101 - intentionally lacks documentation for proxy docstring preservation
+    pass
+
+
+def zero_argument_target() -> int:
+    """Return a fixed value without accepting any forwarded arguments."""
+    return 7

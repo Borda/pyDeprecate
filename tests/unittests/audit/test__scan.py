@@ -27,7 +27,7 @@ from deprecate.audit import (
     validate_deprecation_wrapper,
 )
 from deprecate.audit._scan import _SKIPPED_MODULES, _collect_skipped_modules, _member_has_deprecation_meta, _scan_class
-from deprecate.proxy import _DeprecatedProxy, deprecated_class
+from deprecate.proxy import _DeprecatedProxy, _ProxySpec, deprecated_class
 
 
 class _SideEffectScanModule:
@@ -61,7 +61,10 @@ class TestFindDeprecationWrappersWarningBudget:
         lookup. Static inspection must avoid consuming the proxy warning budget.
 
         """
-        proxy = _DeprecatedProxy(obj={}, name="scan_test", deprecated_in="1.0", remove_in="2.0", num_warns=1)
+        proxy = _DeprecatedProxy(
+            obj={},
+            spec=_ProxySpec(name="scan_test", deprecated_in="1.0", remove_in="2.0", num_warns=1),
+        )
         fake_mod = _SideEffectScanModule(proxy)
 
         find_deprecation_wrappers(fake_mod, recursive=False)
@@ -926,7 +929,7 @@ class TestValidateMappingCompatibility:
 
         ``args_mapping`` values of ``None`` denote warn-only (drop) entries — the proxy never
         attempts to forward the key as a kwarg, so there is no positional-only incompatibility
-        to report.  ``_get_args_mapping_positional_only_keys`` correctly skips ``None`` values;
+        to report.  ``deprecate.proxy._detect_proxy_positional_only`` correctly skips ``None`` values;
         this test pins that behaviour so a future refactor cannot introduce a false positive.
         """
         # Construct the proxy with a warn-only (None) mapping to the positional-only param name.

@@ -1,11 +1,13 @@
-"""Unit tests for the target-resolution and call-plan engine (:mod:`deprecate._dispatch`)."""
+"""Unit tests for call-facts precomputation and the call-plan engine (:mod:`deprecate._dispatch`)."""
 
 import asyncio
 import concurrent.futures
+import contextvars
 import inspect
 import sys
 import threading
 import time
+import traceback
 import warnings
 from collections.abc import Iterator
 from typing import Any, Callable, Optional, Union, cast
@@ -15,43 +17,47 @@ import pytest
 
 from deprecate import TargetMode, assert_no_warnings, deprecated, void
 from deprecate._dispatch import (
-    POSITIONAL_OR_KEYWORD,
+    _build_call_facts,
     _build_call_plan,
-    _find_class_body_qualname,
+    _cycle_detection,
+    _CycleEntry,
+    _enter_cycle_guard,
+    _exit_cycle_guard,
     _ForwardDefaults,
-    _get_positional_params,
     _merge_source_defaults,
-    _normalize_target,
     _precompute_forward_defaults,
-    _precompute_target_facts,
     _prepare_target_call,
-    _reject_bare_decorator,
+    _raise_target_signature_error,
     _split_positional_only_kwargs,
+    _target_signature_facts,
     _update_kwargs_with_args,
     _update_kwargs_with_defaults,
+    _WrapperContext,
 )
-from deprecate._types import DeprecationConfig, _DeprecatedCallable, _WrapperState
+from deprecate._types import DeprecationConfig, _CallFacts, _DeprecatedCallable, _WrapperState
+from deprecate.utils import _signature_facts
 from tests.collection_deprecate import (
-    CrossGuardModuleLevel,
-    CrossGuardOldClass,
-    CrossGuardSameClass,
-    OldPositionalOnlyClass,
-    OldSelfOnlyClass,
-    StaticGuardNewClass,
-    StaticGuardOldClass,
     dep_async_cycle_fn_a,
     dep_async_cycle_fn_b,
-    dep_async_non_cycle_old_fn,
     dep_cycle_fn_a,
     dep_cycle_fn_b,
+    depr_pow_args,
+    depr_target_mode_args_only_with_args_extra_injects_kwargs,
+    make_depr_args_remap_notify_with_extra,
+    make_depr_compute_power_stacked,
+    make_depr_notify_callable_stacked,
+)
+from tests.collection_deprecate_forwarding import (
+    OldPositionalOnlyClass,
+    OldSelfOnlyClass,
+    dep_async_non_cycle_old_fn,
+    dep_async_sibling_pair_old_fn,
+    dep_async_task_cycle_fn,
     dep_fib_callable,
     dep_fib_notify,
     dep_fib_remap,
     dep_fib_silent,
     dep_non_cycle_old_fn,
-    depr_pow_args,
-    depr_scale_partial_every_call,
-    depr_target_mode_args_only_with_args_extra_injects_kwargs,
     deprecated_args_remap_positional_only_source,
     deprecated_async_args_remap_positional_only_source,
     deprecated_async_gapped_positional_only_source,
@@ -66,14 +72,15 @@ from tests.collection_deprecate import (
     deprecated_positional_only_two_params_source,
     deprecated_positional_only_with_args_mapping_source,
     fn_shared_default,
-    make_depr_args_remap_notify_with_extra,
-    make_depr_compute_power_stacked,
-    make_depr_notify_callable_stacked,
     make_deprecated_positional_only_num_warns_one,
 )
+from tests.collection_deprecate_regressions import depr_scale_partial_every_call
 from tests.collection_misconfigured import target_false_deprecation
 from tests.collection_targets import (
     KeywordCallTarget,
+    NewCls,
+    SignatureNeedsContextError,
+    SignatureNotBuiltError,
     call_signature_source,
     compute_power,
     double_value,
@@ -86,55 +93,8 @@ from tests.collection_targets import (
     positional_only_two_params_target,
     source_sharing_level_default,
     source_with_forward_defaults,
-    stacked_inner_target,
-    stacked_outer_target,
+    var_positional_target,
 )
-
-
-class TestGetPositionalParams:
-    """Tests for _get_positional_params — filters a param list to POSITIONAL_OR_KEYWORD and POSITIONAL_ONLY kinds."""
-
-    def test_returns_only_positional_params(self) -> None:
-        """Keyword-only params (after *) are excluded; positional params are returned."""
-
-        def my_func(a: int, b: str, *, kw_only: int = 0) -> None:
-            pass
-
-        params = list(inspect.signature(my_func).parameters.values())
-        result = _get_positional_params(params)
-        assert [p.name for p in result] == ["a", "b"]
-
-    def test_excludes_var_positional_and_var_keyword(self) -> None:
-        """*args and **kwargs are excluded; only the plain positional param is returned."""
-
-        def my_func(a: int, *args: int, **kwargs: int) -> None:
-            pass
-
-        params = list(inspect.signature(my_func).parameters.values())
-        result = _get_positional_params(params)
-        assert [p.name for p in result] == ["a"]
-
-    def test_empty_params(self) -> None:
-        """A function with no parameters returns an empty list."""
-
-        def my_func() -> None:
-            pass
-
-        params = list(inspect.signature(my_func).parameters.values())
-        assert _get_positional_params(params) == []
-
-    def test_all_kinds_filtered(self) -> None:
-        """Confirms POSITIONAL_OR_KEYWORD is kept while KEYWORD_ONLY is dropped."""
-
-        def my_func(pos_or_kw: int, *, kw_only: int) -> None:
-            pass
-
-        params = list(inspect.signature(my_func).parameters.values())
-        assert params[0].kind == POSITIONAL_OR_KEYWORD
-        assert params[1].kind == inspect.Parameter.KEYWORD_ONLY
-        result = _get_positional_params(params)
-        assert len(result) == 1
-        assert result[0].name == "pos_or_kw"
 
 
 class TestUpdateKwargsWithArgs:
@@ -146,7 +106,7 @@ class TestUpdateKwargsWithArgs:
         def my_func(a: int, b: int) -> None:
             pass
 
-        result = _update_kwargs_with_args(my_func, (), {"a": 1})
+        result = _update_kwargs_with_args((), {"a": 1}, _build_call_facts(my_func, TargetMode.NOTIFY, None))
         assert result == {"a": 1}
 
     def test_maps_positional_to_param_names(self) -> None:
@@ -155,7 +115,7 @@ class TestUpdateKwargsWithArgs:
         def my_func(a: int, b: str, c: float = 3.0) -> None:
             pass
 
-        result = _update_kwargs_with_args(my_func, (1, "hello"), {})
+        result = _update_kwargs_with_args((1, "hello"), {}, _build_call_facts(my_func, TargetMode.NOTIFY, None))
         assert result == {"a": 1, "b": "hello"}
 
     def test_merges_with_existing_kwargs(self) -> None:
@@ -164,7 +124,7 @@ class TestUpdateKwargsWithArgs:
         def my_func(a: int, b: int, c: int = 0) -> None:
             pass
 
-        result = _update_kwargs_with_args(my_func, (10,), {"c": 99})
+        result = _update_kwargs_with_args((10,), {"c": 99}, _build_call_facts(my_func, TargetMode.NOTIFY, None))
         assert result == {"a": 10, "c": 99}
 
     def test_stops_at_var_positional(self) -> None:
@@ -173,17 +133,25 @@ class TestUpdateKwargsWithArgs:
         def my_func(a: int, *args: int) -> None:
             pass
 
-        result = _update_kwargs_with_args(my_func, (1, 2, 3), {})
+        result = _update_kwargs_with_args((1, 2, 3), {}, _build_call_facts(my_func, TargetMode.NOTIFY, None))
         assert result == {"a": 1}
 
-    def test_too_many_positional_raises_type_error(self) -> None:
-        """Passing more positional args than the function has positional params raises TypeError."""
 
-        def my_func(a: int, b: int) -> None:
-            pass
+def test_call_plan_rejects_surplus_positionals() -> None:
+    """Passing more positional args than the source has positional params raises the curated TypeError.
 
-        with pytest.raises(TypeError, match="takes 2 positional"):
-            _update_kwargs_with_args(my_func, (1, 2, 3), {})
+    The arity check lives in ``_build_call_plan`` (before any warning or budget is spent) and runs once per call;
+    ``_update_kwargs_with_args`` relies on it and no longer repeats it.
+    """
+
+    def my_func(a: int, b: int) -> None:
+        pass
+
+    cfg = DeprecationConfig(deprecated_in="1.0", remove_in="2.0", name="src", target=TargetMode.NOTIFY)
+    ctx = _make_context(my_func, cfg, TargetMode.NOTIFY)
+
+    with pytest.raises(TypeError, match="takes 2 positional"):
+        _build_call_plan(ctx, (1, 2, 3), {})
 
 
 def test_class_target_uses_call_signature_for_validation() -> None:
@@ -201,7 +169,7 @@ class TestUpdateKwargsWithDefaults:
         def my_func(a: int = 1, b: int = 2, c: int = 3) -> None:
             pass
 
-        result = _update_kwargs_with_defaults(my_func, {})
+        result = _update_kwargs_with_defaults(_signature_facts(my_func).defaults, {})
         assert result == {"a": 1, "b": 2, "c": 3}
 
     def test_provided_kwargs_override_defaults(self) -> None:
@@ -210,7 +178,7 @@ class TestUpdateKwargsWithDefaults:
         def my_func(a: int = 1, b: int = 2, c: int = 3) -> None:
             pass
 
-        result = _update_kwargs_with_defaults(my_func, {"b": 20})
+        result = _update_kwargs_with_defaults(_signature_facts(my_func).defaults, {"b": 20})
         assert result == {"a": 1, "b": 20, "c": 3}
 
     def test_params_without_defaults_not_included(self) -> None:
@@ -219,7 +187,7 @@ class TestUpdateKwargsWithDefaults:
         def my_func(required: int, optional: int = 5) -> None:
             pass
 
-        result = _update_kwargs_with_defaults(my_func, {})
+        result = _update_kwargs_with_defaults(_signature_facts(my_func).defaults, {})
         assert result == {"optional": 5}
         assert "required" not in result
 
@@ -229,313 +197,12 @@ class TestUpdateKwargsWithDefaults:
         def my_func(a: int, b: str) -> None:
             pass
 
-        result = _update_kwargs_with_defaults(my_func, {"a": 7})
+        result = _update_kwargs_with_defaults(_signature_facts(my_func).defaults, {"a": 7})
         assert result == {"a": 7}
 
 
-class TestCrossClassMethodGuard:
-    """@deprecated warns when target is a method on a different class."""
-
-    def test_raises_for_cross_class_method_target(self) -> None:
-        """Forwarding to a method on a different class raises TypeError at decoration time.
-
-        The misconfigured classes are defined inline (not in collection_deprecate.py) because placing ``@deprecated``
-        with a cross-class target at module level would raise TypeError at import time for every test that imports the
-        collection module.
-
-        """
-
-        class OtherClass:
-            def other_method(self, x: int) -> int:
-                return x
-
-        with pytest.raises(TypeError, match="cross-class method forwarding is not supported"):
-
-            class MyClass:
-                @deprecated(target=OtherClass.other_method, deprecated_in="1.0", remove_in="2.0")
-                def old_method(self, x: int) -> int:
-                    return void(x)
-
-    def test_raises_for_class_target_on_non_init_method(self) -> None:
-        """@deprecated(target=SomeClass) on a non-__init__ class method raises TypeError.
-
-        Passing a class directly as target for a bound method would silently forward
-        ``self`` of the wrong type.  Only ``__init__`` supports ``target=SomeClass``
-        (auto-remapped to ``target=SomeClass.__init__``); for any other class method
-        the caller must use a same-class method target or ``target=None``/``True``.
-
-        Defined inline for the same import-time reason as the cross-class test above.
-        """
-
-        class Target:
-            pass
-
-        with pytest.raises(TypeError, match="only supported on `__init__`"):
-
-            class _Owner:
-                @deprecated(target=Target, deprecated_in="1.0", remove_in="2.0")
-                def some_method(self) -> None:
-                    pass
-
-    def test_does_not_raise_for_same_class_method_target(self) -> None:
-        """Forwarding to a method on the same class does not raise."""
-        with pytest.warns(FutureWarning):
-            assert CrossGuardSameClass().old_method(5) == 10
-
-    def test_does_not_raise_for_module_level_function_target(self) -> None:
-        """Forwarding a class method to a module-level function is allowed (no self passed)."""
-        assert callable(CrossGuardModuleLevel.old_method)
-
-    def test_does_not_raise_for_class_target(self) -> None:
-        """Forwarding __init__ to a full class (constructor forwarding) is allowed."""
-        with pytest.warns(FutureWarning):
-            old = CrossGuardOldClass(3)
-        assert isinstance(old, CrossGuardOldClass)
-        assert old.x == 3
-
-    def test_does_not_raise_for_cross_class_staticmethod_target(self) -> None:
-        """A deprecated staticmethod forwarding to a staticmethod on another class decorates without raising.
-
-        Regression test: a staticmethod receives no ``self``, so the cross-class guard's rationale ("self
-        would carry the wrong type") does not apply.  ``StaticGuardOldClass.compute`` forwards to
-        ``StaticGuardNewClass.compute`` — a *different* class — and must decorate at import time rather than
-        raising the cross-class ``TypeError``.  The class object being importable already proves decoration
-        succeeded.
-        """
-        assert callable(StaticGuardOldClass.compute)
-        assert StaticGuardNewClass.compute(4) == 12
-
-    def test_cross_class_staticmethod_forwards_and_warns(self) -> None:
-        """The deprecated cross-class staticmethod forwards to the target and emits a FutureWarning.
-
-        Beyond decorating cleanly, calling the deprecated staticmethod must actually run the replacement:
-        ``StaticGuardOldClass.compute(4)`` returns ``StaticGuardNewClass.compute(4)`` (``4 * 3 == 12``) and
-        raises the deprecation ``FutureWarning`` on the way.
-        """
-        with pytest.warns(FutureWarning):
-            result = StaticGuardOldClass.compute(4)
-        assert result == 12
-
-    def test_metaclass_generated_qualname_skips_guard(self) -> None:
-        """A target with a metaclass-style rewritten ``__qualname__`` is detected and the guard returns silently.
-
-        The module-globals check verifies that the top-level class name in the target's qualname actually exists in the
-        target callable's module.  When it does not (as for a synthetic ``FakeOwner.replacement`` qualname produced by
-        ``type(...)`` or manual assignment), the qualname cannot be trusted and the guard short-circuits.
-
-        """
-
-        def replacement(instance: object, x: int) -> int:
-            void(instance)
-            return x
-
-        # Simulate a metaclass / type(...) assigning a qualname that looks like a method on FakeOwner,
-        # even though `replacement` is unrelated to any such class.  FakeOwner does not exist in this
-        # test module, so the module-globals check in the guard detects the unreliable qualname.
-        replacement.__qualname__ = "FakeOwner.replacement"
-
-        class RealOwner:  # decoration must not raise TypeError
-            @deprecated(target=replacement, deprecated_in="1.0", remove_in="2.0")
-            def old_method(self, x: int) -> int:
-                return void(x)
-
-        # Guard returned silently: decoration completed and attached deprecation metadata rather than raising.
-        # (The synthetic ``replacement`` fixture rejects the forwarded ``self``, so only decoration is asserted here.)
-        assert hasattr(RealOwner.old_method, "__deprecation_config__")
-
-    def test_decorator_rewriting_source_qualname_same_class_no_warning(self) -> None:
-        """Frame inspection resolves the FP when a decorator corrupts source qualname on a same-class forward.
-
-        Python sets ``__qualname__`` in the class body's locals at class-definition time, before any decorator runs.
-        Reading it from ``sys._getframe`` therefore recovers the true enclosing class name even when a pre-applied
-        decorator has overwritten ``fn.__qualname__`` on the source callable.
-
-        """
-
-        def rewrite_to_alien_class(fn: Callable[..., Any]) -> Callable[..., Any]:
-            """Test fixture: outer decorator that retags the wrapped function as living on ``AlienClass``."""
-            fn.__qualname__ = "AlienClass.method"
-            return fn
-
-        class MyClass:  # decoration must not raise TypeError
-            def new_method(self, x: int) -> int:
-                return x
-
-            @deprecated(target=new_method, deprecated_in="1.0", remove_in="2.0")
-            @rewrite_to_alien_class
-            def old_method(self, x: int) -> int:
-                return void(x)
-
-        # Decoration succeeded and the wrapper forwards to the same-class target: calling it warns and returns 7.
-        with pytest.warns(FutureWarning):
-            result = MyClass().old_method(7)
-        assert result == 7
-
-    def test_decorator_rewriting_qualname_raises_for_cross_class(self) -> None:
-        """A pre-applied decorator rewriting source qualname to a genuinely different class still raises TypeError.
-
-        Fix 1 (frame inspection) overrides the corrupted source qualname with the true enclosing class taken from the
-        class body's locals.  When the recovered class differs from the target's class, the guard still fires correctly
-        — this guards against an over-eager FP suppression.
-
-        """
-
-        def rewrite_qualname(fn: Callable[..., Any]) -> Callable[..., Any]:
-            """Test fixture: an outer decorator that retags the wrapped function as living on ``OtherOwner``."""
-            fn.__qualname__ = "OtherOwner.rewritten_method"
-            return fn
-
-        class TargetOwner:
-            def target_method(self, x: int) -> int:
-                return x
-
-        with pytest.raises(TypeError, match="cross-class method forwarding is not supported"):
-
-            class RealOwner:
-                @deprecated(target=TargetOwner.target_method, deprecated_in="1.0", remove_in="2.0")
-                @rewrite_qualname
-                def old_method(self, x: int) -> int:
-                    return void(x)
-
-
-class TestNormalizeTargetInvalidInputs:
-    """_normalize_target passes unrecognised non-class values through unchanged.
-
-    The inline ``@deprecated`` decorator in :meth:`test_invalid_target_source_body_runs`
-    is parametrize-coupled (``target=bad_target`` resolves from the parametrize fixture),
-    so it cannot be moved to :mod:`tests.collection_deprecate` — one wrapper-per-bad-value
-    would require either four near-identical fixtures or a factory that obscures the test
-    intent.  This is the AGENTS.md three-layer-rule exception for parametrize-coupled
-    decorators.
-    """
-
-    @pytest.mark.parametrize("bad_target", [42, "not_callable", [], {}])
-    def test_invalid_type_returned_unchanged(self, bad_target: object) -> None:
-        """Non-callable, non-class, non-sentinel values pass through _normalize_target as-is."""
-
-        def dummy() -> None:
-            pass
-
-        result = _normalize_target(source=dummy, target=cast(Any, bad_target))
-        assert result is bad_target
-
-    @pytest.mark.parametrize("bad_target", [42, "not_callable", [], {}])
-    def test_invalid_target_source_body_runs(self, bad_target: object) -> None:
-        """Non-callable target is never invoked; source body executes normally at call time."""
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-
-            @deprecated(target=cast(Any, bad_target), deprecated_in="1.2", remove_in="2.0")
-            def fn(x: int) -> int:
-                return x + 1
-
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            result = fn(4)
-
-        assert result == 5
-
-
-class TestStackedCallableTargetGuard:
-    """Stacking ``@deprecated(target=fn_a)`` over ``@deprecated(target=fn_b)`` warns at decoration time (B4).
-
-    Callable-over-callable stacking silently raises ``TypeError`` at the first call because the inner wrapper's
-    signature does not match the outer target's remapped kwargs. The guard surfaces this misconfiguration at decoration
-    time so authors catch it without exercising the call path.
-
-    """
-
-    def test_stacked_callable_targets_warn_at_decoration(self) -> None:
-        """Decorating a callable-target wrapper with another callable target emits ``UserWarning``."""
-        inner = deprecated(target=stacked_inner_target, deprecated_in="0.8", remove_in="1.0")(stacked_outer_target)
-        with pytest.warns(UserWarning, match="callable target stacked"):
-            deprecated(target=stacked_outer_target, deprecated_in="0.8", remove_in="1.0")(inner)
-
-
-class TestStackingGuards:
-    """Decoration-time ``UserWarning`` for every unsupported stacking combination.
-
-    Each guard surfaces a misconfiguration before the first call rather than producing
-    silently wrong results or raising ``TypeError`` at runtime. The callable+callable
-    case is covered by ``TestStackedCallableTargetGuard``; this class covers the other
-    unsupported stacking combinations exercised below.
-    """
-
-    def _make_source(self, **kwargs: Any) -> Callable[..., int]:  # noqa: ANN401
-        """Return a minimal function decorated with @deprecated using the given kwargs."""
-
-        def fn(x: int = 0) -> int:
-            return x
-
-        return deprecated(**kwargs)(fn)
-
-    def test_callable_over_args_remap_warns(self) -> None:
-        """Callable-target outer stacked over ARGS_REMAP inner emits ``UserWarning``."""
-        inner = self._make_source(
-            target=TargetMode.ARGS_REMAP, deprecated_in="1.0", remove_in="2.0", args_mapping={"x": "y"}
-        )
-        with pytest.warns(UserWarning, match="callable target stacked over.*ARGS_REMAP") as record:
-            deprecated(target=stacked_outer_target, deprecated_in="2.0", remove_in="3.0")(inner)
-        assert record[0].filename.endswith("test__dispatch.py")
-
-    def test_args_remap_over_callable_warns(self) -> None:
-        """ARGS_REMAP outer stacked over callable-target inner emits ``UserWarning``."""
-        inner = self._make_source(target=stacked_outer_target, deprecated_in="1.0", remove_in="2.0")
-        with pytest.warns(UserWarning, match="ARGS_REMAP.*stacked over a callable") as record:
-            deprecated(target=TargetMode.ARGS_REMAP, deprecated_in="2.0", remove_in="3.0", args_mapping={"x": "y"})(
-                inner
-            )
-        assert record[0].filename.endswith("test__dispatch.py")
-
-    def test_notify_over_notify_warns(self) -> None:
-        """Duplicate NOTIFY layers emit ``UserWarning`` at decoration time."""
-        inner = self._make_source(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
-        with pytest.warns(UserWarning, match="duplicate.*NOTIFY") as record:
-            deprecated(target=TargetMode.NOTIFY, deprecated_in="2.0", remove_in="3.0")(inner)
-        assert record[0].filename.endswith("test__dispatch.py")
-
-    def test_notify_over_args_remap_warns_with_order_hint(self) -> None:
-        """NOTIFY outer + ARGS_REMAP inner (wrong order) emits ``UserWarning`` with order hint."""
-        inner = self._make_source(
-            target=TargetMode.ARGS_REMAP, deprecated_in="1.0", remove_in="2.0", args_mapping={"x": "y"}
-        )
-        with pytest.warns(UserWarning, match="Reverse the decorator order") as record:
-            deprecated(target=TargetMode.NOTIFY, deprecated_in="2.0", remove_in="3.0")(inner)
-        assert record[0].filename.endswith("test__dispatch.py")
-
-    def test_callable_over_notify_warns(self) -> None:
-        """Callable-target outer stacked over NOTIFY inner emits ``UserWarning``."""
-        inner = self._make_source(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
-        with pytest.warns(UserWarning, match="callable target stacked over.*NOTIFY") as record:
-            deprecated(target=stacked_outer_target, deprecated_in="2.0", remove_in="3.0")(inner)
-        assert record[0].filename.endswith("test__dispatch.py")
-
-    def test_args_remap_over_args_remap_does_not_warn(self) -> None:
-        """Supported ARGS_REMAP+ARGS_REMAP stacking must not emit any UserWarning."""
-        inner = self._make_source(
-            target=TargetMode.ARGS_REMAP, deprecated_in="1.0", remove_in="2.0", args_mapping={"x": "y"}
-        )
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-            deprecated(target=TargetMode.ARGS_REMAP, deprecated_in="2.0", remove_in="3.0", args_mapping={"y": "z"})(
-                inner
-            )
-        assert not [w for w in caught if issubclass(w.category, UserWarning)]
-
-    def test_non_stacked_args_remap_new_arg_silent(self) -> None:
-        """Regression: non-stacked ARGS_REMAP (_source_is_stacked=False) is silent when new arg used.
-
-        The early-return guard includes ``not _source_is_stacked``.  Verifies this condition still
-        allows a non-stacked ARGS_REMAP function to short-circuit with no warning when the caller
-        already uses the new argument name.
-        """
-        fn = self._make_source(
-            target=TargetMode.ARGS_REMAP, deprecated_in="1.0", remove_in="2.0", args_mapping={"old": "x"}
-        )
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-            fn(x=5)
-        assert not [w for w in caught if issubclass(w.category, FutureWarning)]
+#: Outer-target value for each stacking kind; ATTRS_REMAP stands for any mode the table calls "other".
+#: Existing deprecated wrapper carrying each inner stacking kind.
 
 
 class TestStackedArgsRemapNotify:
@@ -656,17 +323,6 @@ class TestPositionalOnlyTarget:
     decoration time (``UserWarning``) and split the dispatch at call time so
     positional-only params are forwarded positionally and remaining params as kwargs.
     """
-
-    def test_decoration_emits_user_warning(self) -> None:
-        """Applying @deprecated to a callable target with POSITIONAL_ONLY params warns at decoration time.
-
-        A developer deprecating ``old_fn`` in favour of ``positional_only_target`` (whose
-        first parameter ``x`` is declared positional-only) should receive a ``UserWarning``
-        at the ``@deprecated(...)`` line — before any call is made — so the incompatibility
-        is surfaced early rather than crashing on first use.
-        """
-        with pytest.warns(UserWarning, match=r"POSITIONAL_ONLY"):
-            deprecated(target=positional_only_target, deprecated_in="1.0", remove_in="2.0")(lambda x, y=0: None)
 
     @pytest.mark.parametrize(
         ("call_args", "call_kwargs", "expected"),
@@ -986,6 +642,34 @@ class TestCycleDetection:
         )
         assert results == [2, 4, 6]
 
+    @pytest.mark.asyncio
+    async def test_sibling_tasks_spawned_inside_guarded_call_are_independent(self) -> None:
+        """Sibling tasks gathered inside a guarded call never see each other's entries as a cycle.
+
+        A deprecated endpoint forwards to a handler that fans out two concurrent calls of another deprecated
+        coroutine, both of which stay in flight across a task switch.  The tasks copy the outer call's context; if they
+        also shared its mutable active set, the second sibling would find the first one's entry there and raise a
+        spurious "Circular deprecation cycle" although the call chain never loops.
+        """
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", FutureWarning)
+            result = await dep_async_sibling_pair_old_fn(1)
+
+        assert result == [2, 4]
+
+    @pytest.mark.asyncio
+    async def test_reentry_from_spawned_task_still_raises(self) -> None:
+        """A wrapper called again from a task spawned inside its own in-flight call is still a cycle.
+
+        The task copies the context of the call that is still running, so it inherits that call's entry: a target
+        chain that loops back through a new task is as circular as one that loops back directly, and must raise
+        instead of recursing until the event loop is exhausted.
+        """
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", FutureWarning)
+            with pytest.raises(RuntimeError, match=r"Circular deprecation cycle detected.*dep_async_task_cycle_fn"):
+                await dep_async_task_cycle_fn(1)
+
 
 class TestRecursiveDeprecation:
     """Deprecated wrappers on recursive functions — warning fires once, recursion converges."""
@@ -1148,21 +832,21 @@ class TestTargetFactsPrecompute:
         assert cfg.target_accepts_var_keyword is False
 
     def test_precompute_reports_var_args_and_kwargs(self) -> None:
-        """`_precompute_target_facts` flags ``*args`` and ``**kwargs`` and collects every parameter name."""
+        """`_signature_facts` flags ``*args`` and ``**kwargs`` and collects every parameter name."""
 
         def _tgt(a: int, b: int = 2, *rest: int, **extra: int) -> None:
             """Throwaway signature carrying every parameter kind for the precompute helper."""
 
-        names, var_pos, var_kw = _precompute_target_facts(_tgt)
-        assert names == frozenset({"a", "b", "rest", "extra"})
-        assert var_pos is True
-        assert var_kw is True
+        facts = _signature_facts(_tgt)
+        assert facts.names == frozenset({"a", "b", "rest", "extra"})
+        assert facts.var_positional is True
+        assert facts.var_keyword is True
 
     def test_precompute_empty_for_non_callable_target(self) -> None:
         """A :class:`TargetMode` (non-callable) target yields empty facts — the dispatcher never forwards to it."""
-        names, var_pos, var_kw = _precompute_target_facts(TargetMode.NOTIFY)
-        assert names == frozenset()
-        assert (var_pos, var_kw) == (False, False)
+        facts, _ = _target_signature_facts(TargetMode.NOTIFY)
+        assert facts.names == frozenset()
+        assert (facts.var_positional, facts.var_keyword) == (False, False)
 
     def test_repr_excludes_cache_fields(self) -> None:
         """The precomputed cache fields stay out of ``repr`` so audit output and doc examples remain stable."""
@@ -1203,90 +887,125 @@ class TestTargetFactsPrecompute:
             )
 
 
-class TestBareDecoratorGuard:
-    """Bare ``@deprecated`` (no parentheses) must fail with a guiding message."""
+def _raise_signature_errors(facts: _CallFacts, times: int) -> list[BaseException]:
+    """Run the forwarded-call signature error ``times`` times and return each error that reached the caller."""
+    raised: list[BaseException] = []
+    for _ in range(times):
+        with pytest.raises((TypeError, ValueError)) as caught:
+            _raise_target_signature_error(facts)
+        raised.append(caught.value)
+    return raised
 
-    def test_call_raises_typeerror_about_parentheses(self) -> None:
-        """Calling a bare-decorated function raises a TypeError that names the missing parentheses.
 
-        A user who forgets the parentheses (``@deprecated`` instead of ``@deprecated(...)``) binds the
-        decorated function to ``target`` and gets ``packing`` back; the first call then arrives with the call
-        argument as ``source``. The guard must name the missing-parentheses mistake rather than leak a cryptic
-        ``AttributeError: 'int' object has no attribute '__name__'``.
+def _traceback_depth(error: BaseException) -> int:
+    """Return the number of frames recorded in the traceback of ``error``."""
+    return len(list(traceback.walk_tb(error.__traceback__)))
+
+
+_SIGNATURE_ERROR_CASES = [
+    pytest.param(ValueError, ("no signature found",), ValueError, id="copyable"),
+    pytest.param(SignatureNotBuiltError, ("lazy", "not built yet"), SignatureNotBuiltError, id="rebuilt-without-init"),
+    pytest.param(SignatureNeedsContextError, ("lazy", "not built yet"), ValueError, id="base-type-fallback"),
+]
+
+
+class TestRaiseTargetSignatureError:
+    """A forwarded call raises a fresh copy of the signature error stored at decoration, never the stored object."""
+
+    @pytest.mark.parametrize(("error_type", "error_args", "expected_type"), _SIGNATURE_ERROR_CASES)
+    def test_stored_error_is_never_raised(
+        self, error_type: type[Exception], error_args: tuple[str, ...], expected_type: type[Exception]
+    ) -> None:
+        """Every forwarded call raises a new object and the stored error is left without a traceback.
+
+        A library whose signature error cannot be rebuilt from its ``args`` used to be raised as stored: the one
+        wrapper-lifetime object collected a longer traceback on every call and had its ``__context__`` overwritten
+        by whichever thread raised it last.  Whatever way the copy is made, the stored object stays untouched.
         """
+        stored = error_type(*error_args)
+        raised = _raise_signature_errors(_CallFacts(target_signature_error=stored), 3)
 
-        @deprecated  # type: ignore[operator,call-overload]
-        def old(x: int) -> int:
-            return x
+        assert (
+            [error is stored for error in raised],
+            stored.__traceback__,
+            len({id(error) for error in raised}),
+        ) == ([False, False, False], None, 3)
 
-        with pytest.raises(TypeError, match="must be called with parentheses"):
-            old(5)  # type: ignore[type-var]  # bare decorator rebinds ``old`` to the packing decorator
+    @pytest.mark.parametrize(("error_type", "error_args", "expected_type"), _SIGNATURE_ERROR_CASES)
+    def test_traceback_length_stays_constant(
+        self, error_type: type[Exception], error_args: tuple[str, ...], expected_type: type[Exception]
+    ) -> None:
+        """Repeated forwarded calls raise errors whose tracebacks are equally long.
 
-    def test_helper_accepts_plain_callable(self) -> None:
-        """The guard helper is a no-op for an ordinary callable so correct decoration is never disturbed."""
-
-        def real(x: int) -> int:
-            return x
-
-        _reject_bare_decorator(real)  # no exception raised = a plain callable is accepted
-
-
-class TestClassBodyQualnameWalk:
-    """The cross-class guard locates the class body via a bounded frame walk, not a fixed depth."""
-
-    def test_finds_enclosing_class_qualname(self) -> None:
-        """Called inside a class body, the walk returns that class's ``__qualname__``.
-
-        Called from within a class body the walk returns that class's ``__qualname__`` regardless of how many
-        descriptor/packing frames sit between it and the class body — the fixed ``sys._getframe(2)`` it replaces
-        silently missed the class body for descriptor-decorated methods, disabling the guard for them.
+        A service keeps calling a deprecated function whose target signature is unreadable and catches the error
+        each time.  A traceback that grows by the frames of every call leaks memory for the life of the wrapper.
         """
-        captured: dict[str, str] = {}
+        raised = _raise_signature_errors(_CallFacts(target_signature_error=error_type(*error_args)), 4)
 
-        class Sample:
-            captured["qualname"] = _find_class_body_qualname()
+        assert len({_traceback_depth(error) for error in raised}) == 1
 
-        _ = Sample  # reference prevents static-analysis "unused class" warnings
-        assert captured["qualname"].endswith("Sample")
+    @pytest.mark.parametrize(("error_type", "error_args", "expected_type"), _SIGNATURE_ERROR_CASES)
+    def test_raised_error_keeps_type_and_message(
+        self, error_type: type[Exception], error_args: tuple[str, ...], expected_type: type[Exception]
+    ) -> None:
+        """The raised error has the stored type, or the base type it derives from, and the stored message.
 
-    def test_cross_class_guard_fires_for_descriptor_decorated_method(self) -> None:
-        """Cross-class guard raises TypeError at class-definition time even when the method uses a descriptor.
-
-        With the old fixed ``sys._getframe(2)`` approach the extra stack frames introduced by
-        ``@classmethod``/``@staticmethod``/``@property`` wrapping pushed the class body out of range,
-        silently disabling the cross-class guard for descriptor-decorated methods.  The bounded frame
-        walk locates the class body regardless of intervening descriptor frames.
+        Callers catch the documented base type (``TypeError`` or ``ValueError``); a framework's own subclass is kept
+        whenever it can be rebuilt, and degrades to that base type with its message when it cannot.
         """
+        stored = error_type(*error_args)
+        raised = _raise_signature_errors(_CallFacts(target_signature_error=stored), 1)[0]
 
-        class OtherClass:
-            def other_method(self, x: int) -> int:
-                return x
+        assert (type(raised), str(raised)) == (expected_type, str(stored))
 
-        with pytest.raises(TypeError, match="cross-class method forwarding is not supported"):
+    def test_rebuilt_error_keeps_its_attributes(self) -> None:
+        """An error rebuilt without calling its constructor still carries the attributes it was created with.
 
-            class _Owner:
-                @classmethod
-                @deprecated(target=OtherClass.other_method, deprecated_in="1.0", remove_in="2.0")
-                def old_classmethod(cls, x: int) -> int:
-                    return void(x)
+        A framework error that records why the signature is missing in an attribute must expose it on the forwarded
+        call exactly as on the error read at decoration.
+        """
+        stored = SignatureNotBuiltError("lazy", "not built yet")
+
+        raised = _raise_signature_errors(_CallFacts(target_signature_error=stored), 1)[0]
+
+        assert getattr(raised, "reason", None) == "not built yet"
+
+    def test_no_stored_error_raises_nothing(self) -> None:
+        """Facts without a stored signature error leave the forwarded call alone.
+
+        A target whose signature was read at decoration (or hand-built facts) has nothing to re-raise, so the call
+        returns instead of raising; an exception here fails the test.
+        """
+        _raise_target_signature_error(_CallFacts())
 
 
-def _make_wrapper_stub(source: Callable[..., Any], dep_cfg: DeprecationConfig) -> _DeprecatedCallable:
-    """Return a minimal callable shaped like a ``@deprecated`` wrapper for unit testing.
+def _make_context(
+    source: Callable[..., Any],
+    cfg: DeprecationConfig,
+    target: Union[Callable[..., Any], TargetMode],
+    *,
+    is_stacked: bool = False,
+    forward_defaults: Optional[_ForwardDefaults] = None,
+) -> _WrapperContext:
+    """Return the decoration-time context a ``@deprecated`` wrapper over ``source`` would build, without a stream.
 
-    The real wrapper carries mutable ``_state`` and frozen ``__deprecation_config__`` attributes that
-    :func:`_build_call_plan` reads via :class:`~deprecate._types._DeprecatedCallable`.  Wrapping the
-    bare ``source`` here suffices because the helper never invokes ``wrapper_fn`` itself — it only
-    reads ``wrapper_fn._state``.
+    The facts come from the real :func:`_build_call_facts` and the state is fresh; ``stream=None`` keeps
+    :func:`_build_call_plan` from emitting warnings, so a test only reads the plan and ``ctx.state``.
 
     """
-
-    def _stub(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401 - signature mirrors real wrappers
-        return source(*args, **kwargs)
-
-    _stub._state = _WrapperState()  # type: ignore[attr-defined]
-    _stub.__deprecation_config__ = dep_cfg  # type: ignore[attr-defined]
-    return _stub  # type: ignore[return-value]
+    return _WrapperContext(
+        source=source,
+        raw_target=target,
+        target=target,
+        cfg=cfg,
+        facts=_build_call_facts(source, target, None),
+        state=_WrapperState(),
+        stream=None,
+        num_warns=1,
+        skip_if=False,
+        is_stacked=is_stacked,
+        forward_defaults=forward_defaults,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1297,27 +1016,13 @@ def _make_wrapper_stub(source: Callable[..., Any], dep_cfg: DeprecationConfig) -
 def test_callable_target_round_trip_returns_target_func() -> None:
     """Callable target with matching kwargs returns ``short_circuit=False`` and the resolved ``target_func``."""
     cfg = DeprecationConfig(deprecated_in="1.0", remove_in="2.0", name="src", target=double_value)
-    wrapper = _make_wrapper_stub(double_value, cfg)
-    plan = _build_call_plan(
-        wrapper_fn=wrapper,
-        source=double_value,
-        target=double_value,
-        normalized_target=double_value,
-        args=(),
-        kwargs={"x": 3},
-        dep_cfg=cfg,
-        stream=None,  # suppress real warning emission
-        num_warns=1,
-        source_has_var_positional=False,
-        source_is_stacked=False,
-    )
+    ctx = _make_context(double_value, cfg, double_value)
+    plan = _build_call_plan(ctx, (), {"x": 3})
 
     assert plan.short_circuit is False
     assert plan.target_func is double_value
     assert plan.resolved_kwargs == {"x": 3}
     assert plan.reason_argument == {}
-    # State must be bumped exactly once per call.
-    assert wrapper._state.called == 1  # type: ignore[attr-defined]
 
 
 # ---------------------------------------------------------------------------
@@ -1336,20 +1041,8 @@ def test_args_remap_migrated_caller_short_circuits() -> None:
     cfg = DeprecationConfig(
         deprecated_in="1.0", remove_in="2.0", name="src", target=TargetMode.ARGS_REMAP, args_mapping={"old_x": "x"}
     )
-    wrapper = _make_wrapper_stub(identity_value, cfg)
-    plan = _build_call_plan(
-        wrapper_fn=wrapper,
-        source=identity_value,
-        target=TargetMode.ARGS_REMAP,
-        normalized_target=TargetMode.ARGS_REMAP,
-        args=(),
-        kwargs={"x": 7},  # caller already migrated — uses new name
-        dep_cfg=cfg,
-        stream=None,
-        num_warns=1,
-        source_has_var_positional=False,
-        source_is_stacked=False,
-    )
+    ctx = _make_context(identity_value, cfg, TargetMode.ARGS_REMAP)
+    plan = _build_call_plan(ctx, (), {"x": 7})  # caller already migrated — uses new name
 
     assert plan.short_circuit is True
     assert plan.target_func is None
@@ -1365,20 +1058,8 @@ def test_args_remap_migrated_caller_short_circuits() -> None:
 def test_notify_mode_returns_none_target_func() -> None:
     """:attr:`TargetMode.NOTIFY` never resolves a target; the wrapper must execute the source body."""
     cfg = DeprecationConfig(deprecated_in="1.0", remove_in="2.0", name="src", target=TargetMode.NOTIFY)
-    wrapper = _make_wrapper_stub(identity_value, cfg)
-    plan = _build_call_plan(
-        wrapper_fn=wrapper,
-        source=identity_value,
-        target=TargetMode.NOTIFY,
-        normalized_target=TargetMode.NOTIFY,
-        args=(),
-        kwargs={"x": 5},
-        dep_cfg=cfg,
-        stream=None,
-        num_warns=1,
-        source_has_var_positional=False,
-        source_is_stacked=False,
-    )
+    ctx = _make_context(identity_value, cfg, TargetMode.NOTIFY)
+    plan = _build_call_plan(ctx, (), {"x": 5})
 
     assert plan.short_circuit is False
     assert plan.target_func is None
@@ -1395,8 +1076,8 @@ def test_misconfigured_warning_fires_exactly_once() -> None:
     """A misconfigured wrapper emits its ``UserWarning`` only on the first call.
 
     The misconfiguration ``UserWarning`` is gated by ``state.warned_misconfigured`` in
-    :func:`deprecate._dispatch._build_call_plan` (see lines around the
-    ``state.warned_misconfigured = True`` assignment).  The flag is **never** reset by
+    :func:`deprecate._dispatch._warn_misconfigured_once` (called from
+    :func:`deprecate._dispatch._build_call_plan`).  The flag is **never** reset by
     :mod:`tests.conftest` — it implements an intentional once-per-wrapper-lifetime contract
     so noisy misconfig warnings do not flood test output.
 
@@ -1486,7 +1167,7 @@ def test_num_warns_one_exhausts_after_first_call() -> None:
 def test_source_is_stacked_skips_positional_conversion() -> None:
     """When ``source_is_stacked=True`` the helper must not short-circuit on a migrated caller.
 
-    The short-circuit gate (see ``_build_call_plan`` lines 728–739) compresses three conditions:
+    The short-circuit gate (``_is_short_circuit``) compresses three conditions:
     no callable/arg reason, no ``args_extra`` injection, and ``not source_is_stacked``.  When the
     outer wrapper sits over an already-``@deprecated`` source — the canonical
     ``ARGS_REMAP``-outer + ``NOTIFY``-inner stack from :func:`make_depr_compute_power_stacked` —
@@ -1498,7 +1179,7 @@ def test_source_is_stacked_skips_positional_conversion() -> None:
 
     Two assertions are checked in isolation here:
 
-    * direct call to ``_build_call_plan`` with ``source_is_stacked=True`` returns
+    * direct call to ``_build_call_plan`` with a stacked context (``is_stacked=True``) returns
       ``short_circuit=False`` even when no reason fires (the bypass);
     * end-to-end call to the real stacked wrapper from
       :func:`make_depr_compute_power_stacked` with the migrated arg name emits the inner
@@ -1508,20 +1189,9 @@ def test_source_is_stacked_skips_positional_conversion() -> None:
     cfg = DeprecationConfig(
         deprecated_in="1.0", remove_in="2.0", name="src", target=TargetMode.ARGS_REMAP, args_mapping={"factor": "scale"}
     )
-    wrapper = _make_wrapper_stub(compute_power, cfg)
-    plan = _build_call_plan(
-        wrapper_fn=wrapper,
-        source=compute_power,
-        target=TargetMode.ARGS_REMAP,
-        normalized_target=TargetMode.ARGS_REMAP,
-        args=(),
-        kwargs={"base": 2.0, "scale": 3.0},  # caller already migrated — uses new name
-        dep_cfg=cfg,
-        stream=None,
-        num_warns=1,
-        source_has_var_positional=False,
-        source_is_stacked=True,  # source itself carries @deprecated meta
-    )
+    # ``is_stacked=True``: the source itself carries @deprecated meta.
+    ctx = _make_context(compute_power, cfg, TargetMode.ARGS_REMAP, is_stacked=True)
+    plan = _build_call_plan(ctx, (), {"base": 2.0, "scale": 3.0})  # caller already migrated — uses new name
 
     assert plan.short_circuit is False, "source_is_stacked=True must bypass the migrated-caller short-circuit"
     assert plan.target_func is None, "ARGS_REMAP never resolves a callable target_func"
@@ -1635,8 +1305,12 @@ class TestForwardDefaultsPrecompute:
         """
         facts = _precompute_forward_defaults(target, mapping)
 
-        on_the_spot = _merge_source_defaults(source_with_forward_defaults, target, dict(kwargs), mapping)
-        precomputed = _merge_source_defaults(source_with_forward_defaults, target, dict(kwargs), mapping, facts)
+        on_the_spot = _merge_source_defaults(
+            _signature_facts(source_with_forward_defaults).defaults, target, dict(kwargs), mapping
+        )
+        precomputed = _merge_source_defaults(
+            _signature_facts(source_with_forward_defaults).defaults, target, dict(kwargs), mapping, facts
+        )
 
         assert (on_the_spot, precomputed) == (expected, expected)
 
@@ -1648,7 +1322,9 @@ class TestForwardDefaultsPrecompute:
         """
         facts = _ForwardDefaults(stale_renamed=frozenset({"level"}), partial_bound=frozenset())
 
-        merged = _merge_source_defaults(source_sharing_level_default, fn_shared_default_target, {"x": 5}, None, facts)
+        merged = _merge_source_defaults(
+            _signature_facts(source_sharing_level_default).defaults, fn_shared_default_target, {"x": 5}, None, facts
+        )
 
         assert merged == {"x": 5}
 
@@ -1659,25 +1335,255 @@ class TestForwardDefaultsPrecompute:
         ``level`` stale the resolved keywords carry only ``x``, proving the plan used the facts it was given.
         """
         cfg = DeprecationConfig(deprecated_in="1.0", remove_in="2.0", name="src", target=fn_shared_default_target)
-        wrapper = _make_wrapper_stub(source_sharing_level_default, cfg)
         facts = _ForwardDefaults(stale_renamed=frozenset({"level"}), partial_bound=frozenset())
+        ctx = _make_context(source_sharing_level_default, cfg, fn_shared_default_target, forward_defaults=facts)
 
-        plan = _build_call_plan(
-            wrapper_fn=wrapper,
-            source=source_sharing_level_default,
-            target=fn_shared_default_target,
-            normalized_target=fn_shared_default_target,
-            args=(),
-            kwargs={"x": 5},
-            dep_cfg=cfg,
-            stream=None,
-            num_warns=1,
-            source_has_var_positional=False,
-            source_is_stacked=False,
-            forward_defaults=facts,
-        )
+        plan = _build_call_plan(ctx, (), {"x": 5})
 
         assert plan.resolved_kwargs == {"x": 5}
+
+
+# ---------------------------------------------------------------------------
+# Decoration-time call facts, wrapper context and cycle guard
+# ---------------------------------------------------------------------------
+
+
+def _guarded_reentry_error(ctx: _WrapperContext) -> str:
+    """Enter the cycle guard of ``ctx`` twice in one call stack and return the message of the second entry's error."""
+    handle = _enter_cycle_guard(ctx)
+    with pytest.raises(RuntimeError) as err:
+        _enter_cycle_guard(ctx)
+    _exit_cycle_guard(ctx, handle)
+    return str(err.value)
+
+
+def _guard_value_after_exit(ctx: _WrapperContext) -> Optional[tuple[_CycleEntry, ...]]:
+    """Enter and exit the cycle guard of ``ctx`` once, then return what the guard's context variable holds."""
+    _exit_cycle_guard(ctx, _enter_cycle_guard(ctx))
+    return _cycle_detection.get()
+
+
+def _context_copied_inside_guard(ctx: _WrapperContext) -> contextvars.Context:
+    """Enter the cycle guard of ``ctx``, copy the current context while the call is in flight, then exit."""
+    handle = _enter_cycle_guard(ctx)
+    copied = contextvars.copy_context()
+    _exit_cycle_guard(ctx, handle)
+    return copied
+
+
+def _chain_with_inner_inside_outer(outer: _WrapperContext, inner: _WrapperContext) -> tuple[int, ...]:
+    """Enter the cycle guard of ``outer``, then of ``inner``, and return the source ids on the chain at that point."""
+    outer_handle = _enter_cycle_guard(outer)
+    inner_handle = _enter_cycle_guard(inner)
+    chain = tuple(entry.source_id for entry in cast(tuple[_CycleEntry, ...], _cycle_detection.get()))
+    _exit_cycle_guard(inner, inner_handle)
+    _exit_cycle_guard(outer, outer_handle)
+    return chain
+
+
+async def _hold_guard_across_task_switch(ctx: _WrapperContext) -> set[int]:
+    """Enter the cycle guard, yield to the event loop, and return the ids this task's chain holds before exiting."""
+    handle = _enter_cycle_guard(ctx)
+    await asyncio.sleep(0)
+    active = {entry.source_id for entry in cast(tuple[_CycleEntry, ...], _cycle_detection.get())}
+    _exit_cycle_guard(ctx, handle)
+    return active
+
+
+async def _gather_guarded_tasks(ctx: _WrapperContext) -> list[set[int]]:
+    """Run two guarded tasks for the same wrapper concurrently and return each task's active set."""
+    return list(await asyncio.gather(_hold_guard_across_task_switch(ctx), _hold_guard_across_task_switch(ctx)))
+
+
+_FACTS_CFG = DeprecationConfig(deprecated_in="1.0", remove_in="2.0")
+
+
+class TestBuildCallFacts:
+    """Signature facts a wrapper derives once at decoration time so no call inspects a signature again."""
+
+    @pytest.mark.parametrize(
+        ("source", "target", "expected"),
+        [
+            pytest.param(
+                positional_only_target,
+                TargetMode.NOTIFY,
+                _CallFacts(
+                    source_positional_names=("x", "y"),
+                    source_positional_only=frozenset({"x"}),
+                    source_positional_only_order=("x", "y"),
+                    target_all_param_names=frozenset(),
+                    target_positional_names=(),
+                ),
+                id="positional-only-source",
+            ),
+            pytest.param(
+                identity_value,
+                positional_only_target,
+                _CallFacts(
+                    source_positional_names=("x",),
+                    target_all_param_names=frozenset({"x", "y"}),
+                    target_positional_only=frozenset({"x"}),
+                    target_positional_only_order=("x", "y"),
+                    target_positional_names=("x", "y"),
+                ),
+                id="positional-only-target",
+            ),
+            pytest.param(
+                var_positional_target,
+                double_value,
+                _CallFacts(
+                    source_positional_names=("a",),
+                    source_has_var_positional=True,
+                    source_var_positional_prefix=1,
+                    target_all_param_names=frozenset({"x"}),
+                    target_positional_names=("x",),
+                ),
+                id="var-positional-source",
+            ),
+            pytest.param(
+                double_value,
+                NewCls,
+                _CallFacts(
+                    source_positional_names=("x",),
+                    target_all_param_names=frozenset({"c", "d", "kwargs"}),
+                    target_accepts_var_keyword=True,
+                    target_positional_names=("c", "d"),
+                ),
+                id="class-target-with-var-keyword",
+            ),
+            pytest.param(
+                double_value,
+                partial_target,
+                _CallFacts(
+                    source_positional_names=("x",),
+                    target_all_param_names=frozenset({"x", "y"}),
+                    target_positional_names=("x",),
+                ),
+                id="partial-target-binds-keyword",
+            ),
+        ],
+    )
+    def test_derives_source_and_target_facts(
+        self, source: Callable[..., Any], target: Union[Callable[..., Any], TargetMode], expected: _CallFacts
+    ) -> None:
+        """Every source and target signature shape maps to the facts the call path reads.
+
+        A deprecated function may declare ``/`` or ``*args`` and forward to a class whose ``__init__`` takes
+        ``**kwargs`` or to a ``functools.partial`` that turns a bound argument keyword-only.  The decorator reads
+        both signatures once; a wrong fact would silently misroute positionals on every later call.
+        """
+        assert _build_call_facts(source, target, None) == expected
+
+
+class TestSourcePositionalLimit:
+    """The positional-argument limit derived once per wrapper, shared by the arity check and the fast path."""
+
+    @pytest.mark.parametrize(
+        ("source", "limit"),
+        [
+            pytest.param(positional_only_target, 2, id="fixed-positionals"),
+            pytest.param(var_positional_target, None, id="var-positional-accepts-any"),
+        ],
+    )
+    def test_limit_follows_the_source_signature(self, source: Callable[..., Any], limit: Optional[int]) -> None:
+        """A source with ``*args`` has no limit; any other source accepts as many positionals as it names.
+
+        Both the surplus-positional check and the call-plan fast path read this one value, so a source declaring
+        ``*args`` is never rejected and a fixed-arity source is rejected on exactly one argument too many.
+        """
+        assert _build_call_facts(source, TargetMode.NOTIFY, None).source_positional_limit == limit
+
+
+class TestWrapperContext:
+    """The per-wrapper context the call path reads instead of re-deriving flags on every call."""
+
+    @pytest.mark.parametrize(
+        ("target", "remap_active", "cycle_guarded"),
+        [
+            pytest.param(TargetMode.NOTIFY, False, False, id="notify"),
+            pytest.param(TargetMode.ARGS_REMAP, True, False, id="args-remap"),
+            pytest.param(double_value, True, True, id="callable-target"),
+        ],
+    )
+    def test_derives_flags_from_target(
+        self, target: Union[Callable[..., Any], TargetMode], remap_active: bool, cycle_guarded: bool
+    ) -> None:
+        """``remap_active`` and ``cycle_guarded`` follow from the normalised target alone.
+
+        ``args_mapping`` and ``args_extra`` apply to a self-rename and to a forwarding target but never to a warn-only
+        wrapper, and only a forwarding target can lead back into itself, so only it runs under the cycle guard.
+        """
+        ctx = _make_context(identity_value, _FACTS_CFG, target)
+
+        assert (ctx.remap_active, ctx.cycle_guarded) == (remap_active, cycle_guarded)
+
+
+class TestCycleGuard:
+    """Target-chain cycle detection, scoped per call stack and per asyncio task."""
+
+    def test_reentry_in_same_call_stack_raises(self) -> None:
+        """A wrapper entered again while it is still running in the same call stack raises ``RuntimeError``.
+
+        A deprecated function whose target chain leads back to itself would recurse until Python's recursion limit;
+        the guard names the wrapper instead.  The scenario runs in a fresh ``contextvars.Context`` so no guard state
+        can leak into other tests.
+        """
+        ctx = _make_context(double_value, _FACTS_CFG, double_value)
+
+        message = contextvars.Context().run(_guarded_reentry_error, ctx)
+
+        assert message == (
+            "Circular deprecation cycle detected: `double_value` re-entered via its own target chain."
+            " Point to a non-deprecated final implementation."
+        )
+
+    def test_exit_restores_outer_value(self) -> None:
+        """Leaving the outermost guarded call resets the context variable to its value before the call.
+
+        The first guarded call in a call stack installs a chain holding its own entry; once it returns, a later
+        unrelated call must start from an empty state again rather than inherit a stale chain.
+        """
+        ctx = _make_context(double_value, _FACTS_CFG, double_value)
+
+        assert contextvars.Context().run(_guard_value_after_exit, ctx) is None
+
+    def test_gathered_tasks_keep_separate_sets(self) -> None:
+        """Two ``asyncio.gather`` tasks running the same wrapper concurrently never see each other's active set.
+
+        An async service awaits the same deprecated coroutine from two tasks at once.  That is concurrency, not a
+        cycle: each task holds the guard across a task switch, and neither may observe the other's entry.
+        """
+        ctx = _make_context(double_value, _FACTS_CFG, double_value)
+
+        assert asyncio.run(_gather_guarded_tasks(ctx)) == [{id(double_value)}, {id(double_value)}]
+
+    def test_copied_context_releases_finished_call(self) -> None:
+        """A context copied while a guarded call was in flight does not report that call once it has finished.
+
+        A target may snapshot its context to schedule later work, for example ``loop.call_soon`` with an explicit
+        context.  When that work calls the same wrapper after the first call returned, it is a new call and not a
+        re-entry, so the copy must not keep the finished call's entry alive.
+        """
+        ctx = _make_context(double_value, _FACTS_CFG, double_value)
+        copied = contextvars.Context().run(_context_copied_inside_guard, ctx)
+
+        message = copied.run(_guarded_reentry_error, ctx)
+
+        assert message.startswith("Circular deprecation cycle detected: `double_value` re-entered")
+
+    def test_unrelated_wrapper_in_copied_context_is_not_a_cycle(self) -> None:
+        """A copied context that still holds an in-flight call lets a different wrapper run.
+
+        While the first call is in flight, a thread or task started from its context calls another deprecated
+        function.  Only a repeat of a wrapper already in flight is a cycle; the other wrapper just joins the chain.
+        """
+        outer = _make_context(double_value, _FACTS_CFG, double_value)
+        inner = _make_context(identity_value, _FACTS_CFG, identity_value)
+
+        assert contextvars.Context().run(_chain_with_inner_inside_outer, outer, inner) == (
+            id(double_value),
+            id(identity_value),
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -1740,10 +1646,10 @@ class TestSplitPositionalOnlyKwargs:
 class TestWarnQuotaThreadSafety:
     """The warn quota holds under concurrency.
 
-    ``_build_call_plan`` reads the warn counter, decides whether to emit, and increments — a check-then-act
-    sequence.  Without synchronisation, concurrent first calls all read ``warned_calls == 0``, all pass the
-    ``num_warns`` gate, and each emit a warning.  The state lock makes the check-and-increment atomic so exactly
-    ``num_warns`` emissions happen regardless of thread interleaving.
+    ``_emit_call_warning`` (called from ``_build_call_plan``) reads the warn counter, decides whether to emit, and
+    increments — a check-then-act sequence.  Without synchronisation, concurrent first calls all read
+    ``warned_calls == 0``, all pass the ``num_warns`` gate, and each emit a warning.  The state lock makes the
+    check-and-increment atomic so exactly ``num_warns`` emissions happen regardless of thread interleaving.
     """
 
     @pytest.fixture

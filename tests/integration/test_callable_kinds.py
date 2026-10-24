@@ -22,21 +22,20 @@ import pytest
 
 from deprecate import deprecated
 from deprecate._types import _DeprecatedCallable
-from tests.collection_deprecate import (
+from tests.collection_deprecate import decorated_sum_calls_inf, make_async_stacked_notify
+from tests.collection_deprecate_forwarding import (
     async_args_remap,
     async_callable,
     async_gen_args_remap,
     async_gen_callable,
     async_gen_notify,
     async_notify,
-    decorated_sum_calls_inf,
     deprecated_async_positional_only_to_sync,
     deprecated_async_var_positional_to_sync,
     gen_args_remap,
     gen_callable,
     gen_notify,
     gen_notify_unlimited,
-    make_async_stacked_notify,
 )
 
 # Pair each wrapper with the argument it expects.  ``gen_args_remap`` is the only one with a
@@ -54,8 +53,8 @@ def _reset_gen_state() -> None:
 
     Generator wrappers are module-level singletons whose warning counters persist across parametrize iterations.
     Default ``num_warns=1`` suppresses the second call's warning, so without reset the second parametrize case
-    would see no warning.  Only ``warned_calls`` and ``warned_args`` are cleared — ``called`` and
-    ``warned_misconfigured`` are left intact.
+    would see no warning.  Only ``warned_calls`` and ``warned_args`` are cleared — ``warned_misconfigured`` is
+    left intact.
 
     Isolation note: this fixture is only safe because no other test module imports and calls these same wrappers
     directly.  If another file calls ``gen_notify`` / ``gen_args_remap`` / ``gen_callable`` without going through
@@ -211,8 +210,8 @@ def _reset_async_state() -> None:
     """Reset the warning counter on each module-level async wrapper before each test.
 
     Mirrors ``_reset_gen_state`` for the async fixtures: ``num_warns=1`` (default) would otherwise suppress the
-    second parametrize case.  Only ``warned_calls`` and ``warned_args`` are cleared — ``called`` and
-    ``warned_misconfigured`` are left intact.
+    second parametrize case.  Only ``warned_calls`` and ``warned_args`` are cleared — ``warned_misconfigured`` is
+    left intact.
 
     """
     for wrapper in (async_notify, async_args_remap, async_callable):
@@ -312,8 +311,8 @@ def _reset_async_gen_state() -> None:
     """Reset the warning counter on each module-level async generator wrapper before each test.
 
     Mirrors ``_reset_gen_state`` and ``_reset_async_state``: ``num_warns=1`` (default) would otherwise suppress
-    the second parametrize case.  Only ``warned_calls`` and ``warned_args`` are cleared — ``called`` and
-    ``warned_misconfigured`` are left intact.
+    the second parametrize case.  Only ``warned_calls`` and ``warned_args`` are cleared — ``warned_misconfigured``
+    is left intact.
 
     """
     for wrapper in (async_gen_notify, async_gen_args_remap, async_gen_callable):

@@ -15,21 +15,26 @@ from unittest.mock import MagicMock, Mock
 import pytest
 
 from deprecate import TargetMode, assert_no_warnings, deprecated
-from deprecate._types import DeprecationConfig
+from deprecate._types import DeprecationConfig, _WrapperState
 from deprecate.messaging import (
     _STREAM_DECISIONS,
     _callable_display_name,
+    _consume_argument_warn_budget,
+    _consume_warn_budget,
     _emit,
+    _eval_skip_if,
     _raise_warn,
     _raise_warn_arguments,
     _raise_warn_callable,
+    _release_warn_budget,
+    _render_argument_map,
     _render_static_deprecation_message,
     _resolve_message_template_alias,
     _stream_accepts_stacklevel,
     _validate_message_template,
 )
 from deprecate.utils import _partial_chain
-from tests.collection_deprecate import make_sum_deprecation_with_stream
+from tests.collection_deprecate_regressions import make_sum_deprecation_with_stream
 from tests.collection_targets import (
     CallableAdder,
     EqualMessageOnlyStream,
@@ -68,6 +73,77 @@ from tests.collection_targets import (
     stream_with_stacklevel,
     stream_wraps_logging_warning,
 )
+
+
+class TestWarnBudgetRelease:
+    """``_release_warn_budget`` gives back exactly the slot ``_consume_warn_budget`` claimed."""
+
+    @pytest.mark.parametrize(
+        ("reason_callable", "reason_argument"),
+        [pytest.param(True, None, id="callable"), pytest.param(False, {"old": None}, id="argument")],
+    )
+    def test_released_slot_warns_again(
+        self, reason_callable: bool, reason_argument: dict[str, str | None] | None
+    ) -> None:
+        """A released slot can be claimed again by the next use.
+
+        When the ``stream`` raises (a warning filter set to ``"error"``, a failing logging sink) the caller never
+        saw the notice, so the proxy returns the slot and the next access must still warn, for the proxy-wide
+        counter and for a per-argument key alike.
+        """
+        state = _WrapperState()
+        with state.lock:
+            first = _consume_warn_budget(state, 1, reason_callable=reason_callable, reason_argument=reason_argument)
+            _release_warn_budget(state, 1, reason_callable=reason_callable, reason_argument=reason_argument)
+            again = _consume_warn_budget(state, 1, reason_callable=reason_callable, reason_argument=reason_argument)
+            spent = _consume_warn_budget(state, 1, reason_callable=reason_callable, reason_argument=reason_argument)
+        assert (first, again, spent) == (True, True, False)
+
+    def test_unlimited_budget_untouched(self) -> None:
+        """With ``num_warns=-1`` there is no slot to return, so the counter keeps its value.
+
+        An unlimited budget never blocks a warning; giving a slot back must not drive the counter below what was
+        actually emitted.
+        """
+        state = _WrapperState()
+        with state.lock:
+            _consume_warn_budget(state, -1, reason_callable=True)
+            _release_warn_budget(state, -1, reason_callable=True)
+        assert state.warned_calls == 1
+
+
+class TestConsumeArgumentWarnBudget:
+    """``_consume_argument_warn_budget`` returns and consumes only the arguments still under their own budget."""
+
+    @pytest.mark.parametrize(
+        ("warned_args", "num_warns", "expected", "expected_counts"),
+        [
+            pytest.param({}, 1, {"old_x": "x", "old_y": None}, {"old_x": 1, "old_y": 1}, id="fresh-all-named"),
+            pytest.param({"old_x": 1}, 1, {"old_y": None}, {"old_x": 1, "old_y": 1}, id="spent-arg-left-out"),
+            pytest.param({"old_x": 1, "old_y": 1}, 1, {}, {"old_x": 1, "old_y": 1}, id="all-spent-empty"),
+            pytest.param(
+                {"old_x": 5, "old_y": 5}, -1, {"old_x": "x", "old_y": None}, {"old_x": 6, "old_y": 6}, id="unlimited"
+            ),
+        ],
+    )
+    def test_returns_arguments_under_budget(
+        self,
+        warned_args: dict[str, int],
+        num_warns: int,
+        expected: dict[str, str | None],
+        expected_counts: dict[str, int],
+    ) -> None:
+        """Only arguments under budget are returned, and only their counters move.
+
+        A call passes two deprecated arguments, ``old_x`` (renamed) and ``old_y`` (dropped), after some earlier calls
+        already spent part of the budget.  The warning built from the result must name each argument at most
+        ``num_warns`` times, keep the original order, and stay empty when nothing is left to report; an unlimited
+        budget names every argument and still counts each use.
+        """
+        state = _WrapperState(warned_args=dict(warned_args))
+        with state.lock:
+            named = _consume_argument_warn_budget(state, num_warns, {"old_x": "x", "old_y": None})
+        assert (named, list(named), state.warned_args) == (expected, list(expected), expected_counts)
 
 
 class TestCallableDisplayName:
@@ -291,6 +367,61 @@ class TestRaiseWarnArguments:
 
         _raise_warn_arguments(stream, my_func, {"old": "new"}, "1.0", "2.0", message_template="map: %(argument_map)s")
         assert stream.call_args[0][0].startswith("map: ")
+
+    def test_kept_name_renders_as_kept(self) -> None:
+        """An argument mapped to ``""`` renders as kept instead of as an arrow to an empty name.
+
+        ``args_mapping={"a": ""}`` keeps the argument under its old name while still warning when a caller passes it.
+        The call-time warning must say the name is kept; an arrow to an empty name reads like a rename to nothing.
+        """
+        stream = MagicMock()
+        _raise_warn_arguments(stream, base_sum_kwargs, {"a": ""}, "1.0", "2.0")
+        assert stream.call_args[0][0] == (
+            "The `base_sum_kwargs` uses deprecated arguments: `a` (kept)."
+            " They were deprecated since v1.0 and will be removed in v2.0."
+        )
+
+
+class TestRenderArgumentMap:
+    """The ``%(argument_map)s`` value renders a kept (``""``-mapped) argument without an arrow to an empty name."""
+
+    @pytest.mark.parametrize(
+        ("arguments", "expected"),
+        [
+            pytest.param({"old": "new"}, "`old` -> `new`", id="rename"),
+            pytest.param({"gone": None}, "`gone` -> `None`", id="drop"),
+            pytest.param({"same": ""}, "`same` (kept)", id="kept"),
+            pytest.param(
+                {"old": "new", "gone": None, "same": ""}, "`old` -> `new`, `gone` -> `None`, `same` (kept)", id="mixed"
+            ),
+            pytest.param({}, "", id="empty"),
+        ],
+    )
+    def test_renders_each_mapping_kind(self, arguments: dict[str, str | None], expected: str) -> None:
+        """A rename and a drop keep the arrow form; only a ``""``-mapped argument renders as kept.
+
+        The ``None`` rendering is pinned in the README and the guides, so only the empty-string case changes; a mixed
+        mapping keeps the configured order and an empty mapping renders nothing.
+        """
+        assert _render_argument_map(arguments) == expected
+
+    def test_static_message_renders_kept_name(self) -> None:
+        """The PEP 702 ``__deprecated__`` string of an ``ARGS_REMAP`` config renders a ``""``-mapped name as kept.
+
+        Type checkers and IDEs show the decoration-time message without running the code; for an argument that keeps
+        its old name it must read the same as the call-time warning, not as an arrow to an empty name.
+        """
+        config = DeprecationConfig(
+            name="old_api",
+            target=TargetMode.ARGS_REMAP,
+            args_mapping={"old": ""},
+            deprecated_in="1.0",
+            remove_in="2.0",
+        )
+        assert _render_static_deprecation_message(config, "old_api", "pkg.old_api") == (
+            "The `old_api` uses deprecated arguments: `old` (kept)."
+            " They were deprecated since v1.0 and will be removed in v2.0."
+        )
 
 
 class TestTemplateMgsValidation:
@@ -728,3 +859,34 @@ class TestFailingStreamMetadata:
         else:
             _emit(stream, "old is deprecated")
         assert stream.calls == [("old is deprecated", {})]
+
+
+class TestEvalSkipIf:
+    """The one ``skip_if`` evaluation shared by the callable wrappers and the deprecation proxy."""
+
+    @pytest.mark.parametrize(
+        ("skip_if", "expected"),
+        [
+            pytest.param(True, True, id="static-true"),
+            pytest.param(False, False, id="static-false"),
+            pytest.param(1, True, id="truthy-static-value"),
+            pytest.param(lambda: True, True, id="callable-true"),
+            pytest.param(lambda: False, False, id="callable-false"),
+        ],
+    )
+    def test_returns_evaluated_condition(self, skip_if: Any, expected: bool) -> None:  # noqa: ANN401
+        """A static value is converted with ``bool()`` and a callable is invoked, each giving a strict ``bool``.
+
+        A library gates its deprecation on a feature flag, either fixed at import time or read from configuration on
+        every call; both forms must switch the deprecation machinery off exactly when they evaluate truthy.
+        """
+        assert _eval_skip_if(skip_if) is expected
+
+    def test_non_bool_callable_result_raises(self) -> None:
+        """A callable returning anything but a ``bool`` raises ``TypeError`` naming the returned type.
+
+        A flag reader that returns ``1`` or a string by mistake would otherwise be treated as truthy and silently
+        disable the warning; the error names the offending type instead.
+        """
+        with pytest.raises(TypeError, match=r"^User function 'skip_if' shall return bool, but got: <class 'int'>$"):
+            _eval_skip_if(lambda: 1)  # type: ignore[arg-type, return-value]

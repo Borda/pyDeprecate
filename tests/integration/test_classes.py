@@ -30,6 +30,8 @@ from tests.collection_deprecate import (
     WrappedEnum,
     depr_class_args_only_mode_warns_on_deprecated_arg,
     depr_class_whole_mode_warns_on_call,
+)
+from tests.collection_deprecate_forwarding import (
     make_class_omitted_target_with_args,
     make_class_target_args_remap,
     make_class_target_notify_with_args,
@@ -222,7 +224,7 @@ class TestDeprecatedClassMethod:
 
     @pytest.fixture(autouse=True)
     def _reset_method_state(self) -> None:
-        """Reset warned_calls and called so each test gets a fresh warning budget."""
+        """Reset warned_calls so each test gets a fresh warning budget."""
         for method in (
             ServiceCls.old_warn_method,
             ServiceCls.old_redirect_method,
@@ -232,7 +234,6 @@ class TestDeprecatedClassMethod:
             LegacyServiceCls.self_renamed_method,
         ):
             state = cast(_DeprecatedCallable, method)._state
-            state.called = 0
             state.warned_calls = 0
 
     @pytest.mark.parametrize("service_cls", _SERVICE_CLS_CASES)
@@ -344,14 +345,11 @@ def test_deprecated_class_attribute_set_at_decoration_time() -> None:
 
 
 class _ClassFormBase:
-    """Shared autouse reset fixture for deprecated_class() form-equivalence tests."""
+    """Shared base for deprecated_class() form-equivalence tests.
 
-    @pytest.fixture(autouse=True)
-    def _reset_proxy_state(self) -> None:
-        """Reset the proxy warn counter before each test for independence."""
-        for proxy in (WrappedEnum, DecoratedEnum, WrappedDataClass, DecoratedDataClass):
-            assert isinstance(proxy, _DeprecatedProxy)
-            proxy._cfg.warned = 0
+    The form proxies (``WrappedEnum``, ``DecoratedEnum``, ``WrappedDataClass``, ``DecoratedDataClass``) live in
+    the ``tests.collection_deprecate*`` modules, so the project conftest resets their warn budgets before each test.
+    """
 
 
 @pytest.mark.parametrize(("proxy", "name"), _ENUM_CASES)

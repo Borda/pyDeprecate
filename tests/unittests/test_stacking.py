@@ -15,8 +15,8 @@ import warnings
 
 import pytest
 
-from deprecate.proxy import _DeprecatedProxy, deprecated_class
-from tests.collection_deprecate import DepCombinedSingleCall, DepSelfCombinedTwoLayer, StackedAttrProxy
+from deprecate.proxy import _DeprecatedProxy, _ProxySpec, deprecated_class
+from tests.collection_deprecate_forwarding import DepCombinedSingleCall, DepSelfCombinedTwoLayer, StackedAttrProxy
 from tests.collection_targets import (
     SelfDeprecatedModel,
     StackingArgsAttrsBase,
@@ -41,9 +41,9 @@ class TestStackedDeprecatedClass:
 
     ``StackedAttrProxy`` is a module-level singleton defined in ``collection_deprecate``.
     Both layers use ``stream=None``, which causes ``_warn()`` to return before incrementing
-    ``_ProxyConfig.warned`` or ``warned_args`` — so warning state does not accumulate across
-    tests despite the shared reference.  If ``stream`` is ever set to a non-``None`` value,
-    tests become order-sensitive because ``num_warns=1`` (default) would silence later tests.
+    ``_ProxyConfig.state`` (``warned_calls`` or ``warned_args``) — so warning state does not accumulate
+    across tests despite the shared reference.  The project conftest also resets that state before
+    every test, as it does for every module-level proxy of ``collection_deprecate``.
 
     """
 
@@ -351,12 +351,7 @@ class TestDeprecatedProxyNonTypeFallback:
         A proxy over a plain dict has no ``type`` to delegate to; using it as ``isinstance`` arg 2 now raises the
         builtin's ``TypeError`` rather than silently returning ``False``.
         """
-        proxy = _DeprecatedProxy(
-            obj={},
-            name="legacy_dict",
-            deprecated_in="1.0",
-            remove_in="2.0",
-        )
+        proxy = _DeprecatedProxy(obj={}, spec=_ProxySpec(name="legacy_dict", deprecated_in="1.0", remove_in="2.0"))
         with pytest.raises(TypeError, match="arg 2 must be a type"):
             isinstance({}, proxy)  # type: ignore[arg-type]
 
@@ -366,12 +361,7 @@ class TestDeprecatedProxyNonTypeFallback:
         A proxy over a plain dict has no ``type`` to delegate to; using it as ``issubclass`` arg 2 now raises the
         builtin's ``TypeError`` rather than silently returning ``False``.
         """
-        proxy = _DeprecatedProxy(
-            obj={},
-            name="legacy_dict",
-            deprecated_in="1.0",
-            remove_in="2.0",
-        )
+        proxy = _DeprecatedProxy(obj={}, spec=_ProxySpec(name="legacy_dict", deprecated_in="1.0", remove_in="2.0"))
         with pytest.raises(TypeError, match="arg 2 must be a class"):
             issubclass(int, proxy)  # type: ignore[arg-type]
 

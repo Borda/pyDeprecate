@@ -7,9 +7,11 @@ description: Advanced deprecation patterns — automatic docstring updates, inje
 
 This page covers patterns that go beyond the basics: injecting a deprecation notice into the docstring at import time, supplying a fixed default for a new required argument, testing helpers, deprecating `@classmethod` and `@staticmethod` descriptors, and generator functions. For core function patterns see [Functions](functions.md); for async generators see [Async](async.md).
 
+A callable target with an unreadable signature can be decorated successfully. Forwarding that needs its signature raises the original introspection error at call time, including keyword validation with no `args_mapping`. An empty call that needs no signature validation can still succeed.
+
 ## Automatic docstring updates
 
-Set `update_docstring=True` to inject a deprecation notice directly into the function's docstring at import time. The rendered API reference (Sphinx or MkDocs) always shows the deprecation status alongside the signature, with no manual upkeep.
+Set `update_docstring=True` to inject a deprecation notice directly into the function's docstring at import time. The rendered API reference (Sphinx or MkDocs) always shows the deprecation status alongside the signature, with no manual upkeep. A class wrapped with `deprecated_class(update_docstring=True)` keeps `__doc__ = None` when it has no docstring; internal proxy documentation is never injected.
 
 !!! tip "See it live"
 
@@ -507,7 +509,7 @@ print(list(old_range(1, 4)))
 
 !!! note "Warning deduplication and the generator factory pattern"
 
-    Internally, the deprecated wrapper for a generator is a regular (non-generator) function that fires the warning eagerly and then returns the actual generator object. In the current implementation, `_WrapperState.called` is incremented once per external call via the wrapper's normal dispatch path. Warning deduplication still works correctly: warnings fire at most `num_warns` times as configured.
+    Internally, the deprecated wrapper for a generator is a regular (non-generator) function that fires the warning eagerly and then returns the actual generator object. Each external call passes through the wrapper's normal dispatch path once, so warning deduplication works as for any other function: warnings fire at most `num_warns` times as configured, and iterating the returned generator emits no further warning.
 
 ## See also
 

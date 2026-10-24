@@ -5,6 +5,8 @@ This module provides two kinds of helpers:
 **Internal** (used by :mod:`deprecate.deprecation` and :mod:`deprecate.audit`):
     - :func:`~deprecate.utils.get_func_arguments_types_defaults`: Extract parameter names, annotations, and defaults
       from a callable's signature. Used when applying ``args_mapping`` and when auditing wrapper configuration.
+    - :func:`~deprecate.utils._signature_facts`: Read a callable's signature once into a frozen
+      :class:`~deprecate.utils._SigFacts` record that the decorator and the proxy derive their call-time data from.
 
 **Public — decorator companion** (exported via :mod:`deprecate`):
     - :func:`~deprecate.utils.void`: Accepts any arguments and returns ``None``. Used in deprecated function stubs
@@ -20,10 +22,11 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 
 import inspect
 import warnings
-from collections.abc import Generator
+from collections.abc import Generator, Mapping
 from contextlib import contextmanager
-from functools import lru_cache, partial
-from types import TracebackType
+from dataclasses import dataclass, field
+from functools import partial
+from types import MappingProxyType, TracebackType
 from typing import Any, Callable, Optional, Union
 
 from deprecate._frames import _caller_stacklevel
@@ -74,27 +77,101 @@ def get_func_arguments_types_defaults(func: Callable) -> list[tuple[str, Any, An
     return func_arg_type_val
 
 
-@lru_cache(maxsize=256)
-def _get_signature_cached(func: Callable) -> inspect.Signature:
-    """Cache inspect.signature lookups for repeated calls.
+def _get_signature(func: Callable) -> inspect.Signature:
+    """Read the signature of a callable with :func:`inspect.signature`, without caching it.
 
-    Uses an LRU cache (maxsize=256) since function signatures are stable at runtime. The size balances reuse for common
-    callables without unbounded memory growth.
+    Read when a callable is decorated (through :func:`_signature_facts`) and by the audit helpers, never on a
+    deprecated call: the wrapper keeps the facts it needs.  No cache holds the callable, so reading its signature never
+    keeps it alive.
 
     """
     return inspect.signature(func)
 
 
-def _get_signature(func: Callable) -> inspect.Signature:
-    """Get function signature with caching when possible.
+#: Parameter kinds that can be filled by a positional argument, in the order a signature declares them.
+_POSITIONAL_KINDS = (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
 
-    Falls back to uncached lookup for unhashable callables.
+
+@dataclass(frozen=True)
+class _SigFacts:
+    """Facts about one callable's signature, collected in a single read so no caller inspects it again.
+
+    :func:`_signature_facts` builds it; :func:`deprecate._dispatch._build_call_facts` and the
+    :class:`~deprecate.proxy._DeprecatedProxy` constructor derive their call-time data from it.  The default values
+    describe a callable without parameters, which is also what ``_signature_facts(obj, empty_on_error=True)``
+    returns for a signature it cannot read.
+
+    Attributes:
+        names: Every parameter name, the ``*args`` and ``**kwargs`` names included.
+        positional_names: Names of the positional-only and positional-or-keyword parameters, in order.
+        positional_only: Names of the POSITIONAL_ONLY parameters.
+        order: Every parameter name in declaration order.
+        var_positional: ``True`` when the signature declares ``*args``.
+        var_keyword: ``True`` when the signature declares ``**kwargs``.
+        defaults: Read-only mapping of each parameter that has a default to that default.  Left out of the hash, so
+            the record stays hashable whatever the default values are.
+        var_positional_index: Position of the ``*args`` parameter in :attr:`order`; ``None`` when there is none.
+
+    """
+
+    names: frozenset[str] = frozenset()
+    positional_names: tuple[str, ...] = ()
+    positional_only: frozenset[str] = frozenset()
+    order: tuple[str, ...] = ()
+    var_positional: bool = False
+    var_keyword: bool = False
+    defaults: Mapping[str, Any] = field(default_factory=lambda: MappingProxyType({}), hash=False)
+    var_positional_index: Optional[int] = None
+
+
+def _signature_facts(obj: Callable[..., Any], *, empty_on_error: bool = False) -> _SigFacts:
+    """Read the signature of a callable once and return every fact the decorator and the proxy need from it.
+
+    A class reports its constructor parameters without ``self``, as :func:`inspect.signature` does.  The signature
+    is read through :func:`_get_signature`.
+
+    Args:
+        obj: The callable to inspect.
+        empty_on_error: Return an empty :class:`_SigFacts` instead of raising when the signature cannot be read
+            (``TypeError`` or ``ValueError``).  Any other exception raised while reading it propagates either way.
+
+    Returns:
+        The signature facts of ``obj``.
+
+    Raises:
+        TypeError: When ``obj`` is not callable or its signature is not supported, unless ``empty_on_error`` is set.
+        ValueError: When no signature can be provided for ``obj``, unless ``empty_on_error`` is set.
+
+    Example:
+        >>> def target(a, /, b=2, *rest, c, **extra): pass
+        >>> facts = _signature_facts(target)
+        >>> facts.positional_names, sorted(facts.positional_only), facts.var_positional_index, dict(facts.defaults)
+        (('a', 'b'), ['a'], 2, {'b': 2})
+        >>> _signature_facts(42, empty_on_error=True) == _SigFacts()
+        True
 
     """
     try:
-        return _get_signature_cached(func)
-    except TypeError:
-        return inspect.signature(func)
+        params = list(_get_signature(obj).parameters.values())
+    except (TypeError, ValueError):
+        if not empty_on_error:
+            raise
+        return _SigFacts()
+    var_positional_index = next(
+        (index for index, param in enumerate(params) if param.kind is inspect.Parameter.VAR_POSITIONAL), None
+    )
+    return _SigFacts(
+        names=frozenset(param.name for param in params),
+        positional_names=tuple(param.name for param in params if param.kind in _POSITIONAL_KINDS),
+        positional_only=frozenset(param.name for param in params if param.kind is inspect.Parameter.POSITIONAL_ONLY),
+        order=tuple(param.name for param in params),
+        var_positional=var_positional_index is not None,
+        var_keyword=any(param.kind is inspect.Parameter.VAR_KEYWORD for param in params),
+        defaults=MappingProxyType(
+            {param.name: param.default for param in params if param.default is not inspect.Parameter.empty}
+        ),
+        var_positional_index=var_positional_index,
+    )
 
 
 def _is_dataclass_target(cls: Any) -> bool:  # noqa: ANN401
@@ -109,82 +186,53 @@ def _is_dataclass_target(cls: Any) -> bool:  # noqa: ANN401
     return isinstance(cls, type) and dataclasses.is_dataclass(cls)
 
 
-def _apply_args_mapping_collisions(
-    args_mapping: dict[str, Optional[str]],
-    kwargs: dict[str, Any],
-    args_skip: Any,  # noqa: ANN401 - accepts list or set
+def _remap_kwargs(
+    mapping: Mapping[str, Optional[str]],
+    kwargs: Mapping[str, Any],
+    *,
     name: str,
-    stream: Any,  # noqa: ANN401 - truthy check; callable in deprecation path
+    stream: Optional[Callable[..., Any]],
 ) -> dict[str, Any]:
-    """Return snapshot of explicit new-name values for collision pairs and emit UserWarning per collision.
+    """Rename deprecated keyword arguments to their new names and drop the ones mapped to ``None``.
 
-    A collision occurs when a caller supplies both the deprecated old argument name and its mapped new name
-    simultaneously.  The new-name value always wins; this function snapshots it before the remap overwrites
-    it and warns the caller that the old name was ignored.
+    Shared by the ``@deprecated`` dispatcher and the ``deprecated_class`` / ``deprecated_instance`` proxy.  A
+    collision occurs when a caller supplies both a deprecated name and the new name it maps to: the new-name value
+    always wins, whatever the keyword order, and one ``UserWarning`` per pair says the old name was ignored.  A key
+    whose mapped value is another falsy value (``""``) keeps its old name.
 
     Args:
-        args_mapping: Mapping of old argument names to new names (``None`` = drop).
-        kwargs: Current keyword arguments at the call site.
-        args_skip: Names whose mapped value is ``None`` (drop); excluded from collision detection.
-        name: Callable name used in the warning message.
-        stream: Warning stream; falsy value suppresses all warnings.
+        mapping: The ``args_mapping`` — old argument name to new name, or ``None`` to drop the argument.
+        kwargs: The keyword arguments to remap; not modified.
+        name: Callable name used in the collision warning.
+        stream: Warning stream; a falsy value (``None``) suppresses the collision warning, not the remap.
 
     Returns:
-        Dict of ``{new_k: kwargs[new_k]}`` for each detected collision pair (empty when no collisions).
+        A new dict with the remapped keyword arguments.
+
+    Example:
+        >>> _remap_kwargs({"old": "new", "gone": None}, {"old": 1, "gone": 2, "keep": 3}, name="f", stream=None)
+        {'new': 1, 'keep': 3}
+        >>> _remap_kwargs({"old": "new"}, {"new": 6, "old": 5}, name="f", stream=None)
+        {'new': 6}
 
     """
-    collision_pairs = [
-        (old_k, new_k)
-        for old_k, new_k in args_mapping.items()
-        if new_k is not None and old_k in kwargs and new_k in kwargs and new_k not in args_skip
+    dropped = {old for old, new in mapping.items() if new is None}
+    collisions = [
+        (old, new)
+        for old, new in mapping.items()
+        if new is not None and old in kwargs and new in kwargs and new not in dropped
     ]
-    explicit_new: dict[str, Any] = {new_k: kwargs[new_k] for _, new_k in collision_pairs}
-    if collision_pairs and stream:
-        for old_k, new_k in collision_pairs:
+    if stream:
+        for old, new in collisions:
             warnings.warn(
-                f"Both `{old_k}` (deprecated) and `{new_k}` were supplied to `{name}()`; `{old_k}` is ignored.",
+                f"Both `{old}` (deprecated) and `{new}` were supplied to `{name}()`; `{old}` is ignored.",
                 UserWarning,
                 stacklevel=_caller_stacklevel(),
             )
-    return explicit_new
-
-
-def _get_args_mapping_positional_only_keys(
-    target_cls: Any,  # noqa: ANN401
-    args_mapping: dict[str, Any],
-) -> tuple[str, ...]:
-    """Return ``args_mapping`` keys whose redirect target is a POSITIONAL_ONLY constructor param.
-
-    When ``deprecated_class(args_mapping={"old": "new"}, ...)`` is applied to a target class whose
-    constructor declares ``new`` as positional-only (``def __init__(self, new, /): ...``), calling
-    the proxy with ``old=value`` would remap to ``new=value`` and then immediately raise
-    ``TypeError`` because ``new`` cannot be passed as a keyword argument.
-
-    This helper detects that mismatch at decoration time so the proxy can emit a ``UserWarning``
-    and store the incompatible keys on :class:`~deprecate._types.DeprecationConfig` for audit
-    surfacing.
-
-    Args:
-        target_cls: The resolved target class to inspect.
-        args_mapping: The ``args_mapping`` dict being validated.
-
-    Returns:
-        Tuple of ``args_mapping`` old-key names whose remapped target name is positional-only in
-        the target's constructor signature.  Empty tuple when no incompatibilities detected.
-
-    """
-    try:
-        sig = inspect.signature(target_cls)
-    except (TypeError, ValueError):
-        return ()
-
-    positional_only: set[str] = {
-        name for name, p in sig.parameters.items() if p.kind is inspect.Parameter.POSITIONAL_ONLY
-    }
-    if not positional_only:
-        return ()
-
-    return tuple(old_key for old_key, mapping_val in args_mapping.items() if mapping_val in positional_only)
+    remapped = {(mapping.get(key) or key): value for key, value in kwargs.items() if key not in dropped}
+    # The rename above is last-write-wins on the key order; restore every explicitly passed new-name value.
+    remapped.update({new: kwargs[new] for _, new in collisions})
+    return remapped
 
 
 def _warns_repr(warns: list[warnings.WarningMessage]) -> list[Union[Warning, str]]:

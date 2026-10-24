@@ -1230,7 +1230,7 @@ class TestBackwardCompatShims:
         """Calling ``DeprecatedCallableInfo(...)`` directly emits a ``FutureWarning`` about its own deprecation."""
         # pytest introspection (inspect.hasattr '__wrapped__') may consume num_warns=1 before this
         # test body runs; reset the proxy's warn counter so the call below always fires the warning.
-        DeprecatedCallableInfo._cfg.warned = 0  # type: ignore[attr-defined]
+        DeprecatedCallableInfo._cfg.state.warned_calls = 0  # type: ignore[attr-defined]
         with warnings.catch_warnings(record=True) as recorded:
             warnings.simplefilter("always")
             info = DeprecatedCallableInfo(  # type: ignore[call-arg]

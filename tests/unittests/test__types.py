@@ -1,18 +1,143 @@
 """Unit tests for :mod:`deprecate._types` — :class:`DeprecationConfig` and the ``_has_deprecation_meta`` guard."""
 
+import copy
 import dataclasses
+import pickle
 from collections.abc import Callable
-from typing import cast
+from typing import Any, cast
 
 import pytest
 
 import tests.collection_misconfigured as clean_module
 from deprecate import TargetMode, deprecated, get_deprecation_config
-from deprecate._types import DeprecationConfig, _DeprecatedCallable, _has_deprecation_meta
+from deprecate._types import (
+    DeprecationConfig,
+    _CallFacts,
+    _DeprecatedCallable,
+    _has_deprecation_meta,
+    _ProxyConfig,
+    _WrapperState,
+)
 from deprecate.audit import find_deprecation_wrappers, validate_deprecation_wrapper
-from deprecate.proxy import _DeprecatedProxy
+from deprecate.proxy import _DeprecatedProxy, _ProxySpec
 from tests.collection_chains import caller_stacked_args_enum_enum, caller_stacked_args_legacy_enum
 from tests.collection_targets import base_sum_kwargs
+
+
+def _pickle_round_trip(obj: Any) -> Any:  # noqa: ANN401
+    """Pickle and unpickle *obj* at the highest protocol."""
+    return pickle.loads(pickle.dumps(obj, protocol=pickle.HIGHEST_PROTOCOL))  # noqa: S301 - payload made in this test
+
+
+def _proxy_config_state_0_14() -> dict[str, Any]:
+    """Return a fresh ``_ProxyConfig`` state dict in the 0.14 layout: flat counters, no ``state`` / ``facts``."""
+    return {
+        "obj": {"threshold": 0.5},
+        "stream": None,
+        "num_warns": 1,
+        "read_only": False,
+        "args_extra": None,
+        "message_template": None,
+        "attrs_mapping": None,
+        "skip_if": False,
+        "warned": 1,
+        "warned_args": {"old": 1},
+    }
+
+
+class TestWrapperStateDuplicates:
+    """A copied, deep-copied or unpickled ``_WrapperState`` snapshots the counters with its own lock and dict."""
+
+    @pytest.mark.parametrize(
+        "duplicate",
+        [
+            pytest.param(copy.copy, id="copy"),
+            pytest.param(copy.deepcopy, id="deepcopy"),
+            pytest.param(_pickle_round_trip, id="pickle"),
+        ],
+    )
+    def test_snapshots_counters(self, duplicate: Callable[[Any], Any]) -> None:
+        """The duplicate carries the same counters but shares neither the lock nor the ``warned_args`` dict.
+
+        A proxy copy or a pickled proxy must warn independently from its original: a shared ``warned_args`` dict
+        would let one spend the other's per-argument budget, and a mutex cannot be pickled or shared safely.
+        """
+        state = _WrapperState(warned_calls=1, warned_args={"old": 1}, warned_misconfigured=True)
+        dup = duplicate(state)
+        assert dup == state
+        assert dup.lock is not state.lock
+        assert dup.warned_args is not state.warned_args
+
+
+class TestWrapperStateSetstate:
+    """``_WrapperState.__setstate__`` restores the warn budgets from a pickled state dict."""
+
+    def test_ignores_removed_called_counter(self) -> None:
+        """A state dict that still carries the removed ``called`` counter loads without it.
+
+        A wrapper state pickled before the write-only ``called`` counter was dropped still holds that key. Loading it
+        must keep every warn budget and leave no stray ``called`` attribute on the restored state.
+        """
+        state = _WrapperState.__new__(_WrapperState)
+        state.__setstate__({"called": 3, "warned_calls": 1, "warned_args": {"old": 1}, "warned_misconfigured": True})
+        assert state == _WrapperState(warned_calls=1, warned_args={"old": 1}, warned_misconfigured=True)
+        assert "called" not in vars(state)
+
+
+class TestProxyConfigSetstate:
+    """``_ProxyConfig.__setstate__`` migrates the flat 0.14 counters into the shared ``_WrapperState``."""
+
+    def test_migrates_0_14_counters(self) -> None:
+        """A 0.14 state dict's ``warned`` / ``warned_args`` become ``state``; ``facts`` defaults to empty.
+
+        Proxies pickled by 0.14 carry the budget as two flat fields; loading one today must keep the spent budget
+        (so a cached proxy does not warn a second time) in the one budget record every deprecation path shares.
+        """
+        cfg = _ProxyConfig.__new__(_ProxyConfig)
+        cfg.__setstate__(_proxy_config_state_0_14())
+        assert cfg.state == _WrapperState(warned_calls=1, warned_args={"old": 1})
+        assert cfg.facts == _CallFacts()
+        assert "warned" not in vars(cfg)
+        assert "warned_args" not in vars(cfg)
+
+    def test_round_trips_counters(self) -> None:
+        """A config pickled today comes back with the same counters, a fresh lock and empty ``facts``.
+
+        The payload uses the 0.14 layout, so ``facts`` is not carried: it starts empty and ``_reconstruct_proxy``
+        refills the positional-only split from the frozen metadata, which mirrors it.
+        """
+        cfg = _ProxyConfig(
+            obj={"threshold": 0.5},
+            stream=None,
+            num_warns=1,
+            read_only=False,
+            state=_WrapperState(warned_calls=1, warned_args={"old": 1}),
+            facts=_CallFacts(target_positional_only=frozenset({"a"}), target_positional_only_order=("a",)),
+        )
+        restored = _pickle_round_trip(cfg)
+        assert restored == dataclasses.replace(cfg, facts=_CallFacts())
+        assert restored.state.lock is not cfg.state.lock
+
+
+class TestProxyConfigGetstate:
+    """``_ProxyConfig.__getstate__`` writes the 0.14 layout, so proxies pickled today still load on 0.14."""
+
+    def test_emits_0_14_layout(self) -> None:
+        """The pickled state holds the eight config fields plus flat ``warned`` / ``warned_args`` counters.
+
+        A cache shared by processes on different pyDeprecate releases holds proxies pickled by either one.  0.14
+        restores a config by updating its ``__dict__``, so a ``state`` or ``facts`` entry would name private classes it
+        does not have; flat counters carry the spent budget in a form both releases read.
+        """
+        cfg = _ProxyConfig(
+            obj={"threshold": 0.5},
+            stream=None,
+            num_warns=1,
+            read_only=False,
+            state=_WrapperState(warned_calls=1, warned_args={"old": 1}, warned_misconfigured=True),
+            facts=_CallFacts(target_positional_only=frozenset({"a"}), target_positional_only_order=("a",)),
+        )
+        assert cfg.__getstate__() == _proxy_config_state_0_14()
 
 
 class TestTemplateMgsAliasProperty:
@@ -56,7 +181,7 @@ class TestHasDeprecationMeta:
 
     def test_returns_true_for_deprecated_proxy(self) -> None:
         """_DeprecatedProxy objects carry DeprecationConfig, so the guard returns True."""
-        proxy = _DeprecatedProxy(obj={}, name="x", deprecated_in="1.0", remove_in="2.0", stream=None)
+        proxy = _DeprecatedProxy(obj={}, spec=_ProxySpec(name="x", deprecated_in="1.0", remove_in="2.0", stream=None))
         assert _has_deprecation_meta(proxy) is True
 
     @pytest.mark.parametrize(
@@ -125,7 +250,7 @@ class TestHasDeprecationMeta:
 
     def test_meta_is_deprecation_info_instance(self) -> None:
         """The __deprecation_config__ attribute on a proxy is a typed DeprecationConfig dataclass."""
-        proxy = _DeprecatedProxy(obj={}, name="cfg", deprecated_in="1.0", remove_in="2.0", stream=None)
+        proxy = _DeprecatedProxy(obj={}, spec=_ProxySpec(name="cfg", deprecated_in="1.0", remove_in="2.0", stream=None))
         assert isinstance(object.__getattribute__(proxy, "__deprecation_config__"), DeprecationConfig)
 
 
