@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="assets/brand/favicon.svg">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
     
     
       
@@ -31,10 +31,10 @@
       
     
     
-      <link rel="stylesheet" href="assets/stylesheets/main.ec1eaa64.min.css">
+      <link rel="stylesheet" href="assets/stylesheets/main.57a0d79d.min.css">
       
         
-        <link rel="stylesheet" href="assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="assets/stylesheets/palette.fb2fffe2.min.css">
       
       
 
@@ -97,7 +97,7 @@
   "mainEntityOfPage": { "@type": "WebPage", "@id": "https://borda.github.io/pyDeprecate/stable/changelog.html" },
   "author": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda" },
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
-  "dateModified": "2026-10-23"
+  "dateModified": "2026-10-26"
 }
 </script>
 
@@ -2936,12 +2936,21 @@
 <li><strong><code>functools.partial</code>, <code>partialmethod</code> and <code>singledispatchmethod</code> sources are rejected at decoration.</strong> <code>@deprecated</code> and <code>deprecated_callable()</code> raise <code>TypeError</code> for these objects, including a named partial (one given a <code>__name__</code> through <code>functools.update_wrapper</code>) that earlier releases accepted and forwarded with a wrong result. Wrap the object in a plain <code>def</code> that calls it and decorate that <code>def</code>. (<a href="https://github.com/Borda/pyDeprecate/pull/250">#250</a>)</li>
 <li><strong>Stricter CLI argument handling.</strong> A boolean flag now accepts only <code>true</code>, <code>false</code>, <code>1</code> or <code>0</code> (case-insensitive) in both <code>--flag value</code> and <code>--flag=value</code> forms, and any other value exits <code>2</code>; a second positional path for <code>check</code>, <code>policy</code> or <code>chains</code>, and private <code>--_*</code> options such as <code>--_advisory</code>, exit <code>2</code> as well. Scanning a directory that holds several top-level packages (for example a repository root with <code>mypkg/</code> and <code>tests/</code>) now fails with a non-zero exit and a "contains multiple packages" error instead of passing silently on an empty scan; src-layout and single-package roots resolve as before. (<a href="https://github.com/Borda/pyDeprecate/pull/243">#243</a>)</li>
 <li><strong>Audit gaps on stderr.</strong> When part of the audit did not run, the CLI now prints an unwrapped stderr line starting with <code>pydeprecate gap: &lt;kind&gt;:</code> — one <code>pydeprecate gap: module not audited: &lt;module&gt;: &lt;error&gt;</code> line per submodule that failed to import (printed whatever warnings filters the audited package installs, unlike the <code>audit: skipped</code> warning), plus <code>version not resolved</code>, <code>version not PEP 440</code>, <code>packaging missing</code> and <code>nested files not audited</code>. These lines replace the earlier free-form <code>Skipping …</code> / <code>Could not scan …</code> / version and <code>packaging</code> advisories; tooling reads the same gaps from <code>--report-json</code>. (<a href="https://github.com/Borda/pyDeprecate/pull/245">#245</a>)</li>
+<li><strong>An empty-string <code>args_mapping</code> value keeps the old argument name under <code>@deprecated</code>.</strong> <code>args_mapping={"old_arg": ""}</code> now passes <code>old_arg</code> through under its original name (the notice still fires), matching <code>deprecated_class</code>; only <code>None</code> drops an argument. On 0.14 <code>@deprecated</code> dropped an argument mapped to <code>""</code> like one mapped to <code>None</code> — map it to <code>None</code> if you relied on that. (<a href="https://github.com/Borda/pyDeprecate/pull/251">#251</a>)</li>
+<li><strong>Multi-argument rename warnings name only the arguments still within their budget.</strong> With <code>num_warns=1</code>, a call using <code>old_a</code> and then a call using <code>old_a</code> and <code>old_b</code> no longer re-lists <code>old_a</code> in the second message. (<a href="https://github.com/Borda/pyDeprecate/pull/251">#251</a>)</li>
+<li><strong><code>%(source_path)s</code> in proxy message templates is module-qualified.</strong> For <code>deprecated_class</code> and <code>deprecated_instance</code> a custom <code>message_template</code> now receives <code>&lt;module&gt;.&lt;name&gt;</code> when the proxy wraps a class or a plain function, and <code>&lt;source_path&gt;.&lt;attr&gt;</code> for attribute warnings; the default messages are unchanged. (<a href="https://github.com/Borda/pyDeprecate/pull/251">#251</a>)</li>
+<li><strong>A class decorated with <code>@deprecated</code> gets its dispatch notice once under concurrent decoration.</strong> The one-time notice is claimed under a lock, and the set of remembered classes is capped at 4096 keys, evicting the oldest, so an evicted class may warn again. (<a href="https://github.com/Borda/pyDeprecate/pull/251">#251</a>)</li>
 </ul>
 <h3 id="fixed">Fixed<a class="headerlink" href="#fixed" title="Permanent link">🔗</a></h3>
 <ul>
 <li><strong>Callable forwarding and proxy edge cases.</strong> Calls that need no forwarding reach the source with the caller's own positional and keyword arguments, and warning state is cleaned up if a custom stream raises. A warning that fails to deliver no longer spends the proxy's warn budget, reads and other warning data-use proxy operations evaluate <code>skip_if</code> once (calls and writes may still consult it more than once), and a deprecated <code>functools.partial</code> class attribute is no longer bound or warned about by Python. Audit tables and <code>--report-json</code> name <code>functools.partial</code> and callable-instance targets the way the runtime warning does instead of printing an address-bearing repr. (<a href="https://github.com/Borda/pyDeprecate/pull/250">#250</a>)</li>
 <li><strong>Standalone <code>pydeprecate expiry</code> without a resolvable version.</strong> It retains the top-level package's <code>__version__</code> fallback when project and installed metadata cannot resolve a version, so overdue wrappers in uninstalled checkouts still exit <code>1</code>. A genuinely unresolved version now prints one <code>version not resolved</code> gap instead of two, and an auto-detected version that is not PEP 440 skips the check with a gap (exit <code>0</code>) instead of crashing with <code>ValueError</code>, as <code>pydeprecate all</code> already did. (<a href="https://github.com/Borda/pyDeprecate/pull/245">#245</a>)</li>
 <li><strong>Boolean flags before the path.</strong> A boolean flag placed before the path (<code>pydeprecate check --exit-zero src/mypackage</code>) no longer swallows the path, and <code>policy --message-required</code> / <code>--nomessage-required</code> now work before the path too instead of exiting <code>2</code>. (<a href="https://github.com/Borda/pyDeprecate/pull/243">#243</a>)</li>
+<li><strong>Explicit new argument name wins on <code>*args</code> sources.</strong> When a source declares <code>*args</code> and a call passes both the deprecated and the new name, the new-name value is forwarded whatever the keyword order, as the collision warning says. (<a href="https://github.com/Borda/pyDeprecate/pull/251">#251</a>)</li>
+<li><strong><code>args_extra</code> reaches <code>*args</code> sources.</strong> <code>TargetMode.ARGS_REMAP</code> with <code>args_extra</code> on a source declaring <code>*args</code> now injects <code>args_extra</code> for a caller who already uses the new argument names. (<a href="https://github.com/Borda/pyDeprecate/pull/251">#251</a>)</li>
+<li><strong>One misconfiguration notice under threads.</strong> The one-time <code>UserWarning</code> for a misconfigured wrapper is claimed under the wrapper's lock, so concurrent first calls emit it exactly once. (<a href="https://github.com/Borda/pyDeprecate/pull/251">#251</a>)</li>
+<li><strong>Module redirect guard no longer reports false cycles.</strong> Concurrent asyncio tasks keep separate guards, a thread started in a copy of a resolving context no longer mistakes its own lookup of the same name for a cycle, and the guard expires when the original lookup finishes, so later work in a copied context resolves the name normally. A real cycle on the same thread still raises <code>AttributeError</code>. (<a href="https://github.com/Borda/pyDeprecate/pull/251">#251</a>)</li>
+<li><strong>Forwarding keeps the target's own signature error, and docless classes stay docless.</strong> When forwarded keywords need validating, the original introspection error is raised instead of a misleading keyword error, and a deprecated class without a docstring no longer exposes internal proxy text as its <code>__doc__</code>. (<a href="https://github.com/Borda/pyDeprecate/pull/251">#251</a>)</li>
 </ul>
 <hr />
 <h2 id="0140-2026-10-06-fatal-deprecations-pep-702-static-checker-support-module-warning-budgets">[0.14.0] — 2026-10-06 — Fatal deprecations, PEP 702 static-checker support, &amp; module warning budgets<a class="headerlink" href="#0140-2026-10-06-fatal-deprecations-pep-702-static-checker-support-module-warning-budgets" title="Permanent link">🔗</a></h2>
@@ -3359,7 +3368,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 23, 2026 14:56:30 UTC">2026-10-23</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 26, 2026 22:58:28 UTC">2026-10-26</span>
   </span>
 
     
@@ -3422,10 +3431,10 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": ".", "features": [], "search": "assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "stable", "provider": "mike"}}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": ".", "features": [], "search": "assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "stable", "provider": "mike"}}</script>
     
     
-      <script src="assets/javascripts/bundle.d7400e89.min.js"></script>
+      <script src="assets/javascripts/bundle.c21346df.min.js"></script>
       
     
   </body>

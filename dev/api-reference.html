@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="assets/brand/favicon.svg">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
     
     
       
@@ -31,10 +31,10 @@
       
     
     
-      <link rel="stylesheet" href="assets/stylesheets/main.ec1eaa64.min.css">
+      <link rel="stylesheet" href="assets/stylesheets/main.57a0d79d.min.css">
       
         
-        <link rel="stylesheet" href="assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="assets/stylesheets/palette.fb2fffe2.min.css">
       
       
 
@@ -3695,8 +3695,8 @@ per-argument for <code>args_mapping</code>).  Available <code>%</code>-style pla
 <li><code>%(remove_in)s</code> — value of the <code>remove_in</code> argument</li>
 <li><code>%(target_name)s</code> — target class name (only when <em>target</em> is callable)</li>
 <li><code>%(target_path)s</code> — fully-qualified target path (only when <em>target</em> is callable)</li>
-<li><code>%(argument_map)s</code> — formatted <code>\`old\` -&gt; \`new\``` string (only for per-argument warnings
-  emitted by</code>args_mapping``)</li>
+<li><code>%(argument_map)s</code> — formatted <code>\`old\` -&gt; \`new\``` string, or</code>`old` (kept)<code>for an argument
+  mapped to</code>""<code>(only for per-argument warnings emitted by</code>args_mapping``)</li>
 </ul>
 <p>Example: <code>"v%(deprecated_in)s:</code>%(source_name)s<code>-&gt;</code>%(target_name)s<code>"</code>.</p>
               </div>
@@ -3828,7 +3828,7 @@ stable; a callable that returns a non-<code>bool</code> raises :class:<code>Type
             <td>
               <div class="doc-md-description">
                 <p>If <code>True</code>, inject a deprecation notice into the class docstring at decoration time (same
-behaviour as <code>@deprecated(update_docstring=True)</code>).</p>
+behaviour as <code>@deprecated(update_docstring=True)</code>). A class with no docstring keeps <code>__doc__ = None</code>.</p>
               </div>
             </td>
             <td>
@@ -3907,7 +3907,7 @@ were), the warn budget does not apply, and <code>stream=None</code> silences onl
       <tbody>
           <tr class="doc-section-item">
             <td>
-                  <code><span title="typing.Union">Union</span>[<span title="deprecate.proxy._ClassDecorator">_ClassDecorator</span>, <span title="deprecate.proxy._RedirectDecorator">_RedirectDecorator</span>[<span title="typing.Any">Any</span>]]</code>
+                  <code><span title="typing.Union">Union</span>[<span title="deprecate.proxy.factories._ClassDecorator">_ClassDecorator</span>, <span title="deprecate.proxy.factories._RedirectDecorator">_RedirectDecorator</span>[<span title="typing.Any">Any</span>]]</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -3917,7 +3917,7 @@ were), the warn budget does not apply, and <code>stream=None</code> silences onl
           </tr>
           <tr class="doc-section-item">
             <td>
-                  <code><span title="typing.Union">Union</span>[<span title="deprecate.proxy._ClassDecorator">_ClassDecorator</span>, <span title="deprecate.proxy._RedirectDecorator">_RedirectDecorator</span>[<span title="typing.Any">Any</span>]]</code>
+                  <code><span title="typing.Union">Union</span>[<span title="deprecate.proxy.factories._ClassDecorator">_ClassDecorator</span>, <span title="deprecate.proxy.factories._RedirectDecorator">_RedirectDecorator</span>[<span title="typing.Any">Any</span>]]</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -3927,7 +3927,7 @@ were), the warn budget does not apply, and <code>stream=None</code> silences onl
           </tr>
           <tr class="doc-section-item">
             <td>
-                  <code><span title="typing.Union">Union</span>[<span title="deprecate.proxy._ClassDecorator">_ClassDecorator</span>, <span title="deprecate.proxy._RedirectDecorator">_RedirectDecorator</span>[<span title="typing.Any">Any</span>]]</code>
+                  <code><span title="typing.Union">Union</span>[<span title="deprecate.proxy.factories._ClassDecorator">_ClassDecorator</span>, <span title="deprecate.proxy.factories._RedirectDecorator">_RedirectDecorator</span>[<span title="typing.Any">Any</span>]]</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -3937,7 +3937,7 @@ were), the warn budget does not apply, and <code>stream=None</code> silences onl
           </tr>
           <tr class="doc-section-item">
             <td>
-                  <code><span title="typing.Union">Union</span>[<span title="deprecate.proxy._ClassDecorator">_ClassDecorator</span>, <span title="deprecate.proxy._RedirectDecorator">_RedirectDecorator</span>[<span title="typing.Any">Any</span>]]</code>
+                  <code><span title="typing.Union">Union</span>[<span title="deprecate.proxy.factories._ClassDecorator">_ClassDecorator</span>, <span title="deprecate.proxy.factories._RedirectDecorator">_RedirectDecorator</span>[<span title="typing.Any">Any</span>]]</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -3947,7 +3947,7 @@ were), the warn budget does not apply, and <code>stream=None</code> silences onl
           </tr>
           <tr class="doc-section-item">
             <td>
-                  <code><span title="typing.Union">Union</span>[<span title="deprecate.proxy._ClassDecorator">_ClassDecorator</span>, <span title="deprecate.proxy._RedirectDecorator">_RedirectDecorator</span>[<span title="typing.Any">Any</span>]]</code>
+                  <code><span title="typing.Union">Union</span>[<span title="deprecate.proxy.factories._ClassDecorator">_ClassDecorator</span>, <span title="deprecate.proxy.factories._RedirectDecorator">_RedirectDecorator</span>[<span title="typing.Any">Any</span>]]</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -3957,7 +3957,7 @@ were), the warn budget does not apply, and <code>stream=None</code> silences onl
           </tr>
           <tr class="doc-section-item">
             <td>
-                  <code><span title="typing.Union">Union</span>[<span title="deprecate.proxy._ClassDecorator">_ClassDecorator</span>, <span title="deprecate.proxy._RedirectDecorator">_RedirectDecorator</span>[<span title="typing.Any">Any</span>]]</code>
+                  <code><span title="typing.Union">Union</span>[<span title="deprecate.proxy.factories._ClassDecorator">_ClassDecorator</span>, <span title="deprecate.proxy.factories._RedirectDecorator">_RedirectDecorator</span>[<span title="typing.Any">Any</span>]]</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -3967,7 +3967,7 @@ were), the warn budget does not apply, and <code>stream=None</code> silences onl
           </tr>
           <tr class="doc-section-item">
             <td>
-                  <code><span title="typing.Union">Union</span>[<span title="deprecate.proxy._ClassDecorator">_ClassDecorator</span>, <span title="deprecate.proxy._RedirectDecorator">_RedirectDecorator</span>[<span title="typing.Any">Any</span>]]</code>
+                  <code><span title="typing.Union">Union</span>[<span title="deprecate.proxy.factories._ClassDecorator">_ClassDecorator</span>, <span title="deprecate.proxy.factories._RedirectDecorator">_RedirectDecorator</span>[<span title="typing.Any">Any</span>]]</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -3977,7 +3977,7 @@ were), the warn budget does not apply, and <code>stream=None</code> silences onl
           </tr>
           <tr class="doc-section-item">
             <td>
-                  <code><span title="typing.Union">Union</span>[<span title="deprecate.proxy._ClassDecorator">_ClassDecorator</span>, <span title="deprecate.proxy._RedirectDecorator">_RedirectDecorator</span>[<span title="typing.Any">Any</span>]]</code>
+                  <code><span title="typing.Union">Union</span>[<span title="deprecate.proxy.factories._ClassDecorator">_ClassDecorator</span>, <span title="deprecate.proxy.factories._RedirectDecorator">_RedirectDecorator</span>[<span title="typing.Any">Any</span>]]</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -3987,7 +3987,7 @@ were), the warn budget does not apply, and <code>stream=None</code> silences onl
           </tr>
           <tr class="doc-section-item">
             <td>
-                  <code><span title="typing.Union">Union</span>[<span title="deprecate.proxy._ClassDecorator">_ClassDecorator</span>, <span title="deprecate.proxy._RedirectDecorator">_RedirectDecorator</span>[<span title="typing.Any">Any</span>]]</code>
+                  <code><span title="typing.Union">Union</span>[<span title="deprecate.proxy.factories._ClassDecorator">_ClassDecorator</span>, <span title="deprecate.proxy.factories._RedirectDecorator">_RedirectDecorator</span>[<span title="typing.Any">Any</span>]]</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -3997,7 +3997,7 @@ were), the warn budget does not apply, and <code>stream=None</code> silences onl
           </tr>
           <tr class="doc-section-item">
             <td>
-                  <code><span title="typing.Union">Union</span>[<span title="deprecate.proxy._ClassDecorator">_ClassDecorator</span>, <span title="deprecate.proxy._RedirectDecorator">_RedirectDecorator</span>[<span title="typing.Any">Any</span>]]</code>
+                  <code><span title="typing.Union">Union</span>[<span title="deprecate.proxy.factories._ClassDecorator">_ClassDecorator</span>, <span title="deprecate.proxy.factories._RedirectDecorator">_RedirectDecorator</span>[<span title="typing.Any">Any</span>]]</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -4007,7 +4007,7 @@ were), the warn budget does not apply, and <code>stream=None</code> silences onl
           </tr>
           <tr class="doc-section-item">
             <td>
-                  <code><span title="typing.Union">Union</span>[<span title="deprecate.proxy._ClassDecorator">_ClassDecorator</span>, <span title="deprecate.proxy._RedirectDecorator">_RedirectDecorator</span>[<span title="typing.Any">Any</span>]]</code>
+                  <code><span title="typing.Union">Union</span>[<span title="deprecate.proxy.factories._ClassDecorator">_ClassDecorator</span>, <span title="deprecate.proxy.factories._RedirectDecorator">_RedirectDecorator</span>[<span title="typing.Any">Any</span>]]</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -4017,7 +4017,7 @@ were), the warn budget does not apply, and <code>stream=None</code> silences onl
           </tr>
           <tr class="doc-section-item">
             <td>
-                  <code><span title="typing.Union">Union</span>[<span title="deprecate.proxy._ClassDecorator">_ClassDecorator</span>, <span title="deprecate.proxy._RedirectDecorator">_RedirectDecorator</span>[<span title="typing.Any">Any</span>]]</code>
+                  <code><span title="typing.Union">Union</span>[<span title="deprecate.proxy.factories._ClassDecorator">_ClassDecorator</span>, <span title="deprecate.proxy.factories._RedirectDecorator">_RedirectDecorator</span>[<span title="typing.Any">Any</span>]]</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -4351,7 +4351,7 @@ were), the warn budget does not apply, and <code>stream=None</code> silences onl
       <tbody>
           <tr class="doc-section-item">
 <td><code>A</code></td>            <td>
-                  <code><span title="deprecate.proxy._DeprecatedProxy">_DeprecatedProxy</span></code>
+                  <code><span title="deprecate.proxy.core._DeprecatedProxy">_DeprecatedProxy</span></code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -4361,7 +4361,7 @@ were), the warn budget does not apply, and <code>stream=None</code> silences onl
           </tr>
           <tr class="doc-section-item">
 <td></td>            <td>
-                  <code><span title="deprecate.proxy._DeprecatedProxy">_DeprecatedProxy</span></code>
+                  <code><span title="deprecate.proxy.core._DeprecatedProxy">_DeprecatedProxy</span></code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -4371,7 +4371,7 @@ were), the warn budget does not apply, and <code>stream=None</code> silences onl
           </tr>
           <tr class="doc-section-item">
 <td></td>            <td>
-                  <code><span title="deprecate.proxy._DeprecatedProxy">_DeprecatedProxy</span></code>
+                  <code><span title="deprecate.proxy.core._DeprecatedProxy">_DeprecatedProxy</span></code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -4381,7 +4381,7 @@ were), the warn budget does not apply, and <code>stream=None</code> silences onl
           </tr>
           <tr class="doc-section-item">
 <td></td>            <td>
-                  <code><span title="deprecate.proxy._DeprecatedProxy">_DeprecatedProxy</span></code>
+                  <code><span title="deprecate.proxy.core._DeprecatedProxy">_DeprecatedProxy</span></code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -4914,12 +4914,12 @@ this scan unchanged.</p>
 <blockquote>
 <blockquote>
 <p>from deprecate import find_deprecation_wrappers
-from tests import collection_deprecate as my_package</p>
+from tests.collections import api_deprecated as my_package</p>
 <p>results = find_deprecation_wrappers(my_package)
 print(len(results) &gt; 0)  # Should find deprecated wrappers
 True</p>
 <h3 id="deprecate.audit.find_deprecation_wrappers--also-works-with-string-module-paths">Also works with string module paths<a class="headerlink" href="#deprecate.audit.find_deprecation_wrappers--also-works-with-string-module-paths" title="Permanent link">🔗</a></h3>
-<p>results = find_deprecation_wrappers("tests.collection_deprecate")
+<p>results = find_deprecation_wrappers("tests.collections.api_deprecated")
 print(len(results) &gt; 0)
 True</p>
 <h3 id="deprecate.audit.find_deprecation_wrappers--filter-to-find-only-problematic-wrappers">Filter to find only problematic wrappers<a class="headerlink" href="#deprecate.audit.find_deprecation_wrappers--filter-to-find-only-problematic-wrappers" title="Permanent link">🔗</a></h3>
@@ -5274,11 +5274,11 @@ nothing.</p>
 <blockquote>
 <h3 id="deprecate.audit.validate_deprecation_expiry--check-a-specific-module-with-version-before-any-deadlines">Check a specific module with version before any deadlines<a class="headerlink" href="#deprecate.audit.validate_deprecation_expiry--check-a-specific-module-with-version-before-any-deadlines" title="Permanent link">🔗</a></h3>
 <p>from deprecate import validate_deprecation_expiry
-expired = validate_deprecation_expiry("tests.collection_deprecate", "0.1", recursive=False)
+expired = validate_deprecation_expiry("tests.collections.api_deprecated", "0.1", recursive=False)
 len(expired)
 0</p>
 <h3 id="deprecate.audit.validate_deprecation_expiry--check-with-version-past-some-removal-deadlines">Check with version past some removal deadlines<a class="headerlink" href="#deprecate.audit.validate_deprecation_expiry--check-with-version-past-some-removal-deadlines" title="Permanent link">🔗</a></h3>
-<p>expired = validate_deprecation_expiry("tests.collection_deprecate", "0.5", recursive=False)
+<p>expired = validate_deprecation_expiry("tests.collections.api_deprecated", "0.5", recursive=False)
 print(len(expired))  # Some functions and class members have remove_in &lt;= "0.5"
 31</p>
 </blockquote>
@@ -5517,12 +5517,12 @@ library is not installed (<code>pip install pyDeprecate[audit]</code>). A policy
 
 <p><span class="doc-section-title">Examples:</span></p>
     <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">validate_deprecation_policy</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">violations</span> <span class="o">=</span> <span class="n">validate_deprecation_policy</span><span class="p">(</span><span class="s2">"tests.collection_policy"</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">violations</span> <span class="o">=</span> <span class="n">validate_deprecation_policy</span><span class="p">(</span><span class="s2">"tests.collections.policy"</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="gp">&gt;&gt;&gt; </span><span class="p">[</span><span class="n">v</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">violations</span> <span class="k">if</span> <span class="s2">"no_grace_window"</span> <span class="ow">in</span> <span class="n">v</span><span class="p">]</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="go">['[min-grace] Callable `tests.collection_policy.no_grace_window` is deprecated in `2.0` and ...']</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="go">['[min-grace] Callable `tests.collections.policy.no_grace_window` is deprecated in `2.0` and ...']</span>
 </code></pre></div>
     <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Rules are opt-out: keep the guidance rule, drop the grace window</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">violations</span> <span class="o">=</span> <span class="n">validate_deprecation_policy</span><span class="p">(</span><span class="s2">"tests.collection_policy"</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">min_grace</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">violations</span> <span class="o">=</span> <span class="n">validate_deprecation_policy</span><span class="p">(</span><span class="s2">"tests.collections.policy"</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">min_grace</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="gp">&gt;&gt;&gt; </span><span class="nb">any</span><span class="p">(</span><span class="s2">"min-grace"</span> <span class="ow">in</span> <span class="n">v</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">violations</span><span class="p">)</span>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="go">False</span>
 </code></pre></div>
@@ -5705,7 +5705,7 @@ nothing.</p>
 <blockquote>
 <blockquote>
 <p>from deprecate import validate_deprecation_chains
-import tests.collection_chains as test_module</p>
+import tests.collections.chains as test_module</p>
 <p>issues = validate_deprecation_chains(test_module, recursive=False)
 len(issues) &gt; 0  # Should find chains
 True</p>
@@ -5738,10 +5738,9 @@ True</p>
     <div class="doc doc-contents first">
 
         <p>Return wrappers whose <code>args_mapping</code> remaps deprecated names to POSITIONAL_ONLY constructor params.</p>
-<p>A non-empty <code>args_mapping_positional_only</code> on the returned <code>DeprecationWrapperInfo</code> means the
-proxy falls back to <code>setattr</code> at call time instead of forwarding the remapped kwarg.  Use this
-validator in CI to detect :func:<code>~deprecate.proxy.deprecated_class</code> configurations that silently
-degrade to attribute assignment and may not behave as expected on all target class types.</p>
+<p>A non-empty <code>args_mapping_positional_only</code> on the returned <code>DeprecationWrapperInfo</code> identifies
+mappings whose values the proxy forwards positionally to the constructor. Use this validator for
+advisory visibility into :func:<code>~deprecate.proxy.deprecated_class</code> mappings that require positional forwarding.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -5863,7 +5862,7 @@ nothing.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>non-empty.  Returns an empty list when no incompatibilities are found.</p>
+                <p>non-empty. Returns an empty list when no such mappings are found.</p>
               </div>
             </td>
           </tr>
@@ -5873,7 +5872,7 @@ nothing.</p>
 
 <p><span class="doc-section-title">Examples:</span></p>
     <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">validate_mapping_compatibility</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">tests.collection_deprecate</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">col</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">tests.collections.api_deprecated</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">col</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">results</span> <span class="o">=</span> <span class="n">validate_mapping_compatibility</span><span class="p">(</span><span class="n">col</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="gp">&gt;&gt;&gt; </span><span class="nb">len</span><span class="p">(</span><span class="n">results</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span>  <span class="c1"># DepPositionalOnly remaps to a POSITIONAL_ONLY param</span>
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="go">True</span>
@@ -6135,7 +6134,7 @@ version string and <code>packaging</code> is installed.</p>
   <blockquote>
 <blockquote>
 <blockquote>
-<p>from tests import collection_deprecate as pkg
+<p>from tests.collections import api_deprecated as pkg
 report = generate_deprecation_table(pkg, recursive=False)
 report.splitlines()[0]
 '| Original API | API Type | New API | Deprecated | Remove | Current Status |'</p>
@@ -6361,9 +6360,9 @@ occurred.  Read from :attr:<code>~deprecate._types.DeprecationConfig.args_mappin
             <td>
               <div class="doc-md-description">
                 <p><code>args_mapping</code> old-key names whose remapped target is a POSITIONAL_ONLY
-constructor parameter.  Non-empty list signals that the proxy falls back to <code>setattr</code> for those
-keys.  Use :func:<code>~deprecate.audit.validate_mapping_compatibility</code> to filter wrappers by this
-field.  Read from :attr:<code>~deprecate._types.DeprecationConfig.args_mapping_positional_only</code>.</p>
+constructor parameter. A non-empty list identifies mappings whose values the proxy forwards
+positionally to the constructor. Use :func:<code>~deprecate.audit.validate_mapping_compatibility</code> to filter
+wrappers by this field. Read from :attr:<code>~deprecate._types.DeprecationConfig.args_mapping_positional_only</code>.</p>
               </div>
             </td>
           </tr>
@@ -7868,10 +7867,10 @@ without triggering deprecation warnings.</p>
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": ".", "features": [], "search": "assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "stable", "provider": "mike"}}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": ".", "features": [], "search": "assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "stable", "provider": "mike"}}</script>
     
     
-      <script src="assets/javascripts/bundle.d7400e89.min.js"></script>
+      <script src="assets/javascripts/bundle.c21346df.min.js"></script>
       
     
   </body>
