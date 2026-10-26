@@ -218,9 +218,7 @@ def _remap_kwargs(
     """
     dropped = {old for old, new in mapping.items() if new is None}
     collisions = [
-        (old, new)
-        for old, new in mapping.items()
-        if new and old in kwargs and new in kwargs and new not in dropped
+        (old, new) for old, new in mapping.items() if new and old in kwargs and new in kwargs and new not in dropped
     ]
     if stream:
         for old, new in collisions:
