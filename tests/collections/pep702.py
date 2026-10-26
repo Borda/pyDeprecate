@@ -43,7 +43,7 @@ from typing import Any
 import typing_extensions
 
 from deprecate import deprecated, deprecated_class, void
-from tests.collection_targets import Pep702LibraryBase, Pep702StaticTarget, pep702_target
+from tests.collections.api_current import Pep702LibraryBase, Pep702StaticTarget, pep702_target
 
 #: Shared schedule for every stacked wrapper here; ``num_warns=-1`` so runtime tests never depend on call order.
 _DEPRS_CASE_STACKED_ARGS: dict[str, Any] = {"deprecated_in": "1.0", "remove_in": "2.0", "num_warns": -1}

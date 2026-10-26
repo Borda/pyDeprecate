@@ -4,9 +4,12 @@ This module provides base functions that are used as targets for deprecated func
 
 """
 
+import asyncio
+import contextvars
 import functools
 import inspect
 import logging
+import threading
 import time
 import types
 import warnings
@@ -72,6 +75,26 @@ def add_values(x: int, y: int) -> int:
 def identity_value(x: int) -> int:
     """Return the original input value."""
     return x
+
+
+class UncomparableDefault:
+    """Default value that rejects equality comparisons, like an array with ambiguous truth values."""
+
+    def __eq__(self, other: object) -> bool:
+        """Reject equality checks so default filtering must use identity."""
+        raise TypeError("default values must not be compared for equality")
+
+    def __ne__(self, other: object) -> bool:
+        """Reject inequality checks so default filtering must use identity."""
+        raise TypeError("default values must not be compared for inequality")
+
+
+uncomparable_default = UncomparableDefault()
+
+
+def return_default_value(value: UncomparableDefault) -> UncomparableDefault:
+    """Return the exact default object received by the forwarding target."""
+    return value
 
 
 def stacked_chain_identity(base: int) -> int:
@@ -221,6 +244,17 @@ def fn_with_default(new_arg: int = 99) -> int:
 
     """
     return new_arg
+
+
+def fn_kept_name_target(level: int = -1) -> int:
+    """Target callable whose parameter keeps the name the deprecated wrapper already uses.
+
+    Used by the ``args_mapping={"level": ""}`` fixtures: ``""`` means "keep the old argument name", so a caller's
+    ``level=...`` must reach this target unchanged.  The default ``-1`` differs from every value the tests pass, so a
+    dropped argument shows up as ``-1`` instead of passing unnoticed.
+
+    """
+    return level
 
 
 def fn_shared_default_target(x: int, level: int = 99) -> int:
@@ -428,7 +462,7 @@ class _InnerOrderPropTarget:
     ``fget`` accessor only.  Setters and deleters added afterwards via ``@value.setter`` /
     ``@value.deleter`` are *not* re-wrapped, so writes and deletes must be silent.
 
-    The class is consumed by :mod:`tests.collection_deprecate` which subclasses it to attach the
+    The class is consumed by :mod:`tests.collections.api_deprecated` which subclasses it to attach the
     inner-order deprecated property + chain-style setter/deleter.
 
     """
@@ -467,9 +501,9 @@ class Palette:
     """Target class with canonical attribute names for ``attrs_mapping`` tests.
 
     Carries both the canonical names (``colour``, ``text``, ``size``) and is wrapped by ``deprecated_class`` fixtures in
-    :mod:`tests.collection_deprecate` to register deprecated aliases (``color`` → ``colour``, ``txt`` → ``text``).  The
-    canonical attributes are mutable instance-style class attributes so that read/write/delete tests can exercise the
-    forwarding behaviour without instantiating the class.
+    :mod:`tests.collections.api_deprecated` to register deprecated aliases (``color`` → ``colour``, ``txt`` → ``text``).
+    The canonical attributes are mutable class attributes so read/write/delete tests exercise forwarding without
+    instantiating the class.
 
     """
 
@@ -481,7 +515,7 @@ class Palette:
 class PaletteEnum(Enum):
     """Enum with canonical member names for the ``attrs_mapping`` enum redirect test.
 
-    Wrapped by ``DeprecatedAttrsPaletteEnum`` in :mod:`tests.collection_deprecate` to register a deprecated alias
+    Wrapped by ``DeprecatedAttrsPaletteEnum`` in :mod:`tests.collections.api_deprecated` to register a deprecated alias
     ``COLOR`` → ``COLOUR``.  Used to verify that proxy ``__getattr__`` redirect logic survives the enum metaclass.
 
     """
@@ -494,7 +528,7 @@ class PaletteOld:
     """Source class for H4 callable-target + attrs_mapping fixture.
 
     Has both a deprecated ``color`` attribute and canonical ``colour`` attribute.  Wrapped by ``deprecated_class`` in
-    :mod:`tests.collection_deprecate` with ``target=Palette`` and ``attrs_mapping={"color": "colour"}``
+    :mod:`tests.collections.api_deprecated` with ``target=Palette`` and ``attrs_mapping={"color": "colour"}``
     to verify that mapped attributes resolve against the target class when a callable target is configured.
 
     """
@@ -519,7 +553,7 @@ class CombinedAttrsArgsTarget:
 
     Carries ``colour`` as the canonical attribute name (paired with deprecated alias ``color`` on a wrapping proxy) and
     a ``new_arg`` constructor keyword (paired with deprecated alias ``old_arg`` on the same proxy).  Wrapped by
-    ``DeprecatedAttrsPaletteAllThree`` in :mod:`tests.collection_deprecate` to verify that ``attrs_mapping`` and
+    ``DeprecatedAttrsPaletteAllThree`` in :mod:`tests.collections.api_deprecated` to verify that ``attrs_mapping`` and
     ``args_mapping`` operate on disjoint surfaces (attribute access vs constructor kwargs) without interference.
 
     """
@@ -552,7 +586,7 @@ class CombinedAttrsArgsSource:
 class MutableAttrsList:
     """List-like target object for read-only ``attrs_mapping`` regression coverage.
 
-    Wrapped by :mod:`tests.collection_deprecate` with ``read_only=True`` and
+    Wrapped by :mod:`tests.collections.api_deprecated` with ``read_only=True`` and
     ``attrs_mapping={"push": "append"}`` so tests can verify that a deprecated
     attribute alias resolving to a standard collection mutator cannot mutate the
     underlying object through the proxy.
@@ -571,7 +605,7 @@ class MutableAttrsList:
 class StackedAttrTarget:
     """Target with two canonical attributes replacing deprecated aliases at different versions.
 
-    Wrapped by :mod:`tests.collection_deprecate` as ``StackedAttrProxy`` (two-layer
+    Wrapped by :mod:`tests.collections.api_deprecated` as ``StackedAttrProxy`` (two-layer
     ``deprecated_class`` stack) — each layer carries its own ``deprecated_in`` /
     ``remove_in`` pair so per-attribute version metadata flows from the proxy chain.
     """
@@ -628,7 +662,7 @@ class StackingArgsAttrsBase:
 class AutoExpandDC:
     """Dataclass target for attrs_mapping dual-surface auto-expand tests.
 
-    Wrapped by ``DepAutoExpandDC`` in :mod:`tests.collection_deprecate` with only
+    Wrapped by ``DepAutoExpandDC`` in :mod:`tests.collections.api_deprecated` with only
     ``attrs_mapping={"old_field": "new_field"}`` — the proxy auto-expands into
     ``args_mapping`` so both ``instance.old_field`` and ``DC(old_field=5)`` warn.
     """
@@ -653,7 +687,7 @@ class AutoExpandInitFalseDC:
 
     ``new_field`` is a normal constructor parameter; ``computed_field`` is ``init=False`` and
     must NOT be auto-expanded into ``args_mapping`` because it is not a valid ``__init__``
-    kwarg.  Wrapped by ``DepAutoExpandInitFalseDC`` in :mod:`tests.collection_deprecate`.
+    kwarg.  Wrapped by ``DepAutoExpandInitFalseDC`` in :mod:`tests.collections.api_deprecated`.
     """
 
     new_field: int = 0
@@ -668,7 +702,7 @@ class AutoExpandOverriddenInitDC:
     as a dataclass field but intentionally absent from the custom ``__init__``.  Auto-expand
     must consult ``inspect.signature`` — not ``dataclasses.fields()`` — so only ``new_field``
     is expanded into ``args_mapping``.  Wrapped by ``DepAutoExpandOverriddenInitDC`` in
-    :mod:`tests.collection_deprecate`.
+    :mod:`tests.collections.api_deprecated`.
     """
 
     new_field: int = 0
@@ -684,7 +718,7 @@ class PositionalOnlyTarget:
     """Target with a POSITIONAL_ONLY constructor parameter for args_mapping compat tests.
 
     ``new_val`` is declared positional-only so ``PositionalOnlyTarget(new_val=5)`` raises
-    ``TypeError``.  Wrapped by ``DepPositionalOnly`` in :mod:`tests.collection_deprecate`
+    ``TypeError``.  Wrapped by ``DepPositionalOnly`` in :mod:`tests.collections.api_deprecated`
     to verify the proxy emits ``UserWarning`` at decoration time and forwards the remapped
     value positionally at call time instead of crashing.
     """
@@ -700,7 +734,7 @@ class SelfOnlyPositionalOnlyTarget:
     Exercises the edge case where ``target_positional_only`` would be an empty
     frozenset if ``self`` were excluded — causing the split-dispatch gate to
     never fire and ``target_func(**{'self': instance})`` to raise ``TypeError``.
-    Wrapped by ``OldSelfOnlyClass`` in :mod:`tests.collection_deprecate`.
+    Wrapped by ``OldSelfOnlyClass`` in :mod:`tests.collections.api_deprecated`.
     """
 
     def __init__(self, /) -> None:
@@ -712,7 +746,7 @@ class RequiredPositionalOnlyTarget:
 
     ``new_val`` has no default, so the historical pop-and-``setattr`` fallback raised
     ``TypeError`` before the fallback loop ever ran.  Wrapped by
-    ``DepRequiredPositionalOnly`` in :mod:`tests.collection_deprecate` to verify the
+    ``DepRequiredPositionalOnly`` in :mod:`tests.collections.api_deprecated` to verify the
     proxy forwards the remapped value positionally to the constructor.
     """
 
@@ -726,7 +760,7 @@ class ImmutablePositionalOnlyTarget:
 
     Models frozen-dataclass-style targets: the historical ``setattr`` fallback raised on
     such instances even when the parameter had a default.  Wrapped by
-    ``DepImmutablePositionalOnly`` in :mod:`tests.collection_deprecate`.
+    ``DepImmutablePositionalOnly`` in :mod:`tests.collections.api_deprecated`.
     """
 
     def __init__(self, new_val: int = 0, /) -> None:
@@ -743,7 +777,7 @@ class DerivedPositionalOnlyTarget:
 
     The historical ``setattr`` fallback bypassed the constructor body (like skipping
     ``__post_init__``), leaving ``double`` stale.  Wrapped by ``DepDerivedPositionalOnly``
-    in :mod:`tests.collection_deprecate` to verify constructor-side derivation runs.
+    in :mod:`tests.collections.api_deprecated` to verify constructor-side derivation runs.
     """
 
     def __init__(self, new_val: int = 0, /) -> None:
@@ -757,7 +791,7 @@ class MixedPositionalOnlyTarget:
 
     Callers pass ``w`` positionally and the deprecated ``old_x`` kwarg for ``x`` —
     the proxy must interleave the caller's positional args with the remapped value.
-    Wrapped by ``DepMixedPositionalOnly`` in :mod:`tests.collection_deprecate`.
+    Wrapped by ``DepMixedPositionalOnly`` in :mod:`tests.collections.api_deprecated`.
     """
 
     def __init__(self, w: int, x: int = 0, /) -> None:
@@ -770,11 +804,64 @@ def positional_only_target(x: int, /, y: int = 0) -> int:
     """Target with one POSITIONAL_ONLY param for function-decorator compat tests.
 
     ``x`` is positional-only so ``positional_only_target(x=5)`` raises ``TypeError``.
-    Wrapped by ``deprecated_positional_only_source`` in :mod:`tests.collection_deprecate`
+    Wrapped by ``deprecated_positional_only_source`` in :mod:`tests.collections.api_deprecated`
     to verify the function decorator emits ``UserWarning`` at decoration time and
     forwards calls correctly at call time.
     """
     return x + y
+
+
+class SourcePathTarget:
+    """Plain class whose proxies render ``%(source_path)s`` in a custom ``message_template``.
+
+    ``new_attr`` is the replacement an ``attrs_mapping`` redirects to; ``gone_attr`` is a warn-only (``None``-mapped)
+    attribute; ``new`` is the constructor keyword an ``args_mapping`` renames to.  Wrapped by the
+    ``DeprSourcePath*`` proxies and ``depr_source_path_instance`` in :mod:`tests.collections.api_deprecated`.
+    """
+
+    new_attr = "new"
+    gone_attr = "gone"
+
+    def __init__(self, new: int = 0) -> None:
+        """Store the constructor value."""
+        self.new = new
+
+
+class ModuleRaisingGetattributeMeta(type):
+    """Metaclass whose ``__getattribute__`` raises on ``__module__``: a dynamic module lookup on its classes fails."""
+
+    def __getattribute__(cls, name: str) -> Any:  # noqa: ANN401
+        """Refuse ``__module__``; delegate every other attribute to ``type``."""
+        if name == "__module__":
+            raise RuntimeError("dynamic __module__ lookup refused")
+        return super().__getattribute__(name)
+
+
+class ModuleRaisingPropertyMeta(type):
+    """Metaclass declaring ``__module__`` as a raising property, which shadows each class's own ``__module__``."""
+
+    @property
+    def __module__(cls) -> str:  # type: ignore[override]
+        """Refuse the lookup — the class's own namespace still holds the real module name."""
+        raise RuntimeError("dynamic __module__ lookup refused")
+
+
+def make_module_raising_class(metaclass: type) -> type:
+    """Build a fresh ``ModuleRaisingTarget`` class under *metaclass*, whose ``__module__`` lookup raises.
+
+    Built on call, not at import, so module scans (audit, docs examples) never meet a class whose attribute lookup
+    raises.  The class namespace records this module, which is the path a deprecation proxy over it should render.
+    """
+    return metaclass("ModuleRaisingTarget", (), {"__module__": __name__, "__doc__": "Class with a refusing metaclass."})
+
+
+def every_parameter_kind_target(a: int, /, b: int = 2, *rest: int, c: int, d: int = 4, **extra: int) -> None:
+    """Target declaring one parameter of every kind, two of them with defaults.
+
+    ``a`` is positional-only, ``b`` positional-or-keyword, ``rest`` the ``*args`` tail, ``c`` and ``d``
+    keyword-only and ``extra`` the ``**kwargs`` catch-all.  Read directly (not wrapped) by the
+    :func:`deprecate.utils._signature_facts` tests to check that one signature read classifies every kind.
+    """
 
 
 async def async_positional_only_target(x: int, /, y: int = 0) -> int:
@@ -782,7 +869,7 @@ async def async_positional_only_target(x: int, /, y: int = 0) -> int:
 
     ``x`` is positional-only. Wrapped by
     ``deprecated_async_positional_only_source`` in
-    :mod:`tests.collection_deprecate`.
+    :mod:`tests.collections.api_deprecated`.
     """
     return x + y
 
@@ -792,7 +879,7 @@ def positional_only_two_params_target(a: int, b: int, /, c: int = 0) -> int:
 
     Both ``a`` and ``b`` are positional-only. Wrapped by
     ``deprecated_positional_only_two_params_source`` in
-    :mod:`tests.collection_deprecate`.
+    :mod:`tests.collections.api_deprecated`.
     """
     return a + b + c
 
@@ -803,7 +890,7 @@ def gapped_positional_only_target(a: int = 1, b: int = 2, /, c: int = 3) -> dict
     When a forwarding source supplies ``b`` but not ``a``, positional binding would slide
     ``b``'s value into ``a``'s slot; the split dispatch must raise ``TypeError`` instead of
     silently misbinding.  Wrapped by ``deprecated_gapped_positional_only_source`` (plus the
-    async and full-prefix variants) in :mod:`tests.collection_deprecate`.
+    async and full-prefix variants) in :mod:`tests.collections.api_deprecated`.
     """
     return {"a": a, "b": b, "c": c}
 
@@ -811,7 +898,7 @@ def gapped_positional_only_target(a: int = 1, b: int = 2, /, c: int = 3) -> dict
 def var_positional_target(a: int, *extras: int) -> int:
     """Target accepting a var-positional tail, for surplus ``*args`` forwarding tests.
 
-    Wrapped by ``deprecated_var_positional_forward`` in :mod:`tests.collection_deprecate` —
+    Wrapped by ``deprecated_var_positional_forward`` in :mod:`tests.collections.api_deprecated` —
     the surplus positional tail of a deprecated ``*args`` source must reach ``extras``
     instead of being silently dropped.
     """
@@ -821,7 +908,7 @@ def var_positional_target(a: int, *extras: int) -> int:
 async def async_var_positional_target(a: int, *extras: int) -> int:
     """Async twin of :func:`var_positional_target` for the async dispatch path.
 
-    Wrapped by ``deprecated_async_var_positional_forward`` in :mod:`tests.collection_deprecate`.
+    Wrapped by ``deprecated_async_var_positional_forward`` in :mod:`tests.collections.api_deprecated`.
     """
     return a + sum(extras)
 
@@ -829,7 +916,7 @@ async def async_var_positional_target(a: int, *extras: int) -> int:
 def trio_positional_target(a: int, b: int = 0, c: int = 0) -> int:
     """Target with fixed positional slots (no ``*args``) that can absorb a surplus tail.
 
-    Wrapped by ``deprecated_var_positional_to_fixed`` in :mod:`tests.collection_deprecate`;
+    Wrapped by ``deprecated_var_positional_to_fixed`` in :mod:`tests.collections.api_deprecated`;
     a two-element surplus tail from the source's ``*args`` must land in ``b`` and ``c``.
     """
     return a * 100 + b * 10 + c
@@ -838,7 +925,7 @@ def trio_positional_target(a: int, b: int = 0, c: int = 0) -> int:
 def single_positional_target(a: int) -> int:
     """Target with a single positional slot and no ``*args``, for surplus-overflow tests.
 
-    Wrapped by ``deprecated_var_positional_overflow`` in :mod:`tests.collection_deprecate`;
+    Wrapped by ``deprecated_var_positional_overflow`` in :mod:`tests.collections.api_deprecated`;
     forwarding a surplus tail that cannot fit must raise a curated ``TypeError`` instead of
     silently dropping the extra values.
     """
@@ -851,7 +938,7 @@ class SelfDeprecatedModel:
     Carries ``cuda`` (warn-only deprecated attribute, still served from the class),
     ``device`` (replacement for the deprecated ``gpu`` alias), and accepts
     ``num_layers`` in its constructor (renamed from ``n_layers`` in the outer layer).
-    Wrapped by ``DepSelfCombinedTwoLayer`` in :mod:`tests.collection_deprecate` with two
+    Wrapped by ``DepSelfCombinedTwoLayer`` in :mod:`tests.collections.api_deprecated` with two
     stacked ``deprecated_class()`` calls — neither forwarding to a different class.
     """
 
@@ -864,7 +951,7 @@ class SelfDeprecatedModel:
 
 
 def fib_recursive(n: int) -> int:
-    """Recursive Fibonacci implementation — target for ``dep_fib_callable`` in :mod:`tests.collection_deprecate`.
+    """Recursive Fibonacci implementation — target for ``dep_fib_callable`` in :mod:`tests.collections.api_deprecated`.
 
     Recurses on itself directly (not through any deprecated wrapper) so ``dep_fib_callable``
     only triggers the deprecation wrapper on the initial call — never on recursive steps.
@@ -877,7 +964,7 @@ def fib_recursive(n: int) -> int:
 def non_cycle_double(x: int) -> int:
     """Target for non-cycling callable-target tests — doubles input.
 
-    Wrapped by ``dep_non_cycle_old_fn`` in :mod:`tests.collection_deprecate`.
+    Wrapped by ``dep_non_cycle_old_fn`` in :mod:`tests.collections.api_deprecated`.
     """
     return x * 2
 
@@ -885,8 +972,18 @@ def non_cycle_double(x: int) -> int:
 async def async_non_cycle_double(x: int) -> int:
     """Async target for concurrent async non-cycle tests — doubles input.
 
-    Wrapped by ``dep_async_non_cycle_old_fn`` in :mod:`tests.collection_deprecate`.
+    Wrapped by ``dep_async_non_cycle_old_fn`` in :mod:`tests.collections.api_deprecated`.
     """
+    return x * 2
+
+
+async def async_suspending_double(x: int) -> int:
+    """Async target that yields to the event loop once before doubling its input.
+
+    Wrapped by ``dep_async_suspending_old_fn`` in :mod:`tests.collections.api_deprecated_forwarding`.  A guarded call
+    that stays in flight across a task switch lets a sibling task observe it, so the switch must really happen.
+    """
+    await asyncio.sleep(0)
     return x * 2
 
 
@@ -982,7 +1079,7 @@ class SubclassableBase:
 def var_positional_remap_body(a: int, *extras: int, old_kwarg: str = "", new_kwarg: str = "") -> tuple:
     """Source body for ARGS_REMAP test with ``*args`` — receives remapped ``new_kwarg`` from caller's ``old_kwarg``.
 
-    Wrapped by ``deprecated_var_positional_remap`` in :mod:`tests.collection_deprecate`.
+    Wrapped by ``deprecated_var_positional_remap`` in :mod:`tests.collections.api_deprecated`.
     """
     return (a, *extras, new_kwarg)
 
@@ -993,7 +1090,7 @@ class HostileSignatureCallable:
     Wrapped objects are not always well-behaved: mocks, lazily built extension wrappers, and some model
     metaclasses expose a ``__signature__`` descriptor that raises on access, and ``inspect.signature``
     forwards that exception verbatim instead of normalising it to ``ValueError``/``TypeError``.  Wrapped by
-    ``make_deprecated_hostile_signature_instance`` in :mod:`tests.collection_deprecate` to prove that a
+    ``make_deprecated_hostile_signature_instance`` in :mod:`tests.collections.api_deprecated` to prove that a
     hostile introspection surface never turns into a decoration-time crash.
     """
 
@@ -1011,7 +1108,7 @@ class HostileSignatureCallable:
 
 # Sources whose runtime call shape differs from what ``inspect.signature`` reports, plus callable objects
 # without a usable ``__name__`` and a side-effect-counting container.  Wrapped in
-# :mod:`tests.collection_deprecate` and exercised by ``tests/integration/test_call_transparency.py`` and
+# :mod:`tests.collections.api_deprecated` and exercised by ``tests/integration/test_call_transparency.py`` and
 # ``tests/integration/test_warning_locations.py``, which pin today's behaviour before internal refactors.
 
 
@@ -1149,6 +1246,7 @@ moduleless_function.__module__ = None  # type: ignore[assignment]
 partial_of_double = functools.partial(double_value)
 partialmethod_of_double = functools.partialmethod(double_value)
 singledispatchmethod_of_double = functools.singledispatchmethod(double_value)
+property_of_partial = property(partial_of_double)
 
 
 class SideEffectBox:
@@ -1551,6 +1649,114 @@ class CountingSkipCondition:
         return answer
 
 
+class OpaqueSignatureCallable:
+    """Named callable whose ``__signature__`` raises ``ValueError``, like a C-level callable without metadata.
+
+    A maintainer forwards a deprecated function to such a callable, or decorates one directly. pyDeprecate reads every
+    signature when it decorates; an unreadable source must still fail there, and an unreadable target must still fail
+    only on the forwarded call that needs its signature.
+    """
+
+    __name__ = "opaque_callable"
+
+    @property
+    def __signature__(self) -> Any:  # noqa: ANN401
+        """Always raise ``ValueError``, as ``inspect.signature`` does for an unsupported builtin."""
+        raise ValueError("no signature found for opaque_callable")
+
+    def __call__(self, *args: Any, **kwargs: Any) -> tuple[tuple[Any, ...], dict[str, Any]]:  # noqa: ANN401
+        """Return the call's arguments, so a test can see what reached the callable."""
+        return args, kwargs
+
+
+class SignatureNotBuiltError(ValueError):
+    """``ValueError`` subclass whose constructor takes more than the message, so it cannot be rebuilt from ``args``."""
+
+    def __init__(self, name: str, reason: str) -> None:
+        """Build the message from the callable's name and the reason its signature is not available."""
+        super().__init__(f"{name}: {reason}")
+        self.reason = reason
+
+
+class SignatureNeedsContextError(ValueError):
+    """``ValueError`` subclass that can be neither copied nor rebuilt, because its ``__new__`` demands the arguments."""
+
+    def __new__(cls, name: str, reason: str) -> "SignatureNeedsContextError":
+        """Require the callable's name and the reason, so ``cls()`` and ``cls(*args)`` both raise ``TypeError``."""
+        return super().__new__(cls, f"{name}: {reason}")
+
+    def __init__(self, name: str, reason: str) -> None:
+        """Build the message from the callable's name and the reason its signature is not available."""
+        super().__init__(f"{name}: {reason}")
+
+
+class LazySignatureCallable(OpaqueSignatureCallable):
+    """Named callable whose ``__signature__`` raises :class:`SignatureNotBuiltError` while the signature is not built.
+
+    Frameworks that build signatures lazily raise their own error type until the signature exists. A deprecated
+    function forwarding to such a callable must surface that error on the forwarded call, with its own type.
+    """
+
+    __name__ = "lazy_callable"
+
+    @property
+    def __signature__(self) -> Any:  # noqa: ANN401
+        """Always raise :class:`SignatureNotBuiltError`."""
+        raise SignatureNotBuiltError("lazy_callable", "not built yet")
+
+
+class ContextCapturingLookup:
+    """Capture a redirect's context before returning an answer or failing its first lookup."""
+
+    def __init__(self, fail_first: bool) -> None:
+        """Configure the first lookup and retain every context captured by the target."""
+        self.fail_first = fail_first
+        self.contexts: list[contextvars.Context] = []
+
+    def __call__(self, name: str) -> int:
+        """Capture the in-flight redirect context and resolve the requested answer."""
+        self.contexts.append(contextvars.copy_context())
+        if name != "answer" or (self.fail_first and len(self.contexts) == 1):
+            raise AttributeError(name)
+        return 42
+
+
+class InheritedContextLookup:
+    """Module ``__getattr__`` that answers a name by looking it up again from a thread started in a copied context.
+
+    Free-threaded CPython 3.14 starts every new thread with a copy of the creating thread's context. A module
+    attribute resolved through a redirect may hand work to such a thread, which then makes its own lookup of the same
+    name; that nested lookup answers ``7``. The outer call returns what the worker got (or re-raises its error).
+    """
+
+    def __init__(self, source: types.ModuleType) -> None:
+        """Remember the deprecated module the worker looks the name up on."""
+        self.source = source
+        self.depth = 0
+
+    def __call__(self, name: str) -> Any:  # noqa: ANN401
+        """Resolve *name* from a worker thread running in a copy of the current context."""
+        if self.depth:
+            return 7
+        self.depth += 1
+        outcome: list[Any] = []
+        context = contextvars.copy_context()
+        worker = threading.Thread(target=self._lookup, args=(context, name, outcome))
+        worker.start()
+        worker.join(timeout=10)
+        self.depth -= 1
+        if isinstance(outcome[0], Exception):
+            raise outcome[0]
+        return outcome[0]
+
+    def _lookup(self, context: contextvars.Context, name: str, outcome: list[Any]) -> None:
+        """Look *name* up on the source module inside *context*, recording the value or the ``AttributeError``."""
+        try:
+            outcome.append(context.run(getattr, self.source, name))
+        except AttributeError as err:
+            outcome.append(err)
+
+
 async def legacy_tick_stream() -> AsyncIterator[int]:
     """Async generator yielding ``1`` then ``2``: a deprecated async data stream whose items must outlive a failure."""
     yield 1
@@ -1742,3 +1948,12 @@ class SlowRecordingStream(RecordingStream):
 def stream_wraps_warn_forwarding_stacklevel(msg: str, stacklevel: int = 1) -> None:
     """Pure-Python stream copying ``warnings.warn`` metadata; adds its own frame to the forwarded ``stacklevel``."""
     warnings.warn(msg, stacklevel=stacklevel + 1)
+
+
+class DoclessTarget:  # noqa: D101 - intentionally lacks documentation for proxy docstring preservation
+    pass
+
+
+def zero_argument_target() -> int:
+    """Return a fixed value without accepting any forwarded arguments."""
+    return 7

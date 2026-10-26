@@ -196,6 +196,8 @@ print(result)
 
 That's it! All calls to `addition()` are automatically forwarded to `compute_sum()` with a deprecation warning.
 
+A callable target whose signature cannot be inspected still decorates successfully. A forwarded call that needs that signature, including keyword validation without `args_mapping`, raises the original introspection error; an empty call requiring no signature validation can still succeed.
+
 > [!IMPORTANT]
 >
 > When `target=<callable>` is set, pyDeprecate intercepts the call **before** the body executes — the body is dead code under normal forwarding. **Exception**: if `skip_if` evaluates `True` at call time, the source body runs as the fallback, so keep a working implementation when combining `target=<callable>` with `skip_if`.
@@ -1237,7 +1239,7 @@ To deprecate attributes at different library versions, stack two `@deprecated_cl
 
 ### 📝 Automatic docstring updates
 
-You can automatically inject deprecation information into your function's docstring:
+You can automatically inject deprecation information into your function's docstring. With `deprecated_class(update_docstring=True)`, a class whose `__doc__` is `None` keeps `None`; internal proxy documentation is never substituted.
 
 <details>
 <summary>Example: <code>update_docstring=True</code> inserts a Sphinx deprecation notice before <code>Args:</code>/<code>Parameters</code></summary>
@@ -1413,6 +1415,8 @@ deprecated_module(__name__, deprecated_in="2.0", remove_in="3.0", message_templa
 
 **Mode 2 — redirect** (forward missing-attr lookups to a replacement module, useful when renaming):
 
+A context copied during a redirect can resolve the same name again once that lookup finishes, including when the lookup raises an exception. Active redirect cycles still raise `AttributeError`.
+
 ```python
 # phmdoctest:skip — CI template: replace new_calculator with your actual module
 # old_calculator.py
@@ -1509,7 +1513,7 @@ b'https://example.com'
 
 > [!NOTE]
 >
-> `@deprecated` also supports **async generator functions** (`async def` + `yield`). The warning fires when the wrapper is called and callers keep iterating with `async for`. For framework introspection and exact async warning-count caveats, see [Async functions](https://borda.github.io/pyDeprecate/stable/guide/async.html) and [Troubleshooting](https://borda.github.io/pyDeprecate/stable/troubleshooting.html#concurrent-async-calls-and-warning-counts).
+> `@deprecated` also supports **async generator functions** (`async def` + `yield`). The warning fires when the wrapper is called and callers keep iterating with `async for`. For framework introspection and async warning-budget behavior, see [Async functions](https://borda.github.io/pyDeprecate/stable/guide/async.html) and [Troubleshooting](https://borda.github.io/pyDeprecate/stable/troubleshooting.html#concurrent-async-calls-and-warning-counts).
 
 ## 🔇 Understanding the `void()` Helper
 
@@ -1649,13 +1653,13 @@ The `find_deprecation_wrappers()` utility scans an entire package or module and 
 from deprecate import find_deprecation_wrappers
 
 # For testing purposes, we use the test module; normally you would import your own package
-from tests import collection_deprecate as my_package
+from tests.collections import api_deprecated as my_package
 
 # Scan an entire package for deprecated wrappers
 results = find_deprecation_wrappers(my_package)
 
 # Or scan using a string module path
-results = find_deprecation_wrappers("tests.collection_deprecate")
+results = find_deprecation_wrappers("tests.collections.api_deprecated")
 
 # Check results - each item is a DeprecationWrapperInfo dataclass
 for r in results:
@@ -1683,7 +1687,7 @@ Group validation results by issue type for better reporting:
 from deprecate import find_deprecation_wrappers
 
 # For testing purposes, we use the test module; normally you would import your own package
-from tests import collection_deprecate as my_package
+from tests.collections import api_deprecated as my_package
 
 results = find_deprecation_wrappers(my_package)
 
@@ -1726,7 +1730,7 @@ The **Current Status** column uses these labels:
 | 💥 Past Removal Date      | Current version ≥ `remove_in` — zombie code that should be deleted        |
 
 ```python
-from tests import collection_deprecate as my_package
+from tests.collections import api_deprecated as my_package
 from deprecate import generate_deprecation_table
 
 report = generate_deprecation_table(my_package, current_version="1.5", recursive=False)
@@ -1876,7 +1880,7 @@ import pytest
 from deprecate import find_deprecation_wrappers
 
 # For testing purposes, we use the test module; normally you would import your own package
-from tests import collection_deprecate as my_package
+from tests.collections import api_deprecated as my_package
 
 
 def test_deprecated_wrappers_are_valid():
@@ -1915,7 +1919,7 @@ The `validate_deprecation_expiry()` utility scans an entire module or package fo
 from deprecate import validate_deprecation_expiry
 
 # For testing purposes, we use the test module; normally you would import your own package
-from tests import collection_deprecate as my_package
+from tests.collections import api_deprecated as my_package
 
 # Scan your package for expired deprecations - using early-version that won't have expirations
 expired = validate_deprecation_expiry(my_package, "0.2")
@@ -1963,7 +1967,7 @@ import pytest
 from deprecate import validate_deprecation_expiry
 
 # For testing purposes, we use the test module; normally you would import your own package
-from tests import collection_deprecate as my_package
+from tests.collections import api_deprecated as my_package
 
 
 def test_no_zombie_deprecations():
@@ -1985,7 +1989,7 @@ def test_no_zombie_deprecations():
 @pytest.fixture(scope="session", autouse=True)
 def enforce_deprecation_deadlines():
     """Automatically check for zombie code before running any tests."""
-    from tests import collection_deprecate as my_package
+    from tests.collections import api_deprecated as my_package
 
     current_version = "0.5"  # Replace with: from mypackage import __version__
     expired = validate_deprecation_expiry(my_package, current_version)
@@ -2033,26 +2037,26 @@ pydeprecate policy src/mypackage    # exit 1 on a violation, 2 on a malformed ru
 <details>
 <summary>Example: what a policy run reports</summary>
 
-Run against pyDeprecate's own fixtures (`tests/collection_policy.py`, one broken rule per wrapper) with the built-in defaults spelled out as flags:
+Run against pyDeprecate's own fixtures (`tests/collections/policy.py`, one broken rule per wrapper) with the built-in defaults spelled out as flags:
 
 ```bash
-pydeprecate policy tests.collection_policy --norecursive --min-grace=0.3 --message-required=True
+pydeprecate policy tests.collections.policy --norecursive --min-grace=0.3 --message-required=True
 ```
 
 ```text
-Scanning: tests.collection_policy
-Package: tests.collection_policy
+Scanning: tests.collections.policy
+Package: tests.collections.policy
 Policy: min-grace=0.3 (flag)  message-required=True (flag)
                          Deprecation Policy Violations
 ╭──────────────────────────────────────────────────────────────────────────────╮
 │ Message                                                                      │
 ├──────────────────────────────────────────────────────────────────────────────┤
-│ [min-grace] Callable `tests.collection_policy.no_grace_window` is deprecated │
+│ [min-grace] Callable `tests.collections.policy.no_grace_window` is deprecated │
 │ in `2.0` and scheduled for removal in `2.0`; the policy requires a grace     │
 │ window of at least 3 minor releases, landing on a clean major or minor       │
 │ boundary.                                                                    │
 │ [message-required] Callable                                                  │
-│ `tests.collection_policy.warns_without_replacement` warns without naming a   │
+│ `tests.collections.policy.warns_without_replacement` warns without naming a   │
 │ replacement; configure a `target`, an `args_mapping`/`attrs_mapping`, or a   │
 │ custom `message_template` so callers learn what to migrate to.               │
 │ …                                                                            │
@@ -2155,7 +2159,7 @@ import pytest
 from deprecate import validate_deprecation_chains
 
 # normally you would import your own package
-from tests import collection_chains as my_package
+from tests.collections import chains as my_package
 
 
 def test_no_deprecation_chains():
@@ -2173,7 +2177,7 @@ def test_no_deprecation_chains():
 # Alternative: session-scoped auto-use fixture
 @pytest.fixture(scope="session", autouse=True)
 def enforce_no_deprecation_chains():
-    from tests import collection_chains as my_package
+    from tests.collections import chains as my_package
 
     issues = validate_deprecation_chains(my_package)
     if issues:
@@ -2312,7 +2316,7 @@ print(predict_batch(1))
 
 ### ⚠ UserWarning: `` `@deprecated` on class … now dispatches to `@deprecated_class` ``
 
-**Not a problem** — since v0.12, `@deprecated` on a class is first-class supported and permanent: it dispatches to `@deprecated_class()` and produces an identical `_DeprecatedProxy`. The `UserWarning` is a one-time informational notice, fired at most once per class (keyed by module + qualified name — same-named classes in different modules each warn) per process, telling you that the dispatch happened. Only this notice — not the dispatch support — is removed entirely, in v1.0.
+**Not a problem** — since v0.12, `@deprecated` on a class is first-class supported and permanent: it dispatches to `@deprecated_class()` and produces an identical `_DeprecatedProxy`. The `UserWarning` is a one-time informational notice, fired at most once per class (keyed by module + qualified name — same-named classes in different modules each warn) per process, telling you that the dispatch happened. Only this notice — not the dispatch support — is removed entirely, in v1.0. The notice cache is thread-safe and retains at most 4096 class keys in insertion order; an evicted class may receive the notice again.
 
 **To quiet it:** apply `@deprecated_class()` directly (same result, no notice, and required to reach class-only options such as `attrs_mapping`), or pass `stream=None`.
 
@@ -2474,7 +2478,7 @@ Hi!
 
 **Problem:** You don't see the deprecation warning.
 
-**Cause:** By default, warnings are shown **only once per function** (`num_warns=1`) to prevent log spam. For per-argument deprecation (when using `args_mapping` with `TargetMode.ARGS_REMAP`), each deprecated argument has its own warning counter, meaning warnings for different arguments are tracked independently.
+**Cause:** By default, warnings are shown **only once per function** (`num_warns=1`) to prevent log spam. For per-argument deprecation (when using `args_mapping` with `TargetMode.ARGS_REMAP`), each deprecated argument has its own warning counter, meaning warnings for different arguments are tracked independently. A warning for a call that uses several deprecated arguments names only those whose counter is not yet spent, so an argument you were already warned about is not listed again.
 
 <details>
 <summary>Solutions</summary>

@@ -1,6 +1,6 @@
 """Tests for deprecation documentation strings."""
 
-from tests.collection_docstrings import (
+from tests.collections.docstrings import (
     OldClass,
     OldClassPlain,
     args_not_in_docstring,
@@ -38,7 +38,7 @@ class TestDeprecationDocstrings:
 
 .. deprecated:: 0.1
    Will be removed in 0.3.
-   Use :func:`tests.collection_docstrings.new_function` instead."""
+   Use :func:`tests.collections.docstrings.new_function` instead."""
         assert old_function.__doc__ == expected
 
     def test_deprecated_class_docstring(self) -> None:
@@ -47,7 +47,7 @@ class TestDeprecationDocstrings:
 
 .. deprecated:: 0.2
    Will be removed in 0.4.
-   Use :class:`tests.collection_docstrings.NewClass` instead."""
+   Use :class:`tests.collections.docstrings.NewClass` instead."""
         assert OldClass.__init__.__doc__ == expected
 
     def test_deprecated_func_docstring_plain(self) -> None:
@@ -67,7 +67,7 @@ class TestDeprecationDocstrings:
 
 .. deprecated:: 0.1
    Will be removed in 0.3.
-   Use :func:`tests.collection_docstrings.new_function` instead.
+   Use :func:`tests.collections.docstrings.new_function` instead.
 
 Args:
     a: Number argument.
@@ -83,7 +83,7 @@ Returns:
 
 .. deprecated:: 0.1
    Will be removed in 0.3.
-   Use :func:`tests.collection_docstrings.new_function` instead."""
+   Use :func:`tests.collections.docstrings.new_function` instead."""
         assert old_google_no_sections_function.__doc__ == expected
 
     def test_numpy_docstring_inserts_before_parameters_section(self) -> None:
@@ -92,7 +92,7 @@ Returns:
 
 .. deprecated:: 0.1
    Will be removed in 0.3.
-   Use :func:`tests.collection_docstrings.new_function` instead.
+   Use :func:`tests.collections.docstrings.new_function` instead.
 
 Parameters
 ----------
@@ -108,7 +108,7 @@ b : str
 
 .. deprecated:: 0.1
    Will be removed in 0.3.
-   Use :func:`tests.collection_docstrings.new_function` instead."""
+   Use :func:`tests.collections.docstrings.new_function` instead."""
         assert old_numpy_no_sections_function.__doc__ == expected
 
     def test_mkdocs_docstring_uses_admonition_format(self) -> None:
@@ -117,7 +117,7 @@ b : str
 
 !!! warning "Deprecated in 0.1"
     Will be removed in 0.3.
-    Use `tests.collection_docstrings.new_function` instead.
+    Use `tests.collections.docstrings.new_function` instead.
 
 Args:
     a: Number argument.
@@ -133,7 +133,7 @@ Returns:
 
 !!! warning "Deprecated in 0.1"
     Will be removed in 0.3.
-    Use `tests.collection_docstrings.new_function` instead.
+    Use `tests.collections.docstrings.new_function` instead.
 
 Args:
     a: Number argument.
@@ -148,7 +148,7 @@ Returns:
         expected = """Old function without remove version.
 
 .. deprecated:: 0.1
-   Use :func:`tests.collection_docstrings.new_function` instead."""
+   Use :func:`tests.collections.docstrings.new_function` instead."""
         assert old_no_remove_version_function.__doc__ == expected
 
     def test_target_line_omitted_when_target_is_none(self) -> None:
@@ -305,7 +305,7 @@ Returns:
 
 .. deprecated:: 1.8
    Will be removed in 1.9.
-   Use :func:`tests.collection_docstrings.new_function` instead."""
+   Use :func:`tests.collections.docstrings.new_function` instead."""
         assert callable_target_with_args_mapping.__doc__ == expected
 
     def test_no_target_with_args_mapping(self) -> None:

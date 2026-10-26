@@ -10,19 +10,28 @@ Current test coverage:
 
 """
 
+import asyncio
+import gc
 import warnings
+import weakref
 from typing import Any, Callable, cast
 
 import pytest
 
-from deprecate import assert_no_warnings, deprecated
+import deprecate
+from deprecate import DeprecatedError, as_exceptions, assert_no_warnings, deprecated
 from deprecate._types import DeprecationConfig, _DeprecatedCallable
-from tests.collection_depr_legacy import decorated_pow_self as legacy_pow_self
-from tests.collection_depr_legacy import decorated_sum_warn_only as legacy_sum_warn_only
-from tests.collection_depr_legacy import depr_pow_self_double as legacy_pow_self_double
-from tests.collection_deprecate import (
+from tests.collections.api_current import (
+    NewCls,
+    SignatureNotBuiltError,
+    TimerDecorator,
+    base_sum_kwargs,
+    sample_function,
+    timing_wrapper,
+    uncomparable_default,
+)
+from tests.collections.api_deprecated import (
     DeprecatedTimerDecorator,
-    LegacyPresetCls,
     decorated_pow_self,
     decorated_pow_skip_if_func,
     decorated_pow_skip_if_true,
@@ -35,13 +44,8 @@ from tests.collection_deprecate import (
     depr_accuracy_extra,
     depr_accuracy_map,
     depr_accuracy_skip,
-    depr_add_callable_instance,
-    depr_builtin_max_target,
-    depr_collision_old_new,
-    depr_collision_old_new_extra_wins,
     depr_make_new_cls,
     depr_make_new_cls_mapped,
-    depr_non_string_name_target,
     depr_pow_args,
     depr_pow_mix,
     depr_pow_self_double,
@@ -50,18 +54,8 @@ from tests.collection_deprecate import (
     depr_pow_skip_if_func_int,
     depr_pow_skip_if_true_false,
     depr_pow_wrong,
-    depr_scale_nested_partial,
-    depr_scale_partial,
-    depr_scale_partial_every_call,
-    depr_scale_partial_no_default,
-    depr_scale_partial_renamed,
-    depr_sync_over_partial_async,
     depr_timing_wrapper,
-    deprecated_async_var_positional_forward,
-    deprecated_var_positional_forward,
-    deprecated_var_positional_overflow,
-    deprecated_var_positional_remap,
-    deprecated_var_positional_to_fixed,
+    depr_two_renames_warn_once,
     wrapped_pow_self,
     wrapped_pow_skip_if_func,
     wrapped_pow_skip_if_true,
@@ -72,11 +66,60 @@ from tests.collection_deprecate import (
     wrapped_sum_no_stream,
     wrapped_sum_warn_only,
 )
-from tests.collection_targets import NewCls, TimerDecorator, base_sum_kwargs, sample_function, timing_wrapper
+from tests.collections.api_deprecated_forwarding import (
+    depr_args_mapping_empty_keeps_name,
+    depr_collision_old_new,
+    depr_collision_old_new_extra_wins,
+    depr_uncomparable_default,
+    deprecated_async_var_positional_forward,
+    deprecated_var_positional_forward,
+    deprecated_var_positional_overflow,
+    deprecated_var_positional_remap,
+    deprecated_var_positional_to_fixed,
+)
+from tests.collections.api_deprecated_legacy import decorated_pow_self as legacy_pow_self
+from tests.collections.api_deprecated_legacy import decorated_sum_warn_only as legacy_sum_warn_only
+from tests.collections.api_deprecated_legacy import depr_pow_self_double as legacy_pow_self_double
+from tests.collections.api_deprecated_regressions import (
+    LegacyPresetCls,
+    depr_add_callable_instance,
+    depr_builtin_max_target,
+    depr_lazy_signature_target_renamed,
+    depr_non_string_name_target,
+    depr_notify_skip_counted,
+    depr_notify_spent_budget,
+    depr_notify_spent_budget_async,
+    depr_opaque_target_empty,
+    depr_opaque_target_renamed,
+    depr_opaque_target_unmapped,
+    depr_opaque_target_var_positional,
+    depr_scale_nested_partial,
+    depr_scale_partial,
+    depr_scale_partial_every_call,
+    depr_scale_partial_no_default,
+    depr_scale_partial_renamed,
+    depr_sync_over_partial_async,
+    depr_zero_argument_target,
+    make_opaque_source_wrapper,
+    make_transient_notify_pair,
+    notify_skip_condition,
+)
+from tests.collections.misconfigured import make_notify_mapping_no_budget
 
 
 class TestDeprecationWarnings:
     """Tests for basic deprecation warning behavior."""
+
+    def test_forwarded_default_uses_identity(self) -> None:
+        """Forward an omitted default without invoking its equality operators.
+
+        A deprecated callable may use an array-like default whose equality and inequality operators raise
+        TypeError. Filtering out inspect.Parameter.empty must preserve that default by identity so the
+        replacement receives the original object and the caller still gets a FutureWarning.
+        """
+        with pytest.warns(FutureWarning, match="The `depr_uncomparable_default` was deprecated since v1.0"):
+            result = depr_uncomparable_default()
+        assert result is uncomparable_default
 
     @pytest.mark.parametrize(
         ("func", "name"),
@@ -102,7 +145,7 @@ class TestDeprecationWarnings:
         """Testing some base/default configurations."""
         with pytest.warns(
             FutureWarning,
-            match=f"The `{name}` was deprecated since v0.1 in favor of `tests.collection_targets.base_sum_kwargs`."
+            match=f"The `{name}` was deprecated since v0.1 in favor of `tests.collections.api_current.base_sum_kwargs`."
             " It will be removed in v0.5.",
         ):
             assert func(2) == 7
@@ -112,7 +155,8 @@ class TestDeprecationWarnings:
         cast(_DeprecatedCallable, depr_make_new_cls)._state.warned_calls = 0
         with pytest.warns(
             FutureWarning,
-            match="The `depr_make_new_cls` was deprecated since v0.2 in favor of `tests.collection_targets.NewCls`."
+            match="The `depr_make_new_cls` was deprecated since v0.2 in favor of "
+            "`tests.collections.api_current.NewCls`."
             " It will be removed in v0.4.",
         ):
             instance = depr_make_new_cls(2, e=0.9)
@@ -128,7 +172,7 @@ class TestDeprecationWarnings:
         with pytest.warns(
             FutureWarning,
             match="The `depr_make_new_cls_mapped` was deprecated since v0.2 in favor of"
-            " `tests.collection_targets.NewCls`. It will be removed in v0.4.",
+            " `tests.collections.api_current.NewCls`. It will be removed in v0.4.",
         ):
             instance = depr_make_new_cls_mapped(old_c=3, e=0.7)
 
@@ -156,7 +200,8 @@ class TestDeprecationWarnings:
         """Check that it does not affect other functions when called with positional args."""
         with pytest.warns(
             FutureWarning,
-            match="The `depr_pow_mix` was deprecated since v0.1 in favor of `tests.collection_targets.base_pow_args`."
+            match="The `depr_pow_mix` was deprecated since v0.1 in favor of "
+            "`tests.collections.api_current.base_pow_args`."
             " It will be removed in v0.5.",
         ):
             assert depr_pow_mix(2, 1) == 2
@@ -312,6 +357,22 @@ class TestArgumentMapping:
         with pytest.warns(FutureWarning, match="The `depr_pow_self_double` uses depr. args:"):
             assert depr_pow_self_double(2, c1=3, c2=4, nc2=2) == 32
 
+    def test_spent_argument_not_listed_again(self) -> None:
+        """A later rename warning names only the arguments whose own budget is not spent yet.
+
+        With ``num_warns=1`` a caller first passes ``old_x`` and receives its one notice. A later call passes
+        ``old_x`` and ``old_y`` together: ``old_y`` still owes its notice, but the budget of ``old_x`` is spent, so
+        naming it again would break the one-warning promise and repeat a migration hint the caller already has.
+        """
+        with pytest.warns(FutureWarning, match="`old_x` -> `x`"):
+            depr_two_renames_warn_once(old_x=1)
+        with pytest.warns(FutureWarning) as record:
+            assert depr_two_renames_warn_once(old_x=1, old_y=2) == 3
+        assert [str(w.message) for w in record] == [
+            "The `depr_two_renames_warn_once` uses deprecated arguments: `old_y` -> `y`."
+            " They were deprecated since v1.0 and will be removed in v2.0."
+        ]
+
     def test_chain_deprecated(self) -> None:
         """Test chaining deprecation wrappers, calling with deprecated argument."""
         with pytest.warns(FutureWarning) as warns:
@@ -339,6 +400,16 @@ class TestArgumentMapping:
             result = depr_collision_old_new(old=42)
         assert result == 42
 
+    def test_args_mapping_empty_string_keeps_old_name(self) -> None:
+        """``args_mapping={"level": ""}`` forwards the caller's ``level`` to the target under the same name.
+
+        A caller still passes the keyword the wrapper has always accepted; ``""`` means the name is kept, so the value
+        must reach the target unchanged (not dropped to the target's default) and the call must still warn.
+        """
+        with pytest.warns(FutureWarning):
+            result = depr_args_mapping_empty_keeps_name(level=5)
+        assert result == 5
+
     def test_new_kwarg_wins_when_both_old_and_new_provided_old_first(self) -> None:
         """When old and new kwarg both passed (old first), the explicit new-name value wins.
 
@@ -364,7 +435,7 @@ class TestArgumentMapping:
         """New-name value wins when old name passed positionally and new name passed as kwarg.
 
         ``depr_collision_old_new(5, new=6)`` resolves positional ``5`` to ``old=5`` via
-        ``_update_kwargs_with_args`` before ``_build_call_plan`` computes ``_explicit_new``;
+        ``_update_kwargs_with_args`` before ``_resolve_forward_kwargs`` computes ``_explicit_new``;
         the fix then fires identically to the kwarg-only collision case.
         """
         with pytest.warns(FutureWarning):
@@ -492,7 +563,7 @@ def test_deprecated_func_attribute_set_at_decoration_time() -> None:
     message string at the same point.
 
     """
-    # Verify both attrs are set WITHOUT calling the function (using decorated_sum from collection_deprecate)
+    # Verify both attrs are set WITHOUT calling the function (using decorated_sum from api_deprecated)
     assert hasattr(decorated_sum, "__deprecation_config__")
     assert hasattr(decorated_sum, "__deprecated__")
     assert decorated_sum.__deprecation_config__ == DeprecationConfig(
@@ -711,6 +782,33 @@ class TestVarPositionalForwarding:
         result = deprecated_var_positional_remap(1, 2, new_kwarg="world")
         assert result == (1, 2, "world")
 
+    @pytest.mark.parametrize(
+        "kwargs",
+        [
+            pytest.param({"new_kwarg": "world", "old_kwarg": "hello"}, id="new-first"),
+            pytest.param({"old_kwarg": "hello", "new_kwarg": "world"}, id="old-first"),
+        ],
+    )
+    def test_args_remap_with_var_positional_new_kwarg_wins(self, kwargs: dict[str, str]) -> None:
+        """The new-name value wins on a ``*args`` source when both names are passed, whatever their order.
+
+        A half-migrated caller passes both ``old_kwarg`` and ``new_kwarg`` to an ARGS_REMAP source that declares
+        ``*args``.  The collision ``UserWarning`` says the old name is ignored, so the source must receive the new
+        value; before the fix the ``*args`` branch renamed the caller's keywords with a last-write-wins comprehension
+        and the old value won whenever it was passed after the new one.  The warning fires once, from the caller's
+        line.
+        """
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            result = deprecated_var_positional_remap(1, 2, **kwargs)
+        collisions = [w for w in caught if issubclass(w.category, UserWarning)]
+        assert result == (1, 2, "world")
+        assert [str(w.message) for w in collisions] == [
+            "Both `old_kwarg` (deprecated) and `new_kwarg` were supplied to `deprecated_var_positional_remap()`;"
+            " `old_kwarg` is ignored."
+        ]
+        assert collisions[0].filename == __file__
+
 
 class TestTemplateMgsAliasOnFunctionEntryPoint:
     """The deprecated ``template_mgs`` alias resolves through the ``@deprecated`` function entry point.
@@ -757,7 +855,7 @@ class TestCallableKindTargets:
         with ``AttributeError`` on the first call (which also used to burn the one-warning budget silently).
 
         """
-        with pytest.warns(FutureWarning, match=r"in favor of `tests\.collection_targets\.new_scale`"):
+        with pytest.warns(FutureWarning, match=r"in favor of `tests\.collections\.api_current\.new_scale`"):
             assert depr_scale_partial(2) == 10
 
     def test_partial_target_warns_only_once(self) -> None:
@@ -790,7 +888,7 @@ class TestCallableKindTargets:
         pattern; the instance has no ``__name__``, so the warning names ``CallableAdder`` by its module path.
 
         """
-        with pytest.warns(FutureWarning, match=r"in favor of `tests\.collection_targets\.CallableAdder`"):
+        with pytest.warns(FutureWarning, match=r"in favor of `tests\.collections\.api_current\.CallableAdder`"):
             assert depr_add_callable_instance(1) == 11
 
     def test_non_string_name_falls_back_to_type_name(self) -> None:
@@ -800,7 +898,7 @@ class TestCallableKindTargets:
         concatenation), so only a string ``__name__`` counts as a name.
 
         """
-        with pytest.warns(FutureWarning, match=r"in favor of `tests\.collection_targets\.NonStringNameCallable`"):
+        with pytest.warns(FutureWarning, match=r"in favor of `tests\.collections\.api_current\.NonStringNameCallable`"):
             assert depr_non_string_name_target(3) == 3
 
     def test_nested_partial_names_innermost_function(self) -> None:
@@ -810,7 +908,7 @@ class TestCallableKindTargets:
         step would still land on a partial; the display walks the whole chain.
 
         """
-        with pytest.warns(FutureWarning, match=r"in favor of `tests\.collection_targets\.new_scale`"):
+        with pytest.warns(FutureWarning, match=r"in favor of `tests\.collections\.api_current\.new_scale`"):
             assert depr_scale_nested_partial(1) == 5
 
     def test_partial_target_static_message(self) -> None:
@@ -821,7 +919,7 @@ class TestCallableKindTargets:
 
         """
         message = cast(Any, depr_scale_partial).__deprecated__
-        assert "in favor of `tests.collection_targets.new_scale`" in message
+        assert "in favor of `tests.collections.api_current.new_scale`" in message
 
     def test_builtin_target_keeps_builtins_path(self) -> None:
         """A C builtin target (``max``) keeps its ``builtins.max`` path in the static message.
@@ -850,7 +948,7 @@ class TestCallableKindTargets:
         warning path read ``target.__name__`` directly and crashed; it must name ``NewCls`` and forward.
 
         """
-        with pytest.warns(FutureWarning, match=r"in favor of `tests\.collection_targets\.NewCls`"):
+        with pytest.warns(FutureWarning, match=r"in favor of `tests\.collections\.api_current\.NewCls`"):
             built = cast(NewCls, LegacyPresetCls(1.5))
         assert (type(built), built.my_c, built.my_d) == (NewCls, 1.5, "preset")
 
@@ -918,3 +1016,211 @@ class TestPartialTargetPrecedence:
         """
         with pytest.warns(FutureWarning):
             assert depr_scale_nested_partial(1) == 5
+
+
+class TestSpentBudgetFastPath:
+    """Calls after the warn budget is spent skip the call plan but keep every behaviour of the full path."""
+
+    def test_spent_budget_is_silent(self) -> None:
+        """A call after the one warning was delivered emits nothing and still returns the source's result.
+
+        A training loop calls a warn-only deprecated helper on every batch. The first call delivers the single
+        ``FutureWarning``; every later call must run the source body with the caller's own arguments, silently.
+        """
+        with pytest.warns(FutureWarning):
+            depr_notify_spent_budget(1)
+        with assert_no_warnings():
+            result = depr_notify_spent_budget(2, y=3)
+        assert result == 5
+
+    def test_async_spent_budget_is_silent(self) -> None:
+        """An awaited call after the one warning was delivered emits nothing and still returns the coroutine's result.
+
+        The async wrapper takes the same shortcut as the sync one once the budget is spent: an event-loop worker that
+        awaits a deprecated coroutine on every request warns once, then only pays for the awaited body.
+        """
+        with pytest.warns(FutureWarning):
+            asyncio.run(depr_notify_spent_budget_async(1))
+        with assert_no_warnings():
+            result = asyncio.run(depr_notify_spent_budget_async(2, y=3))
+        assert result == 5
+
+    def test_global_switch_after_spent_budget_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Turning ``deprecate.AS_EXCEPTIONS`` on after the budget is spent makes the next call raise.
+
+        A test suite switches to strict mode part-way through a session, after a deprecated helper already warned
+        once. The fatal switch is read on every call, so the spent budget must not let the call through, and the
+        raise must leave the budget counter untouched.
+        """
+        with pytest.warns(FutureWarning):
+            depr_notify_spent_budget(1)
+        monkeypatch.setattr(deprecate, "AS_EXCEPTIONS", True)
+        with pytest.raises(DeprecatedError):
+            depr_notify_spent_budget(1)
+        assert cast(_DeprecatedCallable, depr_notify_spent_budget)._state.warned_calls == 1
+
+    def test_scoped_switch_after_spent_budget_raises(self) -> None:
+        """An ``as_exceptions()`` block entered after the budget is spent makes the call inside it raise.
+
+        A consumer guards one critical section with ``with deprecate.as_exceptions():`` after the deprecated helper
+        already warned elsewhere. The scope is read on every call, so the call inside it raises and the budget counter
+        stays where the earlier warning left it.
+        """
+        with pytest.warns(FutureWarning):
+            depr_notify_spent_budget(1)
+        with as_exceptions(), pytest.raises(DeprecatedError):
+            depr_notify_spent_budget(1)
+        assert cast(_DeprecatedCallable, depr_notify_spent_budget)._state.warned_calls == 1
+
+    def test_surplus_positional_raises_curated_error(self) -> None:
+        """A call with one positional argument too many raises the curated ``TypeError`` after the budget is spent.
+
+        The full path rejects surplus positionals with pyDeprecate's own message before anything else; the shortcut
+        taken once the budget is spent must not hand the call to the source and surface Python's native message
+        instead.
+        """
+        with pytest.warns(FutureWarning):
+            depr_notify_spent_budget(1)
+        with pytest.raises(TypeError, match=r"takes 1 to 2 positional argument\(s\) but got 3"):
+            cast(Callable[..., int], depr_notify_spent_budget)(1, 2, 3)
+
+    def test_misconfigured_notice_fires_once(self) -> None:
+        """A misconfigured warn-only deprecation with ``num_warns=0`` emits its one-time ``UserWarning`` exactly once.
+
+        With a zero budget no ``FutureWarning`` is ever due, so every call qualifies for the shortcut. The one-time
+        misconfiguration notice must still reach the first caller, and only the first.
+        """
+        wrapper = make_notify_mapping_no_budget()
+        with pytest.warns(UserWarning, match="invalid deprecation configuration") as first_call:
+            wrapper(1)
+        with assert_no_warnings():
+            wrapper(2)
+        assert len(first_call) == 1
+
+    def test_skip_if_evaluated_on_every_call(self) -> None:
+        """A ``skip_if`` callable is consulted on every call, before and after the budget is spent.
+
+        A feature flag decides per call whether the deprecation applies; caching its answer once the budget is spent
+        would ignore a flag that flips later. Three calls must consult it three times.
+        """
+        calls_before = notify_skip_condition.calls
+        with pytest.warns(FutureWarning):
+            depr_notify_skip_counted(1)
+        depr_notify_skip_counted(2)
+        depr_notify_skip_counted(3)
+        assert notify_skip_condition.calls - calls_before == 3
+
+
+def _unreadable_signature_error_depths(call: Callable[[], Any], times: int) -> list[int]:
+    """Call ``call`` ``times`` times, expecting a signature error each time, and return each traceback's length."""
+    depths: list[int] = []
+    for _ in range(times):
+        with pytest.raises(SignatureNotBuiltError) as caught:
+            call()
+        depths.append(len(caught.traceback))
+    return depths
+
+
+class TestUnreadableSignature:
+    """A signature that cannot be read fails at the same moment as before signature facts were read at decoration."""
+
+    def test_source_error_raised_at_decoration(self) -> None:
+        """Decorating a callable whose own signature cannot be read raises the ``inspect.signature`` error.
+
+        The wrapper needs the source's parameters for every call, so a C-level source without signature metadata
+        fails when it is decorated, at import time, rather than on its first call.
+        """
+        with pytest.raises(ValueError, match="no signature found"):
+            make_opaque_source_wrapper()
+
+    @pytest.mark.parametrize(
+        "func",
+        [
+            pytest.param(depr_opaque_target_renamed, id="rename-needs-target-defaults"),
+            pytest.param(depr_opaque_target_var_positional, id="surplus-needs-target-slots"),
+        ],
+    )
+    def test_target_error_raised_at_forwarded_call(self, func: Callable[..., Any]) -> None:
+        """A target whose signature cannot be read decorates fine and raises the signature error on the forwarded call.
+
+        The module that defines the wrapper imports cleanly; the error surfaces, after the deprecation warning, on the
+        call that needs the target's signature (its defaults for a rename, or its positional slots for a ``*args``
+        tail), as a ``ValueError`` from ``inspect.signature``.
+        """
+        with pytest.warns(FutureWarning), pytest.raises(ValueError, match="no signature found"):
+            func(1, 2)
+
+    @pytest.mark.parametrize(
+        ("args", "kwargs"),
+        [
+            pytest.param((1,), {}, id="positional-input"),
+            pytest.param((), {"x": 1}, id="keyword-input"),
+        ],
+    )
+    def test_unmapped_target_error_raised(self, args: tuple[int, ...], kwargs: dict[str, int]) -> None:
+        """Preserve the signature error when ordinary forwarding needs target keyword validation.
+
+        A deprecated function forwards directly to an extension callable without renaming any arguments. Whether
+        the caller supplies a positional or keyword value, the original signature error must reach the caller.
+        """
+        with pytest.warns(FutureWarning), pytest.raises(ValueError, match="no signature found for opaque_callable"):
+            depr_opaque_target_unmapped(*args, **kwargs)
+
+    def test_empty_target_call_needs_no_signature(self) -> None:
+        """Allow an opaque target to receive an empty call without inspecting its parameter names.
+
+        A parameterless legacy entry point forwards no values, so validating target keyword names is unnecessary.
+        """
+        with pytest.warns(FutureWarning):
+            assert depr_opaque_target_empty() == ((), {})
+
+    def test_readable_zero_argument_target_rejects_input(self) -> None:
+        """Keep keyword validation for a readable target with no parameters.
+
+        A renamed entry point has dropped its parameter entirely. Unlike an unreadable signature, an empty
+        readable signature proves the forwarded value is invalid and should retain the curated mapping error.
+        """
+        with pytest.warns(FutureWarning), pytest.raises(TypeError, match="arguments not accepted by target: "):
+            depr_zero_argument_target(1)
+
+    def test_target_error_of_custom_type_raised(self) -> None:
+        """A target signature error whose type needs more than the message still reaches the caller with that type.
+
+        A framework that builds signatures lazily raises its own ``ValueError`` subclass, whose constructor takes the
+        callable's name and a reason, until the signature exists. The forwarded call must raise that error as it was
+        read at decoration, not a ``TypeError`` from trying to rebuild it from its ``args``.
+        """
+        with (
+            pytest.warns(FutureWarning),
+            pytest.raises(SignatureNotBuiltError, match="^lazy_callable: not built yet$"),
+        ):
+            depr_lazy_signature_target_renamed(1, 2)
+
+    def test_repeated_calls_keep_traceback_length(self) -> None:
+        """Forwarded calls that keep failing on an unreadable target signature raise equally long tracebacks.
+
+        A service keeps calling a deprecated function whose target is a lazily built framework callable and catches
+        the error each time.  Raising the one error stored at decoration made its traceback grow by the frames of
+        every call; each call must raise its own copy instead.
+        """
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", FutureWarning)
+            depths = _unreadable_signature_error_depths(lambda: depr_lazy_signature_target_renamed(1, 2), times=4)
+
+        assert len(set(depths)) == 1
+
+
+class TestDecoratedFunctionLifetime:
+    """Decorating a function does not keep it alive once the caller drops it."""
+
+    def test_source_released_with_wrapper(self) -> None:
+        """A decorated function and its wrapper are garbage-collected once both are dropped.
+
+        Plugins and tests build deprecated functions on the fly. A signature cache keyed by the function object would
+        keep every one of them, and whatever its closure holds, alive for the life of the process.
+        """
+        source, wrapper = make_transient_notify_pair()
+        source_ref = weakref.ref(source)
+        del source, wrapper
+        gc.collect()
+        assert source_ref() is None

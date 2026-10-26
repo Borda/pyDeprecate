@@ -1,11 +1,12 @@
 """Integration tests for ``deprecated_module()`` — module-level deprecation via ``__class__`` reassignment.
 
 Tests cover all three operation modes, audit discoverability, reload survival, and warning
-stack-level correctness.  Fixture modules live in ``tests/collection_modules/``.
+stack-level correctness.  Fixture modules live in ``tests/collections/modules/``.
 """
 
 from __future__ import annotations
 
+import asyncio
 import concurrent.futures
 import importlib
 import sys
@@ -18,10 +19,10 @@ from typing import Any, Callable
 
 import pytest
 
-import tests.collection_modules.auto_math as auto_math
-import tests.collection_modules.new_utils as new_utils
-import tests.collection_modules.old_math as old_math
-import tests.collection_modules.old_utils as old_utils
+import tests.collections.modules.auto_math as auto_math
+import tests.collections.modules.new_utils as new_utils
+import tests.collections.modules.old_math as old_math
+import tests.collections.modules.old_utils as old_utils
 from deprecate import (
     TargetMode,
     find_deprecation_wrappers,
@@ -31,8 +32,14 @@ from deprecate import (
 from deprecate._types import DeprecationConfig
 from deprecate.audit._lifecycle import _check_deprecated_wrapper_expiry
 from deprecate.audit._wrappers import _format_report_symbol
-from deprecate.module import deprecated_module
-from tests.collection_targets import FlakyTypeErrorStream, KeywordTypeErrorStream, RecordingStream
+from deprecate.module import _redirect_guard, _RedirectResolution, deprecated_module
+from tests.collections.api_current import (
+    ContextCapturingLookup,
+    FlakyTypeErrorStream,
+    InheritedContextLookup,
+    KeywordTypeErrorStream,
+    RecordingStream,
+)
 
 # Shared version kwargs for module deprecation call sites (see AGENTS.md Unification pattern).
 _DEPRS_CASE_MOD_ARGS: dict[str, Any] = {"deprecated_in": "1.0", "remove_in": "2.0"}
@@ -217,7 +224,7 @@ class TestStarImport:
     def test_star_import_warns(self) -> None:
         """A star-import of a deprecated module emits a ``FutureWarning`` for each public name pulled in.
 
-        ``from tests.collection_modules.old_math import *`` binds every public name from the module's
+        ``from tests.collections.modules.old_math import *`` binds every public name from the module's
         namespace (here, ``deprecate`` and ``square``) into the importing scope.  CPython implements the
         star-import via the ``IMPORT_STAR`` bytecode, which calls ``getattr(module, name)`` for each name
         being copied — routing through ``_DeprecatedModuleWrapper.__getattribute__`` exactly like any other
@@ -230,7 +237,7 @@ class TestStarImport:
         namespace: dict[str, object] = {}
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            exec("from tests.collection_modules.old_math import *", namespace)  # noqa: S102 -- star-import under test, not arbitrary code execution
+            exec("from tests.collections.modules.old_math import *", namespace)  # noqa: S102 -- star-import under test, not arbitrary code execution
         future_warns = [x for x in w if issubclass(x.category, FutureWarning)]
         assert len(future_warns) >= 1
         square_fn: Any = namespace["square"]
@@ -400,7 +407,7 @@ class TestModuleReportLabel:
     Regression guard for the audit rendering bug where ``_scan_module_meta`` stored the sentinel
     ``function="(module)"``.  Because ``_format_report_symbol`` concatenates ``module.function`` and
     the expiry error formatters inlined ``Callable `{info.function}``, a deprecated module surfaced as
-    the malformed ``tests.collection_modules.old_math.(module)`` in report rows and as
+    the malformed ``tests.collections.modules.old_math.(module)`` in report rows and as
     ``Callable `(module)``` in expiry messages.  A real CI audit gate that reports an expired module
     must name the module cleanly so a maintainer can find and delete it, and must call it a *Module*
     rather than a *Callable*.  These tests pin the fixture module ``old_math``
@@ -408,7 +415,7 @@ class TestModuleReportLabel:
     report symbol, the generated report table, and both the batch and single-wrapper expiry paths.
     """
 
-    _MODULE_LABEL = "tests.collection_modules.old_math"
+    _MODULE_LABEL = "tests.collections.modules.old_math"
 
     def test_report_symbol_is_bare_module_name(self) -> None:
         """``_format_report_symbol`` renders the module name with no ``(module)`` suffix or trailing dot."""
@@ -440,7 +447,7 @@ class TestModuleReportLabel:
         deprecated module directly at its removal version must raise with ``Module `<name>``` so the
         malformed ``Callable `(module)``` label can never reach the error a maintainer reads.
         """
-        with pytest.raises(AssertionError, match=r"Module `tests\.collection_modules\.old_math`"):
+        with pytest.raises(AssertionError, match=r"Module `tests\.collections\.modules\.old_math`"):
             _check_deprecated_wrapper_expiry(old_math, "2.0")
 
 
@@ -1227,6 +1234,139 @@ class TestAttrsMappingShadowsDict:
 class TestRedirectCycle:
     """Redirect cycles longer than the trivial self-target must fail cleanly, not recurse forever."""
 
+    @pytest.mark.parametrize("fail_first", [False, True])
+    @pytest.mark.parametrize("nested", [False, True])
+    def test_copied_context_releases_completed_resolution(
+        self, make_tmp_module: Callable[..., types.ModuleType], fail_first: bool, nested: bool
+    ) -> None:
+        """A context captured by a redirect target can resolve the same name after the lookup finishes.
+
+        A lazy target may capture a context when scheduling later work. Both successful and failed lookups must
+        release every completed redirect in that snapshot, including ancestors in a multi-module redirect chain.
+        """
+        source = make_tmp_module("_test_captured_source_tmp")
+        target = make_tmp_module("_test_captured_target_tmp")
+        lookup = ContextCapturingLookup(fail_first)
+        target.__getattr__ = lookup  # type: ignore[method-assign]
+        if nested:
+            intermediate = make_tmp_module("_test_captured_intermediate_tmp")
+            deprecated_module(intermediate.__name__, target=target, **_DEPRS_CASE_MOD_ARGS)
+            target = intermediate
+        deprecated_module(source.__name__, target=target, **_DEPRS_CASE_MOD_ARGS)
+
+        if fail_first:
+            with pytest.warns(FutureWarning), pytest.raises(AttributeError, match="answer"):
+                getattr(source, "answer")
+        else:
+            with pytest.warns(FutureWarning):
+                assert getattr(source, "answer") == 42
+        captured = lookup.contexts[0]
+        for _ in range(2):
+            with pytest.warns(FutureWarning):
+                assert captured.run(getattr, source, "answer") == 42
+        assert _redirect_guard.get() is None
+
+    def test_async_tasks_keep_active_resolutions_separate(
+        self, make_tmp_module: Callable[..., types.ModuleType]
+    ) -> None:
+        """Suspended task contexts do not mistake another task's redirect for a cycle.
+
+        Attribute lookup is synchronous, so seed each task's in-flight outer resolution explicitly before an
+        await. Each task then resolves the other module through the public redirect path while its peer still
+        holds that same key. Nested lookups must preserve the outer set, and finishing must restore None.
+        """
+        target = make_tmp_module("_test_async_guard_target_tmp")
+        target.answer = 42  # type: ignore[attr-defined]
+        modules = [make_tmp_module(f"_test_async_guard_{index}_tmp") for index in range(2)]
+        for mod in modules:
+            deprecated_module(mod.__name__, target=target, stream=None, **_DEPRS_CASE_MOD_ARGS)
+
+        async def run_tasks() -> list[int]:
+            """Keep both simulated outer resolutions alive until both nested lookups finish."""
+            ready = [asyncio.Event(), asyncio.Event()]
+            resolved = [asyncio.Event(), asyncio.Event()]
+
+            async def resolve(index: int) -> int:
+                """Resolve the peer's module without inheriting its active guard entries."""
+                assert _redirect_guard.get() is None
+                own_key = (modules[index].__name__, "answer", threading.get_ident())
+                resolution = _RedirectResolution(own_key)
+                active = (resolution,)
+                token = _redirect_guard.set(active)
+                try:
+                    ready[index].set()
+                    await asyncio.wait_for(ready[1 - index].wait(), timeout=10)
+                    value = getattr(modules[1 - index], "answer")
+                    assert _redirect_guard.get() is active
+                    assert resolution.active
+                    assert resolution.key == own_key
+                    resolved[index].set()
+                    await asyncio.wait_for(resolved[1 - index].wait(), timeout=10)
+                finally:
+                    _redirect_guard.reset(token)
+                assert _redirect_guard.get() is None
+                return value
+
+            return list(await asyncio.gather(resolve(0), resolve(1)))
+
+        with pytest.warns(FutureWarning) as caught:
+            assert asyncio.run(run_tasks()) == [42, 42]
+        assert len(caught) == 2
+        assert _redirect_guard.get() is None
+
+    def test_thread_with_inherited_context_sees_no_cycle(
+        self, make_tmp_module: Callable[..., types.ModuleType]
+    ) -> None:
+        """A thread started in a copy of a resolving context makes its own lookup instead of reporting a cycle.
+
+        Free-threaded CPython 3.14 starts each new thread with a copy of the creating thread's context, so a thread
+        started while a redirect is in flight inherits the guard state. The target's ``__getattr__`` here hands the
+        lookup to such a thread, which resolves the same deprecated name again; that is a separate resolution, not a
+        re-entry of the outer one, and must return the target's answer rather than raise ``AttributeError``.
+        """
+        source = make_tmp_module("_test_guard_thread_source_tmp")
+        target = make_tmp_module("_test_guard_thread_target_tmp")
+        deprecated_module(source.__name__, target=target, stream=None, **_DEPRS_CASE_MOD_ARGS)
+        target.__getattr__ = InheritedContextLookup(source)  # type: ignore[method-assign]
+        with pytest.warns(FutureWarning, match="_test_guard_thread_source_tmp") as caught:
+            assert getattr(source, "value") == 7
+        assert len(caught) == 2  # the outer lookup and the worker's own lookup each warn
+        assert _redirect_guard.get() is None
+
+    @pytest.fixture
+    def redirected_source(self, make_tmp_module: Callable[..., types.ModuleType]) -> types.ModuleType:
+        """Return a deprecated module that redirects missing attributes to a target holding ``answer = 42``."""
+        target = make_tmp_module("_test_guard_cleanup_target_tmp")
+        target.answer = 42  # type: ignore[attr-defined]
+        source = make_tmp_module("_test_guard_cleanup_source_tmp")
+        deprecated_module(source.__name__, target=target, stream=None, **_DEPRS_CASE_MOD_ARGS)
+        return source
+
+    def test_guard_released_after_redirect(self, redirected_source: types.ModuleType) -> None:
+        """A successful redirected lookup leaves no guard set behind in the calling context.
+
+        The next lookup from the same context must start from a fresh guard; a leftover set would make a later,
+        unrelated redirect of the same name look like a cycle.
+
+        """
+        with pytest.warns(FutureWarning):
+            assert getattr(redirected_source, "answer") == 42
+        assert _redirect_guard.get() is None
+
+    def test_guard_released_after_failed_redirect(self, redirected_source: types.ModuleType) -> None:
+        """A redirected lookup missing from the target raises the plain ``AttributeError`` and releases the guard.
+
+        The failing path exits through an exception, so the guard reset must run in the ``finally`` branch, and the
+        public message must name the deprecated module and the missing attribute exactly.
+
+        """
+        with (
+            pytest.warns(FutureWarning),
+            pytest.raises(AttributeError, match="^module '_test_guard_cleanup_source_tmp' has no attribute 'missing'$"),
+        ):
+            getattr(redirected_source, "missing")
+        assert _redirect_guard.get() is None
+
     def test_mutual_redirect_raises_attribute_error(self, make_tmp_module: Callable[..., types.ModuleType]) -> None:
         """``A`` redirecting to ``B`` and ``B`` back to ``A`` yields ``AttributeError``, not ``RecursionError``.
 
@@ -1245,7 +1385,7 @@ class TestRedirectCycle:
                 _ = sys.modules["_test_cycle_a_tmp"].ghost  # type: ignore[attr-defined]
 
     def test_normal_redirect_unaffected_by_cycle_guard(self, make_tmp_module: Callable[..., types.ModuleType]) -> None:
-        """A non-cyclic redirect still forwards correctly after the guard clears its thread-local state.
+        """A non-cyclic redirect still forwards correctly after the guard clears its context-local state.
 
         The cycle guard tracks in-flight ``(module, name)`` resolutions and must discard them once a lookup
         completes, so an ordinary redirect to a live target returns the target's value on every call — the

@@ -9,51 +9,51 @@ Legend:
 
 ______________________________________________________________________
 
-## `tests/collection_deprecate.py`
+## `tests/collections/api_deprecated.py`
 
 All modern — no legacy sentinels.
 
-| Wrapper                                                            | `target=`                    | Notes                                                        |
-| ------------------------------------------------------------------ | ---------------------------- | ------------------------------------------------------------ |
-| `decorated_sum_warn_only`                                          | `TargetMode.NOTIFY`          | Decorator form; legacy parity in `collection_depr_legacy.py` |
-| `wrapped_sum_warn_only`                                            | `TargetMode.NOTIFY`          | Wrapper assignment form                                      |
-| `depr_target_mode_whole_warns_on_every_call`                       | `TargetMode.NOTIFY`          | `num_warns=-1`                                               |
-| `depr_target_mode_whole_executes_original_body`                    | `TargetMode.NOTIFY`          | Body execution verified                                      |
-| `depr_func_no_remove_in`                                           | `TargetMode.NOTIFY`          | No `remove_in` deadline                                      |
-| `ServiceCls.old_warn_method`                                       | `TargetMode.NOTIFY`          | Class method; legacy parity in `collection_depr_legacy.py`   |
-| `make_target_mode_whole_with_args_mapping_warns`                   | `TargetMode.NOTIFY`          | `UserWarning`: NOTIFY + `args_mapping` (misconfig)           |
-| `make_target_mode_whole_with_args_extra_warns`                     | `TargetMode.NOTIFY`          | `UserWarning`: NOTIFY + `args_extra` (misconfig)             |
-| `decorated_pow_self`                                               | `TargetMode.ARGS_REMAP`      | Decorator form; legacy parity in `collection_depr_legacy.py` |
-| `wrapped_pow_self`                                                 | `TargetMode.ARGS_REMAP`      | Wrapper assignment form                                      |
-| `depr_pow_self_double`                                             | `TargetMode.ARGS_REMAP`      | Two args remapped in one decorator                           |
-| `depr_pow_self_twice`                                              | `TargetMode.ARGS_REMAP`      | Chained decorators, multi-step migration                     |
-| `depr_pow_skip_if_true_false`                                      | `TargetMode.ARGS_REMAP`      | `skip_if=True` outer, `False` inner                          |
-| `depr_target_mode_args_only_warns_when_old_arg_passed`             | `TargetMode.ARGS_REMAP`      | Warning fires on old arg                                     |
-| `depr_target_mode_args_only_silent_when_new_arg_passed`            | `TargetMode.ARGS_REMAP`      | Silent when new arg used                                     |
-| `depr_target_mode_args_only_remaps_kwargs`                         | `TargetMode.ARGS_REMAP`      | kwargs remapping                                             |
-| `depr_target_mode_args_only_with_args_extra_injects_kwargs`        | `TargetMode.ARGS_REMAP`      | `args_extra` injection                                       |
-| `fn_remap_with_extra`                                              | `TargetMode.ARGS_REMAP`      | ARGS_REMAP + `args_extra` (regression fix)                   |
-| `ThisCls.__init__`                                                 | `TargetMode.ARGS_REMAP`      | Class `__init__` self-deprecation                            |
-| `ServiceCls.self_renamed_method`                                   | `TargetMode.ARGS_REMAP`      | Class method; legacy parity in `collection_depr_legacy.py`   |
-| `make_target_mode_args_only_without_args_mapping_warns`            | `TargetMode.ARGS_REMAP`      | `UserWarning`: ARGS_REMAP without `args_mapping`             |
-| `{decorated/wrapped}_sum`                                          | `base_sum_kwargs`            | Basic forwarding                                             |
-| `depr_make_new_cls` / `depr_make_new_cls_mapped`                   | `NewCls`                     | Function→class forwarding                                    |
-| `{decorated/wrapped}_sum_no_stream`                                | `base_sum_kwargs`            | Silent (`stream=None`)                                       |
-| `{decorated/wrapped}_sum_calls_2`                                  | `base_sum_kwargs`            | `num_warns=2`                                                |
-| `{decorated/wrapped}_sum_calls_inf`                                | `base_sum_kwargs`            | `num_warns=-1`                                               |
-| `{decorated/wrapped}_sum_msg`                                      | `base_sum_kwargs`            | Custom `message_template`                                    |
-| `depr_pow_args` / `depr_pow_mix` / `depr_pow_wrong`                | `base_pow_args`              | Positional args; mismatch case                               |
-| `depr_accuracy_skip` / `depr_accuracy_map` / `depr_accuracy_extra` | `accuracy_score`             | Drop, rename, inject args                                    |
-| `PastCls.__init__` / `PastClsMapped.__init__`                      | `NewCls`                     | Class `__init__` forwarding                                  |
-| `ServiceCls.old_redirect_method` / `.old_mapped_method`            | `compute` / `compute_scaled` | Method→method forwarding                                     |
-| `CrossGuardSameClass.old_method`                                   | `new_method`                 | Same-class cross-guard                                       |
-| `CrossGuardModuleLevel.old_method`                                 | module fn                    | Method→module-level fn                                       |
-| `CrossGuardOldClass.__init__`                                      | `CrossGuardClassTargetNew`   | Constructor→constructor                                      |
-| `depr_timing_wrapper`                                              | `timing_wrapper`             | Decorator wrapping a decorator                               |
-| `DeprecatedTimerDecorator.__init__`                                | `TimerDecorator`             | Class-based decorator                                        |
-| `depr_collision_old_new`                                           | `both_old_new_target`        | Old + new param both present                                 |
-| `fn_old_default`                                                   | `fn_with_default`            | Stale-default regression                                     |
-| `depr_func_targeting_proxy`                                        | `DeprecatedColorEnum`        | Function targeting a proxy                                   |
+| Wrapper                                                            | `target=`                    | Notes                                                       |
+| ------------------------------------------------------------------ | ---------------------------- | ----------------------------------------------------------- |
+| `decorated_sum_warn_only`                                          | `TargetMode.NOTIFY`          | Decorator form; legacy parity in `api_deprecated_legacy.py` |
+| `wrapped_sum_warn_only`                                            | `TargetMode.NOTIFY`          | Wrapper assignment form                                     |
+| `depr_target_mode_whole_warns_on_every_call`                       | `TargetMode.NOTIFY`          | `num_warns=-1`                                              |
+| `depr_target_mode_whole_executes_original_body`                    | `TargetMode.NOTIFY`          | Body execution verified                                     |
+| `depr_func_no_remove_in`                                           | `TargetMode.NOTIFY`          | No `remove_in` deadline                                     |
+| `ServiceCls.old_warn_method`                                       | `TargetMode.NOTIFY`          | Class method; legacy parity in `api_deprecated_legacy.py`   |
+| `make_target_mode_whole_with_args_mapping_warns`                   | `TargetMode.NOTIFY`          | `UserWarning`: NOTIFY + `args_mapping` (misconfig)          |
+| `make_target_mode_whole_with_args_extra_warns`                     | `TargetMode.NOTIFY`          | `UserWarning`: NOTIFY + `args_extra` (misconfig)            |
+| `decorated_pow_self`                                               | `TargetMode.ARGS_REMAP`      | Decorator form; legacy parity in `api_deprecated_legacy.py` |
+| `wrapped_pow_self`                                                 | `TargetMode.ARGS_REMAP`      | Wrapper assignment form                                     |
+| `depr_pow_self_double`                                             | `TargetMode.ARGS_REMAP`      | Two args remapped in one decorator                          |
+| `depr_pow_self_twice`                                              | `TargetMode.ARGS_REMAP`      | Chained decorators, multi-step migration                    |
+| `depr_pow_skip_if_true_false`                                      | `TargetMode.ARGS_REMAP`      | `skip_if=True` outer, `False` inner                         |
+| `depr_target_mode_args_only_warns_when_old_arg_passed`             | `TargetMode.ARGS_REMAP`      | Warning fires on old arg                                    |
+| `depr_target_mode_args_only_silent_when_new_arg_passed`            | `TargetMode.ARGS_REMAP`      | Silent when new arg used                                    |
+| `depr_target_mode_args_only_remaps_kwargs`                         | `TargetMode.ARGS_REMAP`      | kwargs remapping                                            |
+| `depr_target_mode_args_only_with_args_extra_injects_kwargs`        | `TargetMode.ARGS_REMAP`      | `args_extra` injection                                      |
+| `fn_remap_with_extra`                                              | `TargetMode.ARGS_REMAP`      | ARGS_REMAP + `args_extra` (regression fix)                  |
+| `ThisCls.__init__`                                                 | `TargetMode.ARGS_REMAP`      | Class `__init__` self-deprecation                           |
+| `ServiceCls.self_renamed_method`                                   | `TargetMode.ARGS_REMAP`      | Class method; legacy parity in `api_deprecated_legacy.py`   |
+| `make_target_mode_args_only_without_args_mapping_warns`            | `TargetMode.ARGS_REMAP`      | `UserWarning`: ARGS_REMAP without `args_mapping`            |
+| `{decorated/wrapped}_sum`                                          | `base_sum_kwargs`            | Basic forwarding                                            |
+| `depr_make_new_cls` / `depr_make_new_cls_mapped`                   | `NewCls`                     | Function→class forwarding                                   |
+| `{decorated/wrapped}_sum_no_stream`                                | `base_sum_kwargs`            | Silent (`stream=None`)                                      |
+| `{decorated/wrapped}_sum_calls_2`                                  | `base_sum_kwargs`            | `num_warns=2`                                               |
+| `{decorated/wrapped}_sum_calls_inf`                                | `base_sum_kwargs`            | `num_warns=-1`                                              |
+| `{decorated/wrapped}_sum_msg`                                      | `base_sum_kwargs`            | Custom `message_template`                                   |
+| `depr_pow_args` / `depr_pow_mix` / `depr_pow_wrong`                | `base_pow_args`              | Positional args; mismatch case                              |
+| `depr_accuracy_skip` / `depr_accuracy_map` / `depr_accuracy_extra` | `accuracy_score`             | Drop, rename, inject args                                   |
+| `PastCls.__init__` / `PastClsMapped.__init__`                      | `NewCls`                     | Class `__init__` forwarding                                 |
+| `ServiceCls.old_redirect_method` / `.old_mapped_method`            | `compute` / `compute_scaled` | Method→method forwarding                                    |
+| `CrossGuardSameClass.old_method`                                   | `new_method`                 | Same-class cross-guard                                      |
+| `CrossGuardModuleLevel.old_method`                                 | module fn                    | Method→module-level fn                                      |
+| `CrossGuardOldClass.__init__`                                      | `CrossGuardClassTargetNew`   | Constructor→constructor                                     |
+| `depr_timing_wrapper`                                              | `timing_wrapper`             | Decorator wrapping a decorator                              |
+| `DeprecatedTimerDecorator.__init__`                                | `TimerDecorator`             | Class-based decorator                                       |
+| `depr_collision_old_new`                                           | `both_old_new_target`        | Old + new param both present                                |
+| `fn_old_default`                                                   | `fn_with_default`            | Stale-default regression                                    |
+| `depr_func_targeting_proxy`                                        | `DeprecatedColorEnum`        | Function targeting a proxy                                  |
 
 ### Class / instance deprecation (`deprecated_class`, `deprecated_instance`)
 
@@ -73,9 +73,9 @@ All modern — no legacy sentinels.
 
 ______________________________________________________________________
 
-## `tests/collection_depr_legacy.py`
+## `tests/collections/api_deprecated_legacy.py`
 
-All legacy — every wrapper uses the deprecated `target=True` / `target=None` sentinel directly. Decoration-time `FutureWarning` suppressed via `filterwarnings` in `pyproject.toml`. Names mirror their modern counterparts in `collection_deprecate.py`.
+All legacy — every wrapper uses the deprecated `target=True` / `target=None` sentinel directly. Decoration-time `FutureWarning` suppressed via `filterwarnings` in `pyproject.toml`. Names mirror their modern counterparts in `api_deprecated.py`.
 
 | Wrapper                                                     | `target=` | Notes                                                    |
 | ----------------------------------------------------------- | --------- | -------------------------------------------------------- |
@@ -97,7 +97,7 @@ Decoration-time `FutureWarning` / `UserWarning` assertions for `target=None` / `
 
 ______________________________________________________________________
 
-## `tests/collection_misconfigured.py`
+## `tests/collections/misconfigured.py`
 
 | Wrapper                                     | `target=`               | Notes                                                                                                        |
 | ------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------ |
@@ -119,7 +119,7 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-## `tests/collection_docstrings.py`
+## `tests/collections/docstrings.py`
 
 All modern. Tests `update_docstring=True` behavior across docstring styles.
 
@@ -155,21 +155,21 @@ ______________________________________________________________________
 
 ## Summary
 
-| File                          | NOTIFY | ARGS_REMAP | callable | Legacy sentinels |
-| ----------------------------- | :----: | :--------: | :------: | :--------------: |
-| `collection_deprecate.py`     |   9    |     21     |    26    |        0         |
-| `collection_depr_legacy.py`   |   4    |     9      |    0     |        13        |
-| `collection_misconfigured.py` |   3†   |     8      |    1     |        4         |
-| `collection_docstrings.py`    |   3    |     10     |    12    |        0         |
-| **Total**                     | **19** |   **48**   |  **39**  |      **17**      |
+| File                       | NOTIFY | ARGS_REMAP | callable | Legacy sentinels |
+| -------------------------- | :----: | :--------: | :------: | :--------------: |
+| `api_deprecated.py`        |   9    |     21     |    26    |        0         |
+| `api_deprecated_legacy.py` |   4    |     9      |    0     |        13        |
+| `misconfigured.py`         |   3†   |     8      |    1     |        4         |
+| `docstrings.py`            |   3    |     10     |    12    |        0         |
+| **Total**                  | **19** |   **48**   |  **39**  |      **17**      |
 
-† `collection_misconfigured.py` also contains 3 `target=False` (invalid sentinel) calls not counted in any mode column.
+† `misconfigured.py` also contains 3 `target=False` (invalid sentinel) calls not counted in any mode column.
 
 ______________________________________________________________________
 
 ## Test coverage
 
-Every test that exercises a NOTIFY / ARGS_REMAP mode wrapper. Modern ✓ = test runs against the modern `TargetMode.*` fixture. Legacy ✓ = also runs against the `target=None` / `target=True` legacy fixture from `collection_depr_legacy.py`. Blank Legacy cell = not yet paired; `—` = intentionally unpaired (reason in Notes).
+Every test that exercises a NOTIFY / ARGS_REMAP mode wrapper. Modern ✓ = test runs against the modern `TargetMode.*` fixture. Legacy ✓ = also runs against the `target=None` / `target=True` legacy fixture from `api_deprecated_legacy.py`. Blank Legacy cell = not yet paired; `—` = intentionally unpaired (reason in Notes).
 
 | Test                                                                                         | Modern | Legacy | Notes                                                                  |
 | -------------------------------------------------------------------------------------------- | :----: | :----: | ---------------------------------------------------------------------- |

@@ -84,9 +84,9 @@ class DeprecationWrapperInfo:
             by the dataclass dual-surface expansion at decoration time.  Empty list when no auto-expansion
             occurred.  Read from :attr:`~deprecate._types.DeprecationConfig.args_mapping_auto_expanded`.
         args_mapping_positional_only: ``args_mapping`` old-key names whose remapped target is a POSITIONAL_ONLY
-            constructor parameter.  Non-empty list signals that the proxy falls back to ``setattr`` for those
-            keys.  Use :func:`~deprecate.audit.validate_mapping_compatibility` to filter wrappers by this
-            field.  Read from :attr:`~deprecate._types.DeprecationConfig.args_mapping_positional_only`.
+            constructor parameter. A non-empty list identifies mappings whose values the proxy forwards
+            positionally to the constructor. Use :func:`~deprecate.audit.validate_mapping_compatibility` to filter
+            wrappers by this field. Read from :attr:`~deprecate._types.DeprecationConfig.args_mapping_positional_only`.
         inner_order_property: ``True`` when the wrapper is a plain :class:`property` whose ``fget`` carries
             ``@deprecated`` metadata — the *inner order* ``@property @deprecated`` (``@deprecated`` closer to
             ``def``).  In this order only ``fget`` warns; any setter or deleter added afterwards is built from the
@@ -462,7 +462,7 @@ def _format_report_symbol(info: DeprecationWrapperInfo) -> str:
     Modules carry their name in :attr:`~deprecate.audit.DeprecationWrapperInfo.module` and leave
     ``function`` empty, so a plain ``module.function`` join would append a trailing dot. Guard against
     an empty ``function`` (or an empty ``module``) so the rendered label is always clean — e.g.
-    ``tests.collection_modules.old_math`` for a deprecated module, never ``...old_math.`` or ``...(module)``.
+    ``tests.collections.modules.old_math`` for a deprecated module, never ``...old_math.`` or ``...(module)``.
 
     """
     if info.module and info.function:

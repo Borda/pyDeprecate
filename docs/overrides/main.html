@@ -156,7 +156,7 @@
           "name": "Why do I get UserWarning when applying @deprecated directly to a class?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Since v0.12, applying @deprecated directly to a class is first-class supported and permanent: it dispatches to @deprecated_class and produces an identical _DeprecatedProxy. The UserWarning is a one-time informational notice per class (keyed by module + qualified name, so same-named classes in different modules each warn) per process, not a deprecation of the pattern itself; only this notice is removed, in v1.0. Pass stream=None to suppress it, or apply @deprecated_class directly to skip the notice entirely and reach class-only options such as attrs_mapping without an extra hop."
+            "text": "Since v0.12, applying @deprecated directly to a class is first-class supported and permanent: it dispatches to @deprecated_class and produces an identical _DeprecatedProxy. The UserWarning is a one-time informational notice per class (keyed by module + qualified name, so same-named classes in different modules each warn) per process, not a deprecation of the pattern itself; only this notice is removed, in v1.0. The notice cache is thread-safe and retains at most 4096 class keys in insertion order; an evicted class may receive the notice again. Pass stream=None to suppress it, or apply @deprecated_class directly to skip the notice entirely and reach class-only options such as attrs_mapping without an extra hop."
           }
         },
         {
@@ -324,7 +324,7 @@
           "name": "Why do concurrent async calls to a deprecated wrapper emit fewer warnings than expected?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "_WrapperState fields (called, warned_calls, warned_args) are plain Python dataclass fields with no asyncio lock. Concurrent coroutines sharing one deprecated wrapper race on the warning counter, causing fewer warnings than num_warns specifies to be emitted. Workaround: set num_warns=-1 to bypass the count gate entirely — the warning then fires unconditionally on every call regardless of scheduling."
+            "text": "Concurrent async calls cannot race while reserving a deprecated callable's or argument's warning budget: the async wrapper reserves it under a per-wrapper lock before its first await. Each deprecated argument has an independent num_warns budget, and warning filters can suppress records. A custom stream can also fail after a callable wrapper reserves its budget; callable delivery does not roll that reservation back. Therefore num_warns controls warning attempts, not an exact number of visible records. Use num_warns=-1 only when unlimited warning attempts are intended."
           }
         },
         {
@@ -389,6 +389,14 @@
           "acceptedAnswer": {
             "@type": "Answer",
             "text": "Use deprecated_module(__name__, deprecated_in=..., remove_in=...) at the bottom of the module you are retiring. Three modes are available. Mode 1 (no target=): changes the module __class__ to an intercepting wrapper that delivers FutureWarning on every public attribute access — including real attributes (functions, classes, constants already in __dict__). Mode 2 (target=new_module): additionally forwards every missing-attribute lookup to the replacement module, optionally with attrs_mapping for per-name redirects; use this when callers need to be transparently redirected to the new name. Mode 3: use deprecated_instance() on the parent package __init__.py to expose the old module name as a deprecated attribute — no new API needed. num_warns=-1 is the default and delivers on every access; 0 delivers none and a positive N delivers exactly N. Standard warning filters can suppress repeated display, and -1 skips only budget locking, not normal warning handling. Star imports (from old_module import *) invoke the warning path once per pulled-in public name; delivery remains subject to num_warns."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Can a context copied during a module redirect resolve the same name later?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. Redirect guards expire when the original lookup finishes, whether it returns a value or raises an exception. Later work in a copied context can resolve the same name normally. A cyclic redirect that re-enters the same name during an active lookup on the same thread still raises AttributeError."
           }
         },
         {

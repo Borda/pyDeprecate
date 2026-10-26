@@ -671,13 +671,13 @@ def find_deprecation_wrappers(
 
     Example:
         >>> from deprecate import find_deprecation_wrappers
-        >>> from tests import collection_deprecate as my_package
+        >>> from tests.collections import api_deprecated as my_package
         >>>
         >>> results = find_deprecation_wrappers(my_package)
         >>> print(len(results) > 0)  # Should find deprecated wrappers
         True
         >>> # Also works with string module paths
-        >>> results = find_deprecation_wrappers("tests.collection_deprecate")
+        >>> results = find_deprecation_wrappers("tests.collections.api_deprecated")
         >>> print(len(results) > 0)
         True
 
@@ -786,7 +786,7 @@ def validate_deprecation_chains(
 
     Example:
         >>> from deprecate import validate_deprecation_chains
-        >>> import tests.collection_chains as test_module
+        >>> import tests.collections.chains as test_module
         >>>
         >>> issues = validate_deprecation_chains(test_module, recursive=False)
         >>> len(issues) > 0  # Should find chains
@@ -810,10 +810,9 @@ def validate_mapping_compatibility(
 ) -> list[DeprecationWrapperInfo]:
     """Return wrappers whose ``args_mapping`` remaps deprecated names to POSITIONAL_ONLY constructor params.
 
-    A non-empty ``args_mapping_positional_only`` on the returned ``DeprecationWrapperInfo`` means the
-    proxy falls back to ``setattr`` at call time instead of forwarding the remapped kwarg.  Use this
-    validator in CI to detect :func:`~deprecate.proxy.deprecated_class` configurations that silently
-    degrade to attribute assignment and may not behave as expected on all target class types.
+    A non-empty ``args_mapping_positional_only`` on the returned ``DeprecationWrapperInfo`` identifies
+    mappings whose values the proxy forwards positionally to the constructor. Use this validator for
+    advisory visibility into :func:`~deprecate.proxy.deprecated_class` mappings that require positional forwarding.
 
     Args:
         module: A Python module or package to scan.  Accepts an imported module object or a dotted
@@ -828,11 +827,11 @@ def validate_mapping_compatibility(
 
     Returns:
         List of ``DeprecationWrapperInfo`` instances whose ``args_mapping_positional_only`` field is
-        non-empty.  Returns an empty list when no incompatibilities are found.
+        non-empty. Returns an empty list when no such mappings are found.
 
     Examples:
         >>> from deprecate import validate_mapping_compatibility
-        >>> import tests.collection_deprecate as col
+        >>> import tests.collections.api_deprecated as col
         >>> results = validate_mapping_compatibility(col, recursive=False)
         >>> len(results) > 0  # DepPositionalOnly remaps to a POSITIONAL_ONLY param
         True

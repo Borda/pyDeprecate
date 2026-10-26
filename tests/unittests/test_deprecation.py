@@ -17,14 +17,37 @@ from unittest import mock
 import pytest
 
 from deprecate import DeprecatedError, TargetMode, deprecated, deprecated_callable
-from tests.collection_deprecate import (
+from tests.collections.api_current import Palette, partialmethod_of_double, property_of_partial
+from tests.collections.api_deprecated import depr_pow_args, depr_pow_skip_if_true_false
+from tests.collections.api_deprecated_regressions import (
     DescriptorSourcesHolder,
-    depr_pow_args,
-    depr_pow_skip_if_true_false,
+    make_front_door_notify_on,
     make_positional_docstring_wrapper,
 )
-from tests.collection_pep702 import stacked_callable
-from tests.collection_targets import Palette
+from tests.collections.pep702 import stacked_callable
+
+
+@pytest.mark.parametrize(
+    ("source", "kind"),
+    [
+        pytest.param(partialmethod_of_double, "functools.partialmethod", id="non-callable-wrapper"),
+        pytest.param(property_of_partial, "functools.partial", id="descriptor-accessor-wrapper"),
+    ],
+)
+def test_functools_rejection_precedes_other_source_guards(source: object, kind: str) -> None:
+    """Preserve the functools error before plain-object or missing-parentheses errors.
+
+    A partialmethod source fails both the functools and non-callable checks. A property with a partial getter
+    passes the front-door descriptor exemption but its unwrapped getter still needs the functools check.
+    Both paths must keep the complete original TypeError instead of reporting a later failure.
+    """
+    with pytest.raises(TypeError) as exc_info:
+        make_front_door_notify_on(source)
+    assert str(exc_info.value) == (
+        f"pyDeprecate cannot deprecate a `{kind}` object: it has no function body of its own to wrap."
+        " Wrap it in a plain `def` that calls it, and decorate that `def` instead"
+        " (in a class body: `def method(self, *args, **kwargs): return ...`)."
+    )
 
 
 class TestFrontDoorDispatchForwarding:

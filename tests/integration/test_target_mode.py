@@ -17,35 +17,41 @@ import pytest
 from deprecate import TargetMode, deprecated
 from deprecate import TargetMode as top_level_TargetMode
 from deprecate._types import _DeprecatedCallable
-from tests.collection_depr_legacy import depr_target_mode_args_only_remaps_kwargs as legacy_remaps_kwargs
-from tests.collection_depr_legacy import (
-    depr_target_mode_args_only_silent_when_new_arg_passed as legacy_silent_when_new_arg_passed,
-)
-from tests.collection_depr_legacy import (
-    depr_target_mode_args_only_warns_when_old_arg_passed as legacy_warns_when_old_arg_passed,
-)
-from tests.collection_depr_legacy import (
-    depr_target_mode_args_only_with_args_extra_injects_kwargs as depr_legacy_args_extra,
-)
-from tests.collection_depr_legacy import depr_target_mode_whole_executes_original_body as legacy_executes_original_body
-from tests.collection_depr_legacy import depr_target_mode_whole_warns_on_every_call as legacy_warns_on_every_call
-from tests.collection_deprecate import (
+from tests.collections.api_current import tracked_identity_calls
+from tests.collections.api_deprecated import (
     depr_target_mode_args_only_remaps_kwargs,
     depr_target_mode_args_only_silent_when_new_arg_passed,
     depr_target_mode_args_only_warns_when_old_arg_passed,
     depr_target_mode_args_only_with_args_extra_injects_kwargs,
     depr_target_mode_whole_executes_original_body,
     depr_target_mode_whole_warns_on_every_call,
+    make_target_mode_args_only_without_args_mapping_warns,
+    make_target_mode_whole_with_args_extra_warns,
+    make_target_mode_whole_with_args_mapping_warns,
+)
+from tests.collections.api_deprecated_forwarding import (
     make_callable_target_no_versions_warns,
     make_default_target_no_versions_warns,
     make_default_target_with_versions,
     make_explicit_notify_no_versions_warns,
     make_partial_version_no_guard_warn,
-    make_target_mode_args_only_without_args_mapping_warns,
-    make_target_mode_whole_with_args_extra_warns,
-    make_target_mode_whole_with_args_mapping_warns,
 )
-from tests.collection_targets import tracked_identity_calls
+from tests.collections.api_deprecated_legacy import depr_target_mode_args_only_remaps_kwargs as legacy_remaps_kwargs
+from tests.collections.api_deprecated_legacy import (
+    depr_target_mode_args_only_silent_when_new_arg_passed as legacy_silent_when_new_arg_passed,
+)
+from tests.collections.api_deprecated_legacy import (
+    depr_target_mode_args_only_warns_when_old_arg_passed as legacy_warns_when_old_arg_passed,
+)
+from tests.collections.api_deprecated_legacy import (
+    depr_target_mode_args_only_with_args_extra_injects_kwargs as depr_legacy_args_extra,
+)
+from tests.collections.api_deprecated_legacy import (
+    depr_target_mode_whole_executes_original_body as legacy_executes_original_body,
+)
+from tests.collections.api_deprecated_legacy import (
+    depr_target_mode_whole_warns_on_every_call as legacy_warns_on_every_call,
+)
 
 
 class TestTargetModeContract:
@@ -421,59 +427,6 @@ class TestLegacySentinels:
                 return x
 
         assert cast(_DeprecatedCallable, _fn).__deprecation_config__.target is TargetMode.NOTIFY
-
-
-class TestFromLegacyErrors:
-    """TargetMode._from_legacy TypeError for non-sentinel inputs."""
-
-    @pytest.mark.parametrize(
-        "bad_value",
-        [
-            pytest.param(42, id="int"),
-            pytest.param("notify", id="str"),
-            pytest.param(object(), id="object"),
-            pytest.param(TargetMode.NOTIFY, id="TargetMode_member"),
-        ],
-    )
-    def test_raises_type_error_for_non_sentinel(self, bad_value: object) -> None:
-        """_from_legacy raises TypeError for any value that is not None, True, or False."""
-        with pytest.raises(TypeError, match="_from_legacy` accepts only None, True, or False"):
-            TargetMode._from_legacy(cast(bool, bad_value), emit=False)
-
-
-class TestTargetModeValidate:
-    """TargetMode._validate — direct unit tests for all misconfig combinations."""
-
-    def test_args_remap_without_mapping_returns_true(self) -> None:
-        """ARGS_REMAP with no args_mapping is misconfigured; returns True."""
-        assert TargetMode._validate(TargetMode.ARGS_REMAP, "fn", args_mapping=None, emit=False) is True
-
-    def test_notify_with_args_mapping_returns_true(self) -> None:
-        """NOTIFY with args_mapping is misconfigured; returns True."""
-        assert TargetMode._validate(TargetMode.NOTIFY, "fn", args_mapping={"old": "new"}, emit=False) is True
-
-    def test_notify_with_args_extra_returns_true(self) -> None:
-        """NOTIFY with args_extra is misconfigured; returns True."""
-        assert TargetMode._validate(TargetMode.NOTIFY, "fn", args_extra={"bias": 1}, emit=False) is True
-
-    def test_valid_notify_returns_false(self) -> None:
-        """NOTIFY with no extra kwargs is valid; returns False."""
-        assert TargetMode._validate(TargetMode.NOTIFY, "fn", emit=False) is False
-
-    def test_valid_args_remap_returns_false(self) -> None:
-        """ARGS_REMAP with args_mapping is valid; returns False."""
-        assert TargetMode._validate(TargetMode.ARGS_REMAP, "fn", args_mapping={"old": "new"}, emit=False) is False
-
-    def test_misconfig_emits_user_warning(self) -> None:
-        """_validate emits UserWarning when misconfigured (emit=True, the default)."""
-        with pytest.warns(UserWarning, match="args_mapping"):
-            TargetMode._validate(TargetMode.NOTIFY, "my_fn", args_mapping={"old": "new"})
-
-    def test_valid_emits_no_warning(self) -> None:
-        """_validate does not emit any warning when configuration is valid."""
-        with warnings.catch_warnings():
-            warnings.simplefilter("error")
-            TargetMode._validate(TargetMode.NOTIFY, "my_fn")
 
 
 class TestNotifyLegacyMessageParity:

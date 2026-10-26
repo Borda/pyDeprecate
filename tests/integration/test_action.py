@@ -30,7 +30,7 @@ _SRC_DIR = str(_REPO_ROOT / "src")
 _RUNNER = _REPO_ROOT / ".github" / "scripts" / "action_runner.py"
 _ACTION_YML = _REPO_ROOT / "action.yml"
 _HOOKS_YAML = _REPO_ROOT / ".pre-commit-hooks.yaml"
-_MISCONFIGURED_MODULE = _REPO_ROOT / "tests" / "collection_misconfigured.py"
+_MISCONFIGURED_MODULE = _REPO_ROOT / "tests" / "collections" / "misconfigured.py"
 #: Generous cap (seconds) on one runner subprocess, so a hung scan fails a test instead of the whole CI job.
 _RUNNER_TIMEOUT = 300
 #: Inherited variables the runner tests must not see: terminal colour switches change the CLI's text output, and every
@@ -175,7 +175,7 @@ class TestActionDemo:
         step must fail the build with exit code 1 and print a ``::error`` annotation so the failure shows up in
         the pull request's checks view, not only in the raw log.
         """
-        result = _run_action(tmp_path, subcommand="check", path="tests.collection_misconfigured")
+        result = _run_action(tmp_path, subcommand="check", path="tests.collections.misconfigured")
         assert result.returncode == 1, result.stdout + result.stderr
         assert "nonexistent_arg" in result.stdout
         assert "::error title=pyDeprecate::pydeprecate check exited 1" in result.stdout
@@ -183,8 +183,8 @@ class TestActionDemo:
     @pytest.mark.parametrize(
         ("path", "exit_code"),
         [
-            pytest.param("tests.collection_chains", 0, id="passing-gate"),
-            pytest.param("tests.collection_misconfigured", 1, id="failing-gate"),
+            pytest.param("tests.collections.chains", 0, id="passing-gate"),
+            pytest.param("tests.collections.misconfigured", 1, id="failing-gate"),
         ],
     )
     def test_step_script_of_action_yml_runs_the_runner_and_propagates_its_exit_code(
@@ -222,9 +222,9 @@ class TestActionDemo:
         monkeypatch.setenv("PYDEPRECATE_ACTION_SUBCOMMAND", "not-a-subcommand")
         monkeypatch.setenv("PYDEPRECATE_ACTION_EXIT_ZERO", "maybe")
         monkeypatch.setenv("FORCE_COLOR", "1")
-        result = _run_action(tmp_path, subcommand="check", path="tests.collection_chains")
+        result = _run_action(tmp_path, subcommand="check", path="tests.collections.chains")
         assert result.returncode == 0, result.stdout + result.stderr
-        assert "Scanning: tests.collection_chains" in result.stdout
+        assert "Scanning: tests.collections.chains" in result.stdout
         assert "\x1b[" not in result.stdout
 
     def test_exit_zero_reports_without_blocking(self, tmp_path: Path) -> None:
@@ -233,7 +233,7 @@ class TestActionDemo:
         While a team clears an existing backlog of misconfigured wrappers, they run the action advisory-first:
         the same findings are printed, but the step must exit 0 so the build is not blocked.
         """
-        result = _run_action(tmp_path, subcommand="check", path="tests.collection_misconfigured", exit_zero="true")
+        result = _run_action(tmp_path, subcommand="check", path="tests.collections.misconfigured", exit_zero="true")
         assert result.returncode == 0, result.stdout + result.stderr
         assert "nonexistent_arg" in result.stdout
 
@@ -390,7 +390,7 @@ class TestActionInputs:
         A maintainer excludes several module patterns with ``args: --exclude='a.b,c.*'``. The quotes must be honoured
         so the CLI receives a single ``--exclude`` value, exactly as it would from a shell.
         """
-        result = _run_action(tmp_path, subcommand="check", path="tests.collection_chains", args="--exclude='a.b,c.*'")
+        result = _run_action(tmp_path, subcommand="check", path="tests.collections.chains", args="--exclude='a.b,c.*'")
         assert result.returncode == 0, result.stdout + result.stderr
         assert "Exclude: a.b, c.* (flag)" in result.stdout
 
@@ -521,7 +521,7 @@ class TestActionInstall:
         whatever pyDeprecate happens to be importable would audit with an unpinned version; the step must stop and say
         how to opt out with ``install: false``.
         """
-        _set_action_env(monkeypatch, subcommand="check", path="tests.collection_chains", install="true")
+        _set_action_env(monkeypatch, subcommand="check", path="tests.collections.chains", install="true")
         _use_repo_checkout(monkeypatch)
         monkeypatch.setattr(action_runner.subprocess, "call", lambda argv: pip_status)
         code = action_runner.main()
@@ -541,7 +541,7 @@ class TestActionInstall:
         requirement would be split or misparsed by pip; a PEP 508 direct reference with an encoded URI is not.
         """
         pip_calls = _record_pip_calls(monkeypatch)
-        _set_action_env(monkeypatch, subcommand="check", path="tests.collection_chains", install="true")
+        _set_action_env(monkeypatch, subcommand="check", path="tests.collections.chains", install="true")
         _use_repo_checkout(monkeypatch)
         monkeypatch.setenv("GITHUB_ACTION_PATH", str(tmp_path / "my action"))
         code = action_runner.main()
@@ -561,7 +561,7 @@ class TestActionInstall:
         checkout being executed rather than fail or install from an unrelated location.
         """
         pip_calls = _record_pip_calls(monkeypatch)
-        _set_action_env(monkeypatch, subcommand="check", path="tests.collection_chains", install="true")
+        _set_action_env(monkeypatch, subcommand="check", path="tests.collections.chains", install="true")
         _use_repo_checkout(monkeypatch)
         monkeypatch.delenv("GITHUB_ACTION_PATH", raising=False)
         code = action_runner.main()
@@ -578,19 +578,19 @@ class TestActionSummary:
         A team wants every CI run to show which deprecations are live. The gate itself passes, and the job summary
         must gain a headed markdown table listing the scanned module's deprecated callables.
         """
-        result = _run_action(tmp_path, subcommand="check", path="tests.collection_chains", summary="true")
+        result = _run_action(tmp_path, subcommand="check", path="tests.collections.chains", summary="true")
         summary = _summary_path(tmp_path).read_text(encoding="utf-8")
         assert result.returncode == 0, result.stdout + result.stderr
         assert summary.startswith("## pyDeprecate deprecation status")
-        assert "| `tests.collection_chains.caller_acc_via_depr_map` |" in summary
+        assert "| `tests.collections.chains.caller_acc_via_depr_map` |" in summary
 
     @pytest.mark.parametrize(
         ("subcommand", "args"),
         [
-            pytest.param("check", "tests.collection_chains", id="check"),
-            pytest.param("chains", "tests.collection_chains --exit-zero", id="chains"),
-            pytest.param("status", "tests.collection_chains", id="status"),
-            pytest.param("all", "tests.collection_chains --version 1.0 --exit-zero", id="all"),
+            pytest.param("check", "tests.collections.chains", id="check"),
+            pytest.param("chains", "tests.collections.chains --exit-zero", id="chains"),
+            pytest.param("status", "tests.collections.chains", id="status"),
+            pytest.param("all", "tests.collections.chains --version 1.0 --exit-zero", id="all"),
         ],
     )
     def test_summary_comes_from_the_gate_scan(self, tmp_path: Path, subcommand: str, args: str) -> None:
@@ -603,7 +603,7 @@ class TestActionSummary:
         result = _run_action(tmp_path, subcommand=subcommand, args=args, summary="true")
         summary = _summary_path(tmp_path).read_text(encoding="utf-8")
         assert result.returncode == 0, result.stdout + result.stderr
-        assert "| `tests.collection_chains.caller_acc_via_depr_map` |" in summary
+        assert "| `tests.collections.chains.caller_acc_via_depr_map` |" in summary
 
     @pytest.mark.parametrize("summary", [True, False])
     def test_crashed_scan_warns_of_missing_report(self, tmp_path: Path, summary: bool) -> None:
@@ -632,11 +632,11 @@ class TestActionSummary:
         """
         report = tmp_path / "artifacts" / "report.md"
         args = f"--output{separator}{shlex.quote(str(report))}"
-        result = _run_action(tmp_path, subcommand="status", path="tests.collection_chains", args=args, summary="true")
+        result = _run_action(tmp_path, subcommand="status", path="tests.collections.chains", args=args, summary="true")
         summary = _summary_path(tmp_path).read_text(encoding="utf-8")
         assert result.returncode == 0, result.stdout + result.stderr
-        assert "| `tests.collection_chains.caller_acc_via_depr_map` |" in report.read_text(encoding="utf-8")
-        assert "| `tests.collection_chains.caller_acc_via_depr_map` |" in summary
+        assert "| `tests.collections.chains.caller_acc_via_depr_map` |" in report.read_text(encoding="utf-8")
+        assert "| `tests.collections.chains.caller_acc_via_depr_map` |" in summary
 
     def test_user_report_option_is_rejected(self, tmp_path: Path) -> None:
         """A ``--report-json`` in ``args`` fails the step with exit code 2 instead of being dropped without a word.
@@ -649,7 +649,7 @@ class TestActionSummary:
         result = _run_action(
             tmp_path,
             subcommand="check",
-            path="tests.collection_chains",
+            path="tests.collections.chains",
             args=f"--report-json={elsewhere}",
             summary="true",
         )
@@ -664,7 +664,7 @@ class TestActionSummary:
 
         The summary is informational: writing it must never turn a failing gate green or a passing one red.
         """
-        result = _run_action(tmp_path, subcommand="check", path="tests.collection_misconfigured", summary="true")
+        result = _run_action(tmp_path, subcommand="check", path="tests.collections.misconfigured", summary="true")
         summary = _summary_path(tmp_path).read_text(encoding="utf-8")
         assert result.returncode == 1, result.stdout + result.stderr
         assert summary.startswith("## pyDeprecate deprecation status")
@@ -677,7 +677,7 @@ class TestActionSummary:
         """
         summary_file = _summary_path(tmp_path)
         summary_file.write_text("## Earlier step\n\nunit tests: 42 passed\n", encoding="utf-8")
-        result = _run_action(tmp_path, subcommand="check", path="tests.collection_chains", summary="true")
+        result = _run_action(tmp_path, subcommand="check", path="tests.collections.chains", summary="true")
         summary = summary_file.read_text(encoding="utf-8")
         assert result.returncode == 0, result.stdout + result.stderr
         assert summary.startswith("## Earlier step\n\nunit tests: 42 passed\n")
@@ -686,8 +686,8 @@ class TestActionSummary:
     @pytest.mark.parametrize(
         ("path", "exit_code"),
         [
-            pytest.param("tests.collection_chains", 0, id="passing-gate"),
-            pytest.param("tests.collection_misconfigured", 1, id="failing-gate"),
+            pytest.param("tests.collections.chains", 0, id="passing-gate"),
+            pytest.param("tests.collections.misconfigured", 1, id="failing-gate"),
         ],
     )
     def test_unwritable_job_summary_only_warns(self, tmp_path: Path, path: str, exit_code: int) -> None:
@@ -717,7 +717,7 @@ class TestActionSummary:
         inputs = action_runner.read_inputs(
             {
                 "PYDEPRECATE_ACTION_SUBCOMMAND": subcommand,
-                "PYDEPRECATE_ACTION_PATH": "tests.collection_chains",
+                "PYDEPRECATE_ACTION_PATH": "tests.collections.chains",
                 "PYDEPRECATE_ACTION_SUMMARY": "true",
             }
         )
@@ -869,7 +869,7 @@ class TestActionSummary:
         report directory cannot be made. The gate still runs and passes; gaps are not annotated, and with ``summary``
         on, a second warning says the job summary is skipped.
         """
-        env = _runner_env(tmp_path, subcommand="check", path="tests.collection_chains", summary=str(summary))
+        env = _runner_env(tmp_path, subcommand="check", path="tests.collections.chains", summary=str(summary))
         result = _run_runner({**env, "RUNNER_TEMP": str(tmp_path / "missing")})
         assert result.returncode == 0, result.stdout + result.stderr
         assert "::warning title=pyDeprecate::could not create a temporary directory for the report (" in result.stdout
@@ -886,14 +886,14 @@ class TestActionSummary:
         system_temp = tmp_path / "system-temp"
         checkout.mkdir()
         system_temp.mkdir()
-        env = _runner_env(tmp_path, subcommand="check", path="tests.collection_chains", summary="true")
+        env = _runner_env(tmp_path, subcommand="check", path="tests.collections.chains", summary="true")
         env.pop("RUNNER_TEMP")
         env.update(TMPDIR=str(system_temp), TEMP=str(system_temp), TMP=str(system_temp))
         env["PYTHONPATH"] = f"{_REPO_ROOT}{os.pathsep}{env['PYTHONPATH']}"
         result = _run_runner(env, cwd=checkout)
         summary = _summary_path(tmp_path).read_text(encoding="utf-8")
         assert result.returncode == 0, result.stdout + result.stderr
-        assert "| `tests.collection_chains.caller_acc_via_depr_map` |" in summary
+        assert "| `tests.collections.chains.caller_acc_via_depr_map` |" in summary
         assert list(checkout.iterdir()) == []
         assert list(system_temp.iterdir()) == []
 
@@ -904,7 +904,7 @@ class TestActionSummary:
         Self-hosted runners reuse ``RUNNER_TEMP`` across jobs; every step writes a report (gaps are annotated from it
         even without ``summary``), so every step must clean up after itself.
         """
-        result = _run_action(tmp_path, subcommand="check", path="tests.collection_chains", summary=summary)
+        result = _run_action(tmp_path, subcommand="check", path="tests.collections.chains", summary=summary)
         assert result.returncode == 0, result.stdout + result.stderr
         assert list(tmp_path.glob("pydeprecate-*")) == []
 
@@ -915,7 +915,7 @@ class TestActionSummary:
         table of any other scan would misrepresent what the step checked.
         """
         result = _run_action(
-            tmp_path, subcommand="check", path="tests.collection_chains", args="--verison 2.0", summary="true"
+            tmp_path, subcommand="check", path="tests.collections.chains", args="--verison 2.0", summary="true"
         )
         assert result.returncode == 2, result.stdout + result.stderr
         assert not _summary_path(tmp_path).exists()
@@ -927,7 +927,7 @@ class TestActionSummary:
         Running the action locally (e.g. with ``act``) may leave the summary variable empty; the gate result must be
         unaffected and the skip must be visible.
         """
-        env = _runner_env(tmp_path, subcommand="check", path="tests.collection_chains", summary="true")
+        env = _runner_env(tmp_path, subcommand="check", path="tests.collections.chains", summary="true")
         result = _run_runner({**env, "GITHUB_STEP_SUMMARY": ""})
         assert result.returncode == 0, result.stdout + result.stderr
         assert "::warning title=pyDeprecate::`summary: true` needs GITHUB_STEP_SUMMARY" in result.stdout
@@ -944,7 +944,7 @@ class TestActionSummary:
         """
         _use_repo_checkout(monkeypatch)
         _set_action_env(
-            monkeypatch, subcommand="check", path="tests.collection_chains", install="false", summary=str(summary)
+            monkeypatch, subcommand="check", path="tests.collections.chains", install="false", summary=str(summary)
         )
         monkeypatch.setattr(action_runner, "report_supported", lambda python: False)
         code = action_runner.main()
@@ -1008,7 +1008,7 @@ class TestActionOutputSafety:
             "    sys.stderr.write('startup café ' + os.environ['TEST_PRESERVED'] + '\\n')\n",
             encoding="utf-8",
         )
-        env = _runner_env(tmp_path, subcommand="check", path="tests.collection_chains")
+        env = _runner_env(tmp_path, subcommand="check", path="tests.collections.chains")
         env.update(
             PYTHONIOENCODING="cp1252",
             PYTHONPATH=f"{tmp_path}{os.pathsep}{env['PYTHONPATH']}",
@@ -1060,8 +1060,8 @@ class TestActionOutputSafety:
         A constant token would be readable from an earlier log (or the repository) by a hostile package, which could
         then print the resume line itself and re-enable commands for the rest of its output.
         """
-        first = _run_action(tmp_path, subcommand="check", path="tests.collection_chains")
-        second = _run_action(tmp_path, subcommand="check", path="tests.collection_chains")
+        first = _run_action(tmp_path, subcommand="check", path="tests.collections.chains")
+        second = _run_action(tmp_path, subcommand="check", path="tests.collections.chains")
         assert first.returncode == second.returncode == 0, first.stdout + second.stdout
         assert _fence_token(first.stdout) != _fence_token(second.stdout)
 
@@ -1071,7 +1071,7 @@ class TestActionOutputSafety:
         A contributor's misconfigured wrapper fails the gate with exit 1. The ``::error`` the runner adds for it is a
         workflow command; printed between the tokens it would be swallowed and the failure would show no annotation.
         """
-        result = _run_action(tmp_path, subcommand="check", path="tests.collection_misconfigured")
+        result = _run_action(tmp_path, subcommand="check", path="tests.collections.misconfigured")
         lines = result.stdout.splitlines()
         resume = lines.index(f"::{_fence_token(result.stdout)}::")
         annotation = lines.index("::error title=pyDeprecate::pydeprecate check exited 1")
@@ -1177,7 +1177,7 @@ class TestActionOutputSafety:
         The negative control of the gap warnings: a maintainer's clean run must not be decorated with warnings, or
         the real ones would be lost among them.
         """
-        result = _run_action(tmp_path, subcommand="check", path="tests.collection_chains")
+        result = _run_action(tmp_path, subcommand="check", path="tests.collections.chains")
         assert result.returncode == 0, result.stdout + result.stderr
         assert "pydeprecate gap:" not in result.stderr
         assert "::warning" not in result.stdout

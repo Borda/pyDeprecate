@@ -1,7 +1,7 @@
 """Collection of deprecated wrappers exercising the deprecation-governance policy rules.
 
 Every wrapper here is *correctly configured* — none of them is a misconfiguration in the
-``collection_misconfigured.py`` sense — but each one is scheduled in a way that a project policy may forbid.
+``misconfigured.py`` sense — but each one is scheduled in a way that a project policy may forbid.
 They are the fixtures for :func:`~deprecate.audit.validate_deprecation_policy` and the ``pydeprecate policy``
 CLI subcommand.
 
@@ -31,7 +31,7 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 from typing import Any
 
 from deprecate import TargetMode, deprecated, deprecated_class, deprecated_instance, void
-from tests.collection_targets import NewCls, Palette, base_sum_kwargs, double_value, increment_value
+from tests.collections.api_current import NewCls, Palette, base_sum_kwargs, double_value, increment_value
 
 #: Shared ``(deprecated_in, remove_in)`` for every fixture that is policy-clean under the default window:
 #: one major release of runway, which clears the ``"0.3"`` (three-minor) grace window outright.

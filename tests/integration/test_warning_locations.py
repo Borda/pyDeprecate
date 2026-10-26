@@ -2,7 +2,7 @@
 
 Warning filters keyed by module, ``-W error`` tracebacks and ``pytest.warns`` location checks all depend on the
 ``filename``/``lineno`` a warning reports.  Each test below triggers one warn site and asserts the exact location: the
-calling line in this file for call-time warnings, the decorating line in :mod:`tests.collection_deprecate` for
+calling line in this file for call-time warnings, the decorating line in :mod:`tests.collections.api_deprecated` for
 decoration-time warnings.  The expected values are the correct user locations and every site meets them, so any
 refactor of the location machinery (:func:`deprecate._frames._caller_stacklevel`) is proven against them.
 
@@ -25,7 +25,7 @@ from typing import Any, Callable
 
 import pytest
 
-import tests.collection_modules.old_math as old_math
+import tests.collections.modules.old_math as old_math
 from deprecate import TargetMode
 from deprecate.audit import (
     DeprecationWrapperInfo,
@@ -34,16 +34,20 @@ from deprecate.audit import (
     validate_deprecation_policy,
 )
 from deprecate.utils import no_warning_call
-from tests import collection_deprecate
-from tests.collection_deprecate import (
-    LocDescriptorHost,
+from tests.collections import api_deprecated
+from tests.collections.api_current import (
+    LocCustomModuleType,
+    NewDataClass,
+    PositionalOnlyTarget,
+    double_value,
+    identity_value,
+)
+from tests.collections.api_deprecated import (
     LocProxyBase,
     MappedDataClass,
     loc_args_remap,
-    loc_async_notify,
     loc_forward,
     loc_notify,
-    loc_notify_wrapped_stream,
     loc_proxy_callable,
     loc_proxy_ctor_remap,
     loc_proxy_mapping,
@@ -67,20 +71,14 @@ from tests.collection_deprecate import (
     make_loc_positional_only_target,
     make_loc_side_effect_box_proxy,
 )
-from tests.collection_misconfigured import args_only_no_mapping_deprecation
-from tests.collection_targets import (
-    LocCustomModuleType,
-    NewDataClass,
-    PositionalOnlyTarget,
-    double_value,
-    identity_value,
-)
+from tests.collections.api_deprecated_regressions import LocDescriptorHost, loc_async_notify, loc_notify_wrapped_stream
+from tests.collections.misconfigured import args_only_no_mapping_deprecation
 
 _requires_packaging = pytest.mark.skipif(
     importlib.util.find_spec("packaging") is None, reason="requires packaging library"
 )
 #: Module the audit gates scan; its own top-level name keeps the scanner from treating the
-#: ``tests.collection_deprecate`` wrappers as re-exports of their defining module.
+#: ``tests.collections.api_deprecated`` wrappers as re-exports of their defining module.
 _LOC_AUDIT_MODULE_NAME = "tests_loc_audit_module"
 #: Body of a submodule whose import fails, arming the scanner's per-submodule "skipped" diagnostic.
 _LOC_BROKEN_SUBMODULE_SRC = 'raise RuntimeError("boom at import")\n'
@@ -317,7 +315,7 @@ class TestCallTimeStatementSites:
 
 
 class TestDecorationTimeSites:
-    """Decoration-time warnings point at the decorating statement in :mod:`tests.collection_deprecate`."""
+    """Decoration-time warnings point at the decorating statement in :mod:`tests.collections.api_deprecated`."""
 
     @pytest.mark.parametrize(
         ("factory", "category", "match"),
@@ -353,7 +351,7 @@ class TestDecorationTimeSites:
             warnings.simplefilter("always")
             factory()
 
-        expected = (collection_deprecate.__file__, _line_ending_with(factory, "# warn-site"))
+        expected = (api_deprecated.__file__, _line_ending_with(factory, "# warn-site"))
         assert _location(caught, category, match) == expected
 
 
@@ -654,7 +652,7 @@ class TestDecorationTimeConfiguredSites:
             warnings.simplefilter("always")
             factory(source, **config)
 
-        expected = (collection_deprecate.__file__, _line_ending_with(factory, "# warn-site"))
+        expected = (api_deprecated.__file__, _line_ending_with(factory, "# warn-site"))
         assert _location(caught, category, match) == expected
 
 
@@ -699,7 +697,7 @@ class TestModuleSites:
             warnings.simplefilter("always")
             make_loc_module(_LOC_MODULE_NAME, **config)
 
-        expected = (collection_deprecate.__file__, _line_ending_with(make_loc_module, "# warn-site"))
+        expected = (api_deprecated.__file__, _line_ending_with(make_loc_module, "# warn-site"))
         assert _location(caught, UserWarning, match) == expected
 
     def test_reconfiguration_points_at_second_call(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -715,7 +713,7 @@ class TestModuleSites:
             warnings.simplefilter("always")
             make_loc_module(_LOC_MODULE_NAME, remove_in="3.0")
 
-        expected = (collection_deprecate.__file__, _line_ending_with(make_loc_module, "# warn-site"))
+        expected = (api_deprecated.__file__, _line_ending_with(make_loc_module, "# warn-site"))
         assert _location(caught, UserWarning, "different configuration") == expected
 
     def test_custom_stream_access_points_at_access(self, monkeypatch: pytest.MonkeyPatch) -> None:

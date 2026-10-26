@@ -41,6 +41,12 @@ Custom templates use Python `%`-style formatting (`%(key)s`). Available placehol
 | `remove_in`     | Always                                      | Value of `remove_in` parameter                   |
 | `argument_map`  | `TargetMode.ARGS_REMAP` with `args_mapping` | Formatted string like `` `old` -> `new` ``       |
 
+With `deprecated_class` and `deprecated_instance`, `source_path` depends on what the proxy wraps:
+
+- a class (or a plain function) gives its module-qualified path, e.g. `"mypackage.LegacyConfig"`;
+- an instance has no module of its own, so the path is the proxy's name, e.g. `"config_dict"`;
+- a deprecated `attrs_mapping` attribute appends the attribute name, e.g. `"mypackage.LegacyConfig.old_attr"` (its `source_name` is the attribute name).
+
 ### Custom template example
 
 ```python

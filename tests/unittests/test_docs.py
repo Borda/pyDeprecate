@@ -32,13 +32,13 @@ _skipif_griffe_missing = pytest.mark.skipif(not _GRIFFE_AVAILABLE, reason="griff
 
 
 def _load_docstrings_module() -> "griffe.Module":
-    """Load ``tests.collection_docstrings`` into a fresh Griffe module graph.
+    """Load ``tests.collections.docstrings`` into a fresh Griffe module graph.
 
     A new :class:`~griffe.GriffeLoader` is created per call so that each test operates on an independent object
     graph — :meth:`RuntimeDocstrings.on_module` mutates docstrings in place, so a shared graph would leak state.
 
     """
-    return griffe.GriffeLoader().load("tests.collection_docstrings")
+    return griffe.GriffeLoader().load("tests.collections.docstrings")
 
 
 class TestBuildArgDeprecationNote:
@@ -357,7 +357,7 @@ class TestRuntimeDocstrings:
 
         """
         mod = _load_docstrings_module()
-        runtime_new = importlib.import_module("tests.collection_docstrings").new_function
+        runtime_new = importlib.import_module("tests.collections.docstrings").new_function
 
         RuntimeDocstrings._replace_docstring(mod["new_function"], runtime_new)
 
@@ -371,7 +371,7 @@ class TestRuntimeDocstrings:
 
         """
         mod = _load_docstrings_module()
-        runtime_plain = importlib.import_module("tests.collection_docstrings").old_function_plain
+        runtime_plain = importlib.import_module("tests.collections.docstrings").old_function_plain
 
         RuntimeDocstrings._replace_docstring(mod["old_function_plain"], runtime_plain)
 
@@ -388,7 +388,7 @@ class TestRuntimeDocstrings:
         mod = _load_docstrings_module()
         griffe_obj = mod["old_function"]
         griffe_obj.docstring = None  # type: ignore[assignment]
-        runtime_old = importlib.import_module("tests.collection_docstrings").old_function
+        runtime_old = importlib.import_module("tests.collections.docstrings").old_function
 
         RuntimeDocstrings._replace_docstring(griffe_obj, runtime_old)
 

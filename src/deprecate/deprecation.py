@@ -16,14 +16,16 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 """
 
 import inspect
+import threading
 import warnings
+from collections import OrderedDict
 from dataclasses import dataclass
 from functools import cached_property
 from typing import Any, Callable, Literal, Optional, Protocol, Union, cast
 
-from deprecate._dispatch import _reject_non_callable_source
 from deprecate._frames import _caller_stacklevel
 from deprecate._types import TargetMode
+from deprecate._validate import _reject_non_callable_source, _resolve_legacy_target
 from deprecate.messaging import _resolve_message_template_alias, _validate_message_template, deprecation_warning
 from deprecate.routine import _SourceT, deprecated_callable
 
@@ -41,11 +43,12 @@ class _FrontDoorDecorator(Protocol):
     def __call__(self, source: _SourceT) -> _SourceT: ...
 
 
-# Classes that have already emitted the one-time ``@deprecated``-on-class dispatch notice.
-# Keyed by ``f"{__module__}.{__qualname__}"`` so a decoration loop warns once per class, not per
-# iteration, while distinct classes sharing a bare qualname across modules still warn independently.
-# Remove in 1.0.
-_CLASS_DISPATCH_NOTIFIED: set[str] = set()
+_CLASS_DISPATCH_NOTICE_LIMIT = 4096
+_CLASS_DISPATCH_NOTICE_LOCK = threading.Lock()
+
+#: Insertion-ordered cache of class dispatch notices, keyed by module + qualified name. The oldest key
+#: is evicted at the limit, so an evicted class may receive the notice again. Remove in 1.0.
+_CLASS_DISPATCH_NOTIFIED: OrderedDict[str, None] = OrderedDict()
 
 
 @dataclass
@@ -92,11 +95,18 @@ def _packing_class_source(
     deprecated_class_fn = proxy_module.deprecated_class
 
     # One-time informational dispatch notice — class dispatch is now first-class, so the old v0.6.0
-    # "will become a TypeError" wart is retired. Emit at most once per class qualname per process so a
-    # decoration loop does not spam; suppressed when ``stream=None``. Remove in 1.0.
+    # "will become a TypeError" wart is retired. Claim each cached class key atomically, then warn outside
+    # the lock so warning hooks cannot deadlock a reentrant decoration. Suppress when ``stream=None``.
     dispatch_key = f"{source.__module__}.{source.__qualname__}"
-    if pack_args.stream is not None and dispatch_key not in _CLASS_DISPATCH_NOTIFIED:
-        _CLASS_DISPATCH_NOTIFIED.add(dispatch_key)
+    should_notify = False
+    if pack_args.stream is not None:
+        with _CLASS_DISPATCH_NOTICE_LOCK:
+            if dispatch_key not in _CLASS_DISPATCH_NOTIFIED:
+                if len(_CLASS_DISPATCH_NOTIFIED) >= _CLASS_DISPATCH_NOTICE_LIMIT:
+                    _CLASS_DISPATCH_NOTIFIED.popitem(last=False)
+                _CLASS_DISPATCH_NOTIFIED[dispatch_key] = None
+                should_notify = True
+    if should_notify:
         message = f"`@deprecated` on class `{source.__name__}` now dispatches to `@deprecated_class`."
         if target is not None and not inspect.isclass(target) and not isinstance(target, TargetMode):
             # The non-class-``target``-ignored hint stays — it is a real misconfig signal for the class path.
@@ -118,7 +128,7 @@ def _packing_class_source(
     elif isinstance(target, TargetMode) or callable(target) and inspect.isclass(target):
         forward_target = target
     elif target is None or isinstance(target, bool):
-        forward_target = TargetMode._from_legacy(target)
+        forward_target = _resolve_legacy_target(target)
         # Legacy ``None`` meant "no target", and invalid ``False`` is treated the same after its warning —
         # forward the unset value so a mapping still auto-resolves; an explicitly typed
         # ``TargetMode.NOTIFY`` is the only value validated against a mapping.

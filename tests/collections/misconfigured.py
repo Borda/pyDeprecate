@@ -26,7 +26,7 @@ from typing import cast
 
 from deprecate import deprecated, void
 from deprecate._types import DeprecationConfig, TargetMode, _DeprecatedCallable
-from deprecate.proxy import _DeprecatedProxy, deprecated_class
+from deprecate.proxy import _DeprecatedProxy, _ProxySpec, deprecated_class
 
 # Construction-time UserWarning is expected for empty/None args_mapping; it is suppressed via the
 # targeted `filterwarnings` entries in pyproject.toml (scoped by message + `deprecate._types` module).
@@ -87,10 +87,7 @@ def make_legacy_metadata_proxy() -> _DeprecatedProxy:
 
     legacy_proxy = _DeprecatedProxy(
         obj=_LegacyClass,
-        name="LegacyClass",
-        deprecated_in="0.12",
-        remove_in="1.0",
-        stream=None,
+        spec=_ProxySpec(name="LegacyClass", deprecated_in="0.12", remove_in="1.0", stream=None),
     )
     config = object.__getattribute__(legacy_proxy, "__deprecation_config__")
     object.__delattr__(legacy_proxy, "__deprecation_config__")
@@ -235,6 +232,23 @@ def whole_with_mapping_deprecation(x: int = 1) -> int:
 
     """
     return x
+
+
+def make_notify_mapping_no_budget() -> _DeprecatedCallable:
+    """Build a fresh NOTIFY + args_mapping wrapper with ``num_warns=0``: no FutureWarning, one misconfiguration notice.
+
+    A factory rather than a module-level wrapper, so the audit scans of this module do not count it and every test
+    gets a wrapper whose one-time notice is still due.
+
+    """
+
+    def notify_mapping_no_budget(x: int = 1) -> int:
+        return x
+
+    wrapper = deprecated(
+        target=TargetMode.NOTIFY, deprecated_in="0.1", remove_in="0.5", args_mapping={"old_x": "x"}, num_warns=0
+    )(notify_mapping_no_budget)
+    return cast(_DeprecatedCallable, wrapper)
 
 
 @deprecated(target=TargetMode.ARGS_REMAP, deprecated_in="0.1", remove_in="0.5")

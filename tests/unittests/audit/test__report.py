@@ -7,10 +7,10 @@ from typing import Any
 
 import pytest
 
-import tests.collection_misconfigured as clean_module
+import tests.collections.misconfigured as clean_module
 from deprecate.audit._report import _format_report_target
 from deprecate.proxy import deprecated_class
-from tests.collection_targets import (
+from tests.collections.api_current import (
     CallableAdder,
     NewCls,
     NonStringNameCallable,
@@ -45,7 +45,7 @@ class TestFormatReportProxyTarget:
 
         mid_cfg = object.__getattribute__(mid, "_DeprecatedProxy__config")
         assert formatted == "MidApi"
-        assert mid_cfg.warned == 0
+        assert mid_cfg.state.warned_calls == 0
 
     def test_legacy_proxy_target_formatted_through_public_fallback(self) -> None:
         """Format a proxy target that carries only the pre-v0.13 metadata attribute.
@@ -61,7 +61,7 @@ class TestFormatReportProxyTarget:
 
         proxy_config = object.__getattribute__(target, "_DeprecatedProxy__config")
         assert formatted == "LegacyClass"
-        assert proxy_config.warned == 0
+        assert proxy_config.state.warned_calls == 0
 
 
 class TestFormatReportCallableTarget:
@@ -70,20 +70,20 @@ class TestFormatReportCallableTarget:
     @pytest.mark.parametrize(
         ("target", "expected"),
         [
-            pytest.param(new_scale, "tests.collection_targets.new_scale", id="function"),
-            pytest.param(NewCls, "tests.collection_targets.NewCls", id="class"),
-            pytest.param(NewCls.__init__, "tests.collection_targets.NewCls.__init__", id="method-keeps-class"),
-            pytest.param(partial_target, "tests.collection_targets.new_scale", id="partial"),
-            pytest.param(nested_partial_target, "tests.collection_targets.new_scale", id="nested-partial"),
-            pytest.param(partial_new_cls_target, "tests.collection_targets.NewCls", id="partial-of-class"),
+            pytest.param(new_scale, "tests.collections.api_current.new_scale", id="function"),
+            pytest.param(NewCls, "tests.collections.api_current.NewCls", id="class"),
+            pytest.param(NewCls.__init__, "tests.collections.api_current.NewCls.__init__", id="method-keeps-class"),
+            pytest.param(partial_target, "tests.collections.api_current.new_scale", id="partial"),
+            pytest.param(nested_partial_target, "tests.collections.api_current.new_scale", id="nested-partial"),
+            pytest.param(partial_new_cls_target, "tests.collections.api_current.NewCls", id="partial-of-class"),
             pytest.param(
                 functools.partial(CallableAdder.__call__),
-                "tests.collection_targets.CallableAdder.__call__",
+                "tests.collections.api_current.CallableAdder.__call__",
                 id="partial-of-method-keeps-class",
             ),
-            pytest.param(callable_adder_target, "tests.collection_targets.CallableAdder", id="callable-instance"),
+            pytest.param(callable_adder_target, "tests.collections.api_current.CallableAdder", id="callable-instance"),
             pytest.param(
-                NonStringNameCallable(), "tests.collection_targets.NonStringNameCallable", id="non-string-name"
+                NonStringNameCallable(), "tests.collections.api_current.NonStringNameCallable", id="non-string-name"
             ),
         ],
     )

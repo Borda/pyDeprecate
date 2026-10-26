@@ -13,7 +13,8 @@ from deprecate import TargetMode, deprecated
 from deprecate import property as strict_property
 from deprecate._properties import _DeprecatedProperty, _StrictProperty
 from deprecate.audit import validate_deprecation_expiry
-from tests.collection_deprecate import DelOnlyDeprecatedPropCls, InnerOrderDeprecatedPropCls, ServiceCls
+from tests.collections.api_deprecated import InnerOrderDeprecatedPropCls, ServiceCls
+from tests.collections.api_deprecated_forwarding import DelOnlyDeprecatedPropCls
 
 
 class TestDescriptorOrderAgnostic:
@@ -706,7 +707,7 @@ class TestPropertyOrderAgnostic:
 class TestPropertyErrorPaths:
     """``@deprecated`` raises ``TypeError`` for unsupported property configurations.
 
-    Defined inline (not in collection_deprecate.py) because all four cases raise at
+    Defined inline (not in api_deprecated.py) because all four cases raise at
     decoration time — placing them at module level would abort the entire import.
     This matches the AGENTS.md three-layer-rule exception for error-path tests that
     test the decorator itself raising TypeError.
@@ -823,22 +824,24 @@ class TestPropertyErrorPaths:
 class TestDescriptorStacklevel:
     """Decoration-time warnings from the _packing_descriptor paths attribute to the caller.
 
-    ``_packing_descriptor`` recursively calls ``packing_fn`` after unwrapping the descriptor.
-    That recursive call adds two frames to the call stack (one for the outer ``packing()`` and
-    one for ``_packing_descriptor`` itself), so the forwarded stacklevel must be ``+2`` not
-    ``+1``.  Each test below triggers the "no ``deprecated_in`` set" UserWarning at decoration
-    time and asserts that ``warning.filename`` ends with this test file's name, confirming the
-    warning points at the ``@deprecated`` application line rather than an internal helper frame.
+    ``_packing_descriptor`` recursively calls ``packing_fn`` after unwrapping the descriptor, so
+    the decoration-time warning is emitted from deeper inside the ``deprecate`` package than on
+    the plain-function path.  No offset is forwarded for those extra frames: the warning site
+    calls ``deprecate._frames._caller_stacklevel()``, which walks the stack and attributes the
+    warning to the first frame outside the package.  Each test below triggers the "no
+    ``deprecated_in`` set" UserWarning at decoration time and asserts that ``warning.filename``
+    ends with this test file's name, confirming the warning points at the ``@deprecated``
+    application line rather than an internal helper frame.
     """
 
     def test_warn_filename_points_to_caller_on_classmethod_path(self) -> None:
         """Classmethod path: decoration-time UserWarning attributes to caller's frame.
 
         A developer applies ``@deprecated(remove_in="2.0")`` to a classmethod without
-        providing ``deprecated_in``.  ``_packing_descriptor`` unwraps the classmethod,
-        recursively calls ``packing_fn`` with ``_stacklevel + 2``, and the "missing
-        deprecated_in" UserWarning must point to the ``@deprecated`` line in the caller's
-        file — not to an internal frame inside ``deprecation.py``.
+        providing ``deprecated_in``.  ``_packing_descriptor`` unwraps the classmethod and
+        recursively calls ``packing_fn`` on the function; ``_caller_stacklevel()`` skips the
+        extra package frames, so the "missing deprecated_in" UserWarning must point to the
+        ``@deprecated`` line in the caller's file — not to an internal frame inside ``deprecate``.
         """
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
@@ -879,8 +882,8 @@ class TestDescriptorStacklevel:
 
         A developer applies ``@deprecated(remove_in="2.0")`` to a property without providing
         ``deprecated_in``.  ``_packing_descriptor`` wraps ``fget`` by calling
-        ``packing_fn(source.fget, _stacklevel + 2)``; the resulting UserWarning must point to
-        the ``@deprecated`` application line in this test file.
+        ``packing_fn(source.fget)``; ``_caller_stacklevel()`` attributes the resulting
+        UserWarning to the ``@deprecated`` application line in this test file.
         """
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
@@ -901,8 +904,8 @@ class TestDescriptorStacklevel:
 
         A developer applies ``@deprecated(remove_in="2.0")`` to a cached_property without
         providing ``deprecated_in``.  ``_packing_descriptor`` calls
-        ``packing_fn(source.func, _stacklevel + 2)``; the UserWarning must attribute to the
-        ``@deprecated`` line in this test file, not to an internal frame.
+        ``packing_fn(source.func)``; ``_caller_stacklevel()`` makes the UserWarning attribute
+        to the ``@deprecated`` line in this test file, not to an internal frame.
         """
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")

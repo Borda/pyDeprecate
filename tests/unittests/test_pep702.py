@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any, Callable
 
 import pytest
 
-import tests.collection_pep702 as pep702_fixtures
+import tests.collections.pep702 as pep702_fixtures
 from deprecate import deprecated, deprecated_callable
 
 
