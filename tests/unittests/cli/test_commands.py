@@ -10,7 +10,7 @@ import pytest
 
 from deprecate._cli.commands import cmd_all, cmd_chains, cmd_check, cmd_expiry, cmd_policy, cmd_status
 from deprecate._cli.config import _FROM_PYPROJECT, _POLICY_DEFAULTS, _ConfigFlag
-from deprecate._cli.report import _GapKind, _record_run, _Reporter
+from deprecate._cli.report import _GapKind, _record_run
 from deprecate._types import DeprecationConfig
 from deprecate.audit import ChainType, DeprecationWrapperInfo, PolicyRule, validate_deprecation_policy
 from tests.unittests.cli._helpers import _EXPIRED_MSG, _POLICY_VIOLATION
@@ -256,7 +256,7 @@ class TestCmdExclude:
         broken = tmp_path / "pyproject.toml"
         broken.write_text("[tool.pydeprecate\nexclude = oops\n")
         assert cmd_check(path=str(tmp_path / "mypkg")) == 2
-        assert f"Cannot read {broken}" in _unwrapped(capsys.readouterr().err)
+        assert f"Cannot read {broken}" in capsys.readouterr().err
         mock_find.assert_not_called()
 
     @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
@@ -309,8 +309,7 @@ class TestCmdCheck:
     def test_chain_warning_reported(self, mock_find: MagicMock, capsys: pytest.CaptureFixture[str]) -> None:
         """Chain issues are included in check output."""
         mock_find.return_value = [_TARGET_CHAIN]
-        with patch("deprecate._cli.report._Reporter._HAS_RICH", False):
-            cmd_check(path="some_module")
+        cmd_check(path="some_module")
         captured = capsys.readouterr()
         assert "chain" in captured.out.lower()
 
@@ -433,8 +432,7 @@ class TestCmdExpiry:
         self, mock_check: MagicMock, mock_scan: MagicMock, capsys: pytest.CaptureFixture[str]
     ) -> None:
         """Expired messages appear in plain-text output."""
-        with patch("deprecate._cli.report._Reporter._HAS_RICH", False):
-            cmd_expiry(path="some_module", version="2.0")
+        cmd_expiry(path="some_module", version="2.0")
         assert "expired" in capsys.readouterr().out.lower()
 
     def test_pre_scanned_wrappers_skips_scan(self) -> None:
@@ -609,8 +607,7 @@ class TestCmdChains:
     def test_chains_reported_plain(self, mock_scan: MagicMock, capsys: pytest.CaptureFixture[str]) -> None:
         """Chain messages appear in plain-text output."""
         mock_scan.return_value = [_TARGET_CHAIN]
-        with patch("deprecate._cli.report._Reporter._HAS_RICH", False):
-            cmd_chains(path="some_module")
+        cmd_chains(path="some_module")
         captured = capsys.readouterr()
         assert "chain" in captured.out.lower()
 
@@ -618,8 +615,7 @@ class TestCmdChains:
     def test_stacked_chain_label(self, mock_scan: MagicMock, capsys: pytest.CaptureFixture[str]) -> None:
         """STACKED chain type label appears in plain-text output."""
         mock_scan.return_value = [_STACKED_CHAIN]
-        with patch("deprecate._cli.report._Reporter._HAS_RICH", False):
-            cmd_chains(path="some_module")
+        cmd_chains(path="some_module")
         captured = capsys.readouterr()
         assert "stacked" in captured.out.lower()
 
@@ -798,8 +794,7 @@ class TestCmdAll:
         pipeline ignored and could not tell whether the gate was broken or the finding was informational. The
         warning register plus the trailer make the advisory status explicit, while the exit code stays 0.
         """
-        with patch("deprecate._cli.report._Reporter._HAS_RICH", False):
-            result = cmd_all(path="some_module", version="2.0")
+        result = cmd_all(path="some_module", version="2.0")
         captured = capsys.readouterr()
         assert result == 0
         assert "[WARNING] Found deprecation policy violations:" in captured.out
@@ -845,7 +840,7 @@ class TestCmdAll:
         broken = tmp_path / "pyproject.toml"
         broken.write_text("[tool.pydeprecate\nexclude = oops\n")
         assert cmd_all(path=str(pkg), version="1.0") == 2
-        assert f"Cannot read {broken}" in _unwrapped(capsys.readouterr().err)
+        assert f"Cannot read {broken}" in capsys.readouterr().err
         mock_find.assert_not_called()
 
     @patch("deprecate._cli.commands.cmd_status", side_effect=RuntimeError("table rendering failed"))
@@ -934,7 +929,7 @@ class TestCmdAll:
         """
         mock_find.return_value = wrappers
         result = cmd_all(path="some_module", version="1.0", output=str(tmp_path))
-        err = _unwrapped(capsys.readouterr().err)
+        err = capsys.readouterr().err
         assert result == expected_code
         assert "Could not write the deprecation table" in err
         assert "Could not render the deprecation table" not in err
@@ -993,15 +988,6 @@ def _write_pkg(root: Path, name: str, init_body: str) -> Path:
     return pkg
 
 
-def _unwrapped(captured: str) -> str:
-    """Undo Rich's soft-wrapping of captured console output so a long file path can be matched whole.
-
-    Under ``capsys`` the Rich console assumes an 80-column terminal and breaks a ``tmp_path`` in the middle of an
-    error message; joining the lines restores the printed text without touching what was actually emitted.
-    """
-    return captured.replace("\n", "")
-
-
 class TestCmdStatus:
     """Tests for cmd_status() — markdown table rendering."""
 
@@ -1018,8 +1004,7 @@ class TestCmdStatus:
         pkg.mkdir()
         (pkg / "__init__.py").touch()
 
-        with patch("deprecate._cli.report._Reporter._HAS_RICH", False):
-            result = cmd_status(path=str(pkg))
+        result = cmd_status(path=str(pkg))
 
         assert result == 0
         assert "| A | B |" in capsys.readouterr().out
@@ -1035,8 +1020,7 @@ class TestCmdStatus:
         (pkg / "__init__.py").touch()
 
         with patch("deprecate._cli.scan.find_deprecation_wrappers") as mock_find:
-            with patch("deprecate._cli.report._Reporter._HAS_RICH", False):
-                cmd_status(path=str(pkg), _wrappers=wrappers)
+            cmd_status(path=str(pkg), _wrappers=wrappers)
             mock_find.assert_not_called()
         mock_gen.assert_called_once()
         _, kwargs = mock_gen.call_args
@@ -1052,8 +1036,7 @@ class TestCmdStatus:
         pkg.mkdir()
         (pkg / "__init__.py").touch()
 
-        with patch("deprecate._cli.report._Reporter._HAS_RICH", False):
-            result = cmd_status(path=str(pkg), style="bogus")
+        result = cmd_status(path=str(pkg), style="bogus")
 
         assert result == 0
         assert "falling back" in capsys.readouterr().err.lower()
@@ -1069,8 +1052,7 @@ class TestCmdStatus:
         (pkg / "__init__.py").touch()
         out_file = tmp_path / "DEPRECATIONS.md"
 
-        with patch("deprecate._cli.report._Reporter._HAS_RICH", False):
-            result = cmd_status(path=str(pkg), output=str(out_file))
+        result = cmd_status(path=str(pkg), output=str(out_file))
 
         assert result == 0
         assert out_file.exists()
@@ -1155,13 +1137,12 @@ class TestCmdPolicy:
             cmd_policy(path="some_module", _wrappers=[])
 
     def test_violations_reported_plain(self, capsys: pytest.CaptureFixture[str]) -> None:
-        """Violation messages, including the rule slug, appear in the plain-text (no-rich) output.
+        """Violation messages, including the rule slug, appear in the output.
 
         The bracketed slug is what a CI log grep filters on; a renderer that dropped it would leave the log
-        readable but unfilterable, which is how the rich renderer behaved before the escape was added.
+        readable but unfilterable, which is how the old Rich table renderer behaved before its escape was added.
         """
-        with patch("deprecate._cli.report._Reporter._HAS_RICH", False):
-            cmd_policy(path="some_module", _wrappers=[_POLICY_VIOLATION])
+        cmd_policy(path="some_module", _wrappers=[_POLICY_VIOLATION])
         captured = capsys.readouterr()
         assert "[ERROR] Found deprecation policy violations:" in captured.out
         assert "[message-required]" in captured.out
@@ -1177,23 +1158,11 @@ class TestCmdPolicy:
         turn into a second ``exit_zero`` — otherwise a future caller passing ``_advisory=True`` would lose the
         truthful exit 1 that ``all`` reads and ignores on purpose.
         """
-        with patch("deprecate._cli.report._Reporter._HAS_RICH", False):
-            result = cmd_policy(path="some_module", exit_zero=exit_zero, _wrappers=[_POLICY_VIOLATION], _advisory=True)
+        result = cmd_policy(path="some_module", exit_zero=exit_zero, _wrappers=[_POLICY_VIOLATION], _advisory=True)
         captured = capsys.readouterr()
         assert result == (0 if exit_zero else 1)
         assert "[WARNING] Found deprecation policy violations:" in captured.out
         assert "(advisory here — run `pydeprecate policy` to gate on it)" in captured.out
-
-    def test_rule_slug_survives_rich_rendering(self, capsys: pytest.CaptureFixture[str]) -> None:
-        """The ``[rule-slug]`` prefix survives the rich table renderer instead of being read as style markup.
-
-        Rich parses square brackets in a cell as a style tag, so an unescaped message silently lost its rule
-        name — the violation still printed, but no reader or grep could tell which policy it broke.
-        """
-        if not _Reporter._HAS_RICH:
-            pytest.skip("rich is not installed")
-        cmd_policy(path="some_module", _wrappers=[_POLICY_VIOLATION])
-        assert "message-required" in capsys.readouterr().out
 
     def test_disabled_rules_pass_through(self) -> None:
         """Disabling both rules leaves nothing to report, even for a wrapper that breaks both of them.
@@ -1276,7 +1245,7 @@ class TestCmdPolicy:
         broken = tmp_path / "pyproject.toml"
         broken.write_text("[tool.pydeprecate.policy\nmin-grace = oops\n")
         assert cmd_policy(path=str(tmp_path), _wrappers=[_POLICY_VIOLATION]) == 2
-        assert f"Cannot read {broken}" in _unwrapped(capsys.readouterr().err)
+        assert f"Cannot read {broken}" in capsys.readouterr().err
 
     def test_non_table_policy_exits_two(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         """A ``policy`` key that is not a table is a usage error, the same as a malformed value inside the table.

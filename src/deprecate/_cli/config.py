@@ -71,8 +71,8 @@ def _validate_user_version(version: Optional[str], *, explicit: bool = True) -> 
 class _FromPyproject:
     """Sentinel default for CLI flags that ``pyproject.toml`` may set: read the file, else use the built-in.
 
-    Fire cannot tell a typed ``--min-grace=0.3`` from the signature default, so the signature default is this marker
-    instead — the ``repr`` is what ``--help`` shows as ``Default:``.
+    A typed value — even ``None``, which switches a rule off — must be told apart from an omitted one, so the signature
+    default is this marker instead; the parser passes only the options that were typed.
 
     """
 
@@ -83,7 +83,8 @@ class _FromPyproject:
 _FROM_PYPROJECT = _FromPyproject()
 _ConfigFlag = Union[str, int, float, bool, None, Sequence[str], _FromPyproject]
 #: A boolean flag that ``pyproject.toml`` may set: a ``bool`` when typed, :data:`_FROM_PYPROJECT` when omitted. Unlike
-#: the wider :data:`_ConfigFlag` it marks the parameter as boolean for :func:`_bool_params`.
+#: the wider :data:`_ConfigFlag` it marks the parameter as a boolean flag for the parser
+#: (:func:`deprecate._cli.argv._cli_command`).
 _ConfigBool = Union[bool, _FromPyproject]
 #: A loaded ``[tool.pydeprecate]`` table (known keys only) and the ``pyproject.toml`` it came from.
 _Config = tuple[dict[str, Any], Optional[str]]

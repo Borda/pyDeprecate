@@ -2,7 +2,7 @@
 
 Provides two entry points for scanning Python code for misconfigured ``@deprecated`` wrappers:
 
-- ``pydeprecate <subcommand> <path>`` — console script installed via ``pip install 'pyDeprecate[cli]'``
+- ``pydeprecate <subcommand> <path>`` — console script installed with the package
 - ``python -m deprecate <subcommand> <path>`` — module invocation of the same CLI
 
 Subcommands:
@@ -14,192 +14,66 @@ Subcommands:
     status  — Render a markdown deprecation table to stdout (and optionally save it to a file).
 
 The whole ``deprecate._cli`` package is internal and may change without notice; the public Python API
-for the same checks is :mod:`deprecate.audit`.
+for the same checks is :mod:`deprecate.audit`. This module stays import-light — the parser, the subcommands and the
+audit layer load only when :func:`cli` runs — so internal helpers such as :mod:`deprecate._cli._pkg` can be imported
+from :mod:`deprecate.audit` without loading the CLI.
 
 """
 
-import functools
 import sys
-from collections.abc import Callable
-from typing import Optional, Union
-
-from deprecate._cli.argv import (
-    _bind_cli_arguments,
-    _bool_params,
-    _cli_signature,
-    _ensure_utf8_streams,
-    _internal_option,
-    _normalize_bool_flags,
-)
-from deprecate._cli.commands import cmd_all, cmd_chains, cmd_check, cmd_expiry, cmd_policy, cmd_status
-from deprecate._cli.report import _print, _print_skipped_modules, _record_run, _run_active, _write_report
-from deprecate.audit._scan import _collect_skipped_modules
 
 #: Option of every subcommand naming the file the run's machine-readable report goes to; ``cli`` handles it itself.
+#: The GitHub Action probes for this name to tell whether the installed CLI writes reports.
 _REPORT_OPTION = "--report-json"
-
-
-def _pop_report_option(argv: list[str]) -> Union[tuple[list[str], Optional[str]], str]:
-    """Remove ``--report-json PATH`` / ``--report-json=PATH`` from *argv*; the last one wins, as for other flags.
-
-    The underscore spelling ``--report_json`` is read the same way, as Fire reads every other flag. An argument starting
-    with ``-`` after a bare ``--report-json`` is another option, not its value: the path is missing. Write such a path
-    as ``--report-json=-name``.
-
-    Returns:
-        The remaining arguments and the report path (``None`` when not given), or an error message when the option
-        has no value. Arguments after a ``--`` separator are left untouched.
-
-    Examples:
-        >>> _pop_report_option(["check", "--report-json", "r.json", "src/pkg"])
-        (['check', 'src/pkg'], 'r.json')
-        >>> _pop_report_option(["check", "--report-json=r.json"])
-        (['check'], 'r.json')
-        >>> _pop_report_option(["check", "--report_json=r.json"])
-        (['check'], 'r.json')
-        >>> _pop_report_option(["check", "--report_json", "r.json"])
-        (['check'], 'r.json')
-        >>> _pop_report_option(["check", "--report-json"])
-        'Option `--report-json` needs a file path.'
-        >>> _pop_report_option(["check", "--report-json", "--exit-zero"])
-        'Option `--report-json` needs a file path.'
-        >>> _pop_report_option(["check", "--report-json=-name"])
-        (['check'], '-name')
-
-    """
-    remaining: list[str] = []
-    path: Optional[str] = None
-    idx = 0
-    while idx < len(argv):
-        arg = argv[idx]
-        idx += 1
-        if arg == "--":
-            return [*remaining, arg, *argv[idx:]], path
-        name, has_value, value = arg.partition("=")
-        if name.replace("_", "-") != _REPORT_OPTION:
-            remaining.append(arg)
-            continue
-        if not has_value:
-            if idx >= len(argv) or argv[idx].startswith("-"):
-                return "Option `--report-json` needs a file path."
-            value = argv[idx]
-            idx += 1
-        if not value:
-            return "Option `--report-json` needs a file path."
-        path = value
-    return remaining, path
-
-
-def _prepare_argv(argv: list[str], commands: dict[str, Callable[..., int]]) -> tuple[list[str], Optional[str]]:
-    """Turn the raw arguments into the Fire command line and the ``--report-json`` path; exit 2 on a usage error.
-
-    Pops ``--report-json``, prepends the implicit ``check`` when the first token is no subcommand, rejects private
-    ``--_*`` options and makes every boolean flag of the subcommand explicit (see :func:`_normalize_bool_flags`).
-
-    """
-    popped = _pop_report_option(argv)
-    if isinstance(popped, str):
-        _print(popped, stderr=True)
-        sys.exit(2)
-    argv, report_path = popped
-    if argv and argv[0] not in commands and argv[0] not in {"-h", "--help"}:
-        argv = ["check", *argv]
-    internal = _internal_option(argv)
-    if internal is not None:
-        _print(f"Unknown option `{internal}`: options starting with an underscore are internal.", stderr=True)
-        sys.exit(2)
-    if argv and argv[0] in commands:
-        argv = [argv[0], *_normalize_bool_flags(argv[1:], _bool_params(commands[argv[0]]))]
-    return argv, report_path
-
-
-# ---------------------------------------------------------------------------
-# CLI entry point
-# ---------------------------------------------------------------------------
 
 
 def cli() -> None:
     """CLI entry point for pydeprecate.
 
-    The subcommand's integer return value becomes the process exit code, applied *after* ``fire.Fire``
-    returns. Raising ``SystemExit`` from inside the Fire trace would abort Fire's own unconsumed-argument
-    check, silently ignoring unknown or misspelled flags (exit 0 on typos); letting the trace complete
-    makes Fire report ``Could not consume arg`` and exit 2 for such flags. Acts as the single top-level
-    exception handler: unhandled exceptions from subcommands are converted to a non-zero exit with the
-    exception type and message (the type prefix guarantees a non-blank stderr line even when the exception
-    carries no message). SystemExit (Fire's ``--help`` and error exits) passes through unchanged. Every submodule the
-    scan skipped because importing it raised gets one ``pydeprecate gap: module not audited: <module>: <error>``
-    line on stderr at the end of the run, whatever warnings filters the audited package installs; every other
-    advisory about a part of the audit that did not run (unresolved version, missing ``packaging``, unscanned files)
-    is printed as an unwrapped stderr line starting with ``pydeprecate gap: <kind>:`` as well.
+    Parses the command line with :func:`~deprecate._cli.argv._parse_cli_args` and runs the subcommand; its integer
+    return value becomes the process exit code. A usage error (unknown option, malformed value, a second path) exits 2
+    before anything is scanned, and ``--help`` exits 0. Acts as the single top-level exception handler: unhandled
+    exceptions from subcommands are converted to a non-zero exit with the exception type and message (the type prefix
+    guarantees a non-blank stderr line even when the exception carries no message). Every submodule the scan skipped
+    because importing it raised gets one ``pydeprecate gap: module not audited: <module>: <error>`` line on stderr at
+    the end of the run, whatever warnings filters the audited package installs; every other advisory about a part of the
+    audit that did not run (unresolved version, missing ``packaging``, unscanned files) is printed as an unwrapped
+    stderr line starting with ``pydeprecate gap: <kind>:`` as well.
 
     A path whose name collides with a subcommand (``check``, ``expiry``, ``policy``, ``chains``, ``all``, ``status``) is
-    treated as that subcommand by the implicit-``check`` shim. Scan such a path explicitly, e.g.
-    ``pydeprecate check ./check``, so the leading token is the subcommand and the path is its argument.
+    treated as that subcommand by the implicit-``check`` shim. Scan such a path explicitly, e.g. ``pydeprecate check
+    ./check``, so the leading token is the subcommand and the path is its argument.
 
-    Boolean flags may appear before or after the path (``check --exit-zero src/pkg`` scans ``src/pkg``): bare flags
-    are rewritten to their explicit form before Fire parses them, and any non-boolean value that still reaches a
-    boolean parameter, such as a short flag's value (``-r src/pkg``), exits 2 instead of being
-    taken as a truthy setting. Only the path and optional version accept positional values; extra paths exit 2 before
-    scanning. Internal options and their negated aliases (``--_advisory``, ``--no-wrappers``) exit 2 before Fire sees
-    them. Direct calls to the ``cmd_*`` functions retain their original signatures.
+    Flags may appear before, between or after the positionals (``check --exit-zero src/pkg`` scans ``src/pkg``), in
+    either spelling (``--exit-zero``, ``--exit_zero``). A boolean flag takes ``true``/``false``/``1``/``0`` attached
+    (``--exit-zero=false``) or as the next argument, and is negated with ``--no-<flag>`` or ``--no<flag>``. Only the
+    path and, for ``expiry``, ``all`` and ``status``, the version are positional; a further positional exits 2. Direct
+    calls to the ``cmd_*`` functions keep their signatures, including the internal ``_*`` parameters, which are never
+    command-line options.
 
-    Every subcommand also takes ``--report-json PATH``, handled here rather than by Fire: once the subcommand ran with
-    exit code 0 or 1, the run's machine-readable record is written there — the deprecation table of the very scan
-    that gated and every gap, each with its kind, detail and hint (see :func:`~deprecate._cli.report._write_report`).
-    A usage error (exit 2) writes no report, and a failure to write one never changes the exit code.
+    Every subcommand also takes ``--report-json PATH``: once the subcommand ran with exit code 0 or 1, the run's
+    machine-readable record is written there — the deprecation table of the very scan that gated and every gap, each
+    with its kind, detail and hint (see :func:`~deprecate._cli.report._write_report`). A usage error (exit 2) writes no
+    report, and a failure to write one never changes the exit code.
 
     """
+    from deprecate._cli.argv import _ensure_utf8_streams, _parse_cli_args
+    from deprecate._cli.report import _print_skipped_modules, _record_run, _run_active, _write_report
+    from deprecate.audit._scan import _collect_skipped_modules
+
     _ensure_utf8_streams()
-    try:
-        import fire
-    except ImportError:
-        sys.exit("The 'pydeprecate' CLI requires the 'fire' package.\nInstall it with: pip install 'pyDeprecate[cli]'")
-
-    commands: dict[str, Callable[..., int]] = {
-        "check": cmd_check,
-        "expiry": cmd_expiry,
-        "policy": cmd_policy,
-        "chains": cmd_chains,
-        "all": cmd_all,
-        "status": cmd_status,
-    }
-    argv, report_path = _prepare_argv(sys.argv[1:], commands)
-
-    exit_code: Optional[int] = None
-
-    def _capture(fn: Callable[..., int]) -> Callable[..., None]:
-        """Record the cmd_* return code without returning it into the Fire trace.
-
-        Returning the int would make Fire print it and treat it as a further component to consume arguments against;
-        returning ``None`` keeps the output clean and lets Fire finish its trace. Expose only path and version as
-        positional parameters, public options as keyword-only, and capture overflow to reject it before scanning. A non-
-        boolean value bound to a boolean parameter also records exit 2 without running the subcommand.
-
-        """
-        cli_signature = _cli_signature(fn)
-
-        @functools.wraps(fn)
-        def wrapper(*args: object, **kwargs: object) -> None:
-            nonlocal exit_code
-            bound = _bind_cli_arguments(fn, cli_signature, args, kwargs)
-            if isinstance(bound, str):
-                _print(bound, stderr=True)
-                exit_code = 2
-                return
-            exit_code = fn(*bound.args, **bound.kwargs)
-
-        wrapper.__signature__ = cli_signature  # type: ignore[attr-defined]
-        return wrapper
-
+    parsed = _parse_cli_args(sys.argv[1:])
+    if parsed is None:  # bare `pydeprecate`: the help was printed
+        return
+    command, kwargs, report_path = parsed
     if _run_active():
         # an audited package whose import runs the CLI again sees the outer `sys.argv`; only the outermost run may
         # write the report, or the nested run's report would pass for the outer scan's
         report_path = None
     with _record_run() as run_record, _collect_skipped_modules() as skipped_modules:
         try:
-            fire.Fire({name: _capture(fn) for name, fn in commands.items()}, command=argv)
-        except Exception as exc:  # SystemExit is BaseException — Fire's own exits pass through untouched
+            exit_code = command.function(**kwargs)
+        except Exception as exc:  # SystemExit is BaseException — argparse's own exits pass through untouched
             # Prefix the exception type so an exception with an empty message still produces a non-blank stderr
             # line (bare ``str(exc)`` on such exceptions exited 1 with nothing printed).
             sys.exit(f"{type(exc).__name__}: {exc}")
@@ -209,6 +83,4 @@ def cli() -> None:
     # written after the skipped-module gaps are recorded, and never for a usage error (exit 2): nothing was scanned
     if report_path is not None and exit_code in (0, 1):
         _write_report(report_path, run_record)
-    # exit_code stays None when no subcommand ran (bare `pydeprecate` help) → return normally (exit 0).
-    if exit_code is not None:
-        sys.exit(exit_code)
+    sys.exit(exit_code)

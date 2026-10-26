@@ -325,7 +325,7 @@ pyDeprecate/
 │   │   ├── argv.py             # UTF-8 streams, boolean-flag normalisation, argument binding
 │   │   ├── commands.py         # Subcommands: check, expiry, policy, chains, all, status
 │   │   ├── config.py           # [tool.pydeprecate] pyproject.toml config and flag-default resolution
-│   │   ├── report.py           # _print() and the rich/plain _Reporter output dispatch
+│   │   ├── report.py           # _print() and the plain-text _Reporter finding sections
 │   │   └── scan.py             # Path scanning: file, package or plain directory -> wrappers
 │   ├── _pkg.py                 # Version and path resolution helpers
 │   ├── _types.py               # Shared type definitions: DeprecationConfig, _ProxyConfig

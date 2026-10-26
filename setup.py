@@ -97,8 +97,8 @@ setup(
             "packaging>=20.0",
             "tomli>=2.0; python_version<'3.11'",  # tomllib stdlib in 3.11+
         ],  # For validate_deprecation_expiry and pyproject.toml version detection
-        # floors pin the oldest CI-tested releases; Fire's arg-parsing semantics vary across releases
-        "cli": ["fire>=0.6.0", "rich>=13.0.0"],  # For pydeprecate CLI command and Rich output support
+        # the CLI uses only the standard library; the empty extra keeps `pip install 'pyDeprecate[cli]'` working
+        "cli": [],
     },
     project_urls={
         "Documentation": ABOUT.__homepage__,

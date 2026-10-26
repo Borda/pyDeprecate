@@ -102,7 +102,7 @@ class GraceWindow:
     This is what every user-facing spelling is converted into before a policy scan starts, so the single-unit
     rule is structural rather than something each consumer re-checks: an instance cannot name two units, and
     construction rejects a negative or non-integer count. Build one directly, or from any accepted spelling with
-    :meth:`parse` — a dotted delta (``"0.3"``), the float Fire or TOML may hand over, or a one-key table.
+    :meth:`parse` — a dotted delta (``"0.3"``), the float a TOML file may hand over, or a one-key table.
 
     Attributes:
         count: Minimum number of bumps required; ``0`` disables the distance check while still requiring a
@@ -206,7 +206,7 @@ class GraceWindow:
         return f"{self.count} {self.unit.value} release{'' if self.count == 1 else 's'}"
 
 
-#: Accepted ``min_grace`` value: a dotted delta string (``"0.3"``), a float Fire/TOML may hand over, a one-key
+#: Accepted ``min_grace`` value: a dotted delta string (``"0.3"``), a float a TOML file may hand over, a one-key
 #: table, or an already-strict :class:`GraceWindow`.
 GraceWindowSpec = Union[str, float, Mapping[str, int], GraceWindow]
 

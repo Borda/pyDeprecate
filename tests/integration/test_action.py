@@ -363,7 +363,7 @@ class TestActionInputs:
         """An ``args`` token that would swallow the runner's options or skip the scan is a usage error naming it.
 
         A workflow author appends a ``--`` separator, ``--help`` or a ``--report-json`` copied from a local command
-        line. Fire would drop the options the action appends after a separator, a help flag would end the run green
+        line. The CLI would reject the options the action appends after a separator, a help flag would end the run green
         without a scan, and a second report option would silently divert the report the job summary is read from;
         each is refused up front, wherever it sits among the other flags, and the error quotes the token.
         """
@@ -1185,7 +1185,7 @@ class TestActionOutputSafety:
     def test_gap_line_survives_a_narrow_terminal(self, tmp_path: Path) -> None:
         """A gap message stays on one line however narrow the terminal, so its warning annotation is still raised.
 
-        Rich wraps console output at the terminal width (``COLUMNS``). A plain-directory script exits at import time,
+        A renderer may wrap output at the terminal width (``COLUMNS``). A plain-directory script exits at import,
         and the job's ``COLUMNS`` is narrower than the message; the gap line in the log must stay whole and greppable,
         and the annotation comes from the report regardless of the console width.
         """
@@ -1418,7 +1418,7 @@ class TestActionMetadata:
         """The action installs the same extras the pre-commit hooks request.
 
         Both integrations promise that one pinned ref gives one working CLI; diverging extras would leave one of
-        them without ``fire``/``rich`` or without ``[tool.pydeprecate]`` support on Python 3.9-3.10.
+        them without ``packaging`` or without ``[tool.pydeprecate]`` support on Python 3.9-3.10.
         """
         hooks = yaml.safe_load(_HOOKS_YAML.read_text(encoding="utf-8"))
         hook_requirements = {dep for hook in hooks for dep in hook["additional_dependencies"]}

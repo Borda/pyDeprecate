@@ -1,4 +1,4 @@
-"""Unit tests for :mod:`deprecate._cli.report`: the rich and plain-text output dispatch."""
+"""Unit tests for :mod:`deprecate._cli.report`: the plain-text finding sections and the ``--report-json`` file."""
 
 import json
 from pathlib import Path
@@ -18,12 +18,8 @@ from tests.unittests.cli._helpers import _EXPIRED_MSG
 
 
 class TestReportChains:
-    """Tests for _report_chains_rich and _report_chains_plain via _report_issues."""
+    """Tests for the chain section printed by ``_Reporter.issues``."""
 
-    @pytest.mark.parametrize(
-        "has_rich",
-        [pytest.param(True, id="rich"), pytest.param(False, id="plain")],
-    )
     @pytest.mark.parametrize(
         ("chain_type", "expected_label"),
         [
@@ -32,91 +28,59 @@ class TestReportChains:
         ],
     )
     def test_chain_type_label_in_output(
-        self, capsys: pytest.CaptureFixture[str], chain_type: ChainType, expected_label: str, has_rich: bool
+        self, capsys: pytest.CaptureFixture[str], chain_type: ChainType, expected_label: str
     ) -> None:
-        """Chain type label appears in both rich and plain output."""
+        """The chain type label appears next to the wrapper it describes."""
         results = [DeprecationWrapperInfo(module="mod", function="fn", chain_type=chain_type)]
-        with patch("deprecate._cli.report._Reporter._HAS_RICH", has_rich):
-            assert _Reporter.issues(results) is True
-        captured = capsys.readouterr()
-        assert expected_label in captured.out.lower()
-
-    @pytest.mark.parametrize(
-        "has_rich",
-        [pytest.param(True, id="rich"), pytest.param(False, id="plain")],
-    )
-    def test_chains_flag_true(self, has_rich: bool) -> None:
-        """_report_issues returns True when chains are present."""
-        results = [DeprecationWrapperInfo(module="mod", function="fn", chain_type=ChainType.TARGET)]
-        with patch("deprecate._cli.report._Reporter._HAS_RICH", has_rich):
-            assert _Reporter.issues(results) is True
+        assert _Reporter.issues(results) is True
+        assert f"\t- mod.fn: {expected_label}" in capsys.readouterr().out
 
 
 class TestReportExpiry:
-    """Tests for _report_expiry_rich and _report_expiry_plain."""
+    """Tests for the expiry section printed by ``cmd_expiry``."""
 
-    @pytest.mark.parametrize(
-        "has_rich",
-        [pytest.param(True, id="rich"), pytest.param(False, id="plain")],
-    )
-    def test_expired_message_in_output(self, capsys: pytest.CaptureFixture[str], has_rich: bool) -> None:
-        """Expired message text appears in both rich and plain output via cmd_expiry."""
+    def test_expired_message_in_output(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """The expired message is printed under the ``[ERROR]`` header of the expiry section."""
         with (
             patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[]),
             patch("deprecate._cli.commands._check_expiry_for_callables", return_value=[_EXPIRED_MSG]),
-            patch("deprecate._cli.report._Reporter._HAS_RICH", has_rich),
         ):
             cmd_expiry(path="some_module", version="2.0")
-        captured = capsys.readouterr()
-        assert "expired" in captured.out.lower()
-
-
-# ---------------------------------------------------------------------------
-# report_issues chain parametrize extension
-# ---------------------------------------------------------------------------
+        out = capsys.readouterr().out
+        assert "[ERROR] Found expired deprecated wrappers:" in out
+        assert f"\t- {_EXPIRED_MSG}" in out
 
 
 class TestReportPolicy:
     """Tests for _Reporter.policy() directly, isolated from cmd_policy's scan logic."""
 
     @pytest.mark.parametrize(
-        "has_rich",
+        ("advisory", "header"),
         [
-            pytest.param(
-                True,
-                id="rich",
-                marks=pytest.mark.skipif(
-                    _Reporter._RichTable is None, reason="rich not installed — forced has_rich=True is unsupported"
-                ),
-            ),
-            pytest.param(False, id="plain"),
+            pytest.param(False, "[ERROR] Found deprecation policy violations:", id="gating"),
+            pytest.param(True, "[WARNING] Found deprecation policy violations:", id="advisory"),
         ],
     )
-    def test_rule_slug_prefix_survives_output(self, capsys: pytest.CaptureFixture[str], has_rich: bool) -> None:
-        """The `[rule-slug]`-style prefix renders literally in both the rich and plain-text reporters.
+    def test_rule_slug_prefix_survives_output(
+        self, capsys: pytest.CaptureFixture[str], advisory: bool, header: str
+    ) -> None:
+        """The `[rule-slug]` prefix of a violation is printed literally under the section header.
 
-        Rich parses square brackets in a cell as style markup, which would swallow a `[min-grace]` prefix
-        silently. Calling `_Reporter.policy()` directly (rather than through `cmd_policy()`) isolates the
-        reporter's own escaping behavior from the surrounding scan, so a regression here cannot hide behind
-        mocked scan data used elsewhere in the test file. The forced ``has_rich=True`` case needs the real
-        ``rich`` package on the interpreter — forcing ``_HAS_RICH`` alone leaves ``_RichTable``/``_rich_box``
-        unset when ``rich`` was never importable, so that case is skipped in a local checkout without the
-        ``cli`` extra.
+        Calling `_Reporter.policy()` directly (rather than through `cmd_policy()`) isolates the reporter from the
+        surrounding scan, so a regression here cannot hide behind mocked scan data used elsewhere in the test file.
+        `all` reports violations it does not fail on, so the advisory section must say `[WARNING]`, not `[ERROR]`.
+
         """
         message = "[min-grace] Callable `pkg.old_fn` is deprecated in `1.0` and already scheduled for removal in `1.0`."
-        with patch("deprecate._cli.report._Reporter._HAS_RICH", has_rich):
-            _Reporter.policy([message])
-        captured = capsys.readouterr()
-        assert "[min-grace]" in captured.out
+        _Reporter.policy([message], advisory=advisory)
+        out = capsys.readouterr().out
+        assert header in out
+        assert f"\t- {message}" in out
 
 
 class TestReportIssues:
-    """Tests for _report_issues covering both the rich and plain-text output paths."""
+    """Tests for ``_Reporter.issues``: whether it reports anything, and how each finding is printed."""
 
-    @pytest.mark.parametrize(
-        "has_rich",
-        [pytest.param(True, id="rich"), pytest.param(False, id="plain")],
-    )
     @pytest.mark.parametrize(
         ("results", "expected"),
         [
@@ -156,22 +120,12 @@ class TestReportIssues:
             pytest.param([DeprecationWrapperInfo(module="mod", function="fn")], False, id="no-issues"),
         ],
     )
-    def test_flag(self, results: list, expected: bool, has_rich: bool) -> None:
-        """_report_issues returns the correct has-issues flag for both rich and plain paths."""
-        with patch("deprecate._cli.report._Reporter._HAS_RICH", has_rich):
-            assert _Reporter.issues(results) is expected
+    def test_flag(self, results: list, expected: bool) -> None:
+        """_Reporter.issues returns whether it found anything to report."""
+        assert _Reporter.issues(results) is expected
 
-    @pytest.mark.parametrize(
-        ("has_rich", "expected_present", "expected_absent"),
-        [
-            pytest.param(True, "Self reference", "All identity mappings", id="rich"),
-            pytest.param(False, "Self reference", "All identity mappings", id="plain"),
-        ],
-    )
-    def test_partial_identity_with_self_reference(
-        self, capsys: pytest.CaptureFixture[str], has_rich: bool, expected_present: str, expected_absent: str
-    ) -> None:
-        """Partial identity mappings should not be reported as all-identity in either output path."""
+    def test_partial_identity_with_self_reference(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """Partial identity mappings are not reported as all-identity."""
         results = [
             DeprecationWrapperInfo(
                 module="mod",
@@ -182,17 +136,23 @@ class TestReportIssues:
                 no_effect=True,
             )
         ]
-        with patch("deprecate._cli.report._Reporter._HAS_RICH", has_rich):
-            assert _Reporter.issues(results) is True
+        assert _Reporter.issues(results) is True
         captured = capsys.readouterr()
-        assert expected_present in captured.out
-        assert expected_absent not in captured.out
+        assert "Self reference" in captured.out
+        assert "All identity mappings" not in captured.out
 
+    def test_square_brackets_in_detail_are_literal(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """A detail such as an argument named ``[x]`` reaches the output unchanged.
 
-def test_report_issues_dispatches() -> None:
-    """Test _report_issues dispatches based on _HAS_RICH."""
-    results = [DeprecationWrapperInfo(module="mod", function="fn", invalid_args=["bad"])]
-    assert _Reporter.issues(results) is True
+        Output is plain text with no markup layer, so nothing in a module, function or argument name can be swallowed
+        as styling.
+
+        """
+        results = [DeprecationWrapperInfo(module="mod", function="fn", invalid_args=["[x]"])]
+        assert _Reporter.issues(results) is True
+        out = capsys.readouterr().out
+        assert "[ERROR] Found functions with invalid argument mappings:" in out
+        assert "\t- mod.fn: [x]" in out
 
 
 class TestWriteReport:
@@ -225,10 +185,7 @@ class TestWriteReport:
             gaps=[(_GapKind.PACKAGING_MISSING, "no packaging")],
             scan=_ScanRecord(path="some_module", wrappers=[], version="1.0"),
         )
-        with (
-            patch("deprecate._cli.report._Reporter._HAS_RICH", False),
-            patch("deprecate._cli.report.generate_deprecation_table", side_effect=RuntimeError("boom")),
-        ):
+        with patch("deprecate._cli.report.generate_deprecation_table", side_effect=RuntimeError("boom")):
             _write_report(str(report_file), record)
         report = json.loads(report_file.read_text(encoding="utf-8"))
         assert report["table"] is None
@@ -236,34 +193,21 @@ class TestWriteReport:
         assert "Could not render the deprecation table for the JSON report: boom" in capsys.readouterr().err
 
 
-# ---------------------------------------------------------------------------
-# TestHasRichFalse (preserved from original suite)
-# ---------------------------------------------------------------------------
-
-
-class TestHasRichFalse:
-    """Tests for the plain-text fallback path when ``_HAS_RICH`` is ``False``."""
+class TestPlainOutput:
+    """Every message goes through built-in ``print`` to the stream it belongs on."""
 
     @pytest.mark.parametrize(("stderr", "stream"), [(False, "out"), (True, "err")])
     def test_print_routes_to_builtin_print(self, capsys: pytest.CaptureFixture[str], stderr: bool, stream: str) -> None:
-        """``_print()`` falls back to built-in ``print()`` when rich is unavailable."""
-        with patch("deprecate._cli.report._Reporter._HAS_RICH", False):
-            _print("hello", stderr=stderr)
+        """``_print()`` writes the message unchanged to stdout, or to stderr when asked."""
+        _print("hello", stderr=stderr)
         captured = capsys.readouterr()
-        assert "hello" in getattr(captured, stream)
-
-    def test_report_issues_dispatches_to_plain(self) -> None:
-        """``_Reporter.issues()`` delegates to the plain reporter when rich is unavailable."""
-        results = [DeprecationWrapperInfo(module="mod", function="fn", invalid_args=["bad"])]
-        with patch("deprecate._cli.report._Reporter._HAS_RICH", False):
-            assert _Reporter.issues(results) is True
+        assert getattr(captured, stream) == "hello\n"
 
     @patch("deprecate._cli.scan.find_deprecation_wrappers")
     def test_check_output_streams(self, mock_find: MagicMock, capsys: pytest.CaptureFixture[str]) -> None:
-        """``cmd_check()`` prints scanning and no-results messages to stdout when rich is unavailable."""
+        """``cmd_check()`` prints scanning and no-results messages to stdout."""
         mock_find.return_value = []
-        with patch("deprecate._cli.report._Reporter._HAS_RICH", False):
-            assert cmd_check(path="some_module") == 0
+        assert cmd_check(path="some_module") == 0
         captured = capsys.readouterr()
         assert "Scanning:" in captured.out
         assert "No deprecated callables found" in captured.out
@@ -272,14 +216,13 @@ class TestHasRichFalse:
     def test_nested_files_warning_stderr(
         self, mock_find: MagicMock, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        """Nested-files warning lands in stderr when rich is unavailable."""
+        """The nested-files gap lands on stderr, apart from the scan output on stdout."""
         (tmp_path / "module_a.py").touch()
         subdir = tmp_path / "subpkg"
         subdir.mkdir()
         (subdir / "nested.py").touch()
 
         mock_find.return_value = []
-        with patch("deprecate._cli.report._Reporter._HAS_RICH", False):
-            assert cmd_check(path=str(tmp_path)) == 0
+        assert cmd_check(path=str(tmp_path)) == 0
         captured = capsys.readouterr()
         assert "Skipping nested Python files" in captured.err

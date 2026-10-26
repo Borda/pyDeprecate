@@ -230,7 +230,7 @@ For a pre-commit hook, generate a `repo: local` hook (`entry: pydeprecate check`
 - If argument remapping fails, check `TargetMode.ARGS_REMAP` and the exact `args_mapping` keys.
 - If CI expiry checks fail, compare each `remove_in` version with the release version used by the audit command.
 - If a remote `pydeprecate` pre-commit hook passes while a local `pydeprecate check` fails, the hook environment lacks the package's dependencies — switch to a `repo: local` hook.
-- If an expiry gate suddenly reports more wrappers after upgrading, class members are now included by default — pass `include_members=False` to restore the old scope (CLI: `--noinclude-members`; every audit function and subcommand takes the same switch).
+- If an expiry gate suddenly reports more wrappers after upgrading, class members are now included by default — pass `include_members=False` to restore the old scope (CLI: `--no-include-members`; every audit function and subcommand takes the same switch).
 - Positional-only (`/`) parameters work on both decorated sources and forwarding targets, including `deprecated_class` constructors — remapped values are forwarded positionally (no `setattr` fallback).
 
 ## Links

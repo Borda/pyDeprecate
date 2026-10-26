@@ -180,7 +180,7 @@ def cmd_check(
 
     Args:
         path: Path to the module, package directory, or importable module name to scan.
-        recursive: Scan submodules recursively (default True). Pass ``--norecursive`` to scan top-level only.
+        recursive: Scan submodules recursively (default True). Pass ``--no-recursive`` to scan top-level only.
         exit_zero: Always exit 0 even if hard errors (invalid argument mappings) are found.
             Useful for advisory CI steps that should report but never block.
         exclude: Module-name glob patterns to leave out of the scan — one pattern, a comma-separated string, or a
@@ -188,9 +188,9 @@ def cmd_check(
             nor descends into it. Default: the ``exclude`` list of ``[tool.pydeprecate]`` in the nearest
             ``pyproject.toml``, else nothing.
         include_members: Include deprecated class members such as methods and constructors (default True). Pass
-            ``--noinclude-members`` to check module-level wrappers only.
-        _wrappers: Pre-scanned wrapper list. When provided, skips the scan step. Underscore
-            prefix hides this parameter from the Fire CLI (internal use by ``cmd_all`` only).
+            ``--no-include-members`` to check module-level wrappers only.
+        _wrappers: Pre-scanned wrapper list. When provided, skips the scan step.
+            Internal: never a command-line option (used by ``cmd_all`` only).
 
     Returns:
         0 on success or advisory-only issues; 1 when hard errors are found and ``exit_zero`` is False; 2 when
@@ -236,7 +236,7 @@ def cmd_expiry(
         path: Path to the module, package directory, or importable module name to scan.
         version: Current package version for comparison (e.g. ``"2.0.0"``). Auto-detected from local
             project metadata, installed package metadata, or the top-level package's ``__version__`` if not provided.
-        recursive: Scan submodules recursively (default True). Pass ``--norecursive`` to scan top-level only.
+        recursive: Scan submodules recursively (default True). Pass ``--no-recursive`` to scan top-level only.
         exit_zero: Always exit 0 even if expired wrappers are found.
             Useful for advisory CI steps that should report but never block.
         exclude: Module-name glob patterns to leave out of the scan — one pattern, a comma-separated string, or a
@@ -244,15 +244,15 @@ def cmd_expiry(
             nor descends into it. Default: the ``exclude`` list of ``[tool.pydeprecate]`` in the nearest
             ``pyproject.toml``, else nothing.
         include_members: Include deprecated class members such as methods and constructors (default True). Pass
-            ``--noinclude-members`` to check module-level wrappers only.
+            ``--no-include-members`` to check module-level wrappers only.
         _wrappers: Pre-scanned wrapper list. When provided, skips the scan step and derives
-            expired wrappers via ``_do_expiry_prescanned``. Underscore prefix hides this parameter from the
-            Fire CLI (internal use by ``cmd_all`` only).
+            expired wrappers via ``_do_expiry_prescanned``.
+            Internal: never a command-line option (used by ``cmd_all`` only).
         _version_explicit: Whether *version* is a value the user typed rather than one the caller
             auto-detected. ``cmd_all`` forwards its already-resolved version and passes ``False``
             when that version came from auto-detection, so a malformed *installed* version is never
-            reported as a malformed ``--version`` flag. Underscore prefix hides this parameter from
-            the Fire CLI (internal use by ``cmd_all`` only).
+            reported as a malformed ``--version`` flag.
+            Internal: never a command-line option (used by ``cmd_all`` only).
 
     Returns:
         0 on success, when the ``packaging`` library is unavailable, when no version could be resolved (the gap
@@ -262,10 +262,7 @@ def cmd_expiry(
         *path* is a file or a directory holding several packages.
 
     """
-    # Fire auto-converts numeric-looking strings (e.g. "1.0" → float); normalise to str.
     version_explicit = version is not None and _version_explicit
-    if version is not None:
-        version = str(version)
     err_code = _validate_user_version(version, explicit=_version_explicit)
     if err_code is not None:
         return err_code
@@ -328,7 +325,7 @@ def cmd_policy(
 
     Args:
         path: Path to the module, package directory, or importable module name to scan.
-        recursive: Scan submodules recursively (default True). Pass ``--norecursive`` to scan top-level only.
+        recursive: Scan submodules recursively (default True). Pass ``--no-recursive`` to scan top-level only.
         exit_zero: Always exit 0 even if violations are found.
             Useful for advisory CI steps that should report but never block.
         min_grace: Minimum distance between ``deprecated_in`` and ``remove_in`` as a version-shaped delta with
@@ -336,24 +333,24 @@ def cmd_policy(
             ``1`` is rejected as ambiguous) — or a one-key unit table (``{"minor": 3}``, the natural spelling in
             ``pyproject.toml``); built-in default ``0.3``, ``None`` skips the rule. The removal must be one clean
             bump of a single component (``1.2`` → ``1.5`` or ``2.0``, never ``2.3``); a coarser bump always clears
-            a finer window. Ten or more steps: quote as a string (``--min-grace='"0.10"'``), else Fire parses
-            ``0.10`` as ``0.1``.
+            a finer window.
         message_required: Require every wrapper to name a replacement (built-in default True).
         exclude: Module-name glob patterns to leave out of the scan — one pattern, a comma-separated string, or a
             list (``--exclude='my_package.tests,*._legacy*'``); the scan itself never imports a matching package
             nor descends into it. Default: the ``exclude`` list of ``[tool.pydeprecate]`` in the nearest
             ``pyproject.toml``, else nothing.
         include_members: Include deprecated class members such as methods and constructors (default True). Pass
-            ``--noinclude-members`` to check module-level wrappers only.
-        _wrappers: Pre-scanned wrapper list. When provided, skips the scan step. Underscore prefix hides this
-            parameter from the Fire CLI (internal use by ``cmd_all`` only).
+            ``--no-include-members`` to check module-level wrappers only.
+        _wrappers: Pre-scanned wrapper list. When provided, skips the scan step.
+            Internal: never a command-line option (used by ``cmd_all`` only).
         _config: Already-loaded ``[tool.pydeprecate]`` configuration, so ``cmd_all`` does not re-read (and
-            re-warn about) the file. Underscore prefix hides this parameter from the Fire CLI.
+            re-warn about) the file.
+            Internal: never a command-line option.
         _advisory: Render violations as a yellow ``[WARNING]`` with a trailer pointing at this subcommand, instead
             of the red ``[ERROR]`` of a gating run. Only ``cmd_all`` passes ``True`` — it reports policy
             violations without failing on them, and the output has to say so. Never inferred from ``exit_zero``,
-            which downgrades the exit code without changing what the violations mean. Underscore prefix hides
-            this parameter from the Fire CLI.
+            which downgrades the exit code without changing what the violations mean.
+            Internal: never a command-line option.
 
     Returns:
         0 on success, or when ``min-grace`` is skipped because ``packaging`` is unavailable and
@@ -417,7 +414,7 @@ def cmd_chains(
 
     Args:
         path: Path to the module, package directory, or importable module name to scan.
-        recursive: Scan submodules recursively (default True). Pass ``--norecursive`` to scan top-level only.
+        recursive: Scan submodules recursively (default True). Pass ``--no-recursive`` to scan top-level only.
         exit_zero: Always exit 0 even if chains are found.
             Useful for advisory CI steps that should report but never block.
         exclude: Module-name glob patterns to leave out of the scan — one pattern, a comma-separated string, or a
@@ -425,10 +422,10 @@ def cmd_chains(
             nor descends into it. Default: the ``exclude`` list of ``[tool.pydeprecate]`` in the nearest
             ``pyproject.toml``, else nothing.
         include_members: Include deprecated class members such as methods and constructors (default True). Pass
-            ``--noinclude-members`` to check module-level wrappers only.
+            ``--no-include-members`` to check module-level wrappers only.
         _wrappers: Pre-scanned wrapper list. When provided, skips the scan step and filters
-            for ``chain_type is not None`` internally. Underscore prefix hides this parameter
-            from the Fire CLI (internal use by ``cmd_all`` only).
+            for ``chain_type is not None`` internally.
+            Internal: never a command-line option (used by ``cmd_all`` only).
 
     Returns:
         0 when no chains are found or ``exit_zero`` is True; 1 when chains are found; 2 when ``--exclude`` is
@@ -475,7 +472,7 @@ def cmd_all(
         path: Path to the module, package directory, or importable module name to scan.
         version: Current package version for expiry comparison (e.g. ``"2.0.0"``). Auto-detected from local
             project metadata, installed package metadata, or the top-level package's ``__version__`` if not provided.
-        recursive: Scan submodules recursively (default True). Pass ``--norecursive`` to scan top-level only.
+        recursive: Scan submodules recursively (default True). Pass ``--no-recursive`` to scan top-level only.
         exit_zero: Always exit 0 even if issues are found.
             Useful for advisory CI steps that should report but never block.
         exclude: Module-name glob patterns to leave out of the scan — one pattern, a comma-separated string, or a
@@ -487,7 +484,7 @@ def cmd_all(
             ``Could not write the deprecation table`` — apart from a failure to render the table — and never changes
             the exit code.
         include_members: Include deprecated class members such as methods and constructors (default True) in the one
-            scan every check and the table share. Pass ``--noinclude-members`` to check module-level wrappers only.
+            scan every check and the table share. Pass ``--no-include-members`` to check module-level wrappers only.
 
     Returns:
         0 when the check, expiry, and chain gates pass or ``exit_zero`` is True; 1 when any of them finds a hard
@@ -500,11 +497,9 @@ def cmd_all(
         The deprecation table is appended after the gates, so a usage error raised by the policy pass skips it.
 
     """
-    if version is not None:
-        version = str(version)
-        err_code = _validate_user_version(version)
-        if err_code is not None:
-            return err_code
+    err_code = _validate_user_version(version)
+    if err_code is not None:
+        return err_code
     config = _load_pydeprecate_config(path)
     if config is None:
         return 2
@@ -600,23 +595,23 @@ def cmd_status(
         path: Path to the module, package directory, or importable module name to scan.
         version: Current package version for lifecycle status (e.g. ``"2.0.0"``). Auto-detected from local
             project metadata, installed package metadata, or the top-level package's ``__version__`` if not provided.
-        recursive: Scan submodules recursively (default True). Pass ``--norecursive`` to scan top-level only.
+        recursive: Scan submodules recursively (default True). Pass ``--no-recursive`` to scan top-level only.
         style: Table format — ``compact`` (default) or ``matrix``.
         include_members: Include deprecated class members such as methods and constructors (default True). Pass
-            ``--noinclude-members`` to list module-level wrappers only.
+            ``--no-include-members`` to list module-level wrappers only.
         output: Optional file path to write the markdown table. The table is always
             printed to stdout regardless of this flag.
         exclude: Module-name glob patterns to leave out of the scan — one pattern, a comma-separated string, or a
             list (``--exclude='my_package.tests,*._legacy*'``); the scan itself never imports a matching package
             nor descends into it. Default: the ``exclude`` list of ``[tool.pydeprecate]`` in the nearest
             ``pyproject.toml``, else nothing.
-        _wrappers: Pre-scanned wrapper list. When provided, skips the scan step. Underscore prefix hides
-            this parameter from the Fire CLI (internal use by ``cmd_all`` only).
+        _wrappers: Pre-scanned wrapper list. When provided, skips the scan step.
+            Internal: never a command-line option (used by ``cmd_all`` only).
         _version_explicit: Whether *version* is a value the user typed rather than one the caller
             auto-detected. ``cmd_all`` forwards its already-resolved version and passes ``False`` when that
             version came from auto-detection, so a package stamped with a non-PEP 440 version still renders
-            its table (unparsed) instead of aborting it. Underscore prefix hides this parameter from the
-            Fire CLI (internal use by ``cmd_all`` only).
+            its table (unparsed) instead of aborting it.
+            Internal: never a command-line option (used by ``cmd_all`` only).
 
     Returns:
         0 — status table generation is not a pass/fail gate; 2 only when ``--exclude`` is malformed or *path* is a
@@ -624,8 +619,6 @@ def cmd_status(
 
     """
     version_explicit = version is not None and _version_explicit
-    if version is not None:
-        version = str(version)
     try:
         table_style = TableStyle(style)
     except ValueError:
@@ -660,13 +653,7 @@ def cmd_status(
         _version_explicit=version_explicit,
     )
     _record_table(markdown)
-
-    if _Reporter._HAS_RICH:
-        from rich.markdown import Markdown
-
-        _Reporter._console().print(Markdown(markdown))
-    else:
-        _print(markdown)
+    _print(markdown)
 
     if output is not None:
         _save_table(markdown, output)
