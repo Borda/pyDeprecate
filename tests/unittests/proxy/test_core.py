@@ -262,6 +262,14 @@ class TestProxyNoWarnMethods:
             assert not bool(proxy_f)
         assert not caught
 
+    def test_bool_reads_from_target_when_set(self) -> None:
+        """``bool(proxy)`` evaluates the active object (target when set), not the original source."""
+        proxy = _DeprecatedProxy(
+            obj=[1, 2, 3],
+            spec=_ProxySpec(target=[], name="x", deprecated_in="1.0", remove_in="2.0", stream=None),
+        )
+        assert not bool(proxy)
+
     def test_len_no_warn(self) -> None:
         """``__len__`` delegates without warning."""
         proxy = _DeprecatedProxy(obj=[1, 2, 3], spec=_ProxySpec(name="x", deprecated_in="1.0", remove_in="2.0"))
@@ -373,24 +381,6 @@ class TestProxyWarnMethods:
             spec=_ProxySpec(name="fn", deprecated_in="1.0", remove_in="2.0", target=target, stream=None),
         )
         assert proxy(4) == 12
-
-
-class TestContainerProtocolWithTarget:
-    """Container protocol behaviour when a target is set on the proxy.
-
-    Pins the source-vs-target routing so it is not silently changed. __len__, __contains__, and __bool__ all use
-    _get_active() (the target when set). See TestProxyNoWarnMethods for the no-target variants of __len__ and
-    __contains__.
-
-    """
-
-    def test_bool_reads_from_target_when_set(self) -> None:
-        """``bool(proxy)`` evaluates the active object (target when set), not the original source."""
-        proxy = _DeprecatedProxy(
-            obj=[1, 2, 3],
-            spec=_ProxySpec(target=[], name="x", deprecated_in="1.0", remove_in="2.0", stream=None),
-        )
-        assert not bool(proxy)
 
 
 class TestHashOnUnhashableType:

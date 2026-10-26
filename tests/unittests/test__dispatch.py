@@ -1474,10 +1474,6 @@ class TestBuildCallFacts:
         """
         assert _build_call_facts(source, target, None) == expected
 
-
-class TestSourcePositionalLimit:
-    """The positional-argument limit derived once per wrapper, shared by the arity check and the fast path."""
-
     @pytest.mark.parametrize(
         ("source", "limit"),
         [

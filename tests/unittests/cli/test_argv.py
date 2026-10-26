@@ -1,9 +1,12 @@
 """Unit tests for :mod:`deprecate._cli.argv`: UTF-8 streams, boolean flags and argument binding."""
 
 import inspect
+import io
 import sys
 from collections.abc import Callable
+from types import SimpleNamespace
 from typing import Optional
+from unittest.mock import Mock
 
 import pytest
 
@@ -194,8 +197,8 @@ class _NoneEncodingStream:
         self.reconfigured_to = encoding
 
 
-class TestEnsureUtf8StreamsNoneEncoding:
-    """A stream whose ``encoding`` is ``None`` must not crash the UTF-8 reconfigure pass."""
+class TestEnsureUtf8Streams:
+    """CLI output streams are prepared for Unicode without breaking unsupported streams."""
 
     def test_none_encoding_does_not_raise(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """A ``None`` encoding is tolerated (treated as UTF-8, so reconfigure is skipped) rather than crashing.
@@ -209,3 +212,48 @@ class TestEnsureUtf8StreamsNoneEncoding:
         monkeypatch.setattr(sys, "stderr", stream)
         _ensure_utf8_streams()
         assert stream.reconfigured_to is None
+
+    def test_reconfigures_non_utf8_streams(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Both output streams switch to UTF-8 when their existing encoding cannot represent all CLI output.
+
+        A console using a legacy encoding must be able to write the Unicode status symbols after initialization.
+        """
+        with (
+            io.TextIOWrapper(io.BytesIO(), encoding="cp1252") as stdout,
+            io.TextIOWrapper(io.BytesIO(), encoding="cp1252") as stderr,
+            monkeypatch.context() as patch,
+        ):
+            patch.setattr(sys, "stdout", stdout)
+            patch.setattr(sys, "stderr", stderr)
+            _ensure_utf8_streams()
+            assert stdout.encoding == "utf-8"
+            assert stderr.encoding == "utf-8"
+            stdout.write("✓")
+            stdout.flush()
+            assert stdout.buffer.getvalue() == "✓".encode()
+
+    def test_stream_without_reconfigure_is_left_untouched(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A non-UTF-8 stream without reconfigure does not prevent the other stream from being prepared.
+
+        Capture wrappers can omit reconfigure even when they report a legacy encoding.
+        """
+        stream = SimpleNamespace(encoding="cp1252")
+        with io.TextIOWrapper(io.BytesIO(), encoding="cp1252") as stderr, monkeypatch.context() as patch:
+            patch.setattr(sys, "stdout", stream)
+            patch.setattr(sys, "stderr", stderr)
+            _ensure_utf8_streams()
+            assert stream.encoding == "cp1252"
+            assert stderr.encoding == "utf-8"
+
+    def test_reconfigure_failure_does_not_block_other_stream(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A stream that rejects reconfiguration does not stop the other output stream being prepared.
+
+        Some console streams cannot change encoding after output has started; the CLI must still initialize.
+        """
+        stream = SimpleNamespace(encoding="cp1252", reconfigure=Mock(side_effect=ValueError("already written")))
+        with io.TextIOWrapper(io.BytesIO(), encoding="cp1252") as stderr, monkeypatch.context() as patch:
+            patch.setattr(sys, "stdout", stream)
+            patch.setattr(sys, "stderr", stderr)
+            _ensure_utf8_streams()
+            stream.reconfigure.assert_called_once_with(encoding="utf-8")
+            assert stderr.encoding == "utf-8"

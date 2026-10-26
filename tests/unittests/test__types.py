@@ -45,8 +45,8 @@ def _proxy_config_state_0_14() -> dict[str, Any]:
     }
 
 
-class TestWrapperStateDuplicates:
-    """A copied, deep-copied or unpickled ``_WrapperState`` snapshots the counters with its own lock and dict."""
+class TestWrapperStateSerialization:
+    """Copied and restored wrapper state preserves warning budgets without sharing mutable state."""
 
     @pytest.mark.parametrize(
         "duplicate",
@@ -68,10 +68,6 @@ class TestWrapperStateDuplicates:
         assert dup.lock is not state.lock
         assert dup.warned_args is not state.warned_args
 
-
-class TestWrapperStateSetstate:
-    """``_WrapperState.__setstate__`` restores the warn budgets from a pickled state dict."""
-
     def test_ignores_removed_called_counter(self) -> None:
         """A state dict that still carries the removed ``called`` counter loads without it.
 
@@ -84,8 +80,8 @@ class TestWrapperStateSetstate:
         assert "called" not in vars(state)
 
 
-class TestProxyConfigSetstate:
-    """``_ProxyConfig.__setstate__`` migrates the flat 0.14 counters into the shared ``_WrapperState``."""
+class TestProxyConfigSerialization:
+    """Proxy configuration serialization preserves the 0.14 layout and warning budgets."""
 
     def test_migrates_0_14_counters(self) -> None:
         """A 0.14 state dict's ``warned`` / ``warned_args`` become ``state``; ``facts`` defaults to empty.
@@ -117,10 +113,6 @@ class TestProxyConfigSetstate:
         restored = _pickle_round_trip(cfg)
         assert restored == dataclasses.replace(cfg, facts=_CallFacts())
         assert restored.state.lock is not cfg.state.lock
-
-
-class TestProxyConfigGetstate:
-    """``_ProxyConfig.__getstate__`` writes the 0.14 layout, so proxies pickled today still load on 0.14."""
 
     def test_emits_0_14_layout(self) -> None:
         """The pickled state holds the eight config fields plus flat ``warned`` / ``warned_args`` counters.
