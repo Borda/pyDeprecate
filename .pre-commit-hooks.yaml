@@ -10,7 +10,7 @@
 # Settings repeated on every hook:
 # - `pass_filenames: false`, `types: [python]`, `require_serial: true`: the CLI scans importable
 #   packages/directories, never individual files, so run once on the whole project when any Python file changes
-# - `additional_dependencies`: `pip install .` skips extras, so request the `cli` and `audit` extras of setup.py by
+# - `additional_dependencies`: `pip install .` skips extras, so request the `cli` and `audit` extras of pyproject.toml by
 #   name; pip binds the name to the `.` checkout pre-commit installs, so no other release is fetched. A user
 #   `additional_dependencies` list replaces this one, so it must start with the same entry
 

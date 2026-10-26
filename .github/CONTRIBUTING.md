@@ -292,7 +292,7 @@ When a proposed feature conflicts with simplicity, complexity wins only when rob
 - Use **MkDocs admonition syntax** for docstring notices in `src/deprecate/` by default — `!!! note`, `!!! warning "Deprecated in X.Y"`, etc. Do not use RST directives (`.. note::`, `.. deprecated::`) in package source docstrings unless the module specifically exists to integrate with Sphinx/RST docstrings (for example, `src/deprecate/docstring/sphinx_ext.py` and `src/deprecate/docstring/griffe_ext.py`). For demos, `demo-docs/sphinx/` follows RST conventions and `demo-docs/mkdocs/` follows MkDocs conventions — each demo matches its own renderer.
 - Keep functions focused and modular — a function should do one thing; if it needs a long comment to explain what it does, it probably needs to be split
 - Add type hints to all function signatures, including return types
-- Align type hint syntax with the **minimum supported Python version** (check `python_requires` in `setup.py`)
+- Align type hint syntax with the **minimum supported Python version** (check `requires-python` in `pyproject.toml`)
 - If unsure about syntax compatibility, consult the official Python documentation for that version or search for the relevant PEP
 - Write meaningful variable and function names — prefer `expired_callables` over `lst`, `source_func` over `f`
 - Write Python code that is readable on its own — good names and structure are the primary documentation. Add an inline comment only when it carries context the code cannot: **why** a non-obvious choice was made, a hidden constraint, a subtle invariant, or a workaround for a specific external behaviour. One short line; never explain what the code does
@@ -402,8 +402,8 @@ pyDeprecate/
 │   └── *.md                    # Documentation and guidelines
 ├── .pre-commit-hooks.yaml      # pre-commit hook manifest: one hook id per CLI subcommand (`pydeprecate-check`, …)
 ├── action.yml                  # Composite GitHub Action running the CLI; logic in `.github/scripts/action_runner.py`
-├── pyproject.toml              # Project config (ruff, mypy, pytest)
-└── setup.py                    # Package setup
+├── pyproject.toml              # Package metadata, extras, entry point and tool config (ruff, mypy, pytest)
+└── setup.py                    # Shim that only builds the PyPI long description from README.md
 ```
 
 **Circular import prevention example:**

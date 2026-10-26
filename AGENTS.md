@@ -24,9 +24,9 @@ For pull request or changed-code reviews, follow the [code-review skill](.github
 
 1. **Configuration files** (source of truth):
 
-   - `pyproject.toml` — project config, tool settings (ruff, mypy, pytest)
+   - `pyproject.toml` — package metadata, extras, entry point and tool settings (ruff, mypy, pytest)
    - `.pre-commit-config.yaml` — pre-commit hooks configuration
-   - `setup.py` — package metadata and dependencies
+   - `setup.py` — shim that only builds the PyPI long description from `README.md`
    - `.github/workflows/*.yml` — CI/CD pipeline configuration
 
 2. **Documentation and guidelines**:
