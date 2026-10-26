@@ -1,6 +1,8 @@
 """Unit tests for proxy factories and typing contracts in deprecate.proxy."""
 
+import importlib
 import inspect
+import pickle
 import warnings
 from collections.abc import Callable
 from typing import TYPE_CHECKING
@@ -31,6 +33,24 @@ from tests.collection_deprecate import (
 )
 from tests.collection_targets import ColorEnum, NewDataClass, Palette
 from tests.unittests.proxy._helpers import _ast_class_proxy
+
+
+class TestFactoryExports:
+    """Public factory exports retain their identity when their implementation moves."""
+
+    @pytest.mark.parametrize("name", ["deprecated_class", "deprecated_instance"])
+    def test_package_export_is_implementation_and_pickleable(self, name: str) -> None:
+        """Factory imports and pickle references keep resolving through the existing public package.
+
+        A consumer may import a factory from either the package or the top-level API and store it by reference.
+        The implementation module must expose the same function without changing its established pickle path.
+        """
+        factory = getattr(proxy_package, name)
+        implementation = importlib.import_module("deprecate.proxy.factories")
+        assert getattr(implementation, name) is factory
+        assert getattr(deprecate, name) is factory
+        assert factory.__module__ == "deprecate.proxy"
+        assert pickle.loads(pickle.dumps(factory)) is factory  # noqa: S301 - trusted local round trip
 
 
 class TestDecoratorFactory:
