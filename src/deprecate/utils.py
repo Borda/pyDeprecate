@@ -220,7 +220,7 @@ def _remap_kwargs(
     collisions = [
         (old, new)
         for old, new in mapping.items()
-        if new is not None and old in kwargs and new in kwargs and new not in dropped
+        if new and old in kwargs and new in kwargs and new not in dropped
     ]
     if stream:
         for old, new in collisions:
