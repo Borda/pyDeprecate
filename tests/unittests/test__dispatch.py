@@ -400,7 +400,7 @@ class TestPositionalOnlyTarget:
         at decoration time and no ``FutureWarning`` fires at call time.  The underlying
         split dispatch must still execute so ``positional_only_target`` is called with ``x``
         as a positional arg (not as a kwarg), returning the correct value.
-        ``deprecated_positional_only_stream_none`` is defined in ``api_deprecated.py``
+        ``deprecated_positional_only_stream_none`` is defined in ``api_deprecated_forwarding.py``
         with ``stream=None`` so no warnings are emitted at decoration time or call time.
         """
         result = deprecated_positional_only_stream_none(5)
@@ -413,7 +413,7 @@ class TestPositionalOnlyTarget:
         must still forward ``x`` positionally (the split dispatch must not be gated on
         the warning being emitted).  A caller silently migrating after the quota exhausts
         should not receive ``TypeError``.
-        ``deprecated_positional_only_num_warns_one`` is defined in ``api_deprecated.py``
+        ``make_deprecated_positional_only_num_warns_one`` is defined in ``api_deprecated_forwarding.py``
         with ``num_warns=1`` so the warning fires exactly once.
         """
         quota_fn = make_deprecated_positional_only_num_warns_one()

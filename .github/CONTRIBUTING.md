@@ -462,7 +462,7 @@ The integration suite also keeps characterization for positional and keyword for
 > - Do **not** use bare `assert` statements in top-level example code (e.g. `assert pt.x == 1.0`, `assert isinstance(obj, MyClass)`) — use `print()` instead so the value is visible rather than crashing with `AssertionError`. **Exception:** bare `assert` statements inside `def test_...` function bodies shown as pytest integration examples are allowed and idiomatic.
 > - Avoid placeholders that do not validate behavior.
 > - **Never import a fictional package name** in runnable examples — executable examples must import from actual test collection modules (`from tests.collections import api_deprecated`, `api_deprecated_forwarding`, `api_deprecated_regressions`, `misconfigured`, `chains`, `policy`, or `pep702`). For CI-template snippets that intentionally show a placeholder import, add `# phmdoctest:skip — CI template: replace my_package with your actual package` as the first line of the code block so phmdoctest skips execution.
-
+>
 > [!NOTE]
 >
 > **Several docs examples import a `tests/collections/` module and print hardcoded counts from it** (currently: `README.md`, `docs/guide/audit.md`, `docs/troubleshooting.md`). When you add or remove entries from a collection module:

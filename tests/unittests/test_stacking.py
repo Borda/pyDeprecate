@@ -39,11 +39,11 @@ class TestStackedDeprecatedClass:
     Each decorator carries a different ``deprecated_in``/``remove_in`` pair so that
     callers migrating to the new API get accurate version information per attribute.
 
-    ``StackedAttrProxy`` is a module-level singleton defined in ``api_deprecated``.
+    ``StackedAttrProxy`` is a module-level singleton defined in ``api_deprecated_forwarding``.
     Both layers use ``stream=None``, which causes ``_warn()`` to return before incrementing
     ``_ProxyConfig.state`` (``warned_calls`` or ``warned_args``) — so warning state does not accumulate
     across tests despite the shared reference.  The project conftest also resets that state before
-    every test, as it does for every module-level proxy of ``api_deprecated``.
+    every test, as it does for every module-level proxy of ``api_deprecated_forwarding``.
 
     """
 

@@ -810,10 +810,9 @@ def validate_mapping_compatibility(
 ) -> list[DeprecationWrapperInfo]:
     """Return wrappers whose ``args_mapping`` remaps deprecated names to POSITIONAL_ONLY constructor params.
 
-    A non-empty ``args_mapping_positional_only`` on the returned ``DeprecationWrapperInfo`` means the
-    proxy falls back to ``setattr`` at call time instead of forwarding the remapped kwarg.  Use this
-    validator in CI to detect :func:`~deprecate.proxy.deprecated_class` configurations that silently
-    degrade to attribute assignment and may not behave as expected on all target class types.
+    A non-empty ``args_mapping_positional_only`` on the returned ``DeprecationWrapperInfo`` identifies
+    mappings whose values the proxy forwards positionally to the constructor. Use this validator for
+    advisory visibility into :func:`~deprecate.proxy.deprecated_class` mappings that require positional forwarding.
 
     Args:
         module: A Python module or package to scan.  Accepts an imported module object or a dotted
@@ -828,7 +827,7 @@ def validate_mapping_compatibility(
 
     Returns:
         List of ``DeprecationWrapperInfo`` instances whose ``args_mapping_positional_only`` field is
-        non-empty.  Returns an empty list when no incompatibilities are found.
+        non-empty. Returns an empty list when no such mappings are found.
 
     Examples:
         >>> from deprecate import validate_mapping_compatibility
