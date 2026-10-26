@@ -671,13 +671,13 @@ def find_deprecation_wrappers(
 
     Example:
         >>> from deprecate import find_deprecation_wrappers
-        >>> from tests import collection_deprecate as my_package
+        >>> from tests.collections import api_deprecated as my_package
         >>>
         >>> results = find_deprecation_wrappers(my_package)
         >>> print(len(results) > 0)  # Should find deprecated wrappers
         True
         >>> # Also works with string module paths
-        >>> results = find_deprecation_wrappers("tests.collection_deprecate")
+        >>> results = find_deprecation_wrappers("tests.collections.api_deprecated")
         >>> print(len(results) > 0)
         True
 
@@ -786,7 +786,7 @@ def validate_deprecation_chains(
 
     Example:
         >>> from deprecate import validate_deprecation_chains
-        >>> import tests.collection_chains as test_module
+        >>> import tests.collections.chains as test_module
         >>>
         >>> issues = validate_deprecation_chains(test_module, recursive=False)
         >>> len(issues) > 0  # Should find chains
@@ -832,7 +832,7 @@ def validate_mapping_compatibility(
 
     Examples:
         >>> from deprecate import validate_mapping_compatibility
-        >>> import tests.collection_deprecate as col
+        >>> import tests.collections.api_deprecated as col
         >>> results = validate_mapping_compatibility(col, recursive=False)
         >>> len(results) > 0  # DepPositionalOnly remaps to a POSITIONAL_ONLY param
         True

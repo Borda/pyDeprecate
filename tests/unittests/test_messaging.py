@@ -34,8 +34,7 @@ from deprecate.messaging import (
     _validate_message_template,
 )
 from deprecate.utils import _partial_chain
-from tests.collection_deprecate_regressions import make_sum_deprecation_with_stream
-from tests.collection_targets import (
+from tests.collections.api_current import (
     CallableAdder,
     EqualMessageOnlyStream,
     EqualStacklevelStream,
@@ -73,6 +72,7 @@ from tests.collection_targets import (
     stream_with_stacklevel,
     stream_wraps_logging_warning,
 )
+from tests.collections.api_deprecated_regressions import make_sum_deprecation_with_stream
 
 
 class TestWarnBudgetRelease:
@@ -154,25 +154,25 @@ class TestCallableDisplayName:
         [
             pytest.param(
                 base_sum_kwargs,
-                ("base_sum_kwargs", "tests.collection_targets.base_sum_kwargs"),
+                ("base_sum_kwargs", "tests.collections.api_current.base_sum_kwargs"),
                 id="function",
             ),
-            pytest.param(NewCls.__init__, ("__init__", "tests.collection_targets.__init__"), id="method"),
-            pytest.param(NewCls, ("NewCls", "tests.collection_targets.NewCls"), id="class"),
-            pytest.param(partial_target, ("new_scale", "tests.collection_targets.new_scale"), id="partial"),
+            pytest.param(NewCls.__init__, ("__init__", "tests.collections.api_current.__init__"), id="method"),
+            pytest.param(NewCls, ("NewCls", "tests.collections.api_current.NewCls"), id="class"),
+            pytest.param(partial_target, ("new_scale", "tests.collections.api_current.new_scale"), id="partial"),
             pytest.param(
                 nested_partial_target,
-                ("new_scale", "tests.collection_targets.new_scale"),
+                ("new_scale", "tests.collections.api_current.new_scale"),
                 id="nested-partial",
             ),
             pytest.param(
                 callable_adder_target,
-                ("CallableAdder", "tests.collection_targets.CallableAdder"),
+                ("CallableAdder", "tests.collections.api_current.CallableAdder"),
                 id="callable-instance",
             ),
             pytest.param(
                 NonStringNameCallable(),
-                ("NonStringNameCallable", "tests.collection_targets.NonStringNameCallable"),
+                ("NonStringNameCallable", "tests.collections.api_current.NonStringNameCallable"),
                 id="non-string-name",
             ),
             pytest.param(max, ("max", "builtins.max"), id="builtin"),
@@ -532,7 +532,8 @@ class TestRaiseWarnStacklevel:
         assert (result, stream.calls) == (
             3,
             [
-                "The `original_sum` was deprecated since v1.0 in favor of `tests.collection_targets.base_sum_kwargs`."
+                "The `original_sum` was deprecated since v1.0 in favor of "
+                "`tests.collections.api_current.base_sum_kwargs`."
                 " It will be removed in v2.0."
             ],
         )

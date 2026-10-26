@@ -13,8 +13,8 @@ from deprecate import TargetMode, deprecated
 from deprecate import property as strict_property
 from deprecate._properties import _DeprecatedProperty, _StrictProperty
 from deprecate.audit import validate_deprecation_expiry
-from tests.collection_deprecate import InnerOrderDeprecatedPropCls, ServiceCls
-from tests.collection_deprecate_forwarding import DelOnlyDeprecatedPropCls
+from tests.collections.api_deprecated import InnerOrderDeprecatedPropCls, ServiceCls
+from tests.collections.api_deprecated_forwarding import DelOnlyDeprecatedPropCls
 
 
 class TestDescriptorOrderAgnostic:
@@ -707,7 +707,7 @@ class TestPropertyOrderAgnostic:
 class TestPropertyErrorPaths:
     """``@deprecated`` raises ``TypeError`` for unsupported property configurations.
 
-    Defined inline (not in collection_deprecate.py) because all four cases raise at
+    Defined inline (not in api_deprecated.py) because all four cases raise at
     decoration time — placing them at module level would abort the entire import.
     This matches the AGENTS.md three-layer-rule exception for error-path tests that
     test the decorator itself raising TypeError.

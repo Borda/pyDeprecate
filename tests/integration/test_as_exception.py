@@ -21,9 +21,17 @@ from deprecate import (
     deprecated,
     find_deprecation_wrappers,
 )
-from tests import collection_modules
-from tests.collection_deprecate import wrapped_sum
-from tests.collection_deprecate_regressions import (
+from tests.collections import modules
+from tests.collections.api_current import (
+    async_gen_target,
+    async_target,
+    base_sum_kwargs,
+    double_value,
+    gen_target,
+    identity_value,
+)
+from tests.collections.api_deprecated import wrapped_sum
+from tests.collections.api_deprecated_regressions import (
     DeprecatedScopedSwitchWidget,
     FatalLegacyWidget,
     FatalLegacyWidgetViaFrontDoor,
@@ -40,15 +48,7 @@ from tests.collection_deprecate_regressions import (
     depr_scoped_switch_warn_only,
     fatal_legacy_settings,
 )
-from tests.collection_modules import fatal_utils, old_stats
-from tests.collection_targets import (
-    async_gen_target,
-    async_target,
-    base_sum_kwargs,
-    double_value,
-    gen_target,
-    identity_value,
-)
+from tests.collections.modules import fatal_utils, old_stats
 
 _VERSION_ARGS: dict[str, Any] = {"deprecated_in": "1.0", "remove_in": "2.0"}
 
@@ -181,8 +181,8 @@ class TestFatalCallable:
         lists deprecations blow up on the very deprecations it is meant to report. It reads `__dict__`, so the
         fatal module is discovered like any other — this locks that in.
         """
-        found = {info.module for info in find_deprecation_wrappers(collection_modules, recursive=True)}
-        assert "tests.collection_modules.fatal_utils" in found
+        found = {info.module for info in find_deprecation_wrappers(modules, recursive=True)}
+        assert "tests.collections.modules.fatal_utils" in found
 
     def test_non_warnings_stream_still_raises(self) -> None:
         """A wrapper routing through `logging.warning` raises when fatal — no warnings filter can do this.

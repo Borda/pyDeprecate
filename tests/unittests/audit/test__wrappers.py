@@ -15,8 +15,8 @@ from deprecate.audit import (
 )
 from deprecate.audit._wrappers import _classify_member_api_type
 from deprecate.proxy import _DeprecatedProxy, _ProxySpec
-from tests.collection_chains import caller_via_notify_layer
-from tests.collection_targets import ColorEnum
+from tests.collections.api_current import ColorEnum
+from tests.collections.chains import caller_via_notify_layer
 
 _PACKAGING_AVAILABLE = importlib.util.find_spec("packaging") is not None
 _requires_packaging = pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging library")

@@ -17,7 +17,7 @@ from deprecate.utils import (
     get_func_arguments_types_defaults,
     void,
 )
-from tests.collection_targets import (
+from tests.collections.api_current import (
     HostileSignatureCallable,
     RequiredPositionalOnlyTarget,
     UnintrospectableStream,

@@ -8,7 +8,7 @@ import pytest
 
 from deprecate import assert_no_warnings
 from deprecate.utils import no_warning_call
-from tests.collection_targets import raise_pow, raise_pow_future
+from tests.collections.api_current import raise_pow, raise_pow_future
 
 
 class TestWarningCall:

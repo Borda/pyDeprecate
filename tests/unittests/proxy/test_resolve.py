@@ -6,7 +6,8 @@ from dataclasses import dataclass as dc_decorator
 import pytest
 
 from deprecate.proxy import deprecated_class
-from tests.collection_deprecate import (
+from tests.collections.api_current import AutoExpandDC, PositionalOnlyTarget
+from tests.collections.api_deprecated import (
     DepAutoExpandDC,
     DepPositionalOnly,
     DepPositionalOnlyDerived,
@@ -14,12 +15,11 @@ from tests.collection_deprecate import (
     DepPositionalOnlyMixed,
     DepPositionalOnlyRequired,
 )
-from tests.collection_deprecate_forwarding import (
+from tests.collections.api_deprecated_forwarding import (
     DepAutoExpandInitFalseDC,
     DepAutoExpandOverriddenInitDC,
     DepAutoExpandReqDC,
 )
-from tests.collection_targets import AutoExpandDC, PositionalOnlyTarget
 
 # ---------------------------------------------------------------------------
 # Dataclass dual-surface auto-expand

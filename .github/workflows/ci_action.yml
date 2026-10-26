@@ -56,7 +56,7 @@ jobs:
         shell: bash
         env:
           PYDEPRECATE_ACTION_SUBCOMMAND: check
-          PYDEPRECATE_ACTION_PATH: tests.collection_misconfigured
+          PYDEPRECATE_ACTION_PATH: tests.collections.misconfigured
           PYDEPRECATE_ACTION_INSTALL: "false"
         run: |
           log="$(mktemp)"
@@ -73,7 +73,7 @@ jobs:
         uses: ./
         with:
           subcommand: check
-          path: tests.collection_misconfigured
+          path: tests.collections.misconfigured
           exit-zero: true
           install: false
 

@@ -13,12 +13,12 @@ from typing import Any, Callable
 
 import pytest
 
-from tests.collection_deprecate import loc_stack_notify_over_callable, loc_stack_remap_over_notify
-from tests.collection_deprecate_forwarding import (
+from tests.collections.api_deprecated import loc_stack_notify_over_callable, loc_stack_remap_over_notify
+from tests.collections.api_deprecated_forwarding import (
     deprecated_gapped_positional_only_source,
     deprecated_var_positional_forward,
 )
-from tests.collection_deprecate_regressions import (
+from tests.collections.api_deprecated_regressions import (
     shape_notify_area_dispatch,
     shape_notify_positional_only,
     shape_notify_raw_signature,
@@ -36,7 +36,7 @@ from tests.collection_deprecate_regressions import (
 _NOTIFY_OVER_CALLABLE_WARNINGS = [
     "FutureWarning: The `_loc_stack_forward_source` was deprecated since v1.5. It will be removed in v2.0.",
     "FutureWarning: The `_loc_stack_forward_source` was deprecated since v1.0 in favor of"
-    " `tests.collection_targets.double_value`. It will be removed in v2.0.",
+    " `tests.collections.api_current.double_value`. It will be removed in v2.0.",
 ]
 _LIFECYCLE_NOTIFY_WARNING = (
     "FutureWarning: The `_loc_stack_lifecycle_source` was deprecated since v1.0. It will be removed in v2.0."

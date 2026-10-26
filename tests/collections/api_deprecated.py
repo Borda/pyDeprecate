@@ -60,7 +60,7 @@ from deprecate import (
     void,
 )
 from deprecate.proxy import _DeprecatedProxy, _ProxySpec
-from tests.collection_targets import (
+from tests.collections.api_current import (
     AutoExpandDC,
     CallableAdder,
     ColorEnum,

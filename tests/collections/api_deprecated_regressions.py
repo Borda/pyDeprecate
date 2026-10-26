@@ -10,13 +10,7 @@ from warnings import catch_warnings, simplefilter
 
 from deprecate import TargetMode, deprecated, deprecated_callable, deprecated_class, deprecated_instance, void
 from deprecate.proxy import _DeprecatedProxy, _ProxySpec
-from tests.collection_deprecate import (
-    _DEPRS_CASE_FATAL_ARGS,
-    _DEPRS_CASE_STD_ARGS,
-    _DEPRS_CASE_STD_INF_ARGS,
-    original_sum,
-)
-from tests.collection_targets import (
+from tests.collections.api_current import (
     CountingSkipCondition,
     DoclessTarget,
     HostileSignatureCallable,
@@ -44,6 +38,12 @@ from tests.collection_targets import (
     stream_wraps_warn_forwarding_stacklevel,
     wraps_chain_outer,
     zero_argument_target,
+)
+from tests.collections.api_deprecated import (
+    _DEPRS_CASE_FATAL_ARGS,
+    _DEPRS_CASE_STD_ARGS,
+    _DEPRS_CASE_STD_INF_ARGS,
+    original_sum,
 )
 
 # ========== deprecated_callable — strict callable-only alias fixtures ==========
@@ -461,7 +461,7 @@ def make_deprecated_hostile_signature_instance() -> Any:  # noqa: ANN401
 # Fatal deprecations (``as_exception``) — Ft-14.  Each wrapper below keeps the DEFAULT ``num_warns=1`` unless
 # the scenario needs otherwise, because the budget-bypass contract (a fatal deprecation raises on every call,
 # never once) is only observable with a finite budget.  ``_DEPRS_CASE_FATAL_ARGS`` remains in
-# ``tests.collection_deprecate`` alongside the other shared version-kwargs constants.
+# ``tests.collections.api_deprecated`` alongside the other shared version-kwargs constants.
 # ---------------------------------------------------------------------------------------------------------
 
 depr_scoped_switch_warn_only = deprecated(target=double_value, **_DEPRS_CASE_STD_INF_ARGS)(identity_value)
@@ -959,7 +959,7 @@ def loc_notify_wrapped_stream(x: int) -> int:
 #: Custom template rendering the path next to the name, so one assertion pins both placeholders.
 _SOURCE_PATH_TEMPLATE = "%(source_path)s :: %(source_name)s"
 
-#: Whole-class deprecation of :class:`tests.collection_targets.SourcePathTarget` — path is module-qualified.
+#: Whole-class deprecation of :class:`tests.collections.api_current.SourcePathTarget` — path is module-qualified.
 DeprSourcePathClass = deprecated_class(message_template=_SOURCE_PATH_TEMPLATE, **_DEPRS_CASE_STD_INF_ARGS)(
     SourcePathTarget
 )
@@ -991,7 +991,7 @@ def make_depr_module_raising_class(metaclass: type) -> Any:  # noqa: ANN401
     """Deprecate a fresh class whose *metaclass* refuses a dynamic ``__module__`` lookup.
 
     Decorating at call time keeps the refusing class out of module scans; the proxy renders ``%(source_path)s`` from the
-    class's own namespace (see :func:`tests.collection_targets.make_module_raising_class`).
+    class's own namespace (see :func:`tests.collections.api_current.make_module_raising_class`).
     """
     return deprecated_class(message_template=_SOURCE_PATH_TEMPLATE, **_DEPRS_CASE_STD_INF_ARGS)(
         make_module_raising_class(metaclass)

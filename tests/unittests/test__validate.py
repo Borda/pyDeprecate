@@ -19,7 +19,13 @@ from deprecate._validate import (
     _validate_callable_mode,
     _warn_stacking_misconfiguration,
 )
-from tests.collection_deprecate import (
+from tests.collections.api_current import (
+    double_value,
+    positional_only_target,
+    stacked_inner_target,
+    stacked_outer_target,
+)
+from tests.collections.api_deprecated import (
     CrossGuardModuleLevel,
     CrossGuardOldClass,
     CrossGuardSameClass,
@@ -29,7 +35,6 @@ from tests.collection_deprecate import (
     loc_stack_notify_inner,
     loc_stack_remap_inner,
 )
-from tests.collection_targets import double_value, positional_only_target, stacked_inner_target, stacked_outer_target
 
 
 class TestCrossClassMethodGuard:
@@ -38,7 +43,7 @@ class TestCrossClassMethodGuard:
     def test_raises_for_cross_class_method_target(self) -> None:
         """Forwarding to a method on a different class raises TypeError at decoration time.
 
-        The misconfigured classes are defined inline (not in collection_deprecate.py) because placing ``@deprecated``
+        The misconfigured classes are defined inline (not in api_deprecated.py) because placing ``@deprecated``
         with a cross-class target at module level would raise TypeError at import time for every test that imports the
         collection module.
 
@@ -202,7 +207,7 @@ class TestNormalizeTargetInvalidInputs:
 
     The inline ``@deprecated`` decorator in :meth:`test_invalid_target_source_body_runs`
     is parametrize-coupled (``target=bad_target`` resolves from the parametrize fixture),
-    so it cannot be moved to :mod:`tests.collection_deprecate` — one wrapper-per-bad-value
+    so it cannot be moved to :mod:`tests.collections.api_deprecated` — one wrapper-per-bad-value
     would require either four near-identical fixtures or a factory that obscures the test
     intent.  This is the AGENTS.md three-layer-rule exception for parametrize-coupled
     decorators.

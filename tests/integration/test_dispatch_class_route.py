@@ -27,8 +27,14 @@ import deprecate.deprecation as _deprecation
 from deprecate import TargetMode, assert_no_warnings, deprecated, deprecated_callable, deprecated_class
 from deprecate._types import DeprecationConfig, _DeprecatedCallable
 from deprecate.proxy import _DeprecatedProxy
-from tests.collection_deprecate import make_deprecated_notify_args_extra_alone_on_class
-from tests.collection_deprecate_regressions import (
+from tests.collections.api_current import (
+    Palette,
+    partial_of_double,
+    partialmethod_of_double,
+    singledispatchmethod_of_double,
+)
+from tests.collections.api_deprecated import make_deprecated_notify_args_extra_alone_on_class
+from tests.collections.api_deprecated_regressions import (
     make_deprecated_attrs_remap_target_on_class,
     make_deprecated_auto_args_mapping_on_function,
     make_deprecated_explicit_auto_on_function,
@@ -51,12 +57,6 @@ from tests.collection_deprecate_regressions import (
     make_front_door_notify_on,
     make_front_door_redirect_on,
     make_strict_callable_notify_on,
-)
-from tests.collection_targets import (
-    Palette,
-    partial_of_double,
-    partialmethod_of_double,
-    singledispatchmethod_of_double,
 )
 
 #: Message fragment shared by every ``functools`` wrapper-kind rejection: the workaround a user can act on.
@@ -284,7 +284,7 @@ class TestClassDispatchInformationalWarning:
 
         misconfig_warns = [w for w in caught if issubclass(w.category, UserWarning) and "args_extra" in str(w.message)]
         assert len(misconfig_warns) == 1
-        assert misconfig_warns[0].filename.endswith("collection_deprecate.py")
+        assert misconfig_warns[0].filename.endswith("api_deprecated.py")
 
 
 class TestEnumAndDataclassDispatch:

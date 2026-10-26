@@ -165,7 +165,7 @@ class TestDocstringStyleOutput:
 
     The inline ``@deprecated`` decorators in this class are parametrize-coupled
     (``docstring_style=style`` resolves from the parametrize fixture), so they cannot be
-    moved to :mod:`tests.collection_deprecate` without losing the per-case configuration.
+    moved to :mod:`tests.collections.api_deprecated` without losing the per-case configuration.
     This is one of the AGENTS.md three-layer-rule exceptions: a decorator whose config
     depends on the parametrize value must be defined inside the test method itself.
     """

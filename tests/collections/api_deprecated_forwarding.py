@@ -8,15 +8,7 @@ from warnings import catch_warnings, simplefilter
 import typing_extensions
 
 from deprecate import TargetMode, deprecated, deprecated_class, void
-from tests.collection_deprecate import (
-    _DEPRS_CASE_STD_ARGS,
-    _DEPRS_CASE_STD_INF_ARGS,
-    _DEPRS_CASE_TGT_MODE_ARGS,
-    _DEPRS_CASE_TGT_MODE_INF_ARGS,
-    _async_source_notify,
-    _class_deprecation_notify_only_callable_target,
-)
-from tests.collection_targets import (
+from tests.collections.api_current import (
     AutoExpandInitFalseDC,
     AutoExpandOverriddenInitDC,
     AutoExpandReqDC,
@@ -63,6 +55,14 @@ from tests.collection_targets import (
     uncomparable_default,
     var_positional_remap_body,
     var_positional_target,
+)
+from tests.collections.api_deprecated import (
+    _DEPRS_CASE_STD_ARGS,
+    _DEPRS_CASE_STD_INF_ARGS,
+    _DEPRS_CASE_TGT_MODE_ARGS,
+    _DEPRS_CASE_TGT_MODE_INF_ARGS,
+    _async_source_notify,
+    _class_deprecation_notify_only_callable_target,
 )
 
 # ========== Proxy args_mapping behaviour fixtures ==========
@@ -657,7 +657,7 @@ StackedAttrProxy = deprecated_class(
 
 # ========== Dataclass dual-surface auto-expand fixtures ==========
 
-# Required-field variant of ``collection_deprecate.DepAutoExpandDC``.
+# Required-field variant of ``api_deprecated.DepAutoExpandDC``.
 DepAutoExpandReqDC = deprecated_class(attrs_mapping={"old_field": "new_field"}, **_DEPRS_CASE_STD_INF_ARGS)(
     AutoExpandReqDC
 )
@@ -828,7 +828,7 @@ def make_deprecated_positional_only_num_warns_one() -> "Callable[..., int]":
     activity — a module-level singleton would be depleted after the first test run.
 
     Returns:
-        A new ``@deprecated`` wrapper around :func:`~tests.collection_targets.positional_only_target`
+        A new ``@deprecated`` wrapper around :func:`~tests.collections.api_current.positional_only_target`
         configured with ``num_warns=1`` and the decoration-time ``UserWarning`` suppressed.
     """
     with catch_warnings():
@@ -912,7 +912,7 @@ def deprecated_var_positional_remap(a: int, *extras: int, old_kwarg: str = "", n
     raised ``TypeError: got multiple values for argument 'a'`` because ``resolved_kwargs``
     included positional-to-keyword conversions already present in ``*extras``.
 
-    Wrapped body is :func:`tests.collection_targets.var_positional_remap_body`.
+    Wrapped body is :func:`tests.collections.api_current.var_positional_remap_body`.
     """
     return var_positional_remap_body(a, *extras, old_kwarg=old_kwarg, new_kwarg=new_kwarg)
 

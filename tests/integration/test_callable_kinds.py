@@ -22,8 +22,8 @@ import pytest
 
 from deprecate import deprecated
 from deprecate._types import _DeprecatedCallable
-from tests.collection_deprecate import decorated_sum_calls_inf, make_async_stacked_notify
-from tests.collection_deprecate_forwarding import (
+from tests.collections.api_deprecated import decorated_sum_calls_inf, make_async_stacked_notify
+from tests.collections.api_deprecated_forwarding import (
     async_args_remap,
     async_callable,
     async_gen_args_remap,

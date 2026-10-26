@@ -7,8 +7,8 @@ from typing import Any
 import pytest
 
 from deprecate import deprecated_instance
-from tests.collection_deprecate import depr_config_dict, depr_config_dict_read_only
-from tests.collection_targets import ManagedResource
+from tests.collections.api_current import ManagedResource
+from tests.collections.api_deprecated import depr_config_dict, depr_config_dict_read_only
 
 
 class TestInstanceProxy:
@@ -54,7 +54,7 @@ class TestInstanceProxy:
         assert set(keys) == {"a", "b"}
 
     def test_collection_config_dict_warns_on_read(self) -> None:
-        """depr_config_dict from collection_deprecate emits FutureWarning on read."""
+        """depr_config_dict from api_deprecated emits FutureWarning on read."""
         with pytest.warns(FutureWarning, match=r"The `dict` was deprecated since v1\.0"):
             val = depr_config_dict["threshold"]
         assert val == 0.5

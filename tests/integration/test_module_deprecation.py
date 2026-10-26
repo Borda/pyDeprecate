@@ -1,7 +1,7 @@
 """Integration tests for ``deprecated_module()`` — module-level deprecation via ``__class__`` reassignment.
 
 Tests cover all three operation modes, audit discoverability, reload survival, and warning
-stack-level correctness.  Fixture modules live in ``tests/collection_modules/``.
+stack-level correctness.  Fixture modules live in ``tests/collections/modules/``.
 """
 
 from __future__ import annotations
@@ -19,10 +19,10 @@ from typing import Any, Callable
 
 import pytest
 
-import tests.collection_modules.auto_math as auto_math
-import tests.collection_modules.new_utils as new_utils
-import tests.collection_modules.old_math as old_math
-import tests.collection_modules.old_utils as old_utils
+import tests.collections.modules.auto_math as auto_math
+import tests.collections.modules.new_utils as new_utils
+import tests.collections.modules.old_math as old_math
+import tests.collections.modules.old_utils as old_utils
 from deprecate import (
     TargetMode,
     find_deprecation_wrappers,
@@ -33,7 +33,7 @@ from deprecate._types import DeprecationConfig
 from deprecate.audit._lifecycle import _check_deprecated_wrapper_expiry
 from deprecate.audit._wrappers import _format_report_symbol
 from deprecate.module import _redirect_guard, _RedirectResolution, deprecated_module
-from tests.collection_targets import (
+from tests.collections.api_current import (
     ContextCapturingLookup,
     FlakyTypeErrorStream,
     InheritedContextLookup,
@@ -224,7 +224,7 @@ class TestStarImport:
     def test_star_import_warns(self) -> None:
         """A star-import of a deprecated module emits a ``FutureWarning`` for each public name pulled in.
 
-        ``from tests.collection_modules.old_math import *`` binds every public name from the module's
+        ``from tests.collections.modules.old_math import *`` binds every public name from the module's
         namespace (here, ``deprecate`` and ``square``) into the importing scope.  CPython implements the
         star-import via the ``IMPORT_STAR`` bytecode, which calls ``getattr(module, name)`` for each name
         being copied — routing through ``_DeprecatedModuleWrapper.__getattribute__`` exactly like any other
@@ -237,7 +237,7 @@ class TestStarImport:
         namespace: dict[str, object] = {}
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            exec("from tests.collection_modules.old_math import *", namespace)  # noqa: S102 -- star-import under test, not arbitrary code execution
+            exec("from tests.collections.modules.old_math import *", namespace)  # noqa: S102 -- star-import under test, not arbitrary code execution
         future_warns = [x for x in w if issubclass(x.category, FutureWarning)]
         assert len(future_warns) >= 1
         square_fn: Any = namespace["square"]
@@ -407,7 +407,7 @@ class TestModuleReportLabel:
     Regression guard for the audit rendering bug where ``_scan_module_meta`` stored the sentinel
     ``function="(module)"``.  Because ``_format_report_symbol`` concatenates ``module.function`` and
     the expiry error formatters inlined ``Callable `{info.function}``, a deprecated module surfaced as
-    the malformed ``tests.collection_modules.old_math.(module)`` in report rows and as
+    the malformed ``tests.collections.modules.old_math.(module)`` in report rows and as
     ``Callable `(module)``` in expiry messages.  A real CI audit gate that reports an expired module
     must name the module cleanly so a maintainer can find and delete it, and must call it a *Module*
     rather than a *Callable*.  These tests pin the fixture module ``old_math``
@@ -415,7 +415,7 @@ class TestModuleReportLabel:
     report symbol, the generated report table, and both the batch and single-wrapper expiry paths.
     """
 
-    _MODULE_LABEL = "tests.collection_modules.old_math"
+    _MODULE_LABEL = "tests.collections.modules.old_math"
 
     def test_report_symbol_is_bare_module_name(self) -> None:
         """``_format_report_symbol`` renders the module name with no ``(module)`` suffix or trailing dot."""
@@ -447,7 +447,7 @@ class TestModuleReportLabel:
         deprecated module directly at its removal version must raise with ``Module `<name>``` so the
         malformed ``Callable `(module)``` label can never reach the error a maintainer reads.
         """
-        with pytest.raises(AssertionError, match=r"Module `tests\.collection_modules\.old_math`"):
+        with pytest.raises(AssertionError, match=r"Module `tests\.collections\.modules\.old_math`"):
             _check_deprecated_wrapper_expiry(old_math, "2.0")
 
 

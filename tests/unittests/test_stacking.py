@@ -16,8 +16,7 @@ import warnings
 import pytest
 
 from deprecate.proxy import _DeprecatedProxy, _ProxySpec, deprecated_class
-from tests.collection_deprecate_forwarding import DepCombinedSingleCall, DepSelfCombinedTwoLayer, StackedAttrProxy
-from tests.collection_targets import (
+from tests.collections.api_current import (
     SelfDeprecatedModel,
     StackingArgsAttrsBase,
     StackingBlanketBase,
@@ -26,7 +25,8 @@ from tests.collection_targets import (
     StackingMutableBase,
     StackingSilentBase,
 )
-from tests.collection_targets import StackedAttrTarget as _StackedAttrTarget
+from tests.collections.api_current import StackedAttrTarget as _StackedAttrTarget
+from tests.collections.api_deprecated_forwarding import DepCombinedSingleCall, DepSelfCombinedTwoLayer, StackedAttrProxy
 
 # ---------------------------------------------------------------------------
 # Feature 1 & 2: Stacking two ATTRS_REMAP deprecated_class decorators
@@ -39,11 +39,11 @@ class TestStackedDeprecatedClass:
     Each decorator carries a different ``deprecated_in``/``remove_in`` pair so that
     callers migrating to the new API get accurate version information per attribute.
 
-    ``StackedAttrProxy`` is a module-level singleton defined in ``collection_deprecate``.
+    ``StackedAttrProxy`` is a module-level singleton defined in ``api_deprecated``.
     Both layers use ``stream=None``, which causes ``_warn()`` to return before incrementing
     ``_ProxyConfig.state`` (``warned_calls`` or ``warned_args``) — so warning state does not accumulate
     across tests despite the shared reference.  The project conftest also resets that state before
-    every test, as it does for every module-level proxy of ``collection_deprecate``.
+    every test, as it does for every module-level proxy of ``api_deprecated``.
 
     """
 

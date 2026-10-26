@@ -13,8 +13,8 @@ the ``misconfigured=True`` audit flag (3b).
 Fix 4: The one-time call-time misconfiguration ``UserWarning`` checked and set its flag outside the state lock, so
 concurrent first calls to a misconfigured wrapper could each emit it.
 
-Three-layer rule: the deprecated wrappers and target callables live in ``tests/collection_deprecate*.py``,
-``tests/collection_misconfigured.py``, and ``tests/collection_targets.py``. This module only contains assertions.
+Three-layer rule: the deprecated wrappers and target callables live in ``tests/collections/api_deprecated*.py``,
+``tests/collections/misconfigured.py``, and ``tests/collections/api_current.py``. This module only contains assertions.
 
 """
 
@@ -30,19 +30,32 @@ import pytest
 from deprecate import TargetMode, assert_no_warnings
 from deprecate._types import _DeprecatedCallable
 from deprecate.audit import validate_deprecation_wrapper
-from tests.collection_depr_legacy import fn_remap_with_extra as legacy_fn_remap_with_extra
-from tests.collection_deprecate_forwarding import fn_old_default, fn_remap_with_extra
-from tests.collection_misconfigured import (
+from tests.collections.api_deprecated import decorated_sum
+from tests.collections.api_deprecated_forwarding import fn_old_default, fn_remap_with_extra
+from tests.collections.api_deprecated_legacy import fn_remap_with_extra as legacy_fn_remap_with_extra
+from tests.collections.api_deprecated_regressions import deprecated_callable_double
+from tests.collections.misconfigured import (
     make_class_target_false,
     make_class_target_false_with_args_mapping,
     make_class_target_none_with_args_mapping,
     make_notify_mapping_no_budget,
 )
+from tests.conftest import _iter_wrapper_states
 
 #: Threads released together into one wrapper by the concurrency regression test.
 _RACE_THREADS = 8
 #: Calls each of those threads makes.
 _RACE_CALLS_PER_THREAD = 2000
+
+
+def test_shared_collection_states_are_discovered() -> None:
+    """Shared wrappers across all three collection modules participate in warning-budget resets.
+
+    Tests import wrappers from separate modules and can otherwise inherit a spent warning budget from an earlier test.
+    """
+    states = _iter_wrapper_states()
+    for wrapper in (decorated_sum, fn_old_default, deprecated_callable_double):
+        assert any(state is cast(_DeprecatedCallable, wrapper)._state for state in states)
 
 
 @pytest.fixture

@@ -391,7 +391,7 @@ class TestMessageRequiredRemedy:
 
 
 class TestValidateDeprecationPolicy:
-    """End-to-end policy scan over the ``tests.collection_policy`` fixtures."""
+    """End-to-end policy scan over the ``tests.collections.policy`` fixtures."""
 
     @pytest.mark.parametrize(
         ("wrapper_name", "rule"),
@@ -415,7 +415,7 @@ class TestValidateDeprecationPolicy:
         policy it broke. The sweep runs under the default policy, so each fixture is judged by the rule it was
         written for.
         """
-        violations = validate_deprecation_policy("tests.collection_policy", recursive=False)
+        violations = validate_deprecation_policy("tests.collections.policy", recursive=False)
         matching = [v for v in violations if wrapper_name in v]
         assert len(matching) == 1
         assert matching[0].startswith(f"[{rule.value}]")
@@ -436,7 +436,7 @@ class TestValidateDeprecationPolicy:
         spells out ``2 major releases`` -- a one-unit window still reads as the singular -- and names the
         release levels a removal may land on, so a mixed-bump violation is explained by the same sentence.
         """
-        violations = validate_deprecation_policy("tests.collection_policy", recursive=False, min_grace=min_grace)
+        violations = validate_deprecation_policy("tests.collections.policy", recursive=False, min_grace=min_grace)
         matching = [v for v in violations if "no_grace_window" in v]
         assert len(matching) == 1
         assert matching[0].endswith(expected_window)
@@ -463,7 +463,7 @@ class TestValidateDeprecationPolicy:
         cases passes silently — a policy that flags every wrapper is one a team turns off in its first
         week.
         """
-        violations = validate_deprecation_policy("tests.collection_policy", recursive=False)
+        violations = validate_deprecation_policy("tests.collections.policy", recursive=False)
         assert not [v for v in violations if wrapper_name in v]
 
     @_requires_packaging
@@ -473,7 +473,7 @@ class TestValidateDeprecationPolicy:
         ``deprecated_instance()`` accepts no ``target`` or mapping, so a remedy listing those would send a
         maintainer after knobs that do not exist; the message must name the one knob the API actually has.
         """
-        violations = validate_deprecation_policy("tests.collection_policy", recursive=False)
+        violations = validate_deprecation_policy("tests.collections.policy", recursive=False)
 
         (violation,) = [v for v in violations if "warns_without_template_instance" in v]
 
@@ -486,25 +486,25 @@ class TestValidateDeprecationPolicy:
     def test_module_with_custom_template_is_not_reported(self) -> None:
         """A ``deprecated_module()`` fixture with a custom ``message_template`` naming a replacement trips no rule.
 
-        ``tests.collection_modules.old_math`` is deprecated in place with a ``message_template`` that names
+        ``tests.collections.modules.old_math`` is deprecated in place with a ``message_template`` that names
         ``new_math`` as the replacement and no ``target``. Since ``_module_has_migration_guidance`` reads a
         template that differs from the built-in notice as guidance, ``validate_deprecation_policy()`` must
         report no ``message-required`` violation for the module itself.
         """
-        violations = validate_deprecation_policy("tests.collection_modules.old_math", recursive=False)
+        violations = validate_deprecation_policy("tests.collections.modules.old_math", recursive=False)
         assert not [v for v in violations if PolicyRule.MESSAGE_REQUIRED.value in v]
 
     @_requires_packaging
     def test_module_with_only_the_built_in_notice_is_reported(self) -> None:
         """A ``deprecated_module()`` fixture with no ``target``, mapping, or custom template is flagged.
 
-        ``tests.collection_modules.old_stats`` is deprecated in place with none of the three module-level
+        ``tests.collections.modules.old_stats`` is deprecated in place with none of the three module-level
         guidance channels, so callers only ever see the built-in notice — the module-level dead end.
         ``validate_deprecation_policy()`` must flag it under ``message-required``, and the remedy must name
         only the arguments ``deprecated_module()`` accepts (a ``target``, an ``attrs_mapping``, or a custom
         ``message_template``) -- never ``args_mapping``, which that factory has no such keyword for.
         """
-        violations = validate_deprecation_policy("tests.collection_modules.old_stats", recursive=False)
+        violations = validate_deprecation_policy("tests.collections.modules.old_stats", recursive=False)
         (violation,) = [v for v in violations if PolicyRule.MESSAGE_REQUIRED.value in v]
         assert "a `target`" in violation
         assert "an `attrs_mapping`" in violation
@@ -538,7 +538,7 @@ class TestValidateDeprecationPolicy:
         Projects with no fixed release cadence must be able to keep the guidance rule while dropping the
         grace-window rule, instead of abandoning the whole gate.
         """
-        violations = validate_deprecation_policy("tests.collection_policy", recursive=False, min_grace=None)
+        violations = validate_deprecation_policy("tests.collections.policy", recursive=False, min_grace=None)
         assert not [v for v in violations if PolicyRule.MIN_GRACE.value in v]
         assert [v for v in violations if PolicyRule.MESSAGE_REQUIRED.value in v]
 

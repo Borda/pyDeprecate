@@ -8,7 +8,7 @@ from typing import Any, cast
 
 import pytest
 
-import tests.collection_misconfigured as clean_module
+import tests.collections.misconfigured as clean_module
 from deprecate import TargetMode, deprecated, get_deprecation_config
 from deprecate._types import (
     DeprecationConfig,
@@ -20,8 +20,8 @@ from deprecate._types import (
 )
 from deprecate.audit import find_deprecation_wrappers, validate_deprecation_wrapper
 from deprecate.proxy import _DeprecatedProxy, _ProxySpec
-from tests.collection_chains import caller_stacked_args_enum_enum, caller_stacked_args_legacy_enum
-from tests.collection_targets import base_sum_kwargs
+from tests.collections.api_current import base_sum_kwargs
+from tests.collections.chains import caller_stacked_args_enum_enum, caller_stacked_args_legacy_enum
 
 
 def _pickle_round_trip(obj: Any) -> Any:  # noqa: ANN401

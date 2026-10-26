@@ -462,7 +462,7 @@ def _format_report_symbol(info: DeprecationWrapperInfo) -> str:
     Modules carry their name in :attr:`~deprecate.audit.DeprecationWrapperInfo.module` and leave
     ``function`` empty, so a plain ``module.function`` join would append a trailing dot. Guard against
     an empty ``function`` (or an empty ``module``) so the rendered label is always clean — e.g.
-    ``tests.collection_modules.old_math`` for a deprecated module, never ``...old_math.`` or ``...(module)``.
+    ``tests.collections.modules.old_math`` for a deprecated module, never ``...old_math.`` or ``...(module)``.
 
     """
     if info.module and info.function:

@@ -17,19 +17,8 @@ import pytest
 from deprecate import TargetMode, deprecated
 from deprecate import TargetMode as top_level_TargetMode
 from deprecate._types import _DeprecatedCallable
-from tests.collection_depr_legacy import depr_target_mode_args_only_remaps_kwargs as legacy_remaps_kwargs
-from tests.collection_depr_legacy import (
-    depr_target_mode_args_only_silent_when_new_arg_passed as legacy_silent_when_new_arg_passed,
-)
-from tests.collection_depr_legacy import (
-    depr_target_mode_args_only_warns_when_old_arg_passed as legacy_warns_when_old_arg_passed,
-)
-from tests.collection_depr_legacy import (
-    depr_target_mode_args_only_with_args_extra_injects_kwargs as depr_legacy_args_extra,
-)
-from tests.collection_depr_legacy import depr_target_mode_whole_executes_original_body as legacy_executes_original_body
-from tests.collection_depr_legacy import depr_target_mode_whole_warns_on_every_call as legacy_warns_on_every_call
-from tests.collection_deprecate import (
+from tests.collections.api_current import tracked_identity_calls
+from tests.collections.api_deprecated import (
     depr_target_mode_args_only_remaps_kwargs,
     depr_target_mode_args_only_silent_when_new_arg_passed,
     depr_target_mode_args_only_warns_when_old_arg_passed,
@@ -40,14 +29,29 @@ from tests.collection_deprecate import (
     make_target_mode_whole_with_args_extra_warns,
     make_target_mode_whole_with_args_mapping_warns,
 )
-from tests.collection_deprecate_forwarding import (
+from tests.collections.api_deprecated_forwarding import (
     make_callable_target_no_versions_warns,
     make_default_target_no_versions_warns,
     make_default_target_with_versions,
     make_explicit_notify_no_versions_warns,
     make_partial_version_no_guard_warn,
 )
-from tests.collection_targets import tracked_identity_calls
+from tests.collections.api_deprecated_legacy import depr_target_mode_args_only_remaps_kwargs as legacy_remaps_kwargs
+from tests.collections.api_deprecated_legacy import (
+    depr_target_mode_args_only_silent_when_new_arg_passed as legacy_silent_when_new_arg_passed,
+)
+from tests.collections.api_deprecated_legacy import (
+    depr_target_mode_args_only_warns_when_old_arg_passed as legacy_warns_when_old_arg_passed,
+)
+from tests.collections.api_deprecated_legacy import (
+    depr_target_mode_args_only_with_args_extra_injects_kwargs as depr_legacy_args_extra,
+)
+from tests.collections.api_deprecated_legacy import (
+    depr_target_mode_whole_executes_original_body as legacy_executes_original_body,
+)
+from tests.collections.api_deprecated_legacy import (
+    depr_target_mode_whole_warns_on_every_call as legacy_warns_on_every_call,
+)
 
 
 class TestTargetModeContract:

@@ -23,18 +23,7 @@ from deprecate.proxy.core import (
     _reconstruct_proxy,
     _restore_pep702_marker,
 )
-from tests.collection_deprecate import DeprecatedColorEnum, ast_breadcrumb_source_dict, depr_ast_breadcrumb_dict
-from tests.collection_deprecate_forwarding import pep702_proxy_stacked
-from tests.collection_deprecate_regressions import (
-    depr_docless_class,
-    depr_documented_class,
-    make_deprecated_hostile_signature_instance,
-    make_deprecated_instance_over_marked_object,
-    make_deprecated_instance_skip_if_true_read_only,
-)
-from tests.collection_misconfigured import make_stacked_legacy_proxy
-from tests.collection_pep702 import StackedAlias
-from tests.collection_targets import (
+from tests.collections.api_current import (
     ColorEnum,
     DoclessTarget,
     HostileSignatureCallable,
@@ -44,6 +33,17 @@ from tests.collection_targets import (
     _Pep702ProxyTarget,
     base_sum_kwargs,
 )
+from tests.collections.api_deprecated import DeprecatedColorEnum, ast_breadcrumb_source_dict, depr_ast_breadcrumb_dict
+from tests.collections.api_deprecated_forwarding import pep702_proxy_stacked
+from tests.collections.api_deprecated_regressions import (
+    depr_docless_class,
+    depr_documented_class,
+    make_deprecated_hostile_signature_instance,
+    make_deprecated_instance_over_marked_object,
+    make_deprecated_instance_skip_if_true_read_only,
+)
+from tests.collections.misconfigured import make_stacked_legacy_proxy
+from tests.collections.pep702 import StackedAlias
 from tests.unittests.proxy._helpers import _ast_class_proxy, _P8Source, _P8Target
 
 
@@ -921,7 +921,7 @@ class TestProxyCopyPickle:
 
         When ``@deprecated_class`` replaces the module-level name ``DeprecatedColorEnum`` with
         a proxy, the wrapped class (``cfg.obj``) cannot be serialised by reference: pickle
-        finds the proxy at ``tests.collection_deprecate.DeprecatedColorEnum``, not the original
+        finds the proxy at ``tests.collections.api_deprecated.DeprecatedColorEnum``, not the original
         class.  This test documents the known limitation — ``deprecated_instance`` proxies
         wrapping plain objects (dicts, lists) remain fully picklable.
         """

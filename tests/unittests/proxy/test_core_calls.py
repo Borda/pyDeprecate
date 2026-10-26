@@ -14,15 +14,16 @@ from deprecate import DeprecatedError
 from deprecate._types import TargetMode
 from deprecate.proxy import deprecated_class, deprecated_instance
 from deprecate.proxy.core import _DeprecatedProxy, _proxy_call_global, _ProxySpec
-from tests.collection_deprecate import MappedColorEnum, MappedDataClass, MappedDropArgDataClass
-from tests.collection_deprecate_forwarding import (
+from tests.collections.api_current import ColorEnum, NewDataClass, SomeTargetClass, WithInjected, base_sum_kwargs
+from tests.collections.api_deprecated import MappedColorEnum, MappedDataClass, MappedDropArgDataClass
+from tests.collections.api_deprecated_forwarding import (
     ProxyArgsMappedToEmpty,
     ProxyArgsRemapAuto,
     ProxyArgsRemapForArgWarnMessage,
     ProxyCallableWithArgsMapping,
     ProxyClassWithArgsExtra,
 )
-from tests.collection_deprecate_regressions import (
+from tests.collections.api_deprecated_regressions import (
     make_deprecated_class_attrs_skip_if_true,
     make_deprecated_class_skip_if_flag,
     make_deprecated_class_skip_if_non_bool,
@@ -33,7 +34,6 @@ from tests.collection_deprecate_regressions import (
     make_deprecated_partial_host,
     make_read_only_settings_proxy,
 )
-from tests.collection_targets import ColorEnum, NewDataClass, SomeTargetClass, WithInjected, base_sum_kwargs
 from tests.unittests.proxy._helpers import _future_warning_count
 
 

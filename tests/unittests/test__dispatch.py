@@ -36,7 +36,26 @@ from deprecate._dispatch import (
 )
 from deprecate._types import DeprecationConfig, _CallFacts, _DeprecatedCallable, _WrapperState
 from deprecate.utils import _signature_facts
-from tests.collection_deprecate import (
+from tests.collections.api_current import (
+    KeywordCallTarget,
+    NewCls,
+    SignatureNeedsContextError,
+    SignatureNotBuiltError,
+    call_signature_source,
+    compute_power,
+    double_value,
+    fn_shared_default_target,
+    fn_with_default,
+    identity_value,
+    nested_partial_target,
+    partial_target,
+    positional_only_target,
+    positional_only_two_params_target,
+    source_sharing_level_default,
+    source_with_forward_defaults,
+    var_positional_target,
+)
+from tests.collections.api_deprecated import (
     dep_async_cycle_fn_a,
     dep_async_cycle_fn_b,
     dep_cycle_fn_a,
@@ -47,7 +66,7 @@ from tests.collection_deprecate import (
     make_depr_compute_power_stacked,
     make_depr_notify_callable_stacked,
 )
-from tests.collection_deprecate_forwarding import (
+from tests.collections.api_deprecated_forwarding import (
     OldPositionalOnlyClass,
     OldSelfOnlyClass,
     dep_async_non_cycle_old_fn,
@@ -74,27 +93,8 @@ from tests.collection_deprecate_forwarding import (
     fn_shared_default,
     make_deprecated_positional_only_num_warns_one,
 )
-from tests.collection_deprecate_regressions import depr_scale_partial_every_call
-from tests.collection_misconfigured import target_false_deprecation
-from tests.collection_targets import (
-    KeywordCallTarget,
-    NewCls,
-    SignatureNeedsContextError,
-    SignatureNotBuiltError,
-    call_signature_source,
-    compute_power,
-    double_value,
-    fn_shared_default_target,
-    fn_with_default,
-    identity_value,
-    nested_partial_target,
-    partial_target,
-    positional_only_target,
-    positional_only_two_params_target,
-    source_sharing_level_default,
-    source_with_forward_defaults,
-    var_positional_target,
-)
+from tests.collections.api_deprecated_regressions import depr_scale_partial_every_call
+from tests.collections.misconfigured import target_false_deprecation
 
 
 class TestUpdateKwargsWithArgs:
@@ -400,7 +400,7 @@ class TestPositionalOnlyTarget:
         at decoration time and no ``FutureWarning`` fires at call time.  The underlying
         split dispatch must still execute so ``positional_only_target`` is called with ``x``
         as a positional arg (not as a kwarg), returning the correct value.
-        ``deprecated_positional_only_stream_none`` is defined in ``collection_deprecate.py``
+        ``deprecated_positional_only_stream_none`` is defined in ``api_deprecated.py``
         with ``stream=None`` so no warnings are emitted at decoration time or call time.
         """
         result = deprecated_positional_only_stream_none(5)
@@ -413,7 +413,7 @@ class TestPositionalOnlyTarget:
         must still forward ``x`` positionally (the split dispatch must not be gated on
         the warning being emitted).  A caller silently migrating after the quota exhausts
         should not receive ``TypeError``.
-        ``deprecated_positional_only_num_warns_one`` is defined in ``collection_deprecate.py``
+        ``deprecated_positional_only_num_warns_one`` is defined in ``api_deprecated.py``
         with ``num_warns=1`` so the warning fires exactly once.
         """
         quota_fn = make_deprecated_positional_only_num_warns_one()
@@ -1082,14 +1082,14 @@ def test_misconfigured_warning_fires_exactly_once() -> None:
     so noisy misconfig warnings do not flood test output.
 
     This test exercises ``target_false_deprecation`` from
-    :mod:`tests.collection_misconfigured`, which sets ``misconfigured=True`` via the
+    :mod:`tests.collections.misconfigured`, which sets ``misconfigured=True`` via the
     legacy ``target=False`` sentinel.  We bypass the FutureWarning by filtering only the
     ``UserWarning`` instances at the call site (and we explicitly reset
     ``warned_misconfigured`` here so the test is independent of import order).
 
     """
     # Pre-reset the sticky flag so the test is order-independent: a prior import or test
-    # may have already exhausted the one-time slot.  ``conftest._reset_collection_deprecate_state``
+    # may have already exhausted the one-time slot.  ``conftest._reset_api_deprecated_state``
     # intentionally does not touch ``warned_misconfigured`` (see its docstring).
     target_false_deprecation._state.warned_misconfigured = False  # type: ignore[attr-defined]
     target_false_deprecation._state.warned_calls = 0  # type: ignore[attr-defined]

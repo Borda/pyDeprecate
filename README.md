@@ -1653,13 +1653,13 @@ The `find_deprecation_wrappers()` utility scans an entire package or module and 
 from deprecate import find_deprecation_wrappers
 
 # For testing purposes, we use the test module; normally you would import your own package
-from tests import collection_deprecate as my_package
+from tests.collections import api_deprecated as my_package
 
 # Scan an entire package for deprecated wrappers
 results = find_deprecation_wrappers(my_package)
 
 # Or scan using a string module path
-results = find_deprecation_wrappers("tests.collection_deprecate")
+results = find_deprecation_wrappers("tests.collections.api_deprecated")
 
 # Check results - each item is a DeprecationWrapperInfo dataclass
 for r in results:
@@ -1687,7 +1687,7 @@ Group validation results by issue type for better reporting:
 from deprecate import find_deprecation_wrappers
 
 # For testing purposes, we use the test module; normally you would import your own package
-from tests import collection_deprecate as my_package
+from tests.collections import api_deprecated as my_package
 
 results = find_deprecation_wrappers(my_package)
 
@@ -1730,7 +1730,7 @@ The **Current Status** column uses these labels:
 | 💥 Past Removal Date      | Current version ≥ `remove_in` — zombie code that should be deleted        |
 
 ```python
-from tests import collection_deprecate as my_package
+from tests.collections import api_deprecated as my_package
 from deprecate import generate_deprecation_table
 
 report = generate_deprecation_table(my_package, current_version="1.5", recursive=False)
@@ -1880,7 +1880,7 @@ import pytest
 from deprecate import find_deprecation_wrappers
 
 # For testing purposes, we use the test module; normally you would import your own package
-from tests import collection_deprecate as my_package
+from tests.collections import api_deprecated as my_package
 
 
 def test_deprecated_wrappers_are_valid():
@@ -1919,7 +1919,7 @@ The `validate_deprecation_expiry()` utility scans an entire module or package fo
 from deprecate import validate_deprecation_expiry
 
 # For testing purposes, we use the test module; normally you would import your own package
-from tests import collection_deprecate as my_package
+from tests.collections import api_deprecated as my_package
 
 # Scan your package for expired deprecations - using early-version that won't have expirations
 expired = validate_deprecation_expiry(my_package, "0.2")
@@ -1967,7 +1967,7 @@ import pytest
 from deprecate import validate_deprecation_expiry
 
 # For testing purposes, we use the test module; normally you would import your own package
-from tests import collection_deprecate as my_package
+from tests.collections import api_deprecated as my_package
 
 
 def test_no_zombie_deprecations():
@@ -1989,7 +1989,7 @@ def test_no_zombie_deprecations():
 @pytest.fixture(scope="session", autouse=True)
 def enforce_deprecation_deadlines():
     """Automatically check for zombie code before running any tests."""
-    from tests import collection_deprecate as my_package
+    from tests.collections import api_deprecated as my_package
 
     current_version = "0.5"  # Replace with: from mypackage import __version__
     expired = validate_deprecation_expiry(my_package, current_version)
@@ -2037,26 +2037,26 @@ pydeprecate policy src/mypackage    # exit 1 on a violation, 2 on a malformed ru
 <details>
 <summary>Example: what a policy run reports</summary>
 
-Run against pyDeprecate's own fixtures (`tests/collection_policy.py`, one broken rule per wrapper) with the built-in defaults spelled out as flags:
+Run against pyDeprecate's own fixtures (`tests/collections/policy.py`, one broken rule per wrapper) with the built-in defaults spelled out as flags:
 
 ```bash
-pydeprecate policy tests.collection_policy --norecursive --min-grace=0.3 --message-required=True
+pydeprecate policy tests.collections.policy --norecursive --min-grace=0.3 --message-required=True
 ```
 
 ```text
-Scanning: tests.collection_policy
-Package: tests.collection_policy
+Scanning: tests.collections.policy
+Package: tests.collections.policy
 Policy: min-grace=0.3 (flag)  message-required=True (flag)
                          Deprecation Policy Violations
 ╭──────────────────────────────────────────────────────────────────────────────╮
 │ Message                                                                      │
 ├──────────────────────────────────────────────────────────────────────────────┤
-│ [min-grace] Callable `tests.collection_policy.no_grace_window` is deprecated │
+│ [min-grace] Callable `tests.collections.policy.no_grace_window` is deprecated │
 │ in `2.0` and scheduled for removal in `2.0`; the policy requires a grace     │
 │ window of at least 3 minor releases, landing on a clean major or minor       │
 │ boundary.                                                                    │
 │ [message-required] Callable                                                  │
-│ `tests.collection_policy.warns_without_replacement` warns without naming a   │
+│ `tests.collections.policy.warns_without_replacement` warns without naming a   │
 │ replacement; configure a `target`, an `args_mapping`/`attrs_mapping`, or a   │
 │ custom `message_template` so callers learn what to migrate to.               │
 │ …                                                                            │
@@ -2159,7 +2159,7 @@ import pytest
 from deprecate import validate_deprecation_chains
 
 # normally you would import your own package
-from tests import collection_chains as my_package
+from tests.collections import chains as my_package
 
 
 def test_no_deprecation_chains():
@@ -2177,7 +2177,7 @@ def test_no_deprecation_chains():
 # Alternative: session-scoped auto-use fixture
 @pytest.fixture(scope="session", autouse=True)
 def enforce_no_deprecation_chains():
-    from tests import collection_chains as my_package
+    from tests.collections import chains as my_package
 
     issues = validate_deprecation_chains(my_package)
     if issues:

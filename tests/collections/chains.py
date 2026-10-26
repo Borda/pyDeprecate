@@ -187,8 +187,8 @@ Deprecation Chain Schema:
 """
 
 from deprecate import TargetMode, deprecated, void
-from tests.collection_deprecate import decorated_pow_self, decorated_sum, depr_accuracy_map
-from tests.collection_targets import base_sum_kwargs, stacked_chain_identity
+from tests.collections.api_current import base_sum_kwargs, stacked_chain_identity
+from tests.collections.api_deprecated import decorated_pow_self, decorated_sum, depr_accuracy_map
 
 
 @deprecated(target=decorated_sum, deprecated_in="1.5", remove_in="2.5")

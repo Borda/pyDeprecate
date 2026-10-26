@@ -23,7 +23,8 @@ from deprecate.messaging import (
 )
 from deprecate.proxy import deprecated_class, deprecated_instance
 from deprecate.proxy.core import _DeprecatedProxy
-from tests.collection_deprecate import (
+from tests.collections.api_current import ColorEnum, NewDataClass, Palette
+from tests.collections.api_deprecated import (
     DeprecatedColorDataClass,
     DeprecatedColorEnum,
     DeprecatedColorEnumFunctional,
@@ -31,7 +32,6 @@ from tests.collection_deprecate import (
     WarnOnlyColorEnum,
     depr_ast_breadcrumb_dict,
 )
-from tests.collection_targets import ColorEnum, NewDataClass, Palette
 from tests.unittests.proxy._helpers import _ast_class_proxy
 
 
@@ -166,7 +166,7 @@ class TestDecoratorEnum:
             FutureWarning,
             match=(
                 r"The `DeprecatedColorEnum` was deprecated since v1\.0 in favor of "
-                r"`tests\.collection_targets\.ColorEnum`"
+                r"`tests\.collections\.api_current\.ColorEnum`"
             ),
         ):
             result = action()
@@ -193,7 +193,7 @@ class TestDecoratorDataclass:
             FutureWarning,
             match=(
                 r"The `DeprecatedColorDataClass` was deprecated since v1\.0 in favor of "
-                r"`tests\.collection_targets\.NewDataClass`"
+                r"`tests\.collections\.api_current\.NewDataClass`"
             ),
         ):
             obj = DeprecatedColorDataClass(label="test", total=5)

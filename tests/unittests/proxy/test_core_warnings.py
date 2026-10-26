@@ -14,20 +14,7 @@ from deprecate import DeprecatedError
 from deprecate._types import DeprecationConfig
 from deprecate.proxy import deprecated_class, deprecated_instance
 from deprecate.proxy.core import _build_proxy_warn_msg, _DeprecatedProxy, _ProxySpec
-from tests.collection_deprecate import MappedColorEnum, MappedDataClass
-from tests.collection_deprecate_forwarding import ProxyArgsRemapForArgWarnMessage
-from tests.collection_deprecate_regressions import (
-    DeprSourcePathArgs,
-    DeprSourcePathAttrs,
-    DeprSourcePathClass,
-    DeprSourcePathStacked,
-    depr_source_path_instance,
-    make_depr_module_raising_class,
-    make_flaky_attr_alias,
-    make_skip_gated_target_proxy,
-    make_warn_after_success_proxy,
-)
-from tests.collection_targets import (
+from tests.collections.api_current import (
     ColorEnum,
     CountingSkipCondition,
     DecliningInplaceOperand,
@@ -42,6 +29,19 @@ from tests.collection_targets import (
     RecordingStream,
     SlowRecordingStream,
     make_flaky_attr_host,
+)
+from tests.collections.api_deprecated import MappedColorEnum, MappedDataClass
+from tests.collections.api_deprecated_forwarding import ProxyArgsRemapForArgWarnMessage
+from tests.collections.api_deprecated_regressions import (
+    DeprSourcePathArgs,
+    DeprSourcePathAttrs,
+    DeprSourcePathClass,
+    DeprSourcePathStacked,
+    depr_source_path_instance,
+    make_depr_module_raising_class,
+    make_flaky_attr_alias,
+    make_skip_gated_target_proxy,
+    make_warn_after_success_proxy,
 )
 from tests.unittests.proxy._helpers import (
     _GATED_PROXY_OPS,
@@ -120,7 +120,7 @@ class TestProxyWarnBehavior:
             proxy._warn()
         msg = str(caught[0].message)
         assert "old_color" in msg
-        assert "tests.collection_targets.ColorEnum" in msg
+        assert "tests.collections.api_current.ColorEnum" in msg
 
     def test_warn_category_is_future_warning(self) -> None:
         """Default stream emits FutureWarning attributed to the caller's frame."""
@@ -834,5 +834,5 @@ class TestProxySourcePath:
         with pytest.warns(FutureWarning) as record:
             proxy()
         assert [str(w.message) for w in record] == [
-            "tests.collection_targets.ModuleRaisingTarget :: ModuleRaisingTarget"
+            "tests.collections.api_current.ModuleRaisingTarget :: ModuleRaisingTarget"
         ]

@@ -12,13 +12,7 @@ from typing import Any
 import pytest
 
 from deprecate.proxy import deprecated_instance
-from tests.collection_deprecate_regressions import (
-    make_read_only_inplace_proxy,
-    make_silent_proxy_stack,
-    make_switching_entry_proxy,
-    make_warn_after_success_proxy,
-)
-from tests.collection_targets import (
+from tests.collections.api_current import (
     AsyncManagedResource,
     CachedStepIterator,
     DeferredFailureAwaitable,
@@ -29,6 +23,12 @@ from tests.collection_targets import (
     RecordingEntryContext,
     legacy_snapshot,
     legacy_tick_stream,
+)
+from tests.collections.api_deprecated_regressions import (
+    make_read_only_inplace_proxy,
+    make_silent_proxy_stack,
+    make_switching_entry_proxy,
+    make_warn_after_success_proxy,
 )
 from tests.unittests.proxy._helpers import (
     _acquire_anext,

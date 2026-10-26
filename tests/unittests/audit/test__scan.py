@@ -11,10 +11,10 @@ from unittest.mock import patch
 
 import pytest
 
-import tests.collection_deprecate as col
-import tests.collection_misconfigured as clean_module
-import tests.collection_pep702 as pep702_module
-import tests.collection_targets as targets_module
+import tests.collections.api_current as targets_module
+import tests.collections.api_deprecated as col
+import tests.collections.misconfigured as clean_module
+import tests.collections.pep702 as pep702_module
 from deprecate import (
     TargetMode,
     deprecated,
@@ -309,7 +309,7 @@ class TestFindDeprecationWrappersPep702:
         infos = find_deprecation_wrappers(pep702_module, recursive=False, include_pep702=True)
         row = next(info for info in infos if info.function == "pep702_only_function")
         assert (row.module, row.pep702_message, row.empty_deprecated_in) == (
-            "tests.collection_pep702",
+            "tests.collections.pep702",
             "Use `pep702_target` instead.",
             True,
         )
@@ -397,7 +397,7 @@ class TestFindDeprecationWrappersReexport:
         names = ("pep702_only_function", "Pep702OnlyClass")
         assert (reexported, [(r.module, r.function) for r in defining if r.function in names]) == (
             [],
-            [("tests.collection_pep702", "Pep702OnlyClass"), ("tests.collection_pep702", "pep702_only_function")],
+            [("tests.collections.pep702", "Pep702OnlyClass"), ("tests.collections.pep702", "pep702_only_function")],
         )
 
     def test_pep702_alias_counted_once(self) -> None:
@@ -914,14 +914,13 @@ class TestValidateMappingCompatibility:
     def test_returns_empty_list_for_module_without_positional_only_wrappers(self) -> None:
         """``validate_mapping_compatibility`` returns [] when no wrapper targets POSITIONAL_ONLY params.
 
-        ``tests.collection_misconfigured`` contains only ``@deprecated``-decorated functions
+        ``tests.collections.misconfigured`` contains only ``@deprecated``-decorated functions
         (not ``deprecated_class`` proxies with ``args_mapping`` to positional-only constructor
         params), so the validator must return an empty list — no false positives.
         """
         results = validate_mapping_compatibility(clean_module, recursive=False)
         assert results == [], (
-            f"Expected no positional-only incompatibilities in collection_misconfigured; got: "
-            f"{[r.function for r in results]}"
+            f"Expected no positional-only incompatibilities in misconfigured; got: {[r.function for r in results]}"
         )
 
     def test_none_value_in_args_mapping_is_not_false_positive(self) -> None:

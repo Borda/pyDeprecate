@@ -1980,7 +1980,7 @@ ______________________________________________________________________
 from deprecate import validate_deprecation_expiry
 
 # For testing purposes, we use the test module; normally you would import your own package
-from tests import collection_deprecate as my_package
+from tests.collections import api_deprecated as my_package
 
 # Default scope now includes deprecated class members
 expired = validate_deprecation_expiry(my_package, "0.5")
@@ -2038,7 +2038,7 @@ Here is the difference between the two:
 from deprecate import validate_deprecation_policy
 
 # For testing purposes, we use the test module; normally you would import your own package
-from tests import collection_policy as my_package
+from tests.collections import policy as my_package
 
 # Relax the window: one minor of warning is enough.
 # The fixtures still trip it — one removes in the same release, one at a patch off any boundary.

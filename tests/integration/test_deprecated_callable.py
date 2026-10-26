@@ -13,13 +13,13 @@ import pytest
 
 from deprecate import deprecated_callable
 from deprecate._types import _DeprecatedCallable
-from tests.collection_deprecate_regressions import (
+from tests.collections.api_current import double_value
+from tests.collections.api_deprecated_regressions import (
     HolderWithDeprecatedCallableMethod,
     deprecated_callable_double,
     deprecated_double_twin,
     make_deprecated_callable_on_class,
 )
-from tests.collection_targets import double_value
 
 
 class TestCallableParity:

@@ -2,13 +2,13 @@
 
 This module provides an :func:`pytest.fixture` (``autouse=True``) that resets the mutable
 ``_WrapperState`` on every module-level deprecated wrapper exported from
-the ``tests.collection_deprecate*`` modules before each test runs.
+the shared ``tests.collections.api_deprecated*`` modules before each test runs, excluding the legacy collection.
 
 Why this matters
 ----------------
 
 Module-level :func:`@deprecated <deprecate.deprecation.deprecated>` wrappers in
-``tests/collection_deprecate*.py`` are singletons whose warning counters (``warned_calls`` and
+``tests/collections/api_deprecated*.py`` are singletons whose warning counters (``warned_calls`` and
 ``warned_args``) persist across tests once their module is imported.  When a wrapper is
 configured with ``num_warns=1`` (the default), the first test that exercises it exhausts the
 budget; any subsequent test that asserts "no warning fired" via patterns like
@@ -18,7 +18,7 @@ underlying behaviour.
 Two file-scoped ``autouse`` fixtures already cover the **async** and **generator** wrappers
 in ``tests/integration/test_callable_kinds.py`` (see ``_reset_gen_state``, ``_reset_async_state``,
 ``_reset_async_gen_state``).  This conftest extends that reset to every other wrapper that
-lives at the module level of the ``tests.collection_deprecate*`` modules, including plain synchronous
+lives at the module level of the ``tests.collections.api_deprecated*`` modules, including plain synchronous
 functions, and every module-level ``_DeprecatedProxy`` (created by ``deprecated_class`` /
 ``deprecated_instance``), whose budget is the same ``_WrapperState`` kept in ``_cfg.state``.
 
@@ -44,8 +44,8 @@ The following are intentionally preserved:
 What this fixture does *not* cover
 -----------------------------------
 
-Wrappers and proxies defined outside the ``tests.collection_deprecate*`` modules (in a test module, an unrelated
-collection module, or the package itself, such as ``deprecate.audit.DeprecatedCallableInfo``) keep
+Wrappers and proxies defined outside the shared ``tests.collections.api_deprecated*`` modules, including the legacy
+collection, a test module, an unrelated collection module, or the package itself, keep
 their counters across tests; tests using them reset ``_state`` / ``_cfg.state`` themselves.
 
 """
@@ -65,13 +65,16 @@ if TYPE_CHECKING:
 def _iter_wrapper_states() -> list[_WrapperState]:
     """Return each module-level wrapper or proxy's warning state once across all sibling collections.
 
-    Discover ``collection_deprecate*.py`` beside this conftest, including modules unused by the selected tests.
+    Discover the shared ``api_deprecated*.py`` modules, including modules unused by the selected tests.
     Read each object's own dictionary so proxy attribute lookup cannot emit warnings or spend budgets.
     Shared imports and aliases can expose the same state repeatedly; deduplicate by identity.
     """
     found: dict[int, _WrapperState] = {}
-    for path in sorted(Path(__file__).parent.glob("collection_deprecate*.py")):
-        module = import_module(f"tests.{path.stem}")
+    for path in sorted((Path(__file__).parent / "collections").glob("api_deprecated*.py")):
+        # Legacy wrappers were not included before the move and retain their original state lifecycle.
+        if path.stem == "api_deprecated_legacy":
+            continue
+        module = import_module(f"tests.collections.{path.stem}")
         for obj in vars(module).values():
             own = getattr(obj, "__dict__", {})
             state = own.get("_state")
@@ -92,15 +95,15 @@ def _iter_wrapper_states() -> list[_WrapperState]:
 #: This is the fatal-module contract working as designed, not a workaround — any attribute-walking tool
 #: (pytest's direct collection, Sphinx autodoc, pickle) hits the same wall, which ``docs/troubleshooting.md``
 #: documents.
-collect_ignore = ["collection_modules/fatal_utils.py"]
+collect_ignore = ["collections/modules/fatal_utils.py"]
 
 
 @pytest.fixture(autouse=True)
-def _reset_collection_deprecate_state() -> None:
+def _reset_api_deprecated_state() -> None:
     """Reset every shared module-level wrapper's warning counters before each test.
 
     Runs before every test function (autouse).  See module docstring for full motivation.
-    Collection imports are deferred to avoid loading ``tests.collection_deprecate*`` at conftest
+    Collection imports are deferred to avoid loading ``tests.collections.api_deprecated*`` at conftest
     parse time, which conflicts with ``--doctest-modules`` collection when pytest resolves
     ``src/`` imports from the installed package rather than from ``src/``.
 

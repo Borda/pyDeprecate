@@ -9,7 +9,7 @@ from typing import Any, cast
 import pytest
 
 from deprecate import DeprecationProxy
-from tests.collection_deprecate import DeprecatedColorEnum
+from tests.collections.api_deprecated import DeprecatedColorEnum
 
 
 class _P8Source:
@@ -171,5 +171,5 @@ _THREADED_BUDGET_OPS = [
 ]
 
 
-#: Module-qualified path of :class:`tests.collection_targets.SourcePathTarget`, as a proxy template renders it.
-_SOURCE_PATH_CLASS = "tests.collection_targets.SourcePathTarget"
+#: Module-qualified path of :class:`tests.collections.api_current.SourcePathTarget`, as a proxy template renders it.
+_SOURCE_PATH_CLASS = "tests.collections.api_current.SourcePathTarget"

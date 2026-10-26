@@ -607,12 +607,12 @@ def validate_deprecation_policy(
 
     Examples:
         >>> from deprecate import validate_deprecation_policy
-        >>> violations = validate_deprecation_policy("tests.collection_policy", recursive=False)
+        >>> violations = validate_deprecation_policy("tests.collections.policy", recursive=False)
         >>> [v for v in violations if "no_grace_window" in v]  # doctest: +ELLIPSIS
-        ['[min-grace] Callable `tests.collection_policy.no_grace_window` is deprecated in `2.0` and ...']
+        ['[min-grace] Callable `tests.collections.policy.no_grace_window` is deprecated in `2.0` and ...']
 
         >>> # Rules are opt-out: keep the guidance rule, drop the grace window
-        >>> violations = validate_deprecation_policy("tests.collection_policy", recursive=False, min_grace=None)
+        >>> violations = validate_deprecation_policy("tests.collections.policy", recursive=False, min_grace=None)
         >>> any("min-grace" in v for v in violations)
         False
 
