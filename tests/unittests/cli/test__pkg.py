@@ -1,4 +1,4 @@
-"""Unit tests for private helpers in :mod:`deprecate._pkg`: version detection and pyproject reading."""
+"""Unit tests for private helpers in :mod:`deprecate._cli._pkg`: version detection and pyproject reading."""
 
 import importlib.metadata
 import sys
@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from deprecate._pkg import (
+from deprecate._cli._pkg import (
     _ConfigReadError,
     _distribution_for_import,
     _load_toml,
@@ -138,7 +138,7 @@ class TestResolvePackageVersion:
         and ``patch`` would raise ``AttributeError`` with ``create=False`` (the default).
 
         """
-        with patch("deprecate._pkg.importlib.metadata.packages_distributions", None, create=True):
+        with patch("deprecate._cli._pkg.importlib.metadata.packages_distributions", None, create=True):
             result = _distribution_for_import("deprecate")
         assert result == "pyDeprecate"
 

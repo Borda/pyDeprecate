@@ -322,13 +322,13 @@ pyDeprecate/
 │   ├── __main__.py             # python -m deprecate entry point
 │   ├── _cli/                   # Internal CLI package (public Python API is deprecate.audit)
 │   │   ├── __init__.py         # cli() entry point (import-light): runs the parsed subcommand, exit 3 on a crash
+│   │   ├── _pkg.py             # Version and path resolution helpers (the version resolver is shared with audit)
 │   │   ├── argv.py             # UTF-8 streams and the argparse parser built from the cmd_* signatures
 │   │   ├── commands.py         # Subcommands: check, expiry, policy, chains, all, status
 │   │   ├── config.py           # [tool.pydeprecate] pyproject.toml config and flag-default resolution
 │   │   ├── findings.py         # Level of each finding per subcommand and the one exit-code function
 │   │   ├── report.py           # _print() and the plain-text _Reporter finding sections
 │   │   └── scan.py             # Path scanning: file, package or plain directory -> wrappers
-│   ├── _pkg.py                 # Version and path resolution helpers
 │   ├── _types.py               # Shared type definitions: DeprecationConfig, _ProxyConfig
 │   ├── deprecation.py          # Front door: deprecated() dispatcher (functions/methods -> routine, classes -> proxy)
 │   ├── routine.py              # Function/method decorator: deprecated_callable() (strict) + packing descriptors

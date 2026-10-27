@@ -4,8 +4,8 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional, Union
 
+from deprecate._cli._pkg import _ConfigReadError, _iter_pyproject_paths, _read_pydeprecate_config
 from deprecate._cli.report import _is_package_available, _print
-from deprecate._pkg import _ConfigReadError, _iter_pyproject_paths, _read_pydeprecate_config
 from deprecate.audit import PolicyRule
 from deprecate.audit._lifecycle import _parse_version
 from deprecate.audit._policy import _DEFAULT_MESSAGE_REQUIRED, _DEFAULT_MIN_GRACE, _build_policy_spec
