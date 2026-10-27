@@ -10,6 +10,8 @@ from typing import Optional
 
 import pytest
 
+from tests._helpers import write_pkg
+
 _SRC_DIR = str(Path(__file__).resolve().parent.parent.parent / "src")
 _PACKAGING_AVAILABLE = importlib.util.find_spec("packaging") is not None
 _MYPKG_INIT = """\
@@ -91,10 +93,7 @@ def _cli_env(**extra: str) -> dict[str, str]:
 
 def _make_pkg(tmp_path: Path, name: str = "mypkg", content: str = _MYPKG_INIT) -> Path:
     """Create a minimal importable package with one deprecated wrapper."""
-    pkg = tmp_path / name
-    pkg.mkdir()
-    (pkg / "__init__.py").write_text(content)
-    return pkg
+    return write_pkg(tmp_path, name, content)
 
 
 def _run_cli(

@@ -1,14 +1,12 @@
-"""Unit tests for private helpers in deprecate.docstring.inject."""
+"""Unit tests for the docstring injection helpers in :mod:`deprecate.docstring.inject`."""
 
-import importlib
-import importlib.util
-import types
-import warnings
-from typing import cast
+import sys
+from typing import Union, cast
 
 import pytest
 
-from deprecate._types import DeprecationConfig, TargetMode, _DeprecatedCallable
+from deprecate import TargetMode, deprecated
+from deprecate._types import DeprecationConfig, _DeprecatedCallable
 from deprecate.docstring.inject import (
     _annotate_google_style_arg,
     _annotate_sphinx_style_arg,
@@ -18,27 +16,227 @@ from deprecate.docstring.inject import (
     _get_google_arg_indents,
     _has_deprecation_block,
     _update_docstring_with_deprecation,
+    find_docstring_insertion_index,
+    is_numpy_underline,
+    normalize_docstring_style,
 )
 
-# Optional dependency: ``griffe`` ships with ``mkdocstrings[python]``. Guard at module level so collection never
-# fails; the behavioural tests below are gated by ``_skipif_griffe_missing``.
-_GRIFFE_AVAILABLE = importlib.util.find_spec("griffe") is not None
-if _GRIFFE_AVAILABLE:
-    import griffe
 
-    from deprecate.docstring.griffe_ext import RuntimeDocstrings
+class TestDocstringStyleValidation:
+    """Validation for ``docstring_style`` values."""
 
-_skipif_griffe_missing = pytest.mark.skipif(not _GRIFFE_AVAILABLE, reason="griffe not installed")
+    _NOTIFY_PARAMS = [
+        pytest.param(TargetMode.NOTIFY, id="TargetMode.NOTIFY"),
+        pytest.param(None, marks=pytest.mark.filterwarnings("ignore::FutureWarning"), id="legacy-None"),
+    ]
+
+    @pytest.mark.parametrize("target_val", _NOTIFY_PARAMS)
+    def test_invalid_docstring_style_raises_value_error(self, target_val: Union[TargetMode, None]) -> None:
+        """Unsupported ``docstring_style`` values should fail fast at decoration time."""
+        with pytest.raises(ValueError, match="Invalid `docstring_style` value"):
+
+            @deprecated(
+                target=target_val,
+                deprecated_in="1.0",
+                remove_in="2.0",
+                update_docstring=True,
+                docstring_style="unsupported-style",  # type: ignore[arg-type, unused-ignore]
+            )
+            def some_func() -> None:
+                """A function."""
+
+    @pytest.mark.parametrize("target_val", _NOTIFY_PARAMS)
+    def test_invalid_docstring_style_raises_even_without_update_docstring(
+        self, target_val: Union[TargetMode, None]
+    ) -> None:
+        """``docstring_style`` is validated eagerly regardless of ``update_docstring``."""
+        with pytest.raises(ValueError, match="Invalid `docstring_style` value"):
+
+            @deprecated(
+                target=target_val,
+                deprecated_in="1.0",
+                docstring_style="unsupported-style",  # type: ignore[arg-type, unused-ignore]
+            )
+            def some_func() -> None:
+                """A function."""
+
+    @pytest.mark.parametrize("style", ["RST", "MKDOCS", "Markdown", "MkDocs", "AUTO", "Auto"])
+    def test_case_insensitive_normalization(self, style: str) -> None:
+        """``docstring_style`` values are matched case-insensitively."""
+        assert normalize_docstring_style(style) in ("rst", "mkdocs")
+
+    def test_auto_style_resolves_to_rst_by_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """``"auto"`` resolves to ``"rst"`` when no env var is set and argv is not mkdocs."""
+        monkeypatch.setattr(sys, "argv", ["pytest"])
+        monkeypatch.delenv("DEPRECATE_DOCSTRING_STYLE", raising=False)
+        monkeypatch.delitem(sys.modules, "mkdocs", raising=False)
+        result = normalize_docstring_style("auto")
+        assert result == "rst"
+
+    def test_auto_style_env_var_mkdocs(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """``DEPRECATE_DOCSTRING_STYLE=mkdocs`` forces MkDocs format."""
+        monkeypatch.setenv("DEPRECATE_DOCSTRING_STYLE", "mkdocs")
+        assert normalize_docstring_style("auto") == "mkdocs"
+
+    def test_auto_style_env_var_rst(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """``DEPRECATE_DOCSTRING_STYLE=rst`` forces RST format."""
+        monkeypatch.setenv("DEPRECATE_DOCSTRING_STYLE", "rst")
+        assert normalize_docstring_style("auto") == "rst"
+
+    def test_auto_style_detects_mkdocs_from_argv(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """``sys.argv[0]`` containing ``mkdocs`` resolves ``"auto"`` to ``"mkdocs"``."""
+        monkeypatch.setattr(sys, "argv", ["/usr/local/bin/mkdocs", "build"])
+        monkeypatch.delenv("DEPRECATE_DOCSTRING_STYLE", raising=False)
+        assert normalize_docstring_style("auto") == "mkdocs"
+
+    @pytest.mark.parametrize("target_val", _NOTIFY_PARAMS)
+    def test_update_docstring_idempotent(self, target_val: Union[TargetMode, None]) -> None:
+        """Calling ``_update_docstring_with_deprecation`` twice must not duplicate the notice."""
+
+        @deprecated(target=target_val, deprecated_in="1.0", update_docstring=True)
+        def some_func() -> None:
+            """A function."""
+
+        original_doc = some_func.__doc__
+        _update_docstring_with_deprecation(some_func)
+        assert some_func.__doc__ == original_doc
+
+    @pytest.mark.parametrize("target_val", _NOTIFY_PARAMS)
+    def test_idempotency_guard_no_false_positive_on_version_prefix(self, target_val: Union[TargetMode, None]) -> None:
+        """Guard must not suppress injection when the docstring mentions a longer version.
+
+        ``deprecated_in="1"`` should inject ``.. deprecated:: 1`` even when the
+        existing docstring contains ``.. deprecated:: 1.0`` in prose — the "1"
+        string is a substring of "1.0" so a naive ``in`` check would cause a
+        false positive.
+
+        """
+
+        @deprecated(target=target_val, deprecated_in="1", update_docstring=True, docstring_style="rst")
+        def some_func() -> None:
+            """Summary.
+
+            See also .. deprecated:: 1.0 handling.
+
+            """
+
+        assert some_func.__doc__ is not None
+        lines = [line.strip() for line in some_func.__doc__.splitlines()]
+        assert ".. deprecated:: 1" in lines
 
 
-def _load_docstrings_module() -> "griffe.Module":
-    """Load ``tests.collections.docstrings`` into a fresh Griffe module graph.
+class TestNumpyUnderlineDetection:
+    """Tests for NumPy section underline detection helper."""
 
-    A new :class:`~griffe.GriffeLoader` is created per call so that each test operates on an independent object
-    graph — :meth:`RuntimeDocstrings.on_module` mutates docstrings in place, so a shared graph would leak state.
+    @pytest.mark.parametrize(
+        ("line", "expected"),
+        [
+            ("---", True),
+            ("----------", True),
+            (" -- ", False),
+            ("===", False),
+            ("abc", False),
+            ("--", False),
+        ],
+    )
+    def test_is_numpy_underline(self, line: str, expected: bool) -> None:
+        """Underline helper should accept only 3+ dashes."""
+        assert is_numpy_underline(line) is expected
 
+
+class TestDocstringInsertionIndex:
+    """Tests for Google/NumPy insertion index detection."""
+
+    def test_detects_google_header_with_whitespace_and_case(self) -> None:
+        """Google headers are detected case-insensitively with surrounding whitespace."""
+        lines = ["Summary", "", "  ArGs:  ", "    a: value"]
+        assert find_docstring_insertion_index(lines) == 2
+
+    def test_detects_numpy_header_with_underline(self) -> None:
+        """NumPy header should be detected only when followed by dashed underline."""
+        lines = ["Summary", "", "Parameters", "----------", "a : int"]
+        assert find_docstring_insertion_index(lines) == 2
+
+    def test_does_not_detect_numpy_header_without_underline(self) -> None:
+        """NumPy-like header without underline should fall back to append-at-end."""
+        lines = ["Summary", "", "Parameters", "a : int"]
+        assert find_docstring_insertion_index(lines) == len(lines)
+
+    def test_boundary_header_last_line_does_not_crash(self) -> None:
+        """Header on final line should not index past bounds and should append at end."""
+        lines = ["Summary", "Parameters"]
+        assert find_docstring_insertion_index(lines) == len(lines)
+
+
+class TestDocstringStyleOutput:
+    """Verify each docstring style alias produces the correct notice format.
+
+    The inline ``@deprecated`` decorators in this class are parametrize-coupled
+    (``docstring_style=style`` resolves from the parametrize fixture), so they cannot be
+    moved to :mod:`tests.collections.api_deprecated` without losing the per-case configuration.
+    This is one of the AGENTS.md three-layer-rule exceptions: a decorator whose config
+    depends on the parametrize value must be defined inside the test method itself.
     """
-    return griffe.GriffeLoader().load("tests.collections.docstrings")
+
+    @pytest.mark.parametrize(
+        ("style", "expected_marker"),
+        [
+            ("rst", ".. deprecated:: 1.0"),
+            ("mkdocs", '!!! warning "Deprecated in 1.0"'),
+            ("markdown", '!!! warning "Deprecated in 1.0"'),
+        ],
+    )
+    def test_notice_marker_for_explicit_style(self, style: str, expected_marker: str) -> None:
+        """Each explicit style injects the expected notice format into the docstring."""
+
+        @deprecated(target=None, deprecated_in="1.0", update_docstring=True, docstring_style=style)  # type: ignore[arg-type, unused-ignore]
+        def _fn() -> None:
+            """A simple function."""
+
+        assert _fn.__doc__ is not None
+        assert expected_marker in _fn.__doc__
+
+    @pytest.mark.parametrize(
+        ("style", "expected_marker"),
+        [
+            ("rst", ".. deprecated:: 1.0"),
+            ("mkdocs", '!!! warning "Deprecated in 1.0"'),
+            ("markdown", '!!! warning "Deprecated in 1.0"'),
+        ],
+    )
+    def test_notice_inserted_before_google_args_for_style(self, style: str, expected_marker: str) -> None:
+        """Notice is placed before ``Args:`` regardless of style."""
+
+        @deprecated(target=None, deprecated_in="1.0", update_docstring=True, docstring_style=style)  # type: ignore[arg-type, unused-ignore]
+        def _fn(x: int) -> None:
+            """Summary.
+
+            Args:
+                x: A value.
+
+            """
+
+        assert _fn.__doc__ is not None
+        doc = _fn.__doc__
+        assert expected_marker in doc
+        assert doc.index(expected_marker) < doc.index("Args:")
+
+    @pytest.mark.parametrize(
+        ("style", "absent_marker"),
+        [
+            ("rst", "!!! warning"),
+            ("mkdocs", ".. deprecated::"),
+            ("markdown", ".. deprecated::"),
+        ],
+    )
+    def test_other_style_marker_absent(self, style: str, absent_marker: str) -> None:
+        """The notice uses exactly one format — the other style's marker is absent."""
+
+        @deprecated(target=None, deprecated_in="1.0", update_docstring=True, docstring_style=style)  # type: ignore[arg-type, unused-ignore]
+        def _fn() -> None:
+            """A simple function."""
+
+        assert absent_marker not in (_fn.__doc__ or "")
 
 
 class TestBuildArgDeprecationNote:
@@ -282,135 +480,3 @@ class TestUpdateDocstringIdempotent:
         _update_docstring_with_deprecation(my_fn)
         assert my_fn.__doc__ is not None
         assert my_fn.__doc__.count("Deprecated since v1.0") == 1
-
-
-class TestDocstringSubpackageImports:
-    """Smoke tests: docstring sub-modules are importable and expose expected symbols."""
-
-    @pytest.mark.skipif(importlib.util.find_spec("griffe") is None, reason="griffe not installed")
-    def test_griffe_ext_importable(self) -> None:
-        """deprecate.docstring.griffe_ext imports without error and exposes RuntimeDocstrings."""
-        mod = importlib.import_module("deprecate.docstring.griffe_ext")
-        assert hasattr(mod, "RuntimeDocstrings")
-
-    def test_sphinx_ext_importable(self) -> None:
-        """deprecate.docstring.sphinx_ext imports without error and exposes setup()."""
-        mod = importlib.import_module("deprecate.docstring.sphinx_ext")
-        assert callable(mod.setup)
-
-
-@_skipif_griffe_missing
-class TestRuntimeDocstrings:
-    """Behavioural tests for the Griffe extension that mirrors runtime ``__doc__`` into the docs build.
-
-    ``@deprecated(update_docstring=True)`` rewrites ``fn.__doc__`` at decoration time, but Griffe reads docstrings
-    from the source AST and never sees that runtime change. :class:`RuntimeDocstrings` bridges the gap by importing
-    the module at runtime and copying the live ``__doc__`` over the statically-parsed Griffe docstring — so that a
-    ``mkdocstrings`` render shows the injected deprecation notice.
-
-    """
-
-    def test_on_module_injects_runtime_docstring(self) -> None:
-        """A deprecated function's Griffe docstring is replaced with its runtime ``__doc__`` after ``on_module``.
-
-        ``old_function`` is decorated with ``update_docstring=True``, so its runtime ``__doc__`` carries a
-        ``.. deprecated:: 0.1`` block absent from the source AST.  Before the hook runs Griffe only knows the
-        static summary; after ``on_module`` the Griffe docstring must equal the live ``__doc__``.
-
-        """
-        mod = _load_docstrings_module()
-
-        assert mod["old_function"].docstring.value == "An old function that is deprecated."
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            RuntimeDocstrings().on_module(mod=mod, loader=griffe.GriffeLoader())
-
-        patched = mod["old_function"].docstring.value
-        assert ".. deprecated:: 0.1" in patched
-        assert "new_function" in patched
-        assert patched != "An old function that is deprecated."
-
-    def test_on_module_recurses_into_class_members(self) -> None:
-        """The hook descends into class members so a deprecated ``__init__`` also gets its runtime docstring.
-
-        ``OldClass.__init__`` carries the ``@deprecated`` decorator; the notice lives on the method's runtime
-        ``__doc__``.  ``_update_obj`` must recurse into the class body and patch the ``__init__`` docstring, not
-        only top-level functions.
-
-        """
-        mod = _load_docstrings_module()
-
-        assert mod["OldClass"].members["__init__"].docstring.value == "Initialize the old class."
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            RuntimeDocstrings().on_module(mod=mod, loader=griffe.GriffeLoader())
-
-        patched_init = mod["OldClass"].members["__init__"].docstring.value
-        assert ".. deprecated:: 0.2" in patched_init
-        assert patched_init != "Initialize the old class."
-
-    def test_replace_docstring_leaves_non_deprecated_object_untouched(self) -> None:
-        """A callable without ``__deprecation_config__`` keeps its statically-parsed Griffe docstring.
-
-        ``new_function`` is the plain replacement target — it has no ``__deprecation_config__`` attribute, so
-        ``_replace_docstring`` must return early and leave the original source docstring intact.
-
-        """
-        mod = _load_docstrings_module()
-        runtime_new = importlib.import_module("tests.collections.docstrings").new_function
-
-        RuntimeDocstrings._replace_docstring(mod["new_function"], runtime_new)
-
-        assert mod["new_function"].docstring.value == "A new function that is the target."
-
-    def test_replace_docstring_skips_when_runtime_doc_is_empty(self) -> None:
-        """A deprecated function whose runtime ``__doc__`` is ``None`` is left unchanged.
-
-        ``old_function_plain`` has ``update_docstring=True`` but no source docstring, so its runtime ``__doc__``
-        stays ``None``.  ``_replace_docstring`` must not raise and must not fabricate a docstring.
-
-        """
-        mod = _load_docstrings_module()
-        runtime_plain = importlib.import_module("tests.collections.docstrings").old_function_plain
-
-        RuntimeDocstrings._replace_docstring(mod["old_function_plain"], runtime_plain)
-
-        assert mod["old_function_plain"].docstring is None
-
-    def test_replace_docstring_no_op_when_griffe_docstring_missing(self) -> None:
-        """When the Griffe object has no docstring to overwrite, a deprecated runtime object is a no-op.
-
-        Simulates a callable whose source had no docstring (Griffe docstring ``None``) yet whose runtime object
-        carries the injected notice — the guard at the ``griffe_obj.docstring is None`` branch must return without
-        error rather than attempt to assign ``.value`` on ``None``.
-
-        """
-        mod = _load_docstrings_module()
-        griffe_obj = mod["old_function"]
-        griffe_obj.docstring = None  # type: ignore[assignment]
-        runtime_old = importlib.import_module("tests.collections.docstrings").old_function
-
-        RuntimeDocstrings._replace_docstring(griffe_obj, runtime_old)
-
-        assert griffe_obj.docstring is None
-
-    def test_import_module_fast_path_returns_importable_module(self) -> None:
-        """A module already importable by name resolves via the fast path without touching ``sys.path``."""
-        fake_mod = types.SimpleNamespace(name="os", filepath=None)
-
-        assert RuntimeDocstrings._import_module(cast("griffe.Module", fake_mod)) is importlib.import_module("os")
-
-    def test_import_module_returns_none_when_unresolvable(self) -> None:
-        """An un-importable name with no ``filepath`` yields ``None`` instead of raising."""
-        fake_mod = types.SimpleNamespace(name="deprecate_no_such_module_xyz", filepath=None)
-
-        assert RuntimeDocstrings._import_module(cast("griffe.Module", fake_mod)) is None
-
-    def test_update_obj_skips_when_runtime_attribute_absent(self) -> None:
-        """A Griffe member with no matching runtime attribute is skipped, leaving its docstring untouched."""
-        mod = _load_docstrings_module()
-        original = mod["old_function"].docstring.value
-
-        RuntimeDocstrings()._update_obj(mod["old_function"], object(), "missing_runtime_name")
-
-        assert mod["old_function"].docstring.value == original

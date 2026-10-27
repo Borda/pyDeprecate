@@ -15,6 +15,7 @@ from deprecate.audit._version import (
     _version_from_dynamic,
     _version_from_toml,
 )
+from tests._helpers import write_pkg
 
 # ---------------------------------------------------------------------------
 # _resolve_package_version (package helper)
@@ -156,14 +157,6 @@ def _clean_sys_modules() -> Generator[None, None, None]:
         del sys.modules[name]
 
 
-def _write_pkg(root: Path, name: str, init_body: str) -> Path:
-    """Create an importable ``name`` package under *root* with *init_body* as its ``__init__.py`` and return it."""
-    pkg = root / name
-    pkg.mkdir()
-    (pkg / "__init__.py").write_text(init_body)
-    return pkg
-
-
 class TestLoadToml:
     """Tests for _load_toml() — the tolerant ``pyproject.toml`` reader used by version auto-detection."""
 
@@ -218,7 +211,7 @@ class TestVersionFromDynamic:
         importable via the temporarily-extended ``sys.path`` and have its runtime attribute read back.
 
         """
-        _write_pkg(tmp_path, "dynpkg_read", '__version__ = "3.4.5"\n')
+        write_pkg(tmp_path, "dynpkg_read", '__version__ = "3.4.5"\n')
         assert _version_from_dynamic("dynpkg_read", str(tmp_path), str(tmp_path)) == "3.4.5"
 
     def test_returns_none_when_import_fails(self, tmp_path: Path) -> None:
@@ -228,12 +221,12 @@ class TestVersionFromDynamic:
         ``None`` (caller then falls back to metadata) rather than crash the whole ``expiry`` check.
 
         """
-        _write_pkg(tmp_path, "dynpkg_boom", 'raise RuntimeError("boom at import time")\n')
+        write_pkg(tmp_path, "dynpkg_boom", 'raise RuntimeError("boom at import time")\n')
         assert _version_from_dynamic("dynpkg_boom", str(tmp_path), str(tmp_path)) is None
 
     def test_returns_none_when_version_not_a_string(self, tmp_path: Path) -> None:
         """A package whose ``__version__`` is not a ``str`` (or is absent) resolves to ``None``."""
-        _write_pkg(tmp_path, "dynpkg_badtype", "__version__ = 405\n")
+        write_pkg(tmp_path, "dynpkg_badtype", "__version__ = 405\n")
         assert _version_from_dynamic("dynpkg_badtype", str(tmp_path), str(tmp_path)) is None
 
     def test_restores_sys_path_after_import(self, tmp_path: Path) -> None:
@@ -244,7 +237,7 @@ class TestVersionFromDynamic:
 
         """
         original = list(sys.path)
-        _write_pkg(tmp_path, "dynpkg_syspath", '__version__ = "9.0.0"\n')
+        write_pkg(tmp_path, "dynpkg_syspath", '__version__ = "9.0.0"\n')
         _version_from_dynamic("dynpkg_syspath", str(tmp_path), str(tmp_path))
         assert sys.path == original
 
@@ -272,7 +265,7 @@ class TestVersionFromToml:
         by importing ``[project].name`` and reading ``__version__``.
 
         """
-        _write_pkg(tmp_path, "tomldynpkg", '__version__ = "5.6.7"\n')
+        write_pkg(tmp_path, "tomldynpkg", '__version__ = "5.6.7"\n')
         toml = tmp_path / "pyproject.toml"
         toml.write_text('[project]\nname = "tomldynpkg"\ndynamic = ["version"]\n')
         assert _version_from_toml(str(toml), str(tmp_path)) == "5.6.7"

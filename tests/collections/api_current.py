@@ -112,15 +112,6 @@ def return_z(z: int = 0) -> int:
     return z
 
 
-def return_none() -> None:
-    """Return ``None`` for warning-only sentinel tests."""
-
-
-def return_new(new: int = 0) -> int:
-    """Return the remapped value for the ``target=True`` sentinel test."""
-    return new
-
-
 class NewCls:
     """New class for testing deprecation."""
 
