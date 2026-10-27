@@ -1,10 +1,11 @@
 """Fatal deprecations: :class:`DeprecatedError`, the global switch and the scoped :func:`as_exceptions`.
 
 A deprecation can be promoted from a warning to a raised :class:`DeprecatedError`, either per wrapper
-(``as_exception=True``) or process-wide (``deprecate.AS_EXCEPTIONS`` / the ``DEPRECATE_AS_EXCEPTIONS``
-environment variable).  Python's own ``-W error::FutureWarning`` covers neither of the two cases this exists
-for: it cannot distinguish pyDeprecate's warnings from any other library's ``FutureWarning``, and it has no
-effect at all when the wrapper routes through a non-``warnings`` ``stream`` such as :func:`logging.warning`.
+(``as_exception=True``), process-wide (``deprecate.AS_EXCEPTIONS`` / the ``DEPRECATE_AS_EXCEPTIONS``
+environment variable), or for one block in the current thread or task (:func:`as_exceptions`).  Python's own
+``-W error::FutureWarning`` covers neither of the two cases this exists for: it cannot distinguish pyDeprecate's
+warnings from any other library's ``FutureWarning``, and it has no effect at all when the wrapper routes through a
+non-``warnings`` ``stream`` such as :func:`logging.warning`.
 
 This module deliberately imports nothing from the rest of the package, so every emission path
 (:mod:`deprecate.messaging`, :mod:`deprecate.proxy`, :mod:`deprecate.module`) can import it without a cycle.
@@ -17,6 +18,7 @@ import inspect
 import os
 import sys
 from contextlib import ContextDecorator
+from contextvars import ContextVar, Token
 from typing import Any, Callable, Optional, TypeVar
 
 _F = TypeVar("_F", bound=Callable[..., Any])
@@ -75,21 +77,32 @@ def _env_as_exceptions(environ: Optional[dict] = None) -> bool:
 #: :func:`_global_as_exceptions` while the package's own ``__init__`` is still executing.
 _ENV_DEFAULT = _env_as_exceptions()
 
+#: Value set by the innermost open :func:`as_exceptions` scope of the current context, or ``None`` outside any
+#: scope.  A :class:`~contextvars.ContextVar`, so a scope is local to its thread and ``asyncio`` task: tasks
+#: created inside a scope inherit it (they copy the context), sibling tasks and other threads do not see it.
+_SCOPED: ContextVar[Optional[bool]] = ContextVar("deprecate_as_exceptions_scope", default=None)
+
 
 def _global_as_exceptions() -> bool:
-    """Return the current value of the ``deprecate.AS_EXCEPTIONS`` package attribute.
+    """Return whether deprecations are fatal by default in the current context.
 
-    Read through :data:`sys.modules` on every call rather than imported once, so that assigning
-    ``deprecate.AS_EXCEPTIONS = True`` (or monkeypatching it in a test) takes effect immediately.
+    An open :func:`as_exceptions` scope in the current context decides first.  Outside any scope the
+    ``deprecate.AS_EXCEPTIONS`` package attribute decides, read through :data:`sys.modules` on every call rather
+    than imported once, so that assigning ``deprecate.AS_EXCEPTIONS = True`` (or monkeypatching it in a test)
+    takes effect immediately.
 
     Returns:
-        The package attribute when it is a ``bool``, else the import-time environment snapshot.
+        The innermost scope's value, else the package attribute when it is a ``bool``, else the import-time
+        environment snapshot.
 
     Examples:
         >>> isinstance(_global_as_exceptions(), bool)
         True
 
     """
+    scoped = _SCOPED.get()
+    if scoped is not None:
+        return scoped
     value = getattr(sys.modules.get("deprecate"), "AS_EXCEPTIONS", None)
     return value if isinstance(value, bool) else _ENV_DEFAULT
 
@@ -136,7 +149,8 @@ class _ScopedSwitch(ContextDecorator):
 
     def __init__(self, enabled: bool) -> None:
         self._enabled = enabled
-        self._previous: list[Any] = []  # one saved value per open entry, so a reused instance unwinds in order
+        # one (token, previous scope value) pair per open entry, so a reused instance unwinds in order
+        self._entries: list[tuple[Token, Optional[bool]]] = []
 
     def _recreate_cm(self) -> "_ScopedSwitch":
         # a fresh instance per decorated call: a recursive or concurrent call then saves and restores its own value
@@ -157,36 +171,43 @@ class _ScopedSwitch(ContextDecorator):
         return super().__call__(func)
 
     def __enter__(self) -> None:
-        package: Any = sys.modules["deprecate"]  # the package's own attribute; typed Any to set it without a cycle
-        self._previous.append(getattr(package, "AS_EXCEPTIONS", _ENV_DEFAULT))
-        package.AS_EXCEPTIONS = self._enabled
+        previous = _SCOPED.get()
+        self._entries.append((_SCOPED.set(self._enabled), previous))
 
     def __exit__(self, *exc_info: object) -> None:
-        package: Any = sys.modules["deprecate"]
-        package.AS_EXCEPTIONS = self._previous.pop()
+        token, previous = self._entries.pop()
+        try:
+            _SCOPED.reset(token)
+        except ValueError:
+            # the token belongs to another Context (the scope was entered in one task or copied context and left
+            # in another); restore the saved value instead, so exiting never raises over the block's own exception
+            _SCOPED.set(previous)
 
 
 def as_exceptions(enabled: bool = True) -> _ScopedSwitch:
-    """Make deprecations fatal for one block of code, then restore the previous global setting.
+    """Make deprecations fatal for one block of code, then restore the previous setting.
 
-    Sets ``deprecate.AS_EXCEPTIONS`` to ``enabled`` on entry and puts back the value it found on exit, also when
-    the block raises, so nested scopes compose.  ``as_exceptions(False)`` exempts a block from a strict run
-    (e.g. one seeded by ``DEPRECATE_AS_EXCEPTIONS=1``).  Precedence stays monotonic: a wrapper's own
-    ``as_exception=True`` raises inside an ``as_exceptions(False)`` block too.  Like the global itself, this is
-    the consumer's switch (an application or a test suite), not something library code should set.
+    Inside the block, deprecations that defer to the global switch raise (``enabled=True``) or warn
+    (``enabled=False``); on exit the previous setting applies again, also when the block raises, so nested scopes
+    compose.  ``as_exceptions(False)`` exempts a block from a strict run (e.g. one seeded by
+    ``DEPRECATE_AS_EXCEPTIONS=1``).  Precedence stays monotonic: a wrapper's own ``as_exception=True`` raises inside
+    an ``as_exceptions(False)`` block too.  Like the global itself, this is the consumer's switch (an application or
+    a test suite), not something library code should set.
 
     Also usable as a decorator, but only on plain synchronous functions: an ``async def``, generator or
     async-generator function is rejected with a :class:`TypeError` at decoration time, because its body runs after
     the scope would have closed.  Use ``with as_exceptions():`` inside such a body instead.
 
-    The switch is a plain package attribute, so the scope is process-wide — not local to a thread or an
-    ``asyncio`` task.  Code running concurrently with the block sees the same setting, and scopes opened from
-    different threads or tasks that overlap out of order can leave the switch in the wrong state for the rest of
-    the process (for example ``True`` after both scopes have closed).  Do not hold a scope across an ``await`` in
-    concurrent code.
+    The scope is local to the current thread and ``asyncio`` task (a :class:`~contextvars.ContextVar`), and it
+    never modifies ``deprecate.AS_EXCEPTIONS``: inside a scope that attribute still reports the global value, and
+    assigning it there takes effect once the scope closes.  Other threads and sibling tasks keep the global
+    setting, so holding a scope across an ``await`` is safe for concurrent code.  Tasks created inside a scope
+    inherit it, because a task copies the context at creation.  Whether a new thread inherits it depends on the
+    interpreter; run the thread's target through :meth:`contextvars.copy_context().run
+    <contextvars.Context.run>` when it must.
 
     Args:
-        enabled: Value of ``deprecate.AS_EXCEPTIONS`` inside the block.
+        enabled: Whether deferring deprecations raise inside the block.
 
     Returns:
         A scope usable in a ``with`` statement or as a decorator for a synchronous function.

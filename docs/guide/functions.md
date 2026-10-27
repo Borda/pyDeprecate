@@ -588,7 +588,7 @@ The `legacy_checksum` was deprecated since v1.0. It will be removed in v2.0.
 DEPRECATE_AS_EXCEPTIONS=1 pytest
 ```
 
-To make deprecations fatal for one stretch of code only, use the `as_exceptions()` context manager. It sets `deprecate.AS_EXCEPTIONS` on entry and restores the previous value on exit, also when the block raises, so nested scopes compose. `as_exceptions(False)` does the reverse and exempts a block from a strict run. It also works as a decorator.
+To make deprecations fatal for one stretch of code only, use the `as_exceptions()` context manager. Deprecations that defer to the global switch raise inside the block, and the previous setting applies again on exit, also when the block raises, so nested scopes compose. `as_exceptions(False)` does the reverse and exempts a block from a strict run. It also works as a decorator.
 
 ```python
 from deprecate import DeprecatedError, as_exceptions, deprecated
@@ -631,7 +631,7 @@ Use `calculate_total` instead.
 
 </details>
 
-The scope is process-wide, not local to a thread or an `asyncio` task: code running concurrently with the block sees the same setting, and scopes opened from different threads or tasks that overlap out of order can leave the switch in the wrong state for the rest of the process (for example `True` after both scopes closed), so do not hold a scope across an `await` in concurrent code. As a decorator it only covers plain synchronous functions: decorating an `async def`, generator or async-generator function raises `TypeError`, because its body would run after the scope closed — use `with as_exceptions():` inside the body instead. A non-`bool` flag, including a bare `@as_exceptions` without parentheses, raises `TypeError` at the call. Like `deprecate.AS_EXCEPTIONS` itself, it is the consumer's switch (an application or test suite); library code should not use `as_exceptions(False)` to escape a caller's strict run.
+The scope is local to the current thread and `asyncio` task: it is held in a `ContextVar`, so other threads and sibling tasks keep the global setting, and holding a scope across an `await` is safe. Tasks created inside the block inherit the scope, because a task copies the context when it is created; whether a new thread inherits it depends on the interpreter, so run the thread's target through `contextvars.copy_context().run(...)` when it must. The scope never modifies `deprecate.AS_EXCEPTIONS`: inside the block that attribute still reports the global value, and assigning it there takes effect once the block closes. As a decorator it only covers plain synchronous functions: decorating an `async def`, generator or async-generator function raises `TypeError`, because its body would run after the scope closed — use `with as_exceptions():` inside the body instead. A non-`bool` flag, including a bare `@as_exceptions` without parentheses, raises `TypeError` at the call. Like `deprecate.AS_EXCEPTIONS` itself, it is the consumer's switch (an application or test suite); library code should not use `as_exceptions(False)` to escape a caller's strict run.
 
 Precedence is **monotonic**: an explicit `as_exception=True` is always fatal, and `as_exception=False` means "not fatal by default" but still yields to a `True` global. A wrapper's own `as_exception=False` therefore cannot opt a consumer's strict run out; only the consumer's own `as_exceptions(False)` scope or `AS_EXCEPTIONS` setting can, while an author can still promote one symbol ahead of the rest.
 

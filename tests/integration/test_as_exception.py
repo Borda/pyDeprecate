@@ -6,7 +6,10 @@ deprecation raise on every call rather than once, and the interaction with `skip
 
 """
 
+import asyncio
+import contextvars
 import logging
+import threading
 from typing import Any, Callable
 
 import pytest
@@ -51,6 +54,53 @@ from tests.collections.api_deprecated_regressions import (
 from tests.collections.modules import fatal_utils, old_stats
 
 _VERSION_ARGS: dict[str, Any] = {"deprecated_in": "1.0", "remove_in": "2.0"}
+
+
+def _call_outcome(wrapper: Callable[[int], int]) -> str:
+    """Call a deferring wrapper once and report whether it raised `DeprecatedError` or returned."""
+    try:
+        wrapper(1)
+    except DeprecatedError:
+        return "raised"
+    return "returned"
+
+
+def _run_scoped_and_unscoped_threads(wrapper: Callable[[int], int]) -> dict[str, str]:
+    """Call ``wrapper`` from a thread inside a scope and, while that scope is open, from a second thread outside."""
+    outcomes: dict[str, str] = {}
+    scope_open, unscoped_done = threading.Barrier(2), threading.Barrier(2)
+
+    def scoped() -> None:
+        with as_exceptions():
+            scope_open.wait()
+            unscoped_done.wait()
+            outcomes["scoped"] = _call_outcome(wrapper)
+
+    def unscoped() -> None:
+        scope_open.wait()
+        outcomes["unscoped"] = _call_outcome(wrapper)
+        unscoped_done.wait()
+
+    threads = [threading.Thread(target=scoped), threading.Thread(target=unscoped)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=10)
+    return outcomes
+
+
+async def _scoped_task_outcome(wrapper: Callable[[int], int]) -> str:
+    """Hold a scope across two event-loop yields, then call ``wrapper`` inside it."""
+    with as_exceptions():
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        return _call_outcome(wrapper)
+
+
+async def _unscoped_task_outcome(wrapper: Callable[[int], int]) -> str:
+    """Yield once, so the call runs while a sibling task is suspended inside its scope."""
+    await asyncio.sleep(0)
+    return _call_outcome(wrapper)
 
 
 class TestFatalCallable:
@@ -382,9 +432,9 @@ class TestScopedSwitch:
         """
         with as_exceptions():
             with as_exceptions(False):
-                assert deprecate.AS_EXCEPTIONS is False
-            assert deprecate.AS_EXCEPTIONS is True
-        assert deprecate.AS_EXCEPTIONS is False
+                inner = _call_outcome(depr_scoped_switch_log_stream)
+            outer = _call_outcome(depr_scoped_switch_log_stream)
+        assert (inner, outer, _call_outcome(depr_scoped_switch_log_stream)) == ("returned", "raised", "returned")
 
     def test_explicit_wrapper_true_still_raises_in_a_disabled_block(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """A wrapper's own `as_exception=True` stays fatal inside `as_exceptions(False)` — precedence is monotonic.
@@ -492,53 +542,85 @@ class TestScopedSwitch:
         with as_exceptions(), pytest.raises(DeprecatedError):
             access()
 
-    def test_out_of_order_overlap_leaves_a_stale_value(self, global_off: None) -> None:
-        """Two scopes that exit in the opposite order of entry leave the switch on after both have closed.
+    def test_scope_does_not_reach_another_thread(self, global_off: None) -> None:
+        """A scope open in one thread leaves a concurrent thread on the global setting.
 
-        This pins the documented process-wide limitation: thread A opens a scope, thread B opens `False`, A
-        closes, B closes — B restores the `True` it saw when A had already changed the switch. The interleaving
-        is driven by hand so the outcome is deterministic instead of depending on thread timing.
+        A test runner or a server opens a strict section in one worker thread while another thread calls the
+        same deprecated function. Only the thread inside the scope may raise; the other must keep warning. A
+        barrier makes the second thread call while the first thread's scope is still open.
         """
-        first, second = as_exceptions(), as_exceptions(False)
-        first.__enter__()
-        second.__enter__()
-        first.__exit__(None, None, None)
-        second.__exit__(None, None, None)
-        assert deprecate.AS_EXCEPTIONS is True
+        outcomes = _run_scoped_and_unscoped_threads(depr_scoped_switch_log_stream)
+        assert outcomes == {"scoped": "raised", "unscoped": "returned"}
+
+    @pytest.mark.asyncio
+    async def test_scope_held_across_await_does_not_reach_a_sibling_task(self, global_off: None) -> None:
+        """A scope held across an ``await`` in one task leaves a sibling task on the global setting.
+
+        Async code opens a strict section around an awaited step; while that task is suspended, another task
+        scheduled on the same event loop calls the same deprecated function and must keep warning.
+        """
+        outcomes = await asyncio.gather(
+            _scoped_task_outcome(depr_scoped_switch_log_stream), _unscoped_task_outcome(depr_scoped_switch_log_stream)
+        )
+        assert outcomes == ["raised", "returned"]
+
+    def test_package_attribute_is_unchanged_inside_a_scope(self, global_off: None) -> None:
+        """Inside a scope `deprecate.AS_EXCEPTIONS` still reports the global value, not the scope's.
+
+        The scope lives in a context variable so it cannot leak into other threads or tasks; the package
+        attribute stays the process-wide default that code outside the block keeps seeing.
+        """
+        with as_exceptions():
+            inside = deprecate.AS_EXCEPTIONS
+        assert (inside, deprecate.AS_EXCEPTIONS) == (False, False)
+
+    def test_exit_from_another_context_does_not_raise(self, global_off: None) -> None:
+        """Leaving a scope from a different context than the one that entered it neither raises nor stays open.
+
+        A scope object entered inside a copied context (or in one task) and closed elsewhere holds a token from
+        the other context; exiting must not raise over the block's own outcome, and the strict setting must not
+        survive in the context that closed it.
+        """
+        scope = as_exceptions()
+        contextvars.copy_context().run(scope.__enter__)
+        scope.__exit__(None, None, None)
+        assert _call_outcome(depr_scoped_switch_log_stream) == "returned"
 
     def test_one_scope_object_can_be_entered_twice(self, global_off: None) -> None:
-        """Re-entering the same scope object unwinds in order and ends on the original value.
+        """Re-entering the same scope object unwinds in order and ends on the original setting.
 
         Helpers that keep `scope = as_exceptions()` at module level and reuse it from nested callers must not
         have the inner exit overwrite the saved value of the outer one.
         """
         scope = as_exceptions()
-        with scope, scope:
-            inside = deprecate.AS_EXCEPTIONS
-        assert (inside, deprecate.AS_EXCEPTIONS) == (True, False)
+        with scope:
+            with scope:
+                inner = _call_outcome(depr_scoped_switch_log_stream)
+            outer = _call_outcome(depr_scoped_switch_log_stream)
+        assert (inner, outer, _call_outcome(depr_scoped_switch_log_stream)) == ("raised", "raised", "returned")
 
     @pytest.mark.parametrize("prior", ["strict", None, True])
-    def test_prior_value_is_restored_verbatim(self, prior: object, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Whatever the attribute held before the block — even a non-`bool` — is put back unchanged.
+    def test_scope_leaves_the_attribute_untouched(self, prior: object, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Whatever the attribute held before the block — even a non-`bool` — is still there unchanged after it.
 
         Test suites and bootstrap code assign the attribute directly, sometimes with a value the switch itself
-        ignores; the scope must hand back exactly that object rather than normalising it to a `bool`.
+        ignores; the scope must leave exactly that object in place rather than normalising it to a `bool`.
         """
         monkeypatch.setattr(deprecate, "AS_EXCEPTIONS", prior)
         with as_exceptions():
             pass
         assert deprecate.AS_EXCEPTIONS is prior
 
-    def test_deleted_attribute_comes_back_as_the_import_time_value(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """A scope opened after `deprecate.AS_EXCEPTIONS` was deleted restores the import-time value.
+    def test_deleted_attribute_does_not_break_a_scope(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A scope opened after `deprecate.AS_EXCEPTIONS` was deleted still applies and does not recreate it.
 
         The attribute is plain module state and `monkeypatch.delattr` or cleanup code can remove it; the scope
-        must neither crash on entry nor leave the attribute missing afterwards.
+        must neither crash on entry nor depend on the attribute to make the block strict.
         """
         monkeypatch.delattr(deprecate, "AS_EXCEPTIONS")
         with as_exceptions():
-            pass
-        assert deprecate.AS_EXCEPTIONS is AS_EXCEPTIONS
+            outcome = _call_outcome(depr_scoped_switch_log_stream)
+        assert (outcome, hasattr(deprecate, "AS_EXCEPTIONS")) == ("raised", False)
 
     def test_restores_when_the_block_exits_with_a_base_exception(self, global_off: None) -> None:
         """A `KeyboardInterrupt` leaving the block still restores the previous value.
