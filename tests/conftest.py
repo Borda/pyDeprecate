@@ -95,8 +95,10 @@ def _iter_wrapper_states() -> list[_WrapperState]:
 #: does at module scope — is unaffected, since pytest never probes an imported symbol's own attributes.
 #: This is the fatal-module contract working as designed, not a workaround — any attribute-walking tool
 #: (pytest's direct collection, Sphinx autodoc, pickle) hits the same wall, which ``docs/troubleshooting.md``
-#: documents.
-collect_ignore = ["collections/modules/fatal_utils.py"]
+#: documents. The other fixture modules there are whole-module deprecations too: collecting them makes pytest's own
+#: attribute probes (``pytest_plugins``, ``pytestmark``) emit their deprecation warnings at collection time. None
+#: holds a doctest, so the whole directory is left out of collection.
+collect_ignore_glob = ["collections/modules/*.py"]
 
 
 #: Generated docs example tests (``make docs-tests``); gitignored, so a fresh clone has none.

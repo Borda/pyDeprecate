@@ -193,6 +193,10 @@ ini_options.filterwarnings = [
   "ignore:.*requires `args_mapping` to specify which arguments are being renamed.*:UserWarning:tests(\\.|\\Z)",
   "ignore:target=None is deprecated since `v0\\.8`.*:FutureWarning:tests(\\.|\\Z)",
   "ignore:target=True is deprecated since `v0\\.8`.*:FutureWarning:tests(\\.|\\Z)",
+  # decoration-time advisories of collection fixtures that exist to exercise them (asserted where they are tested)
+  "ignore:`@deprecated` on .* has no `deprecated_in` set\\..*:UserWarning:tests(\\.|\\Z)",
+  "ignore:`@deprecated` on class .* now dispatches to `@deprecated_class`\\..*:UserWarning:tests(\\.|\\Z)",
+  "ignore:`target=True` without `args_mapping` resolves to `TargetMode\\.NOTIFY`.*:FutureWarning:tests(\\.|\\Z)",
 ]
 ini_options.junit_duration_report = "call"
 # filterwarnings = [ "error::FutureWarning" ]
