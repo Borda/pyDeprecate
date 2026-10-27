@@ -1,12 +1,32 @@
-"""Command-line argument handling for the CLI: UTF-8 streams, boolean flags and argument binding."""
+"""Command-line parsing for the CLI: UTF-8 streams and the ``argparse`` parser of every subcommand.
 
+The parser is built from the ``cmd_*`` signatures, so a subcommand's options and its direct-call keyword arguments are
+one list: ``path`` (and ``version`` where the subcommand takes it) are positional and every other parameter is a
+``--flag``. Option values stay strings; only boolean flags are converted, from ``true``/``false``/``1``/``0``.
+
+"""
+
+import argparse
 import contextlib
 import inspect
+import re
 import sys
 from collections.abc import Callable, Sequence
-from typing import NamedTuple, Optional, Union
+from typing import Any, NamedTuple, Optional
 
-from deprecate._cli.config import _ConfigBool
+from deprecate._cli import _REPORT_OPTION, commands
+from deprecate._cli.config import _ConfigBool, _ConfigFlag
+
+#: The subcommands, in the order ``--help`` lists them; each runs the ``cmd_<name>`` function of :mod:`commands`.
+_SUBCOMMANDS = ("check", "expiry", "policy", "chains", "all", "status")
+#: Parameters taken as positional operands, in this order, by every subcommand that has them.
+_POSITIONALS = ("path", "version")
+#: Spellings accepted as a boolean flag's value, keyed by lower-cased text.
+_BOOL_LITERALS: dict[str, bool] = {"true": True, "false": False, "1": True, "0": False}
+#: Values of a ``pyproject.toml``-backed option that switch it off, as ``None`` does in a direct call.
+_OFF_LITERALS = frozenset({"none", "false"})
+#: Namespace attribute of the positional version, kept apart from ``--version`` so that giving both is caught.
+_VERSION_OPERAND = "version_operand"
 
 
 def _ensure_utf8_streams() -> None:
@@ -29,105 +49,215 @@ def _ensure_utf8_streams() -> None:
                 stream.reconfigure(encoding="utf-8")
 
 
-#: Spellings accepted as a boolean value after a boolean flag, keyed by lower-cased text. Fire only parses the
-#: capitalised ``True``/``False``; any other spelling would bind as a ``str``/``int`` (``--exit-zero=true``) or be
-#: read as the next positional argument (``--exit-zero 0``), so :func:`_normalize_bool_flags` rewrites them first.
-_BOOL_LITERALS: dict[str, bool] = {"true": True, "false": False, "1": True, "0": False}
+def _parse_bool(text: str) -> bool:
+    """Read a boolean flag's value: ``true``, ``false``, ``1`` or ``0`` in any case.
 
-
-class _BoolFlag(NamedTuple):
-    """A boolean flag recognised in one argument.
-
-    ``name`` is the parameter name, ``value`` the boolean it sets, and ``takes_next`` whether a ``true``/``false``/
-    ``1``/``0`` token that follows is that flag's value.
-
-    """
-
-    name: str
-    value: bool
-    takes_next: bool
-
-
-def _bool_params(fn: Callable[..., int]) -> frozenset[str]:
-    """Return the names of the CLI-visible parameters of *fn* annotated as ``bool`` or :data:`_ConfigBool`.
-
-    :data:`_ConfigBool` is a ``bool`` whose omitted value comes from ``pyproject.toml`` (``policy``'s
-    ``message_required``); the other :data:`_ConfigFlag` parameters (``min_grace``, ``exclude``) are not booleans.
-    Underscore-prefixed parameters are internal (``cmd_all`` plumbing) and never typed on the command line:
-    :func:`cli` rejects such an option before Fire parses it (see :func:`_internal_option`).
+    Raises:
+        argparse.ArgumentTypeError: For any other spelling, which argparse reports as a usage error (exit 2).
 
     Examples:
-        >>> from deprecate._cli.commands import cmd_check, cmd_policy
-        >>> sorted(_bool_params(cmd_check))
-        ['exit_zero', 'include_members', 'recursive']
-        >>> sorted(_bool_params(cmd_policy))
-        ['exit_zero', 'include_members', 'message_required', 'recursive']
+        >>> _parse_bool("FALSE"), _parse_bool("1")
+        (False, True)
 
     """
-    return frozenset(
-        name
-        for name, param in inspect.signature(fn).parameters.items()
-        if param.annotation in (bool, _ConfigBool) and not name.startswith("_")
+    try:
+        return _BOOL_LITERALS[text.lower()]
+    except KeyError:
+        raise argparse.ArgumentTypeError(
+            f"expects True or False (or 1/0), got {text!r}; write an explicit value as `--flag=true`"
+        ) from None
+
+
+def _parse_switchable(text: str) -> Optional[str]:
+    """Read the value of a ``pyproject.toml``-backed option: ``None`` or ``false`` switches it off, as ``None`` does.
+
+    Examples:
+        >>> _parse_switchable("None") is None, _parse_switchable("0.3")
+        (True, '0.3')
+
+    """
+    return None if text.lower() in _OFF_LITERALS else text
+
+
+def _parse_file_path(text: str) -> str:
+    """Read a file-path option's value, refusing an empty one (``--report-json=``) that names no file.
+
+    Raises:
+        argparse.ArgumentTypeError: For an empty value, which argparse reports as a usage error (exit 2).
+
+    Examples:
+        >>> _parse_file_path("report.json")
+        'report.json'
+
+    """
+    if not text:
+        raise argparse.ArgumentTypeError("expects a file path, got an empty value")
+    return text
+
+
+def _positional_dest(name: str) -> str:
+    """Return the namespace attribute a positional operand is parsed into: ``path`` as is, the version apart."""
+    return _VERSION_OPERAND if name == "version" else name
+
+
+class _CliCommand(NamedTuple):
+    """A subcommand as the parser sees it: its function, its positional operands and its boolean flags."""
+
+    function: Callable[..., int]
+    positionals: tuple[str, ...]
+    bool_params: frozenset[str]
+
+
+def _cli_command(name: str) -> _CliCommand:
+    """Describe the ``cmd_<name>`` function: which parameters are positional and which are boolean flags.
+
+    Examples:
+        >>> command = _cli_command("expiry")
+        >>> command.positionals, sorted(command.bool_params)
+        (('path', 'version'), ['exit_zero', 'include_members', 'recursive'])
+
+    """
+    function = getattr(commands, f"cmd_{name}")
+    params = inspect.signature(function).parameters
+    return _CliCommand(
+        function,
+        tuple(param for param in _POSITIONALS if param in params),
+        frozenset(param_name for param_name, param in params.items() if param.annotation in (bool, _ConfigBool)),
     )
 
 
-def _match_bool_flag(arg: str, bool_params: frozenset[str]) -> Optional[_BoolFlag]:
-    """Recognise *arg* as a boolean flag of the subcommand, or return ``None`` to leave it untouched.
+def _flag(name: str) -> str:
+    """Return the option spelling of a parameter or option name: underscores between words become dashes.
 
     Examples:
-        >>> _match_bool_flag("--exit-zero", frozenset({"exit_zero"}))
-        _BoolFlag(name='exit_zero', value=True, takes_next=True)
-        >>> _match_bool_flag("--noexit-zero", frozenset({"exit_zero"}))
-        _BoolFlag(name='exit_zero', value=False, takes_next=False)
-        >>> _match_bool_flag("--exit-zero=FALSE", frozenset({"exit_zero"}))
-        _BoolFlag(name='exit_zero', value=False, takes_next=False)
-        >>> _match_bool_flag("--exit-zero=yes", frozenset({"exit_zero"})) is None
-        True
+        >>> _flag("exit_zero"), _flag("report_json")
+        ('exit-zero', 'report-json')
 
     """
-    if not arg.startswith("--"):
-        return None
-    flag, has_value, attached = arg[2:].partition("=")
-    name = flag.replace("-", "_")
-    if has_value:
-        literal = _BOOL_LITERALS.get(attached.lower())
-        return _BoolFlag(name, literal, False) if name in bool_params and literal is not None else None
-    if name in bool_params:
-        return _BoolFlag(name, True, True)
-    if name.startswith("no") and name[2:] in bool_params:
-        return _BoolFlag(name[2:], False, False)
-    return None
+    return re.sub(r"(?<=[A-Za-z0-9])_(?=[A-Za-z0-9])", "-", name)
 
 
-def _normalize_bool_flags(argv: list[str], bool_params: frozenset[str]) -> list[str]:
-    """Rewrite boolean flags into the explicit ``--name=True``/``--name=False`` form.
+def _docstring_parts(function: Callable[..., int]) -> tuple[str, dict[str, str]]:
+    """Split a ``cmd_*`` docstring into its description and the help text of each argument in its ``Args`` section.
 
-    Fire reads the token after a bare flag as the flag's value unless that token is itself a flag, so
-    ``check --exit-zero src/pkg`` binds ``exit_zero='src/pkg'`` and scans the current directory. A pre-commit hook
-    builds its command as ``entry + args``, which puts such flags before the path by default. The explicit form binds
-    correctly in any position. Two flag forms are recognised, each with a dash or underscore in ``<name>``: ``--name``
-    and ``--no<name>``, where ``no`` attaches directly to the name (``--norecursive``, ``--noexit-zero``). The spaced
-    ``--no-recursive`` and ``--no_recursive`` are not recognised and reach Fire unchanged. A value is accepted as
-    ``true``, ``false``, ``1`` or ``0`` in any case, either attached (``--exit-zero=false``) or as the next token
-    (``--exit-zero 0``, which is consumed); ``--no<name>`` never consumes the next token. Any other value is left for
-    :func:`_non_bool_flag_error` to reject, and everything after a ``--`` separator is left untouched.
+    Double backticks become single ones and ``%`` is escaped, since argparse formats help strings with ``%``.
 
-    Args:
-        argv: Arguments after the subcommand name.
-        bool_params: Names of the subcommand's ``bool`` parameters, from :func:`_bool_params`.
+    """
+    doc = (inspect.getdoc(function) or "").replace("``", "`").replace("%", "%%")
+    description, _, rest = doc.partition("\nArgs:\n")
+    args_block = re.split(r"\n(?=\S)", rest, maxsplit=1)[0]
+    helps: dict[str, str] = {}
+    for match in re.finditer(r"^ {4}(\w+): (.*(?:\n {8}.*)*)", args_block, flags=re.MULTILINE):
+        helps[match.group(1)] = " ".join(line.strip() for line in match.group(2).splitlines())
+    return description.strip(), helps
+
+
+def _add_subcommand(subparsers: Any, name: str) -> argparse.ArgumentParser:  # noqa: ANN401
+    """Declare one subcommand from its ``cmd_*`` signature and docstring.
+
+    Every option defaults to :data:`argparse.SUPPRESS`, so the namespace holds only what was typed and an omitted option
+    keeps the ``cmd_*`` default (``pyproject.toml`` for the config-backed ones).
+
+    """
+    command = _cli_command(name)
+    description, helps = _docstring_parts(command.function)
+    parser: argparse.ArgumentParser = subparsers.add_parser(
+        name,
+        help=description.split("\n", 1)[0],
+        description=description,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        allow_abbrev=False,
+    )
+    for positional in command.positionals:
+        parser.add_argument(
+            _positional_dest(positional),
+            nargs="?",
+            metavar=positional,
+            default=argparse.SUPPRESS,
+            help=helps.get(positional),
+        )
+    for param_name, param in inspect.signature(command.function).parameters.items():
+        if param_name == "path":
+            continue
+        flag = _flag(param_name)
+        if param_name in command.bool_params:
+            parser.add_argument(
+                f"--{flag}",
+                dest=param_name,
+                nargs="?",
+                const=True,
+                type=_parse_bool,
+                metavar="BOOL",
+                default=argparse.SUPPRESS,
+                help=helps.get(param_name),
+            )
+            parser.add_argument(
+                f"--no-{flag}",
+                dest=param_name,
+                action="store_false",
+                default=argparse.SUPPRESS,
+                help=f"Same as `--{flag}=false`.",
+            )
+            # the older `--no<flag>` spelling (Fire's) keeps working for existing command lines, unlisted in --help
+            parser.add_argument(
+                f"--no{flag}", dest=param_name, action="store_false", default=argparse.SUPPRESS, help=argparse.SUPPRESS
+            )
+            continue
+        parser.add_argument(
+            f"--{flag}",
+            dest=param_name,
+            type=_parse_switchable if param.annotation is _ConfigFlag else str,
+            metavar=param_name.upper(),
+            default=argparse.SUPPRESS,
+            help=helps.get(param_name),
+        )
+    parser.add_argument(
+        _REPORT_OPTION,
+        dest="report_json",
+        type=_parse_file_path,
+        metavar="FILE",
+        default=None,
+        help="Write the run's machine-readable record (deprecation table and gaps) to FILE on exit 0 or 1.",
+    )
+    return parser
+
+
+def _build_parser() -> tuple[argparse.ArgumentParser, dict[str, argparse.ArgumentParser]]:
+    """Build the ``pydeprecate`` parser and one subparser per subcommand.
 
     Returns:
-        A new argument list with every boolean flag made explicit.
-
-    Examples:
-        >>> _normalize_bool_flags(["--exit-zero", "src/pkg", "--norecursive"], frozenset({"exit_zero", "recursive"}))
-        ['--exit_zero=True', 'src/pkg', '--recursive=False']
-        >>> _normalize_bool_flags(["--exit-zero", "false", "src/pkg"], frozenset({"exit_zero"}))
-        ['--exit_zero=False', 'src/pkg']
-        >>> _normalize_bool_flags(["--no-recursive", "src/pkg"], frozenset({"recursive"}))
-        ['--no-recursive', 'src/pkg']
+        The top-level parser (for ``--help``) and the subparsers by name, which do the actual parsing.
 
     """
+    parser = argparse.ArgumentParser(
+        prog="pydeprecate",
+        description=(
+            "Audit the @deprecated wrappers of a Python package. Without a subcommand, `check` runs; pass"
+            " `<subcommand> --help` for its options."
+        ),
+        allow_abbrev=False,
+    )
+    subparsers = parser.add_subparsers(title="subcommands", metavar="<subcommand>")
+    return parser, {name: _add_subcommand(subparsers, name) for name in _SUBCOMMANDS}
+
+
+def _normalize_options(argv: Sequence[str], bool_params: frozenset[str]) -> list[str]:
+    """Respell options for argparse: dashes in every name, and every boolean flag with its value attached.
+
+    Both spellings of an option name are accepted (``--exit_zero`` and ``--exit-zero``), so underscores between the
+    words of a name become dashes; any other spelling passes through for argparse to judge. A boolean flag takes
+    an optional value, and argparse would take *any* next argument as that value, swallowing the path in
+    ``check --exit-zero src/pkg``; so a bare flag becomes ``--flag=true``, and only a following ``true``, ``false``,
+    ``1`` or ``0`` (any case) is consumed as its value. Everything after a ``--`` separator is left untouched.
+
+    Examples:
+        >>> _normalize_options(["--exit_zero", "src/pkg", "--recursive", "0"], frozenset({"exit_zero", "recursive"}))
+        ['--exit-zero=true', 'src/pkg', '--recursive=0']
+        >>> _normalize_options(["--report_json=a_b.json"], frozenset())
+        ['--report-json=a_b.json']
+
+    """
+    bool_flags = {_flag(name) for name in bool_params}
     result: list[str] = []
     idx = 0
     while idx < len(argv):
@@ -135,96 +265,60 @@ def _normalize_bool_flags(argv: list[str], bool_params: frozenset[str]) -> list[
         idx += 1
         if arg == "--":
             return [*result, arg, *argv[idx:]]
-        flag = _match_bool_flag(arg, bool_params)
-        if flag is None:
+        if not arg.startswith("--"):
             result.append(arg)
             continue
-        value = flag.value
-        if flag.takes_next and idx < len(argv) and argv[idx].lower() in _BOOL_LITERALS:
-            value = _BOOL_LITERALS[argv[idx].lower()]
-            idx += 1
-        result.append(f"--{flag.name}={value}")
+        name, sep, value = arg[2:].partition("=")
+        name = _flag(name)
+        if not sep and name in bool_flags:
+            sep = "="
+            if idx < len(argv) and argv[idx].lower() in _BOOL_LITERALS:
+                value = argv[idx]
+                idx += 1
+            else:
+                value = "true"
+        result.append(f"--{name}{sep}{value}")
     return result
 
 
-def _non_bool_flag_error(fn: Callable[..., int], args: tuple[object, ...], kwargs: dict[str, object]) -> Optional[str]:
-    """Return a usage error when a non-boolean value reached one of *fn*'s ``bool`` parameters, else ``None``.
+def _parse_cli_args(argv: Sequence[str]) -> Optional[tuple[_CliCommand, dict[str, Any], Optional[str]]]:
+    """Parse the command line into the subcommand to run, its keyword arguments and the ``--report-json`` path.
 
-    :func:`_normalize_bool_flags` leaves short flags (``-r src/pkg``) and unrecognised explicit values untouched.
-    Without this check they could bind truthy strings and let the run pass while scanning something other than what the
-    user named. Positional overflow is rejected separately by the CLI adapter before command dispatch.
+    A first argument that names no subcommand selects ``check``, so ``pydeprecate src/pkg`` checks ``src/pkg``. The
+    subcommand's own parser runs ``parse_intermixed_args``, which binds the path and version positionals correctly
+    with options between them, also on Python 3.9. Arguments after a ``--`` separator are operands only, never options;
+    they are bound here, since ``parse_known_intermixed_args`` on Python 3.9 still parses options after it.
 
-    """
-    signature = inspect.signature(fn)
-    bound = signature.bind_partial(*args, **kwargs).arguments
-    for name in sorted(_bool_params(fn)):
-        # Fire passes omitted positional parameters through as their defaults, so a flag left to ``pyproject.toml``
-        # arrives as the sentinel default object — never typed by the user, so never a stray value.
-        if (
-            name in bound
-            and bound[name] is not signature.parameters[name].default
-            and not isinstance(bound[name], bool)
-        ):
-            flag = name.replace("_", "-")
-            return (
-                f"`--{flag}` expects True or False, got {bound[name]!r}. A second path, a short flag's argument, or a "
-                f"spelling other than True/False can land here even if you did not type `--{flag}`. Pass one path per "
-                f"run, prefer long flags, and write explicit values as `--{flag}=True` or `--{flag}=False`."
-            )
-    return None
-
-
-def _internal_option(argv: Sequence[str]) -> Optional[str]:
-    """Return the first private option or its Fire negation before a ``--`` separator, else ``None``.
-
-    Underscore-prefixed parameters of a ``cmd_*`` function (``_advisory``, ``_wrappers``, ``_config``) are in-process
-    plumbing for ``cmd_all``, but Fire exposes every keyword-only parameter as a flag. Typing one would bind a string
-    to a parameter nothing validates (``policy pkg --_advisory=yes`` made the run advisory). Fire strips leading
-    hyphens and changes remaining hyphens to underscores, so ``--no-wrappers`` also targets ``_wrappers``.
-
-    Examples:
-        >>> _internal_option(["policy", "pkg", "--_advisory=yes"])
-        '--_advisory'
-        >>> _internal_option(["check", "pkg", "--", "--_advisory"]) is None
-        True
+    Returns:
+        The subcommand, its keyword arguments (only those typed) and the report path, or ``None`` after printing the
+        help for an empty command line. ``--help`` and every usage error exit through argparse (0 and 2).
 
     """
-    for arg in argv:
-        if arg == "--":
-            return None
-        if arg.startswith("-"):
-            option = arg.partition("=")[0]
-            name = option.lstrip("-").replace("-", "_")
-            if name.startswith("_") or name.startswith("no_"):
-                return option
-    return None
-
-
-def _cli_signature(fn: Callable[..., int]) -> inspect.Signature:
-    """Expose path and version as positional operands and keep public options keyword-only."""
-    signature = inspect.signature(fn)
-    positional = [param for name, param in signature.parameters.items() if name in {"path", "version"}]
-    if not positional:
-        return signature
-    options = [
-        param.replace(kind=inspect.Parameter.KEYWORD_ONLY)
-        for name, param in signature.parameters.items()
-        if name not in {"path", "version"} and not name.startswith("_")
-    ]
-    # Fire can dispatch before reporting leftover operands, so capture overflow for rejection before scanning.
-    return signature.replace(
-        parameters=[*positional, inspect.Parameter("_extra_paths", inspect.Parameter.VAR_POSITIONAL), *options]
-    )
-
-
-def _bind_cli_arguments(
-    fn: Callable[..., int], signature: inspect.Signature, args: tuple[object, ...], kwargs: dict[str, object]
-) -> Union[inspect.BoundArguments, str]:
-    """Bind CLI arguments and reject overflow or invalid booleans before invoking the command."""
-    bound = signature.bind(*args, **kwargs)
-    if "_extra_paths" in signature.parameters:
-        if bound.arguments.pop("_extra_paths", ()):
-            return "Pass one path per run; options other than path and version require flags."
-        bound.apply_defaults()
-    error = _non_bool_flag_error(fn, bound.args, bound.kwargs)
-    return error if error is not None else bound
+    parser, subparsers = _build_parser()
+    if not argv:
+        parser.print_help()
+        return None
+    if argv[0] in ("-h", "--help"):
+        parser.parse_args(argv)
+    name, rest = (argv[0], argv[1:]) if argv[0] in subparsers else ("check", argv)
+    command = _cli_command(name)
+    subparser = subparsers[name]
+    options, operands = (rest[: rest.index("--")], rest[rest.index("--") + 1 :]) if "--" in rest else (rest, [])
+    namespace, extras = subparser.parse_known_intermixed_args(_normalize_options(options, command.bool_params))
+    kwargs = vars(namespace)
+    for operand in operands:
+        free = [_positional_dest(name) for name in command.positionals if _positional_dest(name) not in kwargs]
+        if free:
+            kwargs[free[0]] = operand
+        else:
+            extras.append(operand)
+    if extras:
+        # an extra positional is a second path; one that follows an unknown option is likely that option's value
+        hint = "" if any(extra.startswith("-") for extra in extras) else "; pass one path per run"
+        subparser.error(f"unrecognized arguments: {' '.join(extras)}{hint}")
+    if _VERSION_OPERAND in kwargs:
+        if "version" in kwargs:
+            subparser.error("the version was given twice, as an argument and as `--version`; pass it once")
+        kwargs["version"] = kwargs.pop(_VERSION_OPERAND)
+    report_path = kwargs.pop("report_json")
+    return command, kwargs, report_path

@@ -1,5 +1,6 @@
-"""Unit tests for :mod:`deprecate._cli.argv`: UTF-8 streams, boolean flags and argument binding."""
+"""Unit tests for :mod:`deprecate._cli.argv`: UTF-8 streams, option spelling and the subcommand parser."""
 
+import argparse
 import inspect
 import io
 import sys
@@ -10,14 +11,21 @@ from unittest.mock import Mock
 
 import pytest
 
-from deprecate._cli.argv import _bool_params, _ensure_utf8_streams, _normalize_bool_flags
-from deprecate._cli.commands import cmd_all, cmd_chains, cmd_check, cmd_expiry, cmd_policy, cmd_status
+from deprecate._cli.argv import (
+    _cli_command,
+    _ensure_utf8_streams,
+    _normalize_options,
+    _parse_bool,
+    _parse_cli_args,
+    _parse_switchable,
+)
+from deprecate._cli.commands import cmd_all, cmd_check, cmd_expiry, cmd_policy
 
 _CHECK_BOOL_PARAMS = frozenset({"exit_zero", "recursive"})
 
 
-class TestNormalizeBoolFlags:
-    """Table-driven tests of ``_normalize_bool_flags``, the argv rewrite that runs before Fire parses a subcommand."""
+class TestNormalizeOptions:
+    """Table-driven tests of ``_normalize_options``, the argv respelling that runs before argparse parses."""
 
     @pytest.mark.parametrize(
         ("argv", "expected"),
@@ -25,163 +33,283 @@ class TestNormalizeBoolFlags:
             pytest.param([], [], id="empty-argv"),
             pytest.param(["pkg"], ["pkg"], id="path-only"),
             pytest.param(
-                ["--exit-zero", "--norecursive", "pkg"],
-                ["--exit_zero=True", "--recursive=False", "pkg"],
+                ["--exit-zero", "--no-recursive", "pkg"],
+                ["--exit-zero=true", "--no-recursive", "pkg"],
                 id="two-flags-before-path",
             ),
             pytest.param(
                 ["pkg", "--exit_zero", "--recursive"],
-                ["pkg", "--exit_zero=True", "--recursive=True"],
+                ["pkg", "--exit-zero=true", "--recursive=true"],
                 id="two-flags-after-path",
             ),
             pytest.param(
                 ["--exit-zero", "0", "--recursive", "false", "pkg"],
-                ["--exit_zero=False", "--recursive=False", "pkg"],
+                ["--exit-zero=0", "--recursive=false", "pkg"],
                 id="two-valued-flags",
             ),
             pytest.param(
-                ["--exit-zero", "yes", "pkg"], ["--exit_zero=True", "yes", "pkg"], id="non-literal-stays-free"
+                ["--exit-zero", "yes", "pkg"], ["--exit-zero=true", "yes", "pkg"], id="non-literal-stays-free"
             ),
-            pytest.param(["--exit-zero", "--", "0"], ["--exit_zero=True", "--", "0"], id="separator-is-not-a-value"),
-            pytest.param(["--", "--exit-zero", "0"], ["--", "--exit-zero", "0"], id="after-separator-untouched"),
-            pytest.param(
-                ["--norecursive", "false", "pkg"], ["--recursive=False", "false", "pkg"], id="negation-takes-no-value"
-            ),
-            pytest.param(["--exit-zero=yes", "pkg"], ["--exit-zero=yes", "pkg"], id="attached-non-literal-untouched"),
-            pytest.param(["--exit-zero=None"], ["--exit-zero=None"], id="attached-none-untouched"),
+            pytest.param(["--exit-zero", "--", "0"], ["--exit-zero=true", "--", "0"], id="separator-is-not-a-value"),
+            pytest.param(["--", "--exit_zero", "0"], ["--", "--exit_zero", "0"], id="after-separator-untouched"),
+            pytest.param(["--no_recursive", "false"], ["--no-recursive", "false"], id="negation-takes-no-value"),
+            pytest.param(["--exit-zero=yes", "pkg"], ["--exit-zero=yes", "pkg"], id="attached-value-untouched"),
+            pytest.param(["--min_grace=0.10"], ["--min-grace=0.10"], id="value-option-respelled"),
+            pytest.param(["--report_json=a_b.json"], ["--report-json=a_b.json"], id="value-keeps-underscores"),
             pytest.param(["--verbose", "0"], ["--verbose", "0"], id="unknown-flag-untouched"),
-            pytest.param(["--no-recursive", "pkg"], ["--no-recursive", "pkg"], id="dashed-negation-not-recognised"),
             pytest.param(["-r", "pkg"], ["-r", "pkg"], id="short-flag-untouched"),
         ],
     )
     def test_rewrites_check_argv(self, argv: list[str], expected: list[str]) -> None:
-        """Boolean flags become ``--name=True|False`` wherever they sit; everything else is left for Fire or the guard.
+        """Option names use dashes and boolean flags carry their value; everything else is left for argparse.
 
-        The rewrite is what lets a pre-commit hook put a flag before the path; any argument it does not recognise
-        must pass through byte for byte so Fire still reports typos and the guard still rejects stray values.
+        Respelling is what lets a pre-commit hook put a flag before the path (argparse would otherwise take the path
+        as the optional value of a bare flag) and keeps the underscore spellings Fire accepted. An argument it does
+        not recognise must pass through byte for byte so argparse still rejects typos.
 
         """
-        assert _normalize_bool_flags(argv, _CHECK_BOOL_PARAMS) == expected
+        assert _normalize_options(argv, _CHECK_BOOL_PARAMS) == expected
 
-    @pytest.mark.parametrize(
-        ("spelling", "expected"),
-        [
-            pytest.param("true", True, id="true"),
-            pytest.param("True", True, id="capital-true"),
-            pytest.param("TRUE", True, id="upper-true"),
-            pytest.param("1", True, id="one"),
-            pytest.param("false", False, id="false"),
-            pytest.param("False", False, id="capital-false"),
-            pytest.param("FALSE", False, id="upper-false"),
-            pytest.param("0", False, id="zero"),
-        ],
-    )
-    def test_literal_spellings_as_separate_token(self, spelling: str, expected: bool) -> None:
-        """A literal after a bare flag is consumed as its value: ``--exit-zero 0`` is ``exit_zero=False``.
+    @pytest.mark.parametrize("spelling", ["true", "True", "TRUE", "1", "false", "False", "FALSE", "0"])
+    def test_literal_after_flag_is_its_value(self, spelling: str) -> None:
+        """A literal after a bare flag is consumed as its value: ``--exit-zero 0`` is ``--exit-zero=0``.
 
         Left as a free token, ``0`` would bind to the next positional parameter of the subcommand — ``version`` for
         ``expiry`` — where nothing validates it.
 
         """
-        assert _normalize_bool_flags(["--exit-zero", spelling, "pkg"], _CHECK_BOOL_PARAMS) == [
-            f"--exit_zero={expected}",
+        assert _normalize_options(["--exit-zero", spelling, "pkg"], _CHECK_BOOL_PARAMS) == [
+            f"--exit-zero={spelling}",
             "pkg",
         ]
+
+
+class TestParseBool:
+    """The value of a boolean flag is ``true``, ``false``, ``1`` or ``0`` in any case, nothing else."""
 
     @pytest.mark.parametrize(
         ("spelling", "expected"),
         [
             pytest.param("true", True, id="true"),
-            pytest.param("True", True, id="capital-true"),
             pytest.param("TRUE", True, id="upper-true"),
             pytest.param("1", True, id="one"),
-            pytest.param("false", False, id="false"),
             pytest.param("False", False, id="capital-false"),
-            pytest.param("FALSE", False, id="upper-false"),
             pytest.param("0", False, id="zero"),
         ],
     )
-    def test_literal_spellings_attached(self, spelling: str, expected: bool) -> None:
-        """``--exit-zero=<literal>`` accepts the same spellings and is rewritten to Fire's capitalised form.
+    def test_accepts_literal(self, spelling: str, expected: bool) -> None:
+        """Every documented spelling reads as the boolean it names, so CI configs written for Fire keep working."""
+        assert _parse_bool(spelling) is expected
 
-        Fire parses only ``True``/``False`` as booleans, so ``=true`` would reach the subcommand as a string and
-        ``=1`` as an integer.
+    @pytest.mark.parametrize("spelling", ["yes", "", "None"])
+    def test_rejects_other_spelling(self, spelling: str) -> None:
+        """Any other value is a usage error rather than a truthy string that would silently pass the run.
 
-        """
-        assert _normalize_bool_flags([f"--exit-zero={spelling}", "pkg"], _CHECK_BOOL_PARAMS) == [
-            f"--exit_zero={expected}",
-            "pkg",
-        ]
-
-    def test_underscore_prefixed_parameters_are_not_flags(self) -> None:
-        """``--_advisory`` is not rewritten even though ``cmd_policy._advisory`` is annotated ``bool``.
-
-        Underscore parameters are ``cmd_all`` plumbing; the normalizer must leave them alone so the CLI boundary can
-        reject them instead of treating a typed ``--_advisory`` as a user flag.
+        argparse turns the ``ArgumentTypeError`` into exit 2 with the message naming the flag.
 
         """
-        argv = ["--_advisory", "--_advisory=True", "pkg"]
-        assert _normalize_bool_flags(argv, _bool_params(cmd_policy)) == argv
+        with pytest.raises(argparse.ArgumentTypeError, match="expects True or False"):
+            _parse_bool(spelling)
 
 
-class TestBoolParams:
-    """Contract of ``_bool_params`` across every subcommand: which parameters are command-line boolean flags."""
+class TestParseSwitchable:
+    """A config-backed option such as ``--min-grace`` is switched off with ``None`` or ``false``, else kept as text."""
 
     @pytest.mark.parametrize(
-        ("command", "expected"),
+        ("text", "expected"),
         [
-            pytest.param(cmd_check, {"exit_zero", "include_members", "recursive"}, id="check"),
-            pytest.param(cmd_expiry, {"exit_zero", "include_members", "recursive"}, id="expiry"),
-            pytest.param(cmd_policy, {"exit_zero", "include_members", "message_required", "recursive"}, id="policy"),
-            pytest.param(cmd_chains, {"exit_zero", "include_members", "recursive"}, id="chains"),
-            pytest.param(cmd_all, {"exit_zero", "include_members", "recursive"}, id="all"),
-            pytest.param(cmd_status, {"include_members", "recursive"}, id="status"),
+            pytest.param("None", None, id="none"),
+            pytest.param("FALSE", None, id="false"),
+            pytest.param("0.10", "0.10", id="delta-keeps-trailing-zero"),
+            pytest.param("pkg.tests,*._legacy*", "pkg.tests,*._legacy*", id="pattern-list"),
         ],
     )
-    def test_cli_visible_boolean_flags(self, command: Callable[..., int], expected: set[str]) -> None:
-        """Each subcommand exposes exactly its documented boolean flags to the normalizer and the guard.
+    def test_reads_value(self, text: str, expected: Optional[str]) -> None:
+        """``--min-grace=None`` disables the rule as before, and ``0.10`` stays the string ``"0.10"``.
 
-        A flag missing here is order-dependent on the command line (the path after it is swallowed) and escapes the
-        exit-2 guard; ``message_required`` is the case that was missed when it was typed as a config-backed flag.
+        Fire parsed ``0.10`` as the float ``0.1``, so ten or more steps needed extra quoting; option values now stay
+        strings, which keeps the trailing zero without it.
 
         """
-        assert _bool_params(command) == frozenset(expected)
+        assert _parse_switchable(text) == expected
+
+
+class TestCliCommand:
+    """Contract of ``_cli_command`` across every subcommand: positionals and command-line boolean flags."""
 
     @pytest.mark.parametrize(
-        ("command", "hidden"),
+        ("name", "expected"),
         [
-            pytest.param(cmd_expiry, "_version_explicit", id="expiry"),
-            pytest.param(cmd_policy, "_advisory", id="policy"),
-            pytest.param(cmd_status, "_version_explicit", id="status"),
+            pytest.param("check", {"exit_zero", "include_members", "recursive"}, id="check"),
+            pytest.param("expiry", {"exit_zero", "include_members", "recursive"}, id="expiry"),
+            pytest.param("policy", {"exit_zero", "include_members", "message_required", "recursive"}, id="policy"),
+            pytest.param("chains", {"exit_zero", "include_members", "recursive"}, id="chains"),
+            pytest.param("all", {"exit_zero", "include_members", "recursive"}, id="all"),
+            pytest.param("status", {"include_members", "recursive"}, id="status"),
         ],
     )
-    def test_underscore_boolean_is_not_a_flag(self, command: Callable[..., int], hidden: str) -> None:
-        """A ``bool``-annotated underscore parameter stays out of the flag set.
+    def test_cli_visible_boolean_flags(self, name: str, expected: set[str]) -> None:
+        """Each subcommand exposes exactly its documented boolean flags to the respelling and the parser.
 
-        ``cmd_all`` passes ``_advisory=True`` and ``_version_explicit`` to its siblings in process; they are not
-        part of the command-line surface, so the filter on the leading underscore is what keeps them out.
+        A flag missing here would take the path after it as its value; ``message_required`` is the case that was
+        missed when it was typed as a config-backed flag.
 
         """
-        assert inspect.signature(command).parameters[hidden].annotation is bool
-        assert hidden not in _bool_params(command)
+        assert _cli_command(name).bool_params == frozenset(expected)
 
     @pytest.mark.parametrize(
-        ("command", "other_flag"),
+        ("name", "expected"),
         [
-            pytest.param(cmd_policy, "min_grace", id="min-grace"),
-            pytest.param(cmd_policy, "exclude", id="policy-exclude"),
-            pytest.param(cmd_check, "exclude", id="check-exclude"),
+            pytest.param("check", ("path",), id="check"),
+            pytest.param("policy", ("path",), id="policy"),
+            pytest.param("expiry", ("path", "version"), id="expiry"),
+            pytest.param("all", ("path", "version"), id="all"),
+            pytest.param("status", ("path", "version"), id="status"),
         ],
     )
-    def test_config_backed_non_boolean_flags_are_excluded(self, command: Callable[..., int], other_flag: str) -> None:
+    def test_positionals(self, name: str, expected: tuple[str, ...]) -> None:
+        """Only the path and, where the subcommand compares against one, the version are positional operands."""
+        assert _cli_command(name).positionals == expected
+
+    @pytest.mark.parametrize("name", ["check", "expiry", "policy", "chains", "all", "status"])
+    def test_every_parameter_is_an_option(self, name: str) -> None:
+        """Every parameter of a ``cmd_*`` function is a command-line operand or option, none is in-process plumbing.
+
+        The parser is built from these signatures, so a parameter only ``cmd_all`` passes (pre-scanned wrappers, an
+        advisory switch) would need hiding from the command line; such inputs belong to the private helpers instead.
+
+        """
+        params = inspect.signature(_cli_command(name).function).parameters
+        assert [param for param in params if param.startswith("_")] == []
+
+    @pytest.mark.parametrize(
+        ("command", "name", "other_flag"),
+        [
+            pytest.param(cmd_policy, "policy", "min_grace", id="min-grace"),
+            pytest.param(cmd_policy, "policy", "exclude", id="policy-exclude"),
+            pytest.param(cmd_check, "check", "exclude", id="check-exclude"),
+        ],
+    )
+    def test_config_backed_non_boolean_flags_are_excluded(
+        self, command: Callable[..., int], name: str, other_flag: str
+    ) -> None:
         """Config-backed flags that are not booleans (``min_grace``, ``exclude``) are never treated as boolean.
 
-        They share the ``pyproject.toml`` sentinel default with ``message_required`` but take strings, numbers or
-        lists, so rewriting ``--exclude pkg`` into ``--exclude=True`` would break them.
+        They share the ``pyproject.toml`` sentinel default with ``message_required`` but take strings, so respelling
+        ``--exclude pkg`` into ``--exclude=true`` would break them.
 
         """
         assert other_flag in inspect.signature(command).parameters
-        assert other_flag not in _bool_params(command)
+        assert other_flag not in _cli_command(name).bool_params
+
+
+class TestParseCliArgs:
+    """``_parse_cli_args`` maps a command line onto the subcommand and the keyword arguments the user typed."""
+
+    @pytest.mark.parametrize(
+        ("argv", "expected_command", "expected_kwargs"),
+        [
+            pytest.param(["check", "pkg"], cmd_check, {"path": "pkg"}, id="path-only"),
+            pytest.param(["pkg", "--exit-zero"], cmd_check, {"path": "pkg", "exit_zero": True}, id="implicit-check"),
+            pytest.param(
+                ["expiry", "pkg", "--no-recursive", "0.10"],
+                cmd_expiry,
+                {"path": "pkg", "version": "0.10", "recursive": False},
+                id="flag-between-positionals",
+            ),
+            pytest.param(
+                ["policy", "--min-grace=None", "pkg", "--message_required", "0"],
+                cmd_policy,
+                {"path": "pkg", "min_grace": None, "message_required": False},
+                id="policy-rules",
+            ),
+            pytest.param(["all"], cmd_all, {}, id="nothing-typed"),
+        ],
+    )
+    def test_binds_typed_options_only(
+        self, argv: list[str], expected_command: object, expected_kwargs: dict[str, object]
+    ) -> None:
+        """Only typed options reach the ``cmd_*`` call, so every omitted one keeps its signature default.
+
+        The ``pyproject.toml``-backed defaults depend on that: passing ``min_grace=None`` for an omitted flag would
+        switch the rule off instead of reading the project's table.
+
+        """
+        parsed = _parse_cli_args(argv)
+        assert parsed is not None
+        command, kwargs, report_path = parsed
+        assert (command.function, kwargs, report_path) == (expected_command, expected_kwargs, None)
+
+    def test_report_option_is_split_off(self) -> None:
+        """``--report-json`` is the CLI's own option and never reaches the ``cmd_*`` function."""
+        parsed = _parse_cli_args(["status", "pkg", "--report_json=out/r.json"])
+        assert parsed is not None
+        assert (parsed[1], parsed[2]) == ({"path": "pkg"}, "out/r.json")
+
+    @pytest.mark.parametrize(
+        ("argv", "expected_kwargs"),
+        [
+            pytest.param(["check", "--", "--exit-zero"], {"path": "--exit-zero"}, id="option-spelling-is-a-path"),
+            pytest.param(
+                ["status", "--recursive=0", "--", "pkg", "0.2"],
+                {"path": "pkg", "version": "0.2", "recursive": False},
+                id="both-operands",
+            ),
+            pytest.param(["status", "pkg", "--", "0.2"], {"path": "pkg", "version": "0.2"}, id="version-operand"),
+        ],
+    )
+    def test_separator_ends_options(self, argv: list[str], expected_kwargs: dict[str, object]) -> None:
+        """Everything after ``--`` binds to the positional operands and is never parsed as an option.
+
+        ``parse_known_intermixed_args`` on Python 3.9 still parsed ``check -- --exit-zero`` as the ``--exit-zero`` flag,
+        scanning ``.`` with the gate disabled, while newer Pythons took it as the path; both now read it as the path.
+
+        """
+        parsed = _parse_cli_args(argv)
+        assert parsed is not None
+        assert parsed[1] == expected_kwargs
+
+    def test_unknown_option_value_gets_no_path_hint(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """The value of a mistyped option is not called a second path.
+
+        In ``check pkg --verison 2.0`` the ``2.0`` belongs to the unknown ``--verison``, so telling the user to pass one
+        path per run points at the wrong mistake.
+
+        """
+        with pytest.raises(SystemExit):
+            _parse_cli_args(["check", "pkg", "--verison", "2.0"])
+        err = capsys.readouterr().err
+        assert "unrecognized arguments: --verison 2.0" in err
+        assert "one path per run" not in err
+
+    def test_empty_command_line_prints_help(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """A bare ``pydeprecate`` prints the subcommand list and runs nothing."""
+        assert _parse_cli_args([]) is None
+        assert "check" in capsys.readouterr().out
+
+    @pytest.mark.parametrize(
+        ("argv", "message"),
+        [
+            pytest.param(["check", "pkg_a", "pkg_b"], "pass one path per run", id="second-path"),
+            pytest.param(["check", "pkg", "--exit"], "unrecognized arguments: --exit", id="no-abbreviation"),
+            pytest.param(["check", "pkg", "--exit-zero=yes"], "expects True or False", id="bad-bool"),
+            pytest.param(["check", "pkg", "--no-exit-zero=1"], "ignored explicit argument", id="negation-value"),
+            pytest.param(["check", "pkg", "--report-json"], "expected one argument", id="report-without-path"),
+            pytest.param(["check", "pkg", "--report-json="], "expects a file path", id="report-empty-path"),
+            pytest.param(["expiry", "pkg", "0.1", "--version=9.0"], "the version was given twice", id="version-twice"),
+            pytest.param(["check", "--", "pkg_a", "pkg_b"], "pass one path per run", id="operands-after-separator"),
+        ],
+    )
+    def test_usage_error_exits_two(self, argv: list[str], message: str, capsys: pytest.CaptureFixture[str]) -> None:
+        """A malformed command line exits 2 with argparse's message before any subcommand runs.
+
+        Option abbreviations are off, so ``--exit`` is a typo, never a silent ``--exit-zero``.
+
+        """
+        with pytest.raises(SystemExit) as exc_info:
+            _parse_cli_args(argv)
+        assert exc_info.value.code == 2
+        assert message in capsys.readouterr().err
 
 
 class _NoneEncodingStream:

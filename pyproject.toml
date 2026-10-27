@@ -1,7 +1,62 @@
 [build-system]
+build-backend = "setuptools.build_meta"
 requires = [
   "setuptools>=82",
 ]
+
+[project]
+name = "pyDeprecate"
+description = "Python deprecation decorator: call forwarding, argument mapping, class proxying, CI audit. Zero deps."
+keywords = [
+  "deprecation",
+  "decorator",
+  "API migration",
+  "call forwarding",
+  "argument renaming",
+  "backwards compatibility",
+  "CI audit",
+]
+license = "Apache-2.0"
+license-files = [ "LICENSE" ]
+authors = [ { name = "Jiri Borovec" } ]
+requires-python = ">=3.9"
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Natural Language :: English",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Software Development :: Libraries",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Topic :: Software Development :: Quality Assurance",
+]
+# `readme` comes from `setup.py`, which rewrites relative README links to the release tag for PyPI
+dynamic = [ "readme", "version" ]
+dependencies = []
+# For validate_deprecation_expiry and pyproject.toml version detection; tomllib is stdlib in 3.11+
+optional-dependencies.audit = [ "packaging>=20.0", "tomli>=2.0; python_version<'3.11'" ]
+# the CLI uses only the standard library; the empty extra keeps `pip install 'pyDeprecate[cli]'` working
+optional-dependencies.cli = []
+urls."Agent Guide" = "https://borda.github.io/pyDeprecate/llms.txt"
+urls."Bug Tracker" = "https://github.com/Borda/pyDeprecate/issues"
+urls."Source Code" = "https://github.com/Borda/pyDeprecate"
+urls.Changelog = "https://github.com/Borda/pyDeprecate/blob/main/CHANGELOG.md"
+urls.Documentation = "https://borda.github.io/pyDeprecate/stable/"
+urls.Homepage = "https://borda.github.io/pyDeprecate/stable/"
+scripts.pydeprecate = "deprecate._cli:cli"
+
+[tool.setuptools]
+packages.find.where = [ "src" ]
+# PEP 561 marker: lets downstream mypy/pyright read the inline type hints instead of treating the package as untyped
+package-data.deprecate = [ "py.typed" ]
+dynamic.version = { attr = "deprecate.__about__.__version__" }
 
 [tool.ruff]
 target-version = "py39"

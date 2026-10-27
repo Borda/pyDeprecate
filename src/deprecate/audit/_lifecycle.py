@@ -20,8 +20,9 @@ if TYPE_CHECKING:
     from packaging.version import Version
 
 from deprecate._frames import _caller_stacklevel
-from deprecate._pkg import _resolve_package_version
+from deprecate.audit._findings import _Check, _Finding, _make_finding, _Rule
 from deprecate.audit._scan import find_deprecation_wrappers
+from deprecate.audit._version import _resolve_package_version
 from deprecate.audit._wrappers import DeprecationWrapperInfo, _format_subject, validate_deprecation_wrapper
 
 
@@ -252,8 +253,8 @@ def _check_deprecated_wrapper_expiry(func: Union[Callable, types.ModuleType], cu
 def _get_package_version(package_name: str) -> str:
     """Auto-detect the version of a package for the audit API, raising when it cannot be determined.
 
-    Delegates to the resolver the CLI uses (:func:`deprecate._pkg._resolve_package_version`): installed metadata
-    under the import name, then under the distribution that provides it, then the package's string
+    Delegates to the resolver the CLI uses (:func:`deprecate.audit._version._resolve_package_version`): installed
+    metadata under the import name, then under the distribution that provides it, then the package's string
     ``__version__``. No ``pyproject.toml`` is consulted, as the API receives a module name, never a path.
 
     Args:
@@ -278,8 +279,8 @@ def _get_package_version(package_name: str) -> str:
 def _check_expiry_for_callables(results: list[DeprecationWrapperInfo], current_version: str) -> list[str]:
     """Apply expiry comparison to pre-scanned wrapper results.
 
-    Shared implementation used by :func:`validate_deprecation_expiry` and the CLI's single-scan path. Keeps the
-    error message format in one place.
+    Shared implementation used by :func:`validate_deprecation_expiry`; the messages are those of
+    :func:`_expiry_findings`, which the CLI gates on.
 
     Args:
         results: Pre-scanned wrapper info list.
@@ -292,8 +293,21 @@ def _check_expiry_for_callables(results: list[DeprecationWrapperInfo], current_v
         ImportError: If the ``packaging`` library is not installed.
 
     """
+    return [finding.message for finding in _expiry_findings(results, current_version)]
+
+
+def _expiry_findings(results: list[DeprecationWrapperInfo], current_version: str) -> list[_Finding]:
+    """Return one ``expired`` finding per wrapper whose ``remove_in`` is at or before *current_version*.
+
+    A wrapper with an unparsable ``remove_in`` is skipped with a warning, so one typo never aborts the batch.
+
+    Raises:
+        ImportError: If the ``packaging`` library is not installed.
+        ValueError: If *current_version* is not a valid PEP 440 version.
+
+    """
     current_ver = _parse_version(current_version)
-    expired = []
+    expired: list[_Finding] = []
     for info in results:
         remove_in = info.deprecated_info.remove_in
         if not remove_in:
@@ -311,10 +325,11 @@ def _check_expiry_for_callables(results: list[DeprecationWrapperInfo], current_v
             )
             continue
         if current_ver >= remove_ver:
-            expired.append(
+            message = (
                 f"{_format_subject(info)} was scheduled for removal in version {remove_in}"
                 f" but still exists in version {current_version}. Please delete this deprecated code."
             )
+            expired.append(_make_finding(info, _Rule.EXPIRED, _Check.EXPIRY, message))
     return expired
 
 

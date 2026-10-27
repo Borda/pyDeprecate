@@ -292,7 +292,7 @@ When a proposed feature conflicts with simplicity, complexity wins only when rob
 - Use **MkDocs admonition syntax** for docstring notices in `src/deprecate/` by default — `!!! note`, `!!! warning "Deprecated in X.Y"`, etc. Do not use RST directives (`.. note::`, `.. deprecated::`) in package source docstrings unless the module specifically exists to integrate with Sphinx/RST docstrings (for example, `src/deprecate/docstring/sphinx_ext.py` and `src/deprecate/docstring/griffe_ext.py`). For demos, `demo-docs/sphinx/` follows RST conventions and `demo-docs/mkdocs/` follows MkDocs conventions — each demo matches its own renderer.
 - Keep functions focused and modular — a function should do one thing; if it needs a long comment to explain what it does, it probably needs to be split
 - Add type hints to all function signatures, including return types
-- Align type hint syntax with the **minimum supported Python version** (check `python_requires` in `setup.py`)
+- Align type hint syntax with the **minimum supported Python version** (check `requires-python` in `pyproject.toml`)
 - If unsure about syntax compatibility, consult the official Python documentation for that version or search for the relevant PEP
 - Write meaningful variable and function names — prefer `expired_callables` over `lst`, `source_func` over `f`
 - Write Python code that is readable on its own — good names and structure are the primary documentation. Add an inline comment only when it carries context the code cannot: **why** a non-obvious choice was made, a hidden constraint, a subtle invariant, or a workaround for a specific external behaviour. One short line; never explain what the code does
@@ -321,13 +321,14 @@ pyDeprecate/
 │   ├── __init__.py             # Public API exports
 │   ├── __main__.py             # python -m deprecate entry point
 │   ├── _cli/                   # Internal CLI package (public Python API is deprecate.audit)
-│   │   ├── __init__.py         # cli() entry point: argv dispatch to the subcommands
-│   │   ├── argv.py             # UTF-8 streams, boolean-flag normalisation, argument binding
+│   │   ├── __init__.py         # cli() entry point (import-light): runs the parsed subcommand, exit 3 on a crash
+│   │   ├── _pkg.py             # [tool.pydeprecate] config reading, package-directory and module-name helpers
+│   │   ├── argv.py             # UTF-8 streams and the argparse parser built from the cmd_* signatures
 │   │   ├── commands.py         # Subcommands: check, expiry, policy, chains, all, status
 │   │   ├── config.py           # [tool.pydeprecate] pyproject.toml config and flag-default resolution
-│   │   ├── report.py           # _print() and the rich/plain _Reporter output dispatch
+│   │   ├── findings.py         # Level of each finding per subcommand and the one exit-code function
+│   │   ├── report.py           # _print() and the plain-text _Reporter finding sections
 │   │   └── scan.py             # Path scanning: file, package or plain directory -> wrappers
-│   ├── _pkg.py                 # Version and path resolution helpers
 │   ├── _types.py               # Shared type definitions: DeprecationConfig, _ProxyConfig
 │   ├── deprecation.py          # Front door: deprecated() dispatcher (functions/methods -> routine, classes -> proxy)
 │   ├── routine.py              # Function/method decorator: deprecated_callable() (strict) + packing descriptors
@@ -345,9 +346,11 @@ pyDeprecate/
 │   ├── module.py               # Module-level deprecation: deprecated_module()
 │   ├── audit/                  # Audit tools subpackage — public surface re-exported from __init__.py
 │   │   ├── _wrappers.py        # DeprecationWrapperInfo, validate_deprecation_wrapper(), subject formatters
+│   │   ├── _findings.py        # Finding records (rule, wrapper, message) the CLI gates on
 │   │   ├── _scan.py            # find_deprecation_wrappers() walk + chain/mapping filters
 │   │   ├── _lifecycle.py       # PEP 440 parsing, package version, DeprecationStatus, validate_deprecation_expiry()
 │   │   ├── _policy.py          # PolicyRule, VersionBump, GraceWindow, GraceWindowSpec, validate_deprecation_policy()
+│   │   ├── _version.py         # Package version resolution shared with the CLI (pyproject, metadata, __version__)
 │   │   └── _report.py          # TableStyle, generate_deprecation_table()
 │   ├── utils.py                # Low-level helpers: void(), assert_no_warnings()
 │   └── docstring/              # Docstring utilities subpackage
@@ -402,8 +405,8 @@ pyDeprecate/
 │   └── *.md                    # Documentation and guidelines
 ├── .pre-commit-hooks.yaml      # pre-commit hook manifest: one hook id per CLI subcommand (`pydeprecate-check`, …)
 ├── action.yml                  # Composite GitHub Action running the CLI; logic in `.github/scripts/action_runner.py`
-├── pyproject.toml              # Project config (ruff, mypy, pytest)
-└── setup.py                    # Package setup
+├── pyproject.toml              # Package metadata, extras, entry point and tool config (ruff, mypy, pytest)
+└── setup.py                    # Shim that only builds the PyPI long description from README.md
 ```
 
 **Circular import prevention example:**
@@ -472,7 +475,7 @@ The integration suite also keeps characterization for positional and keyword for
 >
 > Failing to do this causes the corresponding generated test file(s) under `tests/docs/` or `tests/integration/test_readme.py` to fail in CI. Enumerating specific files here goes stale as soon as a new doc example is added — grep for the fixture module's import if in doubt.
 
-**`unittests/`** — Tests import private symbols directly (e.g. `_raise_warn`, `_parse_version`) and use mocking/monkeypatching to stay isolated from external state. Each file mirrors a source module (`deprecation.py`, `docstring/inject.py`, `utils.py`), and a source subpackage becomes a test subpackage with one file per submodule — `unittests/audit/test__policy.py` for `deprecate/audit/_policy.py`; private symbols of the `audit/` subpackage are imported from their defining submodule (`deprecate.audit._policy`), never from the package root. The internal `_cli/` package maps to `unittests/cli/` (`test_commands.py` for `_cli/commands.py`, `test_cli.py` for the `cli()` entry point in `_cli/__init__.py`), with wrapper fixtures shared by several of those files kept in `cli/_helpers.py`. It follows the same import rule, and a `patch()` targets the submodule that looks the name up at call time (`deprecate._cli.scan.find_deprecation_wrappers`, not `deprecate._cli.find_deprecation_wrappers`). The `cmd_*` subcommands are bound twice: a test of `cli()` dispatch patches `deprecate._cli.cmd_check`, while a test that runs the real `cmd_all` patches `deprecate._cli.commands.cmd_status`. A patch on the wrong binding may leave the test green while it runs the real code.
+**`unittests/`** — Tests import private symbols directly (e.g. `_raise_warn`, `_parse_version`) and use mocking/monkeypatching to stay isolated from external state. Each file mirrors a source module (`deprecation.py`, `docstring/inject.py`, `utils.py`), and a source subpackage becomes a test subpackage with one file per submodule — `unittests/audit/test__policy.py` for `deprecate/audit/_policy.py`; private symbols of the `audit/` subpackage are imported from their defining submodule (`deprecate.audit._policy`), never from the package root. The internal `_cli/` package maps to `unittests/cli/` (`test_commands.py` for `_cli/commands.py`, `test_cli.py` for the `cli()` entry point in `_cli/__init__.py`), with wrapper fixtures shared by several of those files kept in `cli/_helpers.py`. It follows the same import rule, and a `patch()` targets the submodule that looks the name up at call time (`deprecate._cli.scan.find_deprecation_wrappers`, not `deprecate._cli.find_deprecation_wrappers`). `cli()` looks the `cmd_*` subcommands up in `deprecate._cli.commands` when it runs, so a test of its dispatch patches `deprecate._cli.commands.cmd_check` with `autospec=True` (the parser is built from the signature it sees), as does a test that runs the real `cmd_all` with a stubbed table (`deprecate._cli.commands._status_table`). A patch on another binding may leave the test green while it runs the real code.
 
 > [!IMPORTANT]
 >

@@ -1,13 +1,17 @@
 #!/usr/bin/env python
-"""Copyright (C) 2020-2026 Jiri Borovec <...>."""
+"""Copyright (C) 2020-2026 Jiri Borovec <...>.
+
+All package metadata lives in ``pyproject.toml``. This shim only supplies the PyPI long description: the README with its
+relative links pointed at the release tag, which a static ``readme`` field cannot express.
+
+"""
 
 import os
 import re
 from importlib.util import module_from_spec, spec_from_file_location
 from typing import Any
 
-# Always prefer setuptools over distutils
-from setuptools import find_packages, setup
+from setuptools import setup
 
 _PATH_ROOT = os.path.realpath(os.path.dirname(__file__))
 _PATH_SOURCE = os.path.join(_PATH_ROOT, "src")
@@ -57,83 +61,9 @@ def _load_readme_description(path_dir: str, codebase_url: str, version: str) -> 
     return re.sub(rf"{skip_begin}.+?{skip_end}", "<!--  -->", text, flags=re.IGNORECASE + re.DOTALL)
 
 
-# https://packaging.python.org/discussions/install-requires-vs-requirements /
-# keep the meta-data here for simplicity in reading this file... it's not obvious
-# what happens and to non-engineers they won't know to look in init ...
-# the goal of the project is simplicity for researchers, don't want to add too much
-# engineer specific practices
 setup(
-    name="pyDeprecate",
-    version=ABOUT.__version__,
-    description=ABOUT.__docs__,
-    author=ABOUT.__author__,
-    author_email=ABOUT.__author_email__,
-    url=ABOUT.__homepage__,
-    license=ABOUT.__license__,
-    package_dir={"": "src"},
-    packages=find_packages(where="src"),
-    # PEP 561 marker: lets downstream mypy/pyright read the inline type hints instead of treating the package as untyped
-    package_data={"deprecate": ["py.typed"]},
     long_description=_load_readme_description(
         _PATH_ROOT, codebase_url=ABOUT.__source_code__, version=f"v{ABOUT.__version__}"
     ),
     long_description_content_type="text/markdown",
-    include_package_data=True,
-    zip_safe=False,
-    keywords=[
-        "deprecation",
-        "decorator",
-        "API migration",
-        "call forwarding",
-        "argument renaming",
-        "backwards compatibility",
-        "CI audit",
-    ],
-    python_requires=">=3.9",
-    setup_requires=[],
-    install_requires=[],
-    extras_require={
-        "audit": [
-            "packaging>=20.0",
-            "tomli>=2.0; python_version<'3.11'",  # tomllib stdlib in 3.11+
-        ],  # For validate_deprecation_expiry and pyproject.toml version detection
-        # floors pin the oldest CI-tested releases; Fire's arg-parsing semantics vary across releases
-        "cli": ["fire>=0.6.0", "rich>=13.0.0"],  # For pydeprecate CLI command and Rich output support
-    },
-    project_urls={
-        "Documentation": ABOUT.__homepage__,
-        "Source Code": ABOUT.__source_code__,
-        "Bug Tracker": f"{ABOUT.__source_code__}/issues",
-        "Changelog": f"{ABOUT.__source_code__}/blob/main/CHANGELOG.md",
-        "Agent Guide": "https://borda.github.io/pyDeprecate/llms.txt",
-    },
-    entry_points={
-        "console_scripts": [
-            "pydeprecate=deprecate._cli:cli",
-        ],
-    },
-    classifiers=[
-        "Environment :: Console",
-        "Natural Language :: English",
-        # How mature is this project? Common values are
-        #   3 - Alpha, 4 - Beta, 5 - Production/Stable
-        "Development Status :: 5 - Production/Stable",
-        # Indicate who your project is intended for
-        "Intended Audience :: Developers",
-        # Pick your license as you wish
-        # 'License :: OSI Approved :: BSD License',
-        "Operating System :: OS Independent",
-        # Specify the Python versions you support here. In particular, ensure
-        # that you indicate whether you support Python 2, Python 3 or both.
-        "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.9",
-        "Programming Language :: Python :: 3.10",
-        "Programming Language :: Python :: 3.11",
-        "Programming Language :: Python :: 3.12",
-        "Programming Language :: Python :: 3.13",
-        "Programming Language :: Python :: 3.14",
-        "Topic :: Software Development :: Libraries",
-        "Topic :: Software Development :: Libraries :: Python Modules",
-        "Topic :: Software Development :: Quality Assurance",
-    ],
 )

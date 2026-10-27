@@ -34,7 +34,6 @@ jobs:
         run: |
           pip install check-manifest
           check-manifest
-          python setup.py check --metadata --strict
 
       - name: 🏗️ Create package
         run: |
@@ -44,7 +43,7 @@ jobs:
       - name: ✅ Verify package
         run: |
           pip install twine
-          twine check dist/*
+          twine check --strict dist/*
 
       - name: 📤 Upload artifact
         if: ${{ inputs.artifact-name != '' }}

@@ -296,9 +296,9 @@ class TestActionInputs:
             pytest.param("args", "--exclude=--help,-h", "args", ("--exclude=--help,-h",), id="args-reserved-in-value"),
             pytest.param(
                 "args",
-                "--norecursive\n--version 2.0",
+                "--no-recursive\n--version 2.0",
                 "args",
-                ("--norecursive", "--version", "2.0"),
+                ("--no-recursive", "--version", "2.0"),
                 id="args-multiline",
             ),
             pytest.param("exit-zero", "TRUE", "exit_zero", True, id="exit-zero-upper-true"),
@@ -363,7 +363,7 @@ class TestActionInputs:
         """An ``args`` token that would swallow the runner's options or skip the scan is a usage error naming it.
 
         A workflow author appends a ``--`` separator, ``--help`` or a ``--report-json`` copied from a local command
-        line. Fire would drop the options the action appends after a separator, a help flag would end the run green
+        line. The CLI would reject the options the action appends after a separator, a help flag would end the run green
         without a scan, and a second report option would silently divert the report the job summary is read from;
         each is refused up front, wherever it sits among the other flags, and the error quotes the token.
         """
@@ -606,21 +606,31 @@ class TestActionSummary:
         assert "| `tests.collections.chains.caller_acc_via_depr_map` |" in summary
 
     @pytest.mark.parametrize("summary", [True, False])
-    def test_crashed_scan_warns_of_missing_report(self, tmp_path: Path, summary: bool) -> None:
-        """A scan that crashes writes no report, so the gate fails and a warning says its gaps went unannotated.
+    def test_crashed_scan_fails_with_exit_three(self, tmp_path: Path, summary: bool) -> None:
+        """A package that cannot be imported fails the gate with exit 3 and an error naming a scan or internal error.
 
-        The ``path`` input names a module that does not exist, so the scan fails to import it with exit 1. Gap
-        annotations are the action's guard against a green step that audited less than it shows, so their loss is
-        flagged even with ``summary`` off; with it on, the summary is skipped, as no table of this run exists.
+        The package's ``__init__`` raises, so nothing was audited and no report exists. The step must fail with the
+        CLI's own code, and the annotation must tell the crash apart from findings (exit 1); the summary is never
+        written, since no table of this run exists.
         """
-        result = _run_action(tmp_path, subcommand="check", path="nonexistent_module_xyz", summary=str(summary))
-        assert result.returncode == 1, result.stdout + result.stderr
-        assert "::error title=pyDeprecate::pydeprecate check exited 1" in result.stdout
-        assert "::warning title=pyDeprecate::the gate wrote no pyDeprecate report, so its gaps are not annotated" in (
+        pkg = tmp_path / "brokenpkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text("raise RuntimeError('broken on import')\n")
+        result = _run_action(tmp_path, subcommand="check", path=str(pkg), summary=str(summary))
+        assert result.returncode == 3, result.stdout + result.stderr
+        assert "::error title=pyDeprecate::pydeprecate check exited 3 (scan or internal error; see the log)" in (
             result.stdout
         )
-        assert ("the job summary is skipped" in result.stdout) is summary
         assert not _summary_path(tmp_path).exists()
+
+    def test_unknown_module_is_a_usage_error(self, tmp_path: Path) -> None:
+        """A ``path`` naming no existing path and no importable module exits 2, as a typo in the argument.
+
+        It used to fail the import with exit 1, which a workflow could not tell from a finding.
+        """
+        result = _run_action(tmp_path, subcommand="check", path="nonexistent_module_xyz")
+        assert result.returncode == 2, result.stdout + result.stderr
+        assert "No such path or importable module: 'nonexistent_module_xyz'" in result.stdout + result.stderr
 
     @pytest.mark.parametrize("separator", ["=", " "])
     def test_user_output_is_kept(self, tmp_path: Path, separator: str) -> None:
@@ -1185,7 +1195,7 @@ class TestActionOutputSafety:
     def test_gap_line_survives_a_narrow_terminal(self, tmp_path: Path) -> None:
         """A gap message stays on one line however narrow the terminal, so its warning annotation is still raised.
 
-        Rich wraps console output at the terminal width (``COLUMNS``). A plain-directory script exits at import time,
+        A renderer may wrap output at the terminal width (``COLUMNS``). A plain-directory script exits at import,
         and the job's ``COLUMNS`` is narrower than the message; the gap line in the log must stay whole and greppable,
         and the annotation comes from the report regardless of the console width.
         """
@@ -1418,7 +1428,7 @@ class TestActionMetadata:
         """The action installs the same extras the pre-commit hooks request.
 
         Both integrations promise that one pinned ref gives one working CLI; diverging extras would leave one of
-        them without ``fire``/``rich`` or without ``[tool.pydeprecate]`` support on Python 3.9-3.10.
+        them without ``packaging`` or without ``[tool.pydeprecate]`` support on Python 3.9-3.10.
         """
         hooks = yaml.safe_load(_HOOKS_YAML.read_text(encoding="utf-8"))
         hook_requirements = {dep for hook in hooks for dep in hook["additional_dependencies"]}

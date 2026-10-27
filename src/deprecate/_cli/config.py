@@ -1,14 +1,21 @@
 """``pyproject.toml`` configuration for the CLI: read ``[tool.pydeprecate]`` and resolve flag defaults."""
 
+import ast
 from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional, Union
 
+from deprecate._cli._pkg import _ConfigReadError, _read_pydeprecate_config
 from deprecate._cli.report import _is_package_available, _print
-from deprecate._pkg import _ConfigReadError, _iter_pyproject_paths, _read_pydeprecate_config
 from deprecate.audit import PolicyRule
 from deprecate.audit._lifecycle import _parse_version
-from deprecate.audit._policy import _DEFAULT_MESSAGE_REQUIRED, _DEFAULT_MIN_GRACE, _build_policy_spec
+from deprecate.audit._policy import (
+    _DEFAULT_MESSAGE_REQUIRED,
+    _DEFAULT_MIN_GRACE,
+    _GRACE_WINDOW_TABLE_SPELLING,
+    _build_policy_spec,
+)
+from deprecate.audit._version import _iter_pyproject_paths
 
 if TYPE_CHECKING:
     from deprecate.audit._policy import _PolicySpec
@@ -71,8 +78,8 @@ def _validate_user_version(version: Optional[str], *, explicit: bool = True) -> 
 class _FromPyproject:
     """Sentinel default for CLI flags that ``pyproject.toml`` may set: read the file, else use the built-in.
 
-    Fire cannot tell a typed ``--min-grace=0.3`` from the signature default, so the signature default is this marker
-    instead — the ``repr`` is what ``--help`` shows as ``Default:``.
+    A typed value — even ``None``, which switches a rule off — must be told apart from an omitted one, so the signature
+    default is this marker instead; the parser passes only the options that were typed.
 
     """
 
@@ -83,7 +90,8 @@ class _FromPyproject:
 _FROM_PYPROJECT = _FromPyproject()
 _ConfigFlag = Union[str, int, float, bool, None, Sequence[str], _FromPyproject]
 #: A boolean flag that ``pyproject.toml`` may set: a ``bool`` when typed, :data:`_FROM_PYPROJECT` when omitted. Unlike
-#: the wider :data:`_ConfigFlag` it marks the parameter as boolean for :func:`_bool_params`.
+#: the wider :data:`_ConfigFlag` it marks the parameter as a boolean flag for the parser
+#: (:func:`deprecate._cli.argv._cli_command`).
 _ConfigBool = Union[bool, _FromPyproject]
 #: A loaded ``[tool.pydeprecate]`` table (known keys only) and the ``pyproject.toml`` it came from.
 _Config = tuple[dict[str, Any], Optional[str]]
@@ -195,13 +203,29 @@ def _source_label(source: str) -> str:
     return source if source in ("flag", "built-in") else "pyproject.toml"
 
 
+def _is_list_literal(text: str) -> bool:
+    """Tell whether *text* is a Python list or tuple literal, which Fire used to parse and argparse keeps as a string.
+
+    A glob that only starts with a character class (``[ab]pkg.tests``) is not a literal and stays a pattern.
+
+    Examples:
+        >>> _is_list_literal('["pkg.tests"]'), _is_list_literal("[ab]pkg.tests"), _is_list_literal("pkg.tests")
+        (True, False, False)
+
+    """
+    try:
+        return isinstance(ast.literal_eval(text.strip()), (list, tuple))
+    except (ValueError, SyntaxError):
+        return False
+
+
 def _resolve_exclude(
     path: str, exclude: _ConfigFlag, config: Optional[_Config] = None
 ) -> Optional[tuple[list[str], str]]:
     """Resolve the module-exclusion patterns as flag > ``pyproject.toml`` > nothing, printing any usage error.
 
-    A flag value may be one pattern, a comma-separated string, or a list; the file value must be a list of
-    strings.
+    A flag value may be one pattern or a comma-separated string (a list in a direct call), never a list literal;
+    the file value must be a list of strings.
 
     Args:
         path: The ``path`` argument of the subcommand.
@@ -217,6 +241,14 @@ def _resolve_exclude(
         if config is None:
             return None
     raw, source = _resolve_setting(exclude, config[0], _EXCLUDE_KEY, [], config)
+    if source == "flag" and isinstance(raw, str) and _is_list_literal(raw):
+        # a list literal would become one pattern that matches nothing, leaving the scan silently unexcluded
+        _print(
+            f"Invalid `--exclude` value `{raw}`; pass comma-separated patterns such as"
+            " `--exclude='my_package.tests,*._legacy*'`, not a list.",
+            stderr=True,
+        )
+        return None
     if isinstance(raw, str):
         patterns: Any = [item.strip() for item in raw.split(",") if item.strip()]
     elif raw is None:
@@ -270,8 +302,11 @@ def _resolve_policy_spec(
     try:
         spec = _build_policy_spec(values[min_grace_slug], values[message_slug])
     except ValueError as err:
+        # the table spelling exists only in `pyproject.toml` and direct calls, so a flag's error never suggests it
+        message = str(err).replace(_GRACE_WINDOW_TABLE_SPELLING, "") if sources[min_grace_slug] == "flag" else str(err)
         _print(
-            f"{err} (from {_describe_source(min_grace_slug, _POLICY_TABLE_NAME, sources[min_grace_slug])})", stderr=True
+            f"{message} (from {_describe_source(min_grace_slug, _POLICY_TABLE_NAME, sources[min_grace_slug])})",
+            stderr=True,
         )
         return None
     header = "Policy: " + "  ".join(f"{slug}={values[slug]} ({_source_label(sources[slug])})" for slug in values)

@@ -123,6 +123,9 @@ repos:
     hooks:
       - id: pyproject-fmt
         additional_dependencies: [tox]
+        # pyproject-fmt lowercases `[project].name`, which would publish the distribution as `pydeprecate`
+        # instead of `pyDeprecate`; validate-pyproject below still checks the file
+        exclude: ^pyproject\.toml$
   - repo: https://github.com/abravalheri/validate-pyproject
     rev: "0.26"
     hooks:

@@ -1,14 +1,62 @@
-"""Regression tests for setup.py packaging consistency."""
+"""Regression tests for packaging consistency between ``pyproject.toml`` and the ``setup.py`` shim."""
 
 import re
 import runpy
 import sys
 from pathlib import Path
+from typing import Any
 from unittest.mock import Mock, patch
+
+from deprecate import __about__
+
+if sys.version_info >= (3, 11):
+    import tomllib
+else:  # the `audit` extra installs the backport on Python 3.9-3.10
+    import tomli as tomllib
 
 _ROOT = Path(__file__).parent.parent.parent
 _README = _ROOT / "README.md"
 _SETUP = _ROOT / "setup.py"
+_PYPROJECT = _ROOT / "pyproject.toml"
+#: The only arguments ``setup.py`` may pass: the README rewrite that a static ``readme`` field cannot express.
+_SHIM_KWARGS = {"long_description", "long_description_content_type"}
+
+
+def _setup_kwargs() -> dict[str, object]:
+    """Run ``setup.py`` against a stub ``setuptools`` and return the keyword arguments it passes to ``setup()``."""
+    builder = Mock()
+    with patch.dict(sys.modules, {"setuptools": builder}):
+        runpy.run_path(str(_SETUP))
+    builder.setup.assert_called_once()
+    return dict(builder.setup.call_args.kwargs)
+
+
+def _project_table() -> dict[str, Any]:
+    """Return the ``[project]`` table of ``pyproject.toml``."""
+    return tomllib.loads(_PYPROJECT.read_text(encoding="utf-8"))["project"]
+
+
+def test_setup_shim_sets_only_the_long_description() -> None:
+    """``setup.py`` passes nothing but the long description, which ``[project]`` leaves dynamic.
+
+    All other metadata moved to ``pyproject.toml``. A field set in both places is resolved by setuptools in a way a
+    reader of either file does not see, and a field added back to ``setup.py`` would silently fork the metadata.
+
+    """
+    project = _project_table()
+    assert set(_setup_kwargs()) == _SHIM_KWARGS
+    assert "readme" not in project
+    assert "readme" in project["dynamic"]
+
+
+def test_project_description_matches_about() -> None:
+    """``[project].description`` is the same one-line summary as ``deprecate.__about__.__docs__``.
+
+    The summary is static in ``pyproject.toml`` and also exposed by the package at runtime; the two copies must not
+    drift apart when one of them is edited.
+
+    """
+    assert _project_table()["description"] == __about__.__docs__
 
 
 def test_long_description_resolves_brand_images() -> None:

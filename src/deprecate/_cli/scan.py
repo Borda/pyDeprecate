@@ -11,17 +11,60 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Optional
 
+from deprecate._cli._pkg import _safe_module_name, _select_child_package
 from deprecate._cli.config import _Config, _ConfigFlag, _resolve_exclude, _source_label
 from deprecate._cli.report import _GapKind, _print, _print_gap, _record_scan, _ScanRecord
-from deprecate._pkg import (
-    _is_package_dir,
-    _managed_sys_path,
-    _resolve_package_version,
-    _safe_module_name,
-    _select_child_package,
-)
 from deprecate.audit import DeprecationWrapperInfo, find_deprecation_wrappers
 from deprecate.audit._scan import _is_excluded
+from deprecate.audit._version import _is_package_dir, _managed_sys_path, _resolve_package_version
+
+
+class _ScanError(Exception):
+    """The scanned package itself could not be imported, so nothing was audited; the CLI exits 3."""
+
+
+def _names_missing_module(error: Exception, path: str) -> bool:
+    """Tell whether *error* says that *path*, a module name and no existing path, names no importable module.
+
+    Only a :exc:`ModuleNotFoundError` for the named module or one of its parent packages counts; one raised for a
+    dependency the scanned package imports is a failed import of an existing package.
+
+    Examples:
+        >>> _names_missing_module(ModuleNotFoundError("x", name="pkg"), "pkg.sub")
+        True
+        >>> _names_missing_module(ModuleNotFoundError("x", name="numpy"), "pkg")
+        False
+
+    """
+    if Path(path).exists() or not isinstance(error, ModuleNotFoundError) or error.name is None:
+        return False
+    return path == error.name or path.startswith(f"{error.name}.")
+
+
+def _is_module_name(path: str) -> bool:
+    """Tell whether *path* is spelled as an absolute dotted module name, the only kind a scan can import.
+
+    Examples:
+        >>> _is_module_name("pkg.sub"), _is_module_name("./pkg"), _is_module_name(".pkg")
+        (True, False, False)
+
+    """
+    return all(part.isidentifier() for part in path.split("."))
+
+
+@contextmanager
+def _root_exit_as_scan_error(path: str) -> Iterator[None]:
+    """Turn a ``sys.exit()`` from the scanned package's module-level code into a :class:`_ScanError` (exit 3).
+
+    Both the version auto-detection and the scan import the package; neither may let the package's own exit code become
+    the CLI's, which for ``sys.exit(0)`` would pass a gate that audited nothing.
+
+    """
+    try:
+        yield
+    except SystemExit as err:
+        # as `_scan_directory` reports per module; a submodule's exit is a gap inside the scan, never this
+        raise _ScanError(f"importing {path!r} ran module-level code that exited ({err.code!r})") from err
 
 
 def _scan_directory(
@@ -248,13 +291,27 @@ def _scan_for_command(
     resolved_exclude = _resolve_exclude(path, exclude, config)
     if resolved_exclude is None:
         return None
+    if package_dir is None and not Path(path).exists() and not _is_module_name(path):
+        # `./typo` or `.pkg` is no path and no module name; importing it would fail as a relative import
+        _print(f"No such path or importable module: {path!r}", stderr=True)
+        return None
     if version is None and resolve_version:
         # Dynamic project versions and the __version__ fallback import code before the wrapper scan does.
-        with _hidden_argv():
+        with _hidden_argv(), _root_exit_as_scan_error(path):
             version = _resolve_package_version(_safe_module_name(path), path=path)
     _print_scan_header(path, version, user_provided=version_explicit, exclude=resolved_exclude)
-    with _managed_sys_path(path), _hidden_argv():
-        wrappers = _scan_path(path, recursive=recursive, include_members=include_members, exclude=resolved_exclude[0])
+    with _managed_sys_path(path), _hidden_argv(), _root_exit_as_scan_error(path):
+        try:
+            wrappers = _scan_path(
+                path, recursive=recursive, include_members=include_members, exclude=resolved_exclude[0]
+            )
+        except Exception as err:
+            if _names_missing_module(err, path):
+                # a typo in the argument, not a package that failed to import
+                _print(f"No such path or importable module: {path!r}", stderr=True)
+                return None
+            # submodule failures are gaps inside the scan; only the package itself failing to import reaches here
+            raise _ScanError(f"could not import {path!r}: {type(err).__name__}: {err}") from err
     location = _imported_location(path, package_dir)
     if location is not None:
         _print(f"Imported from: {location}")

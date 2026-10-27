@@ -40,8 +40,8 @@ def old_fn(old: int) -> int:
     pass
 """
 
-# Package whose remove_in="0.2" discriminates the PEP 440 string "0.10" from the float 0.1 that Fire's
-# CLI parsing coerces an unquoted --version 0.10 into (0.1 < 0.2, so it would wrongly read as not expired).
+# Package whose remove_in="0.2" discriminates the PEP 440 string "0.10" from the float 0.1 that the old Fire
+# CLI parsing coerced an unquoted --version 0.10 into (0.1 < 0.2, so it would wrongly read as not expired).
 _MYPKG_INIT_MULTI_DIGIT_MINOR = """\
 from deprecate import deprecated
 
@@ -53,6 +53,17 @@ def new_fn(x: int) -> int:
 @deprecated(target=new_fn, deprecated_in="0.1", remove_in="0.2")
 def old_fn(x: int) -> int:
     pass
+"""
+
+
+# Package with a notify-only wrapper that also declares an args_mapping, which that mode ignores (misconfigured).
+_MYPKG_INIT_NOTIFY_MAPPING = """\
+from deprecate import TargetMode, deprecated
+
+
+@deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="9.0", args_mapping={"old": "x"})
+def old_fn(x: int = 0) -> int:
+    return x
 """
 
 
@@ -123,10 +134,134 @@ class TestCliInvocation:
         combined = result.stdout + result.stderr
         assert "check" in combined.lower()
 
-    def test_nonexistent_module(self) -> None:
-        """CLI with a module that doesn't exist exits non-zero."""
-        result = _run_cli("check", "nonexistent_module_xyz", env=_cli_env(COLUMNS="200"))
-        assert result.returncode != 0
+    @pytest.mark.parametrize("subcommand", ["check", "expiry", "policy", "chains", "all", "status"])
+    def test_nonexistent_module(self, subcommand: str) -> None:
+        """A name that is neither an existing path nor an importable module exits 2 on every subcommand.
+
+        A typo in the argument is a usage error, which a CI script can tell from findings (1) and from a package that
+        exists but fails to import (3).
+
+        """
+        result = _run_cli(subcommand, "nonexistent_module_xyz")
+        assert result.returncode == 2, result.stdout + result.stderr
+        assert "No such path or importable module: 'nonexistent_module_xyz'" in result.stderr
+
+    def test_package_failing_to_import_exits_three(self, tmp_path: Path) -> None:
+        """A package whose ``__init__`` raises exits 3 with a scan error and writes no report.
+
+        Nothing could be audited, so the run is neither clean nor a finding; a report would publish a table of a scan
+        that never happened.
+
+        """
+        pkg = _make_pkg(tmp_path, name="brokenpkg", content="raise RuntimeError('broken on import')\n")
+        report = tmp_path / "report.json"
+        result = _run_cli("check", str(pkg), "--exit-zero", f"--report-json={report}", cwd=tmp_path)
+        assert result.returncode == 3, result.stdout + result.stderr
+        assert "pydeprecate: scan error: could not import" in result.stderr
+        assert "RuntimeError: broken on import" in result.stderr
+        assert not report.exists()
+
+    @pytest.mark.parametrize("subcommand", ["check", "expiry", "status", "all"])
+    def test_package_exiting_on_import_exits_three(self, tmp_path: Path, subcommand: str) -> None:
+        """A package whose module-level code calls ``sys.exit(0)`` exits 3 on every subcommand and writes no report.
+
+        ``expiry``, ``status`` and ``all`` import the package once more to auto-detect its version; that import let the
+        package's own exit code through, so ``sys.exit(0)`` passed the gate silently with nothing audited.
+
+        """
+        pkg = _make_pkg(tmp_path, name="exitpkg", content="import sys\nsys.exit(0)\n")
+        report = tmp_path / "report.json"
+        result = _run_cli(subcommand, str(pkg), f"--report-json={report}", cwd=tmp_path)
+        assert result.returncode == 3, result.stdout + result.stderr
+        assert "pydeprecate: scan error: importing" in result.stderr
+        assert "ran module-level code that exited (0)" in result.stderr
+        assert not report.exists()
+
+    def test_submodule_exiting_on_import_is_a_gap(self, tmp_path: Path) -> None:
+        """A submodule that calls ``sys.exit()`` on import is a ``module not audited`` gap, not a failed run.
+
+        An unguarded ``__main__.py`` (``sys.exit(main())``) is a common layout; the run exited 3 naming the root
+        package, which the user could neither mask nor tell which module to ``--exclude``.
+
+        """
+        pkg = _make_pkg(tmp_path)
+        (pkg / "__main__.py").write_text("import sys\nsys.exit(4)\n", encoding="utf-8")
+        result = _run_cli("check", str(pkg), cwd=tmp_path)
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "pydeprecate gap: module not audited: mypkg.__main__" in result.stderr
+
+    @pytest.mark.parametrize("path", ["./typo_dir", "../typo_dir", ".typo"])
+    def test_relative_typo_exits_two(self, tmp_path: Path, path: str) -> None:
+        """A relative spelling that names no existing path is a usage error, never a scan error.
+
+        ``./typo_dir`` was handed to the importer, which failed with a ``TypeError`` about relative imports and exited
+        3, as if an existing package had failed to import.
+
+        """
+        result = _run_cli("check", path, cwd=tmp_path)
+        assert result.returncode == 2, result.stdout + result.stderr
+        assert f"No such path or importable module: {path!r}" in result.stderr
+
+    def test_exclude_list_literal_exits_two(self, tmp_path: Path) -> None:
+        """A list literal in ``--exclude`` is refused instead of becoming one pattern that matches nothing.
+
+        Fire parsed ``--exclude='["pkg.tests"]'`` into a list; as a plain string it excluded nothing, so the package
+        meant to be left out was imported and audited without a word.
+
+        """
+        pkg = _make_pkg(tmp_path)
+        result = _run_cli("check", str(pkg), '--exclude=["mypkg.tests"]', cwd=tmp_path)
+        assert result.returncode == 2, result.stdout + result.stderr
+        assert "Invalid `--exclude` value" in result.stderr
+
+    def test_exclude_character_class_glob_is_a_pattern(self, tmp_path: Path) -> None:
+        """An ``--exclude`` glob that starts with a character class excludes its modules instead of exiting 2.
+
+        ``fnmatch`` reads ``[m]ypkg.broken`` as a pattern matching ``mypkg.broken``; the list-literal guard treated
+        every value starting with ``[`` as a list and refused it, so a valid glob could not be passed on the command
+        line. The submodule holds an invalid wrapper, so it is absent from the scan only when the pattern applies.
+
+        """
+        pkg = _make_pkg(tmp_path)
+        (pkg / "broken.py").write_text(_MYPKG_INIT_INVALID)
+        result = _run_cli("check", str(pkg), "--exclude=[m]ypkg.broken", cwd=tmp_path)
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "Exclude: [m]ypkg.broken (flag)" in result.stdout
+
+    def test_all_rejects_malformed_policy_before_importing(self, tmp_path: Path) -> None:
+        """``all`` reports a malformed ``[tool.pydeprecate.policy]`` value as exit 2 before importing the package.
+
+        The rule values were resolved only in the policy pass after the scan, so the package's module-level code ran and
+        the check and expiry results printed before the run exited 2.
+
+        """
+        pkg = _make_pkg(tmp_path, content='print("MODULE CODE RAN")\n' + _MYPKG_INIT)
+        (tmp_path / "pyproject.toml").write_text(
+            '[tool.pydeprecate.policy]\nmessage-required = "maybe"\n', encoding="utf-8"
+        )
+        result = _run_cli("all", str(pkg), "--version=1.0", cwd=tmp_path)
+        assert result.returncode == 2, result.stdout + result.stderr
+        assert "Invalid `message_required` value" in result.stderr
+        assert "MODULE CODE RAN" not in result.stdout
+
+    @pytest.mark.parametrize(
+        ("subcommand", "extra"),
+        [pytest.param("check", (), id="check"), pytest.param("all", ("--version=1.0",), id="all")],
+    )
+    def test_misconfigured_wrapper_fails_the_gate(
+        self, tmp_path: Path, subcommand: str, extra: tuple[str, ...]
+    ) -> None:
+        """A NOTIFY wrapper with an ``args_mapping`` fails ``check`` and ``all`` with a misconfigured-target section.
+
+        The notify-only mode ignores the mapping, so callers of the old argument name are never migrated; the gate
+        reported "All deprecated wrappers look correct!" and exited 0.
+
+        """
+        pkg = _make_pkg(tmp_path, content=_MYPKG_INIT_NOTIFY_MAPPING)
+        result = _run_cli(subcommand, str(pkg), *extra, cwd=tmp_path)
+        assert result.returncode == 1, result.stdout + result.stderr
+        assert "[ERROR] Found deprecated wrappers with a misconfigured target:" in result.stdout
+        assert "old_fn: `TargetMode.NOTIFY` with `args_mapping`" in result.stdout
 
 
 class TestCliSubcommands:
@@ -263,34 +398,25 @@ class TestCliSubcommands:
     @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
     @pytest.mark.parametrize("subcommand", ["expiry", "all"])
     @pytest.mark.parametrize(
-        "version_arg",
+        "version_args",
         [
-            pytest.param(
-                "0.10",
-                id="unquoted",
-                marks=pytest.mark.xfail(
-                    raises=AssertionError,
-                    strict=True,
-                    reason="Fire coerces an unquoted --version 0.10 to the float 0.1; fixed by moving the CLI off Fire",
-                ),
-            ),
-            pytest.param('"0.10"', id="quoted"),
+            pytest.param(("--version", "0.10"), id="flag"),
+            pytest.param(("--version=0.10",), id="attached"),
+            pytest.param(("0.10",), id="positional"),
         ],
     )
     def test_expiry_gates_keep_multi_digit_minor_version(
-        self, tmp_path: Path, subcommand: str, version_arg: str
+        self, tmp_path: Path, subcommand: str, version_args: tuple[str, ...]
     ) -> None:
         """``--version 0.10`` gates against release 0.10, never against 0.1.
 
-        skills/prune/SKILL.md warns that CLI argument parsing can coerce "0.10" to 0.1 and that "shell
-        quoting alone does not guarantee preservation". A wrapper with ``remove_in="0.2"`` is overdue at
-        0.10 but not at 0.1, so a coerced version silently passes the gate and CI goes green on code that
-        should have been deleted. The bare spelling is what users and the Action ``args`` input actually
-        type; the embedded string literal (``'"0.10"'``) is today's workaround that already reaches the
-        check intact. Both spellings must report the wrapper as expired and print the version unchanged.
+        The Fire-based CLI coerced an unquoted ``0.10`` to the float ``0.1``. A wrapper with ``remove_in="0.2"`` is
+        overdue at 0.10 but not at 0.1, so a coerced version silently passed the gate and CI went green on code that
+        should have been deleted. Option values now stay strings in every spelling users and the Action ``args``
+        input type, so the wrapper must be reported as expired and the version printed unchanged.
         """
         pkg = _make_pkg(tmp_path, content=_MYPKG_INIT_MULTI_DIGIT_MINOR)
-        result = _run_cli(subcommand, str(pkg), "--version", version_arg, cwd=tmp_path)
+        result = _run_cli(subcommand, str(pkg), *version_args, cwd=tmp_path)
         assert result.returncode == 1, result.stdout + result.stderr
         assert "Version: 0.10 (user-provided)" in result.stdout, result.stdout + result.stderr
         assert "1 expired wrapper(s) found." in result.stdout, result.stdout + result.stderr
@@ -561,10 +687,25 @@ class TestCliSubcommands:
         assert "version" in (result.stdout + result.stderr).lower()
 
     def test_check_no_recursive_flag(self, tmp_path: Path) -> None:
-        """'pydeprecate check <path> --norecursive' is accepted and exits 0."""
+        """'pydeprecate check <path> --no-recursive' is accepted and exits 0."""
         pkg = _make_pkg(tmp_path)
-        result = _run_cli("check", str(pkg), "--norecursive", cwd=tmp_path)
+        result = _run_cli("check", str(pkg), "--no-recursive", cwd=tmp_path)
         assert result.returncode == 0
+
+    def test_legacy_negation_spelling_is_accepted_but_unlisted(self, tmp_path: Path) -> None:
+        """The older ``--norecursive`` spelling still negates the flag, while ``--help`` lists only ``--no-recursive``.
+
+        Command lines written for 0.14 and earlier use the ``--no<flag>`` form; they must keep working after the
+        documented spelling became ``--no-<flag>``, without the help showing two names for one switch.
+
+        """
+        pkg = _make_pkg(tmp_path)
+        (pkg / "sub.py").write_text(_MYPKG_INIT_INVALID)
+        scan = _run_cli("check", "--norecursive", str(pkg), cwd=tmp_path)
+        help_text = _run_cli("check", "--help").stdout
+        assert scan.returncode == 0, scan.stdout + scan.stderr
+        assert "--no-recursive" in help_text
+        assert "--norecursive" not in help_text
 
     def test_check_exit_zero_dash_form(self, tmp_path: Path) -> None:
         """'--exit-zero' (dash form) forces exit 0 even when invalid args are found."""
@@ -603,19 +744,19 @@ class TestCliPreCommitArgs:
     @pytest.mark.parametrize(
         ("flags", "exit_code", "submodule_reported"),
         [
-            pytest.param(("--norecursive",), 0, False, id="norecursive-skips-submodule"),
+            pytest.param(("--no-recursive",), 0, False, id="norecursive-skips-submodule"),
             pytest.param((), 1, True, id="default-scans-submodule"),
         ],
     )
     def test_norecursive_before_path_scans_path(
         self, tmp_path: Path, flags: tuple[str, ...], exit_code: int, submodule_reported: bool
     ) -> None:
-        """``check --norecursive <pkg>`` scans ``<pkg>`` top-level only instead of exiting 2.
+        """``check --no-recursive <pkg>`` scans ``<pkg>`` top-level only instead of exiting 2.
 
         Fire reads the token after a bare negated flag as its value and then cannot consume it; the CLI rewrites
         the flag so the order of flags and path does not matter. The package root is valid while its submodule
         holds an invalid wrapper, so the flag is observable: the submodule finding is absent under
-        ``--norecursive`` and present (exit 1) on the default recursive scan.
+        ``--no-recursive`` and present (exit 1) on the default recursive scan.
 
         """
         pkg = _make_pkg(tmp_path)
@@ -660,7 +801,7 @@ class TestCliPreCommitArgs:
         """
         pkg_a = _make_pkg(tmp_path, name="pkg_a")
         pkg_b = _make_pkg(tmp_path, name="pkg_b", content=_MYPKG_INIT_INVALID)
-        result = _run_cli(subcommand, "--norecursive", "--noexit-zero", str(pkg_a), str(pkg_b), cwd=tmp_path)
+        result = _run_cli(subcommand, "--no-recursive", "--no-exit-zero", str(pkg_a), str(pkg_b), cwd=tmp_path)
         assert result.returncode == 2, result
         assert "Scanning:" not in result.stdout
         assert "nonexistent" not in result.stdout
@@ -682,21 +823,118 @@ class TestCliPreCommitArgs:
         assert "Scanning:" not in result.stdout
 
 
+#: Every subcommand with the exit code it gives `_MYPKG_INIT` (one wrapper, ``remove_in="9.0"``) at version ``9.0``.
+_PARITY_SUBCOMMANDS = [
+    pytest.param("check", (), 0, id="check"),
+    pytest.param("expiry", ("--version=9.0",), 1, id="expiry"),
+    pytest.param("policy", (), 0, id="policy"),
+    pytest.param("chains", (), 0, id="chains"),
+    pytest.param("all", ("--version=9.0",), 1, id="all"),
+    pytest.param("status", ("--version=9.0",), 0, id="status"),
+]
+
+
+class TestCliParserParity:
+    """Golden command lines every subcommand keeps across a change of the argument parser."""
+
+    @pytest.mark.parametrize(("subcommand", "extra", "exit_code"), _PARITY_SUBCOMMANDS)
+    @pytest.mark.parametrize(
+        "layout",
+        [
+            pytest.param(("--no-recursive", "{pkg}"), id="flag-before-path"),
+            pytest.param(("{pkg}", "--no-recursive"), id="flag-after-path"),
+            pytest.param(("--norecursive", "{pkg}"), id="legacy-negation"),
+            pytest.param(("--recursive=false", "{pkg}"), id="attached-literal"),
+            pytest.param(("--recursive", "0", "{pkg}"), id="separate-literal"),
+        ],
+    )
+    def test_flag_position_keeps_path_and_exit_code(
+        self, tmp_path: Path, subcommand: str, extra: tuple[str, ...], exit_code: int, layout: tuple[str, ...]
+    ) -> None:
+        """A boolean flag before or after the path, in any accepted spelling, scans that path with the usual outcome.
+
+        Pre-commit hooks build ``entry + args`` and so put flags before the path, while users type them after it. Both
+        orders and every boolean spelling (``--no-recursive``, the older ``--norecursive``, an attached or a
+        separate ``true``/``false``/``1``/``0`` literal) must scan the named package and give the subcommand's normal
+        exit code, never scan the current directory or swallow the path as the flag's value.
+
+        """
+        pkg = _make_pkg(tmp_path)
+        argv = [arg.format(pkg=pkg) for arg in layout]
+        result = _run_cli(subcommand, *argv, *extra, env=_cli_env(COLUMNS="1000"), cwd=tmp_path)
+        assert result.returncode == exit_code, result.stdout + result.stderr
+        assert f"Scanning: {pkg}" in result.stdout
+
+    @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
+    @pytest.mark.parametrize(
+        ("subcommand", "exit_code"),
+        [
+            pytest.param("expiry", 1, id="expiry"),
+            pytest.param("all", 1, id="all"),
+            pytest.param("status", 0, id="status"),
+        ],
+    )
+    def test_flag_between_positionals_keeps_version(self, tmp_path: Path, subcommand: str, exit_code: int) -> None:
+        """``<sub> <pkg> --no-recursive 9.0`` binds the second positional to the version, the flag in between.
+
+        Python 3.9's argparse loses a positional that follows an optional between two optional positionals unless the
+        arguments are parsed intermixed; the version must still be the user-provided ``9.0`` on every interpreter.
+
+        """
+        pkg = _make_pkg(tmp_path)
+        result = _run_cli(subcommand, str(pkg), "--no-recursive", "9.0", env=_cli_env(COLUMNS="1000"), cwd=tmp_path)
+        assert result.returncode == exit_code, result.stdout + result.stderr
+        assert "Version: 9.0 (user-provided)" in result.stdout
+
+    @pytest.mark.parametrize(("subcommand", "extra", "exit_code"), _PARITY_SUBCOMMANDS)
+    @pytest.mark.parametrize("option", ["--bogus-flag", "--exit-zeros"])
+    def test_unknown_option_exits_two(
+        self, tmp_path: Path, subcommand: str, extra: tuple[str, ...], exit_code: int, option: str
+    ) -> None:
+        """An unknown option exits 2 on every subcommand without scanning anything.
+
+        A typo must fail the CI step rather than run the gate with the option silently dropped.
+
+        """
+        pkg = _make_pkg(tmp_path)
+        result = _run_cli(subcommand, str(pkg), *extra, option, env=_cli_env(COLUMNS="1000"), cwd=tmp_path)
+        assert result.returncode == 2, result.stdout + result.stderr
+        assert option.partition("=")[0] in result.stderr
+        assert "Scanning:" not in result.stdout
+
+    @pytest.mark.parametrize(("subcommand", "extra", "exit_code"), _PARITY_SUBCOMMANDS)
+    def test_underscore_spelling_matches_dashes(
+        self, tmp_path: Path, subcommand: str, extra: tuple[str, ...], exit_code: int
+    ) -> None:
+        """Option names spelled with underscores (``--include_members``) act like the dashed spelling.
+
+        Fire accepted both spellings for every option, so CI configs written either way have to keep working.
+
+        """
+        pkg = _make_pkg(tmp_path)
+        report = tmp_path / "report.json"
+        result = _run_cli(
+            subcommand, str(pkg), *extra, "--include_members=true", f"--report_json={report}", cwd=tmp_path
+        )
+        assert result.returncode == exit_code, result.stdout + result.stderr
+        assert report.is_file()
+
+
 class TestCliArgumentValidation:
     """Unknown or misspelled flags and version auto-detection must fail safe, never silently mislead."""
 
     def test_check_unknown_flag_exits_nonzero(self, tmp_path: Path) -> None:
         """'pydeprecate check <path> --bogusflag' exits non-zero with a diagnostic.
 
-        A CI pipeline invoking the CLI with an unknown flag must fail the job: exiting inside the Fire
-        trace would suppress Fire's "Could not consume arg" check, silently ignoring the flag and letting
-        the gate pass with exit 0 on unvalidated input.
+        A CI pipeline invoking the CLI with an unknown flag must fail the job before anything is scanned; a flag
+        that is silently ignored lets the gate pass with exit 0 on unvalidated input.
 
         """
         pkg = _make_pkg(tmp_path)
-        result = _run_cli("check", str(pkg), "--bogusflag", env=_cli_env(COLUMNS="200"), cwd=tmp_path)
-        assert result.returncode != 0
-        assert "Could not consume arg" in result.stderr + result.stdout
+        result = _run_cli("check", str(pkg), "--bogusflag", cwd=tmp_path)
+        assert result.returncode == 2
+        assert "unrecognized arguments: --bogusflag" in result.stderr
+        assert "Scanning:" not in result.stdout
 
     def test_expiry_misspelled_version_flag_exits_nonzero(self, tmp_path: Path) -> None:
         """'pydeprecate expiry <path> --verison 9.0' (typo) exits non-zero instead of dropping the value.
@@ -707,9 +945,9 @@ class TestCliArgumentValidation:
 
         """
         pkg = _make_pkg(tmp_path)
-        result = _run_cli("expiry", str(pkg), "--verison", "9.0", env=_cli_env(COLUMNS="200"), cwd=tmp_path)
-        assert result.returncode != 0
-        assert "Could not consume arg" in result.stderr + result.stdout
+        result = _run_cli("expiry", str(pkg), "--verison", "9.0", cwd=tmp_path)
+        assert result.returncode == 2
+        assert "unrecognized arguments: --verison" in result.stderr
 
     def test_expiry_module_name_ignores_unrelated_cwd_pyproject(self, tmp_path: Path) -> None:
         """'pydeprecate expiry <module_name>' run from an unrelated project must not steal its version.
@@ -1050,7 +1288,7 @@ class TestCliScanTarget:
 
 @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
 class TestCliIncludeMembers:
-    """Every scanning subcommand takes ``--noinclude-members`` and scans class members by default."""
+    """Every scanning subcommand takes ``--no-include-members`` and scans class members by default."""
 
     @pytest.mark.parametrize(("subcommand", "extra", "returncode"), _MEMBER_GATES)
     def test_members_scanned_by_default(
@@ -1071,7 +1309,7 @@ class TestCliIncludeMembers:
     def test_noinclude_members_leaves_members_out(
         self, tmp_path: Path, subcommand: str, extra: tuple[str, ...], returncode: int
     ) -> None:
-        """``--noinclude-members`` scopes every subcommand to module-level wrappers.
+        """``--no-include-members`` scopes every subcommand to module-level wrappers.
 
         The flag used to exist on ``status`` only, so a project could render a module-level table while ``expiry``
         and ``all`` on the same path still failed on member deprecations. With the flag, no gate sees the members:
@@ -1080,7 +1318,7 @@ class TestCliIncludeMembers:
         """
         pkg = _make_pkg(tmp_path, name="memberpkg", content=_MEMBERS_ONLY_SRC)
         result = _run_cli(
-            subcommand, str(pkg), *extra, "--noinclude-members", env=_cli_env(COLUMNS="1000"), cwd=tmp_path
+            subcommand, str(pkg), *extra, "--no-include-members", env=_cli_env(COLUMNS="1000"), cwd=tmp_path
         )
         assert result.returncode == 0, result.stdout + result.stderr
         assert "Legacy." not in result.stdout
@@ -1093,7 +1331,7 @@ class TestCliPolicyMessageRequiredFlag:
         ("flag", "header"),
         [
             pytest.param("--message-required", "message-required=True (flag)", id="bare"),
-            pytest.param("--nomessage-required", "message-required=False (flag)", id="negated"),
+            pytest.param("--no-message-required", "message-required=False (flag)", id="negated"),
         ],
     )
     def test_flag_before_path_scans_path(self, tmp_path: Path, flag: str, header: str) -> None:
@@ -1332,7 +1570,7 @@ class TestCliReportJson:
         pkg = _make_pkg(tmp_path)
         result = _run_cli("check", str(pkg), "--report-json", *following, cwd=tmp_path)
         assert result.returncode == 2
-        assert "Option `--report-json` needs a file path." in result.stderr
+        assert "argument --report-json: expected one argument" in result.stderr
 
     def test_dash_leading_path_needs_equals_form(self, tmp_path: Path) -> None:
         """``--report-json=-name`` still names a report file that starts with a dash.

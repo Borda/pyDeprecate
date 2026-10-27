@@ -108,11 +108,11 @@ Requires **Python 3.9 or later**.
 
 Choose the install that matches the workflow you need:
 
-| Workflow                     | Command                                | Includes                                                                                                                          |
-| ---------------------------- | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| Runtime deprecation wrappers | `pip install pyDeprecate`              | `@deprecated`, `@deprecated_class`, `deprecated_instance`, docstring helpers, and most audit metadata helpers                     |
-| CI deadline checks           | `pip install 'pyDeprecate[audit]'`     | Adds `packaging` for PEP 440 version comparison in `validate_deprecation_expiry()` and `validate_deprecation_policy()`            |
-| Command-line audit workflows | `pip install 'pyDeprecate[audit,cli]'` | Adds CLI dependencies (`fire`, `rich`) plus version support for `pydeprecate expiry`, `pydeprecate policy`, and `pydeprecate all` |
+| Workflow                     | Command                                | Includes                                                                                                                                                                        |
+| ---------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runtime deprecation wrappers | `pip install pyDeprecate`              | `@deprecated`, `@deprecated_class`, `deprecated_instance`, docstring helpers, and most audit metadata helpers                                                                   |
+| CI deadline checks           | `pip install 'pyDeprecate[audit]'`     | Adds `packaging` for PEP 440 version comparison in `validate_deprecation_expiry()` and `validate_deprecation_policy()`                                                          |
+| Command-line audit workflows | `pip install 'pyDeprecate[audit,cli]'` | Adds version support for `pydeprecate expiry`, `pydeprecate policy`, and `pydeprecate all`; the CLI itself needs no dependency (`cli` is an empty extra kept for compatibility) |
 
 Base installation from PyPI:
 
@@ -1752,7 +1752,7 @@ report = generate_deprecation_table(my_package, current_version="1.5", recursive
 
 You can also use the CLI to validate your deprecations directly from the command line.
 
-The CLI requires the `cli` extra (includes `fire` and `rich`). Install it with:
+The CLI ships with the package and uses only the standard library; the `cli` extra installs nothing and is kept so existing install lines keep working. The `audit` extra adds the version checks. Install both with:
 
 ```bash
 pip install 'pyDeprecate[audit,cli]'
@@ -1791,7 +1791,7 @@ pydeprecate status path/to/your/package --version 2.0.0 --output DEPRECATIONS.md
 
 Version auto-detection for CLI commands prefers local project metadata for an existing path, then installed metadata for the full import name, its top-level name, and the distribution providing that package, then the top-level package's string `__version__`. Trying the full name first preserves independently versioned dotted components; a bare module name never reads an unrelated `pyproject.toml` from the current directory.
 
-**Common flags** (all subcommands): `--norecursive` scans the top-level module only. `--noinclude-members` leaves deprecated class members out of the scan (they are scanned by default). `--exclude` takes glob patterns over full dotted module names (one, comma-separated, or a list) the scan itself never imports nor descends into; its default is the `exclude` list of `[tool.pydeprecate]` in the nearest `pyproject.toml`. `check`, `expiry`, `policy`, `chains`, and `all` also accept `--exit-zero` to always exit `0` even when issues are found. `expiry`, `all`, and `status` also accept `--version VERSION` to set the current version explicitly. `policy` additionally accepts one flag per rule — `--min-grace`, `--message-required` — resolved as flag → `[tool.pydeprecate.policy]` in the nearest `pyproject.toml` → built-in default (`min-grace = "0.3"`, `message-required = true`; `false` switches `min-grace` off), and exits `2` when a rule value is malformed, or when the `pyproject.toml` itself cannot be read or parsed (`Cannot read <path>: <err>`) — this file-read exit `2` is checked before `chains` runs even inside `pydeprecate all`, though policy *violation counts* stay advisory there. The `Policy:` header line names the source of each value. `status` additionally accepts `--style compact|matrix` (default `compact`) and `--output FILE` to also save the markdown to that file; `all` accepts `--output FILE` too, for the table it appends. When part of the audit did not run (a submodule failed to import, the version could not be resolved, `packaging` is missing), the CLI prints an unwrapped stderr line starting with `pydeprecate gap: <kind>:`, regardless of the audited package's warnings filters. Every subcommand also accepts `--report-json FILE`, which writes the run's deprecation table and those gaps as JSON for CI tooling.
+**Common flags** (all subcommands): `--no-recursive` scans the top-level module only. `--no-include-members` leaves deprecated class members out of the scan (they are scanned by default). `--exclude` takes glob patterns over full dotted module names (one, or comma-separated) the scan itself never imports nor descends into; its default is the `exclude` list of `[tool.pydeprecate]` in the nearest `pyproject.toml`. `check`, `expiry`, `policy`, `chains`, and `all` also accept `--exit-zero` to always exit `0` even when issues are found. `expiry`, `all`, and `status` also accept `--version VERSION` to set the current version explicitly. `policy` additionally accepts one flag per rule — `--min-grace`, `--message-required` — resolved as flag → `[tool.pydeprecate.policy]` in the nearest `pyproject.toml` → built-in default (`min-grace = "0.3"`, `message-required = true`; `false` switches `min-grace` off), and exits `2` when a rule value is malformed, or when the `pyproject.toml` itself cannot be read or parsed (`Cannot read <path>: <err>`) — this file-read exit `2` is checked before `chains` runs even inside `pydeprecate all`, though policy *violation counts* stay advisory there. The `Policy:` header line names the source of each value. `status` additionally accepts `--style compact|matrix` (default `compact`) and `--output FILE` to also save the markdown to that file; `all` accepts `--output FILE` too, for the table it appends. Exit codes: `0` clean, `1` findings, `2` a usage error before anything is scanned, `3` the scanned package failed to import or the CLI crashed; `check` and `all` fail on misconfigured targets and inner-order `@property @deprecated` wrappers as well as on invalid mappings. When part of the audit did not run (a submodule failed to import, the version could not be resolved, `packaging` is missing), the CLI prints an unwrapped stderr line starting with `pydeprecate gap: <kind>:`, regardless of the audited package's warnings filters. Every subcommand also accepts `--report-json FILE`, which writes the run's deprecation table and those gaps as JSON for CI tooling.
 
 **Quick demo** using pyDeprecate's own test fixtures (no package setup needed):
 
@@ -1856,7 +1856,7 @@ $ pydeprecate chains src/mypackage
 
 **Example: combined one-liner scan across all checks**
 
-The `✓`/`⚠` one-line-per-check layout below is illustrative — condensed for readability, not the CLI's actual Rich-table output — but the policy line reflects the real `[WARNING]`-style advisory trailer:
+The `✓`/`⚠` one-line-per-check layout below is illustrative — condensed for readability, not the CLI's actual section-per-finding output — but the policy line reflects the real `[WARNING]`-style advisory trailer:
 
 ```
 $ pydeprecate all src/mypackage
@@ -2031,7 +2031,7 @@ message-required = true    # every warning must name a replacement
 ```
 
 ```bash
-pydeprecate policy src/mypackage    # exit 1 on a violation, 2 on a malformed rule or unreadable pyproject.toml
+pydeprecate policy src/mypackage    # exit 1 on a violation, 2 on a malformed rule or unreadable pyproject.toml, 3 if the package fails to import
 ```
 
 <details>
@@ -2040,7 +2040,7 @@ pydeprecate policy src/mypackage    # exit 1 on a violation, 2 on a malformed ru
 Run against pyDeprecate's own fixtures (`tests/collections/policy.py`, one broken rule per wrapper) with the built-in defaults spelled out as flags:
 
 ```bash
-pydeprecate policy tests.collections.policy --norecursive --min-grace=0.3 --message-required=True
+pydeprecate policy tests.collections.policy --no-recursive --min-grace=0.3 --message-required=True
 ```
 
 ```text

@@ -20,9 +20,9 @@ pyDeprecate is a lightweight Python library (Python 3.9+) for decorator-based de
 
 **Configuration files** (source of truth):
 
-- `pyproject.toml` — project config, tool settings (ruff, mypy, pytest)
+- `pyproject.toml` — package metadata, extras, entry point and tool settings (ruff, mypy, pytest)
 - `.pre-commit-config.yaml` — pre-commit hooks
-- `setup.py` — package metadata and dependencies
+- `setup.py` — shim that only builds the PyPI long description from `README.md`
 - `.github/workflows/*.yml` — CI/CD pipeline
 
 ## Quick Reference

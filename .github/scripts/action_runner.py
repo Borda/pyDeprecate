@@ -70,7 +70,10 @@ _VERSION_QUERY = (
 #: Program a child interpreter runs to tell whether the installed CLI takes ``--report-json`` (exit 0) or not.
 _REPORT_PROBE = "import deprecate._cli as cli\nraise SystemExit(0 if hasattr(cli, '_REPORT_OPTION') else 3)\n"
 #: Exit code of :data:`_REPORT_PROBE` for an importable CLI without ``--report-json``; any other failure is not one.
+#: It is the exit code of that separate ``python -c`` probe, unrelated to the CLI's own exit 3 for a crashed scan.
 _PROBE_UNSUPPORTED = 3
+#: Exit code of a CLI run whose scanned package could not be imported or that failed internally.
+_CLI_CRASHED = 3
 
 
 class ExitStatus(NamedTuple):
@@ -154,8 +157,8 @@ def _reserved_args_reason(arg: str) -> str | None:
     """
     if arg == "--":
         return (
-            "Fire reads every token after a `--` separator as one of its own flags, so the `--exit-zero` and report"
-            " options the action appends would be ignored"
+            "the CLI reads every token after a `--` separator as a positional argument, so the `--exit-zero` and"
+            " report options the action appends would be rejected as extra paths"
         )
     if arg in _HELP_FLAGS:
         return "the CLI would print its help and exit 0 without scanning anything, turning the gate green"
@@ -188,7 +191,7 @@ def read_inputs(env: dict[str, str]) -> ActionInputs:
     path = _input(env, "path")
     if path.startswith("-"):
         # the CLI would parse it as an option (`--help` prints help and exits 0, scanning nothing), and a `--`
-        # separator does not help: Fire reads every token after `--` as one of its own flags
+        # separator does not help: the options the action appends after it would be read as further paths
         raise ValueError(
             f"input `path` must not start with `-`, got {path!r}; pass CLI options through `args`, and write a"
             " directory whose name starts with `-` as `./-name`"
@@ -210,7 +213,7 @@ def build_cli_argv(inputs: ActionInputs, python: str, report_file: Path | None =
     """Build the ``python -m deprecate`` command line for the gate run, writing its report to ``report_file``.
 
     The runner's own options follow ``args``. :func:`read_inputs` has already refused the ``args`` tokens that would
-    break that — a ``--`` separator, which makes Fire read everything after it as its own flags, a help flag, and any
+    break that — a ``--`` separator, which makes the CLI read everything after it as positionals, a help flag, and any
     ``--report-json`` spelling — so the CLI always receives ``--exit-zero`` and the report option as written here.
 
     """
@@ -446,13 +449,15 @@ def run_gate(inputs: ActionInputs, python: str, report_file: Path | None, env: d
         annotate("error", str(err))
         return 1
     gate = exit_status(returncode)
-    if gate.code != 0:
+    if gate.code == _CLI_CRASHED:
+        annotate("error", f"pydeprecate {inputs.subcommand} exited 3 (scan or internal error; see the log)")
+    elif gate.code != 0:
         annotate("error", f"pydeprecate {inputs.subcommand} exited {gate.description}")
     if report_file is None:
         if inputs.summary:
             annotate("warning", "no pyDeprecate report is available; skipping the job summary")
         return gate.code
-    if gate.code == 2:  # a usage error scanned nothing, so there are no gaps or table to miss
+    if gate.code in (2, _CLI_CRASHED):  # a usage error or a crash wrote no report, so there are no gaps to miss
         return gate.code
     report = read_report(report_file)
     if report is None:

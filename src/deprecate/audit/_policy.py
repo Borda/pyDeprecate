@@ -20,6 +20,7 @@ if TYPE_CHECKING:
 
 from deprecate._frames import _caller_stacklevel
 from deprecate._types import DeprecationConfig, TargetMode
+from deprecate.audit._findings import _Check, _Finding, _make_finding, _Rule
 from deprecate.audit._lifecycle import _parse_version
 from deprecate.audit._scan import find_deprecation_wrappers
 from deprecate.audit._wrappers import DeprecationWrapperInfo, _format_subject
@@ -83,9 +84,9 @@ _GRACE_WINDOW_UNITS = (VersionBump.MAJOR, VersionBump.MINOR, VersionBump.PATCH)
 
 
 _GRACE_WINDOW_UNITS_BY_NAME = {unit.value: unit for unit in _GRACE_WINDOW_UNITS}
-_GRACE_WINDOW_SPELLINGS = (
-    "`1.0` (one major), `0.1` (one minor), `0.0.1` (one patch), or a one-key table such as `{'minor': 1}`"
-)
+#: The table spelling of a ``min_grace`` value, which a command-line flag cannot carry.
+_GRACE_WINDOW_TABLE_SPELLING = ", or a one-key table such as `{'minor': 1}`"
+_GRACE_WINDOW_SPELLINGS = "`1.0` (one major), `0.1` (one minor), `0.0.1` (one patch)" + _GRACE_WINDOW_TABLE_SPELLING
 
 
 def _grace_window_error(min_grace: object, detail: str) -> ValueError:
@@ -102,7 +103,7 @@ class GraceWindow:
     This is what every user-facing spelling is converted into before a policy scan starts, so the single-unit
     rule is structural rather than something each consumer re-checks: an instance cannot name two units, and
     construction rejects a negative or non-integer count. Build one directly, or from any accepted spelling with
-    :meth:`parse` — a dotted delta (``"0.3"``), the float Fire or TOML may hand over, or a one-key table.
+    :meth:`parse` — a dotted delta (``"0.3"``), the float a TOML file may hand over, or a one-key table.
 
     Attributes:
         count: Minimum number of bumps required; ``0`` disables the distance check while still requiring a
@@ -206,7 +207,7 @@ class GraceWindow:
         return f"{self.count} {self.unit.value} release{'' if self.count == 1 else 's'}"
 
 
-#: Accepted ``min_grace`` value: a dotted delta string (``"0.3"``), a float Fire/TOML may hand over, a one-key
+#: Accepted ``min_grace`` value: a dotted delta string (``"0.3"``), a float a TOML file may hand over, a one-key
 #: table, or an already-strict :class:`GraceWindow`.
 GraceWindowSpec = Union[str, float, Mapping[str, int], GraceWindow]
 
@@ -491,7 +492,7 @@ def _message_required_remedy(api_type: str) -> str:
     return _MESSAGE_REQUIRED_REMEDIES.get(api_type, _MESSAGE_REQUIRED_DEFAULT_REMEDY)
 
 
-def _policy_violations_for_wrapper(info: DeprecationWrapperInfo, spec: _PolicySpec) -> list[str]:
+def _policy_violations_for_wrapper(info: DeprecationWrapperInfo, spec: _PolicySpec) -> list[_Finding]:
     """Collect every policy violation of a single wrapper.
 
     Args:
@@ -499,11 +500,11 @@ def _policy_violations_for_wrapper(info: DeprecationWrapperInfo, spec: _PolicySp
         spec: Parsed policy configuration.
 
     Returns:
-        List of violation messages, each prefixed with its :class:`~deprecate.audit.PolicyRule` slug.
+        One finding per violated rule; each message is prefixed with its :class:`~deprecate.audit.PolicyRule` slug.
 
     """
     config = info.deprecated_info
-    violations = []
+    violations: list[_Finding] = []
 
     # Parse the version fields only when the grace-window rule is switched on. With it disabled the parse is
     # pure cost — and, on an install without ``packaging``, an ImportError raised for a rule the caller never
@@ -515,13 +516,14 @@ def _policy_violations_for_wrapper(info: DeprecationWrapperInfo, spec: _PolicySp
         if deprecated_ver is not None and remove_ver is not None:
             grace_violation = _grace_window_violation(info, deprecated_ver, remove_ver, spec.grace)
             if grace_violation is not None:
-                violations.append(grace_violation)
+                violations.append(_make_finding(info, _Rule.MIN_GRACE, _Check.POLICY, grace_violation))
 
     if spec.message_required and not _has_migration_guidance(info):
-        violations.append(
+        message = (
             f"[{PolicyRule.MESSAGE_REQUIRED.value}] {_format_subject(info)} warns without naming a replacement;"
             f" {_message_required_remedy(info.api_type)} so callers learn what to migrate to."
         )
+        violations.append(_make_finding(info, _Rule.MESSAGE_REQUIRED, _Check.POLICY, message))
 
     return violations
 
@@ -548,10 +550,17 @@ def _check_policy_for_callables(results: list[DeprecationWrapperInfo], spec: _Po
             ``packaging`` library is not installed.
 
     """
-    violations = []
-    for info in results:
-        violations.extend(_policy_violations_for_wrapper(info, spec))
-    return violations
+    return [finding.message for finding in _policy_findings(results, spec)]
+
+
+def _policy_findings(results: list[DeprecationWrapperInfo], spec: _PolicySpec) -> list[_Finding]:
+    """Return one finding per policy rule each wrapper breaks, in wrapper order; the CLI gates on these.
+
+    Raises:
+        ImportError: As :func:`_check_policy_for_callables`.
+
+    """
+    return [finding for info in results for finding in _policy_violations_for_wrapper(info, spec)]
 
 
 def validate_deprecation_policy(

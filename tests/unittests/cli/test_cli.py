@@ -1,21 +1,27 @@
-"""Unit tests for :func:`deprecate._cli.cli`: the Fire-based entry point and its argv dispatch."""
+"""Unit tests for :func:`deprecate._cli.cli`: the argparse entry point and its argv dispatch."""
 
 import inspect
 import json
 import sys
-import types
 from collections.abc import Callable
 from pathlib import Path
-from typing import Optional
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from deprecate._cli import cli
-from deprecate._cli.argv import _internal_option
 from deprecate._cli.commands import cmd_all, cmd_chains, cmd_check, cmd_expiry, cmd_policy, cmd_status
 from deprecate._cli.config import _FROM_PYPROJECT
-from tests.unittests.cli._helpers import _EXPIRED_MSG, _POLICY_VIOLATION
+from tests.unittests.cli._helpers import _EXPIRED_FINDING, _POLICY_VIOLATION
+
+
+def _called_with(function: Callable[..., int], mock: MagicMock) -> dict[str, object]:
+    """Return every argument of the mocked ``cmd_*`` call by name, the omitted ones at their signature default."""
+    args, kwargs = mock.call_args
+    bound = inspect.signature(function).bind(*args, **kwargs)
+    bound.apply_defaults()
+    return dict(bound.arguments)
+
 
 # ---------------------------------------------------------------------------
 # cli() entry point and backward compat
@@ -23,12 +29,12 @@ from tests.unittests.cli._helpers import _EXPIRED_MSG, _POLICY_VIOLATION
 
 
 class TestCliEntryPoint:
-    """Tests for the cli() Fire-based entry point."""
+    """Tests for the cli() entry point."""
 
     def test_no_subcommand_shows_help(self) -> None:
-        """``cli()`` with no arguments prints help and returns (Fire does not exit for dict components)."""
+        """``cli()`` with no arguments prints help and returns without running a subcommand."""
         with patch("sys.argv", ["pydeprecate"]):
-            cli()  # no SystemExit — Fire prints help and returns
+            cli()  # no SystemExit — the help is printed and the call returns
 
     def test_help_exits_zero(self) -> None:
         """``cli()`` with --help exits 0."""
@@ -40,7 +46,7 @@ class TestCliEntryPoint:
         """``cli()`` with check subcommand calls cmd_check and exits with the captured return code."""
         with (
             patch("sys.argv", ["pydeprecate", "check", "some_module"]),
-            patch("deprecate._cli.cmd_check", return_value=0) as mock_check,
+            patch("deprecate._cli.commands.cmd_check", autospec=True, return_value=0) as mock_check,
             pytest.raises(SystemExit) as exc_info,
         ):
             cli()
@@ -51,7 +57,7 @@ class TestCliEntryPoint:
         """``cli()`` with expiry subcommand calls cmd_expiry and exits with the captured return code."""
         with (
             patch("sys.argv", ["pydeprecate", "expiry", "some_module", "--version", "2.0"]),
-            patch("deprecate._cli.cmd_expiry", return_value=0) as mock_expiry,
+            patch("deprecate._cli.commands.cmd_expiry", autospec=True, return_value=0) as mock_expiry,
             pytest.raises(SystemExit) as exc_info,
         ):
             cli()
@@ -62,7 +68,7 @@ class TestCliEntryPoint:
         """``cli()`` with chains subcommand calls cmd_chains and exits with the captured return code."""
         with (
             patch("sys.argv", ["pydeprecate", "chains", "some_module"]),
-            patch("deprecate._cli.cmd_chains", return_value=0) as mock_chains,
+            patch("deprecate._cli.commands.cmd_chains", autospec=True, return_value=0) as mock_chains,
             pytest.raises(SystemExit) as exc_info,
         ):
             cli()
@@ -73,7 +79,7 @@ class TestCliEntryPoint:
         """``cli()`` with all subcommand calls cmd_all and exits with the captured return code."""
         with (
             patch("sys.argv", ["pydeprecate", "all", "some_module"]),
-            patch("deprecate._cli.cmd_all", return_value=0) as mock_all,
+            patch("deprecate._cli.commands.cmd_all", autospec=True, return_value=0) as mock_all,
             pytest.raises(SystemExit) as exc_info,
         ):
             cli()
@@ -84,11 +90,11 @@ class TestCliEntryPoint:
         ("expired", "expected_code"),
         [
             pytest.param([], 0, id="gates-pass"),
-            pytest.param([_EXPIRED_MSG], 1, id="gate-fails"),
+            pytest.param([_EXPIRED_FINDING], 1, id="gate-fails"),
         ],
     )
     @patch("deprecate._cli.commands.generate_deprecation_table", side_effect=RuntimeError("table rendering failed"))
-    @patch("deprecate._cli.commands._check_expiry_for_callables")
+    @patch("deprecate._cli.commands._expiry_findings")
     @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
     def test_all_report_json_survives_table_render_failure(
         self,
@@ -111,7 +117,6 @@ class TestCliEntryPoint:
         report = tmp_path / "report.json"
         with (
             patch("sys.argv", ["pydeprecate", "all", "some_module", "--version=1.0", f"--report-json={report}"]),
-            patch("deprecate._cli.report._Reporter._HAS_RICH", False),
             pytest.raises(SystemExit) as exc_info,
         ):
             cli()
@@ -125,7 +130,7 @@ class TestCliEntryPoint:
         """``cli()`` propagates the non-zero exit code from the subcommand."""
         with (
             patch("sys.argv", ["pydeprecate", "check", "some_module"]),
-            patch("deprecate._cli.cmd_check", return_value=1),
+            patch("deprecate._cli.commands.cmd_check", autospec=True, return_value=1),
             pytest.raises(SystemExit) as exc_info,
         ):
             cli()
@@ -133,11 +138,10 @@ class TestCliEntryPoint:
 
     @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
     def test_unknown_flag_exits_nonzero(self, mock_find: MagicMock, capsys: pytest.CaptureFixture[str]) -> None:
-        """``cli()`` with an unknown flag exits non-zero via Fire's unconsumed-argument check.
+        """``cli()`` with an unknown flag exits 2 before anything is scanned.
 
-        A CI job invoking ``pydeprecate check pkg --bogusflag`` must fail loudly: if the exit code were
-        produced inside the Fire trace, Fire would never reach its "Could not consume arg" check and the
-        typo'd flag would be silently ignored with exit 0, letting the gate pass on unvalidated input.
+        A CI job invoking ``pydeprecate check pkg --bogusflag`` must fail loudly: a typo'd flag that is silently
+        ignored lets the gate pass with exit 0 on unvalidated input.
 
         """
         with (
@@ -146,7 +150,8 @@ class TestCliEntryPoint:
         ):
             cli()
         assert exc_info.value.code == 2
-        assert "Could not consume arg" in capsys.readouterr().err
+        mock_find.assert_not_called()
+        assert "unrecognized arguments: --bogusflag" in capsys.readouterr().err
 
     @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
     def test_misspelled_value_flag_exits_nonzero(self, mock_expiry: MagicMock) -> None:
@@ -173,9 +178,9 @@ class TestCliBoolFlags:
         [
             pytest.param(["check", "--exit-zero", "some_module"], {"exit_zero": True}, id="dash-before-path"),
             pytest.param(["check", "--exit_zero", "some_module"], {"exit_zero": True}, id="underscore-before-path"),
-            pytest.param(["check", "--norecursive", "some_module"], {"recursive": False}, id="negated-before-path"),
+            pytest.param(["check", "--no-recursive", "some_module"], {"recursive": False}, id="negated-before-path"),
             pytest.param(["check", "--recursive", "some_module"], {"recursive": True}, id="plain-before-path"),
-            pytest.param(["check", "--noexit-zero", "some_module"], {"exit_zero": False}, id="negated-dash"),
+            pytest.param(["check", "--no-exit-zero", "some_module"], {"exit_zero": False}, id="negated-dash"),
             pytest.param(["check", "--exit-zero", "False", "some_module"], {"exit_zero": False}, id="explicit-value"),
             pytest.param(["check", "--exit-zero", "false", "some_module"], {"exit_zero": False}, id="lowercase-false"),
             pytest.param(["check", "--exit-zero", "true", "some_module"], {"exit_zero": True}, id="lowercase-true"),
@@ -195,19 +200,18 @@ class TestCliBoolFlags:
         """A bare boolean flag never consumes the path that follows it.
 
         A pre-commit hook builds its command as ``entry + args``, so a config such as ``args: [--exit-zero,
-        src/mypkg]`` puts the flag before the path. Fire treats the token after a bare flag as the flag's value,
-        which used to bind ``exit_zero='src/mypkg'`` and silently scan the current directory instead.
+        src/mypkg]`` puts the flag before the path. A parser that takes the token after a bare flag as the flag's
+        value would bind ``exit_zero='src/mypkg'`` and silently scan the current directory instead (Fire did).
 
         """
         with (
             patch("sys.argv", ["pydeprecate", *argv]),
-            patch("deprecate._cli.cmd_check", autospec=True, return_value=0) as mock_check,
+            patch("deprecate._cli.commands.cmd_check", autospec=True, return_value=0) as mock_check,
             pytest.raises(SystemExit) as exc_info,
         ):
             cli()
         assert exc_info.value.code == 0
-        args, kwargs = mock_check.call_args
-        bound = inspect.signature(cmd_check).bind(*args, **kwargs).arguments
+        bound = _called_with(cmd_check, mock_check)
         assert bound["path"] == "some_module"
         assert {key: bound[key] for key in expected} == expected
 
@@ -230,20 +234,19 @@ class TestCliBoolFlags:
         """
         with (
             patch("sys.argv", ["pydeprecate", "expiry", "some_module", "--exit-zero", literal]),
-            patch("deprecate._cli.cmd_expiry", autospec=True, return_value=0) as mock_expiry,
+            patch("deprecate._cli.commands.cmd_expiry", autospec=True, return_value=0) as mock_expiry,
             pytest.raises(SystemExit) as exc_info,
         ):
             cli()
         assert exc_info.value.code == 0
-        args, kwargs = mock_expiry.call_args
-        bound = inspect.signature(cmd_expiry).bind(*args, **kwargs).arguments
+        bound = _called_with(cmd_expiry, mock_expiry)
         assert (bound["path"], bound["exit_zero"], bound["version"]) == ("some_module", expected, None)
 
     @pytest.mark.parametrize(
         ("argv", "expected"),
         [
             pytest.param(["--message-required", "some_module"], True, id="bare-before-path"),
-            pytest.param(["--nomessage-required", "some_module"], False, id="negated-before-path"),
+            pytest.param(["--no-message-required", "some_module"], False, id="negated-before-path"),
             pytest.param(["--message_required", "false", "some_module"], False, id="explicit-false-before-path"),
             pytest.param(["some_module", "--message-required"], True, id="trailing-flag"),
             pytest.param(["some_module"], _FROM_PYPROJECT, id="omitted-keeps-pyproject-sentinel"),
@@ -254,19 +257,18 @@ class TestCliBoolFlags:
 
         ``message_required`` is typed as a config-backed boolean rather than a plain ``bool``, so the normalizer
         used to skip it: Fire bound the path to the flag (``policy --message-required src/pkg`` exited 2) and
-        ``--nomessage-required`` before the path left both tokens unconsumed. The omitted case must keep the
+        ``--no-message-required`` before the path left both tokens unconsumed. The omitted case must keep the
         sentinel default, otherwise the ``[tool.pydeprecate.policy]`` value could never apply.
 
         """
         with (
             patch("sys.argv", ["pydeprecate", "policy", *argv]),
-            patch("deprecate._cli.cmd_policy", autospec=True, return_value=0) as mock_policy,
+            patch("deprecate._cli.commands.cmd_policy", autospec=True, return_value=0) as mock_policy,
             pytest.raises(SystemExit) as exc_info,
         ):
             cli()
         assert exc_info.value.code == 0
-        args, kwargs = mock_policy.call_args
-        bound = inspect.signature(cmd_policy).bind(*args, **kwargs).arguments
+        bound = _called_with(cmd_policy, mock_policy)
         assert (bound["path"], bound["message_required"]) == ("some_module", expected)
 
     @pytest.mark.parametrize(
@@ -276,12 +278,12 @@ class TestCliBoolFlags:
             pytest.param(
                 "all",
                 cmd_all,
-                ["--norecursive", "--exit-zero", "some_module"],
+                ["--no-recursive", "--exit-zero", "some_module"],
                 {"recursive": False, "exit_zero": True},
                 id="all-two-flags",
             ),
             pytest.param(
-                "chains", cmd_chains, ["--norecursive", "some_module"], {"recursive": False}, id="chains-negated"
+                "chains", cmd_chains, ["--no-recursive", "some_module"], {"recursive": False}, id="chains-negated"
             ),
             pytest.param(
                 "expiry",
@@ -293,7 +295,7 @@ class TestCliBoolFlags:
             pytest.param(
                 "policy",
                 cmd_policy,
-                ["--exit-zero", "--nomessage-required", "some_module"],
+                ["--exit-zero", "--no-message-required", "some_module"],
                 {"exit_zero": True, "message_required": False},
                 id="policy-two-flags",
             ),
@@ -311,78 +313,71 @@ class TestCliBoolFlags:
         """
         with (
             patch("sys.argv", ["pydeprecate", subcommand, *argv]),
-            patch(f"deprecate._cli.cmd_{subcommand}", autospec=True, return_value=0) as mock_command,
+            patch(f"deprecate._cli.commands.cmd_{subcommand}", autospec=True, return_value=0) as mock_command,
             pytest.raises(SystemExit) as exc_info,
         ):
             cli()
         assert exc_info.value.code == 0
-        args, kwargs = mock_command.call_args
-        bound = inspect.signature(command).bind(*args, **kwargs).arguments
+        bound = _called_with(command, mock_command)
         assert {key: bound[key] for key in ("path", *expected)} == {"path": "some_module", **expected}
 
     def test_status_include_members_before_path(self) -> None:
-        """The ``status`` subcommand's ``--noinclude-members`` flag is normalized like the shared flags.
+        """The ``status`` subcommand's ``--no-include-members`` flag is normalized like the shared flags.
 
         Every ``bool`` parameter of the dispatched subcommand is covered, not a fixed list of flag names, so a
         subcommand-specific switch placed before the path does not swallow it either.
 
         """
         with (
-            patch("sys.argv", ["pydeprecate", "status", "--noinclude-members", "some_module"]),
-            patch("deprecate._cli.cmd_status", autospec=True, return_value=0) as mock_status,
+            patch("sys.argv", ["pydeprecate", "status", "--no-include-members", "some_module"]),
+            patch("deprecate._cli.commands.cmd_status", autospec=True, return_value=0) as mock_status,
             pytest.raises(SystemExit),
         ):
             cli()
-        args, kwargs = mock_status.call_args
-        bound = inspect.signature(cmd_status).bind(*args, **kwargs).arguments
+        bound = _called_with(cmd_status, mock_status)
         assert (bound["path"], bound["include_members"]) == ("some_module", False)
 
     @pytest.mark.parametrize(
-        "argv",
+        ("argv", "message"),
         [
-            pytest.param(["check", "-r", "some_module"], id="short-flag-swallows-path"),
-            pytest.param(["check", "some_module", "--exit-zero=yes"], id="non-bool-value"),
+            pytest.param(["check", "-r", "some_module"], "unrecognized arguments: -r", id="short-flag"),
+            pytest.param(["check", "some_module", "--exit-zero=yes"], "expects True or False", id="non-bool-value"),
         ],
     )
-    def test_non_bool_value_exits_two(self, argv: list[str], capsys: pytest.CaptureFixture[str]) -> None:
-        """A non-boolean value reaching a boolean parameter is a usage error, not a silently truthy setting.
+    def test_non_bool_value_exits_two(self, argv: list[str], message: str, capsys: pytest.CaptureFixture[str]) -> None:
+        """A non-boolean value for a boolean flag, or an unknown short flag, is a usage error.
 
-        Short flags (``-r pkg``) are not rewritten by the flag normalizer, and an explicit non-boolean value
-        can still reach a boolean option. Without this guard a stray value could make the run pass while scanning
-        something other than what the user named.
+        Without this a stray value could make the run pass while scanning something other than what the user named;
+        no short flags exist, so ``-r`` is unknown rather than a spelling of ``--recursive``.
 
         """
         with (
             patch("sys.argv", ["pydeprecate", *argv]),
-            patch("deprecate._cli.cmd_check", autospec=True, return_value=0) as mock_check,
+            patch("deprecate._cli.commands.cmd_check", autospec=True, return_value=0) as mock_check,
             pytest.raises(SystemExit) as exc_info,
         ):
             cli()
         assert exc_info.value.code == 2
         mock_check.assert_not_called()
-        err = " ".join(capsys.readouterr().err.split())  # the Rich console wraps long lines at the terminal width
-        assert "expects True or False" in err
-        assert "even if you did not type" in err
-        assert "prefer long flags" in err
-        assert "put it before the flags" not in err
+        assert message in capsys.readouterr().err
 
     @pytest.mark.parametrize("subcommand", ["check", "chains"])
     @pytest.mark.parametrize(
         "flags",
-        [pytest.param((), id="defaults"), pytest.param(("--norecursive", "--noexit-zero"), id="explicit-booleans")],
+        [pytest.param((), id="defaults"), pytest.param(("--no-recursive", "--no-exit-zero"), id="explicit-booleans")],
     )
     def test_extra_path_rejected_before_dispatch(
         self, subcommand: str, flags: tuple[str, ...], capsys: pytest.CaptureFixture[str]
     ) -> None:
         """Explicit boolean flags never let a second path bind to a different option.
 
-        Both flags are already bound, so Fire formerly put pkg_b into exclude and dispatched the command.
+        Both flags are already bound, so Fire used to put pkg_b into exclude and dispatched the command.
         The CLI must reject that invocation without calling the command or scanning pkg_a.
 
         """
         with (
             patch("sys.argv", ["pydeprecate", subcommand, *flags, "pkg_a", "pkg_b"]),
-            patch(f"deprecate._cli.cmd_{subcommand}", autospec=True, return_value=0) as mock_command,
+            patch(f"deprecate._cli.commands.cmd_{subcommand}", autospec=True, return_value=0) as mock_command,
             pytest.raises(SystemExit) as exc_info,
         ):
             cli()
@@ -391,68 +386,23 @@ class TestCliBoolFlags:
         assert "one path per run" in capsys.readouterr().err
 
 
-class TestInternalOptionRejection:
-    """Underscore-prefixed parameters are in-process plumbing and are rejected at the command line."""
+class TestAllPolicyAdvisory:
+    """``all`` runs its policy pass in advisory mode from the command line."""
 
-    @pytest.mark.parametrize(
-        "option",
-        [
-            pytest.param("--_advisory=yes", id="non-bool-value"),
-            pytest.param("--_advisory=True", id="bool-value"),
-            pytest.param("--_advisory", id="bare"),
-        ],
-    )
-    def test_internal_option_exits_two(self, option: str, capsys: pytest.CaptureFixture[str]) -> None:
-        """``policy pkg --_advisory=<anything>`` exits 2 without running the subcommand.
-
-        Fire exposes the keyword-only ``_advisory`` of ``cmd_policy`` as a flag, so a typed value used to reach it
-        unvalidated and silently turned a gating policy run into an advisory one with the same exit semantics.
-
-        """
-        with (
-            patch("sys.argv", ["pydeprecate", "policy", "some_module", option]),
-            patch("deprecate._cli.cmd_policy", autospec=True, return_value=0) as mock_policy,
-            pytest.raises(SystemExit) as exc_info,
-        ):
-            cli()
-        assert exc_info.value.code == 2
-        mock_policy.assert_not_called()
-        assert "--_advisory" in capsys.readouterr().err
-
-    @pytest.mark.parametrize(
-        ("argv", "expected"),
-        [
-            pytest.param(["check", "pkg"], None, id="no-underscore-option"),
-            pytest.param(["check", "pkg", "--_wrappers=x"], "--_wrappers", id="attached-value"),
-            pytest.param(["--_config", "check"], "--_config", id="before-subcommand"),
-            pytest.param(["check", "pkg", "--", "--_advisory"], None, id="after-separator-is-data"),
-            pytest.param(["check", "pkg", "--exit-zero", "_literal"], None, id="underscore-value-is-not-an-option"),
-        ],
-    )
-    def test_internal_option_detection(self, argv: list[str], expected: Optional[str]) -> None:
-        """Only an underscore-prefixed long option before a ``--`` separator counts as an internal option.
-
-        A value that merely starts with an underscore, and everything after ``--``, is user data and must not be
-        refused.
-
-        """
-        assert _internal_option(argv) == expected
-
-    @patch("deprecate._cli.commands.cmd_status", return_value=0)
-    @patch("deprecate._cli.commands._check_expiry_for_callables", return_value=[])
+    @patch("deprecate._cli.commands._status_table", return_value="")
+    @patch("deprecate._cli.commands._expiry_findings", return_value=[])
     @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[_POLICY_VIOLATION])
     def test_all_stays_advisory(
         self, mock_find: MagicMock, mock_expiry: MagicMock, mock_status: MagicMock, capsys: pytest.CaptureFixture[str]
     ) -> None:
         """``all pkg`` still runs its policy pass in advisory mode and exits 0 despite a violation.
 
-        ``cmd_all`` passes ``_advisory=True`` in process, which the command-line rejection must not disturb: the
-        violation prints as a warning with the advisory trailer and does not gate the run.
+        The advisory switch is no command-line option, only ``all`` turns it on: the violation prints as a warning
+        with the advisory trailer and does not gate the run.
 
         """
         with (
             patch("sys.argv", ["pydeprecate", "all", "some_module", "--version=2.0"]),
-            patch("deprecate._cli.report._Reporter._HAS_RICH", False),
             pytest.raises(SystemExit) as exc_info,
         ):
             cli()
@@ -465,22 +415,69 @@ class TestInternalOptionRejection:
 class TestCliEmptyExceptionMessage:
     """An exception with an empty message must still produce a non-blank stderr exit line."""
 
-    def test_empty_message_exception_exits_with_type_prefix(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """A subcommand raising a message-less exception exits with the exception type name, not a blank line.
+    def test_empty_message_exception_exits_with_type_prefix(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A subcommand raising a message-less exception exits 3 and names the exception type, not a blank line.
 
-        ``sys.exit(str(exc))`` on such an exception exited 1 with nothing printed, giving CI no clue what failed;
-        prefixing the exception type guarantees a meaningful stderr line.
+        ``sys.exit(str(exc))`` on such an exception exited 1 with nothing printed, giving CI no clue what failed and
+        no way to tell the crash from a finding; exit 3 and the type prefix give both.
         """
 
         class _SilentError(Exception):
             pass
 
-        def _raise(*_args: object, **_kwargs: object) -> None:
-            raise _SilentError
-
-        fake_fire = types.SimpleNamespace(Fire=_raise)
-        monkeypatch.setitem(sys.modules, "fire", fake_fire)
         monkeypatch.setattr(sys, "argv", ["pydeprecate", "check", "."])
-        with pytest.raises(SystemExit) as exc_info:
+        with (
+            patch("deprecate._cli.commands.cmd_check", autospec=True, side_effect=_SilentError),
+            pytest.raises(SystemExit) as exc_info,
+        ):
             cli()
-        assert "_SilentError" in str(exc_info.value.code)
+        assert exc_info.value.code == 3
+        assert "pydeprecate: internal error: _SilentError: " in capsys.readouterr().err
+
+
+class TestCliCrashExitCode:
+    """A run that crashes exits 3, never 1, so CI can tell a broken audit from findings."""
+
+    @pytest.mark.parametrize(
+        "exit_zero", [pytest.param((), id="gating"), pytest.param(("--exit-zero",), id="advisory")]
+    )
+    def test_internal_error_exits_three(
+        self, tmp_path: Path, exit_zero: tuple[str, ...], capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """An exception escaping a subcommand exits 3 with the type, message and where to report it; no report file.
+
+        Exit 1 used to mean both "findings" and "the scan crashed", so an advisory step could not tell them apart, and
+        ``--exit-zero`` never masks a crash. A report from a crashed run would publish stale results, so none exists.
+
+        """
+        report = tmp_path / "report.json"
+        with (
+            patch("sys.argv", ["pydeprecate", "check", "some_module", *exit_zero, f"--report-json={report}"]),
+            patch("deprecate._cli.commands.cmd_check", autospec=True, side_effect=RuntimeError("x")),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            cli()
+        err = capsys.readouterr().err
+        assert exc_info.value.code == 3
+        assert "pydeprecate: internal error: RuntimeError: x" in err
+        assert "please report this at https://github.com/Borda/pyDeprecate/issues" in err
+        assert not report.exists()
+
+    @patch("deprecate._cli.scan.find_deprecation_wrappers", side_effect=ImportError("broken dependency"))
+    def test_package_import_failure_is_a_scan_error(
+        self, mock_find: MagicMock, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A scanned package that fails to import exits 3 as a scan error, not as an internal error.
+
+        Nothing was audited, which is no finding (exit 1) and no bug of the CLI either, so the message points at the
+        package rather than asking for a bug report.
+
+        """
+        with patch("sys.argv", ["pydeprecate", "check", "some_module"]), pytest.raises(SystemExit) as exc_info:
+            cli()
+        err = capsys.readouterr().err
+        assert exc_info.value.code == 3
+        assert "pydeprecate: scan error: could not import 'some_module': ImportError: broken dependency" in err
+        assert "please report" not in err
