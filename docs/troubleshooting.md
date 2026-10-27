@@ -2000,7 +2000,7 @@ Found 28 expired
 
 </details>
 
-Prefer fixing the newly surfaced entries over passing `include_members=False` — the narrower scope hides genuinely expired member deprecations. Every audit function takes the same `include_members` switch, and every CLI subcommand takes `--noinclude-members` (for example `pydeprecate expiry src/mypackage --noinclude-members`).
+Prefer fixing the newly surfaced entries over passing `include_members=False` — the narrower scope hides genuinely expired member deprecations. Every audit function takes the same `include_members` switch, and every CLI subcommand takes `--no-include-members` (for example `pydeprecate expiry src/mypackage --no-include-members`).
 
 ______________________________________________________________________
 

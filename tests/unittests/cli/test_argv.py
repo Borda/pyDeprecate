@@ -33,8 +33,8 @@ class TestNormalizeOptions:
             pytest.param([], [], id="empty-argv"),
             pytest.param(["pkg"], ["pkg"], id="path-only"),
             pytest.param(
-                ["--exit-zero", "--norecursive", "pkg"],
-                ["--exit-zero=true", "--norecursive", "pkg"],
+                ["--exit-zero", "--no-recursive", "pkg"],
+                ["--exit-zero=true", "--no-recursive", "pkg"],
                 id="two-flags-before-path",
             ),
             pytest.param(
@@ -220,7 +220,7 @@ class TestParseCliArgs:
             pytest.param(["check", "pkg"], cmd_check, {"path": "pkg"}, id="path-only"),
             pytest.param(["pkg", "--exit-zero"], cmd_check, {"path": "pkg", "exit_zero": True}, id="implicit-check"),
             pytest.param(
-                ["expiry", "pkg", "--norecursive", "0.10"],
+                ["expiry", "pkg", "--no-recursive", "0.10"],
                 cmd_expiry,
                 {"path": "pkg", "version": "0.10", "recursive": False},
                 id="flag-between-positionals",

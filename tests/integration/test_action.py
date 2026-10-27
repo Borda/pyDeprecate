@@ -296,9 +296,9 @@ class TestActionInputs:
             pytest.param("args", "--exclude=--help,-h", "args", ("--exclude=--help,-h",), id="args-reserved-in-value"),
             pytest.param(
                 "args",
-                "--norecursive\n--version 2.0",
+                "--no-recursive\n--version 2.0",
                 "args",
-                ("--norecursive", "--version", "2.0"),
+                ("--no-recursive", "--version", "2.0"),
                 id="args-multiline",
             ),
             pytest.param("exit-zero", "TRUE", "exit_zero", True, id="exit-zero-upper-true"),

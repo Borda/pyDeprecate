@@ -178,9 +178,9 @@ class TestCliBoolFlags:
         [
             pytest.param(["check", "--exit-zero", "some_module"], {"exit_zero": True}, id="dash-before-path"),
             pytest.param(["check", "--exit_zero", "some_module"], {"exit_zero": True}, id="underscore-before-path"),
-            pytest.param(["check", "--norecursive", "some_module"], {"recursive": False}, id="negated-before-path"),
+            pytest.param(["check", "--no-recursive", "some_module"], {"recursive": False}, id="negated-before-path"),
             pytest.param(["check", "--recursive", "some_module"], {"recursive": True}, id="plain-before-path"),
-            pytest.param(["check", "--noexit-zero", "some_module"], {"exit_zero": False}, id="negated-dash"),
+            pytest.param(["check", "--no-exit-zero", "some_module"], {"exit_zero": False}, id="negated-dash"),
             pytest.param(["check", "--exit-zero", "False", "some_module"], {"exit_zero": False}, id="explicit-value"),
             pytest.param(["check", "--exit-zero", "false", "some_module"], {"exit_zero": False}, id="lowercase-false"),
             pytest.param(["check", "--exit-zero", "true", "some_module"], {"exit_zero": True}, id="lowercase-true"),
@@ -246,7 +246,7 @@ class TestCliBoolFlags:
         ("argv", "expected"),
         [
             pytest.param(["--message-required", "some_module"], True, id="bare-before-path"),
-            pytest.param(["--nomessage-required", "some_module"], False, id="negated-before-path"),
+            pytest.param(["--no-message-required", "some_module"], False, id="negated-before-path"),
             pytest.param(["--message_required", "false", "some_module"], False, id="explicit-false-before-path"),
             pytest.param(["some_module", "--message-required"], True, id="trailing-flag"),
             pytest.param(["some_module"], _FROM_PYPROJECT, id="omitted-keeps-pyproject-sentinel"),
@@ -257,7 +257,7 @@ class TestCliBoolFlags:
 
         ``message_required`` is typed as a config-backed boolean rather than a plain ``bool``, so the normalizer
         used to skip it: Fire bound the path to the flag (``policy --message-required src/pkg`` exited 2) and
-        ``--nomessage-required`` before the path left both tokens unconsumed. The omitted case must keep the
+        ``--no-message-required`` before the path left both tokens unconsumed. The omitted case must keep the
         sentinel default, otherwise the ``[tool.pydeprecate.policy]`` value could never apply.
 
         """
@@ -278,12 +278,12 @@ class TestCliBoolFlags:
             pytest.param(
                 "all",
                 cmd_all,
-                ["--norecursive", "--exit-zero", "some_module"],
+                ["--no-recursive", "--exit-zero", "some_module"],
                 {"recursive": False, "exit_zero": True},
                 id="all-two-flags",
             ),
             pytest.param(
-                "chains", cmd_chains, ["--norecursive", "some_module"], {"recursive": False}, id="chains-negated"
+                "chains", cmd_chains, ["--no-recursive", "some_module"], {"recursive": False}, id="chains-negated"
             ),
             pytest.param(
                 "expiry",
@@ -295,7 +295,7 @@ class TestCliBoolFlags:
             pytest.param(
                 "policy",
                 cmd_policy,
-                ["--exit-zero", "--nomessage-required", "some_module"],
+                ["--exit-zero", "--no-message-required", "some_module"],
                 {"exit_zero": True, "message_required": False},
                 id="policy-two-flags",
             ),
@@ -322,14 +322,14 @@ class TestCliBoolFlags:
         assert {key: bound[key] for key in ("path", *expected)} == {"path": "some_module", **expected}
 
     def test_status_include_members_before_path(self) -> None:
-        """The ``status`` subcommand's ``--noinclude-members`` flag is normalized like the shared flags.
+        """The ``status`` subcommand's ``--no-include-members`` flag is normalized like the shared flags.
 
         Every ``bool`` parameter of the dispatched subcommand is covered, not a fixed list of flag names, so a
         subcommand-specific switch placed before the path does not swallow it either.
 
         """
         with (
-            patch("sys.argv", ["pydeprecate", "status", "--noinclude-members", "some_module"]),
+            patch("sys.argv", ["pydeprecate", "status", "--no-include-members", "some_module"]),
             patch("deprecate._cli.commands.cmd_status", autospec=True, return_value=0) as mock_status,
             pytest.raises(SystemExit),
         ):
@@ -364,7 +364,7 @@ class TestCliBoolFlags:
     @pytest.mark.parametrize("subcommand", ["check", "chains"])
     @pytest.mark.parametrize(
         "flags",
-        [pytest.param((), id="defaults"), pytest.param(("--norecursive", "--noexit-zero"), id="explicit-booleans")],
+        [pytest.param((), id="defaults"), pytest.param(("--no-recursive", "--no-exit-zero"), id="explicit-booleans")],
     )
     def test_extra_path_rejected_before_dispatch(
         self, subcommand: str, flags: tuple[str, ...], capsys: pytest.CaptureFixture[str]

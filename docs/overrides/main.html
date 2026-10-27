@@ -436,7 +436,7 @@
           "name": "Why does my expiry gate report more expired wrappers after upgrading pyDeprecate?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "validate_deprecation_expiry now includes deprecated class members by default (include_members=True), matching find_deprecation_wrappers and generate_deprecation_table. Expired member wrappers such as deprecated __init__ methods are now counted, so totals can rise after upgrading even though your code is unchanged. Pass include_members=False (CLI: --noinclude-members, accepted by every subcommand) to restore the previous module-level-only scope, but prefer fixing the newly surfaced entries — they are real expired deprecations that were previously invisible to the gate."
+            "text": "validate_deprecation_expiry now includes deprecated class members by default (include_members=True), matching find_deprecation_wrappers and generate_deprecation_table. Expired member wrappers such as deprecated __init__ methods are now counted, so totals can rise after upgrading even though your code is unchanged. Pass include_members=False (CLI: --no-include-members, accepted by every subcommand) to restore the previous module-level-only scope, but prefer fixing the newly surfaced entries — they are real expired deprecations that were previously invisible to the gate."
           }
         },
         {

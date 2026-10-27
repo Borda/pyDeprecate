@@ -673,10 +673,25 @@ class TestCliSubcommands:
         assert "version" in (result.stdout + result.stderr).lower()
 
     def test_check_no_recursive_flag(self, tmp_path: Path) -> None:
-        """'pydeprecate check <path> --norecursive' is accepted and exits 0."""
+        """'pydeprecate check <path> --no-recursive' is accepted and exits 0."""
         pkg = _make_pkg(tmp_path)
-        result = _run_cli("check", str(pkg), "--norecursive", cwd=tmp_path)
+        result = _run_cli("check", str(pkg), "--no-recursive", cwd=tmp_path)
         assert result.returncode == 0
+
+    def test_legacy_negation_spelling_is_accepted_but_unlisted(self, tmp_path: Path) -> None:
+        """The older ``--norecursive`` spelling still negates the flag, while ``--help`` lists only ``--no-recursive``.
+
+        Command lines written for 0.14 and earlier use the ``--no<flag>`` form; they must keep working after the
+        documented spelling became ``--no-<flag>``, without the help showing two names for one switch.
+
+        """
+        pkg = _make_pkg(tmp_path)
+        (pkg / "sub.py").write_text(_MYPKG_INIT_INVALID)
+        scan = _run_cli("check", "--norecursive", str(pkg), cwd=tmp_path)
+        help_text = _run_cli("check", "--help").stdout
+        assert scan.returncode == 0, scan.stdout + scan.stderr
+        assert "--no-recursive" in help_text
+        assert "--norecursive" not in help_text
 
     def test_check_exit_zero_dash_form(self, tmp_path: Path) -> None:
         """'--exit-zero' (dash form) forces exit 0 even when invalid args are found."""
@@ -715,19 +730,19 @@ class TestCliPreCommitArgs:
     @pytest.mark.parametrize(
         ("flags", "exit_code", "submodule_reported"),
         [
-            pytest.param(("--norecursive",), 0, False, id="norecursive-skips-submodule"),
+            pytest.param(("--no-recursive",), 0, False, id="norecursive-skips-submodule"),
             pytest.param((), 1, True, id="default-scans-submodule"),
         ],
     )
     def test_norecursive_before_path_scans_path(
         self, tmp_path: Path, flags: tuple[str, ...], exit_code: int, submodule_reported: bool
     ) -> None:
-        """``check --norecursive <pkg>`` scans ``<pkg>`` top-level only instead of exiting 2.
+        """``check --no-recursive <pkg>`` scans ``<pkg>`` top-level only instead of exiting 2.
 
         Fire reads the token after a bare negated flag as its value and then cannot consume it; the CLI rewrites
         the flag so the order of flags and path does not matter. The package root is valid while its submodule
         holds an invalid wrapper, so the flag is observable: the submodule finding is absent under
-        ``--norecursive`` and present (exit 1) on the default recursive scan.
+        ``--no-recursive`` and present (exit 1) on the default recursive scan.
 
         """
         pkg = _make_pkg(tmp_path)
@@ -772,7 +787,7 @@ class TestCliPreCommitArgs:
         """
         pkg_a = _make_pkg(tmp_path, name="pkg_a")
         pkg_b = _make_pkg(tmp_path, name="pkg_b", content=_MYPKG_INIT_INVALID)
-        result = _run_cli(subcommand, "--norecursive", "--noexit-zero", str(pkg_a), str(pkg_b), cwd=tmp_path)
+        result = _run_cli(subcommand, "--no-recursive", "--no-exit-zero", str(pkg_a), str(pkg_b), cwd=tmp_path)
         assert result.returncode == 2, result
         assert "Scanning:" not in result.stdout
         assert "nonexistent" not in result.stdout
@@ -812,9 +827,9 @@ class TestCliParserParity:
     @pytest.mark.parametrize(
         "layout",
         [
-            pytest.param(("--norecursive", "{pkg}"), id="flag-before-path"),
-            pytest.param(("{pkg}", "--norecursive"), id="flag-after-path"),
-            pytest.param(("--no-recursive", "{pkg}"), id="dashed-negation"),
+            pytest.param(("--no-recursive", "{pkg}"), id="flag-before-path"),
+            pytest.param(("{pkg}", "--no-recursive"), id="flag-after-path"),
+            pytest.param(("--norecursive", "{pkg}"), id="legacy-negation"),
             pytest.param(("--recursive=false", "{pkg}"), id="attached-literal"),
             pytest.param(("--recursive", "0", "{pkg}"), id="separate-literal"),
         ],
@@ -825,7 +840,7 @@ class TestCliParserParity:
         """A boolean flag before or after the path, in any accepted spelling, scans that path with the usual outcome.
 
         Pre-commit hooks build ``entry + args`` and so put flags before the path, while users type them after it. Both
-        orders and every boolean spelling (``--norecursive``, the conventional ``--no-recursive``, an attached or a
+        orders and every boolean spelling (``--no-recursive``, the older ``--norecursive``, an attached or a
         separate ``true``/``false``/``1``/``0`` literal) must scan the named package and give the subcommand's normal
         exit code, never scan the current directory or swallow the path as the flag's value.
 
@@ -846,14 +861,14 @@ class TestCliParserParity:
         ],
     )
     def test_flag_between_positionals_keeps_version(self, tmp_path: Path, subcommand: str, exit_code: int) -> None:
-        """``<sub> <pkg> --norecursive 9.0`` binds the second positional to the version, the flag in between.
+        """``<sub> <pkg> --no-recursive 9.0`` binds the second positional to the version, the flag in between.
 
         Python 3.9's argparse loses a positional that follows an optional between two optional positionals unless the
         arguments are parsed intermixed; the version must still be the user-provided ``9.0`` on every interpreter.
 
         """
         pkg = _make_pkg(tmp_path)
-        result = _run_cli(subcommand, str(pkg), "--norecursive", "9.0", env=_cli_env(COLUMNS="1000"), cwd=tmp_path)
+        result = _run_cli(subcommand, str(pkg), "--no-recursive", "9.0", env=_cli_env(COLUMNS="1000"), cwd=tmp_path)
         assert result.returncode == exit_code, result.stdout + result.stderr
         assert "Version: 9.0 (user-provided)" in result.stdout
 
@@ -1260,7 +1275,7 @@ class TestCliScanTarget:
 
 @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
 class TestCliIncludeMembers:
-    """Every scanning subcommand takes ``--noinclude-members`` and scans class members by default."""
+    """Every scanning subcommand takes ``--no-include-members`` and scans class members by default."""
 
     @pytest.mark.parametrize(("subcommand", "extra", "returncode"), _MEMBER_GATES)
     def test_members_scanned_by_default(
@@ -1281,7 +1296,7 @@ class TestCliIncludeMembers:
     def test_noinclude_members_leaves_members_out(
         self, tmp_path: Path, subcommand: str, extra: tuple[str, ...], returncode: int
     ) -> None:
-        """``--noinclude-members`` scopes every subcommand to module-level wrappers.
+        """``--no-include-members`` scopes every subcommand to module-level wrappers.
 
         The flag used to exist on ``status`` only, so a project could render a module-level table while ``expiry``
         and ``all`` on the same path still failed on member deprecations. With the flag, no gate sees the members:
@@ -1290,7 +1305,7 @@ class TestCliIncludeMembers:
         """
         pkg = _make_pkg(tmp_path, name="memberpkg", content=_MEMBERS_ONLY_SRC)
         result = _run_cli(
-            subcommand, str(pkg), *extra, "--noinclude-members", env=_cli_env(COLUMNS="1000"), cwd=tmp_path
+            subcommand, str(pkg), *extra, "--no-include-members", env=_cli_env(COLUMNS="1000"), cwd=tmp_path
         )
         assert result.returncode == 0, result.stdout + result.stderr
         assert "Legacy." not in result.stdout
@@ -1303,7 +1318,7 @@ class TestCliPolicyMessageRequiredFlag:
         ("flag", "header"),
         [
             pytest.param("--message-required", "message-required=True (flag)", id="bare"),
-            pytest.param("--nomessage-required", "message-required=False (flag)", id="negated"),
+            pytest.param("--no-message-required", "message-required=False (flag)", id="negated"),
         ],
     )
     def test_flag_before_path_scans_path(self, tmp_path: Path, flag: str, header: str) -> None:

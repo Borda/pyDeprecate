@@ -194,11 +194,14 @@ def _add_subcommand(subparsers: Any, name: str) -> argparse.ArgumentParser:  # n
             )
             parser.add_argument(
                 f"--no-{flag}",
-                f"--no{flag}",
                 dest=param_name,
                 action="store_false",
                 default=argparse.SUPPRESS,
                 help=f"Same as `--{flag}=false`.",
+            )
+            # the older `--no<flag>` spelling (Fire's) keeps working for existing command lines, unlisted in --help
+            parser.add_argument(
+                f"--no{flag}", dest=param_name, action="store_false", default=argparse.SUPPRESS, help=argparse.SUPPRESS
             )
             continue
         parser.add_argument(
