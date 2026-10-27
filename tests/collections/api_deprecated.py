@@ -659,10 +659,9 @@ def make_depr_compute_power_stacked() -> Callable:
     Examples:
         Calling with the old arg name raises two warnings.
 
-        >>> import warnings
+        >>> from tests._helpers import captured_warnings
         >>> fn = make_depr_compute_power_stacked()
-        >>> with warnings.catch_warnings(record=True) as w:
-        ...     warnings.simplefilter("always")
+        >>> with captured_warnings() as w:
         ...     result = fn(2.0, factor=3.0)
         >>> result
         8.0
@@ -687,10 +686,9 @@ def make_depr_notify_callable_stacked() -> Callable:
     Examples:
         Calling the stacked wrapper emits two FutureWarnings and returns the computed value.
 
-        >>> import warnings
+        >>> from tests._helpers import captured_warnings
         >>> fn = make_depr_notify_callable_stacked()
-        >>> with warnings.catch_warnings(record=True) as w:
-        ...     warnings.simplefilter("always")
+        >>> with captured_warnings() as w:
         ...     result = fn(2.0, scale=3.0)
         >>> result
         8.0
@@ -712,10 +710,9 @@ def make_depr_args_remap_notify_with_extra() -> Callable:
     Examples:
         Calling with the deprecated arg name fires two warnings and returns the injected-base result.
 
-        >>> import warnings
+        >>> from tests._helpers import captured_warnings
         >>> fn = make_depr_args_remap_notify_with_extra()
-        >>> with warnings.catch_warnings(record=True) as w:
-        ...     warnings.simplefilter("always")
+        >>> with captured_warnings() as w:
         ...     result = fn(factor=3.0)
         >>> result
         8.0
@@ -740,12 +737,15 @@ def make_async_stacked_notify() -> Callable:
     exercising the stacked-source code path in the async branch of ``packing()``.
 
     Examples:
-        Calling this factory and awaiting the result emits two FutureWarnings.
+        Building the stack flags the duplicate NOTIFY layers; awaiting the result emits two FutureWarnings.
 
-        >>> import asyncio, warnings
-        >>> fn = make_async_stacked_notify()
-        >>> with warnings.catch_warnings(record=True) as w:
-        ...     warnings.simplefilter("always")
+        >>> import asyncio
+        >>> from tests._helpers import captured_warnings
+        >>> with captured_warnings() as build:
+        ...     fn = make_async_stacked_notify()
+        >>> "duplicate @deprecated(NOTIFY) layers" in str(build[0].message)
+        True
+        >>> with captured_warnings() as w:
         ...     _ = asyncio.run(fn(x=1))
         >>> len(w)
         2

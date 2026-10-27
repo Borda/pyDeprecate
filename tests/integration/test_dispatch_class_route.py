@@ -27,6 +27,7 @@ import deprecate.deprecation as _deprecation
 from deprecate import TargetMode, assert_no_warnings, deprecated, deprecated_callable, deprecated_class
 from deprecate._types import DeprecationConfig, _DeprecatedCallable
 from deprecate.proxy import _DeprecatedProxy
+from tests._helpers import captured_warnings
 from tests.collections.api_current import (
     Palette,
     partial_of_double,
@@ -134,8 +135,7 @@ class TestClassDispatchInformationalWarning:
         locked spec's "do not spam per decoration in a loop" requirement.
 
         """
-        with warnings.catch_warnings(record=True):
-            warnings.simplefilter("always")
+        with captured_warnings():
             make_deprecated_on_fresh_class()  # first application — consumes the one-time warning
 
         with assert_no_warnings(UserWarning):
@@ -162,11 +162,9 @@ class TestClassDispatchInformationalWarning:
             finally:
                 sys.settrace(previous_trace)
 
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-            with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
-                futures = [executor.submit(decorate) for _ in range(8)]
-                results = [future.result(timeout=10) for future in futures]
+        with captured_warnings() as caught, concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+            futures = [executor.submit(decorate) for _ in range(8)]
+            results = [future.result(timeout=10) for future in futures]
 
         assert len(results) == 8
         assert all(isinstance(result, _DeprecatedProxy) for result in results)
@@ -260,8 +258,7 @@ class TestClassDispatchInformationalWarning:
             warnings.simplefilter("ignore", UserWarning)
             cls = make_deprecated_on_fresh_class()
 
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             cls()
 
         future_warns = [w for w in caught if issubclass(w.category, FutureWarning)]
@@ -278,8 +275,7 @@ class TestClassDispatchInformationalWarning:
         stacklevel offset the reported location would point into `deprecation.py`/`proxy.py` instead of here.
 
         """
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             make_deprecated_notify_args_extra_alone_on_class()
 
         misconfig_warns = [w for w in caught if issubclass(w.category, UserWarning) and "args_extra" in str(w.message)]
@@ -325,8 +321,7 @@ class TestAutoTargetOnFrontDoor:
         default ``NOTIFY`` flagged the mapping as ignored.
 
         """
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             fn = make_deprecated_auto_args_mapping_on_function()
 
         assert not [w for w in caught if "ignores `args_mapping`" in str(w.message)]
@@ -336,8 +331,7 @@ class TestAutoTargetOnFrontDoor:
 
     def test_explicit_auto_equals_omitted_target(self) -> None:
         """Passing ``target=TargetMode.AUTO`` explicitly behaves exactly like omitting ``target``."""
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             fn = make_deprecated_explicit_auto_on_function()
 
         assert not [w for w in caught if issubclass(w.category, UserWarning)]
@@ -441,8 +435,7 @@ class TestCommonArgsOnlyOnDispatcher:
                 deprecated_in="1.0", remove_in="2.0", template_mgs="Alias notice for `%(source_name)s`."
             )(Palette)
 
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             proxy()
 
         future_warns = [w for w in caught if issubclass(w.category, FutureWarning)]
@@ -596,8 +589,7 @@ class TestDispatcherStacking:
         fn = make_deprecated_stacked_over_wrapped_callable()
         cast(_DeprecatedCallable, fn)._state.warned_calls = 0
 
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             result = fn(5)
 
         dep_warns = [w for w in caught if w.category in (FutureWarning, DeprecationWarning)]
@@ -612,23 +604,21 @@ class TestDispatcherStacking:
         second time. ``__name__`` resolves via the proxy's attribute forwarding, so decoration must succeed.
 
         """
-        wrapped = make_deprecated_over_class_proxy()
+        with pytest.warns(UserWarning, match="unsupported @deprecated stacking combination"):
+            wrapped = make_deprecated_over_class_proxy()
 
         assert hasattr(wrapped, "__deprecation_config__")
         dep = cast(_DeprecatedCallable, wrapped).__deprecation_config__
         assert isinstance(dep, DeprecationConfig)
         assert dep.target is TargetMode.NOTIFY
 
+    @pytest.mark.filterwarnings("ignore:'_DispatchOverProxyInner' has an unsupported @deprecated stacking:UserWarning")
     def test_over_class_proxy_call_still_warns(self) -> None:
         """Calling the doubly-wrapped proxy still emits at least one deprecation warning."""
         wrapped = make_deprecated_over_class_proxy()
 
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with pytest.warns((FutureWarning, DeprecationWarning), match="deprecated"):
             wrapped()  # type: ignore[operator]
-
-        dep_warns = [w for w in caught if w.category in (FutureWarning, DeprecationWarning)]
-        assert dep_warns
 
 
 class TestTemplateMgsAliasOnClassDispatchEntryPoint:
@@ -641,7 +631,10 @@ class TestTemplateMgsAliasOnClassDispatchEntryPoint:
 
     def test_alias_alone_warns_and_resolves(self) -> None:
         """Supplying only ``template_mgs`` warns ``FutureWarning`` and is adopted as ``message_template``."""
-        with pytest.warns(FutureWarning, match="`template_mgs` is deprecated"):
+        with (
+            pytest.warns(FutureWarning, match="`template_mgs` is deprecated"),
+            pytest.warns(UserWarning, match="now dispatches to `@deprecated_class`"),
+        ):
             proxy = deprecated(
                 deprecated_in="1.0", remove_in="2.0", template_mgs="Alias notice for `%(source_name)s`."
             )(Palette)

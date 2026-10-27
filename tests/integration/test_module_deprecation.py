@@ -35,6 +35,7 @@ from deprecate._types import DeprecationConfig
 from deprecate.audit._lifecycle import _check_deprecated_wrapper_expiry
 from deprecate.audit._wrappers import _format_report_symbol
 from deprecate.module import _STREAM_DEFAULT, _redirect_guard, _RedirectResolution, deprecated_module
+from tests._helpers import captured_warnings
 from tests.collections.api_current import (
     ContextCapturingLookup,
     FlakyTypeErrorStream,
@@ -75,8 +76,7 @@ class TestMode1InPlaceWarn:
         ``nonexistent_attr`` is never defined in ``old_math``, so the warning fires and
         the hook then raises ``AttributeError`` (caught by ``getattr``'s default).
         """
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with captured_warnings() as w:
             _ = getattr(old_math, "nonexistent_attr", None)
         assert len(w) == 1
         assert issubclass(w[0].category, FutureWarning)
@@ -88,8 +88,7 @@ class TestMode1InPlaceWarn:
         The message must include the deprecation version, the removal version, and any
         caller-supplied custom text.
         """
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with captured_warnings() as w:
             _ = getattr(old_math, "nonexistent_attr", None)
         msg = str(w[0].message).lower()
         assert "deprecated" in msg
@@ -105,8 +104,7 @@ class TestMode1InPlaceWarn:
         ``_DeprecatedModuleWrapper.__getattribute__`` intercepts all public attribute lookups,
         not just missing ones, so callers always receive the deprecation notice.
         """
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with captured_warnings() as w:
             result = old_math.square(4)
         assert result == 16
         assert len(w) == 1
@@ -126,8 +124,7 @@ class TestMode1InPlaceWarn:
         legacy_config = vars(mod).pop("__deprecation_config__")
         vars(mod)["__deprecated__"] = legacy_config
 
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             result = mod.answer  # type: ignore[attr-defined]
 
         assert result == 42
@@ -142,10 +139,8 @@ class TestMode1InPlaceWarn:
         plain module.  Callers using ``getattr(mod, name, default)`` receive the default.
         The ``FutureWarning`` must still be emitted even when the lookup ultimately fails.
         """
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            with pytest.raises(AttributeError):
-                _ = old_math.truly_missing_attr  # type: ignore[attr-defined]
+        with captured_warnings() as w, pytest.raises(AttributeError):
+            _ = old_math.truly_missing_attr  # type: ignore[attr-defined]
         assert len(w) == 1
         assert issubclass(w[0].category, FutureWarning)
 
@@ -158,8 +153,7 @@ class TestMode1InPlaceWarn:
         machinery, which the wrapper's ``__getattribute__`` override does not intercept, so no
         ``FutureWarning`` fires and ``square`` is still listed.
         """
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with captured_warnings() as w:
             names = dir(old_math)
         assert "square" in names
         assert len(w) == 0
@@ -171,8 +165,7 @@ class TestMode1InPlaceWarn:
         lookup on public names, so the deprecation wrapper's ``__getattribute__`` override
         never fires and no ``FutureWarning`` is emitted.
         """
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with captured_warnings() as w:
             text = repr(old_math)
         assert "old_math" in text
         assert len(w) == 0
@@ -184,8 +177,7 @@ class TestMode1InPlaceWarn:
         ``vars()``/``__dict__`` access specifically so that metadata introspection does not
         trigger the deprecation warning machinery.  ``vars()`` must therefore stay silent.
         """
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with captured_warnings() as w:
             mapping = vars(old_math)
         assert "square" in mapping
         assert len(w) == 0
@@ -198,8 +190,7 @@ class TestMode1InPlaceWarn:
         unconditionally for every public name *before* checking whether the name resolves,
         so a successful probe still warns exactly once.
         """
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with captured_warnings() as w:
             result = hasattr(old_math, "square")
         assert result is True
         assert len(w) == 1
@@ -213,8 +204,7 @@ class TestMode1InPlaceWarn:
         name, a *failed* ``hasattr()`` probe still triggers the warning even though it ultimately
         returns ``False``.  This is expected behavior for the module-wrapper design, not a bug.
         """
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with captured_warnings() as w:
             result = hasattr(old_math, "definitely_not_a_real_attr")
         assert result is False
         assert len(w) == 1
@@ -238,11 +228,8 @@ class TestStarImport:
         ``IMPORT_STAR`` bytecode path.
         """
         namespace: dict[str, object] = {}
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with pytest.warns(FutureWarning):
             exec("from tests.collections.modules.old_math import *", namespace)  # noqa: S102 -- star-import under test, not arbitrary code execution
-        future_warns = [x for x in w if issubclass(x.category, FutureWarning)]
-        assert len(future_warns) >= 1
         square_fn: Any = namespace["square"]
         assert square_fn(4) == 16
 
@@ -256,8 +243,7 @@ class TestMode2Redirect:
         The deprecated module emits a ``FutureWarning`` and then transparently delegates the
         attribute lookup to ``new_utils``, so ``old_utils.add(2, 3)`` must return ``5``.
         """
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with captured_warnings() as w:
             result = old_utils.add(2, 3)  # type: ignore[attr-defined]
         assert result == 5
         assert len(w) == 1
@@ -269,8 +255,7 @@ class TestMode2Redirect:
         Every attribute access on the deprecated redirect module emits a warning, regardless
         of which attribute is requested.  The forwarded call must produce the correct result.
         """
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with captured_warnings() as w:
             result = old_utils.multiply(3, 4)  # type: ignore[attr-defined]
         assert result == 12
         assert len(w) == 1
@@ -283,10 +268,8 @@ class TestMode2Redirect:
         ``AttributeError`` after emitting the warning.  The ``FutureWarning`` must be issued
         before the ``AttributeError`` propagates.
         """
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            with pytest.raises(AttributeError):
-                _ = old_utils.not_on_new_utils  # type: ignore[attr-defined]
+        with captured_warnings() as w, pytest.raises(AttributeError):
+            _ = old_utils.not_on_new_utils  # type: ignore[attr-defined]
         assert len(w) == 1
         assert issubclass(w[0].category, FutureWarning)
 
@@ -320,8 +303,7 @@ class TestAttrsMapping:
         return whatever ``mod.new_fn`` is.  The value ``new_fn(5)`` should therefore be ``50``.
         """
         mod = sys.modules[self._mod_name]
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with captured_warnings() as w:
             fn = mod.old_fn  # type: ignore[attr-defined]
         result = fn(5)
         assert result == 50
@@ -336,10 +318,8 @@ class TestAttrsMapping:
         The ``FutureWarning`` must be issued even when the lookup ultimately fails.
         """
         mod = sys.modules[self._mod_name]
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            with pytest.raises(AttributeError):
-                _ = mod.not_mapped  # type: ignore[attr-defined]
+        with captured_warnings() as w, pytest.raises(AttributeError):
+            _ = mod.not_mapped  # type: ignore[attr-defined]
         assert len(w) == 1
         assert issubclass(w[0].category, FutureWarning)
 
@@ -353,10 +333,8 @@ class TestAttrsMapping:
         make_tmp_module(mod_name)
         deprecated_module(mod_name, attrs_mapping={"gone_fn": None}, **_DEPRS_CASE_MOD_ARGS)
         mod = sys.modules[mod_name]
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            with pytest.raises(AttributeError):
-                _ = mod.gone_fn  # type: ignore[attr-defined]
+        with captured_warnings() as w, pytest.raises(AttributeError):
+            _ = mod.gone_fn  # type: ignore[attr-defined]
         assert len(w) == 1
         assert issubclass(w[0].category, FutureWarning)
 
@@ -473,8 +451,7 @@ class TestReloadSurvival:
     def test_attr_access_survives_reload(self) -> None:
         """After ``importlib.reload()``, any public attribute access still emits ``FutureWarning``."""
         importlib.reload(old_math)
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with captured_warnings() as w:
             _ = getattr(old_math, "nonexistent_after_reload", None)
         assert len(w) == 1
         assert issubclass(w[0].category, FutureWarning)
@@ -491,8 +468,7 @@ class TestStacklevel:
         The level is measured when the warning fires, so the helper frame between
         ``__getattribute__`` and ``warnings.warn`` is skipped like every other pyDeprecate frame.
         """
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with captured_warnings() as w:
             _ = getattr(old_math, "stacklevel_check_attr", None)
         assert len(w) == 1
         # The filename must be this test file, not the deprecate implementation module.
@@ -666,8 +642,7 @@ class TestAttrsMappingWithTarget:
         target module, so the call produces the correct result from the target.
         """
         mod = sys.modules[self._mod_name]
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with captured_warnings() as w:
             fn = mod.unmapped_fn  # type: ignore[attr-defined]
         assert fn(5) == 10
         assert len(w) == 1
@@ -680,8 +655,7 @@ class TestAttrsMappingWithTarget:
         ``target.mapped_fn``, which multiplies by 3.
         """
         mod = sys.modules[self._mod_name]
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with captured_warnings() as w:
             fn = mod.old_mapped  # type: ignore[attr-defined]
         assert fn(5) == 15
         assert len(w) == 1
@@ -713,10 +687,8 @@ class TestAttrsMappingWithTarget:
             remove_in="2.0",
         )
         mod = sys.modules[mod_name]
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            with pytest.raises(AttributeError, match=target_name):
-                _ = mod.old_fn  # type: ignore[attr-defined]
+        with captured_warnings() as w, pytest.raises(AttributeError, match=target_name):
+            _ = mod.old_fn  # type: ignore[attr-defined]
         assert len(w) == 1
         assert issubclass(w[0].category, FutureWarning)
 
@@ -885,8 +857,7 @@ class TestNumWarns:
         make_tmp_module(mod_name)
         deprecated_module(mod_name, **_DEPRS_CASE_MOD_ARGS)
         mod = sys.modules[mod_name]
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with captured_warnings() as w:
             getattr(mod, "a", None)
             getattr(mod, "b", None)
             getattr(mod, "c", None)
@@ -904,8 +875,7 @@ class TestNumWarns:
         make_tmp_module(mod_name)
         deprecated_module(mod_name, **_DEPRS_CASE_MOD_ARGS, num_warns=1)
         mod = sys.modules[mod_name]
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with captured_warnings() as w:
             getattr(mod, "a", None)
             getattr(mod, "b", None)
             getattr(mod, "c", None)
@@ -922,8 +892,7 @@ class TestNumWarns:
         mod = make_tmp_module(mod_name)
         mod.value = 42  # type: ignore[attr-defined]
         deprecated_module(mod_name, **_DEPRS_CASE_MOD_ARGS, num_warns=0)
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with captured_warnings() as w:
             result = sys.modules[mod_name].value  # type: ignore[attr-defined]
         assert result == 42
         assert len(w) == 0
@@ -938,8 +907,7 @@ class TestNumWarns:
         make_tmp_module(mod_name)
         deprecated_module(mod_name, **_DEPRS_CASE_MOD_ARGS, num_warns=2)
         mod = sys.modules[mod_name]
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with captured_warnings() as w:
             for attr_name in ["a", "b", "c", "d", "e"]:
                 getattr(mod, attr_name, None)
         assert len(w) == 2
@@ -956,8 +924,7 @@ class TestNumWarns:
         make_tmp_module(mod_b_name)
         deprecated_module(mod_a_name, **_DEPRS_CASE_MOD_ARGS, num_warns=1)
         deprecated_module(mod_b_name, **_DEPRS_CASE_MOD_ARGS, num_warns=1)
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with captured_warnings() as w:
             getattr(sys.modules[mod_a_name], "a", None)
             getattr(sys.modules[mod_b_name], "b", None)
         assert len(w) == 2
@@ -975,8 +942,7 @@ class TestNumWarns:
         make_tmp_module(mod_name)
         deprecated_module(mod_name, **_DEPRS_CASE_MOD_ARGS, num_warns=1)
         mod = sys.modules[mod_name]
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with captured_warnings() as w:
             deprecated_module(mod_name, **_DEPRS_CASE_MOD_ARGS, num_warns=5)
             getattr(mod, "a", None)
             getattr(mod, "b", None)
@@ -1037,8 +1003,7 @@ class TestIdempotency:
         make_tmp_module(mod_name)
         deprecated_module(mod_name, **_DEPRS_CASE_MOD_ARGS)
         config_before = vars(sys.modules[mod_name]).get("__deprecation_config__")
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with captured_warnings() as w:
             deprecated_module(mod_name, **_DEPRS_CASE_MOD_ARGS)
         config_after = vars(sys.modules[mod_name]).get("__deprecation_config__")
         assert config_before is config_after
@@ -1094,8 +1059,7 @@ class TestReconfigurationWarns:
         make_tmp_module(mod_name)
         deprecated_module(mod_name, **_DEPRS_CASE_MOD_ARGS)
         config_before = vars(sys.modules[mod_name]).get("__deprecation_config__")
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with captured_warnings() as w:
             deprecated_module(mod_name, target=target, **_DEPRS_CASE_MOD_ARGS)
         config_after = vars(sys.modules[mod_name]).get("__deprecation_config__")
         user_warns = [x for x in w if issubclass(x.category, UserWarning)]
@@ -1121,8 +1085,7 @@ class TestGetAttrChaining:
         mod_name = "_test_chain_warn_tmp"
         mod = make_tmp_module(mod_name)
         mod.__getattr__ = lambda name: f"dynamic_{name}"  # type: ignore[attr-defined,method-assign]
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with captured_warnings() as w:
             deprecated_module(mod_name, **_DEPRS_CASE_MOD_ARGS)
         user_warns = [x for x in w if issubclass(x.category, UserWarning)]
         assert len(user_warns) == 1
@@ -1141,8 +1104,7 @@ class TestGetAttrChaining:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             deprecated_module(mod_name, **_DEPRS_CASE_MOD_ARGS)
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with captured_warnings() as w:
             result = sys.modules[mod_name].dynamic_key  # type: ignore[attr-defined]
         assert result == "resolved_dynamic_key"
         future_warns = [x for x in w if issubclass(x.category, FutureWarning)]
@@ -1165,8 +1127,7 @@ class TestGetAttrChaining:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             deprecated_module(mod_name, target=target, **_DEPRS_CASE_MOD_ARGS)
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with captured_warnings() as w:
             result = sys.modules[mod_name].only_dynamic  # type: ignore[attr-defined]
         assert result == "fallback_only_dynamic"
         future_warns = [x for x in w if issubclass(x.category, FutureWarning)]
@@ -1222,10 +1183,8 @@ class TestAttrsMappingShadowsDict:
         mod = make_tmp_module(mod_name)
         mod.helper = lambda: "STALE"  # type: ignore[attr-defined]
         deprecated_module(mod_name, attrs_mapping={"helper": None}, **_DEPRS_CASE_MOD_ARGS)
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            with pytest.raises(AttributeError):
-                _ = sys.modules[mod_name].helper  # type: ignore[attr-defined]
+        with captured_warnings() as w, pytest.raises(AttributeError):
+            _ = sys.modules[mod_name].helper  # type: ignore[attr-defined]
         assert len(w) == 1
         assert issubclass(w[0].category, FutureWarning)
 
@@ -1245,8 +1204,7 @@ class TestAttrsMappingShadowsDict:
         mod.old_fn = lambda: "STALE_LOCAL"  # type: ignore[attr-defined]
         mod.new_fn = lambda: "NEW_BODY"  # type: ignore[attr-defined]
         deprecated_module(mod_name, attrs_mapping={"old_fn": "new_fn"}, **_DEPRS_CASE_MOD_ARGS)
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with captured_warnings() as w:
             fn = sys.modules[mod_name].old_fn  # type: ignore[attr-defined]
         assert fn() == "NEW_BODY"
         assert len(w) == 1

@@ -13,6 +13,7 @@ from typing import Any, Callable
 
 import pytest
 
+from tests._helpers import captured_warnings
 from tests.collections.api_deprecated import loc_stack_notify_over_callable, loc_stack_remap_over_notify
 from tests.collections.api_deprecated_forwarding import (
     deprecated_gapped_positional_only_source,
@@ -119,10 +120,8 @@ class TestNotifyCallShape:
         before the source is called.
 
         """
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-            with pytest.raises(TypeError, match="multiple values for argument 'a'"):
-                shape_notify_two_params(1, a=2)  # type: ignore[misc]
+        with captured_warnings() as caught, pytest.raises(TypeError, match="multiple values for argument 'a'"):
+            shape_notify_two_params(1, a=2)  # type: ignore[misc]
 
         warned_calls = shape_notify_two_params._state.warned_calls  # type: ignore[attr-defined]
         assert ([record.category for record in caught], warned_calls) == ([FutureWarning], 1)
@@ -135,10 +134,11 @@ class TestNotifyCallShape:
         slot.  The deprecation notice is emitted once, before the source is called.
 
         """
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-            with pytest.raises(TypeError, match="positional-only arguments passed as keyword"):
-                shape_notify_positional_only(x=1)  # type: ignore[call-arg]
+        with (
+            captured_warnings() as caught,
+            pytest.raises(TypeError, match="positional-only arguments passed as keyword"),
+        ):
+            shape_notify_positional_only(x=1)  # type: ignore[call-arg]
 
         warned_calls = shape_notify_positional_only._state.warned_calls  # type: ignore[attr-defined]
         assert ([record.category for record in caught], warned_calls) == ([FutureWarning], 1)
@@ -169,8 +169,7 @@ class TestArgsRemapCallShape:
         implementation, and no warning is due.
 
         """
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             result = _result_or_type_error(shape_remap_area_dispatch, 3)
 
         assert (result, _warning_lines(caught)) == ("int:3", [])
@@ -183,8 +182,7 @@ class TestArgsRemapCallShape:
         ``flag=True`` next to the caller's ``new=1``, without any warning.
 
         """
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             result = shape_remap_with_extra(new=1)
 
         assert (result, _warning_lines(caught)) == ((None, 1, True), [])
@@ -207,8 +205,7 @@ class TestArgsRemapCallShape:
         like a caller still passing ``old=3``; only the latter warns.
 
         """
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             result = shape_remap_var_positional_with_extra(1, 2, **kwargs)
 
         assert (result, _warning_lines(caught)) == (((1, 2), None, 3, True), expected_warnings)
@@ -220,8 +217,7 @@ class TestArgsRemapCallShape:
         ``f(1, 2)`` fills ``new`` by position, so the injected value replaces that positional slot instead of being
         passed a second time, which Python rejects with "multiple values for argument".
         """
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             result = shape_remap_var_positional_extra_fills_slot(1, 2)
 
         assert (result, _warning_lines(caught)) == ((5, (2,), {}), [])
@@ -233,8 +229,7 @@ class TestArgsRemapCallShape:
         once ``old`` is renamed.  The positional value wins, as the collision warning says ("``old`` is ignored"),
         and the call reaches the source instead of failing with "multiple values for argument".
         """
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             result = shape_remap_var_positional_rename_fills_slot(8, 9, old=7)
 
         assert (result, [line.split(":")[0] for line in _warning_lines(caught)]) == (
@@ -266,10 +261,8 @@ class TestArityError:
 
         """
         message = "shape_notify_two_params() takes 1 to 2 positional argument(s) but got 3 positional argument(s)"
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-            with pytest.raises(TypeError, match=re.escape(message)):
-                shape_notify_two_params(1, 2, 3)  # type: ignore[call-arg]
+        with captured_warnings() as caught, pytest.raises(TypeError, match=re.escape(message)):
+            shape_notify_two_params(1, 2, 3)  # type: ignore[call-arg]
 
         assert (caught, shape_notify_two_params._state.warned_calls) == ([], 0)  # type: ignore[attr-defined]
 
@@ -361,8 +354,7 @@ class TestStackedCallShape:
         still forward, rename and warn exactly as it did when it received keywords.
 
         """
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             result = wrapper(*args, **kwargs)
 
         assert (result, _warning_lines(caught)) == expected

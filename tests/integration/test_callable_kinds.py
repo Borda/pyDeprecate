@@ -15,13 +15,13 @@ emitting a warning.
 """
 
 import inspect
-import warnings
 from typing import cast
 
 import pytest
 
 from deprecate import deprecated
 from deprecate._types import _DeprecatedCallable
+from tests._helpers import captured_warnings
 from tests.collections.api_deprecated import decorated_sum_calls_inf, make_async_stacked_notify
 from tests.collections.api_deprecated_forwarding import (
     async_args_remap,
@@ -71,8 +71,7 @@ def _reset_gen_state() -> None:
 @pytest.mark.parametrize(("wrapper", "call_kwargs"), _WRAPPER_CASES)
 def test_generator_round_trip(wrapper: object, call_kwargs: dict) -> None:
     """Wrapped generator yields the same values as the underlying ``gen_target`` (1×, 2×, 3×)."""
-    with warnings.catch_warnings(record=True):
-        warnings.simplefilter("always")
+    with captured_warnings():
         result = wrapper(**call_kwargs)  # type: ignore[operator]
     assert list(result) == [1, 2, 3]
 
@@ -80,8 +79,7 @@ def test_generator_round_trip(wrapper: object, call_kwargs: dict) -> None:
 @pytest.mark.parametrize(("wrapper", "call_kwargs"), _WRAPPER_CASES)
 def test_generator_warning_fires_eagerly(wrapper: object, call_kwargs: dict) -> None:
     """Warning fires at call time (when the generator is created), not on first ``next()``."""
-    with warnings.catch_warnings(record=True) as warned:
-        warnings.simplefilter("always")
+    with captured_warnings() as warned:
         gen = wrapper(**call_kwargs)  # type: ignore[operator]
         assert warned, "Warning must fire eagerly at call time, before first next()"
         first = next(gen)
@@ -96,8 +94,7 @@ def test_generator_warning_fires_once_per_call(wrapper: object, call_kwargs: dic
     source body only — it does not re-enter ``wrapped_fn`` or ``_build_call_plan``, so no second warning is possible.
 
     """
-    with warnings.catch_warnings(record=True) as warned:
-        warnings.simplefilter("always")
+    with captured_warnings() as warned:
         gen = wrapper(**call_kwargs)  # type: ignore[operator]
         warn_count_at_call = len(warned)
         # Drain the generator — must not emit any new deprecation warning.
@@ -114,8 +111,7 @@ def test_generator_num_warns_unlimited_warns_every_call() -> None:
     one deprecation warning at call time, and that exhausting the generator does not re-emit.
 
     """
-    with warnings.catch_warnings(record=True) as warned:
-        warnings.simplefilter("always")
+    with captured_warnings() as warned:
         _ = list(gen_notify_unlimited(x=1))
         first_call_warn_count = len([w for w in warned if w.category in (FutureWarning, DeprecationWarning)])
         _ = list(gen_notify_unlimited(x=2))
@@ -127,8 +123,7 @@ def test_generator_num_warns_unlimited_warns_every_call() -> None:
 @pytest.mark.parametrize(("wrapper", "call_kwargs"), _WRAPPER_CASES)
 def test_generator_warning_stacklevel(wrapper: object, call_kwargs: dict) -> None:
     """Generator wrapper warning filename points to the caller's file, not to ``deprecation.py``."""
-    with warnings.catch_warnings(record=True) as warned:
-        warnings.simplefilter("always")
+    with captured_warnings() as warned:
         wrapper(**call_kwargs)  # type: ignore[operator]
     dep_warns = [w for w in warned if w.category in (FutureWarning, DeprecationWarning)]
     # Single-warning invariant: one generator instantiation must emit exactly one deprecation
@@ -151,8 +146,7 @@ def test_sync_deprecated_warning_points_to_caller() -> None:
     every call: the assertion does not depend on autouse state reset.
 
     """
-    with warnings.catch_warnings(record=True) as warned:
-        warnings.simplefilter("always")
+    with captured_warnings() as warned:
         decorated_sum_calls_inf(1, 2)
     dep_warns = [w for w in warned if w.category in (FutureWarning, DeprecationWarning)]
     # Single-warning invariant: one call must emit exactly one deprecation warning.
@@ -170,8 +164,7 @@ def test_wrong_order_classmethod_silently_rescued() -> None:
     The descriptor is transparently unwrapped and re-wrapped as ``classmethod(deprecated_wrapper)``.  The result
     is a working deprecated classmethod — deprecation warning fires on call, not at decoration time.
     """
-    with warnings.catch_warnings(record=True) as warned:
-        warnings.simplefilter("always")
+    with captured_warnings() as warned:
 
         class _Foo:
             @deprecated(deprecated_in="1.0", remove_in="2.0")
@@ -185,10 +178,8 @@ def test_wrong_order_classmethod_silently_rescued() -> None:
     # The descriptor must still be a classmethod after rescue.
     assert isinstance(_Foo.__dict__["old_method"], classmethod)
     # Deprecation warning fires at call time, not decoration time.
-    with warnings.catch_warnings(record=True) as call_warned:
-        warnings.simplefilter("always")
+    with pytest.warns(FutureWarning):
         _Foo.old_method()
-    assert any(issubclass(w.category, FutureWarning) for w in call_warned), "Deprecation warning must fire on call"
 
 
 # ========== Async ``def`` wrapper integration tests ==========
@@ -224,18 +215,17 @@ def _reset_async_state() -> None:
 @pytest.mark.parametrize(("wrapper", "call_kwargs"), _ASYNC_WRAPPER_CASES)
 async def test_async_round_trip(wrapper: object, call_kwargs: dict) -> None:
     """Wrapped async fn returns the same value as the underlying ``async_target`` (``x * 2``)."""
-    with warnings.catch_warnings(record=True):
-        warnings.simplefilter("always")
+    with captured_warnings():
         result = await wrapper(**call_kwargs)  # type: ignore[operator]
     assert result == 2
 
 
 @pytest.mark.asyncio
+@pytest.mark.filterwarnings(r"ignore:'_async_source_notify' has duplicate @deprecated\(NOTIFY\) layers:UserWarning")
 async def test_async_stacked_both_warnings_fire() -> None:
     """Two stacked ``@deprecated`` wrappers on ``async def`` each emit a warning when awaited."""
     fn = make_async_stacked_notify()
-    with warnings.catch_warnings(record=True) as warned:
-        warnings.simplefilter("always")
+    with captured_warnings() as warned:
         result = await fn(x=1)
     dep_warns = [w for w in warned if w.category in (FutureWarning, DeprecationWarning)]
     assert len(dep_warns) == 2, f"Expected 2 warnings (one per stack layer), got {len(dep_warns)}"
@@ -250,25 +240,20 @@ async def test_async_warning_fires_on_await_not_on_call() -> None:
     with no side effects. The deprecation warning fires on the first ``await``.
 
     """
-    with warnings.catch_warnings(record=True) as warned_before:
-        warnings.simplefilter("always")
+    with captured_warnings() as warned_before:
         coro = async_notify(x=1)
     pre_await_warnings = [w for w in warned_before if w.category in (FutureWarning, DeprecationWarning)]
     assert not pre_await_warnings, "Warning must not fire at call time — only fires on await"
 
-    with warnings.catch_warnings(record=True) as warned_after:
-        warnings.simplefilter("always")
+    with pytest.warns((FutureWarning, DeprecationWarning), match="`_async_source_notify` was deprecated"):
         result = await coro
-    post_await_warnings = [w for w in warned_after if w.category in (FutureWarning, DeprecationWarning)]
-    assert post_await_warnings, "Warning must fire when coroutine is awaited"
     assert result == 2
 
 
 @pytest.mark.asyncio
 async def test_async_warning_stacklevel() -> None:
     """Async wrapper warning filename points to the caller's file, not to ``deprecation.py``."""
-    with warnings.catch_warnings(record=True) as warned:
-        warnings.simplefilter("always")
+    with captured_warnings() as warned:
         await async_notify(x=1)
     deprecation_warnings = [w for w in warned if w.category in (FutureWarning, DeprecationWarning)]
     assert deprecation_warnings, "Async wrapper must emit a deprecation warning"
@@ -325,8 +310,7 @@ def _reset_async_gen_state() -> None:
 @pytest.mark.parametrize(("wrapper", "call_kwargs"), _ASYNC_GEN_WRAPPER_CASES)
 async def test_async_gen_round_trip(wrapper: object, call_kwargs: dict) -> None:
     """Wrapped async generator yields the same values as ``async_gen_target`` (1×, 2×, 3×)."""
-    with warnings.catch_warnings(record=True):
-        warnings.simplefilter("always")
+    with captured_warnings():
         agen = wrapper(**call_kwargs)  # type: ignore[operator]
         collected = [item async for item in agen]
     assert collected == [1, 2, 3]
@@ -342,8 +326,7 @@ async def test_async_gen_warning_fires_eagerly(wrapper: object, call_kwargs: dic
     re-enter the wrapper, so the warning must be observable before any iteration starts.
 
     """
-    with warnings.catch_warnings(record=True) as warned:
-        warnings.simplefilter("always")
+    with captured_warnings() as warned:
         agen = wrapper(**call_kwargs)  # type: ignore[operator]
         pre_iter_warnings = [w for w in warned if w.category in (FutureWarning, DeprecationWarning)]
         assert pre_iter_warnings, "Warning must fire eagerly at sync call time, before first async for iteration"
@@ -361,8 +344,7 @@ async def test_async_gen_warning_fires_once_per_call(wrapper: object, call_kwarg
     it does not re-enter ``wrapped_fn`` or ``_build_call_plan``, so no further deprecation warning is possible.
 
     """
-    with warnings.catch_warnings(record=True) as warned:
-        warnings.simplefilter("always")
+    with captured_warnings() as warned:
         agen = wrapper(**call_kwargs)  # type: ignore[operator]
         warn_count_at_call = len([w for w in warned if w.category in (FutureWarning, DeprecationWarning)])
         # Drain the async generator — must not emit any new deprecation warning.
@@ -378,8 +360,7 @@ async def test_async_gen_warning_fires_once_per_call(wrapper: object, call_kwarg
 @pytest.mark.parametrize(("wrapper", "call_kwargs"), _ASYNC_GEN_WRAPPER_CASES)
 async def test_async_gen_warning_stacklevel(wrapper: object, call_kwargs: dict) -> None:
     """Async generator wrapper warning filename points to the caller's file, not to ``deprecation.py``."""
-    with warnings.catch_warnings(record=True) as warned:
-        warnings.simplefilter("always")
+    with captured_warnings() as warned:
         agen = wrapper(**call_kwargs)  # type: ignore[operator]
         # Drain so the async generator is fully consumed and does not trigger async-generator cleanup warnings on GC.
         _ = [item async for item in agen]
@@ -399,8 +380,7 @@ async def test_async_args_remap_user_warning_emitted_when_both_old_and_new_provi
     ``UserWarning`` naming the ignored argument, matching the behaviour of the ``@deprecated`` decorator path.
 
     """
-    with warnings.catch_warnings(record=True) as warned:
-        warnings.simplefilter("always")
+    with captured_warnings() as warned:
         result = await async_args_remap(old_x=5, x=6)
     user_warns = [w for w in warned if w.category is UserWarning]
     assert user_warns, "UserWarning must fire when both old and new kwarg names are passed"
@@ -439,9 +419,6 @@ async def test_async_source_forwards_to_sync_target(
     splits ``x`` back out of the resolved kwargs so it binds positionally (``5 + 2 == 7``).
 
     """
-    with warnings.catch_warnings(record=True) as warned:
-        warnings.simplefilter("always")
+    with pytest.warns((FutureWarning, DeprecationWarning), match="deprecated"):
         result = await wrapper(*call_args, **call_kwargs)  # type: ignore[operator]
-    dep_warns = [w for w in warned if w.category in (FutureWarning, DeprecationWarning)]
-    assert dep_warns, "Async-to-sync forwarding must still emit the deprecation warning"
     assert result == expected

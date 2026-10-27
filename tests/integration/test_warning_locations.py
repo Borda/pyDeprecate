@@ -34,6 +34,7 @@ from deprecate.audit import (
     validate_deprecation_policy,
 )
 from deprecate.utils import no_warning_call
+from tests._helpers import captured_warnings
 from tests.collections import api_deprecated
 from tests.collections.api_current import (
     LocCustomModuleType,
@@ -209,8 +210,7 @@ class TestCallTimeExpressionSites:
         separately, so the outer and the inner layer both have to report the user's line.
 
         """
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             operation()
 
         assert _location(caught, category, match) == (__file__, operation.__code__.co_firstlineno)
@@ -228,8 +228,7 @@ class TestCallTimeStatementSites:
 
         """
         monkeypatch.setattr(args_only_no_mapping_deprecation._state, "warned_misconfigured", False)  # type: ignore[attr-defined]
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             expected_line = _next_line()
             args_only_no_mapping_deprecation(1)
 
@@ -245,8 +244,7 @@ class TestCallTimeStatementSites:
 
         """
         expected = (functools.__file__, _line_ending_with(functools.cached_property.__get__, "self.func(instance)"))
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             _ = LocDescriptorHost().legacy_cached
 
         assert _location(caught, FutureWarning, "legacy_cached") == expected
@@ -259,8 +257,7 @@ class TestCallTimeStatementSites:
 
         """
         box = make_loc_side_effect_box_proxy()
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             expected_line = _next_line()
             box += 3
 
@@ -274,8 +271,7 @@ class TestCallTimeStatementSites:
 
         """
         box = make_loc_side_effect_box_proxy()
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             expected_line = _next_line()
             with box:
                 pass
@@ -289,8 +285,7 @@ class TestCallTimeStatementSites:
         ``__mro_entries__`` hook warns, and the location must be the user's class statement.
 
         """
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             expected_line = _next_line() + 1  # +1: the formatter keeps one blank line above a nested class
 
             class _Child(LocProxyBase):  # type: ignore[misc,valid-type]
@@ -306,8 +301,7 @@ class TestCallTimeStatementSites:
         above the wrapper's coroutine is the awaiting user coroutine, whose ``await`` line must be reported.
 
         """
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             expected_line = _next_line()
             await loc_async_notify(1)
 
@@ -347,8 +341,7 @@ class TestDecorationTimeSites:
         decorator on its ``# warn-site`` line, so that line in the collection module is the expected location.
 
         """
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             factory()
 
         expected = (api_deprecated.__file__, _line_ending_with(factory, "# warn-site"))
@@ -648,8 +641,7 @@ class TestDecorationTimeConfiguredSites:
         the maintainer is sent to fix it.
 
         """
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             factory(source, **config)
 
         expected = (api_deprecated.__file__, _line_ending_with(factory, "# warn-site"))
@@ -693,8 +685,7 @@ class TestModuleSites:
         module = module_type(_LOC_MODULE_NAME)
         vars(module).update(module_attrs)
         monkeypatch.setitem(sys.modules, _LOC_MODULE_NAME, module)
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             make_loc_module(_LOC_MODULE_NAME, **config)
 
         expected = (api_deprecated.__file__, _line_ending_with(make_loc_module, "# warn-site"))
@@ -709,8 +700,7 @@ class TestModuleSites:
         """
         monkeypatch.setitem(sys.modules, _LOC_MODULE_NAME, types.ModuleType(_LOC_MODULE_NAME))
         make_loc_module(_LOC_MODULE_NAME)
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             make_loc_module(_LOC_MODULE_NAME, remove_in="3.0")
 
         expected = (api_deprecated.__file__, _line_ending_with(make_loc_module, "# warn-site"))
@@ -727,8 +717,7 @@ class TestModuleSites:
         vars(module)["value"] = 1
         monkeypatch.setitem(sys.modules, _LOC_MODULE_NAME, module)
         make_loc_module(_LOC_MODULE_NAME, stream=warnings.warn)
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             expected_line = _next_line()
             _ = module.value
 
@@ -771,8 +760,7 @@ class TestLibraryAliasSites:
         warn ``DeprecationWarning``.
 
         """
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             operation()
 
         assert _location(caught, category, match) == (__file__, operation.__code__.co_firstlineno)
@@ -834,8 +822,7 @@ class TestAuditDiagnosticSites:
         module.__dict__["source"] = make_loc_audit_wrapper(remove_in)
         monkeypatch.setitem(sys.modules, _LOC_AUDIT_MODULE_NAME, module)
 
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             gate(module)
 
         assert _location(caught, UserWarning, match) == (__file__, gate.__code__.co_firstlineno)
@@ -865,8 +852,7 @@ class TestAuditDiagnosticSites:
         _write_scan_package(tmp_path, package_name, broken_parts)
         monkeypatch.syspath_prepend(str(tmp_path))
 
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             expected_line = _next_line()
             find_deprecation_wrappers(package_name, recursive=True)
 
@@ -883,8 +869,7 @@ class TestAuditDiagnosticSites:
         monkeypatch.syspath_prepend(str(tmp_path))
         monkeypatch.setattr(pkgutil, "iter_modules", _no_walk)
 
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             expected_line = _next_line()
             find_deprecation_wrappers("tests_loc_scan_walk", recursive=True)
 
