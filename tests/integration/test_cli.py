@@ -268,12 +268,33 @@ class TestCliInvocation:
 class TestCliSubcommands:
     """Integration tests for the four CLI subcommands via subprocess."""
 
-    def test_check_subcommand_explicit(self, tmp_path: Path) -> None:
-        """'pydeprecate check <path>' scans and exits 0 for a clean package."""
+    @pytest.mark.parametrize(
+        ("subcommand", "expected_output"),
+        [
+            pytest.param("check", "Scanning:", id="check"),
+            pytest.param("chains", "No deprecation chains", id="chains"),
+            pytest.param(
+                "policy",
+                "No deprecation policy violations",
+                id="policy",
+                marks=pytest.mark.skipif(
+                    not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')"
+                ),
+            ),
+        ],
+    )
+    def test_clean_package_exits_zero(self, tmp_path: Path, subcommand: str, expected_output: str) -> None:
+        """``pydeprecate <subcommand> <path>`` exits 0 and says so for a package with nothing to report.
+
+        The fixture package deprecates in `1.0` with a forwarding target and schedules removal at the `9.0`
+        major — the disciplined shape the default rules are written to wave through without any flags. ``check``
+        reports what it scanned, ``chains`` finds no chain and ``policy`` finds no violation.
+
+        """
         pkg = _make_pkg(tmp_path)
-        result = _run_cli("check", str(pkg), cwd=tmp_path)
+        result = _run_cli(subcommand, str(pkg), cwd=tmp_path)
         assert result.returncode == 0
-        assert "Scanning:" in result.stdout
+        assert expected_output in result.stdout
 
     @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
     def test_expiry_subcommand_no_expired(self, tmp_path: Path) -> None:
@@ -422,13 +443,6 @@ class TestCliSubcommands:
         assert "Version: 0.10 (user-provided)" in result.stdout, result.stdout + result.stderr
         assert "1 expired wrapper(s) found." in result.stdout, result.stdout + result.stderr
 
-    def test_chains_subcommand_no_chains(self, tmp_path: Path) -> None:
-        """'pydeprecate chains <path>' exits 0 for a package with no deprecation chains."""
-        pkg = _make_pkg(tmp_path)
-        result = _run_cli("chains", str(pkg), cwd=tmp_path)
-        assert result.returncode == 0
-        assert "No deprecation chains" in result.stdout
-
     @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
     def test_all_subcommand_clean(self, tmp_path: Path) -> None:
         """'pydeprecate all <path> --version 1.0' exits 0 when all checks pass."""
@@ -509,18 +523,6 @@ class TestCliSubcommands:
         combined = result.stdout + result.stderr
         for name in ("check", "expiry", "policy", "chains", "all", "status"):
             assert name in combined, f"subcommand '{name}' missing from --help output"
-
-    @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
-    def test_policy_subcommand_clean_package(self, tmp_path: Path) -> None:
-        """'pydeprecate policy <path>' exits 0 for a package whose wrapper respects the default policy.
-
-        The fixture package deprecates in `1.0` with a forwarding target and schedules removal at the `9.0`
-        major — the disciplined shape the default rules are written to wave through without any flags.
-        """
-        pkg = _make_pkg(tmp_path)
-        result = _run_cli("policy", str(pkg), cwd=tmp_path)
-        assert result.returncode == 0
-        assert "No deprecation policy violations" in result.stdout
 
     @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
     def test_policy_subcommand_reports_violation(self, tmp_path: Path) -> None:

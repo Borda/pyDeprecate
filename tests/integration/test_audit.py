@@ -567,13 +567,14 @@ class TestFindDeprecatedWrappers:
         assert by_name["no_version_deprecation"].deprecated_info.deprecated_in == ""
 
 
+@pytest.fixture(scope="module")
+def chain_issues() -> list[DeprecationWrapperInfo]:
+    """Run validate_deprecation_chains once for the chain tests below and share the result."""
+    return validate_deprecation_chains(chain_module, recursive=False)
+
+
 class TestValidateDeprecationChains:
     """Tests for validate_deprecation_chains()."""
-
-    @pytest.fixture(scope="class")
-    def chain_issues(self) -> list[DeprecationWrapperInfo]:
-        """Run validate_deprecation_chains once for the class and share the result."""
-        return validate_deprecation_chains(chain_module, recursive=False)
 
     @pytest.mark.parametrize(
         ("fn_name", "expected_chain_type"),

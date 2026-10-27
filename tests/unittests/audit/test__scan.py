@@ -1164,50 +1164,42 @@ class _AudPrivateMembers:
 class TestScanClassPrivateDeprecated:
     """Deprecated private/dunder members carry ``__deprecation_config__`` and must be surfaced so they can expire."""
 
-    def test_member_meta_peeks_through_descriptor(self) -> None:
-        """The helper detects deprecation metadata stored on a descriptor's underlying callable."""
-        assert _member_has_deprecation_meta(_AudPrivateMembers.__dict__["_legacy"]) is True
+    @pytest.mark.parametrize(
+        "member",
+        [
+            pytest.param("_legacy", id="method"),
+            pytest.param("_cls_legacy", id="classmethod"),
+            pytest.param("_static_legacy", id="staticmethod"),
+            pytest.param("_cached_legacy", id="cached_property"),
+        ],
+    )
+    def test_member_meta_peeks_through_descriptor(self, member: str) -> None:
+        """The helper detects deprecation metadata stored on the callable underneath each kind of class member.
 
-    def test_member_meta_peeks_through_classmethod_descriptor(self) -> None:
-        """The helper detects deprecation metadata stored on a classmethod's underlying ``__func__``.
+        ``classmethod`` and ``staticmethod`` objects keep the wrapped function in ``__func__`` and ``cached_property``
+        in ``.func``; ``_member_has_deprecation_meta`` must unwrap each to find ``__deprecation_config__`` rather than
+        inspecting the descriptor itself, or a deprecated member of that kind would never be audited.
 
-        ``classmethod`` objects store the wrapped function in ``__func__``; ``_member_has_deprecation_meta``
-        must unwrap it to find ``__deprecation_config__`` rather than inspecting the ``classmethod`` itself.
         """
-        assert _member_has_deprecation_meta(_AudPrivateMembers.__dict__["_cls_legacy"]) is True
+        assert _member_has_deprecation_meta(_AudPrivateMembers.__dict__[member]) is True
 
-    def test_member_meta_peeks_through_staticmethod_descriptor(self) -> None:
-        """The helper detects deprecation metadata stored on a staticmethod's underlying ``__func__``."""
-        assert _member_has_deprecation_meta(_AudPrivateMembers.__dict__["_static_legacy"]) is True
-
-    def test_member_meta_peeks_through_cached_property_descriptor(self) -> None:
-        """The helper detects deprecation metadata stored on a cached_property's ``.func`` attribute."""
-        assert _member_has_deprecation_meta(_AudPrivateMembers.__dict__["_cached_legacy"]) is True
-
-    def test_scan_surfaces_deprecated_private_method(self) -> None:
-        """A deprecated ``_legacy`` method is included in the scan even though it starts with an underscore.
+    @pytest.mark.parametrize(
+        "member",
+        [
+            pytest.param("_legacy", id="method"),
+            pytest.param("_cls_legacy", id="classmethod"),
+            pytest.param("_static_legacy", id="staticmethod"),
+            pytest.param("_cached_legacy", id="cached_property"),
+        ],
+    )
+    def test_scan_surfaces_deprecated_private_member(self, member: str) -> None:
+        """A deprecated private member of each kind is included in the scan even though it starts with an underscore.
 
         Previously ``_scan_class`` skipped every ``_*`` member except ``__init__``, so a deprecated private or
-        dunder member could never be flagged as expired — a zombie that outlived its ``remove_in`` unnoticed.
+        dunder member could never be flagged as expired — a zombie that outlived its ``remove_in`` unnoticed. The
+        classmethod, staticmethod and cached_property kinds are reached through ``__func__`` / ``.func``.
+
         """
         results = _scan_class(_AudPrivateMembers, "tests.unittests.audit.test__scan", "_AudPrivateMembers")
         functions = [info.function for info in results]
-        assert any("_legacy" in fn for fn in functions)
-
-    def test_scan_surfaces_deprecated_private_classmethod(self) -> None:
-        """A deprecated private classmethod is discovered by the scan via the ``classmethod.__func__`` path."""
-        results = _scan_class(_AudPrivateMembers, "tests.unittests.audit.test__scan", "_AudPrivateMembers")
-        functions = [info.function for info in results]
-        assert any("_cls_legacy" in fn for fn in functions)
-
-    def test_scan_surfaces_deprecated_private_staticmethod(self) -> None:
-        """A deprecated private staticmethod is discovered by the scan via the ``staticmethod.__func__`` path."""
-        results = _scan_class(_AudPrivateMembers, "tests.unittests.audit.test__scan", "_AudPrivateMembers")
-        functions = [info.function for info in results]
-        assert any("_static_legacy" in fn for fn in functions)
-
-    def test_scan_surfaces_deprecated_private_cached_property(self) -> None:
-        """A deprecated private cached_property is discovered by the scan via the ``cached_property.func`` path."""
-        results = _scan_class(_AudPrivateMembers, "tests.unittests.audit.test__scan", "_AudPrivateMembers")
-        functions = [info.function for info in results]
-        assert any("_cached_legacy" in fn for fn in functions)
+        assert any(member in fn for fn in functions)
