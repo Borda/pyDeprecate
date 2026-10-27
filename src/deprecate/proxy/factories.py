@@ -20,6 +20,8 @@ from deprecate.docstring.inject import _update_docstring_with_deprecation
 from deprecate.messaging import _resolve_message_template_alias, deprecation_warning
 from deprecate.proxy.core import _DeprecatedProxy, _proxy_type_for, _ProxySpec
 
+__all__ = ["deprecated_class", "deprecated_instance"]
+
 #: What ``deprecated_class`` accepts for decoration: a plain class, or an already-wrapped proxy when
 #: stacking (``deprecated_class(...)(deprecated_class(...)(Cls))``). ``DeprecationProxy[Any]`` is the
 #: public spelling of a proxy, so annotating with it and passing it back in has to work too.
@@ -147,7 +149,7 @@ def deprecated_class(
         remove_in: Version string when the class will be removed.
         num_warns: Maximum number of warnings to emit per proxy instance. ``1`` warns once; ``-1`` warns on every
             access.
-        stream: Callable used to emit warnings. Defaults to :data:`~deprecate.deprecation.deprecation_warning`.
+        stream: Callable used to emit warnings. Defaults to :data:`~deprecate.messaging.deprecation_warning`.
             A custom ``stream`` is called once per warning, with ``stacklevel=`` only when its signature declares a
             ``stacklevel`` parameter or ``**kwargs``; a C-level callable without an introspectable signature gets the
             message alone and loses caller attribution.
@@ -403,7 +405,7 @@ def deprecated_instance(
         deprecated_in: Version string when *obj* was deprecated.
         remove_in: Version string when *obj* will be removed.
         num_warns: Maximum number of warnings to emit. ``1`` (default) warns once; ``-1`` warns on every access.
-        stream: Callable used to emit warnings. Defaults to :data:`~deprecate.deprecation.deprecation_warning`
+        stream: Callable used to emit warnings. Defaults to :data:`~deprecate.messaging.deprecation_warning`
             (:class:`FutureWarning`).  Pass ``None`` to suppress warnings.  A custom ``stream`` is called once per
             warning, with ``stacklevel=`` only when its signature declares a ``stacklevel`` parameter or ``**kwargs``;
             a C-level callable without an introspectable signature gets the message alone and loses caller attribution.

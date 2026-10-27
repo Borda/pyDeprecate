@@ -16,6 +16,8 @@ from typing import Any, Callable
 
 from deprecate.proxy.core import _DeprecatedProxy
 
+__all__: list[str] = []
+
 
 async def _sample_coroutine() -> None:
     """Do nothing; one instance is created and closed at import to look up the coroutine await-iterator type."""

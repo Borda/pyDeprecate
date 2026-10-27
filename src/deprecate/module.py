@@ -34,6 +34,8 @@ from deprecate._frames import _caller_stacklevel
 from deprecate._types import DeprecationConfig, TargetMode, _WrapperState, get_deprecation_config
 from deprecate.messaging import _consume_warn_budget, _emit, _format_deprecation_message, _validate_message_template
 
+__all__ = ["deprecated_module"]
+
 
 @dataclass
 class _RedirectResolution:

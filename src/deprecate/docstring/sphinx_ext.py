@@ -41,6 +41,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+__all__ = ["setup"]
+
 _logger = logging.getLogger(__name__)
 
 _PROXY_AVAILABLE: bool = False

@@ -60,3 +60,5 @@ from deprecate.proxy.core import _reconstruct_proxy as _reconstruct_proxy
 from deprecate.proxy.core import _restore_pep702_marker as _restore_pep702_marker
 from deprecate.proxy.factories import deprecated_class as deprecated_class
 from deprecate.proxy.factories import deprecated_instance as deprecated_instance
+
+__all__ = ["deprecated_class", "deprecated_instance"]

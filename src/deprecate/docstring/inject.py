@@ -35,6 +35,8 @@ from deprecate._types import (
     get_deprecation_config,
 )
 
+__all__: list[str] = []
+
 #: Default templates for documentation with deprecated callable — RST/Sphinx style
 TEMPLATE_DOC_DEPRECATED_RST = [
     ".. deprecated:: %(deprecated_in)s",

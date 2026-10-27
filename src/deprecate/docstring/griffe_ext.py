@@ -37,6 +37,8 @@ import sys
 
 from deprecate._types import get_deprecation_config
 
+__all__: list[str] = []
+
 try:
     import griffe
 except ImportError:
@@ -139,3 +141,6 @@ else:
             # If the cache was populated from the static source before this
             # extension ran, it must be cleared so the next access re-parses from the updated value.
             griffe_obj.docstring.__dict__.pop("parsed", None)
+
+    # the extension class exists only when griffe imports, so it is exported only then
+    __all__ = ["RuntimeDocstrings"]

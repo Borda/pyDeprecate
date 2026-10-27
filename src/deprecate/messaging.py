@@ -22,6 +22,14 @@ from deprecate._types import DeprecationConfig, TargetMode, _WrapperState
 from deprecate._validate import _MAJOR_BREAK_VERSION
 from deprecate.utils import _partial_chain, _unwrap_descriptor_target
 
+__all__ = [
+    "TEMPLATE_ARGUMENT_MAPPING",
+    "TEMPLATE_WARNING_ARGUMENTS",
+    "TEMPLATE_WARNING_CALLABLE",
+    "TEMPLATE_WARNING_NO_TARGET",
+    "deprecation_warning",
+]
+
 #: Memoised ``stacklevel`` decisions of :func:`_stream_accepts_stacklevel`: one entry per live ``stream`` object,
 #: keyed by ``id(stream)``.  Each entry pairs the decision with a *weak* reference to its stream.  A hit counts only
 #: while that reference still resolves to the very same object, so an id recycled after garbage collection, or a

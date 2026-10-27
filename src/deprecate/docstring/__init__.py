@@ -7,3 +7,5 @@ Sub-modules:
 - :mod:`deprecate.docstring.sphinx_ext` — Sphinx autodoc extension. *(beta)*
 
 """
+
+__all__: list[str] = []

@@ -66,6 +66,8 @@ from deprecate.messaging import (
 )
 from deprecate.utils import _unwrap_descriptor_target
 
+__all__ = ["deprecated_callable"]
+
 #: Decorated source type: preserve callable/descriptor signatures while rejecting non-callable values statically.
 _SourceT = TypeVar("_SourceT", bound=Union[Callable[..., Any], classmethod, staticmethod, property, cached_property])
 
@@ -503,7 +505,7 @@ def deprecated_callable(
 
         deprecated_in: Version when the function was deprecated (e.g., "1.0.0"). Default is empty string.
         remove_in: Version when the function will be removed (e.g., "2.0.0"). Default is empty string.
-        stream: Function to output warnings (default: :func:`~deprecate.deprecation.deprecation_warning`, which is
+        stream: Function to output warnings (default: :func:`~deprecate.messaging.deprecation_warning`, which is
             :func:`warnings.warn` with ``FutureWarning`` category). Set to ``None`` to disable warnings entirely.
             A custom ``stream`` is called once per warning, with ``stacklevel=`` only when its signature declares a
             ``stacklevel`` parameter or ``**kwargs`` (:func:`warnings.warn` and its partials always qualify); a
