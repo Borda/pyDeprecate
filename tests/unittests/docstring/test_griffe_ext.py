@@ -2,6 +2,7 @@
 
 import importlib
 import importlib.util
+import sys
 import types
 import warnings
 from typing import cast
@@ -144,3 +145,27 @@ class TestRuntimeDocstrings:
         RuntimeDocstrings()._update_obj(mod["old_function"], object(), "missing_runtime_name")
 
         assert mod["old_function"].docstring.value == original
+
+
+class TestWithoutGriffe:
+    """The extension module stays importable when ``griffe`` is not installed."""
+
+    def test_import_exposes_nothing(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Without ``griffe`` the module imports cleanly, defines no extension and exports nothing.
+
+        A project that installs pyDeprecate without the mkdocs docs extras may still import every
+        ``deprecate.docstring`` submodule, for example through an API documentation crawler. The import must not fail
+        on the missing ``griffe``, and ``RuntimeDocstrings`` must be absent rather than half-defined. The module is
+        executed fresh from its spec, so the copy already imported by other tests is left alone.
+
+        """
+        monkeypatch.setitem(sys.modules, "griffe", None)
+        spec = importlib.util.find_spec("deprecate.docstring.griffe_ext")
+        assert spec is not None
+        assert spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+
+        spec.loader.exec_module(module)
+
+        assert module.__all__ == []
+        assert not hasattr(module, "RuntimeDocstrings")

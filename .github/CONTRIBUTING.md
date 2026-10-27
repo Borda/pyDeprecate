@@ -192,7 +192,7 @@ pytest .
 pytest . -m "not subprocess"
 ```
 
-A test that starts a Python interpreter or an external CLI as a child process, directly or through the action runner, carries `@pytest.mark.subprocess` on the test or on its class when every test in the class does. The marker states an execution requirement, not a speed tier; CI always runs the full suite.
+A test that starts a Python interpreter or an external CLI as a child process, directly or through the action runner, carries `@pytest.mark.subprocess` on the test or on its class when every test in the class does. The marker states an execution requirement, not a speed tier; CI always runs the full suite. A process a third-party library starts for its own bookkeeping (for example Griffe probing `git` while it loads a module) does not count.
 
 > [!TIP]
 >

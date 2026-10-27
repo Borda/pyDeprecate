@@ -685,7 +685,8 @@ def make_flaky_attr_alias(host: type, **overrides: Any) -> Any:  # noqa: ANN401
 class LocDescriptorHost:
     """Descriptor sources (decorator above the descriptor) for the call-time warning-location tests.
 
-    Class-body wrappers are not module-level, so ``tests/conftest.py`` cannot reset them: unlimited budget.
+    ``tests/conftest.py`` resets these class-body wrappers before every test; the unlimited budget lets a test call
+    one repeatedly.
     """
 
     @deprecated(**_DEPRS_CASE_STD_INF_ARGS)  # type: ignore[prop-decorator]

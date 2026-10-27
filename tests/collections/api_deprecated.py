@@ -1599,9 +1599,9 @@ def make_deprecated_notify_args_extra_alone_on_class() -> type:
 # Both files pin today's behaviour so internal refactors of the dispatch and stacklevel machinery are proven against it.
 #
 # Budgets: module-level ``@deprecated`` wrappers below (including the inner layers of stacks, bound to their own module
-# names on purpose) and module-level proxies are reset before every test by ``tests/conftest.py``.  Class-body
-# descriptor wrappers are out of that fixture's reach, so they use ``num_warns=-1`` and no test depends
-# on execution order.  Decoration-time warnings come from ``make_loc_*`` factories: the decorating statement of each
+# names on purpose), module-level proxies and class-body descriptor wrappers are reset before every test by
+# ``tests/conftest.py``.  The descriptor wrappers also use ``num_warns=-1``, so a location test may call one
+# repeatedly.  Decoration-time warnings come from ``make_loc_*`` factories: the decorating statement of each
 # factory carries a ``# warn-site`` marker so the test can compute the exact line the warning has to point at.
 
 

@@ -33,7 +33,7 @@ Only the *counter-style* state is cleared:
 The following are intentionally preserved:
 
 * ``warned_misconfigured`` is **not** reset — it implements a one-time UserWarning per
-  wrapper lifetime (see ``test_callable_kinds.py``).  Resetting
+  wrapper lifetime (see ``tests/unittests/test__dispatch.py``).  Resetting
   it would falsify that contract.  Tests that assert misconfig warnings **emit** must explicitly
   reset ``_state.warned_misconfigured = False`` in their own setup — do not rely on fixture
   ordering.  Symmetrically, tests that assert misconfig warnings are **not** emitted against a
@@ -52,6 +52,7 @@ fresh wrapper per call, and tests using the others reset ``_state`` / ``_cfg.sta
 
 from __future__ import annotations
 
+import functools
 import warnings
 from importlib import import_module
 from pathlib import Path
@@ -91,7 +92,7 @@ def _wrapper_layers(obj: object) -> list[object]:
 
 
 def _class_members(obj: object) -> list[object]:
-    """Return the functions stored in a class's own ``__dict__``, unwrapping static/class methods and properties.
+    """Return the functions stored in a class's own ``__dict__``, unwrapping methods, properties and cached ones.
 
     ``type(obj)`` is used for the class check because a proxy can report a different ``__class__``; a proxy is never
     walked as a class, so its hooks are not triggered.
@@ -103,6 +104,8 @@ def _class_members(obj: object) -> list[object]:
     for member in vars(obj).values():
         if isinstance(member, (staticmethod, classmethod)):
             members.append(member.__func__)
+        elif isinstance(member, functools.cached_property):
+            members.append(member.func)
         elif isinstance(member, property):
             members.extend(fn for fn in (member.fget, member.fset, member.fdel) if fn is not None)
         else:
@@ -170,8 +173,8 @@ def pytest_collection_finish(session: pytest.Session) -> None:
         return
     warnings.warn(
         pytest.PytestWarning(
-            "No generated docs example tests in tests/docs/: the documentation examples were not run."
-            " Generate them with `make docs-tests`."
+            "No generated docs example tests in tests/docs/: the documentation and README examples were not run."
+            " Generate them (and tests/integration/test_readme.py) with `make docs-tests`."
         ),
         stacklevel=1,
     )

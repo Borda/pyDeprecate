@@ -213,8 +213,6 @@ report.exclude_lines = [
   "pragma: no cover",
   # typing-only imports and stubs: never executed at runtime by design
   "^\\s*if TYPE_CHECKING:",
-  # Protocol method bodies: the protocols describe proxies and wrappers, they are never called themselves
-  "^\\s*raise NotImplementedError$",
 ]
 
 [tool.pydeprecate]

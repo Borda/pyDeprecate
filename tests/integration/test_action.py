@@ -416,6 +416,7 @@ class TestActionInputs:
 class TestActionInstall:
     """The ``install`` step and its report of a pyDeprecate of another version that it replaced."""
 
+    @pytest.mark.subprocess
     def test_reads_version_from_child_metadata(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """The installed version is read from the distribution metadata a fresh child interpreter finds.
 
@@ -505,6 +506,7 @@ class TestActionInstall:
         assert code == 0
         assert "::warning" not in capsys.readouterr().out
 
+    @pytest.mark.subprocess
     @pytest.mark.parametrize(
         ("pip_status", "step_code", "exit_text"),
         [
@@ -986,6 +988,7 @@ class TestActionSummary:
         assert "::warning title=pyDeprecate::the installed pyDeprecate predates `--report-json`" in out
         assert ("::warning title=pyDeprecate::no pyDeprecate report is available" in out) is summary
 
+    @pytest.mark.subprocess
     @pytest.mark.parametrize(
         ("program", "supported"),
         [
@@ -1004,6 +1007,7 @@ class TestActionSummary:
         monkeypatch.setattr(action_runner, "_REPORT_PROBE", program)
         assert action_runner.report_supported(sys.executable) is supported
 
+    @pytest.mark.subprocess
     def test_probe_finds_report_option_in_checkout(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """The capability probe answers yes for the pyDeprecate of this checkout.
 
@@ -1017,6 +1021,7 @@ class TestActionSummary:
 class TestActionOutputSafety:
     """Annotations and workflow-command handling around the scanned package's output."""
 
+    @pytest.mark.subprocess
     def test_unterminated_stdout_keeps_resume_command_separate(self, capfd: pytest.CaptureFixture[str]) -> None:
         """The resume token starts on its own line even after unterminated child output.
 
@@ -1301,6 +1306,7 @@ class TestActionOutputSafety:
         assert code == 143
         assert "::error title=pyDeprecate::pydeprecate check exited 143 (killed by SIGTERM)" in capsys.readouterr().out
 
+    @pytest.mark.subprocess
     @pytest.mark.skipif(not hasattr(signal, "SIGKILL"), reason="needs SIGKILL; only POSIX kills processes by signal")
     def test_real_signal_death_maps_to_shell_status(self) -> None:
         """A CLI process really killed by SIGKILL is reported with the shell's status 137.
