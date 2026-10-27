@@ -83,7 +83,8 @@ markdown_extensions:
 
 validation:
   links:
-    not_found: ignore
+    not_found: warn
+    anchors: warn
     unrecognized_links: ignore
 
 nav:
