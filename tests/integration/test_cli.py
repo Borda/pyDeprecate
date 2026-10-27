@@ -214,6 +214,20 @@ class TestCliInvocation:
         assert result.returncode == 2, result.stdout + result.stderr
         assert "Invalid `--exclude` value" in result.stderr
 
+    def test_exclude_character_class_glob_is_a_pattern(self, tmp_path: Path) -> None:
+        """An ``--exclude`` glob that starts with a character class excludes its modules instead of exiting 2.
+
+        ``fnmatch`` reads ``[m]ypkg.broken`` as a pattern matching ``mypkg.broken``; the list-literal guard treated
+        every value starting with ``[`` as a list and refused it, so a valid glob could not be passed on the command
+        line. The submodule holds an invalid wrapper, so it is absent from the scan only when the pattern applies.
+
+        """
+        pkg = _make_pkg(tmp_path)
+        (pkg / "broken.py").write_text(_MYPKG_INIT_INVALID)
+        result = _run_cli("check", str(pkg), "--exclude=[m]ypkg.broken", cwd=tmp_path)
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "Exclude: [m]ypkg.broken (flag)" in result.stdout
+
     def test_all_rejects_malformed_policy_before_importing(self, tmp_path: Path) -> None:
         """``all`` reports a malformed ``[tool.pydeprecate.policy]`` value as exit 2 before importing the package.
 

@@ -1,5 +1,6 @@
 """``pyproject.toml`` configuration for the CLI: read ``[tool.pydeprecate]`` and resolve flag defaults."""
 
+import ast
 from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional, Union
@@ -202,6 +203,22 @@ def _source_label(source: str) -> str:
     return source if source in ("flag", "built-in") else "pyproject.toml"
 
 
+def _is_list_literal(text: str) -> bool:
+    """Tell whether *text* is a Python list or tuple literal, which Fire used to parse and argparse keeps as a string.
+
+    A glob that only starts with a character class (``[ab]pkg.tests``) is not a literal and stays a pattern.
+
+    Examples:
+        >>> _is_list_literal('["pkg.tests"]'), _is_list_literal("[ab]pkg.tests"), _is_list_literal("pkg.tests")
+        (True, False, False)
+
+    """
+    try:
+        return isinstance(ast.literal_eval(text.strip()), (list, tuple))
+    except (ValueError, SyntaxError):
+        return False
+
+
 def _resolve_exclude(
     path: str, exclude: _ConfigFlag, config: Optional[_Config] = None
 ) -> Optional[tuple[list[str], str]]:
@@ -224,7 +241,7 @@ def _resolve_exclude(
         if config is None:
             return None
     raw, source = _resolve_setting(exclude, config[0], _EXCLUDE_KEY, [], config)
-    if source == "flag" and isinstance(raw, str) and raw.lstrip().startswith("["):
+    if source == "flag" and isinstance(raw, str) and _is_list_literal(raw):
         # a list literal would become one pattern that matches nothing, leaving the scan silently unexcluded
         _print(
             f"Invalid `--exclude` value `{raw}`; pass comma-separated patterns such as"
