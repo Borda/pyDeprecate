@@ -26,12 +26,19 @@ The repository includes a separate `pydeprecate` coding-agent plugin in `plugins
 | Warning-only mode | `TargetMode.NOTIFY` |
 | Default for an omitted `target` (prefer passing an explicit mode) | `TargetMode.AUTO` — front-door fallback that resolves an omitted `target` (non-empty `args_mapping` → `ARGS_REMAP`, else warn-only (empty `{}` counts as none)); never write it yourself; rejected (`TypeError`) by `deprecated_callable`/`deprecated_class` |
 | Annotate a proxy returned by `deprecated_class` / `deprecated_instance` | `DeprecationProxy` |
+| Deprecate a callable, rejecting classes | `deprecated_callable` |
+| Make a deprecation fatal: per wrapper, process-wide, or for one block | `as_exception=True`; `AS_EXCEPTIONS`; `as_exceptions()` — fatal calls raise `DeprecatedError` |
+| Read a wrapper's frozen configuration | `get_deprecation_config` |
+| No-op body for a forwarding wrapper | `void` |
+| Assert a block emits no warning (tests) | `assert_no_warnings` |
 | Validate expired deprecations | `validate_deprecation_expiry` |
-| Lint how deprecations were scheduled | `validate_deprecation_policy` |
-| Validate wrapper chains | `validate_deprecation_chains` |
+| Lint how deprecations were scheduled | `validate_deprecation_policy` (rules: `PolicyRule`; grace windows: `GraceWindow`, `GraceWindowSpec`, `VersionBump`) |
+| Validate wrapper chains | `validate_deprecation_chains` (chain kinds: `ChainType`) |
 | Detect POSITIONAL_ONLY-remap incompatibilities | `validate_mapping_compatibility` |
-| Discover wrappers | `find_deprecation_wrappers` |
-| Generate a markdown deprecation table | `generate_deprecation_table` |
+| Check one wrapper's configuration | `validate_deprecation_wrapper` → `DeprecationWrapperInfo` |
+| Discover wrappers | `find_deprecation_wrappers` → `list[DeprecationWrapperInfo]` |
+| Generate a markdown deprecation table | `generate_deprecation_table` (styles: `TableStyle`; status labels: `DeprecationStatus`) |
+| Legacy audit names, deprecated since v0.6, removed in v1.0 — never write them | `DeprecatedCallableInfo`, `find_deprecated_callables`, `validate_deprecated_callable` |
 
 ## Canonical Recipes
 

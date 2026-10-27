@@ -398,7 +398,13 @@ True True
 
 If you are writing tests and need to verify that a warning fires, use `pytest.warns(FutureWarning)` on the first call and `assert_no_warnings(FutureWarning)` on subsequent calls. See [Testing Deprecated Code](guide/audit.md#testing-deprecated-code) for full examples.
 
-**The `num_warns` budget is per-process, not per-deployment.** A long-running service — a worker, a web server — that hits a deprecated code path once at startup exhausts the default `num_warns=1` immediately; the path stays completely silent for the rest of that process's life, even after weeks of steady-state traffic. Checking production logs and seeing nothing does not mean the deprecated path is unused — it may mean the one allowed warning already fired and scrolled out of the retained log window. To confirm whether a deprecated path is still being hit in a running service: restart the process (the counter resets) and watch for the warning again, or redeploy temporarily with `num_warns=-1` to invoke the configured warning path on every call. Standard warning filters can still suppress repeated display; a custom stream can record each delivery.
+______________________________________________________________________
+
+## Why did the deprecation warning stop appearing in my long-running service?
+
+**Q:** My worker logged the deprecation warning once after a deploy and has been silent for weeks, although the deprecated path is surely still called. Did the warning break?
+
+**A:** No. **The `num_warns` budget is per-process, not per-deployment.** A long-running service — a worker, a web server — that hits a deprecated code path once at startup exhausts the default `num_warns=1` immediately; the path stays completely silent for the rest of that process's life, even after weeks of steady-state traffic. Checking production logs and seeing nothing does not mean the deprecated path is unused — it may mean the one allowed warning already fired and scrolled out of the retained log window. To confirm whether a deprecated path is still being hit in a running service: restart the process (the counter resets) and watch for the warning again, or redeploy temporarily with `num_warns=-1` to invoke the configured warning path on every call. Standard warning filters can still suppress repeated display; a custom stream can record each delivery.
 
 ## Deprecation target path incorrect across modules
 
@@ -1863,6 +1869,28 @@ If a tool still renders the proxy, point it at `__wrapped__` explicitly. When th
 
 ______________________________________________________________________
 
+## How do I deprecate an entire Python module?
+
+**Q:** I am retiring a whole module, not a single function or class. Which API covers that, and how do callers get pointed at the replacement?
+
+**A:** Call `deprecated_module(__name__, deprecated_in=..., remove_in=...)` at the bottom of the module you are retiring. Three modes are available:
+
+- **Mode 1** (no `target=`) changes the module `__class__` to an intercepting wrapper that delivers a `FutureWarning` on every public attribute access, including real attributes (functions, classes, constants already in `__dict__`).
+- **Mode 2** (`target=new_module`) also forwards every missing-attribute lookup to the replacement module, optionally with `attrs_mapping` for per-name redirects. Use it when callers must be redirected to the new name transparently.
+- **Mode 3** uses `deprecated_instance()` in the parent package `__init__.py` to expose the old module name as a deprecated attribute; no extra API is needed.
+
+`num_warns=-1` is the default and delivers on every access; `0` delivers none and a positive `N` delivers exactly `N`. See the [module deprecation guide](guide/modules.md) for each mode with runnable examples.
+
+______________________________________________________________________
+
+## Does `deprecated_module()` warn when accessing real attributes (functions, classes, constants) on the deprecated module?
+
+**Q:** My deprecated module still defines its functions and constants. Do callers that use those real attributes get the warning, or only callers of names that no longer exist?
+
+**A:** Yes, real attributes warn too. `deprecated_module()` changes the module's `__class__` to a wrapper that overrides `__getattribute__`, so every public attribute access invokes the `FutureWarning` path, including attributes already in `__dict__`. Standard warning filters can suppress repeated display. A PEP 562 module-level `__getattr__` hook would fire only for missing names; `__getattribute__` intercepts all lookups. Star imports are not an exception (see below).
+
+______________________________________________________________________
+
 ## Module deprecation: accessing a missing attribute raises AttributeError
 
 **Q:** I called `deprecated_module()` in Mode 1 (no `target=`). Real attributes invoke the warning path correctly, but accessing a name that is not in the module raises `AttributeError` instead of just invoking that path. Is there a way to forward missing-attr lookups to a replacement module?
@@ -2232,16 +2260,16 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-## Still stuck?
-
-!!! question "Open a GitHub issue"
-
-    If none of the above covers your situation, open an issue on [GitHub Issues](https://github.com/Borda/pyDeprecate/issues). Include the full traceback, the decorator call you used, and the Python and pyDeprecate versions (`pip show pyDeprecate`).
-
-______________________________________________________________________
-
 ## Why did the GitHub Action skip my job summary?
 
 **Q:** The action ran with `summary: true`, but the job summary is absent or warns that the gate wrote no pyDeprecate report, or that no pyDeprecate report is available, or another runner warning about the summary.
 
 **A:** The summary is optional and never changes the gate's exit code. The action takes the table from the report the CLI writes with `--report-json`, and the CLI writes that report only when the scan ran to the end with exit `0` or `1`. "The gate wrote no pyDeprecate report" means the report could not be written; the cause is in the CLI's stderr just above the warning. A usage error (exit `2`) and a crashed scan (exit `3`, for example a package that fails to import) write no summary and no warning, because no scan finished; the step's error annotation names the exit code. "No pyDeprecate report is available" means the job runs a pyDeprecate older than `--report-json` with `install: false`: keep `install: true`, or upgrade the pyDeprecate your job installs. The same "no report is available" warning also appears when the runner could not create the temporary directory for the report (its preceding warning gives the OS error). Other warnings: "`summary: true` needs GITHUB_STEP_SUMMARY" means the job is not on a GitHub runner, and "could not write the job summary" shows the OS error; both are self-describing. "The gate's report holds no deprecation table" means the CLI could not render the table (the reason is on its stderr). "Could not read the pyDeprecate report" or "not of layout version" means the report file is corrupt or comes from a different pyDeprecate than the action's (for example `install: false` with another version); the preceding runner warning names the cause, and the gate result is unaffected.
+
+______________________________________________________________________
+
+## Still stuck?
+
+!!! question "Open a GitHub issue"
+
+    If none of the above covers your situation, open an issue on [GitHub Issues](https://github.com/Borda/pyDeprecate/issues). Include the full traceback, the decorator call you used, and the Python and pyDeprecate versions (`pip show pyDeprecate`).
