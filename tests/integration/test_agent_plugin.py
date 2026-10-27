@@ -119,6 +119,7 @@ def test_host_versions_agree() -> None:
 _CLAUDE_CLI = shutil.which("claude")
 
 
+@pytest.mark.subprocess
 @pytest.mark.skipif(_CLAUDE_CLI is None, reason="requires the Claude Code CLI on PATH")
 @pytest.mark.parametrize(
     "target",

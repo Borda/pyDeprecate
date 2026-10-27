@@ -175,6 +175,10 @@ ini_options.addopts = [
   # basename and silently prune tests/docs/ (the generated docs-example tests) as well
   "--ignore=docs",
 ]
+ini_options.markers = [
+  # an execution requirement, not a speed tier: a fast local loop is `pytest -m "not subprocess"`; CI runs everything
+  "subprocess: starts a real Python interpreter or external CLI as a child process",
+]
 ini_options.xfail_strict = true
 # Suppress only the specific legacy-sentinel warnings emitted by `TargetMode.from_legacy()`
 # and the construction-time misconfig warnings from `TargetMode.validate()` so that legacy

@@ -117,6 +117,7 @@ def _run_cli(
     )
 
 
+@pytest.mark.subprocess
 class TestCliInvocation:
     """Tests for real CLI invocations via subprocess."""
 
@@ -263,6 +264,7 @@ class TestCliInvocation:
         assert "old_fn: `TargetMode.NOTIFY` with `args_mapping`" in result.stdout
 
 
+@pytest.mark.subprocess
 class TestCliSubcommands:
     """Integration tests for the four CLI subcommands via subprocess."""
 
@@ -723,6 +725,7 @@ class TestCliSubcommands:
         assert result.returncode == 0
 
 
+@pytest.mark.subprocess
 class TestCliPreCommitArgs:
     """Tests for argument orders a pre-commit hook produces (``entry`` + ``args``, no filenames)."""
 
@@ -833,6 +836,7 @@ _PARITY_SUBCOMMANDS = [
 ]
 
 
+@pytest.mark.subprocess
 class TestCliParserParity:
     """Golden command lines every subcommand keeps across a change of the argument parser."""
 
@@ -919,6 +923,7 @@ class TestCliParserParity:
         assert report.is_file()
 
 
+@pytest.mark.subprocess
 class TestCliArgumentValidation:
     """Unknown or misspelled flags and version auto-detection must fail safe, never silently mislead."""
 
@@ -969,6 +974,7 @@ class TestCliArgumentValidation:
         assert result.returncode == 0
 
 
+@pytest.mark.subprocess
 class TestCliBoolLiteralValues:
     """Boolean flags take ``True``/``False``/``1``/``0`` in any case, as a separate token or after ``=``."""
 
@@ -1011,6 +1017,7 @@ def _make_flat_root(tmp_path: Path, *package_names: str) -> Path:
     return tmp_path
 
 
+@pytest.mark.subprocess
 class TestCliPackageRootScan:
     """A no-path scan from a project root resolves one package, and never silently audits nothing."""
 
@@ -1103,6 +1110,7 @@ _MEMBER_GATES = [
 ]
 
 
+@pytest.mark.subprocess
 class TestCliScanTarget:
     """Every subcommand turns the same path into the same scan."""
 
@@ -1285,6 +1293,7 @@ class TestCliScanTarget:
         assert [gap["kind"] for gap in gaps] == ["other copy audited"]
 
 
+@pytest.mark.subprocess
 @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
 class TestCliIncludeMembers:
     """Every scanning subcommand takes ``--no-include-members`` and scans class members by default."""
@@ -1323,6 +1332,7 @@ class TestCliIncludeMembers:
         assert "Legacy." not in result.stdout
 
 
+@pytest.mark.subprocess
 class TestCliPolicyMessageRequiredFlag:
     """``policy --message-required`` binds like the other boolean flags, wherever it sits beside the path."""
 
@@ -1360,6 +1370,7 @@ class TestCliPolicyMessageRequiredFlag:
         assert "message-required=False (pyproject.toml)" in result.stdout
 
 
+@pytest.mark.subprocess
 class TestCliAttachedBoolLiterals:
     """``--flag=value`` accepts the same boolean spellings as ``--flag value`` instead of exiting 2."""
 
@@ -1397,6 +1408,7 @@ class TestCliAttachedBoolLiterals:
         assert "expects True or False" in result.stderr
 
 
+@pytest.mark.subprocess
 class TestCliReportJson:
     """``--report-json PATH`` writes one machine-readable record of the run: the status table and every gap."""
 

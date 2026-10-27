@@ -28,6 +28,7 @@ def _run_isolated(code: str) -> str:
 class TestLazyAuditImport:
     """``import deprecate`` defers the audit tooling until one of its names is used."""
 
+    @pytest.mark.subprocess
     def test_plain_import_skips_audit_and_metadata(self) -> None:
         """A bare ``import deprecate`` loads no audit module and none of the heavy stdlib modules.
 
@@ -47,6 +48,7 @@ class TestLazyAuditImport:
         assert [name for name in loaded if name.startswith("deprecate.audit")] == []
         assert [name for name in loaded if name in _HEAVY_MODULES] == []
 
+    @pytest.mark.subprocess
     def test_plain_import_skips_json(self) -> None:
         """``json`` stays unloaded after ``import deprecate`` when nothing else imported it first.
 
@@ -57,6 +59,7 @@ class TestLazyAuditImport:
         code = "import sys\nimport deprecate\nprint('json' in sys.modules, 'deprecate.audit' in sys.modules)\n"
         assert _run_isolated(code) == "False False"
 
+    @pytest.mark.subprocess
     @pytest.mark.parametrize("name", ["find_deprecation_wrappers", "audit", "DeprecatedCallableInfo"])
     def test_audit_name_resolves_on_access(self, name: str) -> None:
         """Accessing an audit name on the package loads the audit tooling and returns the real object.
@@ -78,6 +81,7 @@ class TestLazyAuditImport:
         )
         assert _run_isolated(code) == "True"
 
+    @pytest.mark.subprocess
     def test_star_import_binds_every_public_name(self) -> None:
         """``from deprecate import *`` binds every name in ``__all__``, audit names included.
 
@@ -115,6 +119,7 @@ class TestLazyAuditImport:
             _ = deprecate.no_such_name
 
 
+@pytest.mark.subprocess
 class TestProxyPackageImport:
     """``import deprecate`` alone gives proxies their full protocol forwarding."""
 
