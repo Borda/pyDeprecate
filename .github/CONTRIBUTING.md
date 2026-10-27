@@ -520,10 +520,17 @@ The integration suite also keeps characterization for positional and keyword for
 > [!IMPORTANT]
 >
 > **Three-layer rule**: do not define target objects or deprecated wrappers directly inside `test_*.py` files. Place targets in `api_current.py`, deprecated wrappers in `api_deprecated*.py`, then import them in tests. This includes class definitions — do not define classes inside test functions; define them in the appropriate collection module instead.
+>
+> Exceptions:
+>
+> - **Unit-level mechanical fixtures:** a test under `tests/unittests/` may define a tiny class or function inline when it exists only to drive the code under test — a stand-in owner or operand, a source whose attributes the test inspects, or a fresh wrapper for one private helper.
+> - **A fresh definition is the behaviour under test:** in any layer, keep the definition inside the test when the test asserts a decoration-time warning or error at the definition itself, creates the class inside `pytest.warns` or `pytest.raises`, or asserts a warning location that is the definition line.
 
 > [!IMPORTANT]
 >
 > **No local imports inside test functions.** All `import` and `from … import` statements must appear at module level, not inside test methods or helper functions. Import each fixture name at the top of the test file and use it directly in the test body.
+>
+> The one exception is the autouse reset fixture in `tests/conftest.py`, which imports `deprecate.deprecation` when it runs. CI installs the package without `-e`; a module-level import there would load the installed copy before `--doctest-modules` collects `src/`, and collection then fails with `import file mismatch`.
 >
 > ```python
 > # ✗ wrong — local import inside a test method
@@ -662,8 +669,8 @@ def depr_class_whole_mode_warns_on_call(x: int) -> int: ...
 **Rules:**
 
 - Minimum **3 call sites** before extracting — two occurrences stay inline.
-- Only group call sites where **all three** of `deprecated_in`, `remove_in`, and `num_warns` are identical (or all three omit `num_warns`). Sites that differ on any key stay inline.
-- `_class_deprecation_*` shared instances (see above) and `_DEPRS_CASE_*` constants both go in the **constants block at the top of `api_deprecated.py`**, right after `_SHORT_MSG_FUNC` / `_SHORT_MSG_ARGS`. This makes version metadata scannable in one place. Sibling collection modules import shared constants and instances from there; the original module never imports from its siblings.
+- Only group call sites where **all three** of `deprecated_in`, `remove_in`, and `num_warns` are identical (or all three omit `num_warns`). Sites that differ on any key stay inline. One existing exception predates this rule: `**_DEPRS_CASE_STD_ARGS, num_warns=1` in `api_deprecated.py`. Do not add more.
+- `_class_deprecation_*` shared instances (see above) and `_DEPRS_CASE_*` constants both go in the **constants block at the top of `api_deprecated.py`**, right after `_SHORT_MSG_FUNC` / `_SHORT_MSG_ARGS`. This makes version metadata scannable in one place. Sibling collection modules import shared constants and instances from there; the original module never imports from its siblings. `misconfigured.py` keeps its own `_DEPRS_CASE_OLD_ARGS`, because `tests/integration/test_action.py` copies that file into a standalone package that can import only from `deprecate`. `policy.py` and `pep702.py` also define module-local constants for their own schedules.
 - When adding a new fixture group that would form a third call site for an existing tuple, extract rather than inline.
 - **Exception — fixtures under `assert_type`:** a fixture whose *static* type is pinned by `assert_type` (currently `DeprecatedColorEnumFunctional` and `DeprecatedPaletteFunctionalFallback`, asserted in `tests/unittests/proxy/test_factories.py`) spells its version kwargs out inline. mypy resolves an overloaded call against a `dict[str, Any]` splat by falling back to `Any`, which erases the overload the assertion exists to verify. Do not "unify" these back into a `_DEPRS_CASE_*` splat — the assertion would keep passing while proving nothing.
 
