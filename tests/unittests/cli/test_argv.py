@@ -256,6 +256,12 @@ class TestParseCliArgs:
                 id="both-operands",
             ),
             pytest.param(["status", "pkg", "--", "0.2"], {"path": "pkg", "version": "0.2"}, id="version-operand"),
+            # without the separator "--report-json" alone is a usage error (expects a value), so parsing proves it
+            # was taken as an operand
+            pytest.param(["check", "--", "--report-json"], {"path": "--report-json"}, id="report-option-is-a-path"),
+            pytest.param(
+                ["check", "--", "--report-json=out.json"], {"path": "--report-json=out.json"}, id="report-assignment"
+            ),
         ],
     )
     def test_separator_ends_options(self, argv: list[str], expected_kwargs: dict[str, object]) -> None:

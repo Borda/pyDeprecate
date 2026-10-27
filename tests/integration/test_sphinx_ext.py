@@ -1,12 +1,13 @@
 """Unit tests for deprecate.docstring.sphinx_ext."""
 
+import logging
 from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from deprecate import deprecated_class
-from deprecate.docstring.sphinx_ext import _PROXY_AVAILABLE, _SPHINX_AVAILABLE
+from deprecate.docstring.sphinx_ext import _PROXY_AVAILABLE, _SPHINX_AVAILABLE, setup
 
 # Optional-dependency imports: ``sphinx`` (and therefore ``_DeprecatedProxyClassDocumenter``) may be absent.
 # Guard at module level so collection never fails; the tests below are skipped via ``_skipif_sphinx_missing``.
@@ -152,3 +153,46 @@ class TestGetDoc:
             result = doc.get_doc()
 
         assert result == expected
+
+
+@_skipif_sphinx_missing
+class TestSetup:
+    """``setup(app)`` is the Sphinx extension entry point: it registers the documenter and returns the metadata."""
+
+    def test_registers_proxy_documenter_over_autodoc(self) -> None:
+        """Loading the extension enables autodoc and registers the proxy documenter with ``override=True``.
+
+        A docs build lists ``deprecate.docstring.sphinx_ext`` in ``extensions``; Sphinx then calls ``setup(app)``. The
+        autodoc extension must be loaded first, and the proxy documenter has to replace the stock class documenter
+        for ``autoclass::`` (hence ``override=True``), or deprecated class aliases render without their notice.
+
+        """
+        app = MagicMock()
+
+        setup(app)
+
+        app.setup_extension.assert_called_once_with("sphinx.ext.autodoc")
+        app.add_autodocumenter.assert_called_once_with(_DeprecatedProxyClassDocumenter, override=True)
+
+    def test_returns_parallel_safe_metadata(self) -> None:
+        """The returned dict tells Sphinx the extension's version and that parallel reads are safe."""
+        assert setup(MagicMock()) == {"version": "0.1", "parallel_read_safe": True}
+
+    def test_without_proxy_support_warns_and_registers_nothing(self, caplog: pytest.LogCaptureFixture) -> None:
+        """When the proxy type is unavailable, the extension still loads, warns once, and registers no documenter.
+
+        A partial installation must not break the docs build: ``setup`` logs that the documenter is not registered
+        and still hands Sphinx valid metadata.
+
+        """
+        app = MagicMock()
+
+        with (
+            patch("deprecate.docstring.sphinx_ext._PROXY_AVAILABLE", False),
+            caplog.at_level(logging.WARNING, logger="deprecate.docstring.sphinx_ext"),
+        ):
+            result = setup(app)
+
+        app.add_autodocumenter.assert_not_called()
+        assert "_DeprecatedProxyClassDocumenter not registered" in caplog.text
+        assert result == {"version": "0.1", "parallel_read_safe": True}

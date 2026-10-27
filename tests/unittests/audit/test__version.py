@@ -4,12 +4,14 @@ import importlib.metadata
 import sys
 from collections.abc import Generator
 from pathlib import Path
+from typing import Optional
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from deprecate.audit._version import (
     _distribution_for_import,
+    _distribution_from_top_level,
     _load_toml,
     _resolve_package_version,
     _version_from_dynamic,
@@ -275,3 +277,83 @@ class TestVersionFromToml:
         toml = tmp_path / "pyproject.toml"
         toml.write_text('[project]\ndynamic = ["version"]\n')
         assert _version_from_toml(str(toml), str(tmp_path)) is None
+
+
+def _version_failing_for_sub(name: str) -> str:
+    """Stand-in ``importlib.metadata.version``: fail for the ``demo-sub`` distribution, answer ``9.9`` otherwise."""
+    if name == "demo-sub":
+        raise RuntimeError("corrupt metadata")
+    return "9.9"
+
+
+class _FakeDistribution:
+    """Stand-in installed distribution; ``listed == "read-error"`` makes reading ``top_level.txt`` fail (fixture)."""
+
+    def __init__(self, listed: str, metadata: Optional[dict[str, str]]) -> None:
+        self._listed = listed
+        self.metadata = metadata or {}
+
+    def read_text(self, filename: str) -> str:
+        """Return the ``top_level.txt`` listing, or fail like an unreadable file."""
+        if self._listed == "read-error":
+            raise OSError("unreadable")
+        return self._listed
+
+
+class TestMetadataLookupFailures:
+    """``importlib.metadata`` failures are swallowed so version resolution degrades instead of crashing the CLI."""
+
+    def test_dotted_name_falls_back_to_top_level_distribution(self) -> None:
+        """When the full dotted name has no usable metadata, the top-level package's distribution version is used.
+
+        The lookup for ``demo-sub`` raises (any error, not only ``PackageNotFoundError``); the version of ``demo``
+        then answers.
+
+        """
+        with patch("deprecate.audit._version.importlib.metadata.version", side_effect=_version_failing_for_sub):
+            assert _resolve_package_version("demo.sub") == "9.9"
+
+    def test_every_metadata_lookup_failing_leaves_version_unresolved(self) -> None:
+        """If metadata lookups all raise and the module cannot be imported, no version is reported (``None``)."""
+        with (
+            patch("deprecate.audit._version.importlib.metadata.version", side_effect=RuntimeError("broken")),
+            patch("deprecate.audit._version._distribution_for_import", return_value=None),
+        ):
+            assert _resolve_package_version("no_such_module_for_pydeprecate_tests") is None
+
+    def test_distribution_mapping_failure_resolves_to_none(self) -> None:
+        """A ``packages_distributions`` error is swallowed: the import name maps to no distribution."""
+        with patch(
+            "deprecate.audit._version.importlib.metadata.packages_distributions",
+            side_effect=RuntimeError("unreadable site-packages"),
+            create=True,
+        ):
+            assert _distribution_for_import("deprecate") is None
+
+    def test_distribution_enumeration_failure_resolves_to_none(self) -> None:
+        """If listing installed distributions raises, the ``top_level.txt`` scan reports no match."""
+        with patch("deprecate.audit._version.importlib.metadata.distributions", side_effect=OSError("denied")):
+            assert _distribution_from_top_level("demo") is None
+
+    @pytest.mark.parametrize(
+        ("dists", "expected"),
+        [
+            pytest.param([("read-error", None)], None, id="unreadable-top-level-skipped"),
+            pytest.param([("demo", {})], None, id="missing-name-skipped"),
+            pytest.param([("demo", {"Name": ""})], None, id="empty-name-skipped"),
+            pytest.param(
+                [("read-error", None), ("demo", {}), ("demo", {"Name": "demo-dist"})], "demo-dist", id="mixed"
+            ),
+        ],
+    )
+    def test_broken_distributions_are_skipped(
+        self, dists: list[tuple[str, Optional[dict[str, str]]]], expected: Optional[str]
+    ) -> None:
+        """A distribution whose ``top_level.txt`` cannot be read, or that lacks a usable name, is skipped.
+
+        One damaged install in ``site-packages`` must not hide a later distribution that does provide the package.
+
+        """
+        fakes = [_FakeDistribution(listed, metadata) for listed, metadata in dists]
+        with patch("deprecate.audit._version.importlib.metadata.distributions", return_value=fakes):
+            assert _distribution_from_top_level("demo") == expected

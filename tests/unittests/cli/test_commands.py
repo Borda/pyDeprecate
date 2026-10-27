@@ -1437,3 +1437,76 @@ class TestIncludeMembersFlag:
         """
         command(path="some_module", include_members=False, **kwargs)
         mock_find.assert_called_once_with("some_module", recursive=True, include_members=False, exclude=[])
+
+
+_LIST_LITERAL_EXCLUDE = '["pkg.tests", "pkg.legacy"]'
+
+
+class TestInvalidExcludeExitsTwo:
+    """A malformed ``--exclude`` is a usage error (exit 2) for every subcommand, before anything is scanned."""
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            pytest.param(cmd_check, id="check"),
+            pytest.param(cmd_expiry, id="expiry"),
+            pytest.param(cmd_policy, id="policy"),
+            pytest.param(cmd_chains, id="chains"),
+            pytest.param(cmd_all, id="all"),
+            pytest.param(cmd_status, id="status"),
+        ],
+    )
+    @patch("deprecate._cli.scan.find_deprecation_wrappers")
+    def test_list_literal_exclude_exits_two(
+        self, mock_find: MagicMock, command: Callable[..., int], capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A list literal passed as ``--exclude`` is refused with the comma-separated hint and nothing is scanned.
+
+        ``--exclude='[a, b]'`` would become one pattern that matches nothing, leaving the scan silently unexcluded
+        while the author believes two packages are skipped; every subcommand must reject it the same way.
+
+        """
+        assert command(path="some_module", exclude=_LIST_LITERAL_EXCLUDE) == 2
+        assert f"Invalid `--exclude` value `{_LIST_LITERAL_EXCLUDE}`" in capsys.readouterr().err
+        mock_find.assert_not_called()
+
+    def test_policy_reads_exclude_from_malformed_pyproject_list(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """``policy`` rejects an ``exclude`` in ``[tool.pydeprecate]`` that is not a list of strings with exit 2."""
+        (tmp_path / "pyproject.toml").write_text("[tool.pydeprecate]\nexclude = [1, 2]\n")
+        pkg = write_pkg(tmp_path, "mypkg", "")
+
+        assert cmd_policy(path=str(pkg)) == 2
+        assert "Invalid `exclude` value" in capsys.readouterr().err
+
+
+class TestPolicyWithoutPackaging:
+    """``policy`` without the optional ``packaging`` library skips the grace rule instead of failing."""
+
+    def test_grace_only_policy_is_advisory_exit_zero(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """With ``message_required`` off, the only rule left needs ``packaging``: it is skipped, exit 0, gap printed.
+
+        A base-install CI job (no ``pyDeprecate[audit]``) running ``policy --no-message-required`` has nothing it can
+        check; it must be told which rule did not run and how to enable it, and must not fail or claim a clean pass.
+        ``packaging.version`` is made unimportable, the import the grace-window rule performs.
+
+        """
+        wrapper = DeprecationWrapperInfo(
+            module="mod",
+            function="fn",
+            deprecated_info=DeprecationConfig(deprecated_in="1.0", remove_in="1.1", target=TargetMode.NOTIFY),
+        )
+        monkeypatch.setitem(sys.modules, "packaging.version", None)
+
+        with _scanned([wrapper]):
+            result = cmd_policy(path="some_module", message_required=False)
+
+        captured = capsys.readouterr()
+        assert result == 0
+        assert "pydeprecate gap: " in captured.err
+        assert "`min-grace`" in captured.err
+        assert "pyDeprecate[audit]" in captured.err
+        assert "No deprecation policy violations found." not in captured.out

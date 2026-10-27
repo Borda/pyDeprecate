@@ -946,3 +946,94 @@ class TestProxyAttrsMappingDefensiveCopy:
         )
         mapping["old_attr"] = "hijacked"
         assert proxy.__deprecation_config__.attrs_mapping == {"old_attr": "new_attr"}
+
+
+def _flagged_attr_proxy() -> tuple[Any, dict[str, bool], Any, Any]:
+    """Build a ``color`` -> ``colour`` attribute-redirect proxy whose ``skip_if`` reads a flag the test flips.
+
+    Returns the proxy, the mutable flag dict (``{"skip": ...}``), the wrapped source class and the target class — tiny
+    mechanical classes used only to observe where a write or delete lands.
+
+    """
+
+    class _Source:
+        color = "source-red"
+
+    class _Target:
+        colour = "target-red"
+
+    flag = {"skip": True}
+    proxy = deprecated_class(
+        target=_Target,
+        attrs_mapping={"color": "colour"},
+        skip_if=lambda: flag["skip"],
+        deprecated_in="1.0",
+        remove_in="2.0",
+        num_warns=-1,
+    )(_Source)
+    return proxy, flag, _Source, _Target
+
+
+class TestAttributeWritesUnderSkipIf:
+    """``skip_if`` makes ``setattr``/``delattr`` on a deprecated alias behave as if the class were undecorated."""
+
+    def test_write_while_skipped_lands_on_source_without_warning(self) -> None:
+        """With ``skip_if`` true, ``proxy.color = x`` writes the source class under its own name and stays silent.
+
+        A project disables the deprecation machinery (for example on the release that already migrated) yet old code
+        still assigns the legacy name: the write must reach the original attribute with no warning and no redirect.
+
+        """
+        proxy, _, source, target = _flagged_attr_proxy()
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            proxy.color = "updated"
+
+        assert source.color == "updated"
+        assert target.colour == "target-red"
+
+    def test_write_while_active_warns_and_redirects(self) -> None:
+        """With ``skip_if`` false, the same write warns and lands on the canonical attribute of the target."""
+        proxy, flag, source, target = _flagged_attr_proxy()
+        flag["skip"] = False
+
+        with pytest.warns(FutureWarning, match="color"):
+            proxy.color = "updated"
+
+        assert target.colour == "updated"
+        assert source.color == "source-red"
+
+    def test_delete_while_skipped_removes_source_attribute_without_warning(self) -> None:
+        """With ``skip_if`` true, ``del proxy.color`` removes the source attribute and stays silent."""
+        proxy, _, source, target = _flagged_attr_proxy()
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            del proxy.color
+
+        assert not hasattr(source, "color")
+        assert target.colour == "target-red"
+
+    def test_delete_while_active_warns_and_redirects(self) -> None:
+        """With ``skip_if`` false, the same delete warns and removes the canonical attribute from the target."""
+        proxy, flag, source, target = _flagged_attr_proxy()
+        flag["skip"] = False
+
+        with pytest.warns(FutureWarning, match="color"):
+            del proxy.color
+
+        assert not hasattr(target, "colour")
+        assert source.color == "source-red"
+
+    def test_delete_of_unmapped_attribute_forwards_to_target(self) -> None:
+        """Deleting an attribute not named in ``attrs_mapping`` removes it from the active target, silently."""
+        proxy, flag, _, target = _flagged_attr_proxy()
+        flag["skip"] = False
+        target.extra = 1  # type: ignore[attr-defined]
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            del proxy.extra
+
+        assert not hasattr(target, "extra")

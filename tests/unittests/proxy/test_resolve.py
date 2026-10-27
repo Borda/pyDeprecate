@@ -2,10 +2,12 @@
 
 import warnings
 from dataclasses import dataclass as dc_decorator
+from typing import Any
 
 import pytest
 
-from deprecate.proxy import deprecated_class
+from deprecate.proxy import deprecated_class, deprecated_instance
+from deprecate.proxy.core import _DeprecatedProxy, _proxy_source_path
 from tests.collections.api_current import AutoExpandDC, PositionalOnlyTarget
 from tests.collections.api_deprecated import (
     DepAutoExpandDC,
@@ -319,3 +321,65 @@ class TestPositionalOnlyForwarding:
             instance = DepPositionalOnlyMixed(1, old_x=5)  # type: ignore[call-arg]
         assert instance.w == 1
         assert instance.x == 5
+
+
+def _circular_proxy_pair() -> tuple[Any, Any]:
+    """Return two instance proxies that wrap each other, a stack no decorator produces (the cycle guard's input)."""
+    first = deprecated_instance(object(), name="first", deprecated_in="1.0", remove_in="2.0")
+    second = deprecated_instance(first, name="second", deprecated_in="1.0", remove_in="2.0")
+    object.__setattr__(object.__getattribute__(first, "_DeprecatedProxy__config"), "obj", second)
+    return first, second
+
+
+class TestAttrsMappingValidation:
+    """``attrs_mapping`` redirect targets are validated when the proxy is built, not on first access."""
+
+    def test_missing_redirect_target_raises_value_error(self) -> None:
+        """A redirect to an attribute the class lacks fails at decoration with the offending pair in the message.
+
+        Otherwise the first caller touching the deprecated alias would get an ``AttributeError`` instead of a warning.
+
+        """
+
+        class _Config:
+            new_attr = 1
+
+        expected = r"redirect targets not found on the active class: \[\"'old_attr' -> 'gone'\"\]"
+        with pytest.raises(ValueError, match=expected):
+            deprecated_class(
+                attrs_mapping={"old_attr": "gone", "other": "new_attr"}, deprecated_in="1.0", remove_in="2.0"
+            )(_Config)
+
+
+class TestCircularProxyStacks:
+    """A circular proxy stack is cut by the cycle guards instead of looping forever."""
+
+    def test_isinstance_against_circular_stack_is_false(self) -> None:
+        """``isinstance(x, proxy)`` on a stack that wraps itself answers ``False`` rather than hanging."""
+        first, _ = _circular_proxy_pair()
+
+        assert isinstance(1, first) is False
+
+    def test_issubclass_against_circular_stack_is_false(self) -> None:
+        """``issubclass(X, proxy)`` on a stack that wraps itself answers ``False`` rather than hanging."""
+        first, _ = _circular_proxy_pair()
+
+        assert issubclass(int, first) is False
+
+    def test_static_owner_lookup_terminates_on_circular_stack(self) -> None:
+        """Resolving the object attribute validation inspects stops inside the cycle and returns a proxy of it."""
+        first, second = _circular_proxy_pair()
+
+        assert _DeprecatedProxy._get_static_attr_owner(first) in (first, second)
+
+    def test_static_owner_of_plain_object_is_itself(self) -> None:
+        """An object that is no proxy is its own validation owner."""
+        plain = object()
+
+        assert _DeprecatedProxy._get_static_attr_owner(plain) is plain
+
+    def test_source_path_terminates_on_circular_stack(self) -> None:
+        """The ``%(source_path)s`` of a proxy over a self-wrapping stack falls back to the display name."""
+        first, _ = _circular_proxy_pair()
+
+        assert _proxy_source_path(first, "first") == "first"
