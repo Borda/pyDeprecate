@@ -13,6 +13,7 @@ from typing import Optional
 
 from deprecate._pkg import _resolve_package_version, _safe_module_name
 from deprecate.audit import DeprecationWrapperInfo, generate_deprecation_table
+from deprecate.audit._findings import _Finding, _misconfiguration
 
 
 def _is_package_available(name: str) -> bool:
@@ -74,11 +75,13 @@ class _ScanRecord:
 
 @dataclass
 class _RunRecord:
-    """What one CLI run did, collected for ``--report-json``: its gaps, and its rendered table or its scan."""
+    """What one CLI run did: its gaps and findings, and its rendered table or its scan for ``--report-json``."""
 
     gaps: list[tuple[_GapKind, str]] = field(default_factory=list)
     table: Optional[str] = None
     scan: Optional[_ScanRecord] = None
+    #: Every finding the run's checks derived; ``all`` computes its exit code from those of its sub-checks.
+    findings: list[_Finding] = field(default_factory=list)
 
 
 #: The record of the current CLI run while :func:`_record_run` is active.
@@ -130,6 +133,13 @@ def _record_scan(scan: _ScanRecord) -> None:
     record = _RUN_RECORD.get()
     if record is not None:
         record.scan = scan
+
+
+def _record_findings(findings: list[_Finding]) -> None:
+    """Keep the findings a check derived, for the exit code of ``all`` that ran it."""
+    record = _RUN_RECORD.get()
+    if record is not None:
+        record.findings.extend(findings)
 
 
 def _record_table(markdown: str) -> None:
@@ -191,6 +201,22 @@ class _Reporter:
         _Reporter._render_table(
             "[ERROR] Found functions with invalid argument mappings:",
             [(r.module, r.function, ", ".join(r.invalid_args)) for r in items],
+        )
+
+    @staticmethod
+    def misconfigured_targets(items: list[DeprecationWrapperInfo]) -> None:
+        """Report wrappers whose ``target`` contradicts the rest of their configuration."""
+        _Reporter._render_table(
+            "[ERROR] Found deprecated wrappers with a misconfigured target:",
+            [(r.module, r.function, _misconfiguration(r)) for r in items],
+        )
+
+    @staticmethod
+    def inner_order_properties(items: list[DeprecationWrapperInfo]) -> None:
+        """Report inner-order ``@property @deprecated`` wrappers, whose setter and deleter never warn."""
+        _Reporter._render_table(
+            "[ERROR] Found inner-order @property @deprecated wrappers (setter/deleter unprotected):",
+            [(r.module, r.function, "use @deprecated(...) above @property") for r in items],
         )
 
     @staticmethod
@@ -266,16 +292,30 @@ class _Reporter:
     def issues(results: list[DeprecationWrapperInfo], *, error_on_chains: bool = False) -> bool:
         """Print categorised diagnostics and return whether any issues were found."""
         invalid_args = [r for r in results if r.invalid_args]
+        misconfigured = [r for r in results if r.misconfigured_target]
+        inner_order = [r for r in results if r.inner_order_property]
         identity_args_mappings = [r for r in results if r.identity_args_mapping]
         no_effect = [r for r in results if r.no_effect]
         chains = [r for r in results if r.chain_type is not None]
         positional_only = [r for r in results if r.args_mapping_positional_only]
 
-        if not (invalid_args or identity_args_mappings or no_effect or chains or positional_only):
+        if not (
+            invalid_args
+            or misconfigured
+            or inner_order
+            or identity_args_mappings
+            or no_effect
+            or chains
+            or positional_only
+        ):
             return False
 
         if invalid_args:
             _Reporter.invalid_args(invalid_args)
+        if misconfigured:
+            _Reporter.misconfigured_targets(misconfigured)
+        if inner_order:
+            _Reporter.inner_order_properties(inner_order)
         if identity_args_mappings:
             _Reporter.identity_args_mappings(identity_args_mappings)
         if no_effect:

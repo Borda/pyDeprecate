@@ -12,7 +12,7 @@ import pytest
 from deprecate._cli import cli
 from deprecate._cli.commands import cmd_all, cmd_chains, cmd_check, cmd_expiry, cmd_policy, cmd_status
 from deprecate._cli.config import _FROM_PYPROJECT
-from tests.unittests.cli._helpers import _EXPIRED_MSG, _POLICY_VIOLATION
+from tests.unittests.cli._helpers import _EXPIRED_FINDING, _POLICY_VIOLATION
 
 
 def _called_with(function: Callable[..., int], mock: MagicMock) -> dict[str, object]:
@@ -90,11 +90,11 @@ class TestCliEntryPoint:
         ("expired", "expected_code"),
         [
             pytest.param([], 0, id="gates-pass"),
-            pytest.param([_EXPIRED_MSG], 1, id="gate-fails"),
+            pytest.param([_EXPIRED_FINDING], 1, id="gate-fails"),
         ],
     )
     @patch("deprecate._cli.commands.generate_deprecation_table", side_effect=RuntimeError("table rendering failed"))
-    @patch("deprecate._cli.commands._check_expiry_for_callables")
+    @patch("deprecate._cli.commands._expiry_findings")
     @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
     def test_all_report_json_survives_table_render_failure(
         self,
@@ -415,7 +415,7 @@ class TestInternalOptionRejection:
         assert "--_advisory" in capsys.readouterr().err
 
     @patch("deprecate._cli.commands.cmd_status", return_value=0)
-    @patch("deprecate._cli.commands._check_expiry_for_callables", return_value=[])
+    @patch("deprecate._cli.commands._expiry_findings", return_value=[])
     @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[_POLICY_VIOLATION])
     def test_all_stays_advisory(
         self, mock_find: MagicMock, mock_expiry: MagicMock, mock_status: MagicMock, capsys: pytest.CaptureFixture[str]
@@ -440,11 +440,13 @@ class TestInternalOptionRejection:
 class TestCliEmptyExceptionMessage:
     """An exception with an empty message must still produce a non-blank stderr exit line."""
 
-    def test_empty_message_exception_exits_with_type_prefix(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """A subcommand raising a message-less exception exits with the exception type name, not a blank line.
+    def test_empty_message_exception_exits_with_type_prefix(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A subcommand raising a message-less exception exits 3 and names the exception type, not a blank line.
 
-        ``sys.exit(str(exc))`` on such an exception exited 1 with nothing printed, giving CI no clue what failed;
-        prefixing the exception type guarantees a meaningful stderr line.
+        ``sys.exit(str(exc))`` on such an exception exited 1 with nothing printed, giving CI no clue what failed and
+        no way to tell the crash from a finding; exit 3 and the type prefix give both.
         """
 
         class _SilentError(Exception):
@@ -456,4 +458,51 @@ class TestCliEmptyExceptionMessage:
             pytest.raises(SystemExit) as exc_info,
         ):
             cli()
-        assert "_SilentError" in str(exc_info.value.code)
+        assert exc_info.value.code == 3
+        assert "pydeprecate: internal error: _SilentError: " in capsys.readouterr().err
+
+
+class TestCliCrashExitCode:
+    """A run that crashes exits 3, never 1, so CI can tell a broken audit from findings."""
+
+    @pytest.mark.parametrize(
+        "exit_zero", [pytest.param((), id="gating"), pytest.param(("--exit-zero",), id="advisory")]
+    )
+    def test_internal_error_exits_three(
+        self, tmp_path: Path, exit_zero: tuple[str, ...], capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """An exception escaping a subcommand exits 3 with the type, message and where to report it; no report file.
+
+        Exit 1 used to mean both "findings" and "the scan crashed", so an advisory step could not tell them apart, and
+        ``--exit-zero`` never masks a crash. A report from a crashed run would publish stale results, so none exists.
+
+        """
+        report = tmp_path / "report.json"
+        with (
+            patch("sys.argv", ["pydeprecate", "check", "some_module", *exit_zero, f"--report-json={report}"]),
+            patch("deprecate._cli.commands.cmd_check", autospec=True, side_effect=RuntimeError("x")),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            cli()
+        err = capsys.readouterr().err
+        assert exc_info.value.code == 3
+        assert "pydeprecate: internal error: RuntimeError: x" in err
+        assert "please report this at https://github.com/Borda/pyDeprecate/issues" in err
+        assert not report.exists()
+
+    @patch("deprecate._cli.scan.find_deprecation_wrappers", side_effect=ImportError("broken dependency"))
+    def test_package_import_failure_is_a_scan_error(
+        self, mock_find: MagicMock, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A scanned package that fails to import exits 3 as a scan error, not as an internal error.
+
+        Nothing was audited, which is no finding (exit 1) and no bug of the CLI either, so the message points at the
+        package rather than asking for a bug report.
+
+        """
+        with patch("sys.argv", ["pydeprecate", "check", "some_module"]), pytest.raises(SystemExit) as exc_info:
+            cli()
+        err = capsys.readouterr().err
+        assert exc_info.value.code == 3
+        assert "pydeprecate: scan error: could not import 'some_module': ImportError: broken dependency" in err
+        assert "please report" not in err

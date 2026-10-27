@@ -22,9 +22,16 @@ from :mod:`deprecate.audit` without loading the CLI.
 
 import sys
 
+from deprecate import __about__
+
 #: Option of every subcommand naming the file the run's machine-readable report goes to; ``cli`` handles it itself.
 #: The GitHub Action probes for this name to tell whether the installed CLI writes reports.
 _REPORT_OPTION = "--report-json"
+#: Exit code of a run that crashed: the scanned package could not be imported, or the CLI itself failed. Distinct
+#: from 1 (findings) and 2 (usage error), and never downgraded by ``--exit-zero``.
+_CRASH_EXIT = 3
+#: Where an internal error asks to be reported.
+_ISSUES = f"{__about__.__source_code__}/issues"
 
 
 def cli() -> None:
@@ -32,13 +39,14 @@ def cli() -> None:
 
     Parses the command line with :func:`~deprecate._cli.argv._parse_cli_args` and runs the subcommand; its integer
     return value becomes the process exit code. A usage error (unknown option, malformed value, a second path) exits 2
-    before anything is scanned, and ``--help`` exits 0. Acts as the single top-level exception handler: unhandled
-    exceptions from subcommands are converted to a non-zero exit with the exception type and message (the type prefix
-    guarantees a non-blank stderr line even when the exception carries no message). Every submodule the scan skipped
-    because importing it raised gets one ``pydeprecate gap: module not audited: <module>: <error>`` line on stderr at
-    the end of the run, whatever warnings filters the audited package installs; every other advisory about a part of the
-    audit that did not run (unresolved version, missing ``packaging``, unscanned files) is printed as an unwrapped
-    stderr line starting with ``pydeprecate gap: <kind>:`` as well.
+    before anything is scanned, and ``--help`` exits 0. Acts as the single top-level exception handler: a scanned
+    package that cannot be imported exits 3 with ``pydeprecate: scan error: ...``, and any other exception from a
+    subcommand exits 3 with ``pydeprecate: internal error: <type>: <message>`` and where to report it (the type prefix
+    keeps the line meaningful when the exception carries no message); neither writes a report. Every submodule the scan
+    skipped because importing it raised gets one ``pydeprecate gap: module not audited: <module>: <error>`` line on
+    stderr at the end of the run, whatever warnings filters the audited package installs; every other advisory about a
+    part of the audit that did not run (unresolved version, missing ``packaging``, unscanned files) is printed as an
+    unwrapped stderr line starting with ``pydeprecate gap: <kind>:`` as well.
 
     A path whose name collides with a subcommand (``check``, ``expiry``, ``policy``, ``chains``, ``all``, ``status``) is
     treated as that subcommand by the implicit-``check`` shim. Scan such a path explicitly, e.g. ``pydeprecate check
@@ -58,7 +66,8 @@ def cli() -> None:
 
     """
     from deprecate._cli.argv import _ensure_utf8_streams, _parse_cli_args
-    from deprecate._cli.report import _print_skipped_modules, _record_run, _run_active, _write_report
+    from deprecate._cli.report import _print, _print_skipped_modules, _record_run, _run_active, _write_report
+    from deprecate._cli.scan import _ScanError
     from deprecate.audit._scan import _collect_skipped_modules
 
     _ensure_utf8_streams()
@@ -73,10 +82,14 @@ def cli() -> None:
     with _record_run() as run_record, _collect_skipped_modules() as skipped_modules:
         try:
             exit_code = command.function(**kwargs)
+        except _ScanError as exc:
+            _print(f"pydeprecate: scan error: {exc}", stderr=True)
+            exit_code = _CRASH_EXIT
         except Exception as exc:  # SystemExit is BaseException — argparse's own exits pass through untouched
-            # Prefix the exception type so an exception with an empty message still produces a non-blank stderr
-            # line (bare ``str(exc)`` on such exceptions exited 1 with nothing printed).
-            sys.exit(f"{type(exc).__name__}: {exc}")
+            # The type prefix keeps the line meaningful for an exception that carries no message.
+            _print(f"pydeprecate: internal error: {type(exc).__name__}: {exc}", stderr=True)
+            _print(f"  please report this at {_ISSUES}", stderr=True)
+            exit_code = _CRASH_EXIT
         finally:
             # Unlike the `audit: skipped` warning, these lines survive the audited package's own warnings filters.
             _print_skipped_modules(skipped_modules)

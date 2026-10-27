@@ -70,7 +70,10 @@ _VERSION_QUERY = (
 #: Program a child interpreter runs to tell whether the installed CLI takes ``--report-json`` (exit 0) or not.
 _REPORT_PROBE = "import deprecate._cli as cli\nraise SystemExit(0 if hasattr(cli, '_REPORT_OPTION') else 3)\n"
 #: Exit code of :data:`_REPORT_PROBE` for an importable CLI without ``--report-json``; any other failure is not one.
+#: It is the exit code of that separate ``python -c`` probe, unrelated to the CLI's own exit 3 for a crashed scan.
 _PROBE_UNSUPPORTED = 3
+#: Exit code of a CLI run whose scanned package could not be imported or that failed internally.
+_CLI_CRASHED = 3
 
 
 class ExitStatus(NamedTuple):
@@ -446,13 +449,15 @@ def run_gate(inputs: ActionInputs, python: str, report_file: Path | None, env: d
         annotate("error", str(err))
         return 1
     gate = exit_status(returncode)
-    if gate.code != 0:
+    if gate.code == _CLI_CRASHED:
+        annotate("error", f"pydeprecate {inputs.subcommand} exited 3 (scan or internal error; see the log)")
+    elif gate.code != 0:
         annotate("error", f"pydeprecate {inputs.subcommand} exited {gate.description}")
     if report_file is None:
         if inputs.summary:
             annotate("warning", "no pyDeprecate report is available; skipping the job summary")
         return gate.code
-    if gate.code == 2:  # a usage error scanned nothing, so there are no gaps or table to miss
+    if gate.code in (2, _CLI_CRASHED):  # a usage error or a crash wrote no report, so there are no gaps to miss
         return gate.code
     report = read_report(report_file)
     if report is None:

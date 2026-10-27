@@ -13,11 +13,13 @@ from deprecate._cli.config import (
     _resolve_policy_spec,
     _validate_user_version,
 )
+from deprecate._cli.findings import _exit_code
 from deprecate._cli.report import (
     _ensure_run_record,
     _GapKind,
     _print,
     _print_gap,
+    _record_findings,
     _record_table,
     _Reporter,
 )
@@ -29,15 +31,16 @@ from deprecate.audit import (
     TableStyle,
     generate_deprecation_table,
 )
-from deprecate.audit._lifecycle import _check_expiry_for_callables, _parse_version
-from deprecate.audit._policy import _build_policy_spec, _check_policy_for_callables
+from deprecate.audit._findings import _Finding, _Rule, _wrapper_findings
+from deprecate.audit._lifecycle import _expiry_findings, _parse_version
+from deprecate.audit._policy import _build_policy_spec, _policy_findings
 from deprecate.audit._wrappers import _format_subject
 
 if TYPE_CHECKING:
     from deprecate.audit._policy import _PolicySpec
 
 
-def _do_expiry_prescanned(wrappers: list[DeprecationWrapperInfo], version: Optional[str]) -> Optional[list[str]]:
+def _do_expiry_prescanned(wrappers: list[DeprecationWrapperInfo], version: Optional[str]) -> Optional[list[_Finding]]:
     """Derive expired wrapper messages from an already-scanned wrapper list, without rescanning.
 
     Used by both ``cmd_expiry`` and ``cmd_all`` after their single scan. Every way this can fail is advisory: an
@@ -54,7 +57,7 @@ def _do_expiry_prescanned(wrappers: list[DeprecationWrapperInfo], version: Optio
         version: Resolved package version, or None when it could not be resolved at all.
 
     Returns:
-        List of expired wrapper message strings (may be empty), or None when the check could not run
+        One ``expired`` finding per overdue wrapper (may be empty), or None when the check could not run
         (advisory — the reason is already printed to stderr).
 
     """
@@ -62,7 +65,7 @@ def _do_expiry_prescanned(wrappers: list[DeprecationWrapperInfo], version: Optio
         _print_gap(_GapKind.VERSION_UNRESOLVED, "Cannot check expiry: version not resolved. Pass --version explicitly.")
         return None
     try:
-        expired = _check_expiry_for_callables(wrappers, version)
+        expired = _expiry_findings(wrappers, version)
         # Reached only when the check itself ran, so an unusable `version` is reported once (below) and not again per
         # wrapper. The audit layer only warns about a `remove_in` it skips; the gap is recorded here so it stays free
         # of CLI imports.
@@ -128,8 +131,8 @@ def _skipped_policy_rules(spec: "_PolicySpec") -> list[str]:
 
 def _policy_violations_without_packaging(
     wrappers: list[DeprecationWrapperInfo], spec: "_PolicySpec"
-) -> Optional[list[str]]:
-    """Handle a missing-``packaging`` failure from :func:`_check_policy_for_callables`.
+) -> Optional[list[_Finding]]:
+    """Handle a missing-``packaging`` failure from :func:`_policy_findings`.
 
     Prints an advisory naming the version-dependent rule *spec* had enabled (``min_grace``) — it is skipped.
     ``message_required`` needs no version parsing, so when it is enabled it is re-run standalone and its
@@ -154,7 +157,7 @@ def _policy_violations_without_packaging(
         return None
     # `message_required` needs no version parsing at all, so a spec with the grace-window rule switched off keeps
     # the version machinery — and with it the ImportError just handled — out of this second pass entirely.
-    return _check_policy_for_callables(wrappers, _build_policy_spec(None, True))
+    return _policy_findings(wrappers, _build_policy_spec(None, True))
 
 
 # ---------------------------------------------------------------------------
@@ -173,9 +176,9 @@ def cmd_check(
 ) -> int:
     """Scan Python code for misconfigured ``@deprecated`` wrappers and deprecation chains.
 
-    Reports invalid argument mappings (exit 1), identity mappings, no-effect wrappers,
-    deprecation chains, and ``args_mapping`` entries targeting POSITIONAL_ONLY constructor
-    parameters (all advisory warnings only, exit 0). Use the ``chains`` subcommand for a
+    Reports invalid argument mappings, misconfigured targets and inner-order ``@property @deprecated`` wrappers
+    (errors, exit 1), and identity mappings, no-effect wrappers, deprecation chains and ``args_mapping`` entries
+    targeting POSITIONAL_ONLY constructor parameters (warnings only, exit 0). Use the ``chains`` subcommand for a
     dedicated hard-error chain check.
 
     Args:
@@ -193,8 +196,10 @@ def cmd_check(
             Internal: never a command-line option (used by ``cmd_all`` only).
 
     Returns:
-        0 on success or advisory-only issues; 1 when hard errors are found and ``exit_zero`` is False; 2 when
-        ``--exclude`` is malformed or *path* is a file or a directory holding several packages.
+        0 on success or warnings only; 1 when an error is found and ``exit_zero`` is False; 2 for a usage error: a
+        malformed ``--exclude``, or a *path* that is a file, a directory holding several packages, or neither an
+        existing path nor an importable module. Raises ``_ScanError`` (exit 3) when the scanned package itself cannot be
+        imported.
 
     """
     if _wrappers is None:
@@ -212,8 +217,9 @@ def cmd_check(
     else:
         _print("\nAll deprecated wrappers look correct!")
 
-    has_invalid = any(r.invalid_args for r in _wrappers)
-    return 1 if not exit_zero and has_invalid else 0
+    findings = [finding for info in _wrappers for finding in _wrapper_findings(info)]
+    _record_findings(findings)
+    return _exit_code(findings, "check", exit_zero=exit_zero)
 
 
 def cmd_expiry(
@@ -255,11 +261,12 @@ def cmd_expiry(
             Internal: never a command-line option (used by ``cmd_all`` only).
 
     Returns:
-        0 on success, when the ``packaging`` library is unavailable, when no version could be resolved (the gap
-        is printed and the check is skipped), or when an auto-detected version turns out not to be valid
-        PEP 440 (advisory — the check is skipped); 1 when expired wrappers are found and ``exit_zero`` is False;
-        2 when a user-supplied ``--version`` is not a valid PEP 440 version string, ``--exclude`` is malformed, or
-        *path* is a file or a directory holding several packages.
+        0 on success, when the ``packaging`` library is unavailable, when no version could be resolved (the gap is
+        printed and the check is skipped), or when an auto-detected version turns out not to be valid PEP 440 (advisory
+        — the check is skipped); 1 when expired wrappers are found and ``exit_zero`` is False; 2 for a usage error: a
+        user-supplied ``--version`` that is not a valid PEP 440 version string, a malformed ``--exclude``, or a *path*
+        that is a file, a directory holding several packages, or neither an existing path nor an importable module.
+        Raises ``_ScanError`` (exit 3) when the scanned package itself cannot be imported.
 
     """
     version_explicit = version is not None and _version_explicit
@@ -285,12 +292,13 @@ def cmd_expiry(
     if raw is None:  # check could not run — advisory already printed to stderr
         return 0
     expired = raw
+    _record_findings(expired)
     if not expired:
         _print("No expired deprecated wrappers found.")
         return 0
-    _Reporter.expiry(expired)
+    _Reporter.expiry([finding.message for finding in expired])
     _print(f"\n{len(expired)} expired wrapper(s) found.")
-    return 0 if exit_zero else 1
+    return _exit_code(expired, "expiry", exit_zero=exit_zero)
 
 
 def cmd_policy(
@@ -353,12 +361,13 @@ def cmd_policy(
             Internal: never a command-line option.
 
     Returns:
-        0 on success, or when ``min-grace`` is skipped because ``packaging`` is unavailable and
-        ``message_required`` finds no violation; 1 when violations are found (including from a still-running
-        ``message_required`` check) and ``exit_zero`` is False; 2 when a rule's value or ``exclude`` — from a
-        flag or from ``pyproject.toml`` — is malformed, when ``policy`` in ``[tool.pydeprecate]`` is not a table,
-        when a ``pyproject.toml`` within reach cannot be read or parsed, or when *path* is a file or a directory
-        holding several packages.
+        0 on success, or when ``min-grace`` is skipped because ``packaging`` is unavailable and ``message_required``
+        finds no violation; 1 when violations are found (including from a still-running ``message_required`` check) and
+        ``exit_zero`` is False; 2 when a rule's value or ``exclude`` — from a flag or from ``pyproject.toml`` — is
+        malformed, when ``policy`` in ``[tool.pydeprecate]`` is not a table, when a ``pyproject.toml`` within reach
+        cannot be read or parsed, or a *path* that is a file, a directory holding several packages, or neither an
+        existing path nor an importable module. Raises ``_ScanError`` (exit 3) when the scanned package itself cannot be
+        imported.
 
     """
     config = _config if _config is not None else _load_pydeprecate_config(path)
@@ -380,7 +389,7 @@ def cmd_policy(
         _wrappers = scan.wrappers
     _print(policy_header)
     try:
-        violations = _check_policy_for_callables(_wrappers, spec)
+        violations = _policy_findings(_wrappers, spec)
     except ImportError as exc:
         if not _is_missing_packaging_import_error(exc):
             raise
@@ -388,14 +397,15 @@ def cmd_policy(
         if fallback is None:
             return 0
         violations = fallback
+    _record_findings(violations)
     if not violations:
         _print("No deprecation policy violations found.")
         return 0
-    _Reporter.policy(violations, advisory=_advisory)
+    _Reporter.policy([finding.message for finding in violations], advisory=_advisory)
     _print(f"\n{len(violations)} policy violation(s) found.")
     if _advisory:
         _print("(advisory here — run `pydeprecate policy` to gate on it)")
-    return 0 if exit_zero else 1
+    return _exit_code(violations, "policy", exit_zero=exit_zero)
 
 
 def cmd_chains(
@@ -428,8 +438,9 @@ def cmd_chains(
             Internal: never a command-line option (used by ``cmd_all`` only).
 
     Returns:
-        0 when no chains are found or ``exit_zero`` is True; 1 when chains are found; 2 when ``--exclude`` is
-        malformed or *path* is a file or a directory holding several packages.
+        0 when no chains are found or ``exit_zero`` is True; 1 when chains are found; 2 for a usage error: a malformed
+        ``--exclude``, or a *path* that is a file, a directory holding several packages, or neither an existing path nor
+        an importable module. Raises ``_ScanError`` (exit 3) when the scanned package itself cannot be imported.
 
     """
     if _wrappers is None:
@@ -439,12 +450,14 @@ def cmd_chains(
             return 2
         _wrappers = scan.wrappers
     chains = [r for r in _wrappers if r.chain_type is not None]
+    findings = [finding for info in chains for finding in _wrapper_findings(info) if finding.rule is _Rule.CHAIN]
+    _record_findings(findings)
     if not chains:
         _print("No deprecation chains found.")
         return 0
     _Reporter.chains(chains, error=True)
     _print(f"\n{len(chains)} deprecation chain(s) found.")
-    return 0 if exit_zero else 1
+    return _exit_code(findings, "chains", exit_zero=exit_zero)
 
 
 def cmd_all(
@@ -487,14 +500,15 @@ def cmd_all(
             scan every check and the table share. Pass ``--no-include-members`` to check module-level wrappers only.
 
     Returns:
-        0 when the check, expiry, and chain gates pass or ``exit_zero`` is True; 1 when any of them finds a hard
-        error; 2 for a usage error, which ``exit_zero`` never downgrades: a user-supplied ``--version`` that is
-        not a valid PEP 440 version string, a malformed ``exclude`` (flag or file), a ``pyproject.toml`` within
-        reach that cannot be read or parsed, a ``policy`` key in ``[tool.pydeprecate]`` that is not a table, a
-        malformed rule value in ``[tool.pydeprecate.policy]``, or a *path* that is a file or a directory holding
-        several packages.
-        Policy violations are advisory here and never contribute to this code.
-        The deprecation table is appended after the gates, so a usage error raised by the policy pass skips it.
+        0 when the check, expiry, and chain gates pass or ``exit_zero`` is True; 1 when any of them finds an error (one
+        exit code computed from all their findings); 2 for a usage error, which ``exit_zero`` never downgrades: a
+        user-supplied ``--version`` that is not a valid PEP 440 version string, a malformed ``exclude`` (flag or file),
+        a ``pyproject.toml`` within reach that cannot be read or parsed, a ``policy`` key in ``[tool.pydeprecate]`` that
+        is not a table, a malformed rule value in ``[tool.pydeprecate.policy]``, or a *path* that is a file, a directory
+        holding several packages, or neither an existing path nor an importable module. Raises ``_ScanError`` (exit 3)
+        when the scanned package itself cannot be imported. Policy violations are advisory here and never contribute to
+        this code. The deprecation table is appended after the gates, so a usage error raised by the policy pass skips
+        it.
 
     """
     err_code = _validate_user_version(version)
@@ -519,37 +533,35 @@ def cmd_all(
         return 2
     wrappers, resolved_version = scan.wrappers, scan.version
 
-    # Sub-commands run with exit_zero=False so cmd_all sees their truthful exit codes;
-    # the user-facing --exit-zero is applied to the aggregate below.
+    # The sub-checks record their findings and their exit codes are not used: the exit code of ``all`` is computed
+    # once below from those findings, at the levels ``all`` gives them (policy violations are warnings here).
     # ``resolved_version`` may be auto-detected; ``_version_explicit`` carries that provenance so the
     # subcommands do not re-validate it as if the user had typed it — a package stamped with a non-PEP 440
     # version would otherwise be reported as an invalid ``--version`` flag and skip the checks entirely.
-    check_code = cmd_check(path, recursive=recursive, exit_zero=False, _wrappers=wrappers)
-    expiry_code = cmd_expiry(
-        path,
-        version=resolved_version,
-        recursive=recursive,
-        exit_zero=False,
-        _wrappers=wrappers,
-        _version_explicit=version_explicit,
-    )
-    # Advisory inside ``all``: the policy defaults encode a project convention (a three-minor grace window on a
-    # clean release boundary) that not every repo shares, so ``all`` reports violations (exit 1 below) but never
-    # fails on them — gate on them with the dedicated ``policy`` subcommand, whose exit code is truthful. A usage
-    # error (exit 2: a malformed rule value in ``pyproject.toml``) is not a violation and stops the run, exactly
-    # as a malformed ``exclude`` does above.
-    policy_code = cmd_policy(
-        path, recursive=recursive, exit_zero=False, _wrappers=wrappers, _config=config, _advisory=True
-    )
-    if policy_code == 2:
-        return 2
-    chains_code = cmd_chains(path, recursive=recursive, exit_zero=False, _wrappers=wrappers)
-
-    # The status table is a display artifact appended after the three gates. Render it defensively:
-    # a table-rendering failure must never change the aggregate exit code the three checks produced.
-    # ``output`` is not forwarded: ``cmd_status`` records the table it rendered and this function saves that, so a
-    # failure to write the file is told apart from one to render the table.
     with _ensure_run_record() as run_record:
+        first_finding = len(run_record.findings)
+        cmd_check(path, recursive=recursive, _wrappers=wrappers)
+        cmd_expiry(
+            path,
+            version=resolved_version,
+            recursive=recursive,
+            _wrappers=wrappers,
+            _version_explicit=version_explicit,
+        )
+        # Advisory inside ``all``: the policy defaults encode a project convention (a three-minor grace window on a
+        # clean release boundary) that not every repo shares, so ``all`` reports violations but never fails on
+        # them — gate on them with the dedicated ``policy`` subcommand. A usage error (exit 2: a malformed rule
+        # value in ``pyproject.toml``) is not a violation and stops the run, exactly as a malformed ``exclude``
+        # does above.
+        if cmd_policy(path, recursive=recursive, _wrappers=wrappers, _config=config, _advisory=True) == 2:
+            return 2
+        cmd_chains(path, recursive=recursive, _wrappers=wrappers)
+        findings = run_record.findings[first_finding:]
+
+        # The status table is a display artifact appended after the gates. Render it defensively: a
+        # table-rendering failure must never change the exit code the gates produced. ``output`` is not
+        # forwarded: ``cmd_status`` records the table it rendered and this function saves that, so a failure to
+        # write the file is told apart from one to render the table.
         try:
             cmd_status(
                 path,
@@ -568,8 +580,7 @@ def cmd_all(
                 except OSError as exc:
                     _print(f"Could not write the deprecation table to {output}: {exc}", stderr=True)
 
-    has_errors = bool(check_code or expiry_code or chains_code)
-    return 0 if not has_errors or exit_zero else 1
+    return _exit_code(findings, "all", exit_zero=exit_zero)
 
 
 def cmd_status(
@@ -586,10 +597,9 @@ def cmd_status(
 ) -> int:
     """Print a markdown deprecation status table to stdout.
 
-    Scans the target package for deprecated wrappers and renders their lifecycle
-    status as a Markdown table. Standalone — runs no checks, exits 0; 2 for a usage error (a malformed
-    ``--exclude``, a file path, or a directory holding several packages).
-    When ``--output`` is given, the table is also written to that file.
+    Scans the target package for deprecated wrappers and renders their lifecycle status as a Markdown table.
+    Standalone — runs no checks and never fails on findings. When ``--output`` is given, the table is also written
+    to that file.
 
     Args:
         path: Path to the module, package directory, or importable module name to scan.
@@ -614,17 +624,23 @@ def cmd_status(
             Internal: never a command-line option (used by ``cmd_all`` only).
 
     Returns:
-        0 — status table generation is not a pass/fail gate; 2 only when ``--exclude`` is malformed or *path* is a
-        file or a directory holding several packages.
+        0 once the table is rendered — status is not a pass/fail gate; 2 for a usage error: a user-supplied
+        ``--version`` that is not a valid PEP 440 version string, a ``--style`` other than ``compact`` or ``matrix``, a
+        malformed ``--exclude``, or a *path* that is a file, a directory holding several packages, or neither an
+        existing path nor an importable module. Raises ``_ScanError`` (exit 3) when the scanned package itself cannot be
+        imported.
 
     """
     version_explicit = version is not None and _version_explicit
+    err_code = _validate_user_version(version, explicit=_version_explicit)
+    if err_code is not None:
+        return err_code
     try:
         table_style = TableStyle(style)
     except ValueError:
         valid = ", ".join(s.value for s in TableStyle)
-        _print(f"Invalid style {style!r}; falling back to 'compact'. Expected one of: {valid}.", stderr=True)
-        table_style = TableStyle.COMPACT
+        _print(f"Invalid `--style` {style!r}; expected one of: {valid}.", stderr=True)
+        return 2
 
     # Never resolve the importable module name eagerly: a plain directory without ``__init__.py`` has none, and
     # status still renders its table. ``_safe_module_name`` falls back to the raw path, used only as table metadata.

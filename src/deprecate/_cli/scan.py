@@ -24,6 +24,28 @@ from deprecate.audit import DeprecationWrapperInfo, find_deprecation_wrappers
 from deprecate.audit._scan import _is_excluded
 
 
+class _ScanError(Exception):
+    """The scanned package itself could not be imported, so nothing was audited; the CLI exits 3."""
+
+
+def _names_missing_module(error: Exception, path: str) -> bool:
+    """Tell whether *error* says that *path*, a module name and no existing path, names no importable module.
+
+    Only a :exc:`ModuleNotFoundError` for the named module or one of its parent packages counts; one raised for a
+    dependency the scanned package imports is a failed import of an existing package.
+
+    Examples:
+        >>> _names_missing_module(ModuleNotFoundError("x", name="pkg"), "pkg.sub")
+        True
+        >>> _names_missing_module(ModuleNotFoundError("x", name="numpy"), "pkg")
+        False
+
+    """
+    if Path(path).exists() or not isinstance(error, ModuleNotFoundError) or error.name is None:
+        return False
+    return path == error.name or path.startswith(f"{error.name}.")
+
+
 def _scan_directory(
     path: str, include_members: bool = True, exclude: Optional[Sequence[str]] = None
 ) -> list[DeprecationWrapperInfo]:
@@ -254,7 +276,20 @@ def _scan_for_command(
             version = _resolve_package_version(_safe_module_name(path), path=path)
     _print_scan_header(path, version, user_provided=version_explicit, exclude=resolved_exclude)
     with _managed_sys_path(path), _hidden_argv():
-        wrappers = _scan_path(path, recursive=recursive, include_members=include_members, exclude=resolved_exclude[0])
+        try:
+            wrappers = _scan_path(
+                path, recursive=recursive, include_members=include_members, exclude=resolved_exclude[0]
+            )
+        except SystemExit as err:
+            # module-level code of the scanned package called `sys.exit()`, as `_scan_directory` reports per module
+            raise _ScanError(f"importing {path!r} ran module-level code that exited ({err.code!r})") from err
+        except Exception as err:
+            if _names_missing_module(err, path):
+                # a typo in the argument, not a package that failed to import
+                _print(f"No such path or importable module: {path!r}", stderr=True)
+                return None
+            # submodule failures are gaps inside the scan; only the package itself failing to import reaches here
+            raise _ScanError(f"could not import {path!r}: {type(err).__name__}: {err}") from err
     location = _imported_location(path, package_dir)
     if location is not None:
         _print(f"Imported from: {location}")

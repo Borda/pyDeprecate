@@ -444,7 +444,7 @@
           "name": "Why does pydeprecate all report policy violations but still exit 0?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "That is deliberate. The deprecation-policy defaults (min_grace='0.3', message_required=True) encode a release convention rather than a universal rule, so pydeprecate all runs the policy check in advisory mode: violations are printed for visibility but never contribute to the exit code of all. Only invalid argument mappings, deprecated-to-deprecated chains, and expired wrappers make all exit 1. This advisory treatment covers violation counts only — a policy configuration failure (an unreadable or malformed pyproject.toml, or a malformed [tool.pydeprecate.policy] value) still exits 2 even inside all, printing 'Cannot read <path>: <err>', and is checked before the chains check runs. To fail a build on a policy violation, give pydeprecate policy its own CI step — its exit code is truthful (0 clean, 1 violations found, 2 a malformed rule argument or unreadable pyproject.toml). Spell the rule flags out in that step even where they match the defaults, so the command records what your project promises and a future change to pyDeprecate's defaults cannot quietly change what your CI enforces."
+            "text": "That is deliberate. The deprecation-policy defaults (min_grace='0.3', message_required=True) encode a release convention rather than a universal rule, so pydeprecate all runs the policy check in advisory mode: violations are printed for visibility but never contribute to the exit code of all. Only invalid argument mappings, misconfigured targets, inner-order properties, deprecated-to-deprecated chains, and expired wrappers make all exit 1. This advisory treatment covers violation counts only — a policy configuration failure (an unreadable or malformed pyproject.toml, or a malformed [tool.pydeprecate.policy] value) still exits 2 even inside all, printing 'Cannot read <path>: <err>', and is checked before the chains check runs. To fail a build on a policy violation, give pydeprecate policy its own CI step — its exit code is truthful (0 clean, 1 violations found, 2 a malformed rule argument or unreadable pyproject.toml). Spell the rule flags out in that step even where they match the defaults, so the command records what your project promises and a future change to pyDeprecate's defaults cannot quietly change what your CI enforces."
           }
         },
         {
@@ -605,6 +605,22 @@
           "acceptedAnswer": {
             "@type": "Answer",
             "text": "Type checkers recognise a deprecation only when the decorator is literally warnings.deprecated (Python 3.13+) or typing_extensions.deprecated; they match the decorator by name, so no runtime decorator, pyDeprecate's included, can make them see it. Stack the PEP 702 decorator directly above pyDeprecate's: warnings.deprecated(\"Use new_name instead.\", category=None) over deprecated(...). Keep category=None, otherwise every call warns twice; write the message as a string literal, because mypy silently ignores a constant or f-string; and import the module rather than the name so pyDeprecate's deprecated is not shadowed. mypy only reports it with enable_error_code = [\"deprecated\"], pyright in CI with reportDeprecated = \"error\". Over deprecated_class(...), both mypy and pyright flag the old class name."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why does my CI step exit 3?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Exit 3 means the audit did not run: neither findings (exit 1) nor a usage error (exit 2). 'pydeprecate: scan error' means the scanned package itself could not be imported (its __init__ raised or its module-level code exited); install the package's runtime dependencies in the scanning environment. A submodule that fails to import is only a 'module not audited' gap and keeps the exit code. 'pydeprecate: internal error' is a bug in pyDeprecate and names the issue tracker. --exit-zero does not mask exit 3 and no --report-json file is written. Before 0.15 both cases exited 1."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why does pydeprecate check now fail on a wrapper it used to pass?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Since 0.15, check and all exit 1 on misconfigured targets and inner-order properties. A misconfigured target contradicts the rest of the configuration: TargetMode.NOTIFY with an args_mapping, attrs_mapping or args_extra it ignores, TargetMode.ARGS_REMAP without an args_mapping, or the invalid target=False; use TargetMode.ARGS_REMAP to rename arguments or drop the mapping for a plain notice. An inner-order property is @property above @deprecated, where only the getter warns; put @deprecated(...) above @property instead."
           }
         }
       ]

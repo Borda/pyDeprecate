@@ -10,7 +10,7 @@ from deprecate._cli.commands import cmd_check, cmd_expiry
 from deprecate._cli.report import _GapKind, _print, _Reporter, _RunRecord, _ScanRecord, _write_report
 from deprecate._types import DeprecationConfig
 from deprecate.audit import ChainType, DeprecationWrapperInfo
-from tests.unittests.cli._helpers import _EXPIRED_MSG
+from tests.unittests.cli._helpers import _EXPIRED_FINDING, _EXPIRED_MSG
 
 # ---------------------------------------------------------------------------
 # Chain and expiry reporters
@@ -43,7 +43,7 @@ class TestReportExpiry:
         """The expired message is printed under the ``[ERROR]`` header of the expiry section."""
         with (
             patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[]),
-            patch("deprecate._cli.commands._check_expiry_for_callables", return_value=[_EXPIRED_MSG]),
+            patch("deprecate._cli.commands._expiry_findings", return_value=[_EXPIRED_FINDING]),
         ):
             cmd_expiry(path="some_module", version="2.0")
         out = capsys.readouterr().out

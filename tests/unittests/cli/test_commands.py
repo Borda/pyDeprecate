@@ -11,9 +11,10 @@ import pytest
 from deprecate._cli.commands import cmd_all, cmd_chains, cmd_check, cmd_expiry, cmd_policy, cmd_status
 from deprecate._cli.config import _FROM_PYPROJECT, _POLICY_DEFAULTS, _ConfigFlag
 from deprecate._cli.report import _GapKind, _record_run
-from deprecate._types import DeprecationConfig
+from deprecate._cli.scan import _ScanError
+from deprecate._types import DeprecationConfig, TargetMode
 from deprecate.audit import ChainType, DeprecationWrapperInfo, PolicyRule, validate_deprecation_policy
-from tests.unittests.cli._helpers import _EXPIRED_MSG, _POLICY_VIOLATION
+from tests.unittests.cli._helpers import _EXPIRED_FINDING, _MESSAGE_REQUIRED_FINDING, _POLICY_VIOLATION
 
 
 @pytest.fixture(autouse=True)
@@ -152,11 +153,68 @@ class TestCmdCheckScanning:
 
     @patch("deprecate._cli.scan.find_deprecation_wrappers")
     def test_error_scanning(self, mock_find: MagicMock) -> None:
-        """Scan failure raises; cli() converts it to sys.exit at the CLI boundary."""
+        """A package that fails to import raises ``_ScanError``, which cli() turns into exit 3."""
         mock_find.side_effect = Exception("Boom")
 
-        with pytest.raises(Exception, match="Boom"):
+        with pytest.raises(_ScanError, match="could not import 'some_module': Exception: Boom"):
             cmd_check(path="some_module")
+
+    @patch("deprecate._cli.scan.find_deprecation_wrappers")
+    def test_missing_module_exits_two(self, mock_find: MagicMock, capsys: pytest.CaptureFixture[str]) -> None:
+        """A module name that cannot be found is a usage error (exit 2), not a crash of the scan.
+
+        The import fails with ``ModuleNotFoundError`` for the named module itself, so the argument has a typo; a
+        dependency missing inside an existing package is a failed import instead (exit 3).
+
+        """
+        mock_find.side_effect = ModuleNotFoundError("No module named 'some_module'", name="some_module")
+        assert cmd_check(path="some_module") == 2
+        assert "No such path or importable module: 'some_module'" in capsys.readouterr().err
+
+    @patch("deprecate._cli.scan.find_deprecation_wrappers")
+    def test_missing_dependency_is_a_scan_error(self, mock_find: MagicMock) -> None:
+        """A ``ModuleNotFoundError`` for another module means the package exists but failed to import."""
+        mock_find.side_effect = ModuleNotFoundError("No module named 'numpy'", name="numpy")
+        with pytest.raises(_ScanError, match="numpy"):
+            cmd_check(path="some_module")
+
+    @pytest.mark.parametrize(
+        ("info", "header", "line"),
+        [
+            pytest.param(
+                DeprecationWrapperInfo(
+                    module="mod",
+                    function="fn",
+                    deprecated_info=DeprecationConfig(target=TargetMode.NOTIFY, args_mapping={"old_x": "x"}),
+                    misconfigured_target=True,
+                ),
+                "[ERROR] Found deprecated wrappers with a misconfigured target:",
+                "\t- mod.fn: `TargetMode.NOTIFY` with `args_mapping`",
+                id="misconfigured-target",
+            ),
+            pytest.param(
+                DeprecationWrapperInfo(module="mod", function="Cls.value", inner_order_property=True),
+                "[ERROR] Found inner-order @property @deprecated wrappers (setter/deleter unprotected):",
+                "\t- mod.Cls.value: use @deprecated(...) above @property",
+                id="inner-order-property",
+            ),
+        ],
+    )
+    def test_configuration_error_fails(
+        self, info: DeprecationWrapperInfo, header: str, line: str, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A misconfigured target or an inner-order property is reported in its own section and exits 1.
+
+        Both used to print "All deprecated wrappers look correct!" and exit 0, although the docs promise that the
+        gate fails on misconfigured wrappers: a NOTIFY wrapper silently ignores its mapping, and an inner-order
+        property leaves its setter and deleter without a warning.
+
+        """
+        assert cmd_check(path="some_module", _wrappers=[info]) == 1
+        out = capsys.readouterr().out
+        assert header in out
+        assert line in out
+        assert "All deprecated wrappers look correct!" not in out
 
     @patch("deprecate._cli.scan.find_deprecation_wrappers")
     def test_exit_zero(self, mock_find: MagicMock) -> None:
@@ -336,19 +394,19 @@ class TestCmdExpiry:
     """Tests for cmd_expiry() subcommand: one scan, then the expired-wrapper derivation."""
 
     @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
-    @patch("deprecate._cli.commands._check_expiry_for_callables", return_value=[])
+    @patch("deprecate._cli.commands._expiry_findings", return_value=[])
     def test_no_expired_exits_zero(self, mock_check: MagicMock, mock_scan: MagicMock) -> None:
         """No expired wrappers → exit 0."""
         assert cmd_expiry(path="some_module", version="1.0") == 0
 
     @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
-    @patch("deprecate._cli.commands._check_expiry_for_callables", return_value=[_EXPIRED_MSG])
+    @patch("deprecate._cli.commands._expiry_findings", return_value=[_EXPIRED_FINDING])
     def test_expired_found_exits_one(self, mock_check: MagicMock, mock_scan: MagicMock) -> None:
         """Expired wrappers found → exit 1."""
         assert cmd_expiry(path="some_module", version="2.0") == 1
 
     @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
-    @patch("deprecate._cli.commands._check_expiry_for_callables", return_value=[_EXPIRED_MSG])
+    @patch("deprecate._cli.commands._expiry_findings", return_value=[_EXPIRED_FINDING])
     def test_expired_exit_zero_exits_zero(self, mock_check: MagicMock, mock_scan: MagicMock) -> None:
         """exit_zero=True overrides exit code to 0 even when expired wrappers found."""
         assert cmd_expiry(path="some_module", version="2.0", exit_zero=True) == 0
@@ -362,7 +420,7 @@ class TestCmdExpiry:
         assert cmd_expiry(path="some_module", version="not-a-version") == 2
         assert "Invalid `--version`" in capsys.readouterr().err
 
-    @patch("deprecate._cli.commands._check_expiry_for_callables")
+    @patch("deprecate._cli.commands._expiry_findings")
     def test_auto_detected_unparsable_version_skips_check(
         self, mock_expiry: MagicMock, capsys: pytest.CaptureFixture[str]
     ) -> None:
@@ -386,7 +444,7 @@ class TestCmdExpiry:
 
     @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
     @patch(
-        "deprecate._cli.commands._check_expiry_for_callables",
+        "deprecate._cli.commands._expiry_findings",
         side_effect=ImportError("No module named 'packaging'", name="packaging"),
     )
     def test_packaging_missing_exits_zero(
@@ -398,7 +456,7 @@ class TestCmdExpiry:
 
     @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
     @patch(
-        "deprecate._cli.commands._check_expiry_for_callables",
+        "deprecate._cli.commands._expiry_findings",
         side_effect=ImportError("No module named 'packaging'", name="packaging"),
     )
     def test_packaging_missing_exit_zero_exits_zero(self, mock_check: MagicMock, mock_scan: MagicMock) -> None:
@@ -406,14 +464,14 @@ class TestCmdExpiry:
         assert cmd_expiry(path="some_module", version="2.0", exit_zero=True) == 0
 
     @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
-    @patch("deprecate._cli.commands._check_expiry_for_callables", return_value=[])
+    @patch("deprecate._cli.commands._expiry_findings", return_value=[])
     def test_version_passed_through(self, mock_check: MagicMock, mock_scan: MagicMock) -> None:
         """An explicit version is the one the scanned wrappers are compared against."""
         cmd_expiry(path="some_module", version="3.0")
         mock_check.assert_called_once_with([], "3.0")
 
     @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
-    @patch("deprecate._cli.commands._check_expiry_for_callables", return_value=[])
+    @patch("deprecate._cli.commands._expiry_findings", return_value=[])
     def test_no_recursive_threads_flag(self, mock_check: MagicMock, mock_scan: MagicMock) -> None:
         """``recursive=False`` passes through to the scan."""
         cmd_expiry(path="some_module", version="1.0", recursive=False)
@@ -427,7 +485,7 @@ class TestCmdExpiry:
         mock_scan_dir.assert_called_once()
 
     @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
-    @patch("deprecate._cli.commands._check_expiry_for_callables", return_value=[_EXPIRED_MSG])
+    @patch("deprecate._cli.commands._expiry_findings", return_value=[_EXPIRED_FINDING])
     def test_expired_reported_plain(
         self, mock_check: MagicMock, mock_scan: MagicMock, capsys: pytest.CaptureFixture[str]
     ) -> None:
@@ -647,14 +705,14 @@ _ALL_TABLE = "| Col |\n| :--- |\n| `fn` |"
 class TestCmdAll:
     """Tests for cmd_all() subcommand — sequential three-check composition."""
 
-    @patch("deprecate._cli.commands._check_expiry_for_callables", return_value=[])
+    @patch("deprecate._cli.commands._expiry_findings", return_value=[])
     @patch("deprecate._cli.scan.find_deprecation_wrappers")
     def test_all_clean_exits_zero(self, mock_find: MagicMock, mock_expiry: MagicMock) -> None:
         """No issues in any check → exit 0."""
         mock_find.return_value = []
         assert cmd_all(path="some_module", version="1.0") == 0
 
-    @patch("deprecate._cli.commands._check_expiry_for_callables", return_value=[])
+    @patch("deprecate._cli.commands._expiry_findings", return_value=[])
     @patch("deprecate._cli.scan.find_deprecation_wrappers")
     def test_invalid_args_exits_one(self, mock_find: MagicMock, mock_expiry: MagicMock) -> None:
         """Invalid args in check phase → exit 1."""
@@ -701,29 +759,29 @@ class TestCmdAll:
         assert "Could not render the deprecation table" not in captured.err
         assert "No deprecation policy violations found." in captured.out
 
-    @patch("deprecate._cli.commands._check_expiry_for_callables")
+    @patch("deprecate._cli.commands._expiry_findings")
     @patch("deprecate._cli.scan.find_deprecation_wrappers")
     def test_expired_exits_one(self, mock_find: MagicMock, mock_expiry: MagicMock) -> None:
         """Expired wrappers found → exit 1."""
         mock_find.return_value = [DeprecationWrapperInfo(module="mod", function="fn")]
-        mock_expiry.return_value = [_EXPIRED_MSG]
+        mock_expiry.return_value = [_EXPIRED_FINDING]
         assert cmd_all(path="some_module", version="2.0") == 1
 
-    @patch("deprecate._cli.commands._check_expiry_for_callables", return_value=[])
+    @patch("deprecate._cli.commands._expiry_findings", return_value=[])
     @patch("deprecate._cli.scan.find_deprecation_wrappers")
     def test_chains_found_exits_one(self, mock_find: MagicMock, mock_expiry: MagicMock) -> None:
         """Chains detected from wrappers by cmd_chains phase → exit 1."""
         mock_find.return_value = [_TARGET_CHAIN]
         assert cmd_all(path="some_module", version="1.0") == 1
 
-    @patch("deprecate._cli.commands._check_expiry_for_callables", return_value=[])
+    @patch("deprecate._cli.commands._expiry_findings", return_value=[])
     @patch("deprecate._cli.scan.find_deprecation_wrappers")
     def test_exit_zero_exits_zero(self, mock_find: MagicMock, mock_expiry: MagicMock) -> None:
         """exit_zero=True overrides the invalid-args exit 1 to 0."""
         mock_find.return_value = [_INVALID_ARGS]
         assert cmd_all(path="some_module", version="1.0", exit_zero=True) == 0
 
-    @patch("deprecate._cli.commands._check_expiry_for_callables")
+    @patch("deprecate._cli.commands._expiry_findings")
     @patch("deprecate._cli.scan.find_deprecation_wrappers")
     def test_packaging_missing_skips_expiry_continues(
         self, mock_find: MagicMock, mock_expiry: MagicMock, capsys: pytest.CaptureFixture[str]
@@ -754,7 +812,7 @@ class TestCmdAll:
         assert "version not PEP 440" not in captured.err
         assert "No Removal Target" in captured.out
 
-    @patch("deprecate._cli.commands._check_expiry_for_callables", return_value=[])
+    @patch("deprecate._cli.commands._expiry_findings", return_value=[])
     @patch("deprecate._cli.scan.find_deprecation_wrappers")
     def test_no_recursive_threads_flag(self, mock_find: MagicMock, mock_expiry: MagicMock) -> None:
         """``recursive=False`` passes through to find_deprecation_wrappers."""
@@ -762,7 +820,7 @@ class TestCmdAll:
         cmd_all(path="some_module", version="1.0", recursive=False)
         mock_find.assert_any_call("some_module", recursive=False, include_members=True, exclude=[])
 
-    @patch("deprecate._cli.commands._check_expiry_for_callables", return_value=[])
+    @patch("deprecate._cli.commands._expiry_findings", return_value=[])
     @patch("deprecate._cli.scan.find_deprecation_wrappers")
     def test_all_scans_once(self, mock_find: MagicMock, mock_expiry: MagicMock) -> None:
         """cmd_all scans once and hands that one scan to every sub-gate instead of re-importing per gate."""
@@ -770,7 +828,7 @@ class TestCmdAll:
         cmd_all(path="some_module", version="1.0")
         assert mock_find.call_count == 1
 
-    @patch("deprecate._cli.commands._check_expiry_for_callables", return_value=[])
+    @patch("deprecate._cli.commands._expiry_findings", return_value=[])
     @patch("deprecate._cli.scan.find_deprecation_wrappers")
     def test_policy_violations_stay_advisory(self, mock_find: MagicMock, mock_expiry: MagicMock) -> None:
         """A policy violation is reported by ``all`` but never changes its exit code.
@@ -783,7 +841,7 @@ class TestCmdAll:
         assert cmd_all(path="some_module", version="2.0") == 0
 
     @patch("deprecate._cli.commands.cmd_status", return_value=0)
-    @patch("deprecate._cli.commands._check_expiry_for_callables", return_value=[])
+    @patch("deprecate._cli.commands._expiry_findings", return_value=[])
     @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[_POLICY_VIOLATION])
     def test_policy_violations_render_as_advisory(
         self, mock_find: MagicMock, mock_expiry: MagicMock, mock_status: MagicMock, capsys: pytest.CaptureFixture[str]
@@ -803,7 +861,7 @@ class TestCmdAll:
 
     @pytest.mark.parametrize("exit_zero", [False, True])
     @patch("deprecate._cli.commands.cmd_status", return_value=0)
-    @patch("deprecate._cli.commands._check_expiry_for_callables", return_value=[])
+    @patch("deprecate._cli.commands._expiry_findings", return_value=[])
     @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
     def test_malformed_policy_value_exits_two(
         self,
@@ -844,7 +902,7 @@ class TestCmdAll:
         mock_find.assert_not_called()
 
     @patch("deprecate._cli.commands.cmd_status", side_effect=RuntimeError("table rendering failed"))
-    @patch("deprecate._cli.commands._check_expiry_for_callables", return_value=[])
+    @patch("deprecate._cli.commands._expiry_findings", return_value=[])
     @patch("deprecate._cli.scan.find_deprecation_wrappers")
     def test_status_exception_does_not_affect_exit_code(
         self,
@@ -870,7 +928,7 @@ class TestCmdAll:
         assert "Could not render the deprecation table" in captured.err
 
     @patch("deprecate._cli.commands.generate_deprecation_table", return_value=_ALL_TABLE)
-    @patch("deprecate._cli.commands._check_expiry_for_callables", return_value=[])
+    @patch("deprecate._cli.commands._expiry_findings", return_value=[])
     @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
     def test_output_writes_table_to_file(
         self, mock_find: MagicMock, mock_expiry: MagicMock, mock_gen: MagicMock, tmp_path: Path
@@ -886,7 +944,7 @@ class TestCmdAll:
         assert out_file.read_text(encoding="utf-8") == _ALL_TABLE
 
     @patch("deprecate._cli.commands.generate_deprecation_table", return_value=_ALL_TABLE)
-    @patch("deprecate._cli.commands._check_expiry_for_callables", return_value=[])
+    @patch("deprecate._cli.commands._expiry_findings", return_value=[])
     @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[_INVALID_ARGS])
     def test_output_writes_table_when_gate_fails(
         self, mock_find: MagicMock, mock_expiry: MagicMock, mock_gen: MagicMock, tmp_path: Path
@@ -909,7 +967,7 @@ class TestCmdAll:
         ],
     )
     @patch("deprecate._cli.commands.generate_deprecation_table", return_value=_ALL_TABLE)
-    @patch("deprecate._cli.commands._check_expiry_for_callables", return_value=[])
+    @patch("deprecate._cli.commands._expiry_findings", return_value=[])
     @patch("deprecate._cli.scan.find_deprecation_wrappers")
     def test_unwritable_output_keeps_gate_exit_code(
         self,
@@ -946,7 +1004,7 @@ class TestCmdAll:
         assert not out_file.exists()
 
     @patch("deprecate._cli.commands.generate_deprecation_table", return_value=_ALL_TABLE)
-    @patch("deprecate._cli.commands._check_expiry_for_callables", return_value=[])
+    @patch("deprecate._cli.commands._expiry_findings", return_value=[])
     @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
     def test_policy_usage_error_writes_no_table_file(
         self, mock_find: MagicMock, mock_expiry: MagicMock, mock_gen: MagicMock, tmp_path: Path
@@ -964,7 +1022,7 @@ class TestCmdAll:
         assert not out_file.exists()
 
     @patch("deprecate._cli.commands.generate_deprecation_table", return_value=_ALL_TABLE)
-    @patch("deprecate._cli.commands._check_expiry_for_callables", return_value=[])
+    @patch("deprecate._cli.commands._expiry_findings", return_value=[])
     @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
     def test_output_keeps_table_in_the_run_record(
         self, mock_find: MagicMock, mock_expiry: MagicMock, mock_gen: MagicMock, tmp_path: Path
@@ -1026,20 +1084,38 @@ class TestCmdStatus:
         _, kwargs = mock_gen.call_args
         assert kwargs.get("_wrappers") == wrappers
 
+    @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
+    def test_invalid_version_exits_two(self, mock_find: MagicMock, capsys: pytest.CaptureFixture[str]) -> None:
+        """A typed ``--version`` that is not PEP 440 exits 2 before scanning, as it does for ``expiry`` and ``all``.
+
+        ``status --version abc`` used to crash on the first comparison with a raw ``ValueError`` (exit 1), so a typo
+        read like a failed gate in a subcommand that never gates.
+
+        """
+        assert cmd_status(path="some_module", version="abc") == 2
+        mock_find.assert_not_called()
+        assert "Invalid `--version` 'abc'" in capsys.readouterr().err
+
     @patch("deprecate._cli.commands.generate_deprecation_table", return_value="| A |")
     @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
-    def test_invalid_style_falls_back_to_compact(
+    def test_invalid_style_exits_two(
         self, mock_find: MagicMock, mock_gen: MagicMock, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        """Unknown style value falls back to compact with a stderr warning and exits 0."""
+        """An unknown ``--style`` is a usage error: exit 2 before anything is scanned or rendered.
+
+        A CI job asking for ``--style matrx`` used to get the compact table and exit 0, so the typo went unnoticed and
+        the published artifact had the wrong layout; every other malformed option already exited 2.
+        """
         pkg = tmp_path / "mypkg"
         pkg.mkdir()
         (pkg / "__init__.py").touch()
 
         result = cmd_status(path=str(pkg), style="bogus")
 
-        assert result == 0
-        assert "falling back" in capsys.readouterr().err.lower()
+        assert result == 2
+        mock_find.assert_not_called()
+        mock_gen.assert_not_called()
+        assert "Invalid `--style` 'bogus'; expected one of: compact, matrix." in capsys.readouterr().err
 
     @patch("deprecate._cli.commands.generate_deprecation_table", return_value="| Col |\n| :--- |\n| `fn` |")
     @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
@@ -1095,7 +1171,7 @@ class TestCmdPolicy:
         assert cmd_policy(path="some_module", min_grace="1 minor", _wrappers=[]) == 2
         assert "min_grace" in capsys.readouterr().err
 
-    @patch("deprecate._cli.commands._check_policy_for_callables")
+    @patch("deprecate._cli.commands._policy_findings")
     def test_packaging_missing_exits_zero(self, mock_policy: MagicMock, capsys: pytest.CaptureFixture[str]) -> None:
         """A missing ``packaging`` library prints the install hint and stays advisory (exit 0).
 
@@ -1106,7 +1182,7 @@ class TestCmdPolicy:
         assert cmd_policy(path="some_module", _wrappers=[]) == 0
         assert "pyDeprecate[audit]" in capsys.readouterr().err
 
-    @patch("deprecate._cli.commands._check_policy_for_callables")
+    @patch("deprecate._cli.commands._policy_findings")
     def test_packaging_missing_keeps_message_required_blocking(
         self, mock_policy: MagicMock, capsys: pytest.CaptureFixture[str]
     ) -> None:
@@ -1117,7 +1193,7 @@ class TestCmdPolicy:
         """
         mock_policy.side_effect = [
             ImportError("No module named 'packaging'", name="packaging"),
-            ["[message-required] Callable `mod.warn_only_fn` warns without naming a replacement"],
+            [_MESSAGE_REQUIRED_FINDING],
         ]
 
         assert cmd_policy(path="some_module", _wrappers=[_POLICY_VIOLATION]) == 1
@@ -1125,7 +1201,7 @@ class TestCmdPolicy:
         assert "message-required" in captured.out
         assert "min-grace" in captured.err
 
-    @patch("deprecate._cli.commands._check_policy_for_callables")
+    @patch("deprecate._cli.commands._policy_findings")
     def test_unrelated_import_error_propagates(self, mock_policy: MagicMock) -> None:
         """An ImportError from the scanned package itself is not swallowed as a missing-``packaging`` case.
 

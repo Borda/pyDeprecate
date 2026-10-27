@@ -56,6 +56,17 @@ def old_fn(x: int) -> int:
 """
 
 
+# Package with a notify-only wrapper that also declares an args_mapping, which that mode ignores (misconfigured).
+_MYPKG_INIT_NOTIFY_MAPPING = """\
+from deprecate import TargetMode, deprecated
+
+
+@deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="9.0", args_mapping={"old": "x"})
+def old_fn(x: int = 0) -> int:
+    return x
+"""
+
+
 # Package whose wrapper is deprecated and removed in the very same release — trips the ``min-grace`` rule.
 _MYPKG_INIT_AGGRESSIVE = """\
 from deprecate import deprecated
@@ -123,10 +134,51 @@ class TestCliInvocation:
         combined = result.stdout + result.stderr
         assert "check" in combined.lower()
 
-    def test_nonexistent_module(self) -> None:
-        """CLI with a module that doesn't exist exits non-zero."""
-        result = _run_cli("check", "nonexistent_module_xyz", env=_cli_env(COLUMNS="200"))
-        assert result.returncode != 0
+    @pytest.mark.parametrize("subcommand", ["check", "expiry", "policy", "chains", "all", "status"])
+    def test_nonexistent_module(self, subcommand: str) -> None:
+        """A name that is neither an existing path nor an importable module exits 2 on every subcommand.
+
+        A typo in the argument is a usage error, which a CI script can tell from findings (1) and from a package that
+        exists but fails to import (3).
+
+        """
+        result = _run_cli(subcommand, "nonexistent_module_xyz")
+        assert result.returncode == 2, result.stdout + result.stderr
+        assert "No such path or importable module: 'nonexistent_module_xyz'" in result.stderr
+
+    def test_package_failing_to_import_exits_three(self, tmp_path: Path) -> None:
+        """A package whose ``__init__`` raises exits 3 with a scan error and writes no report.
+
+        Nothing could be audited, so the run is neither clean nor a finding; a report would publish a table of a scan
+        that never happened.
+
+        """
+        pkg = _make_pkg(tmp_path, name="brokenpkg", content="raise RuntimeError('broken on import')\n")
+        report = tmp_path / "report.json"
+        result = _run_cli("check", str(pkg), "--exit-zero", f"--report-json={report}", cwd=tmp_path)
+        assert result.returncode == 3, result.stdout + result.stderr
+        assert "pydeprecate: scan error: could not import" in result.stderr
+        assert "RuntimeError: broken on import" in result.stderr
+        assert not report.exists()
+
+    @pytest.mark.parametrize(
+        ("subcommand", "extra"),
+        [pytest.param("check", (), id="check"), pytest.param("all", ("--version=1.0",), id="all")],
+    )
+    def test_misconfigured_wrapper_fails_the_gate(
+        self, tmp_path: Path, subcommand: str, extra: tuple[str, ...]
+    ) -> None:
+        """A NOTIFY wrapper with an ``args_mapping`` fails ``check`` and ``all`` with a misconfigured-target section.
+
+        The notify-only mode ignores the mapping, so callers of the old argument name are never migrated; the gate
+        reported "All deprecated wrappers look correct!" and exited 0.
+
+        """
+        pkg = _make_pkg(tmp_path, content=_MYPKG_INIT_NOTIFY_MAPPING)
+        result = _run_cli(subcommand, str(pkg), *extra, cwd=tmp_path)
+        assert result.returncode == 1, result.stdout + result.stderr
+        assert "[ERROR] Found deprecated wrappers with a misconfigured target:" in result.stdout
+        assert "old_fn: `TargetMode.NOTIFY` with `args_mapping`" in result.stdout
 
 
 class TestCliSubcommands:

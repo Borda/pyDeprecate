@@ -46,7 +46,7 @@ pydeprecate status tests --version 1.2
     pydeprecate check mypackage.submodule
     ```
 
-    Exit 1 only for invalid argument mappings. Chains, identity mappings, and no-effect wrappers are reported as warnings — exit 0.
+    Exit 1 for invalid argument mappings, misconfigured targets (`target=False`, `TargetMode.NOTIFY` with an `args_mapping`, `attrs_mapping` or `args_extra` it ignores, `TargetMode.ARGS_REMAP` without an `args_mapping`), inner-order `@property @deprecated` wrappers (only the getter warns; the setter and deleter are unprotected). Chains, identity mappings, no-effect wrappers and positional-only mappings are reported as warnings — exit 0.
 
     !!! note "Chain handling differs in `all`"
 
@@ -112,11 +112,11 @@ pydeprecate status tests --version 1.2
     pydeprecate all path/to/your/package --output DEPRECATIONS.md
     ```
 
-    Exit 1 if any hard error is found: invalid argument mappings, deprecated-to-deprecated chains, or expired wrappers. **Policy violations are advisory here** — they are printed (rendered as `[WARNING]`, with a trailer noting the check is advisory and naming `pydeprecate policy` as the gate) but never contribute to the exit code, because the policy defaults encode a project convention that not every repository shares; run `pydeprecate policy` as its own CI step to gate on them. This advisory treatment covers violation *counts* only: a policy **configuration** failure — the nearest `pyproject.toml` cannot be read or parsed, or a `[tool.pydeprecate.policy]` value is malformed — still exits `2`, printing `Cannot read <path>: <err>`, and that exit is checked before the chains check ever runs. If `packaging` is not installed, expiry is skipped and policy runs its packaging-free `message-required` rule in advisory mode, so neither affects `all`'s exit `1`; a malformed explicit `--version` is also advisory. With `packaging` available, an invalid explicit `--version` exits `2`. The deprecation table is always appended regardless of pass/fail outcome.
+    Exit 1 if any hard error is found: invalid argument mappings, misconfigured targets, inner-order properties, deprecated-to-deprecated chains, or expired wrappers. **Policy violations are advisory here** — they are printed (rendered as `[WARNING]`, with a trailer noting the check is advisory and naming `pydeprecate policy` as the gate) but never contribute to the exit code, because the policy defaults encode a project convention that not every repository shares; run `pydeprecate policy` as its own CI step to gate on them. This advisory treatment covers violation *counts* only: a policy **configuration** failure — the nearest `pyproject.toml` cannot be read or parsed, or a `[tool.pydeprecate.policy]` value is malformed — still exits `2`, printing `Cannot read <path>: <err>`, and that exit is checked before the chains check ever runs. If `packaging` is not installed, expiry is skipped and policy runs its packaging-free `message-required` rule in advisory mode, so neither affects `all`'s exit `1`; a malformed explicit `--version` is also advisory. With `packaging` available, an invalid explicit `--version` exits `2`. The deprecation table is always appended regardless of pass/fail outcome.
 
 === "status"
 
-    Generates and prints a markdown deprecation table to stdout. Standalone — runs no checks and exits `0` on success (invalid `--style` falls back to `compact` with a warning to stderr). Use this when you only want to render the deprecation status table without running any validation.
+    Generates and prints a markdown deprecation table to stdout. Standalone — runs no checks and exits `0` on success (an invalid `--style` or `--version` exits `2`). Use this when you only want to render the deprecation status table without running any validation.
 
     ```bash
     pydeprecate status path/to/your/package
@@ -211,16 +211,20 @@ Only a genuinely unresolved version skips the expiry check with a `version not r
 
 ## Exit codes
 
-| Subcommand | Exit `0`                                                                 | Exit `1`                                                              | Exit `2`                                                                      |
-| ---------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `check`    | Clean or advisory warnings only (chains / identity / no-effect)          | Invalid argument mappings found                                       | Malformed `--exclude`                                                         |
-| `expiry`   | No expired wrappers; or `packaging` not installed (skipped with warning) | Expired wrappers found (and `--exit-zero` not set)                    | Malformed `--version` when `packaging` is available, or malformed `--exclude` |
-| `policy`   | No violations; or only a skipped `min-grace` rule                        | Policy violations found (and `--exit-zero` not set)                   | Malformed rule value or `--exclude` (flag or `pyproject.toml`)                |
-| `chains`   | No chains                                                                | Deprecated-to-deprecated chains found                                 | Malformed `--exclude`                                                         |
-| `all`      | All checks clean, or only policy violations (table always appended)      | Any hard error above (`packaging` missing → skips expiry, no failure) | Malformed `--version` when `packaging` is available, or malformed `--exclude` |
-| `status`   | Table rendered — status is not a pass/fail gate                          | —                                                                     | Malformed `--exclude`                                                         |
+| Subcommand | Exit `0`                                                                                  | Exit `1`                                                                                    | Exit `2`                                                           | Exit `3`               |
+| ---------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | ---------------------- |
+| `check`    | Clean or warnings only (chains / identity / no-effect / positional-only)                  | Invalid argument mappings, misconfigured targets or inner-order properties found            | A usage error (below)                                              | Scan or internal error |
+| `expiry`   | No expired wrappers; or `packaging` not installed or the version unresolved (gap printed) | Expired wrappers found                                                                      | Malformed `--version` when `packaging` is available; a usage error | Scan or internal error |
+| `policy`   | No violations; or only a skipped `min-grace` rule                                         | Policy violations found                                                                     | Malformed rule value (flag or `pyproject.toml`); a usage error     | Scan or internal error |
+| `chains`   | No chains                                                                                 | Deprecated-to-deprecated chains found                                                       | A usage error                                                      | Scan or internal error |
+| `all`      | All checks clean, or only warnings and policy violations (table always appended)          | Any error of `check`, `expiry` or `chains` (`packaging` missing → skips expiry, no failure) | Malformed `--version` or rule value; a usage error                 | Scan or internal error |
+| `status`   | Table rendered — status is not a pass/fail gate                                           | —                                                                                           | Malformed `--version` or `--style`; a usage error                  | Scan or internal error |
 
-Every subcommand exits `2` with `contains multiple packages (…)` when the scanned directory holds two or more top-level packages, and with `File paths are not supported` for a single `.py` file — both are usage errors, so `--exit-zero` never masks them; pass the package sub-directory instead. Every subcommand exits `2` for an internal `--_*` option. `check`, `policy` and `chains` also exit `2` for a boolean flag given a value other than `true`/`false`/`1`/`0` and for a second positional path; on `expiry`, `all` and `status` such a stray token binds `--version` instead.
+`--exit-zero` turns exit `1` into `0` and never masks `2` or `3`.
+
+A usage error (exit `2`) stops the run before anything is scanned, on every subcommand: a malformed `--exclude` (flag or `pyproject.toml`), an unknown or internal `--_*` option, a boolean flag given a value other than `true`/`false`/`1`/`0`, a positional argument too many (a second path for `check`, `policy` and `chains`; a third for `expiry`, `all` and `status`, whose second is the version), a single `.py` file (`File paths are not supported`), a directory holding two or more top-level packages (`contains multiple packages (…)`; pass the package sub-directory instead), or a name that is neither an existing path nor an importable module (`No such path or importable module`).
+
+Exit `3` means the audit itself did not run: `pydeprecate: scan error: …` when the scanned package cannot be imported (its module-level code raises or exits; a *submodule* that fails is only a `module not audited` gap), and `pydeprecate: internal error: …` for a bug in the CLI, with the issue tracker to report it to. Neither writes a `--report-json` file.
 
 Policy violations are the one finding `all` reports without acting on: they never move `all` from `0` to `1`. Give `policy` its own CI step when you want the build to fail on them.
 

@@ -606,21 +606,31 @@ class TestActionSummary:
         assert "| `tests.collections.chains.caller_acc_via_depr_map` |" in summary
 
     @pytest.mark.parametrize("summary", [True, False])
-    def test_crashed_scan_warns_of_missing_report(self, tmp_path: Path, summary: bool) -> None:
-        """A scan that crashes writes no report, so the gate fails and a warning says its gaps went unannotated.
+    def test_crashed_scan_fails_with_exit_three(self, tmp_path: Path, summary: bool) -> None:
+        """A package that cannot be imported fails the gate with exit 3 and an error naming a scan or internal error.
 
-        The ``path`` input names a module that does not exist, so the scan fails to import it with exit 1. Gap
-        annotations are the action's guard against a green step that audited less than it shows, so their loss is
-        flagged even with ``summary`` off; with it on, the summary is skipped, as no table of this run exists.
+        The package's ``__init__`` raises, so nothing was audited and no report exists. The step must fail with the
+        CLI's own code, and the annotation must tell the crash apart from findings (exit 1); the summary is never
+        written, since no table of this run exists.
         """
-        result = _run_action(tmp_path, subcommand="check", path="nonexistent_module_xyz", summary=str(summary))
-        assert result.returncode == 1, result.stdout + result.stderr
-        assert "::error title=pyDeprecate::pydeprecate check exited 1" in result.stdout
-        assert "::warning title=pyDeprecate::the gate wrote no pyDeprecate report, so its gaps are not annotated" in (
+        pkg = tmp_path / "brokenpkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text("raise RuntimeError('broken on import')\n")
+        result = _run_action(tmp_path, subcommand="check", path=str(pkg), summary=str(summary))
+        assert result.returncode == 3, result.stdout + result.stderr
+        assert "::error title=pyDeprecate::pydeprecate check exited 3 (scan or internal error; see the log)" in (
             result.stdout
         )
-        assert ("the job summary is skipped" in result.stdout) is summary
         assert not _summary_path(tmp_path).exists()
+
+    def test_unknown_module_is_a_usage_error(self, tmp_path: Path) -> None:
+        """A ``path`` naming no existing path and no importable module exits 2, as a typo in the argument.
+
+        It used to fail the import with exit 1, which a workflow could not tell from a finding.
+        """
+        result = _run_action(tmp_path, subcommand="check", path="nonexistent_module_xyz")
+        assert result.returncode == 2, result.stdout + result.stderr
+        assert "No such path or importable module: 'nonexistent_module_xyz'" in result.stdout + result.stderr
 
     @pytest.mark.parametrize("separator", ["=", " "])
     def test_user_output_is_kept(self, tmp_path: Path, separator: str) -> None:

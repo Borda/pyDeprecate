@@ -46,7 +46,7 @@ inputs:
     description: >-
       Append the markdown deprecation status table of the gate's own scan to the job summary, read from the report
       the CLI writes with `--report-json`, so it covers exactly what the gate scanned. Summary failures only warn
-      and preserve the gate result. No summary is written when the CLI exits `2`.
+      and preserve the gate result. No summary is written when the CLI exits `2` or `3`.
     required: false
     default: "false"
 
