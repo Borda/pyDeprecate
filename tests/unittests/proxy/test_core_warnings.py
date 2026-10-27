@@ -227,7 +227,14 @@ class TestProxyTemplateMgs:
         assert msg == "CUSTOM legacy_obj deprecated_in=1.0"
 
     def test_custom_template_used_in_warning_message_callable_target(self) -> None:
-        """``message_template`` overrides the callable-target template, exposing target placeholders."""
+        """``message_template`` overrides the callable-target template, exposing target placeholders.
+
+        A library wants its own wording for the notice of a deprecated object that forwards to a replacement
+        callable.  With a custom ``message_template`` using ``%(source_name)s`` and ``%(target_name)s``, the emitted
+        warning text must be built from that template, containing the override text, the old object's name and the
+        replacement's name, instead of the built-in message.
+
+        """
 
         def replacement() -> None:
             """Replacement target used to confirm ``target_path`` substitution."""
@@ -249,7 +256,14 @@ class TestProxyTemplateMgs:
         assert "replacement" in msg
 
     def test_custom_template_used_in_per_argument_warning(self) -> None:
-        """``message_template`` overrides ``TEMPLATE_WARNING_ARGUMENTS`` for per-argument warnings."""
+        """``message_template`` overrides ``TEMPLATE_WARNING_ARGUMENTS`` for per-argument warnings.
+
+        A library renames a constructor keyword and wants its own wording for that notice.  When a per-argument
+        warning is raised for ``old_key`` on a proxy with a custom ``message_template`` using ``%(source_name)s`` and
+        ``%(argument_map)s``, the message must start with the custom text and the object name, and its argument
+        map must show the rename as ``old_key`` to ``new_key``.
+
+        """
         proxy = _DeprecatedProxy(
             obj=lambda **_: None,
             spec=_ProxySpec(
@@ -289,7 +303,14 @@ class TestProxyTemplateMgs:
         assert dep.message_template == "CUSTOM %(source_name)s"
 
     def test_deprecated_class_custom_template_applied(self) -> None:
-        """``deprecated_class(message_template=...)`` propagates the override to ``_warn``."""
+        """``deprecated_class(message_template=...)`` propagates the override to ``_warn``.
+
+        A library decorates its old class with ``deprecated_class`` and passes a custom ``message_template``
+        together with a replacement class as the target.  Instantiating the old class must then warn with the
+        custom wording, naming both the old and the new class, which shows that the decorator hands the template on
+        to the proxy rather than dropping it.
+
+        """
 
         class NewCfg:
             """Replacement class used as forwarding target."""
@@ -324,7 +345,14 @@ class TestProxyTemplateMgs:
         assert msg == "OVERRIDE legacy_cfg"
 
     def test_deprecated_class_default_template_when_message_template_omitted(self) -> None:
-        """Without ``message_template`` ``deprecated_class`` keeps the built-in template."""
+        """Without ``message_template`` ``deprecated_class`` keeps the built-in template.
+
+        A library decorates its old class with ``deprecated_class`` and a replacement class but supplies no custom
+        wording.  Instantiating the old class must warn with the library's standard callable-target message, which
+        begins "The `OldCfg2` was deprecated since v1.0 in favor of", so that adding the template option does not
+        change the default notice.
+
+        """
 
         class NewCfg2:
             """Replacement class used as forwarding target."""

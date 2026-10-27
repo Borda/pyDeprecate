@@ -205,7 +205,14 @@ class TestDocstringStyleOutput:
         ],
     )
     def test_notice_inserted_before_google_args_for_style(self, style: str, expected_marker: str) -> None:
-        """Notice is placed before ``Args:`` regardless of style."""
+        """Notice is placed before ``Args:`` regardless of style.
+
+        A project documents a Google-style function and picks one of the supported notice styles: ``rst``,
+        ``mkdocs`` or its ``markdown`` alias.  Whichever style is chosen, the generated notice (identified by its
+        marker text) must appear in the docstring ahead of the ``Args:`` section, so readers see the deprecation
+        before the parameter list.
+
+        """
 
         @deprecated(target=None, deprecated_in="1.0", update_docstring=True, docstring_style=style)  # type: ignore[arg-type, unused-ignore]
         def _fn(x: int) -> None:
@@ -440,7 +447,13 @@ class TestUpdateDocstringIdempotent:
     """_update_docstring_with_deprecation called twice must not duplicate the inline note."""
 
     def test_google_style_double_call_deduplicates(self) -> None:
-        """Two consecutive calls annotate the arg exactly once (Google-style docstring)."""
+        """Two consecutive calls annotate the arg exactly once (Google-style docstring).
+
+        Docstring updating may run more than once on the same function.  Updating a function whose deprecated
+        argument ``old`` is documented in an ``Args:`` section twice must leave a single "Deprecated since v1.0"
+        note, so the rendered docs never repeat the same warning.
+
+        """
 
         def my_fn(old: str = "") -> str:
             """Do something.
@@ -461,7 +474,13 @@ class TestUpdateDocstringIdempotent:
         assert my_fn.__doc__.count("Deprecated since v1.0") == 1
 
     def test_sphinx_style_double_call_deduplicates(self) -> None:
-        """Two consecutive calls annotate the param exactly once (Sphinx-style docstring)."""
+        """Two consecutive calls annotate the param exactly once (Sphinx-style docstring).
+
+        Docstring updating may run more than once on the same function.  Updating a function whose deprecated
+        argument ``old`` is documented with a ``:param old:`` field twice must leave a single "Deprecated since v1.0"
+        note, so the rendered docs never repeat the same warning.
+
+        """
 
         def my_fn(old: str = "") -> str:
             """Do something.

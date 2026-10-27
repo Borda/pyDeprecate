@@ -62,7 +62,14 @@ class TestDeprecationDocstrings:
         assert OldClassPlain.__init__.__doc__ is None
 
     def test_google_docstring_inserts_before_args_section(self) -> None:
-        """Deprecation notice is injected before Google-style ``Args:`` section."""
+        """Deprecation notice is injected before Google-style ``Args:`` section.
+
+        A library author deprecates a function documented in Google style and asks for the docstring to be updated.
+        Readers of the rendered docs must see the ``.. deprecated::`` block, with its removal version and the
+        replacement reference, right after the summary line and ahead of ``Args:``, while the original sections
+        (``Args:`` and ``Returns:``) stay intact below it.
+
+        """
         expected = """An old Google-style function.
 
 .. deprecated:: 0.1
@@ -87,7 +94,14 @@ Returns:
         assert old_google_no_sections_function.__doc__ == expected
 
     def test_numpy_docstring_inserts_before_parameters_section(self) -> None:
-        """Deprecation notice is injected before NumPy-style ``Parameters`` section."""
+        """Deprecation notice is injected before NumPy-style ``Parameters`` section.
+
+        A scientific-Python library documents its functions in NumPy style and deprecates one with docstring updating
+        enabled.  The generated docs must show the ``.. deprecated::`` block, with removal version and replacement
+        reference, between the summary and the underlined ``Parameters`` section, which keeps its original content
+        below the notice.
+
+        """
         expected = """An old NumPy-style function.
 
 .. deprecated:: 0.1
@@ -112,7 +126,14 @@ b : str
         assert old_numpy_no_sections_function.__doc__ == expected
 
     def test_mkdocs_docstring_uses_admonition_format(self) -> None:
-        """MkDocs style emits admonition syntax inserted before ``Args:``."""
+        """MkDocs style emits admonition syntax inserted before ``Args:``.
+
+        A project built with MkDocs deprecates a function with ``docstring_style="mkdocs"`` because the reStructuredText
+        ``.. deprecated::`` directive would render as plain text on its site.  The docstring must carry a
+        ``!!! warning "Deprecated in ..."`` admonition with the removal version and a backtick-quoted replacement
+        (no Sphinx ``:func:`` role) placed before ``Args:``, leaving the other sections unchanged.
+
+        """
         expected = """An old MkDocs-style function.
 
 !!! warning "Deprecated in 0.1"
@@ -128,7 +149,14 @@ Returns:
         assert old_mkdocs_style_function.__doc__ == expected
 
     def test_markdown_alias_produces_mkdocs_admonition(self) -> None:
-        """``docstring_style="markdown"`` is an alias for ``"mkdocs"`` and renders the same admonition."""
+        """``docstring_style="markdown"`` is an alias for ``"mkdocs"`` and renders the same admonition.
+
+        A maintainer who thinks of the target format as "Markdown" rather than "MkDocs" passes
+        ``docstring_style="markdown"``.  The resulting docstring must be the same admonition block, with removal
+        version and backtick-quoted replacement placed before ``Args:``, that the ``"mkdocs"`` style produces, so
+        both spellings of the option give identical documentation.
+
+        """
         expected = """An old function using the ``markdown`` style alias.
 
 !!! warning "Deprecated in 0.1"
@@ -226,7 +254,14 @@ Returns:
         assert google_multi_args_all_found.__doc__ == expected
 
     def test_google_partial_annotation(self) -> None:
-        """One arg found inline, one missing: inline note present AND general block appended."""
+        """One arg found inline, one missing: inline note present AND general block appended.
+
+        A function renames ``old_a`` to ``new_a`` and also lists a second deprecated argument (``missing_b``) that its
+        docstring never documents.  The documented argument must get its inline "Deprecated since ..." note under its
+        own ``Args:`` entry, and because one deprecated argument has no entry to annotate, the general
+        ``.. deprecated::`` block must also be appended at the end so that nothing is left undocumented.
+
+        """
         expected = """Run with two deprecated args, only one present in the docstring.
 
 Args:
@@ -266,7 +301,14 @@ Returns:
         assert sphinx_arg_not_in_docstring.__doc__ == expected
 
     def test_google_args_multiline(self) -> None:
-        """Note appended after all continuation lines of a multiline arg description."""
+        """Note appended after all continuation lines of a multiline arg description.
+
+        A deprecated ``train_config`` argument is documented over three lines (a summary plus two continuation
+        lines).  The inline "Deprecated since ..." note must land after the last continuation line of that entry,
+        at the same indentation, so the description is not split in two, while the neighbouring ``lr`` entry and its
+        own continuation line are left untouched.
+
+        """
         expected = """Train the model with a multiline arg description.
 
 Args:
@@ -292,7 +334,14 @@ Returns:
         assert sphinx_args_multiline.__doc__ == expected
 
     def test_callable_target_with_args_mapping(self) -> None:
-        """Callable target: inline note inserted AND general block appended with :func: ref."""
+        """Callable target: inline note inserted AND general block appended with :func: ref.
+
+        A function forwards to a replacement callable (``new_function``) and also retires its ``b`` argument through
+        ``args_mapping``.  Readers must see the inline note under ``b`` explaining that the argument is no longer
+        used, plus the function-level ``.. deprecated::`` block at the end, which, because a callable target exists,
+        points to the replacement with a ``:func:`` reference.
+
+        """
         expected = """Forward calls to new_function with a deprecated argument removed.
 
 Args:
@@ -309,7 +358,14 @@ Returns:
         assert callable_target_with_args_mapping.__doc__ == expected
 
     def test_no_target_with_args_mapping(self) -> None:
-        """``target=None``: inline note inserted AND general block appended (no :func: ref)."""
+        """``target=None``: inline note inserted AND general block appended (no :func: ref).
+
+        A function is only flagged as deprecated (``TargetMode.NOTIFY``, no replacement callable) while one of its
+        arguments, ``b``, is retired through ``args_mapping``.  The docstring must get the inline note under ``b`` and
+        the general ``.. deprecated::`` block with the removal version, but without a "Use ... instead" line because
+        there is nothing to point to.
+
+        """
         expected = """Warning-only deprecation with a deprecated argument.
 
 Args:
@@ -325,7 +381,15 @@ Returns:
         assert no_target_with_args_mapping.__doc__ == expected
 
     def test_mkdocs_no_target_with_args_mapping(self) -> None:
-        """MkDocs style: inline arg note inserted AND general block uses ``!!! warning``."""
+        """MkDocs style: inline arg note inserted AND general block uses ``!!! warning``.
+
+        A MkDocs-documented function with no replacement target (``TargetMode.NOTIFY``) retires its ``b`` argument
+        through ``args_mapping`` and selects ``docstring_style="mkdocs"``.  The inline note under ``b`` is the same
+        as in the reStructuredText case, but the function-level notice at the end must be a
+        ``!!! warning "Deprecated in ..."`` admonition rather than a ``.. deprecated::`` directive, and it carries no
+        replacement reference.
+
+        """
         expected = """Warning-only deprecation with a deprecated argument (MkDocs style).
 
 Args:

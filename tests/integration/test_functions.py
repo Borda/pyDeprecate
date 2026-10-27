@@ -152,7 +152,15 @@ class TestDeprecationWarnings:
             assert func(2) == 7
 
     def test_function_to_class_forwarding(self) -> None:
-        """Deprecated function targeting a class should instantiate and return the class."""
+        """Deprecated function targeting a class should instantiate and return the class.
+
+        A library replaces a factory function with a class and keeps the old function as a deprecated forwarder to
+        that class (``depr_make_new_cls`` to ``NewCls``).  A user who still calls the old function with positional and
+        keyword arguments must get a warning naming the old function, the replacement class and the removal
+        version, and must receive an ``NewCls`` instance built from those arguments, with the keyword default
+        (``d="abc"``) applied.
+
+        """
         cast(_DeprecatedCallable, depr_make_new_cls)._state.warned_calls = 0
         with pytest.warns(
             FutureWarning,
@@ -339,7 +347,15 @@ class TestArgumentMapping:
             assert func(2, **kwargs) == expected
 
     def test_arguments_double_mixed(self) -> None:
-        """Testing that preferable use the new arguments when both are provided."""
+        """Testing that preferable use the new arguments when both are provided.
+
+        A caller is mid-migration from ``c1``/``c2`` to ``nc1``/``nc2`` and passes some old and some new names at the
+        same time.  Using only the new names must stay silent.  Supplying an old name together with its new
+        counterpart (``c1`` with ``nc1``, ``c2`` with ``nc2``) must emit both the deprecated-arguments
+        ``FutureWarning`` and a ``UserWarning`` about the conflicting pair, and the explicitly supplied new value must
+        win over the value mapped from the old name.
+
+        """
         # Reset warning state to ensure test independence
         cast(_DeprecatedCallable, depr_pow_self_double)._state.warned_args.clear()
 
@@ -673,7 +689,15 @@ class TestDeprecatedClassWrappers:
         assert result == 8
 
     def test_preserves_attributes(self) -> None:
-        """Test that wrapper preserves tracking attributes."""
+        """Test that wrapper preserves tracking attributes.
+
+        A project keeps an old class-based timing decorator (``DeprecatedTimerDecorator``) alive as a deprecated
+        subclass of its replacement ``TimerDecorator``.  Wrapping a function with it must warn about the deprecation,
+        and the returned object must still behave like the replacement: after one call it exposes the
+        ``total_time`` and ``calls`` tracking attributes with ``calls == 1``, so existing users lose no
+        functionality while migrating.
+
+        """
 
         def sample_function(x: int) -> int:
             """A simple function for testing class-based wrappers."""
@@ -705,7 +729,14 @@ class TestDeprecatedClassWrappers:
             assert new_wrapped.calls == 1
 
     def test_with_decorator_syntax(self) -> None:
-        """Test warning when applied using @ decorator syntax."""
+        """Test warning when applied using @ decorator syntax.
+
+        Users usually apply a class-based decorator with ``@`` syntax rather than by calling it.  Decorating a
+        function with ``@DeprecatedTimerDecorator`` must emit the deprecation warning at decoration time, and the
+        decorated function must still compute its result (``3 + 5``) and expose the ``total_time`` and ``calls``
+        tracking attributes of the replacement decorator with ``calls == 1`` after one call.
+
+        """
         with pytest.warns(FutureWarning, match="`DeprecatedTimerDecorator` was deprecated"):
 
             @DeprecatedTimerDecorator

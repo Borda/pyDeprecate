@@ -214,7 +214,7 @@ class TestMode1InPlaceWarn:
 class TestStarImport:
     """``from old_math import *`` still triggers the deprecation warning for each pulled name."""
 
-    def test_star_import_warns(self) -> None:
+    def test_emits_future_warning(self) -> None:
         """A star-import of a deprecated module emits a ``FutureWarning`` for each public name pulled in.
 
         ``from tests.collections.modules.old_math import *`` binds every public name from the module's
@@ -704,7 +704,7 @@ class TestStream:
         make_tmp_module(self._mod_name)
         deprecated_module(self._mod_name, **_DEPRS_CASE_MOD_ARGS, stream=lambda msg, **_kw: self._calls.append(msg))
 
-    def test_stream_called_on_attr_access(self) -> None:
+    def test_called_on_attr_access(self) -> None:
         """Accessing a missing attribute invokes the ``stream`` callable instead of ``warnings.warn``.
 
         When a ``stream`` callable is provided, the hook delegates warning emission to it
@@ -717,7 +717,7 @@ class TestStream:
         assert len(self._calls) == 1
         assert isinstance(self._calls[0], str)
 
-    def test_stream_fallback_when_no_stacklevel(self, make_tmp_module: Callable[..., types.ModuleType]) -> None:
+    def test_fallback_when_no_stacklevel(self, make_tmp_module: Callable[..., types.ModuleType]) -> None:
         """A ``stream`` callable that does not accept ``stacklevel`` does not crash.
 
         The hook inspects the stream's signature once: a callable with no ``stacklevel`` parameter and no
@@ -739,7 +739,7 @@ class TestStream:
             pytest.param(FlakyTypeErrorStream, id="unrelated-typeerror"),
         ],
     )
-    def test_stream_typeerror_propagates_after_one_call(
+    def test_typeerror_propagates_after_one_call(
         self, make_tmp_module: Callable[..., types.ModuleType], stream_cls: type[RecordingStream]
     ) -> None:
         """A ``TypeError`` raised inside a ``stacklevel``-accepting stream reaches the importer after one call.

@@ -118,7 +118,14 @@ class TestDecoratorFactory:
     def test_boolean_target_is_normalized_and_class_access_still_works(
         self, raw_target: bool, warning_category: type[Warning], warning_message: str
     ) -> None:
-        """Legacy boolean targets are normalized before proxy metadata and access use them."""
+        """Legacy boolean targets are normalized before proxy metadata and access use them.
+
+        Older code passed ``target=True`` or ``target=False`` to ``deprecated_class``.  Decorating a class that way
+        must emit exactly one warning with the documented text (a ``FutureWarning`` for ``True`` and a
+        ``UserWarning`` for ``False``), the stored configuration must hold ``target=None`` instead of the boolean,
+        and the class must remain usable: it can still be instantiated and its methods called.
+
+        """
         with pytest.warns(warning_category) as caught:
 
             @deprecated_class(target=raw_target, **_DEPRS_CASE_STD_ARGS, stream=None)
