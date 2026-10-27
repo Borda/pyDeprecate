@@ -52,6 +52,7 @@ from tests.collections.api_deprecated_legacy import (
 from tests.collections.api_deprecated_legacy import (
     depr_target_mode_whole_warns_on_every_call as legacy_warns_on_every_call,
 )
+from tests.collections.misconfigured import target_false_deprecation
 
 
 class TestTargetModeContract:
@@ -390,28 +391,15 @@ class TestLegacySentinels:
 
         Legacy callers still need the invalid sentinel's observable normalized result while migrating to the enum.
         """
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", UserWarning)
-
-            @deprecated(target=False, deprecated_in="0.1", remove_in="0.5")
-            def _fn(x: int) -> int:
-                return x
-
-        assert cast(_DeprecatedCallable, _fn).__deprecation_config__.target is TargetMode.NOTIFY
+        assert cast(_DeprecatedCallable, target_false_deprecation).__deprecation_config__.target is TargetMode.NOTIFY
 
     def test_true_stores_args_remap_enum_in_deprecated_config(self) -> None:
         """Normalize ``target=True`` to ``TargetMode.ARGS_REMAP`` in metadata.
 
         Legacy argument-remap declarations must retain an observable enum result for audit and migration tooling.
         """
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", FutureWarning)
-
-            @deprecated(target=True, deprecated_in="0.1", remove_in="0.5", args_mapping={"old_x": "x"})
-            def _fn(x: int) -> int:
-                return x
-
-        assert cast(_DeprecatedCallable, _fn).__deprecation_config__.target is TargetMode.ARGS_REMAP
+        legacy_config = cast(_DeprecatedCallable, legacy_warns_when_old_arg_passed).__deprecation_config__
+        assert legacy_config.target is TargetMode.ARGS_REMAP
 
     def test_none_stores_notify_enum_in_deprecated_config(self) -> None:
         """Normalize ``target=None`` to ``TargetMode.NOTIFY`` in metadata.
@@ -419,14 +407,8 @@ class TestLegacySentinels:
         Mixed-version callers can still pass the legacy null sentinel, so the stored configuration must reveal the
         same warn-only mode as the modern enum spelling.
         """
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", FutureWarning)
-
-            @deprecated(target=None, deprecated_in="0.1", remove_in="0.5")
-            def _fn(x: int) -> int:
-                return x
-
-        assert cast(_DeprecatedCallable, _fn).__deprecation_config__.target is TargetMode.NOTIFY
+        legacy_config = cast(_DeprecatedCallable, legacy_executes_original_body).__deprecation_config__
+        assert legacy_config.target is TargetMode.NOTIFY
 
 
 class TestNotifyLegacyMessageParity:

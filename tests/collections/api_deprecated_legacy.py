@@ -26,6 +26,12 @@ from tests.collections.api_current import (
     power_with_new_coef,
     tracked_identity,
 )
+from tests.collections.api_deprecated import (
+    _DEPRS_CASE_OLD_ARGS,
+    _DEPRS_CASE_STD_ARGS,
+    _DEPRS_CASE_TGT_MODE_ARGS,
+    _DEPRS_CASE_TGT_MODE_INF_ARGS,
+)
 
 _deprecation_warning = partial(warn, category=DeprecationWarning)
 
@@ -42,7 +48,7 @@ def decorated_sum_warn_only(a: int, b: int = 5) -> int:
 # Legacy sentinel coverage: parallels ``decorated_pow_self`` using ``target=True`` directly.
 # The FutureWarning emitted by ``_resolve_legacy_target(True)`` is suppressed via the targeted
 # ``filterwarnings`` entry in pyproject.toml (scoped by message + ``deprecate._types`` module).
-@deprecated(target=True, deprecated_in="0.1", remove_in="0.5", args_mapping={"coef": "new_coef"})
+@deprecated(target=True, **_DEPRS_CASE_OLD_ARGS, args_mapping={"coef": "new_coef"})
 def decorated_pow_self(base: float, coef: float = 0, new_coef: float = 0) -> float:
     """Legacy sentinel coverage: self-deprecation using ``target=True`` directly."""
     return base**new_coef
@@ -56,13 +62,13 @@ class ServiceCls:
         return x * 2
 
     # Legacy sentinel coverage: parallels ``old_warn_method`` using ``target=None`` directly.
-    @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
+    @deprecated(target=None, **_DEPRS_CASE_STD_ARGS)
     def old_warn_method(self, x: int) -> int:
         """Legacy sentinel coverage: warn-only method using ``target=None`` directly."""
         return self.compute(x)
 
     # Legacy sentinel coverage: parallels ``self_renamed_method`` using ``target=True`` directly.
-    @deprecated(target=True, deprecated_in="1.0", remove_in="2.0", args_mapping={"old_x": "x"})
+    @deprecated(target=True, **_DEPRS_CASE_STD_ARGS, args_mapping={"old_x": "x"})
     def self_renamed_method(self, old_x: int = 0, x: int = 0) -> int:
         """Legacy sentinel coverage: self-deprecation method using ``target=True`` directly."""
         return self.compute(x)
@@ -70,42 +76,42 @@ class ServiceCls:
 
 # Legacy sentinel coverage: parallels ``depr_target_mode_args_only_with_args_extra_injects_kwargs``
 # using ``target=True`` directly (instead of ``TargetMode.ARGS_REMAP``).
-@deprecated(target=True, deprecated_in="1.2", remove_in="2.0", args_mapping={"old_x": "x"}, args_extra={"y": 10})
+@deprecated(target=True, **_DEPRS_CASE_TGT_MODE_ARGS, args_mapping={"old_x": "x"}, args_extra={"y": 10})
 def depr_target_mode_args_only_with_args_extra_injects_kwargs(x: int = 0, y: int = 0, old_x: int = 0) -> int:
     """Legacy sentinel coverage: ARGS_REMAP wrapper that injects extra kwargs using ``target=True``."""
     return add_values(x, y)
 
 
 # Legacy sentinel coverage: parallels ``depr_target_mode_whole_warns_on_every_call`` using ``target=None``.
-@deprecated(target=None, deprecated_in="1.2", remove_in="2.0", num_warns=-1)
+@deprecated(target=None, **_DEPRS_CASE_TGT_MODE_INF_ARGS)
 def depr_target_mode_whole_warns_on_every_call(x: int) -> int:
     """Legacy sentinel coverage: NOTIFY wrapper that warns on every call using ``target=None``."""
     return double_value(x)
 
 
 # Legacy sentinel coverage: parallels ``depr_target_mode_whole_executes_original_body`` using ``target=None``.
-@deprecated(target=None, deprecated_in="1.2", remove_in="2.0")
+@deprecated(target=None, **_DEPRS_CASE_TGT_MODE_ARGS)
 def depr_target_mode_whole_executes_original_body(x: int) -> int:
     """Legacy sentinel coverage: NOTIFY wrapper that records body execution using ``target=None``."""
     return tracked_identity(x)
 
 
 # Legacy sentinel coverage: parallels ``depr_target_mode_args_only_warns_when_old_arg_passed`` using ``target=True``.
-@deprecated(target=True, deprecated_in="1.2", remove_in="2.0", args_mapping={"old_x": "x"})
+@deprecated(target=True, **_DEPRS_CASE_TGT_MODE_ARGS, args_mapping={"old_x": "x"})
 def depr_target_mode_args_only_warns_when_old_arg_passed(x: int = 0, old_x: int = 0) -> int:
     """Legacy sentinel coverage: ARGS_REMAP wrapper used when callers pass the old name."""
     return increment_value(x)
 
 
 # Legacy sentinel coverage: parallels ``depr_target_mode_args_only_silent_when_new_arg_passed`` using ``target=True``.
-@deprecated(target=True, deprecated_in="1.2", remove_in="2.0", args_mapping={"old_x": "x"})
+@deprecated(target=True, **_DEPRS_CASE_TGT_MODE_ARGS, args_mapping={"old_x": "x"})
 def depr_target_mode_args_only_silent_when_new_arg_passed(x: int = 0, old_x: int = 0) -> int:
     """Legacy sentinel coverage: ARGS_REMAP wrapper used when callers already use the new name."""
     return increment_value(x)
 
 
 # Legacy sentinel coverage: parallels ``depr_target_mode_args_only_remaps_kwargs`` using ``target=True``.
-@deprecated(target=True, deprecated_in="1.2", remove_in="2.0", args_mapping={"coef": "new_coef"})
+@deprecated(target=True, **_DEPRS_CASE_TGT_MODE_ARGS, args_mapping={"coef": "new_coef"})
 def depr_target_mode_args_only_remaps_kwargs(base: float, new_coef: float = 1.0, coef: float = 1.0) -> float:
     """Legacy sentinel coverage: ARGS_REMAP wrapper that remaps kwargs before executing."""
     return power_with_new_coef(base, new_coef)
@@ -123,9 +129,7 @@ def depr_pow_self_double(base: float, c1: float = 0, c2: float = 0, nc1: float =
 
 
 # Legacy sentinel coverage: parallels ``fn_remap_with_extra`` using ``target=True`` directly.
-@deprecated(
-    target=True, args_mapping={"old_arg": "new_arg"}, args_extra={"injected": 100}, deprecated_in="1.0", remove_in="2.0"
-)
+@deprecated(target=True, args_mapping={"old_arg": "new_arg"}, args_extra={"injected": 100}, **_DEPRS_CASE_STD_ARGS)
 def fn_remap_with_extra(old_arg: int = 0, new_arg: int = 0, injected: int = 0) -> int:
     """Legacy sentinel coverage: ARGS_REMAP source body merging remap with extra kwargs using ``target=True``."""
     return fn_remap_with_extra_body(new_arg=new_arg, injected=injected)

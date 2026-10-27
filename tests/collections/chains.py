@@ -188,7 +188,13 @@ Deprecation Chain Schema:
 
 from deprecate import TargetMode, deprecated, void
 from tests.collections.api_current import base_sum_kwargs, stacked_chain_identity
-from tests.collections.api_deprecated import decorated_pow_self, decorated_sum, depr_accuracy_map
+from tests.collections.api_deprecated import (
+    _DEPRS_CASE_STD_ARGS,
+    _DEPRS_CASE_TGT_MODE_ARGS,
+    decorated_pow_self,
+    decorated_sum,
+    depr_accuracy_map,
+)
 
 
 @deprecated(target=decorated_sum, deprecated_in="1.5", remove_in="2.5")
@@ -252,22 +258,22 @@ def caller_stacked_args_map(base: int, c1: int = 0, nc1: int = 0, nc2: int = 2) 
     return void(base, c1, nc1, nc2)
 
 
-@deprecated(target=TargetMode.ARGS_REMAP, deprecated_in="1.2", remove_in="2.0", args_mapping={"c1": "nc2"})
-@deprecated(target=TargetMode.ARGS_REMAP, deprecated_in="1.2", remove_in="2.0", args_mapping={"nc1": "nc2"})
+@deprecated(target=TargetMode.ARGS_REMAP, **_DEPRS_CASE_TGT_MODE_ARGS, args_mapping={"c1": "nc2"})
+@deprecated(target=TargetMode.ARGS_REMAP, **_DEPRS_CASE_TGT_MODE_ARGS, args_mapping={"nc1": "nc2"})
 def caller_stacked_args_enum_enum(base: int, c1: int = 0, nc1: int = 0, nc2: int = 2) -> int:
     """Stacked self-deprecation decorators using TargetMode on both layers."""
     return stacked_chain_identity(base)
 
 
-@deprecated(target=True, deprecated_in="1.2", remove_in="2.0", args_mapping={"c1": "nc2"})
-@deprecated(target=TargetMode.ARGS_REMAP, deprecated_in="1.2", remove_in="2.0", args_mapping={"nc1": "nc2"})
+@deprecated(target=True, **_DEPRS_CASE_TGT_MODE_ARGS, args_mapping={"c1": "nc2"})
+@deprecated(target=TargetMode.ARGS_REMAP, **_DEPRS_CASE_TGT_MODE_ARGS, args_mapping={"nc1": "nc2"})
 def caller_stacked_args_legacy_enum(base: int, c1: int = 0, nc1: int = 0, nc2: int = 2) -> int:
     """Stacked self-deprecation decorators mixing legacy and TargetMode forms."""
     return stacked_chain_identity(base)
 
 
-@deprecated(target=TargetMode.ARGS_REMAP, deprecated_in="1.2", remove_in="2.0", args_mapping={"c1": "nc2"})
-@deprecated(target=True, deprecated_in="1.2", remove_in="2.0", args_mapping={"nc1": "nc2"})
+@deprecated(target=TargetMode.ARGS_REMAP, **_DEPRS_CASE_TGT_MODE_ARGS, args_mapping={"c1": "nc2"})
+@deprecated(target=True, **_DEPRS_CASE_TGT_MODE_ARGS, args_mapping={"nc1": "nc2"})
 def caller_stacked_args_enum_legacy(base: int, c1: int = 0, nc1: int = 0, nc2: int = 2) -> int:
     """Stacked self-deprecation decorators mixing TargetMode and legacy forms."""
     return stacked_chain_identity(base)
@@ -317,7 +323,7 @@ def caller_three_hop_sum(a: int, b: int = 5) -> int:
     return void(a, b)
 
 
-@deprecated(TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
+@deprecated(TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)
 def notify_layer(value: int) -> int:
     """Warning-only wrapper that still runs its own body — the inner link of a NOTIFY-target chain.
 
@@ -328,7 +334,7 @@ def notify_layer(value: int) -> int:
     return value
 
 
-@deprecated(target=notify_layer, deprecated_in="1.0", remove_in="2.0")
+@deprecated(target=notify_layer, **_DEPRS_CASE_STD_ARGS)
 def caller_via_notify_layer(value: int) -> int:
     """Callable target pointing at a NOTIFY wrapper — a forwarding TARGET chain.
 
@@ -351,8 +357,8 @@ class StackedRemapMethodHolder:
 
     """
 
-    @deprecated(target=TargetMode.ARGS_REMAP, deprecated_in="1.2", remove_in="2.0", args_mapping={"c1": "nc2"})
-    @deprecated(target=TargetMode.ARGS_REMAP, deprecated_in="1.2", remove_in="2.0", args_mapping={"nc1": "nc2"})
+    @deprecated(target=TargetMode.ARGS_REMAP, **_DEPRS_CASE_TGT_MODE_ARGS, args_mapping={"c1": "nc2"})
+    @deprecated(target=TargetMode.ARGS_REMAP, **_DEPRS_CASE_TGT_MODE_ARGS, args_mapping={"nc1": "nc2"})
     def scale(self, base: int, c1: int = 0, nc1: int = 0, nc2: int = 2) -> int:
         """Handle callers still using c1 or nc1 while the scaling API migrates to nc2."""
         return stacked_chain_identity(base)

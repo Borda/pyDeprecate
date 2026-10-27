@@ -41,6 +41,7 @@ from tests.collections.api_current import (
     InheritedContextLookup,
     KeywordTypeErrorStream,
     RecordingStream,
+    _SlottedModuleType,
 )
 
 # Shared version kwargs for module deprecation call sites (see AGENTS.md Unification pattern).
@@ -598,11 +599,6 @@ class TestSlotsGuard:
         """
         mod_name = "_test_slots_guard_tmp"
 
-        class _SlottedModuleType(types.ModuleType):
-            """Custom module subclass with an incompatible ``__slots__`` layout."""
-
-            __slots__ = ("extra_slot",)
-
         make_tmp_module(mod_name, module_type=_SlottedModuleType)
         with warnings.catch_warnings():
             # A UserWarning fires first because `type(mod) is not types.ModuleType`;
@@ -626,11 +622,6 @@ class TestSlotsGuard:
         wrapper.
         """
         mod_name = "_test_slots_rollback_tmp"
-
-        class _SlottedModuleType(types.ModuleType):
-            """Custom module subclass with an incompatible ``__slots__`` layout."""
-
-            __slots__ = ("extra_slot",)
 
         slotted = make_tmp_module(mod_name, module_type=_SlottedModuleType)
         with warnings.catch_warnings():
