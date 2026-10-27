@@ -4,7 +4,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional, Union
 
-from deprecate._cli._pkg import _ConfigReadError, _iter_pyproject_paths, _read_pydeprecate_config
+from deprecate._cli._pkg import _ConfigReadError, _read_pydeprecate_config
 from deprecate._cli.report import _is_package_available, _print
 from deprecate.audit import PolicyRule
 from deprecate.audit._lifecycle import _parse_version
@@ -14,6 +14,7 @@ from deprecate.audit._policy import (
     _GRACE_WINDOW_TABLE_SPELLING,
     _build_policy_spec,
 )
+from deprecate.audit._version import _iter_pyproject_paths
 
 if TYPE_CHECKING:
     from deprecate.audit._policy import _PolicySpec

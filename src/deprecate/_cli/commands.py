@@ -3,7 +3,7 @@
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
-from deprecate._cli._pkg import _resolve_package_version, _safe_module_name
+from deprecate._cli._pkg import _safe_module_name
 from deprecate._cli.config import (
     _FROM_PYPROJECT,
     _Config,
@@ -34,6 +34,7 @@ from deprecate.audit import (
 from deprecate.audit._findings import _Finding, _Rule, _wrapper_findings
 from deprecate.audit._lifecycle import _expiry_findings, _parse_version
 from deprecate.audit._policy import _build_policy_spec, _policy_findings
+from deprecate.audit._version import _resolve_package_version
 from deprecate.audit._wrappers import _format_subject
 
 if TYPE_CHECKING:

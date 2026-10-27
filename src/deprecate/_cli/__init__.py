@@ -15,8 +15,7 @@ Subcommands:
 
 The whole ``deprecate._cli`` package is internal and may change without notice; the public Python API
 for the same checks is :mod:`deprecate.audit`. This module stays import-light — the parser, the subcommands and the
-audit layer load only when :func:`cli` runs — so internal helpers such as :mod:`deprecate._cli._pkg` can be imported
-from :mod:`deprecate.audit` without loading the CLI.
+audit layer load only when :func:`cli` runs.
 
 """
 

@@ -19,10 +19,10 @@ from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 if TYPE_CHECKING:
     from packaging.version import Version
 
-from deprecate._cli._pkg import _resolve_package_version
 from deprecate._frames import _caller_stacklevel
 from deprecate.audit._findings import _Check, _Finding, _make_finding, _Rule
 from deprecate.audit._scan import find_deprecation_wrappers
+from deprecate.audit._version import _resolve_package_version
 from deprecate.audit._wrappers import DeprecationWrapperInfo, _format_subject, validate_deprecation_wrapper
 
 
@@ -253,8 +253,8 @@ def _check_deprecated_wrapper_expiry(func: Union[Callable, types.ModuleType], cu
 def _get_package_version(package_name: str) -> str:
     """Auto-detect the version of a package for the audit API, raising when it cannot be determined.
 
-    Delegates to the resolver the CLI uses (:func:`deprecate._cli._pkg._resolve_package_version`): installed metadata
-    under the import name, then under the distribution that provides it, then the package's string
+    Delegates to the resolver the CLI uses (:func:`deprecate.audit._version._resolve_package_version`): installed
+    metadata under the import name, then under the distribution that provides it, then the package's string
     ``__version__``. No ``pyproject.toml`` is consulted, as the API receives a module name, never a path.
 
     Args:

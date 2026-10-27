@@ -322,7 +322,7 @@ pyDeprecate/
 │   ├── __main__.py             # python -m deprecate entry point
 │   ├── _cli/                   # Internal CLI package (public Python API is deprecate.audit)
 │   │   ├── __init__.py         # cli() entry point (import-light): runs the parsed subcommand, exit 3 on a crash
-│   │   ├── _pkg.py             # Version and path resolution helpers (the version resolver is shared with audit)
+│   │   ├── _pkg.py             # [tool.pydeprecate] config reading, package-directory and module-name helpers
 │   │   ├── argv.py             # UTF-8 streams and the argparse parser built from the cmd_* signatures
 │   │   ├── commands.py         # Subcommands: check, expiry, policy, chains, all, status
 │   │   ├── config.py           # [tool.pydeprecate] pyproject.toml config and flag-default resolution
@@ -350,6 +350,7 @@ pyDeprecate/
 │   │   ├── _scan.py            # find_deprecation_wrappers() walk + chain/mapping filters
 │   │   ├── _lifecycle.py       # PEP 440 parsing, package version, DeprecationStatus, validate_deprecation_expiry()
 │   │   ├── _policy.py          # PolicyRule, VersionBump, GraceWindow, GraceWindowSpec, validate_deprecation_policy()
+│   │   ├── _version.py         # Package version resolution shared with the CLI (pyproject, metadata, __version__)
 │   │   └── _report.py          # TableStyle, generate_deprecation_table()
 │   ├── utils.py                # Low-level helpers: void(), assert_no_warnings()
 │   └── docstring/              # Docstring utilities subpackage

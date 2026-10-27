@@ -11,9 +11,10 @@ from enum import Enum
 from pathlib import Path
 from typing import Optional
 
-from deprecate._cli._pkg import _resolve_package_version, _safe_module_name
+from deprecate._cli._pkg import _safe_module_name
 from deprecate.audit import DeprecationWrapperInfo, generate_deprecation_table
 from deprecate.audit._findings import _Finding, _misconfiguration
+from deprecate.audit._version import _resolve_package_version
 
 
 def _is_package_available(name: str) -> bool:
