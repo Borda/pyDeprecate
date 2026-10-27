@@ -4937,8 +4937,8 @@ True</p>
 <li>Requires that the module be importable</li>
 <li>Recursive scans import every submodule of the package, executing their module-level code; packages
   with heavy import-time work (GPU init, network access) make the scan correspondingly expensive</li>
-<li>Skips submodules that fail to import — any exception raised by module-level code is reported as a
-  <code>UserWarning</code> (<code>audit: skipped &lt;module&gt;: ...</code>) and the scan continues</li>
+<li>Skips submodules that fail to import — any exception raised by module-level code, <code>SystemExit</code>
+  included, is reported as a <code>UserWarning</code> (<code>audit: skipped &lt;module&gt;: ...</code>) and the scan continues</li>
 <li>Inspects the <code>__deprecation_config__</code> attribute set by the :func:<code>~deprecate.deprecated</code> decorator</li>
 <li>Skips private/magic attributes and imports from other modules</li>
 <li>Uses static member inspection to avoid scan-time side effects from dynamic attribute access</li>
@@ -6740,7 +6740,7 @@ counts its replacement module, its <code>attrs_mapping</code>, or a template oth
 <p>This is what every user-facing spelling is converted into before a policy scan starts, so the single-unit
 rule is structural rather than something each consumer re-checks: an instance cannot name two units, and
 construction rejects a negative or non-integer count. Build one directly, or from any accepted spelling with
-:meth:<code>parse</code> — a dotted delta (<code>"0.3"</code>), the float Fire or TOML may hand over, or a one-key table.</p>
+:meth:<code>parse</code> — a dotted delta (<code>"0.3"</code>), the float a TOML file may hand over, or a one-key table.</p>
 
 
 <p><span class="doc-section-title">Attributes:</span></p>

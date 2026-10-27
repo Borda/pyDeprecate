@@ -109,7 +109,7 @@
           "name": "Why did the GitHub Action skip my job summary?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "The summary is optional and never changes the gate's exit code. The action takes the table from the report the CLI writes with --report-json, which exists only when the scan ran to the end with exit 0 or 1. 'The gate wrote no pyDeprecate report' means the scan crashed (for example, a module that fails to import) or the report could not be written; the cause is in the CLI's stderr just above. A usage error (exit 2) writes no summary. 'No pyDeprecate report is available' means an older pyDeprecate without --report-json runs with install: false; keep install: true or upgrade it. That warning also appears when the runner could not create a temporary directory for the report. Other warnings: GITHUB_STEP_SUMMARY not set means the job is not on a GitHub runner, and 'could not write the job summary' shows the OS error. 'The gate's report holds no deprecation table' means the CLI could not render the table; the reason is on its stderr. An unreadable report or one of another layout version means a corrupt file or a different pyDeprecate than the action's (for example install: false); the preceding runner warning names the cause, and the gate result is unaffected."
+            "text": "The summary is optional and never changes the gate's exit code. The action takes the table from the report the CLI writes with --report-json, which exists only when the scan ran to the end with exit 0 or 1. 'The gate wrote no pyDeprecate report' means the report could not be written; the cause is in the CLI's stderr just above. A usage error (exit 2) and a crashed scan (exit 3, for example a package that fails to import) write no summary and no warning, because no scan finished; the step's error annotation names the exit code. 'No pyDeprecate report is available' means an older pyDeprecate without --report-json runs with install: false; keep install: true or upgrade it. That warning also appears when the runner could not create a temporary directory for the report. Other warnings: GITHUB_STEP_SUMMARY not set means the job is not on a GitHub runner, and 'could not write the job summary' shows the OS error. 'The gate's report holds no deprecation table' means the CLI could not render the table; the reason is on its stderr. An unreadable report or one of another layout version means a corrupt file or a different pyDeprecate than the action's (for example install: false); the preceding runner warning names the cause, and the gate result is unaffected."
           }
         },
         {
@@ -397,7 +397,7 @@
           "name": "Why does my expiry gate report more expired wrappers after upgrading pyDeprecate?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "validate_deprecation_expiry now includes deprecated class members by default (include_members=True), matching find_deprecation_wrappers and generate_deprecation_table. Expired member wrappers such as deprecated __init__ methods are now counted, so totals can rise after upgrading even though your code is unchanged. Pass include_members=False (CLI: --noinclude-members, accepted by every subcommand) to restore the previous module-level-only scope, but prefer fixing the newly surfaced entries — they are real expired deprecations that were previously invisible to the gate."
+            "text": "validate_deprecation_expiry now includes deprecated class members by default (include_members=True), matching find_deprecation_wrappers and generate_deprecation_table. Expired member wrappers such as deprecated __init__ methods are now counted, so totals can rise after upgrading even though your code is unchanged. Pass include_members=False (CLI: --no-include-members, accepted by every subcommand) to restore the previous module-level-only scope, but prefer fixing the newly surfaced entries — they are real expired deprecations that were previously invisible to the gate."
           }
         },
         {
@@ -405,7 +405,7 @@
           "name": "Why does pydeprecate all report policy violations but still exit 0?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "That is deliberate. The deprecation-policy defaults (min_grace='0.3', message_required=True) encode a release convention rather than a universal rule, so pydeprecate all runs the policy check in advisory mode: violations are printed for visibility but never contribute to the exit code of all. Only invalid argument mappings, deprecated-to-deprecated chains, and expired wrappers make all exit 1. This advisory treatment covers violation counts only — a policy configuration failure (an unreadable or malformed pyproject.toml, or a malformed [tool.pydeprecate.policy] value) still exits 2 even inside all, printing 'Cannot read <path>: <err>', and is checked before the chains check runs. To fail a build on a policy violation, give pydeprecate policy its own CI step — its exit code is truthful (0 clean, 1 violations found, 2 a malformed rule argument or unreadable pyproject.toml). Spell the rule flags out in that step even where they match the defaults, so the command records what your project promises and a future change to pyDeprecate's defaults cannot quietly change what your CI enforces."
+            "text": "That is deliberate. The deprecation-policy defaults (min_grace='0.3', message_required=True) encode a release convention rather than a universal rule, so pydeprecate all runs the policy check in advisory mode: violations are printed for visibility but never contribute to the exit code of all. Only invalid argument mappings, misconfigured targets, inner-order properties, deprecated-to-deprecated chains, and expired wrappers make all exit 1. This advisory treatment covers violation counts only — a policy configuration failure (an unreadable or malformed pyproject.toml, or a malformed [tool.pydeprecate.policy] value) still exits 2 even inside all, printing 'Cannot read <path>: <err>', and is checked before the chains check runs. To fail a build on a policy violation, give pydeprecate policy its own CI step — its exit code is truthful (0 clean, 1 violations found, 2 a malformed rule argument or unreadable pyproject.toml). Spell the rule flags out in that step even where they match the defaults, so the command records what your project promises and a future change to pyDeprecate's defaults cannot quietly change what your CI enforces."
           }
         },
         {
@@ -566,6 +566,22 @@
           "acceptedAnswer": {
             "@type": "Answer",
             "text": "Type checkers recognise a deprecation only when the decorator is literally warnings.deprecated (Python 3.13+) or typing_extensions.deprecated; they match the decorator by name, so no runtime decorator, pyDeprecate's included, can make them see it. Stack the PEP 702 decorator directly above pyDeprecate's: warnings.deprecated(\"Use new_name instead.\", category=None) over deprecated(...). Keep category=None, otherwise every call warns twice; write the message as a string literal, because mypy silently ignores a constant or f-string; and import the module rather than the name so pyDeprecate's deprecated is not shadowed. mypy only reports it with enable_error_code = [\"deprecated\"], pyright in CI with reportDeprecated = \"error\". Over deprecated_class(...), both mypy and pyright flag the old class name."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why does my CI step exit 3?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Exit 3 means the audit did not run: neither findings (exit 1) nor a usage error (exit 2). 'pydeprecate: scan error' means the scanned package itself could not be imported (its __init__ raised or its module-level code exited); install the package's runtime dependencies in the scanning environment. A submodule that fails to import is only a 'module not audited' gap and keeps the exit code. 'pydeprecate: internal error' is a bug in pyDeprecate and names the issue tracker. --exit-zero does not mask exit 3 and no --report-json file is written. Before 0.15 both cases exited 1."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why does pydeprecate check now fail on a wrapper it used to pass?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Since 0.15, check and all exit 1 on misconfigured targets and inner-order properties. A misconfigured target contradicts the rest of the configuration: TargetMode.NOTIFY with an args_mapping, attrs_mapping or args_extra it ignores, TargetMode.ARGS_REMAP without an args_mapping, or the invalid target=False; use TargetMode.ARGS_REMAP to rename arguments or drop the mapping for a plain notice. An inner-order property is @property above @deprecated, where only the getter warns; put @deprecated(...) above @property instead."
           }
         }
       ]
@@ -2162,6 +2178,28 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#why-does-my-ci-step-exit-3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why does my CI step exit 3?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-does-pydeprecate-check-now-fail-on-a-wrapper-it-used-to-pass" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why does pydeprecate check now fail on a wrapper it used to pass?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#still-stuck" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2991,6 +3029,28 @@
     <span class="md-ellipsis">
       
         My singledispatch or __signature__-patched source receives keyword arguments
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-does-my-ci-step-exit-3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why does my CI step exit 3?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-does-pydeprecate-check-now-fail-on-a-wrapper-it-used-to-pass" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why does pydeprecate check now fail on a wrapper it used to pass?
       
     </span>
   </a>
@@ -4682,11 +4742,11 @@
 
 </details>
 
-<p>Prefer fixing the newly surfaced entries over passing <code>include_members=False</code> — the narrower scope hides genuinely expired member deprecations. Every audit function takes the same <code>include_members</code> switch, and every CLI subcommand takes <code>--noinclude-members</code> (for example <code>pydeprecate expiry src/mypackage --noinclude-members</code>).</p>
+<p>Prefer fixing the newly surfaced entries over passing <code>include_members=False</code> — the narrower scope hides genuinely expired member deprecations. Every audit function takes the same <code>include_members</code> switch, and every CLI subcommand takes <code>--no-include-members</code> (for example <code>pydeprecate expiry src/mypackage --no-include-members</code>).</p>
 <hr />
 <h2 id="why-does-pydeprecate-all-report-policy-violations-but-still-exit-0">Why does <code>pydeprecate all</code> report policy violations but still exit 0?<a class="headerlink" href="#why-does-pydeprecate-all-report-policy-violations-but-still-exit-0" title="Permanent link">🔗</a></h2>
 <p><strong>Q:</strong> <code>pydeprecate all src/mypackage</code> prints a <em>Deprecation Policy Violations</em> table, but the command exits <code>0</code> and my CI step passes. Is the exit code wrong?</p>
-<p><strong>A:</strong> No — that is deliberate. The policy defaults (<code>min_grace="0.3"</code>, <code>message_required=True</code>) encode <em>a</em> release convention, not a universal rule, so <code>all</code> runs the policy check in <strong>advisory</strong> mode: violations are printed for visibility but never contribute to <code>all</code>'s exit code. Only invalid argument mappings, deprecated-to-deprecated chains, and expired wrappers make <code>all</code> exit <code>1</code>. This "advisory" treatment covers violation <em>counts</em> only — a policy <strong>configuration</strong> failure (the nearest <code>pyproject.toml</code> cannot be read or parsed, or a <code>[tool.pydeprecate.policy]</code> value is malformed) still exits <code>2</code> even inside <code>all</code>, printing <code>Cannot read &lt;path&gt;: &lt;err&gt;</code>, and that failure is checked before the chains check runs.</p>
+<p><strong>A:</strong> No — that is deliberate. The policy defaults (<code>min_grace="0.3"</code>, <code>message_required=True</code>) encode <em>a</em> release convention, not a universal rule, so <code>all</code> runs the policy check in <strong>advisory</strong> mode: violations are printed for visibility but never contribute to <code>all</code>'s exit code. Only invalid argument mappings, misconfigured targets, inner-order properties, deprecated-to-deprecated chains, and expired wrappers make <code>all</code> exit <code>1</code>. This "advisory" treatment covers violation <em>counts</em> only — a policy <strong>configuration</strong> failure (the nearest <code>pyproject.toml</code> cannot be read or parsed, or a <code>[tool.pydeprecate.policy]</code> value is malformed) still exits <code>2</code> even inside <code>all</code>, printing <code>Cannot read &lt;path&gt;: &lt;err&gt;</code>, and that failure is checked before the chains check runs.</p>
 <p>To make the build fail on a policy violation, give <code>pydeprecate policy</code> its own CI step — its exit code is truthful (<code>0</code> clean, <code>1</code> violations, <code>2</code> a malformed rule argument):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-101-1" name="__codelineno-101-1" href="#__codelineno-101-1"></a><span class="c1"># reports policy violations, but the exit code ignores them</span>
 <a id="__codelineno-101-2" name="__codelineno-101-2" href="#__codelineno-101-2"></a>pydeprecate<span class="w"> </span>all<span class="w"> </span>src/mypackage
@@ -4811,6 +4871,14 @@
 <li><strong>A <code>__signature__</code> that reports fewer positional parameters than the source accepts.</strong> Before calling the source, the wrapper checks the number of positional arguments against <code>inspect.signature(source)</code>, so a call that fills more slots than the patched signature lists raises the curated <code>TypeError</code> (<code>... takes N positional argument(s) but got M positional argument(s)</code>) even though the real source would accept it. Make <code>__signature__</code> list every positional slot, or give it a <code>*args</code> parameter.</li>
 </ul>
 <hr />
+<h2 id="why-does-my-ci-step-exit-3">Why does my CI step exit 3?<a class="headerlink" href="#why-does-my-ci-step-exit-3" title="Permanent link">🔗</a></h2>
+<p><strong>Q:</strong> <code>pydeprecate check src/mypackage</code> (or the GitHub Action) fails with exit code <code>3</code> and <code>pydeprecate: scan error: …</code> or <code>pydeprecate: internal error: …</code>. What does it mean?</p>
+<p><strong>A:</strong> The audit did not run, so there are neither findings (exit <code>1</code>) nor a usage error (exit <code>2</code>). A <strong>scan error</strong> means the scanned package itself could not be imported: its <code>__init__</code> (or the module you named) raised, or its module-level code called <code>sys.exit()</code>. Install the package's runtime dependencies in the environment that runs the scan, as you would for its tests; a <em>submodule</em> that fails to import is only reported as a <code>pydeprecate gap: module not audited</code> line and keeps the exit code. An <strong>internal error</strong> is a bug in pyDeprecate; the message names the exception and the issue tracker to report it to. <code>--exit-zero</code> does not mask exit <code>3</code>, and no <code>--report-json</code> file is written. Before 0.15 both cases exited <code>1</code>, like findings.</p>
+<hr />
+<h2 id="why-does-pydeprecate-check-now-fail-on-a-wrapper-it-used-to-pass">Why does <code>pydeprecate check</code> now fail on a wrapper it used to pass?<a class="headerlink" href="#why-does-pydeprecate-check-now-fail-on-a-wrapper-it-used-to-pass" title="Permanent link">🔗</a></h2>
+<p><strong>Q:</strong> After upgrading, <code>pydeprecate check</code> (and <code>all</code>) exits <code>1</code> with <em>Found deprecated wrappers with a misconfigured target</em> or <em>Found inner-order @property @deprecated wrappers</em>, on code that passed before.</p>
+<p><strong>A:</strong> Since 0.15 both are errors, as the CLI guide always promised. A <strong>misconfigured target</strong> is a wrapper whose <code>target</code> contradicts the rest of its configuration: <code>TargetMode.NOTIFY</code> with an <code>args_mapping</code>, <code>attrs_mapping</code> or <code>args_extra</code> it ignores (callers of the old argument name are never migrated), <code>TargetMode.ARGS_REMAP</code> without an <code>args_mapping</code> (nothing to remap), or the invalid <code>target=False</code>. Fix the target: <code>TargetMode.ARGS_REMAP</code> to rename arguments, or drop the mapping for a plain notice. An <strong>inner-order property</strong> is <code>@property</code> above <code>@deprecated</code>: only the getter warns, and a setter or deleter added later never does. Put <code>@deprecated(...)</code> above <code>@property</code> instead. The scan lists the same rows in <code>find_deprecation_wrappers</code> through the <code>misconfigured_target</code> and <code>inner_order_property</code> fields.</p>
+<hr />
 <h2 id="still-stuck">Still stuck?<a class="headerlink" href="#still-stuck" title="Permanent link">🔗</a></h2>
 <div class="admonition question">
 <p class="admonition-title">Open a GitHub issue</p>
@@ -4819,7 +4887,7 @@
 <hr />
 <h2 id="why-did-the-github-action-skip-my-job-summary">Why did the GitHub Action skip my job summary?<a class="headerlink" href="#why-did-the-github-action-skip-my-job-summary" title="Permanent link">🔗</a></h2>
 <p><strong>Q:</strong> The action ran with <code>summary: true</code>, but the job summary is absent or warns that the gate wrote no pyDeprecate report, or that no pyDeprecate report is available, or another runner warning about the summary.</p>
-<p><strong>A:</strong> The summary is optional and never changes the gate's exit code. The action takes the table from the report the CLI writes with <code>--report-json</code>, and the CLI writes that report only when the scan ran to the end with exit <code>0</code> or <code>1</code>. "The gate wrote no pyDeprecate report" means the scan crashed (for example, a module that fails to import) or the report could not be written; the cause is in the CLI's stderr just above the warning. A usage error (exit <code>2</code>) writes no summary and no warning, because nothing was scanned. "No pyDeprecate report is available" means the job runs a pyDeprecate older than <code>--report-json</code> with <code>install: false</code>: keep <code>install: true</code>, or upgrade the pyDeprecate your job installs. The same "no report is available" warning also appears when the runner could not create the temporary directory for the report (its preceding warning gives the OS error). Other warnings: "<code>summary: true</code> needs GITHUB_STEP_SUMMARY" means the job is not on a GitHub runner, and "could not write the job summary" shows the OS error; both are self-describing. "The gate's report holds no deprecation table" means the CLI could not render the table (the reason is on its stderr). "Could not read the pyDeprecate report" or "not of layout version" means the report file is corrupt or comes from a different pyDeprecate than the action's (for example <code>install: false</code> with another version); the preceding runner warning names the cause, and the gate result is unaffected.</p>
+<p><strong>A:</strong> The summary is optional and never changes the gate's exit code. The action takes the table from the report the CLI writes with <code>--report-json</code>, and the CLI writes that report only when the scan ran to the end with exit <code>0</code> or <code>1</code>. "The gate wrote no pyDeprecate report" means the report could not be written; the cause is in the CLI's stderr just above the warning. A usage error (exit <code>2</code>) and a crashed scan (exit <code>3</code>, for example a package that fails to import) write no summary and no warning, because no scan finished; the step's error annotation names the exit code. "No pyDeprecate report is available" means the job runs a pyDeprecate older than <code>--report-json</code> with <code>install: false</code>: keep <code>install: true</code>, or upgrade the pyDeprecate your job installs. The same "no report is available" warning also appears when the runner could not create the temporary directory for the report (its preceding warning gives the OS error). Other warnings: "<code>summary: true</code> needs GITHUB_STEP_SUMMARY" means the job is not on a GitHub runner, and "could not write the job summary" shows the OS error; both are self-describing. "The gate's report holds no deprecation table" means the CLI could not render the table (the reason is on its stderr). "Could not read the pyDeprecate report" or "not of layout version" means the report file is corrupt or comes from a different pyDeprecate than the action's (for example <code>install: false</code> with another version); the preceding runner warning names the cause, and the gate result is unaffected.</p>
 
 
 
@@ -4842,7 +4910,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 26, 2026 22:58:28 UTC">2026-10-26</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 27, 2026 11:29:28 UTC">2026-10-27</span>
   </span>
 
     

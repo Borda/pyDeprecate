@@ -100,7 +100,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-04-21",
-  "dateModified": "2026-10-26"
+  "dateModified": "2026-10-27"
 }
 </script>
 
@@ -2056,8 +2056,8 @@
 <h3 id="scanning-a-package-for-deprecated-wrappers">Scanning a package for deprecated wrappers<a class="headerlink" href="#scanning-a-package-for-deprecated-wrappers" title="Permanent link">🔗</a></h3>
 <p><code>find_deprecation_wrappers()</code> walks an entire package or module and returns a list of <code>DeprecationWrapperInfo</code> entries, one per deprecated callable discovered. Pass either a module object or a dotted module path string. This is the foundation for all package-wide CI checks.</p>
 <p>Every scanning function — <code>find_deprecation_wrappers()</code>, <code>validate_deprecation_expiry()</code>, <code>validate_deprecation_policy()</code>, <code>validate_deprecation_chains()</code>, <code>validate_mapping_compatibility()</code>, <code>generate_deprecation_table()</code> — accepts a keyword-only <code>exclude</code> list of glob patterns over full dotted module names (<code>exclude=["my_package.tests", "*._legacy*"]</code>). The scan itself never imports a matching package nor descends into it (another module in the package may still import it — its wrappers are filtered either way), and no wrapper reported under a matching module is returned — the way to keep test fixtures or a frozen legacy tree out of every audit. The CLI takes the same list from <code>--exclude</code> or from <code>exclude</code> under <code>[tool.pydeprecate]</code> in <code>pyproject.toml</code> (<a href="cli.html#project-configuration-in-pyprojecttoml">details</a>).</p>
-<p>The same six functions also accept <code>include_members</code> (default <code>True</code>): deprecated class members — methods, constructors, properties and other descriptors, and <code>deprecated_class</code> proxies bound as class attributes — are scanned unless you pass <code>include_members=False</code>, which keeps the check on module-level wrappers. Every CLI subcommand takes the matching <code>--noinclude-members</code> flag.</p>
-<p>Recursive scans import every submodule, so module-level side effects run. A submodule that fails to import — for any exception, not just <code>ImportError</code> — is skipped with a <code>UserWarning</code> of the form <code>audit: skipped &lt;module&gt;: &lt;exception&gt;</code> and the scan continues, so one broken submodule cannot abort the whole CI gate. The CLI also prints a <code>pydeprecate gap: module not audited: &lt;module&gt;: &lt;exception&gt;</code> line on stderr for each skipped submodule, even when your package silences warnings.</p>
+<p>The same six functions also accept <code>include_members</code> (default <code>True</code>): deprecated class members — methods, constructors, properties and other descriptors, and <code>deprecated_class</code> proxies bound as class attributes — are scanned unless you pass <code>include_members=False</code>, which keeps the check on module-level wrappers. Every CLI subcommand takes the matching <code>--no-include-members</code> flag.</p>
+<p>Recursive scans import every submodule, so module-level side effects run. A submodule that fails to import — for any exception, not just <code>ImportError</code>, and also when its module-level code calls <code>sys.exit()</code> — is skipped with a <code>UserWarning</code> of the form <code>audit: skipped &lt;module&gt;: &lt;exception&gt;</code> and the scan continues, so one broken submodule cannot abort the whole CI gate. The CLI also prints a <code>pydeprecate gap: module not audited: &lt;module&gt;: &lt;exception&gt;</code> line on stderr for each skipped submodule, even when your package silences warnings.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">find_deprecation_wrappers</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="c1"># For testing purposes, we use the test module; normally you would import your own package</span>
@@ -2617,10 +2617,10 @@
 <div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a><span class="c1"># Install CLI + audit extras (audit needed for expiry checks)</span>
 <a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s1">'pyDeprecate[audit,cli]'</span>
 <a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a>
-<a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a><span class="c1"># check — exits 1 if invalid arg mappings are found</span>
+<a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a><span class="c1"># check — exits 1 on invalid arg mappings, misconfigured targets or inner-order properties</span>
 <a id="__codelineno-32-5" name="__codelineno-32-5" href="#__codelineno-32-5"></a>pydeprecate<span class="w"> </span>check<span class="w"> </span>src/your_package
 <a id="__codelineno-32-6" name="__codelineno-32-6" href="#__codelineno-32-6"></a>
-<a id="__codelineno-32-7" name="__codelineno-32-7" href="#__codelineno-32-7"></a><span class="c1"># all — exits 1 on invalid mappings, chains, or expired wrappers; appends deprecation table</span>
+<a id="__codelineno-32-7" name="__codelineno-32-7" href="#__codelineno-32-7"></a><span class="c1"># all — exits 1 on any check error, chains, or expired wrappers; appends deprecation table</span>
 <a id="__codelineno-32-8" name="__codelineno-32-8" href="#__codelineno-32-8"></a><span class="c1"># policy violations are printed here but never change this exit code</span>
 <a id="__codelineno-32-9" name="__codelineno-32-9" href="#__codelineno-32-9"></a>pydeprecate<span class="w"> </span>all<span class="w"> </span>src/your_package
 <a id="__codelineno-32-10" name="__codelineno-32-10" href="#__codelineno-32-10"></a>
@@ -2722,11 +2722,11 @@
 <tr>
 <td><code>summary</code></td>
 <td><code>false</code></td>
-<td>Append the markdown deprecation status table of the gate's own scan to the job summary, read from the report the CLI writes with <code>--report-json</code>, so it covers exactly what the gate scanned however <code>path</code> and <code>args</code> name the package. Summary failures only warn and preserve the gate result. No summary on CLI exit <code>2</code>.</td>
+<td>Append the markdown deprecation status table of the gate's own scan to the job summary, read from the report the CLI writes with <code>--report-json</code>, so it covers exactly what the gate scanned however <code>path</code> and <code>args</code> name the package. Summary failures only warn and preserve the gate result. No summary on CLI exit <code>2</code> or <code>3</code>.</td>
 </tr>
 </tbody>
 </table>
-<p>The step finishes with the CLI's own exit code (see the table above), with three exceptions of its own: a <code>path</code> starting with <code>-</code> exits <code>2</code>, a failed <code>pip install</code> (<code>install: true</code>) returns pip's exit code, and a CLI process that cannot be started returns <code>1</code>. A failing run adds an error annotation to the pull request's checks. The CLI has no "fail on warning" mode: advisory findings such as identity mappings never fail the step, and <code>exit-zero: true</code> turns hard errors into reports while you clear a backlog.</p>
+<p>The step finishes with the CLI's own exit code (see the table above; <code>3</code> gets an error annotation naming a scan or internal error), with three exceptions of its own: a <code>path</code> starting with <code>-</code> exits <code>2</code>, a failed <code>pip install</code> (<code>install: true</code>) returns pip's exit code, and a CLI process that cannot be started returns <code>1</code>. A failing run adds an error annotation to the pull request's checks. The CLI has no "fail on warning" mode: advisory findings such as identity mappings never fail the step, and <code>exit-zero: true</code> turns hard errors into reports while you clear a backlog.</p>
 <p><strong>The <code>uses:</code> ref pins the pyDeprecate version.</strong> With the default <code>install: true</code> the action installs pyDeprecate from the same commit as the action itself, so <code>@v0.15.0</code> audits with 0.15.0. That install replaces whatever pyDeprecate version your job already had, for every later step too, and the action warns when it does. Pin the action to the release your project depends on, or install <code>pyDeprecate[audit,cli]</code> yourself and set <code>install: false</code>. Set <code>install: false</code> as well where <code>pip</code> is unavailable, such as a uv-managed virtual environment.</p>
 <div class="admonition warning">
 <p class="admonition-title">A green run can still have gaps</p>
@@ -3113,7 +3113,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 26, 2026 22:58:28 UTC">2026-10-26</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 27, 2026 11:29:28 UTC">2026-10-27</span>
   </span>
 
     
