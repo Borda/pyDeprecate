@@ -17,6 +17,7 @@ import pytest
 from deprecate import TargetMode, deprecated
 from deprecate import TargetMode as top_level_TargetMode
 from deprecate._types import _DeprecatedCallable
+from tests._helpers import captured_warnings
 from tests.collections.api_current import tracked_identity_calls
 from tests.collections.api_deprecated import (
     depr_target_mode_args_only_remaps_kwargs,
@@ -141,7 +142,8 @@ class TestNotifyMode:
             fn = make_target_mode_whole_with_args_mapping_warns()
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", FutureWarning)
-            result = fn(7)  # positional — Callable[[int], int] doesn't expose param name
+            with pytest.warns(UserWarning, match="invalid deprecation configuration"):
+                result = fn(7)  # positional — Callable[[int], int] doesn't expose param name
         assert result == 7
 
     def test_args_extra_is_runtime_noop(self) -> None:
@@ -151,7 +153,8 @@ class TestNotifyMode:
             fn = make_target_mode_whole_with_args_extra_warns()
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", FutureWarning)
-            result = fn(3)  # positional — Callable[[int], int] doesn't expose param name
+            with pytest.warns(UserWarning, match="invalid deprecation configuration"):
+                result = fn(3)  # positional — Callable[[int], int] doesn't expose param name
         assert result == 3
 
 
@@ -265,7 +268,7 @@ class TestArgsRemapMode:
         ``fn(old_x=5, x=6)`` must execute with ``x=6``; the remapped ``old_x→x=5`` must not
         overwrite the explicitly passed ``x=6``.
         """
-        with pytest.warns(FutureWarning):
+        with pytest.warns(FutureWarning), pytest.warns(UserWarning, match=r"Both `old_x` \(deprecated\) and `x`"):
             result = depr_target_mode_args_only_warns_when_old_arg_passed(old_x=5, x=6)
         assert result == 7
 
@@ -276,7 +279,7 @@ class TestArgsRemapMode:
         of ``7`` (increment of 6) because the dict-comprehension last-write-wins caused
         the ``old_x→x`` rename to overwrite the explicit ``x=6`` entry.
         """
-        with pytest.warns(FutureWarning):
+        with pytest.warns(FutureWarning), pytest.warns(UserWarning, match=r"Both `old_x` \(deprecated\) and `x`"):
             result = depr_target_mode_args_only_warns_when_old_arg_passed(x=6, old_x=5)
         assert result == 7
 
@@ -288,7 +291,10 @@ class TestArgsRemapMode:
         prevents silent data loss when a caller accidentally passes both names.
 
         """
-        with pytest.warns(UserWarning, match=r"`old_x`.*is ignored"):
+        with (
+            pytest.warns(FutureWarning, match="uses deprecated arguments: `old_x` -> `x`"),
+            pytest.warns(UserWarning, match=r"`old_x`.*is ignored"),
+        ):
             depr_target_mode_args_only_warns_when_old_arg_passed(old_x=5, x=6)
 
 
@@ -308,8 +314,7 @@ class TestDefaultTarget:
 
     def test_no_decoration_time_future_warning(self) -> None:
         """Omitting target emits no FutureWarning at decoration time (unlike target=None)."""
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             make_default_target_with_versions()
         future_warns = [w for w in caught if issubclass(w.category, FutureWarning)]
         assert future_warns == []
@@ -341,8 +346,7 @@ class TestDefaultTarget:
 
     def test_partial_version_does_not_warn_at_decoration(self) -> None:
         """@deprecated(deprecated_in='1.0') with only one version set must not warn."""
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             make_partial_version_no_guard_warn()
         assert not any(
             issubclass(w.category, UserWarning) and "no `deprecated_in` set" in str(w.message) for w in caught

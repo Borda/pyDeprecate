@@ -38,6 +38,7 @@ from deprecate.audit import (
     validate_mapping_compatibility,
 )
 from deprecate.audit._lifecycle import _check_deprecated_wrapper_expiry, _get_package_version, _parse_version
+from tests._helpers import captured_warnings
 from tests.collections.api_current import plain_function_target
 
 # Check if packaging is available for version comparison tests
@@ -1035,13 +1036,16 @@ class TestCheckModuleDeprecationExpiry:
         assert "depr_config_dict" in expired_names
 
     def test_silently_skips_invalid_remove_in_version(self) -> None:
-        """Callables with a malformed remove_in are silently skipped, not raised."""
+        """Callables with a malformed remove_in are skipped with a ``UserWarning``, not raised."""
         bad_info = DeprecationWrapperInfo(
             module="tests.collections.api_deprecated",
             function="bad_version_fn",
             deprecated_info=DeprecationConfig(deprecated_in="1.0", remove_in="not-semver"),
         )
-        with patch("deprecate.audit._lifecycle.find_deprecation_wrappers", return_value=[bad_info]):
+        with (
+            pytest.warns(UserWarning, match="unparsable `remove_in` version"),
+            patch("deprecate.audit._lifecycle.find_deprecation_wrappers", return_value=[bad_info]),
+        ):
             result = validate_deprecation_expiry("tests.collections.api_deprecated", "2.0", recursive=False)
         assert result == []
 
@@ -1053,7 +1057,10 @@ class TestCheckModuleDeprecationExpiry:
         scan must not raise and must return a plain list.
 
         """
-        with patch.object(importlib, "import_module", side_effect=ImportError("bad submodule")):
+        with (
+            pytest.warns(UserWarning, match="audit: skipped tests"),
+            patch.object(importlib, "import_module", side_effect=ImportError("bad submodule")),
+        ):
             result = validate_deprecation_expiry(tests, "2.0", recursive=True)
         assert isinstance(result, list)
 
@@ -1156,8 +1163,7 @@ class TestBackwardCompatShims:
 
     def test_validate_deprecated_callable_emits_warning_and_forwards(self) -> None:
         """``validate_deprecated_callable`` warns and returns the same result as the new name."""
-        with warnings.catch_warnings(record=True) as recorded:
-            warnings.simplefilter("always")
+        with captured_warnings() as recorded:
             result_old = validate_deprecated_callable(proxy_module.decorated_pow_self)
 
         # The shim's own deprecation warning must appear in the record; identify it by message.
@@ -1171,8 +1177,7 @@ class TestBackwardCompatShims:
 
     def test_find_deprecated_callables_emits_warning_and_forwards(self) -> None:
         """``find_deprecated_callables`` warns and returns the same list as ``find_deprecation_wrappers``."""
-        with warnings.catch_warnings(record=True) as recorded:
-            warnings.simplefilter("always")
+        with captured_warnings() as recorded:
             result_old = find_deprecated_callables(proxy_module, recursive=False)
 
         shim_warns = [w for w in recorded if "find_deprecated_callables" in str(w.message)]
@@ -1202,8 +1207,7 @@ class TestBackwardCompatShims:
         # pytest introspection (inspect.hasattr '__wrapped__') may consume num_warns=1 before this
         # test body runs; reset the proxy's warn counter so the call below always fires the warning.
         DeprecatedCallableInfo._cfg.state.warned_calls = 0  # type: ignore[attr-defined]
-        with warnings.catch_warnings(record=True) as recorded:
-            warnings.simplefilter("always")
+        with captured_warnings() as recorded:
             info = DeprecatedCallableInfo(  # type: ignore[call-arg]
                 module="tests", function="f", deprecated_info=DeprecationConfig(deprecated_in="1.0", remove_in="2.0")
             )

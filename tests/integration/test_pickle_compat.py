@@ -19,6 +19,7 @@ import pytest
 from deprecate import DeprecatedError, get_deprecation_config
 from deprecate._types import DeprecationConfig, _ProxyConfig
 from deprecate.proxy import _DeprecatedProxy, _reconstruct_proxy
+from tests._helpers import captured_warnings
 from tests.collections.api_deprecated import DepPositionalOnlyRequired
 from tests.collections.api_deprecated_regressions import make_pickle_fatal_settings_proxy, make_pickle_settings_proxy
 
@@ -154,8 +155,7 @@ class TestFreshRoundTrip:
 
         """
         restored = pickle.loads(pickle.dumps(make_pickle_settings_proxy(), protocol=protocol))  # noqa: S301 - own round trip
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             values = (restored["threshold"], restored["enabled"])
 
         assert (values, _future_warning_texts(caught)) == ((0.5, True), [_WARNING_TEXT])
@@ -174,8 +174,7 @@ class TestFreshRoundTrip:
             warnings.simplefilter("ignore")
             _ = proxy["threshold"]
         restored = pickle.loads(pickle.dumps(proxy, protocol=protocol))  # noqa: S301 - payload produced in this test
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             values = (restored["threshold"], restored["enabled"])
 
         assert (values, _future_warning_texts(caught)) == ((0.5, True), [])
@@ -221,8 +220,7 @@ class TestPayloadFrom014:
 
         """
         loaded = _load(payload)
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             values = (loaded["threshold"], loaded["enabled"])
 
         assert (values, _future_warning_texts(caught)) == ((0.5, True), [_WARNING_TEXT])

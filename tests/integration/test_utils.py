@@ -1,13 +1,13 @@
 """Test the utility helper functions."""
 
 import os
-import warnings
 from collections.abc import Callable
 
 import pytest
 
 from deprecate import assert_no_warnings
 from deprecate.utils import no_warning_call
+from tests._helpers import captured_warnings
 from tests.collections.api_current import raise_pow, raise_pow_future
 
 
@@ -69,10 +69,8 @@ class TestNoWarningCallAlias:
 
     def test_emits_deprecation_warning(self) -> None:
         """Calling no_warning_call emits DeprecationWarning naming the replacement, attributed to the caller."""
-        with warnings.catch_warnings(record=True) as recorded:
-            warnings.simplefilter("always")
-            with no_warning_call():
-                pass
+        with captured_warnings() as recorded, no_warning_call():
+            pass
 
         depr_warns = [w for w in recorded if w.category is DeprecationWarning]
         assert depr_warns, "Calling no_warning_call must emit a DeprecationWarning"

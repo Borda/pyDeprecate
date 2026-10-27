@@ -21,6 +21,7 @@ import pytest
 import deprecate
 from deprecate import DeprecatedError, as_exceptions, assert_no_warnings, deprecated
 from deprecate._types import DeprecationConfig, _DeprecatedCallable
+from tests._helpers import captured_warnings
 from tests.collections.api_current import (
     NewCls,
     SignatureNotBuiltError,
@@ -346,7 +347,10 @@ class TestArgumentMapping:
             assert depr_pow_self_double(2, nc1=1, nc2=2) == 8
 
         # When both c1 and c2 are provided, warns about both together
-        with pytest.warns(FutureWarning, match="The `depr_pow_self_double` uses depr. args:"):
+        with (
+            pytest.warns(FutureWarning, match="The `depr_pow_self_double` uses depr. args:"),
+            pytest.warns(UserWarning, match=r"Both `c1` \(deprecated\) and `nc1` were supplied"),
+        ):
             assert depr_pow_self_double(2, c1=3, c2=4, nc1=1) == 32
 
         # Need to reset after first warning because both counters were incremented
@@ -354,7 +358,10 @@ class TestArgumentMapping:
 
         # When both c1 and c2 are provided, warns about both together
         # Result is 32 because: c1->nc1=3, c2->nc2=4, but nc2=2 (user wins), so 2**(0+0+3+2)=32
-        with pytest.warns(FutureWarning, match="The `depr_pow_self_double` uses depr. args:"):
+        with (
+            pytest.warns(FutureWarning, match="The `depr_pow_self_double` uses depr. args:"),
+            pytest.warns(UserWarning, match=r"Both `c2` \(deprecated\) and `nc2` were supplied"),
+        ):
             assert depr_pow_self_double(2, c1=3, c2=4, nc2=2) == 32
 
     def test_spent_argument_not_listed_again(self) -> None:
@@ -416,7 +423,7 @@ class TestArgumentMapping:
         ``depr_collision_old_new(old=5, new=6)`` must forward ``new=6`` to the callable target;
         the remapped ``old→new=5`` must not overwrite the explicitly passed ``new=6``.
         """
-        with pytest.warns(FutureWarning):
+        with pytest.warns(FutureWarning), pytest.warns(UserWarning, match=r"`old` \(deprecated\) and `new`"):
             result = depr_collision_old_new(old=5, new=6)
         assert result == 6
 
@@ -427,7 +434,7 @@ class TestArgumentMapping:
         because the dict-comprehension last-write-wins caused the ``old→new`` rename to
         overwrite the explicitly passed ``new=6``.
         """
-        with pytest.warns(FutureWarning):
+        with pytest.warns(FutureWarning), pytest.warns(UserWarning, match=r"`old` \(deprecated\) and `new`"):
             result = depr_collision_old_new(new=6, old=5)
         assert result == 6
 
@@ -438,7 +445,7 @@ class TestArgumentMapping:
         ``_update_kwargs_with_args`` before ``_resolve_forward_kwargs`` computes ``_explicit_new``;
         the fix then fires identically to the kwarg-only collision case.
         """
-        with pytest.warns(FutureWarning):
+        with pytest.warns(FutureWarning), pytest.warns(UserWarning, match=r"`old` \(deprecated\) and `new`"):
             result = depr_collision_old_new(5, new=6)
         assert result == 6
 
@@ -449,7 +456,7 @@ class TestArgumentMapping:
         the ``args_extra`` merge runs after the ``explicit_new`` restore, so the target always
         receives ``new=99`` regardless of what the caller passed, pinning the priority contract.
         """
-        with pytest.warns(FutureWarning):
+        with pytest.warns(FutureWarning), pytest.warns(UserWarning, match=r"`old` \(deprecated\) and `new`"):
             result = depr_collision_old_new_extra_wins(old=5, new=6)
         assert result == 99
 
@@ -462,7 +469,10 @@ class TestArgumentMapping:
         discarded.  This test pins that a ``UserWarning`` identifying the ignored argument
         is always emitted alongside the normal ``FutureWarning``.
         """
-        with pytest.warns(UserWarning, match=r"`old` \(deprecated\) and `new`.*`old` is ignored"):
+        with (
+            pytest.warns(FutureWarning, match="`depr_collision_old_new` was deprecated"),
+            pytest.warns(UserWarning, match=r"`old` \(deprecated\) and `new`.*`old` is ignored"),
+        ):
             depr_collision_old_new(old=5, new=6)
 
 
@@ -510,13 +520,19 @@ class TestErrorHandling:
 
     def test_incomplete_missing_arg(self) -> None:
         """Test missing required argument."""
-        with pytest.raises(TypeError, match="missing 1 required positional argument: 'b'"):
+        with (
+            pytest.warns(FutureWarning, match="`depr_pow_args` >> `base_pow_args`"),
+            pytest.raises(TypeError, match="missing 1 required positional argument: 'b'"),
+        ):
             depr_pow_args(2)  # type: ignore[call-arg]
 
     def test_incomplete_missing_target(self) -> None:
         """Test missing argument in target."""
-        with pytest.raises(
-            TypeError, match=r"Failed mapping of `depr_pow_wrong`, arguments not accepted by target: \['c'\]"
+        with (
+            pytest.warns(FutureWarning, match="The `depr_pow_wrong` was deprecated"),
+            pytest.raises(
+                TypeError, match=r"Failed mapping of `depr_pow_wrong`, arguments not accepted by target: \['c'\]"
+            ),
         ):
             depr_pow_wrong(2)
 
@@ -798,8 +814,7 @@ class TestVarPositionalForwarding:
         and the old value won whenever it was passed after the new one.  The warning fires once, from the caller's
         line.
         """
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             result = deprecated_var_positional_remap(1, 2, **kwargs)
         collisions = [w for w in caught if issubclass(w.category, UserWarning)]
         assert result == (1, 2, "world")
