@@ -206,30 +206,38 @@ class TestDeprecationWrapperInfoCompatAliases:
 
         return validate_deprecation_wrapper(_fn)
 
-    def test_empty_mapping_alias_emits_deprecation_warning(self) -> None:
-        """Accessing .empty_mapping emits DeprecationWarning naming the replacement."""
+    def test_empty_mapping_alias_emits_future_warning(self) -> None:
+        """Accessing .empty_mapping emits a FutureWarning naming the replacement.
+
+        The alias is wrapped with pyDeprecate's own decorator, so it warns with the library's category and is
+        listed by the package's expiry audit, which flags it once v1.0 is the current version.
+        """
         info = self._make_info()
-        with pytest.warns(DeprecationWarning, match="renamed to 'empty_args_mapping'"):
+        with pytest.warns(FutureWarning, match="renamed to 'empty_args_mapping'"):
             _ = info.empty_mapping
 
     def test_empty_mapping_alias_returns_correct_value(self) -> None:
         """Accessing .empty_mapping returns the same value as .empty_args_mapping."""
         info = self._make_info()
         with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
+            warnings.simplefilter("ignore", FutureWarning)
             assert info.empty_mapping == info.empty_args_mapping
 
-    def test_identity_mapping_alias_emits_deprecation_warning(self) -> None:
-        """Accessing .identity_mapping emits DeprecationWarning naming the replacement."""
+    def test_identity_mapping_alias_emits_future_warning(self) -> None:
+        """Accessing .identity_mapping emits a FutureWarning naming the replacement.
+
+        The alias is wrapped with pyDeprecate's own decorator, so it warns with the library's category and is
+        listed by the package's expiry audit, which flags it once v1.0 is the current version.
+        """
         info = self._make_info()
-        with pytest.warns(DeprecationWarning, match="renamed to 'identity_args_mapping'"):
+        with pytest.warns(FutureWarning, match="renamed to 'identity_args_mapping'"):
             _ = info.identity_mapping
 
     def test_identity_mapping_alias_returns_correct_value(self) -> None:
         """Accessing .identity_mapping returns the same value as .identity_args_mapping."""
         info = self._make_info()
         with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
+            warnings.simplefilter("ignore", FutureWarning)
             assert info.identity_mapping == info.identity_args_mapping
 
 

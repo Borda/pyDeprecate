@@ -5,7 +5,9 @@ Self-contained on purpose: pre-commit.ci has no project venv, so this script nev
 ``src/deprecate/__about__.py`` and checks that:
 
 - both host manifests declare the same ``>=X.Y`` floor,
-- the floor is at most ``SUPPORT_WINDOW_MINORS`` minors behind the package version and never ahead of it,
+- the floor is at most ``SUPPORT_WINDOW_MINORS`` minors behind the package version and never ahead of it;
+  the window never reaches back across a major release, so while the current minor is below
+  ``SUPPORT_WINDOW_MINORS`` (``1.0`` to ``1.2``) the oldest accepted floor is ``>=X.0``,
 - every ``SKILL.md`` mirrors the same floor in its "Verified against pyDeprecate ..." sentence.
 
 This is a maintainer policy check rather than a package failure mode, so it lives here instead of the
@@ -51,7 +53,9 @@ def main() -> int:
     """Run all floor checks and return a process exit code."""
     errors: list[str] = []
     installed = _package_minor()
-    oldest_supported = (installed[0], installed[1] - SUPPORT_WINDOW_MINORS)
+    # clamp at X.0: a minor-based window cannot count back into the previous major (no negative minors)
+    oldest_supported = (installed[0], max(installed[1] - SUPPORT_WINDOW_MINORS, 0))
+    clamped = installed[1] < SUPPORT_WINDOW_MINORS
 
     specs = {path: _manifest_floor(path) for path in MANIFESTS}
     if len({spec for spec, _ in specs.values()}) != 1:
@@ -61,9 +65,14 @@ def main() -> int:
         if floor > installed:
             errors.append(f"{rel}: {spec!r} is ahead of the package version {installed[0]}.{installed[1]}")
         if floor < oldest_supported:
+            reach = (
+                f"reaches back across the {installed[0]}.0 major release"
+                if clamped
+                else f"trails the package version by more than {SUPPORT_WINDOW_MINORS} minors"
+            )
             errors.append(
-                f"{rel}: {spec!r} trails the package version {installed[0]}.{installed[1]} by more than "
-                f"{SUPPORT_WINDOW_MINORS} minors — bump the floor to >={oldest_supported[0]}.{oldest_supported[1]}"
+                f"{rel}: {spec!r} {reach} (package {installed[0]}.{installed[1]}) — bump the floor to "
+                f">={oldest_supported[0]}.{oldest_supported[1]}"
             )
 
     expected = next(iter(specs.values()))[0]

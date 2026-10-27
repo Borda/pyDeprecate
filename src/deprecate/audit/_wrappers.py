@@ -21,6 +21,7 @@ if TYPE_CHECKING:
 
 from deprecate._frames import _caller_stacklevel
 from deprecate._types import DeprecationConfig, TargetMode, _has_deprecation_meta, get_deprecation_config
+from deprecate.deprecation import deprecated
 from deprecate.proxy import _DeprecatedProxy
 from deprecate.utils import get_func_arguments_types_defaults
 
@@ -138,6 +139,16 @@ class DeprecationWrapperInfo:
         """Derive ``empty_deprecated_in`` from ``deprecated_info`` to keep them in sync."""
         object.__setattr__(self, "empty_deprecated_in", not self.deprecated_info.deprecated_in)
 
+    # Wrapped with pyDeprecate's own decorator (outer order) so the expiry audit of this package lists both
+    # aliases and flags them once v1.0 is the current version; `num_warns=-1` keeps a warning on every read.
+    # mypy cannot type a decorator above `@property`; pyDeprecate supports that order at runtime.
+    @deprecated(  # type: ignore[prop-decorator]
+        target=TargetMode.NOTIFY,
+        deprecated_in="0.8",
+        remove_in="1.0",
+        num_warns=-1,
+        message_template="'empty_mapping' was renamed to 'empty_args_mapping' in 0.8 and will be removed in 1.0.",
+    )
     @property
     def empty_mapping(self) -> bool:
         """Deprecated alias for :attr:`~deprecate.audit.DeprecationWrapperInfo.empty_args_mapping`.
@@ -151,13 +162,17 @@ class DeprecationWrapperInfo:
             so accessing this property in a loop from the same call site emits at most one warning.
 
         """
-        warnings.warn(
-            "'empty_mapping' was renamed to 'empty_args_mapping' in 0.8 and will be removed in 1.0.",
-            DeprecationWarning,
-            stacklevel=_caller_stacklevel(),
-        )
         return self.empty_args_mapping
 
+    @deprecated(  # type: ignore[prop-decorator]
+        target=TargetMode.NOTIFY,
+        deprecated_in="0.8",
+        remove_in="1.0",
+        num_warns=-1,
+        message_template=(
+            "'identity_mapping' was renamed to 'identity_args_mapping' in 0.8 and will be removed in 1.0."
+        ),
+    )
     @property
     def identity_mapping(self) -> list[str]:
         """Deprecated alias for :attr:`~deprecate.audit.DeprecationWrapperInfo.identity_args_mapping`.
@@ -171,11 +186,6 @@ class DeprecationWrapperInfo:
             so accessing this property in a loop from the same call site emits at most one warning.
 
         """
-        warnings.warn(
-            "'identity_mapping' was renamed to 'identity_args_mapping' in 0.8 and will be removed in 1.0.",
-            DeprecationWarning,
-            stacklevel=_caller_stacklevel(),
-        )
         return self.identity_args_mapping
 
 
