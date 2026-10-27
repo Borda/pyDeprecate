@@ -82,8 +82,9 @@ class DeprecationConfig:
             when a redirect module is provided). Legacy sentinels (``True``/``False``) are normalised at
             decoration time and never stored verbatim.
         args_extra: Optional kwargs injected into forwarded calls; stored for audit visibility.
-        misconfigured: ``True`` when an invalid raw target sentinel (``False``) was passed at decoration time.
-            Audit tools surface this via
+        misconfigured: ``True`` when the configuration contradicts itself at decoration time: the invalid raw
+            target sentinel ``False``, or :attr:`~deprecate._types.TargetMode.NOTIFY` with an ``args_mapping``,
+            ``args_extra`` or ``attrs_mapping`` it ignores.  Audit tools surface this via
             :attr:`~deprecate.audit.DeprecationWrapperInfo.misconfigured_target`.
         docstring_style: Docstring notice output style when ``update_docstring=True``.
         message_template: Optional custom warning-message template (``%``-style placeholders) that overrides the

@@ -14,6 +14,13 @@ _DOCS = _ROOT / "docs"
 _PUBLIC_NAMES = sorted(set(deprecate.__all__) | set(deprecate.audit.__all__))
 
 
+def _code_text(text: str) -> str:
+    """Return only the code of a Markdown text: fenced blocks and inline code spans, so prose words never match."""
+    fenced = re.findall(r"```.*?```", text, flags=re.DOTALL)
+    inline = re.findall(r"`[^`\n]+`", re.sub(r"```.*?```", "", text, flags=re.DOTALL))
+    return "\n".join(fenced + inline)
+
+
 def _troubleshooting_faq_names() -> list[str]:
     """Return the FAQPage question names from the troubleshooting JSON-LD block, in order."""
     html = (_DOCS / "overrides" / "main.html").read_text(encoding="utf-8")
@@ -41,7 +48,9 @@ def test_llms_files_name_every_public_export(llms_file: str, name: str) -> None:
     time a name is added to an ``__all__``.
     """
     text = (_DOCS / llms_file).read_text(encoding="utf-8")
-    assert re.search(rf"\b{re.escape(name)}\b", text), f"`{name}` is exported but not mentioned in docs/{llms_file}"
+    assert re.search(rf"\b{re.escape(name)}\b", _code_text(text)), (
+        f"`{name}` is exported but not mentioned as code in docs/{llms_file}"
+    )
 
 
 def test_troubleshooting_ends_with_still_stuck() -> None:

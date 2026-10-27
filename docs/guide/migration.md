@@ -180,7 +180,7 @@ An explicitly supplied `NOTIFY` is never rewritten: its mapping stays inert. Inf
 
 ### `DeprecationWrapperInfo` field renames
 
-Two audit fields were renamed in v0.8. The old properties still work but emit `DeprecationWarning` and will be removed in v1.0:
+Two audit fields were renamed in v0.8. The old names still work and will be removed in v1.0: reading the old properties emits a `FutureWarning` (and raises `DeprecatedError` in fatal mode), while passing the old names as constructor or `dataclasses.replace()` keywords emits a `DeprecationWarning`:
 
 ```diff
 - # DEPRECATED API — compatibility properties

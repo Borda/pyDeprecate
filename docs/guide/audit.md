@@ -49,7 +49,7 @@ Use these utilities to verify that a deprecated wrapper is correctly configured:
 - `identity_args_mapping` — list of args where key equals value (e.g. `{"arg": "arg"}` — no effect)
 - `self_reference` — `True` if target points to the same function
 - `no_effect` — `True` if the wrapper has zero impact (self-reference, empty mapping, or all-identity)
-- `misconfigured_target` — `True` when the wrapper's target contradicts its configuration: `NOTIFY` with an `args_mapping` or `args_extra`, `ARGS_REMAP` with an empty `args_mapping`, or the invalid `target=False` (mirrors `DeprecationConfig.misconfigured`)
+- `misconfigured_target` — `True` when the wrapper's target contradicts its configuration: `NOTIFY` with an `args_mapping`, `args_extra` or `attrs_mapping`, `ARGS_REMAP` with an empty `args_mapping`, or the invalid `target=False` (mirrors `DeprecationConfig.misconfigured`)
 - `all_identity` — `True` if every entry in `args_mapping` maps a key to itself
 - `chain_type` — chain classification used when reporting deprecation chains, such as `TARGET` or `STACKED`
 - `empty_deprecated_in` — `True` when `deprecated_in` is absent or empty; useful in CI to surface wrappers with no version annotation

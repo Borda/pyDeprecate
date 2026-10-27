@@ -35,6 +35,7 @@ from deprecate._types import (
     get_deprecation_config,
 )
 
+# Every name here is internal despite the missing underscore; they are renamed with one in v1.0.
 __all__: list[str] = []
 
 #: Default templates for documentation with deprecated callable — RST/Sphinx style

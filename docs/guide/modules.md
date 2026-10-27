@@ -118,7 +118,7 @@ old_utils = deprecated_instance(
 
 ## Limiting warning volume with `num_warns`
 
-By default `deprecated_module()` delivers a warning on **every** public attribute access, matching its behavior before `num_warns` existed. Standard warning filters can still suppress repeated *display* at the same location. Pass `num_warns` to cap deliveries — the same semantics as `@deprecated`'s `num_warns`, just defaulting to `-1` (unlimited) instead of `1`, since a module's whole purpose is warning on every access unless you opt into a budget:
+By default `deprecated_module()` delivers a warning on **every** public attribute access, matching its behavior before `num_warns` existed. Standard warning filters can still suppress repeated *display* at the same location. Pass `num_warns` to cap deliveries — the same semantics as `@deprecated`'s `num_warns`, but defaulting to `-1` (unlimited) instead of `1` until v1.0, when the default becomes `1` like everywhere else (see the box below):
 
 ```python
 # phmdoctest:skip — old_calculator.py in-place warn template, budgeted variant

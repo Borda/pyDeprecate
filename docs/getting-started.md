@@ -145,7 +145,7 @@ Every parameter each factory accepts, with its default. 🚫 marks a parameter t
 | `deprecated_in`    | `""`                  | `""`                  | `""`                  | `""`                  | `""`                |
 | `remove_in`        | `""`                  | `""`                  | `""`                  | `""`                  | `""`                |
 | `num_warns`        | `1`                   | `1`                   | `1`                   | `1`                   | `-1`                |
-| `stream`           | `deprecation_warning` | `deprecation_warning` | `deprecation_warning` | `deprecation_warning` | `None`              |
+| `stream`           | `deprecation_warning` | `deprecation_warning` | `deprecation_warning` | `deprecation_warning` | `<warnings.warn>`   |
 | `message_template` | `None`                | `None`                | `None`                | `None`                | `None`              |
 | `skip_if`          | `False`               | `False`               | `False`               | `False`               | 🚫                  |
 | `read_only`        | 🚫                    | 🚫                    | 🚫                    | `False`               | 🚫                  |
@@ -153,7 +153,7 @@ Every parameter each factory accepts, with its default. 🚫 marks a parameter t
 | `update_docstring` | `False`               | `False`               | `False`               | 🚫                    | 🚫                  |
 | `docstring_style`  | `"auto"`              | `"auto"`              | `"auto"`              | 🚫                    | 🚫                  |
 
-Notes: `deprecation_warning` is the default `FutureWarning` sink (`stream=None` silences it). `name` is a display label for `deprecated_instance` and the module's `__name__` for `deprecated_module` (auto-detected from the caller when omitted). `message_template` is the custom-notice override on every factory; `template_mgs` is its **deprecated alias** (renamed in v0.12; emits a `FutureWarning`, removed in v1.0) — pass `message_template` instead. The front door `@deprecated` exposes only the parameters common to `deprecated_callable` and `deprecated_class`; the class-only `attrs_mapping` is 🚫 there — use `deprecated_class(attrs_mapping=...)` directly.
+Notes: `deprecation_warning` is the default `FutureWarning` sink (`stream=None` silences it). `deprecated_module` is the exception: omit `stream` to warn through `warnings.warn`; an explicit `stream=None` still warns there and emits a `FutureWarning` at the call, because it silences the module warning only from v1.0. `name` is a display label for `deprecated_instance` and the module's `__name__` for `deprecated_module` (auto-detected from the caller when omitted). `message_template` is the custom-notice override on every factory; `template_mgs` is its **deprecated alias** (renamed in v0.12; emits a `FutureWarning`, removed in v1.0) — pass `message_template` instead. The front door `@deprecated` exposes only the parameters common to `deprecated_callable` and `deprecated_class`; the class-only `attrs_mapping` is 🚫 there — use `deprecated_class(attrs_mapping=...)` directly.
 
 ______________________________________________________________________
 

@@ -1585,7 +1585,7 @@ The `DeprecationWrapperInfo` dataclass has these fields (`empty_deprecated_in` i
 - `self_reference`: True if target points to the same function (self-reference)
 - `no_effect`: True if wrapper has zero impact (self-reference, empty mapping, or all identity)
 - `empty_deprecated_in`: True if `deprecated_in` is absent (CI misconfiguration signal — missing introductory version metadata)
-- `misconfigured_target`: True if the target configuration is invalid (`target=False`, `TargetMode.NOTIFY` with an `args_mapping`, or `TargetMode.ARGS_REMAP` with an empty one)
+- `misconfigured_target`: True if the target configuration is invalid (`target=False`, `TargetMode.NOTIFY` with an `args_mapping`, `args_extra` or `attrs_mapping`, or `TargetMode.ARGS_REMAP` with an empty `args_mapping`)
 - `all_identity`: True if every configured mapping is an identity mapping (key equals value, non-empty)
 - `chain_type`: The `ChainType` of a detected deprecation chain, or `None` when there is none
 - `api_type`: Inferred kind of deprecated API for reports (`callable`, `args`, `class`, `dataclass`, `class method`, `staticmethod`, ...)
