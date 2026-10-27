@@ -130,40 +130,42 @@ class DeprecationConfig:
             POSITIONAL_ONLY parameter names of the *active* class constructor (target class when
             configured, wrapped class otherwise) so the proxy call path can apply the same
             positional split (see also :attr:`args_mapping_positional_only`).  Empty frozenset
-            for non-callable targets.
+            for non-callable targets.  Internal; removed from ``DeprecationConfig`` in v1.0.
         target_positional_only_order: Full parameter-name sequence of the forwarding target callable,
             in declaration order.  Pre-computed at decoration time alongside
             :attr:`target_positional_only` so the call dispatcher can iterate in declaration order
             without calling ``inspect.signature`` on every dispatch.  Not included in ``repr``.
-            Empty tuple when ``target_positional_only`` is empty.
+            Empty tuple when ``target_positional_only`` is empty.  Internal; removed from
+            ``DeprecationConfig`` in v1.0.
         source_positional_only: Names of POSITIONAL_ONLY parameters declared by the decorated
             *source* callable itself.  The wrapper converts positional args to kwargs internally,
             so whenever the dispatcher invokes the source body (NOTIFY, ARGS_REMAP, and the
             migrated-caller short-circuit) it must split these names back out of the resolved
             kwargs and pass them positionally — otherwise every call would raise ``TypeError``.
             Mirrors :attr:`target_positional_only` on the source side.  Empty frozenset when the
-            source declares no ``/``.
+            source declares no ``/``.  Internal; removed from ``DeprecationConfig`` in v1.0.
         source_positional_only_order: Full parameter-name sequence of the decorated source in
             declaration order; the source-side twin of :attr:`target_positional_only_order`.
             Not included in ``repr``.  Empty tuple when :attr:`source_positional_only` is empty.
+            Internal; removed from ``DeprecationConfig`` in v1.0.
         source_var_positional_prefix: Number of named positional parameters declared before the
             source's ``*args``.  Used by the forwarding dispatcher to compute the surplus
             positional tail (``args[prefix:]``) that must be forwarded to a callable target
             rather than silently dropped.  ``0`` when the source declares no var-positional
-            parameter.
+            parameter.  Internal; removed from ``DeprecationConfig`` in v1.0.
         target_all_param_names: All parameter names of the forwarding target callable (including any
             ``*args`` / ``**kwargs`` names), pre-computed at decoration time so the call-time kwarg
             validation in :func:`~deprecate._dispatch._prepare_target_call` does not re-inspect the
             target on every forwarded call.  ``None`` when facts are not precomputed (manual
             ``DeprecationConfig`` construction or non-callable target); ``frozenset()`` for zero-arg
             callables.  Internal call-time cache — excluded from ``repr`` and equality so audit output
-            and stored-config comparisons stay stable.
+            and stored-config comparisons stay stable.  Internal; removed from ``DeprecationConfig`` in v1.0.
         target_accepts_var_positional: ``True`` when the forwarding target declares ``*args``.  Pre-computed
             decoration-time replacement for the per-call ``inspect.getfullargspec`` probe.  Internal cache —
-            excluded from ``repr`` and equality.
+            excluded from ``repr`` and equality.  Internal; removed from ``DeprecationConfig`` in v1.0.
         target_accepts_var_keyword: ``True`` when the forwarding target declares ``**kwargs``.  Pre-computed
             decoration-time replacement for the per-call ``inspect.getfullargspec`` probe.  Internal cache —
-            excluded from ``repr`` and equality.
+            excluded from ``repr`` and equality.  Internal; removed from ``DeprecationConfig`` in v1.0.
 
     Note:
         ``@dataclass(frozen=True)`` blocks attribute *rebinding* on the config object itself, but the
