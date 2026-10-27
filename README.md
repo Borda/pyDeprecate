@@ -108,11 +108,11 @@ Requires **Python 3.9 or later**.
 
 Choose the install that matches the workflow you need:
 
-| Workflow                     | Command                                | Includes                                                                                                                                                                        |
-| ---------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Runtime deprecation wrappers | `pip install pyDeprecate`              | `@deprecated`, `@deprecated_class`, `deprecated_instance`, docstring helpers, and most audit metadata helpers                                                                   |
-| CI deadline checks           | `pip install 'pyDeprecate[audit]'`     | Adds `packaging` for PEP 440 version comparison in `validate_deprecation_expiry()` and `validate_deprecation_policy()`                                                          |
-| Command-line audit workflows | `pip install 'pyDeprecate[audit,cli]'` | Adds version support for `pydeprecate expiry`, `pydeprecate policy`, and `pydeprecate all`; the CLI itself needs no dependency (`cli` is an empty extra kept for compatibility) |
+| Workflow                     | Command                                | Includes                                                                                                                                                                                    |
+| ---------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runtime deprecation wrappers | `pip install pyDeprecate`              | `@deprecated`, `@deprecated_class`, `deprecated_instance`, docstring helpers, and most audit metadata helpers                                                                               |
+| CI deadline checks           | `pip install 'pyDeprecate[audit]'`     | Adds `packaging` for PEP 440 version comparison in `validate_deprecation_expiry()` and `validate_deprecation_policy()`                                                                      |
+| Command-line audit workflows | `pip install 'pyDeprecate[audit,cli]'` | Adds `packaging` version support for `pydeprecate expiry`, `pydeprecate policy`, and `pydeprecate all`; the CLI itself needs no dependency (`cli` is an empty extra kept for compatibility) |
 
 Base installation from PyPI:
 
@@ -210,18 +210,18 @@ Not sure which API to reach for? Start here.
 
 **Pick the right decorator:**
 
-| Scenario                                        | API to use                                                               |
-| ----------------------------------------------- | ------------------------------------------------------------------------ |
-| Renaming a function or method                   | `@deprecated(target=new_func)`                                           |
-| Renaming an argument within the same function   | `@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old": "new"})` |
-| Warn only — original body still runs            | `@deprecated(deprecated_in="1.0", remove_in="2.0")`                      |
-| Deprecating a class, Enum, or dataclass name    | `@deprecated_class(target=NewClass)`                                     |
-| Deprecating a module-level constant or object   | `deprecated_instance(obj, ...)`                                          |
-| Retiring an entire module                       | `deprecated_module(__name__, ...)`                                       |
-| Refusing a class up front (strict callables)    | `@deprecated_callable(target=new_func)`                                  |
-| Annotating the proxy the two proxy forms return | `DeprecationProxy`                                                       |
+| Scenario                                        | API to use                                                                    |
+| ----------------------------------------------- | ----------------------------------------------------------------------------- |
+| Renaming a function or method                   | `@deprecated(target=new_func)`                                                |
+| Renaming an argument within the same function   | `@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old": "new"})`      |
+| Warn only — original body still runs            | `@deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")` |
+| Deprecating a class, Enum, or dataclass name    | `@deprecated_class(target=NewClass)`                                          |
+| Deprecating a module-level constant or object   | `deprecated_instance(obj, ...)`                                               |
+| Retiring an entire module                       | `deprecated_module(__name__, ...)`                                            |
+| Refusing a class up front (strict callables)    | `@deprecated_callable(target=new_func)`                                       |
+| Annotating the proxy the two proxy forms return | `DeprecationProxy`                                                            |
 
-> **Note:** Legacy `target=None` and `target=True` emit `FutureWarning` at decoration time in v0.8 and become `TypeError` in v1.0. Use `TargetMode.NOTIFY` and `TargetMode.ARGS_REMAP` respectively.
+> **Note:** Legacy `target=None` and `target=True` emit `FutureWarning` at decoration time and become `TypeError` in v1.0. Use `TargetMode.NOTIFY` and `TargetMode.ARGS_REMAP` respectively.
 
 <details>
   <summary><strong>All `@deprecated` parameters at a glance:</strong></summary>
@@ -493,10 +493,10 @@ sample output:
 Base use-case with no forwarding and just raising a warning:
 
 ```python
-from deprecate import deprecated
+from deprecate import TargetMode, deprecated
 
 
-@deprecated(deprecated_in="0.1", remove_in="0.5")
+@deprecated(target=TargetMode.NOTIFY, deprecated_in="0.1", remove_in="0.5")
 def my_sum(a: int, b: int = 5) -> int:
     """My deprecated function which still has to have implementation."""
     return a + b
@@ -1109,7 +1109,9 @@ True
 
 Every proxy also carries `__wrapped__` (the source object) and `__signature__` (the source's signature), so `inspect.unwrap`, `inspect.signature`, Sphinx autodoc, and IDEs resolve through the proxy to the real thing. Reading either attribute emits no warning.
 
-> [!NOTE] `DeprecationProxy` is a *data* protocol — `isinstance(obj, DeprecationProxy)` works, but `issubclass()` raises `TypeError`.
+> [!NOTE]
+>
+> `DeprecationProxy` is a *data* protocol — `isinstance(obj, DeprecationProxy)` works, but `issubclass()` raises `TypeError`.
 
 ```python
 import inspect
@@ -1479,7 +1481,7 @@ async def fetch(url: str) -> bytes:
 
 
 # 2) TargetMode.NOTIFY — warn callers; the async body still runs
-@deprecated(deprecated_in="0.9", remove_in="1.0")
+@deprecated(target=TargetMode.NOTIFY, deprecated_in="0.9", remove_in="1.0")
 async def ping() -> str:
     """Deprecated — going away; remove call sites."""
     return "pong"
@@ -1572,7 +1574,7 @@ Deprecations are only as good as the hygiene around them. The `deprecate.audit` 
 
 During development, you may want to verify that your deprecated wrappers are configured correctly. pyDeprecate provides two utilities for this: `validate_deprecation_wrapper()` for inspecting a single function, and `find_deprecation_wrappers()` for scanning an entire package.
 
-The `DeprecationWrapperInfo` dataclass contains:
+The `DeprecationWrapperInfo` dataclass has these fields (`empty_deprecated_in` is derived from `deprecated_in`, not an init argument):
 
 - `module`: Module name where the function is defined (empty for direct validation)
 - `function`: Function name
@@ -1583,6 +1585,13 @@ The `DeprecationWrapperInfo` dataclass contains:
 - `self_reference`: True if target points to the same function (self-reference)
 - `no_effect`: True if wrapper has zero impact (self-reference, empty mapping, or all identity)
 - `empty_deprecated_in`: True if `deprecated_in` is absent (CI misconfiguration signal — missing introductory version metadata)
+- `misconfigured_target`: True if the target configuration is invalid (`target=False`, `TargetMode.NOTIFY` with an `args_mapping`, or `TargetMode.ARGS_REMAP` with an empty one)
+- `all_identity`: True if every configured mapping is an identity mapping (key equals value, non-empty)
+- `chain_type`: The `ChainType` of a detected deprecation chain, or `None` when there is none
+- `api_type`: Inferred kind of deprecated API for reports (`callable`, `args`, `class`, `dataclass`, `class method`, `staticmethod`, ...)
+- `args_mapping_auto_expanded`: `args_mapping` keys copied automatically from `attrs_mapping` by the dataclass dual-surface expansion
+- `args_mapping_positional_only`: `args_mapping` keys whose remapped target is a positional-only constructor parameter (forwarded positionally by the proxy)
+- `inner_order_property`: True for the inner decorator order `@property @deprecated`, where only the getter warns
 - `pep702_message`: `None` for pyDeprecate wrappers; on a row found with `find_deprecation_wrappers(..., include_pep702=True)` for a symbol deprecated only with `warnings.deprecated`, the decorator's message (a string, possibly empty) — such a row keeps a shape `api_type` (`callable`, `class`, `class method`, ...) and has no versions
 
 <details>
@@ -2037,10 +2046,10 @@ pydeprecate policy src/mypackage    # exit 1 on a violation, 2 on a malformed ru
 <details>
 <summary>Example: what a policy run reports</summary>
 
-Run against pyDeprecate's own fixtures (`tests/collections/policy.py`, one broken rule per wrapper) with the built-in defaults spelled out as flags:
+Run against pyDeprecate's own fixtures (`tests/collections/policy.py`, one broken rule per wrapper) with the built-in defaults spelled out as flags. A dotted module name is imported, and the `pydeprecate` console script does not put the current directory on `sys.path`, so run it from the repository root as `python -m deprecate`, which does:
 
 ```bash
-pydeprecate policy tests.collections.policy --no-recursive --min-grace=0.3 --message-required=True
+python -m deprecate policy tests.collections.policy --no-recursive --min-grace=0.3 --message-required=True
 ```
 
 ```text
@@ -2168,10 +2177,15 @@ def test_no_deprecation_chains():
 
     if issues:
         lines = [
-            f"  - {i.function}: target '{getattr(i.deprecated_info['target'], '__name__', repr(i.deprecated_info['target']))}' is deprecated"
+            f"  - {i.function}: target '{getattr(i.deprecated_info.target, '__name__', repr(i.deprecated_info.target))}' is deprecated"
             for i in issues
         ]
         pytest.fail("Found deprecation chains:\n" + "\n".join(lines))
+
+
+# the sample module deliberately contains chains, so the check fails here; in your own package it passes
+with pytest.raises(pytest.fail.Exception, match="Found deprecation chains"):
+    test_no_deprecation_chains()
 
 
 # Alternative: session-scoped auto-use fixture
