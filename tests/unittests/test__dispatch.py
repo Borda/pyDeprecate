@@ -1688,3 +1688,57 @@ class TestWarnQuotaThreadSafety:
         with concurrent.futures.ThreadPoolExecutor(max_workers=n_threads) as pool:
             list(pool.map(worker, range(n_threads)))
         assert len(emissions) == 1
+
+
+class TestUserFacingTypeErrors:
+    """Calls the dispatcher cannot forward fail with a curated ``TypeError`` that names the deprecated wrapper."""
+
+    def test_async_target_behind_sync_wrapper_raises(self) -> None:
+        """A sync ``@deprecated`` function pointing at an ``async def`` target refuses the call and says how to fix it.
+
+        A team forwards a legacy sync helper to a new coroutine function. Calling the sync wrapper would hand back an
+        un-awaited coroutine, so the call fails loudly after the deprecation warning, naming the target and telling the
+        author to declare the wrapper ``async def`` or point it at a sync callable.
+
+        """
+
+        async def _async_double(x: int) -> int:
+            """Coroutine replacement that a sync wrapper cannot await."""
+            return x * 2
+
+        @deprecated(target=_async_double, deprecated_in="1.0", remove_in="2.0")
+        def legacy_double(x: int) -> int:
+            return void(x)
+
+        with (
+            pytest.warns(FutureWarning, match="legacy_double"),
+            pytest.raises(TypeError, match=r"Async target `.*_async_double` cannot be invoked from a sync") as err,
+        ):
+            legacy_double(2)
+        assert "Declare `legacy_double` as `async def`, or replace the target with a sync callable" in str(err.value)
+
+    def test_keyword_missing_from_var_positional_only_target_names_the_limitation(self) -> None:
+        """A target taking only ``*args`` rejects an unmapped keyword and the message says ``*args`` cannot take it.
+
+        The plain "arguments not accepted" text would send the author hunting for a missing parameter name; here the
+        target does accept extra positionals, just never keywords, and the message must say so.
+
+        """
+
+        def _tgt(*args: int) -> int:
+            """Target that accepts positionals only."""
+            return sum(args)
+
+        def _src(a: int) -> int:
+            return a
+
+        expected = r"`_src`, arguments not accepted by target \(target accepts \*args but these keyword"
+        with pytest.raises(TypeError, match=expected):
+            _prepare_target_call(
+                _src,
+                _tgt,
+                {"c": 1},
+                target_arg_names=frozenset(),
+                accepts_var_positional=True,
+                accepts_var_keyword=False,
+            )

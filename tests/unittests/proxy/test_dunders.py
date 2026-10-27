@@ -584,3 +584,59 @@ class TestAsyncAcquisitionCleanup:
             with pytest.raises(FutureWarning):
                 _acquire_await(proxy)
         assert asyncio.run(_await_once(source)) == [1, 2]
+
+
+class _RefusesAddition:
+    """Instance whose ``__add__`` declines every operand by returning ``NotImplemented`` (fixture)."""
+
+    def __add__(self, other: object) -> object:
+        """Decline the operation so Python tries the reflected operand."""
+        return NotImplemented
+
+
+class _ReflectedAddition:
+    """Operand that answers ``something + self`` through ``__radd__`` (fixture)."""
+
+    def __radd__(self, other: object) -> str:
+        """Answer the reflected addition."""
+        return "reflected"
+
+
+class TestFormatAndDeclinedOperators:
+    """``format()`` and binary operators on a proxy defer to the wrapped object like the object itself would."""
+
+    def test_format_applies_spec_to_wrapped_value_without_warning(self) -> None:
+        """``format(proxy, spec)`` and f-string specs format the wrapped value, and formatting never warns.
+
+        Formatting a deprecated constant into a log line is a repr-like probe, not a use of the deprecated API, so a
+        warning there would be noise.
+
+        """
+        proxy = deprecated_instance(3.14159, name="legacy_pi", deprecated_in="1.0", remove_in="2.0")
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            assert format(proxy, ".2f") == "3.14"
+            assert f"{proxy:>8.1f}" == "     3.1"
+
+    def test_operator_declined_by_wrapped_object_raises_type_error(self) -> None:
+        """When the wrapped object's operator returns ``NotImplemented``, Python's normal ``TypeError`` surfaces.
+
+        The proxy must not mask an unsupported operand pair by returning a value, and it must not warn for an
+        operation that did not happen.
+
+        """
+        proxy = deprecated_instance(_RefusesAddition(), name="legacy_obj", deprecated_in="1.0", remove_in="2.0")
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            with pytest.raises(TypeError, match=r"unsupported operand type\(s\) for \+"):
+                proxy + 1  # type: ignore[operator]
+
+    def test_declined_operator_falls_back_to_reflected_operand(self) -> None:
+        """A declined ``proxy + other`` is retried as ``other.__radd__(proxy)``, exactly as for a plain object."""
+        proxy = deprecated_instance(_RefusesAddition(), name="legacy_obj", deprecated_in="1.0", remove_in="2.0")
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            assert proxy + _ReflectedAddition() == "reflected"
