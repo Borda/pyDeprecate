@@ -142,6 +142,39 @@ print(detect(1))
 
 </details>
 
+## Turning the warning into an error at a chosen version
+
+With plain `warnings.warn` the escalation is a manual `raise` you must remember to add. With pyDeprecate, `as_exception=True` raises `DeprecatedError` instead of warning, and a version comparison decides when it flips. No new API is involved: pass `as_exception` a boolean computed from your package version and a release of your choosing (`ERROR_IN` below).
+
+```python
+from deprecate import DeprecatedError, TargetMode, deprecated_callable
+
+PACKAGE_VERSION = (1, 3)  # in a real package: parse your own `__version__`
+ERROR_IN = (1, 3)  # the release where callers must stop using the old name
+
+
+@deprecated_callable(TargetMode.NOTIFY, "1.0", "2.0", as_exception=PACKAGE_VERSION >= ERROR_IN)
+def detect_legacy(value: int) -> int:
+    return value
+
+
+try:
+    detect_legacy(1)
+except DeprecatedError as err:
+    print(err)
+```
+
+<details>
+  <summary>Output: <code>detect_legacy(1)</code></summary>
+
+```
+The `detect_legacy` was deprecated since v1.0. It will be removed in v2.0.
+```
+
+</details>
+
+As the release-time backstop, `pydeprecate expiry` in CI exits `1` when a wrapper is past its `remove_in` deadline. See [Fatal deprecations](functions.md#fatal-deprecations) for the full behaviour.
+
 ## Decision guide
 
 - Need only an internal warning: use `warnings.warn`.

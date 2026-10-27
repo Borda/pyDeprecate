@@ -41,6 +41,8 @@ This page covers all deprecation patterns for Python functions and methods: forw
 
 Apply `@deprecated(target=<callable>)` to the old name and pyDeprecate forwards every call (positional and keyword arguments included) to the new function. Under normal forwarding the body is dead code, so leave it empty or put a docstring there (see also [void() helper](void-helper.md) for a null-forwarding idiom). The one exception is `skip_if=True` at call time — see the danger admonition above — where the source body executes as a fallback; keep a working body when combining `target=<callable>` with `skip_if`.
 
+The warning fires when the deprecated function is **called**, not when it is defined or imported, so importing a module that merely defines deprecated functions stays silent. The one exception is a deprecated function that is itself used as a decorator: applying it with `@` calls it at the `def` statement, so it warns at definition time — see [this troubleshooting answer](../troubleshooting.md#my-deprecated-wrappers-warning-fires-when-i-define-a-function-not-when-i-call-it) and [issue #96](https://github.com/Borda/pyDeprecate/issues/96).
+
 ```python
 # NEW/FUTURE API — renamed to be more explicit about what it computes
 def compute(a: int = 0, b: int = 3) -> int:
@@ -634,6 +636,39 @@ Use `calculate_total` instead.
 The scope is process-wide, not local to a thread or an `asyncio` task: code running concurrently with the block sees the same setting, and scopes opened from different threads or tasks that overlap out of order can leave the switch in the wrong state for the rest of the process (for example `True` after both scopes closed), so do not hold a scope across an `await` in concurrent code. As a decorator it only covers plain synchronous functions: decorating an `async def`, generator or async-generator function raises `TypeError`, because its body would run after the scope closed — use `with as_exceptions():` inside the body instead. A non-`bool` flag, including a bare `@as_exceptions` without parentheses, raises `TypeError` at the call. Like `deprecate.AS_EXCEPTIONS` itself, it is the consumer's switch (an application or test suite); library code should not use `as_exceptions(False)` to escape a caller's strict run.
 
 Precedence is **monotonic**: an explicit `as_exception=True` is always fatal, and `as_exception=False` means "not fatal by default" but still yields to a `True` global. A wrapper's own `as_exception=False` therefore cannot opt a consumer's strict run out; only the consumer's own `as_exceptions(False)` scope or `AS_EXCEPTIONS` setting can, while an author can still promote one symbol ahead of the rest.
+
+### Recipe: the warning becomes an error at version X
+
+To promote a deprecation from warning to error on a schedule, pass `as_exception` a value computed from your package version and a version of your choosing (here `ERROR_IN`, typically between `deprecated_in` and `remove_in`). `as_exception` is read once, at decoration time, so the switch flips on the first import under the new version. Compare parsed versions rather than strings — tuples below keep the example dependency-free; `packaging.version.Version` works the same.
+
+```python
+from deprecate import DeprecatedError, TargetMode, deprecated_callable
+
+PACKAGE_VERSION = (1, 3)  # in a real package: parse your own `__version__`
+ERROR_IN = (1, 3)  # the release where callers must stop using the old name
+
+
+@deprecated_callable(TargetMode.NOTIFY, "1.0", "2.0", as_exception=PACKAGE_VERSION >= ERROR_IN)
+def legacy_digest(payload: str) -> int:
+    return len(payload)
+
+
+try:
+    legacy_digest("abc")
+except DeprecatedError as err:
+    print(err)
+```
+
+<details>
+  <summary>Output: <code>legacy_digest("abc")</code></summary>
+
+```
+The `legacy_digest` was deprecated since v1.0. It will be removed in v2.0.
+```
+
+</details>
+
+Below `ERROR_IN` the same code only warns. As the release-time backstop, run [`pydeprecate expiry`](cli.md) in CI: it exits `1` when any wrapper is past its `remove_in` deadline, so a deprecation that was never deleted cannot ship by accident.
 
 ### When to prefer `-W error` instead
 

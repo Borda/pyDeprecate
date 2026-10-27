@@ -49,12 +49,16 @@ Use these utilities to verify that a deprecated wrapper is correctly configured:
 - `identity_args_mapping` — list of args where key equals value (e.g. `{"arg": "arg"}` — no effect)
 - `self_reference` — `True` if target points to the same function
 - `no_effect` — `True` if the wrapper has zero impact (self-reference, empty mapping, or all-identity)
-- `misconfigured_target` — `True` if an invalid raw target sentinel (`False`) was passed at decoration time
+- `misconfigured_target` — `True` when the wrapper's target contradicts its configuration: `NOTIFY` with an `args_mapping` or `args_extra`, `ARGS_REMAP` with an empty `args_mapping`, or the invalid `target=False` (mirrors `DeprecationConfig.misconfigured`)
 - `all_identity` — `True` if every entry in `args_mapping` maps a key to itself
 - `chain_type` — chain classification used when reporting deprecation chains, such as `TARGET` or `STACKED`
 - `empty_deprecated_in` — `True` when `deprecated_in` is absent or empty; useful in CI to surface wrappers with no version annotation
 - `api_type` — inferred API kind for report generation (e.g. `callable`, `args`, `class`, `dataclass attributes`, `class method`); excluded from `repr()` to keep snapshot tests stable
 - `pep702_message` — `None` for every pyDeprecate wrapper; on a row that `find_deprecation_wrappers(..., include_pep702=True)` reports for a symbol deprecated only with `warnings.deprecated`, the decorator's message (a string, possibly empty) — such rows have no versions, so `empty_deprecated_in` is `True` (see [PEP 702-only deprecations](#pep-702-only-deprecations)); excluded from `repr()`
+
+!!! note "`DeprecationConfig` cache fields leave in v1.0"
+
+    `deprecated_info` is a `DeprecationConfig` whose audit metadata fields (`deprecated_in`, `remove_in`, `name`, `target`, `args_mapping`, `args_extra`, `misconfigured`, `docstring_style`, `message_template`, `attrs_mapping`, `as_exception`, `args_mapping_auto_expanded`, `args_mapping_positional_only`) are stable. Eight further fields are internal call-time caches that the wrapper reads on every call instead of inspecting signatures again: `target_positional_only`, `target_positional_only_order`, `source_positional_only`, `source_positional_only_order`, `source_var_positional_prefix`, `target_all_param_names`, `target_accepts_var_positional` and `target_accepts_var_keyword`. They will be removed from `DeprecationConfig` in v1.0, so do not read them in audit or CI code.
 
 ### Validating a single function
 
@@ -382,7 +386,7 @@ Good to know:
 
 - Class members decorated with `@deprecated` (e.g. an `__init__` wrapped by `deprecated_class` delegation) are included by default (`include_members=True`) — pass `include_members=False` to restrict the scan to module-level callables.
 - Callables without `remove_in` are skipped — notice-only deprecations are allowed.
-- Invalid version formats in `remove_in` are silently skipped.
+- Invalid version formats in `remove_in` are skipped with a `UserWarning` naming the callable and the unparsable version (the CLI prints a `remove_in not PEP 440` gap line instead), so the expiry of that callable is not checked.
 - PEP 440 versioning is used for comparison (e.g. `"2.0.0" > "1.9.5"`).
 - Pre-release versions are handled correctly (e.g. `"1.5.0a1" < "1.5.0"`).
 
@@ -510,6 +514,7 @@ Good to know:
 
 - Wrappers missing `deprecated_in` or `remove_in` are **not** violations — the grace-window rule simply skips them, because a deprecation without a scheduled removal is a valid and common choice.
 - An unparsable version string emits a `UserWarning` naming the wrapper and the offending field, then the scan continues for the rest — one typo never aborts the gate.
+- The return value is a list of message strings, not structured records. Each message starts with the `[slug]` of the rule it broke (`[min-grace]`, `[message-required]`), and that slug is the stable rule identifier: filter, group or suppress on it rather than on the wording after it, which may change. `validate_deprecation_expiry()` also returns plain message strings, without a slug. For structured per-wrapper data use the `DeprecationWrapperInfo` rows of `find_deprecation_wrappers()`; the CLI's `--report-json` file holds the rendered deprecation table and the run's gaps (see the [CLI Reference](cli.md)), not the violation messages.
 - `recursive`, `include_members` and `exclude` behave exactly as in `find_deprecation_wrappers()`.
 - The CLI exposes the same gate as `pydeprecate policy` — see the [CLI Reference](cli.md) for flags and exit codes, and [Enforcing the policy in CI](#enforcing-the-policy-in-ci) below for the workflow. The CLI can also read the rules from a `[tool.pydeprecate.policy]` table in `pyproject.toml` ([details](cli.md#project-configuration-in-pyprojecttoml)); this function takes a module (object or importable name), never a filesystem path, and does not read that file — pass `min_grace` and `message_required` explicitly.
 

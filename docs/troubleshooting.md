@@ -211,11 +211,11 @@ True
 
 ## TypeError: Failed mapping
 
-**Q:** I get `TypeError: Failed mapping of 'my_func', arguments not accepted by target: ['old_arg']`. What does this mean?
+**Q:** I get `` TypeError: Failed mapping of `my_func`, arguments not accepted by target: ['old_arg'] ``. What does this mean?
 
 **A:** Your deprecated function passes an argument that the target function does not accept. You need to either drop the argument, rename it to match the target's signature, or use `TargetMode.ARGS_REMAP` for in-place remapping.
 
-The error fires at call time because pyDeprecate prepares the forwarded call from the deprecated source and validates those arguments against the target's signature. If one or more mapped names are still not accepted by the target, it raises `TypeError: Failed mapping of '{source}', arguments not accepted by target: [...]`. When the target accepts `*args`, the message uses a slightly different variant, but it still indicates that the mapped arguments could not be accepted by the target.
+The error fires at call time because pyDeprecate prepares the forwarded call from the deprecated source and validates those arguments against the target's signature. If one or more mapped names are still not accepted by the target, it raises `` TypeError: Failed mapping of `{source}`, arguments not accepted by target: [...] ``. When the target accepts `*args`, the message uses a slightly different variant, but it still indicates that the mapped arguments could not be accepted by the target.
 
 Choose the fix that matches your situation:
 
@@ -416,7 +416,8 @@ When moving functions across modules, import the target from its new home explic
 
 **What warns (data-use operations):**
 
-- Arithmetic operators (`+`, `-`, `*`, `/`, `//`, `**`, `%`, `@`) and their reflected/in-place forms
+- Arithmetic operators (`+`, `-`, `*`, `/`, `//`, `**`, `%`, `@`), `divmod()`, and their reflected/in-place forms
+- Bitwise and shift operators (`&`, `|`, `^`, `<<`, `>>`) and their reflected/in-place forms
 - Numeric/path conversions: `int()`, `float()`, `complex()`, `operator.index()`, `os.fspath()`
 - Unary numeric operators: `abs()`, `-obj`, `+obj`, `~obj`
 - Rounding: `round()`, `math.trunc()`, `math.floor()`, `math.ceil()`
@@ -428,6 +429,7 @@ When moving functions across modules, import the target from its new home explic
 **What stays silent (structural probes):**
 
 - Ordering comparisons: `<`, `<=`, `>`, `>=`
+- `bool()`, `hash()`, and the `in` operator
 - `format()` / f-strings using the wrapped object
 - Context-manager exit (`__exit__` / `__aexit__`)
 

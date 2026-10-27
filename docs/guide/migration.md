@@ -5,7 +5,7 @@ description: Upgrade pyDeprecate safely with source-version checklists, compatib
 
 # Migration Guide
 
-The current development target is **v0.14**. This guide contains only rewrites, deprecations, and observable changes that existing users need to handle when upgrading. New APIs and capabilities belong in the [Changelog](../changelog.md) and topic guides.
+The latest release is **v0.14**; changes on the unreleased line are listed under `[UnReleased]` in the [Changelog](../changelog.md). This guide contains only rewrites, deprecations, and observable changes that existing users need to handle when upgrading. New APIs and capabilities belong in the [Changelog](../changelog.md) and topic guides.
 
 ## Migrate Legacy Target Values
 
