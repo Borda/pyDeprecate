@@ -13,6 +13,7 @@ from deprecate import TargetMode, deprecated
 from deprecate import property as strict_property
 from deprecate._properties import _DeprecatedProperty, _StrictProperty
 from deprecate.audit import validate_deprecation_expiry
+from tests._helpers import captured_warnings
 from tests.collections.api_deprecated import InnerOrderDeprecatedPropCls, ServiceCls
 from tests.collections.api_deprecated_forwarding import DelOnlyDeprecatedPropCls
 
@@ -59,8 +60,7 @@ class TestDescriptorOrderAgnostic:
 
     def test_outer_deprecated_classmethod_no_decoration_time_warning(self) -> None:
         """Outer @deprecated @classmethod order: no UserWarning at decoration time (transparent unwrap)."""
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
 
             class _Cls:
                 @deprecated(deprecated_in="1.0", remove_in="2.0")
@@ -103,8 +103,7 @@ class TestDescriptorOrderAgnostic:
 
     def test_outer_deprecated_staticmethod_no_decoration_time_warning(self) -> None:
         """Outer @deprecated @staticmethod order: no UserWarning at decoration time (transparent unwrap)."""
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
 
             class _Cls:
                 @deprecated(deprecated_in="1.0", remove_in="2.0")
@@ -153,8 +152,7 @@ class TestStaticMethodDescriptorTarget:
 
     def test_no_decoration_time_warning(self) -> None:
         """Descriptor unwrap is silent — no UserWarning fires when the class body is executed."""
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
 
             class _Cls:
                 @staticmethod
@@ -231,8 +229,7 @@ class TestClassMethodDescriptorTarget:
 
     def test_no_decoration_time_warning(self) -> None:
         """Descriptor unwrap is silent — no UserWarning fires when the class body is executed."""
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
 
             class _Cls:
                 @classmethod
@@ -338,8 +335,7 @@ class TestPropertyOrderAgnostic:
 
     def test_outer_deprecated_property_no_decoration_time_warning(self) -> None:
         """Outer @deprecated @property order: no UserWarning at decoration time (transparent unwrap)."""
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
 
             class _UnusedCls:
                 @deprecated(deprecated_in="1.0", remove_in="2.0")  # type: ignore[prop-decorator]
@@ -384,8 +380,7 @@ class TestPropertyOrderAgnostic:
 
     def test_outer_deprecated_cached_property_no_decoration_time_warning(self) -> None:
         """Outer @deprecated @cached_property order: no UserWarning at decoration time."""
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
 
             class _UnusedCls:
                 @deprecated(deprecated_in="1.0", remove_in="2.0")  # type: ignore[prop-decorator]
@@ -545,8 +540,7 @@ class TestPropertyOrderAgnostic:
             obj.value = 10
         assert obj._value == 10
         # Second write must be silent after num_warns=1 is exhausted.
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             obj.value = 20
         assert not any(issubclass(w.category, FutureWarning) for w in caught)
         assert obj._value == 20
@@ -559,8 +553,7 @@ class TestPropertyOrderAgnostic:
         Attribute writes must therefore emit no ``FutureWarning`` and the body must still mutate state.
         """
         obj = InnerOrderDeprecatedPropCls()
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             obj.value = 17
         assert not any(issubclass(w.category, FutureWarning) for w in caught)
         assert obj._value == 17
@@ -573,8 +566,7 @@ class TestPropertyOrderAgnostic:
         ``FutureWarning`` while still executing the delete-accessor body.
         """
         obj = InnerOrderDeprecatedPropCls()
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             del obj.value
         assert not any(issubclass(w.category, FutureWarning) for w in caught)
         assert obj._del_value is None
@@ -660,8 +652,7 @@ class TestPropertyOrderAgnostic:
             first_read = obj.value
         assert first_read == 0
         # Second read — fget counter exhausted, silent.
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             second_read = obj.value
         assert second_read == 0
         assert not any(issubclass(w.category, FutureWarning) for w in caught)
@@ -670,8 +661,7 @@ class TestPropertyOrderAgnostic:
             obj.value = 33  # type: ignore[assignment]
         assert obj._value == 33
         # Second write — fset counter now exhausted, silent.
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             obj.value = 44  # type: ignore[assignment]
         assert obj._value == 44
         assert not any(issubclass(w.category, FutureWarning) for w in caught)
@@ -843,8 +833,7 @@ class TestDescriptorStacklevel:
         extra package frames, so the "missing deprecated_in" UserWarning must point to the
         ``@deprecated`` line in the caller's file — not to an internal frame inside ``deprecate``.
         """
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
 
             class _Cls:
                 @deprecated(remove_in="2.0")
@@ -864,8 +853,7 @@ class TestDescriptorStacklevel:
         case fires, and the UserWarning must attribute to the decorator application line
         in this test file rather than to an internal frame.
         """
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
 
             class _Cls:
                 @deprecated(remove_in="2.0")
@@ -885,8 +873,7 @@ class TestDescriptorStacklevel:
         ``packing_fn(source.fget)``; ``_caller_stacklevel()`` attributes the resulting
         UserWarning to the ``@deprecated`` application line in this test file.
         """
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
 
             class _Cls:
                 @deprecated(remove_in="2.0")  # type: ignore[arg-type, prop-decorator]
@@ -907,8 +894,7 @@ class TestDescriptorStacklevel:
         ``packing_fn(source.func)``; ``_caller_stacklevel()`` makes the UserWarning attribute
         to the ``@deprecated`` line in this test file, not to an internal frame.
         """
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
 
             class _Cls:
                 @deprecated(remove_in="2.0")  # type: ignore[arg-type, prop-decorator]

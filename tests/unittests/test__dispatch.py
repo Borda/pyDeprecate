@@ -36,6 +36,7 @@ from deprecate._dispatch import (
 )
 from deprecate._types import DeprecationConfig, _CallFacts, _DeprecatedCallable, _WrapperState
 from deprecate.utils import _signature_facts
+from tests._helpers import captured_warnings
 from tests.collections.api_current import (
     KeywordCallTarget,
     NewCls,
@@ -256,8 +257,7 @@ class TestStackedArgsRemapNotify:
         fn = self._make_fresh()
         with pytest.warns(FutureWarning):
             fn(2, factor=3)  # exhausts both layer counters
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             fn(2, factor=3)
         assert not [w for w in caught if issubclass(w.category, FutureWarning)]
 
@@ -308,8 +308,7 @@ class TestStackedNotifyCallable:
         fn = self._make_fresh()
         with pytest.warns(FutureWarning):
             fn(2.0, scale=3.0)  # exhausts both layer counters
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             fn(2.0, scale=3.0)
         assert not [w for w in caught if issubclass(w.category, FutureWarning)]
 
@@ -576,9 +575,12 @@ class TestCycleDetection:
         dep_cycle_fn_a forwards to dep_cycle_fn_b which forwards back to dep_cycle_fn_a,
         forming a two-node cycle. The lazy cycle detector intercepts the re-entry of
         dep_cycle_fn_a and raises RuntimeError instead of letting Python hit RecursionError.
-        The guard fires before the warning is emitted, so no FutureWarning is raised.
+        The guard fires only on that re-entry, so the first entry of each node still emits its FutureWarning.
         """
-        with pytest.raises(RuntimeError, match=r"Circular deprecation cycle detected.*dep_cycle_fn_a"):
+        with (
+            pytest.warns(FutureWarning, match="dep_cycle_fn_"),
+            pytest.raises(RuntimeError, match=r"Circular deprecation cycle detected.*dep_cycle_fn_a"),
+        ):
             dep_cycle_fn_a(1)
 
     def test_cycle_entry_via_b_raises(self) -> None:
@@ -589,7 +591,10 @@ class TestCycleDetection:
         at dep_cycle_fn_b's re-entry and name dep_cycle_fn_b in the error message, proving
         the detector is symmetric and reports the correct wrapper regardless of entry order.
         """
-        with pytest.raises(RuntimeError, match=r"Circular deprecation cycle detected.*dep_cycle_fn_b"):
+        with (
+            pytest.warns(FutureWarning, match="dep_cycle_fn_"),
+            pytest.raises(RuntimeError, match=r"Circular deprecation cycle detected.*dep_cycle_fn_b"),
+        ):
             dep_cycle_fn_b(1)
 
     def test_non_cycle_callable_target_unaffected(self) -> None:
@@ -613,7 +618,10 @@ class TestCycleDetection:
         two-node cycle with dep_async_cycle_fn_b must raise RuntimeError on re-entry,
         proving the cycle guard in the async code path fires correctly.
         """
-        with pytest.raises(RuntimeError, match=r"Circular deprecation cycle detected.*dep_async_cycle_fn_a"):
+        with (
+            pytest.warns(FutureWarning, match="dep_async_cycle_fn_"),
+            pytest.raises(RuntimeError, match=r"Circular deprecation cycle detected.*dep_async_cycle_fn_a"),
+        ):
             await dep_async_cycle_fn_a(1)
 
     @pytest.mark.asyncio
@@ -624,7 +632,10 @@ class TestCycleDetection:
         entering from dep_async_cycle_fn_b must also trigger the guard. The error message
         must name dep_async_cycle_fn_b as the re-entered wrapper.
         """
-        with pytest.raises(RuntimeError, match=r"Circular deprecation cycle detected.*dep_async_cycle_fn_b"):
+        with (
+            pytest.warns(FutureWarning, match="dep_async_cycle_fn_"),
+            pytest.raises(RuntimeError, match=r"Circular deprecation cycle detected.*dep_async_cycle_fn_b"),
+        ):
             await dep_async_cycle_fn_b(1)
 
     @pytest.mark.asyncio
@@ -637,9 +648,10 @@ class TestCycleDetection:
         all coroutines on the same event-loop thread shared one active-id set. With ContextVar,
         each asyncio.Task gets its own copy, so concurrent calls are fully independent.
         """
-        results = await asyncio.gather(
-            dep_async_non_cycle_old_fn(1), dep_async_non_cycle_old_fn(2), dep_async_non_cycle_old_fn(3)
-        )
+        with pytest.warns(FutureWarning, match="dep_async_non_cycle_old_fn"):
+            results = await asyncio.gather(
+                dep_async_non_cycle_old_fn(1), dep_async_non_cycle_old_fn(2), dep_async_non_cycle_old_fn(3)
+            )
         assert results == [2, 4, 6]
 
     @pytest.mark.asyncio
@@ -701,8 +713,7 @@ class TestRecursiveDeprecation:
         only the first call emits a ``FutureWarning``. Subsequent recursive calls see
         ``warned_calls >= num_warns`` and skip the warning.
         """
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             dep_fib_notify(6)
         assert len(caught) == 1
         assert caught[0].category is FutureWarning
@@ -733,8 +744,7 @@ class TestRecursiveDeprecation:
         ``id(source)`` is added to ``_active`` once and removed in the ``finally`` block; only
         one ``FutureWarning`` fires.
         """
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             result = dep_fib_callable(n)
         assert result == expected
         assert len(caught) == 1
@@ -750,8 +760,7 @@ class TestRecursiveDeprecation:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", FutureWarning)
             assert dep_fib_callable(5) == 5
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             assert dep_fib_callable(5) == 5
         assert len(caught) == 0
 
@@ -782,8 +791,7 @@ class TestRecursiveDeprecation:
         ``n`` triggers a ``FutureWarning``. Subsequent recursive calls see ``state.warned_args['n']``
         already satisfied and proceed silently.
         """
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             dep_fib_remap(n=6)
         assert len(caught) == 1
         assert caught[0].category is FutureWarning
@@ -1094,12 +1102,10 @@ def test_misconfigured_warning_fires_exactly_once() -> None:
     target_false_deprecation._state.warned_misconfigured = False  # type: ignore[attr-defined]
     target_false_deprecation._state.warned_calls = 0  # type: ignore[attr-defined]
 
-    with warnings.catch_warnings(record=True) as call1:
-        warnings.simplefilter("always")
+    with captured_warnings() as call1:
         target_false_deprecation(x=1)
 
-    with warnings.catch_warnings(record=True) as call2:
-        warnings.simplefilter("always")
+    with captured_warnings() as call2:
         target_false_deprecation(x=2)
 
     misconfig_call1 = [w for w in call1 if w.category is UserWarning and "invalid deprecation config" in str(w.message)]
@@ -1125,10 +1131,8 @@ def test_args_extra_injection_reaches_target() -> None:
     * and return ``add_values(5, 10) == 15``.
 
     """
-    with warnings.catch_warnings(record=True) as warned:
-        warnings.simplefilter("always")
+    with pytest.warns(FutureWarning, match="uses deprecated arguments"):
         result = depr_target_mode_args_only_with_args_extra_injects_kwargs(old_x=5)
-    assert warned
     assert result == 15, "args_extra must inject y=10 alongside the remapped old_x→x=5"
 
 
@@ -1145,12 +1149,10 @@ def test_num_warns_one_exhausts_after_first_call() -> None:
     ``depr_pow_args`` uses the default ``num_warns=1`` (no override in its decorator config).
 
     """
-    with warnings.catch_warnings(record=True) as call1:
-        warnings.simplefilter("always")
+    with captured_warnings() as call1:
         depr_pow_args(2.0, 3.0)
 
-    with warnings.catch_warnings(record=True) as call2:
-        warnings.simplefilter("always")
+    with captured_warnings() as call2:
         depr_pow_args(2.0, 3.0)
 
     future_call1 = [w for w in call1 if w.category is FutureWarning]
@@ -1199,12 +1201,9 @@ def test_source_is_stacked_skips_positional_conversion() -> None:
     # End-to-end check: the real ARGS_REMAP-outer + NOTIFY-inner stack must still emit the
     # inner NOTIFY warning and return the correct value when the caller migrates to ``scale=``.
     fn = make_depr_compute_power_stacked()
-    with warnings.catch_warnings(record=True) as record:
-        warnings.simplefilter("always")
+    with pytest.warns(FutureWarning, match="compute_power"):
         result = fn(2.0, scale=3.0)
-    future_warnings = [w for w in record if w.category is FutureWarning]
     assert result == 8.0, "Stacked wrapper must compute compute_power(2.0, scale=3.0) == 8.0"
-    assert len(future_warnings) >= 1, "Inner NOTIFY layer must still fire its FutureWarning on a migrated caller"
 
 
 # ---------------------------------------------------------------------------
