@@ -15,12 +15,10 @@ emitting a warning.
 """
 
 import inspect
-from typing import cast
 
 import pytest
 
 from deprecate import deprecated
-from deprecate._types import _DeprecatedCallable
 from tests._helpers import captured_warnings
 from tests.collections.api_deprecated import decorated_sum_calls_inf, make_async_stacked_notify
 from tests.collections.api_deprecated_forwarding import (
@@ -45,27 +43,6 @@ _WRAPPER_CASES = [
     pytest.param(gen_args_remap, {"old_x": 1}, id="args_remap"),
     pytest.param(gen_callable, {"x": 1}, id="callable"),
 ]
-
-
-@pytest.fixture(autouse=True)
-def _reset_gen_state() -> None:
-    """Reset the warning count on each module-level generator wrapper before each test.
-
-    Generator wrappers are module-level singletons whose warning counters persist across parametrize iterations.
-    Default ``num_warns=1`` suppresses the second call's warning, so without reset the second parametrize case
-    would see no warning.  Only ``warned_calls`` and ``warned_args`` are cleared — ``warned_misconfigured`` is
-    left intact.
-
-    Isolation note: this fixture is only safe because no other test module imports and calls these same wrappers
-    directly.  If another file calls ``gen_notify`` / ``gen_args_remap`` / ``gen_callable`` without going through
-    this fixture, state will leak across test files.  Long-term fix: use a factory function returning a fresh
-    wrapper per test instead of resetting shared singletons.
-
-    """
-    for wrapper in (gen_notify, gen_args_remap, gen_callable, gen_notify_unlimited):
-        state = cast(_DeprecatedCallable, wrapper)._state
-        state.warned_calls = 0
-        state.warned_args.clear()
 
 
 @pytest.mark.parametrize(("wrapper", "call_kwargs"), _WRAPPER_CASES)
@@ -196,21 +173,6 @@ _ASYNC_WRAPPER_CASES = [
 ]
 
 
-@pytest.fixture(autouse=True)
-def _reset_async_state() -> None:
-    """Reset the warning counter on each module-level async wrapper before each test.
-
-    Mirrors ``_reset_gen_state`` for the async fixtures: ``num_warns=1`` (default) would otherwise suppress the
-    second parametrize case.  Only ``warned_calls`` and ``warned_args`` are cleared — ``warned_misconfigured`` is
-    left intact.
-
-    """
-    for wrapper in (async_notify, async_args_remap, async_callable):
-        state = cast(_DeprecatedCallable, wrapper)._state
-        state.warned_calls = 0
-        state.warned_args.clear()
-
-
 @pytest.mark.asyncio
 @pytest.mark.parametrize(("wrapper", "call_kwargs"), _ASYNC_WRAPPER_CASES)
 async def test_async_round_trip(wrapper: object, call_kwargs: dict) -> None:
@@ -289,21 +251,6 @@ _ASYNC_GEN_WRAPPER_CASES = [
     pytest.param(async_gen_args_remap, {"old_x": 1}, id="args_remap"),
     pytest.param(async_gen_callable, {"x": 1}, id="callable"),
 ]
-
-
-@pytest.fixture(autouse=True)
-def _reset_async_gen_state() -> None:
-    """Reset the warning counter on each module-level async generator wrapper before each test.
-
-    Mirrors ``_reset_gen_state`` and ``_reset_async_state``: ``num_warns=1`` (default) would otherwise suppress
-    the second parametrize case.  Only ``warned_calls`` and ``warned_args`` are cleared — ``warned_misconfigured``
-    is left intact.
-
-    """
-    for wrapper in (async_gen_notify, async_gen_args_remap, async_gen_callable):
-        state = cast(_DeprecatedCallable, wrapper)._state
-        state.warned_calls = 0
-        state.warned_args.clear()
 
 
 @pytest.mark.asyncio

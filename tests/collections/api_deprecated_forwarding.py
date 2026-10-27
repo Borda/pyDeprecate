@@ -420,7 +420,7 @@ def _gen_source_callable(x: int = 0) -> Iterator[int]:
 
 #: NOTIFY mode — source body runs unchanged (warning-only).  ``gen_target`` is itself the source.
 #: Uses default ``num_warns=1``; warning fires once per call via ``_build_call_plan``.
-#: Tests reset ``warned_calls`` between parametrize cases — see ``_reset_gen_state`` fixture.
+#: The conftest reset clears ``warned_calls`` before every test, so each parametrize case sees a fresh budget.
 gen_notify = deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)(gen_target)
 #: ARGS_REMAP mode — self-deprecation; legacy arg ``old_x`` mapped to ``x`` before source body executes.
 gen_args_remap = deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old_x": "x"}, **_DEPRS_CASE_STD_ARGS)(
@@ -514,7 +514,7 @@ async def _async_gen_source_callable(x: int = 0) -> AsyncIterator[int]:
 
 
 #: NOTIFY mode — source body runs unchanged (warning-only).  Uses default ``num_warns=1``; warning fires once
-#: per call.  Tests reset ``warned_calls`` between parametrize cases — see ``_reset_async_gen_state`` fixture.
+#: per call.  The conftest reset clears ``warned_calls`` before every test, so each parametrize case starts fresh.
 async_gen_notify = deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)(_async_gen_source_notify)
 #: ARGS_REMAP mode — self-deprecation; legacy arg ``old_x`` mapped to ``x`` before source body executes.
 async_gen_args_remap = deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old_x": "x"}, **_DEPRS_CASE_STD_ARGS)(

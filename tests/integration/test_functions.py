@@ -271,22 +271,6 @@ class TestDeprecationWarnings:
 class TestArgumentMapping:
     """Tests for deprecated function arguments mapping."""
 
-    @pytest.fixture(autouse=True)
-    def _reset_deprecation_state(self) -> None:
-        """Reset deprecation state for functions with chained or multiple deprecations."""
-        for func in (
-            decorated_pow_self,
-            depr_collision_old_new,
-            depr_pow_self_double,
-            depr_pow_self_twice,
-            wrapped_pow_self,
-            legacy_pow_self,
-            legacy_pow_self_double,
-        ):
-            state = cast(_DeprecatedCallable, func)._state
-            state.warned_calls = 0
-            state.warned_args.clear()
-
     @pytest.mark.parametrize(
         "func",
         [
@@ -593,11 +577,6 @@ def test_deprecated_func_attribute_set_at_decoration_time() -> None:
 class TestDeprecatedFunctionWrappers:
     """Test suite for deprecating function-based wrapper/decorators."""
 
-    @pytest.fixture(autouse=True)
-    def reset_warnings(self) -> None:
-        """Reset warning counters before each test for independence."""
-        cast(_DeprecatedCallable, depr_timing_wrapper)._state.warned_calls = 0
-
     def test_shows_warning(self) -> None:
         """Test that deprecated wrapper shows deprecation warning."""
         with pytest.warns(FutureWarning, match="`depr_timing_wrapper` was deprecated"):
@@ -638,11 +617,6 @@ class TestDeprecatedFunctionWrappers:
 
 class TestDeprecatedClassWrappers:
     """Test suite for deprecating class-based wrapper/decorators."""
-
-    @pytest.fixture(autouse=True)
-    def reset_warnings(self) -> None:
-        """Reset warning counters before each test for independence."""
-        cast(_DeprecatedCallable, DeprecatedTimerDecorator.__init__)._state.warned_calls = 0
 
     def test_shows_warning(self) -> None:
         """Test that deprecated wrapper shows deprecation warning."""

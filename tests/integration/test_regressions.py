@@ -112,14 +112,6 @@ class TestFix1StaleSourceDefault:
 class TestFix2ArgsExtraOnArgsRemap:
     """Fix 2 — ``args_extra`` must be injected on ARGS_REMAP regardless of caller arg name."""
 
-    @pytest.fixture(autouse=True)
-    def _reset_deprecation_state(self) -> None:
-        """Reset warning state before each test."""
-        for func in (fn_remap_with_extra, legacy_fn_remap_with_extra):
-            state = cast(_DeprecatedCallable, func)._state
-            state.warned_calls = 0
-            state.warned_args.clear()
-
     @pytest.mark.parametrize(
         "func",
         [

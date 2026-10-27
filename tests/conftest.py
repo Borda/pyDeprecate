@@ -1,26 +1,26 @@
 """Project-wide pytest configuration.
 
 This module provides an :func:`pytest.fixture` (``autouse=True``) that resets the mutable
-``_WrapperState`` on every module-level deprecated wrapper exported from
-the shared ``tests.collections.api_deprecated*`` modules before each test runs, excluding the legacy collection.
+``_WrapperState`` of every deprecated wrapper defined in the ``tests/collections/*.py`` modules before each test runs.
 
 Why this matters
 ----------------
 
 Module-level :func:`@deprecated <deprecate.deprecation.deprecated>` wrappers in
-``tests/collections/api_deprecated*.py`` are singletons whose warning counters (``warned_calls`` and
+``tests/collections/*.py`` are singletons whose warning counters (``warned_calls`` and
 ``warned_args``) persist across tests once their module is imported.  When a wrapper is
 configured with ``num_warns=1`` (the default), the first test that exercises it exhausts the
 budget; any subsequent test that asserts "no warning fired" via patterns like
 ``no_warning_call`` will silently pass for the wrong reason — the counter is spent, not the
-underlying behaviour.
+underlying behaviour.  A test that asserts a warning then fails or passes depending on which tests ran first.
 
-Two file-scoped ``autouse`` fixtures already cover the **async** and **generator** wrappers
-in ``tests/integration/test_callable_kinds.py`` (see ``_reset_gen_state``, ``_reset_async_state``,
-``_reset_async_gen_state``).  This conftest extends that reset to every other wrapper that
-lives at the module level of the ``tests.collections.api_deprecated*`` modules, including plain synchronous
-functions, and every module-level ``_DeprecatedProxy`` (created by ``deprecated_class`` /
-``deprecated_instance``), whose budget is the same ``_WrapperState`` kept in ``_cfg.state``.
+The reset reaches every wrapper a collection module holds:
+
+* module-level wrappers, synchronous, async and generator alike;
+* every module-level ``_DeprecatedProxy`` (created by ``deprecated_class`` / ``deprecated_instance``), whose budget
+  is the same ``_WrapperState`` kept in its config;
+* deprecated methods, ``__init__`` and descriptor functions stored in the ``__dict__`` of a module-level class;
+* every inner layer of a stacked wrapper, followed through ``__wrapped__``.
 
 Reset semantics
 ---------------
@@ -33,7 +33,7 @@ Only the *counter-style* state is cleared:
 The following are intentionally preserved:
 
 * ``warned_misconfigured`` is **not** reset — it implements a one-time UserWarning per
-  wrapper lifetime (see ``test_callable_kinds.py`` autouse-fixture docstrings).  Resetting
+  wrapper lifetime (see ``test_callable_kinds.py``).  Resetting
   it would falsify that contract.  Tests that assert misconfig warnings **emit** must explicitly
   reset ``_state.warned_misconfigured = False`` in their own setup — do not rely on fixture
   ordering.  Symmetrically, tests that assert misconfig warnings are **not** emitted against a
@@ -44,9 +44,9 @@ The following are intentionally preserved:
 What this fixture does *not* cover
 -----------------------------------
 
-Wrappers and proxies defined outside the shared ``tests.collections.api_deprecated*`` modules, including the legacy
-collection, a test module, an unrelated collection module, or the package itself, keep
-their counters across tests; tests using them reset ``_state`` / ``_cfg.state`` themselves.
+Wrappers built by a factory call, defined in a test module, in the whole-module fixtures under
+``tests/collections/modules/``, or in the package itself keep their counters across tests; a factory returns a
+fresh wrapper per call, and tests using the others reset ``_state`` / ``_cfg.state`` themselves.
 
 """
 
@@ -63,27 +63,76 @@ if TYPE_CHECKING:
     from deprecate._types import _WrapperState
 
 
-def _iter_wrapper_states() -> list[_WrapperState]:
-    """Return each module-level wrapper or proxy's warning state once across all sibling collections.
+#: Every collection wrapper's state, gathered once: the collection modules and their objects never change.
+_WRAPPER_STATES: list[_WrapperState] = []
 
-    Discover the shared ``api_deprecated*.py`` modules, including modules unused by the selected tests.
-    Read each object's own dictionary so proxy attribute lookup cannot emit warnings or spend budgets.
-    Shared imports and aliases can expose the same state repeatedly; deduplicate by identity.
+
+def _own_state(obj: object) -> _WrapperState | None:
+    """Return the warning state an object holds in its own ``__dict__``, without any attribute lookup on it.
+
+    Reading the instance dictionary keeps a proxy's attribute hooks out of the way, so collecting states can neither
+    warn nor spend a budget.
+
     """
+    own = getattr(obj, "__dict__", {})
+    state = own.get("_state")
+    if state is None and "_DeprecatedProxy__config" in own:
+        state = own["_DeprecatedProxy__config"].state
+    return state
+
+
+def _wrapper_layers(obj: object) -> list[object]:
+    """Return ``obj`` and every inner layer of a stacked wrapper, following ``__wrapped__`` from its own dictionary."""
+    layers: list[object] = []
+    while obj is not None and all(obj is not layer for layer in layers):
+        layers.append(obj)
+        obj = getattr(obj, "__dict__", {}).get("__wrapped__")
+    return layers
+
+
+def _class_members(obj: object) -> list[object]:
+    """Return the functions stored in a class's own ``__dict__``, unwrapping static/class methods and properties.
+
+    ``type(obj)`` is used for the class check because a proxy can report a different ``__class__``; a proxy is never
+    walked as a class, so its hooks are not triggered.
+
+    """
+    if not issubclass(type(obj), type) or "_DeprecatedProxy__config" in getattr(obj, "__dict__", {}):
+        return []
+    members: list[object] = []
+    for member in vars(obj).values():
+        if isinstance(member, (staticmethod, classmethod)):
+            members.append(member.__func__)
+        elif isinstance(member, property):
+            members.extend(fn for fn in (member.fget, member.fset, member.fdel) if fn is not None)
+        else:
+            members.append(member)
+    return members
+
+
+def _iter_wrapper_states() -> list[_WrapperState]:
+    """Return the warning state of every wrapper the collection modules hold, each state once.
+
+    Discover every ``tests/collections/*.py`` module, including modules unused by the selected tests, and visit its
+    module-level objects, the members of its module-level classes, and every stacked layer of each. Shared imports and
+    aliases can expose the same state repeatedly; deduplicate by identity. The result is computed once per session.
+
+    """
+    if _WRAPPER_STATES:
+        return _WRAPPER_STATES
     found: dict[int, _WrapperState] = {}
-    for path in sorted((Path(__file__).parent / "collections").glob("api_deprecated*.py")):
-        # Legacy wrappers were not included before the move and retain their original state lifecycle.
-        if path.stem == "api_deprecated_legacy":
+    for path in sorted((Path(__file__).parent / "collections").glob("*.py")):
+        if path.stem == "__init__":
             continue
         module = import_module(f"tests.collections.{path.stem}")
-        for obj in vars(module).values():
-            own = getattr(obj, "__dict__", {})
-            state = own.get("_state")
-            if state is None and "_DeprecatedProxy__config" in own:
-                state = own["_DeprecatedProxy__config"].state
-            if state is not None:
-                found[id(state)] = state
-    return list(found.values())
+        for obj in list(vars(module).values()):
+            for candidate in [obj, *_class_members(obj)]:
+                for layer in _wrapper_layers(candidate):
+                    state = _own_state(layer)
+                    if state is not None:
+                        found[id(state)] = state
+    _WRAPPER_STATES.extend(found.values())
+    return _WRAPPER_STATES
 
 
 #: Fixture modules that must not be *directly collected* as a test module by ``--doctest-modules``.

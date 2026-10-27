@@ -75,19 +75,6 @@ class TestTargetModeContract:
 class TestNotifyMode:
     """TargetMode.NOTIFY — warns every call; executes original body."""
 
-    @pytest.fixture(autouse=True)
-    def _reset_deprecation_state(self) -> None:
-        """Reset warning state before each test."""
-        for func in (
-            depr_target_mode_whole_warns_on_every_call,
-            depr_target_mode_whole_executes_original_body,
-            legacy_warns_on_every_call,
-            legacy_executes_original_body,
-        ):
-            state = cast(_DeprecatedCallable, func)._state
-            state.warned_calls = 0
-            state.warned_args.clear()
-
     @pytest.mark.parametrize(
         "func",
         [
@@ -160,21 +147,6 @@ class TestNotifyMode:
 
 class TestArgsRemapMode:
     """TargetMode.ARGS_REMAP — warns only when old arg names passed; remaps kwargs."""
-
-    @pytest.fixture(autouse=True)
-    def _reset_deprecation_state(self) -> None:
-        """Reset warning state before each test."""
-        for func in (
-            depr_target_mode_args_only_warns_when_old_arg_passed,
-            depr_target_mode_args_only_silent_when_new_arg_passed,
-            depr_target_mode_args_only_remaps_kwargs,
-            legacy_warns_when_old_arg_passed,
-            legacy_silent_when_new_arg_passed,
-            legacy_remaps_kwargs,
-        ):
-            state = cast(_DeprecatedCallable, func)._state
-            state.warned_calls = 0
-            state.warned_args.clear()
 
     @pytest.mark.parametrize(
         "func",
@@ -417,14 +389,6 @@ class TestLegacySentinels:
 
 class TestNotifyLegacyMessageParity:
     """NOTIFY mode: modern TargetMode.NOTIFY and legacy target=None emit identical call-time warnings."""
-
-    @pytest.fixture(autouse=True)
-    def _reset_state(self) -> None:
-        """Reset warned_calls before each test."""
-        for func in (depr_target_mode_whole_warns_on_every_call, legacy_warns_on_every_call):
-            state = cast(_DeprecatedCallable, func)._state
-            state.warned_calls = 0
-            state.warned_args.clear()
 
     def test_modern_and_legacy_emit_identical_warning_text(self) -> None:
         """TargetMode.NOTIFY and target=None produce the same FutureWarning text at call time."""

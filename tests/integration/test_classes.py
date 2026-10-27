@@ -66,20 +66,6 @@ _DATACLASS_CASES = [
 class TestDeprecatedClass:
     """Tests for deprecated classes."""
 
-    @pytest.fixture(autouse=True)
-    def _reset_deprecation_state(self) -> None:
-        """Reset deprecation state for PastCls and PastClsMapped __init__."""
-        cast(_DeprecatedCallable, PastCls.__init__)._state.warned_calls = 0
-        cast(_DeprecatedCallable, PastClsMapped.__init__)._state.warned_calls = 0
-
-    @pytest.fixture(autouse=True)
-    def _reset_this_cls_state(self) -> None:
-        """Reset warning state before each test."""
-        for cls in (ThisCls, LegacyThisCls):
-            state = cast(_DeprecatedCallable, cls.__init__)._state
-            state.warned_calls = 0
-            state.warned_args.clear()
-
     def test_class_forward(self) -> None:
         """Test deprecated class that forwards to another class."""
         with pytest.warns(
@@ -222,20 +208,6 @@ class TestDeprecatedDataclasses:
 
 class TestDeprecatedClassMethod:
     """Tests for @deprecated applied to individual class methods (non-__init__)."""
-
-    @pytest.fixture(autouse=True)
-    def _reset_method_state(self) -> None:
-        """Reset warned_calls so each test gets a fresh warning budget."""
-        for method in (
-            ServiceCls.old_warn_method,
-            ServiceCls.old_redirect_method,
-            ServiceCls.old_mapped_method,
-            ServiceCls.self_renamed_method,
-            LegacyServiceCls.old_warn_method,
-            LegacyServiceCls.self_renamed_method,
-        ):
-            state = cast(_DeprecatedCallable, method)._state
-            state.warned_calls = 0
 
     @pytest.mark.parametrize("service_cls", _SERVICE_CLS_CASES)
     def test_warn_only_method_emits_warning(self, service_cls: type) -> None:
