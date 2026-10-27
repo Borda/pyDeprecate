@@ -18,7 +18,7 @@ import inspect
 import os
 import sys
 from contextlib import ContextDecorator
-from contextvars import ContextVar, Token
+from contextvars import ContextVar
 from typing import Any, Callable, Optional, TypeVar
 
 _F = TypeVar("_F", bound=Callable[..., Any])
@@ -77,10 +77,11 @@ def _env_as_exceptions(environ: Optional[dict] = None) -> bool:
 #: :func:`_global_as_exceptions` while the package's own ``__init__`` is still executing.
 _ENV_DEFAULT = _env_as_exceptions()
 
-#: Value set by the innermost open :func:`as_exceptions` scope of the current context, or ``None`` outside any
-#: scope.  A :class:`~contextvars.ContextVar`, so a scope is local to its thread and ``asyncio`` task: tasks
-#: created inside a scope inherit it (they copy the context), sibling tasks and other threads do not see it.
-_SCOPED: ContextVar[Optional[bool]] = ContextVar("deprecate_as_exceptions_scope", default=None)
+#: The :func:`as_exceptions` scopes open in the current context, oldest first, as ``(scope, enabled)`` pairs; the
+#: last pair decides.  A :class:`~contextvars.ContextVar` holding an immutable tuple, so a scope is local to its
+#: thread and ``asyncio`` task: tasks created inside a scope inherit the stack (they copy the context), sibling
+#: tasks and other threads do not see it, and each context unwinds only its own entries.
+_SCOPES: ContextVar[tuple[tuple["_ScopedSwitch", bool], ...]] = ContextVar("deprecate_as_exceptions_scopes", default=())
 
 
 def _global_as_exceptions() -> bool:
@@ -100,9 +101,9 @@ def _global_as_exceptions() -> bool:
         True
 
     """
-    scoped = _SCOPED.get()
-    if scoped is not None:
-        return scoped
+    scopes = _SCOPES.get()
+    if scopes:
+        return scopes[-1][1]
     value = getattr(sys.modules.get("deprecate"), "AS_EXCEPTIONS", None)
     return value if isinstance(value, bool) else _ENV_DEFAULT
 
@@ -149,8 +150,6 @@ class _ScopedSwitch(ContextDecorator):
 
     def __init__(self, enabled: bool) -> None:
         self._enabled = enabled
-        # one (token, previous scope value) pair per open entry, so a reused instance unwinds in order
-        self._entries: list[tuple[Token, Optional[bool]]] = []
 
     def _recreate_cm(self) -> "_ScopedSwitch":
         # a fresh instance per decorated call: a recursive or concurrent call then saves and restores its own value
@@ -171,17 +170,18 @@ class _ScopedSwitch(ContextDecorator):
         return super().__call__(func)
 
     def __enter__(self) -> None:
-        previous = _SCOPED.get()
-        self._entries.append((_SCOPED.set(self._enabled), previous))
+        _SCOPES.set((*_SCOPES.get(), (self, self._enabled)))
 
     def __exit__(self, *exc_info: object) -> None:
-        token, previous = self._entries.pop()
-        try:
-            _SCOPED.reset(token)
-        except ValueError:
-            # the token belongs to another Context (the scope was entered in one task or copied context and left
-            # in another); restore the saved value instead, so exiting never raises over the block's own exception
-            _SCOPED.set(previous)
+        # Remove this scope's newest entry from the *current* context only.  The state lives in the context, not
+        # on the instance, so a scope object shared by concurrent tasks, or exits out of entry order, never pop
+        # another context's entry.  Leaving a scope from a context that never entered it (an async generator
+        # closed in another task, a copied context) changes nothing here and never raises over the block's error.
+        scopes = _SCOPES.get()
+        for index in range(len(scopes) - 1, -1, -1):
+            if scopes[index][0] is self:
+                _SCOPES.set(scopes[:index] + scopes[index + 1 :])
+                return
 
 
 def as_exceptions(enabled: bool = True) -> _ScopedSwitch:
@@ -204,7 +204,11 @@ def as_exceptions(enabled: bool = True) -> _ScopedSwitch:
     setting, so holding a scope across an ``await`` is safe for concurrent code.  Tasks created inside a scope
     inherit it, because a task copies the context at creation.  Whether a new thread inherits it depends on the
     interpreter; run the thread's target through :meth:`contextvars.copy_context().run
-    <contextvars.Context.run>` when it must.
+    <contextvars.Context.run>` when it must.  A generator or async generator shares its consumer's context, so a
+    scope held across a ``yield`` applies to the consumer while the generator is suspended; leaving the scope
+    from another task or context (for example ``aclose()`` called elsewhere) never raises and changes nothing in
+    that context, but the scope then stays open in the consumer's context.  Open and close a scope within one
+    step of a generator.
 
     Args:
         enabled: Whether deferring deprecations raise inside the block.

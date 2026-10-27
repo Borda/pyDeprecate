@@ -103,6 +103,34 @@ async def _unscoped_task_outcome(wrapper: Callable[[int], int]) -> str:
     return _call_outcome(wrapper)
 
 
+async def _shared_scope_outcomes(wrapper: Callable[[int], int]) -> list[str]:
+    """Two tasks enter one shared scope object inside different outer scopes and leave it out of order.
+
+    Task ``exempt`` runs under ``as_exceptions(False)``, task ``strict`` under ``as_exceptions(True)``; both enter
+    the same ``as_exceptions(True)`` object and hold it across an ``await``. ``exempt`` leaves the shared scope
+    first, while ``strict`` is still inside it. Each task then reports its own outer setting.
+    """
+    shared = as_exceptions()
+    exempt_entered, exempt_left = asyncio.Event(), asyncio.Event()
+
+    async def exempt() -> str:
+        with as_exceptions(False):
+            with shared:
+                exempt_entered.set()
+                await asyncio.sleep(0)
+            exempt_left.set()
+            return _call_outcome(wrapper)
+
+    async def strict() -> str:
+        with as_exceptions():
+            await exempt_entered.wait()
+            with shared:
+                await exempt_left.wait()
+            return _call_outcome(wrapper)
+
+    return list(await asyncio.gather(exempt(), strict()))
+
+
 class TestFatalCallable:
     """A callable deprecation configured with `as_exception=True`."""
 
@@ -574,17 +602,44 @@ class TestScopedSwitch:
             inside = deprecate.AS_EXCEPTIONS
         assert (inside, deprecate.AS_EXCEPTIONS) == (False, False)
 
-    def test_exit_from_another_context_does_not_raise(self, global_off: None) -> None:
-        """Leaving a scope from a different context than the one that entered it neither raises nor stays open.
+    def test_exit_from_another_context_keeps_the_local_scope(self, global_off: None) -> None:
+        """Leaving a scope from a context that never entered it neither raises nor touches the local scopes.
 
-        A scope object entered inside a copied context (or in one task) and closed elsewhere holds a token from
-        the other context; exiting must not raise over the block's own outcome, and the strict setting must not
-        survive in the context that closed it.
+        An async generator that holds ``with as_exceptions(False):`` across a ``yield`` may be closed from another
+        task. That exit must not raise over the block's own outcome, and it must not overwrite a scope the closing
+        context has open itself: here a strict block stays strict after the foreign exit.
         """
-        scope = as_exceptions()
+        scope = as_exceptions(False)
         contextvars.copy_context().run(scope.__enter__)
-        scope.__exit__(None, None, None)
-        assert _call_outcome(depr_scoped_switch_log_stream) == "returned"
+        with as_exceptions():
+            scope.__exit__(None, None, None)
+            outcome = _call_outcome(depr_scoped_switch_log_stream)
+        assert outcome == "raised"
+
+    @pytest.mark.asyncio
+    async def test_shared_scope_object_keeps_each_task_setting(self, global_off: None) -> None:
+        """A scope object shared by two tasks that leave it out of order keeps each task's own outer setting.
+
+        Helpers keep one ``scope = as_exceptions()`` at module level and enter it from concurrent tasks. When the
+        tasks exit in the opposite order of entry, neither may inherit the other's setting: the exempt task must
+        keep warning and the strict task must keep raising.
+        """
+        assert await _shared_scope_outcomes(depr_scoped_switch_log_stream) == ["returned", "raised"]
+
+    def test_out_of_order_exit_unwinds_the_right_scope(self, global_off: None) -> None:
+        """Two scopes in one context that exit in the opposite order of entry leave the remaining scope in force.
+
+        Scopes entered by hand (``__enter__``/``__exit__``, e.g. from setup and teardown hooks) can be closed out
+        of order; closing the outer one first must remove that scope only, so the inner exemption still applies,
+        and the switch is back to the global setting once both are closed.
+        """
+        strict, exempt = as_exceptions(), as_exceptions(False)
+        strict.__enter__()
+        exempt.__enter__()
+        strict.__exit__(None, None, None)
+        middle = _call_outcome(depr_scoped_switch_log_stream)
+        exempt.__exit__(None, None, None)
+        assert (middle, _call_outcome(depr_scoped_switch_log_stream)) == ("returned", "returned")
 
     def test_one_scope_object_can_be_entered_twice(self, global_off: None) -> None:
         """Re-entering the same scope object unwinds in order and ends on the original setting.
