@@ -22,11 +22,16 @@ Copyright (C) 2020-2026 Jiri Borovec <...>.
 
 import types
 from dataclasses import replace
-from typing import cast
+from typing import Any, cast
 
 from deprecate import deprecated, void
 from deprecate._types import DeprecationConfig, TargetMode, _DeprecatedCallable
 from deprecate.proxy import _DeprecatedProxy, _ProxySpec, deprecated_class
+
+# Shared version kwargs for the misconfiguration fixtures (see the Unification pattern in CONTRIBUTING). Defined here
+# rather than imported from `tests.collections.api_deprecated`: `tests/integration/test_action.py` copies this file
+# into a standalone package, so it may import only from `deprecate`.
+_DEPRS_CASE_OLD_ARGS: dict[str, Any] = {"deprecated_in": "0.1", "remove_in": "0.5"}
 
 # Construction-time UserWarning is expected for empty/None args_mapping; it is suppressed via the
 # targeted `filterwarnings` entries in pyproject.toml (scoped by message + `deprecate._types` module).
@@ -106,9 +111,7 @@ def make_stacked_legacy_proxy() -> _DeprecatedProxy:
     return deprecated_class(deprecated_in="0.13", remove_in="1.0", stream=None)(legacy_proxy)
 
 
-@deprecated(
-    target=TargetMode.ARGS_REMAP, deprecated_in="0.1", remove_in="0.5", args_mapping={"nonexistent_arg": "new_arg"}
-)
+@deprecated(target=TargetMode.ARGS_REMAP, **_DEPRS_CASE_OLD_ARGS, args_mapping={"nonexistent_arg": "new_arg"})
 def invalid_args_deprecation(real_arg: int = 1) -> int:
     """Nonexistent argument name in args_mapping.
 
@@ -120,7 +123,7 @@ def invalid_args_deprecation(real_arg: int = 1) -> int:
     return real_arg
 
 
-@deprecated(target=TargetMode.ARGS_REMAP, deprecated_in="0.1", remove_in="0.5", args_mapping={})
+@deprecated(target=TargetMode.ARGS_REMAP, **_DEPRS_CASE_OLD_ARGS, args_mapping={})
 def empty_mapping_deprecation(arg1: int = 1, arg2: int = 2) -> int:
     """Empty args_mapping dict.
 
@@ -131,7 +134,7 @@ def empty_mapping_deprecation(arg1: int = 1, arg2: int = 2) -> int:
     return arg1 + arg2
 
 
-@deprecated(target=TargetMode.ARGS_REMAP, deprecated_in="0.1", remove_in="0.5", args_mapping=None)
+@deprecated(target=TargetMode.ARGS_REMAP, **_DEPRS_CASE_OLD_ARGS, args_mapping=None)
 def none_mapping_deprecation(arg1: int = 1, arg2: int = 2) -> int:
     """`None` passed as `args_mapping`.
 
@@ -142,7 +145,7 @@ def none_mapping_deprecation(arg1: int = 1, arg2: int = 2) -> int:
     return arg1 + arg2
 
 
-@deprecated(target=TargetMode.ARGS_REMAP, deprecated_in="0.1", remove_in="0.5", args_mapping={"arg1": "arg1"})
+@deprecated(target=TargetMode.ARGS_REMAP, **_DEPRS_CASE_OLD_ARGS, args_mapping={"arg1": "arg1"})
 def identity_mapping_deprecation(arg1: int = 1, arg2: int = 2) -> int:
     """Single identity mapping (arg mapped to itself).
 
@@ -153,9 +156,7 @@ def identity_mapping_deprecation(arg1: int = 1, arg2: int = 2) -> int:
     return arg1 + arg2
 
 
-@deprecated(
-    target=TargetMode.ARGS_REMAP, deprecated_in="0.1", remove_in="0.5", args_mapping={"arg1": "arg1", "arg2": "arg2"}
-)
+@deprecated(target=TargetMode.ARGS_REMAP, **_DEPRS_CASE_OLD_ARGS, args_mapping={"arg1": "arg1", "arg2": "arg2"})
 def all_identity_mapping_deprecation(arg1: int = 1, arg2: int = 2) -> int:
     """All arguments are identity mapped.
 
@@ -168,8 +169,7 @@ def all_identity_mapping_deprecation(arg1: int = 1, arg2: int = 2) -> int:
 
 @deprecated(
     target=TargetMode.ARGS_REMAP,
-    deprecated_in="0.1",
-    remove_in="0.5",
+    **_DEPRS_CASE_OLD_ARGS,
     args_mapping={"arg1": "arg1", "arg2": "new_arg2"},
 )
 def partial_identity_mapping_deprecation(arg1: int = 1, arg2: int = 0, new_arg2: int = 2) -> int:
@@ -188,7 +188,7 @@ def _self_ref_target(a: int = 1, b: int = 2) -> int:
     return a + b
 
 
-@deprecated(target=_self_ref_target, deprecated_in="0.1", remove_in="0.5", args_mapping={"old_arg": "new_arg"})
+@deprecated(target=_self_ref_target, **_DEPRS_CASE_OLD_ARGS, args_mapping={"old_arg": "new_arg"})
 def self_referencing_deprecation(old_arg: int = 1, new_arg: int = 2) -> int:
     """Self-referencing deprecation (wrapper targets itself).
 
@@ -218,13 +218,13 @@ self_ref_typed.__deprecation_config__ = replace(deprecated_info, target=self_ref
 # ---------------------------------------------------------------------------
 
 
-@deprecated(target=False, deprecated_in="0.1", remove_in="0.5")
+@deprecated(target=False, **_DEPRS_CASE_OLD_ARGS)
 def target_false_deprecation(x: int = 1) -> int:
     """``target=False`` is not valid — audit should flag as misconfigured_target."""
     return x
 
 
-@deprecated(target=TargetMode.NOTIFY, deprecated_in="0.1", remove_in="0.5", args_mapping={"old_x": "x"})
+@deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_OLD_ARGS, args_mapping={"old_x": "x"})
 def whole_with_mapping_deprecation(x: int = 1) -> int:
     """NOTIFY + args_mapping — mapping ignored; emits UserWarning at decoration time.
 
@@ -251,13 +251,13 @@ def make_notify_mapping_no_budget() -> _DeprecatedCallable:
     return cast(_DeprecatedCallable, wrapper)
 
 
-@deprecated(target=TargetMode.ARGS_REMAP, deprecated_in="0.1", remove_in="0.5")
+@deprecated(target=TargetMode.ARGS_REMAP, **_DEPRS_CASE_OLD_ARGS)
 def args_only_no_mapping_deprecation(x: int = 1) -> int:
     """ARGS_REMAP without args_mapping — no-op; audit flags misconfigured_target."""
     return x
 
 
-@deprecated(target=TargetMode.NOTIFY, deprecated_in="0.1", remove_in="0.5", args_extra={"bias": 1})
+@deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_OLD_ARGS, args_extra={"bias": 1})
 def whole_with_args_extra_deprecation(x: int = 1) -> int:
     """NOTIFY + args_extra — extra ignored; emits UserWarning at decoration time.
 
@@ -267,13 +267,13 @@ def whole_with_args_extra_deprecation(x: int = 1) -> int:
     return x
 
 
-@deprecated(target=TargetMode.NOTIFY, deprecated_in="0.1", remove_in="0.5")
+@deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_OLD_ARGS)
 def whole_clean_deprecation(x: int = 1) -> int:
     """NOTIFY with no args_mapping — correctly configured; audit should not flag."""
     return x
 
 
-@deprecated(target=TargetMode.ARGS_REMAP, deprecated_in="0.1", remove_in="0.5", args_mapping={"old_x": "x"})
+@deprecated(target=TargetMode.ARGS_REMAP, **_DEPRS_CASE_OLD_ARGS, args_mapping={"old_x": "x"})
 def args_only_clean_deprecation(x: int = 1) -> int:
     """ARGS_REMAP with args_mapping — correctly configured; audit should not flag."""
     return x
@@ -326,7 +326,7 @@ def make_class_target_false() -> type:
 
     """
 
-    @deprecated(target=False, deprecated_in="0.1", remove_in="0.5")
+    @deprecated(target=False, **_DEPRS_CASE_OLD_ARGS)
     class _FalseTargetClass:
         """Source class with no replacement target — invalid configuration."""
 
@@ -347,6 +347,25 @@ def no_version_deprecation(x: int = 1) -> int:
     return x
 
 
+def make_malformed_remove_in_wrapper() -> _DeprecatedCallable:
+    """Build a fresh legacy ``target=None`` wrapper whose ``remove_in`` is not a version string.
+
+    A factory rather than a module-level wrapper, so the audit scans of this module never meet the unparsable
+    ``remove_in``.
+
+    Examples:
+        Developer types a placeholder such as ``"not-semver"`` for ``remove_in``; the expiry check must reject it with
+        an error naming the callable.
+
+    """
+
+    @deprecated(target=None, deprecated_in="1.0", remove_in="not-semver")
+    def _bad_version_fn() -> None:
+        pass
+
+    return cast(_DeprecatedCallable, _bad_version_fn)
+
+
 def make_class_target_false_with_args_mapping() -> type:
     """Build a class deprecation with ``target=False`` and ``args_mapping``.
 
@@ -355,7 +374,7 @@ def make_class_target_false_with_args_mapping() -> type:
 
     """
 
-    @deprecated(target=False, deprecated_in="0.1", remove_in="0.5", args_mapping={"old": "new"})
+    @deprecated(target=False, **_DEPRS_CASE_OLD_ARGS, args_mapping={"old": "new"})
     class _FalseTargetWithArgsMappingClass:
         """Source class with invalid target sentinel and args_mapping."""
 

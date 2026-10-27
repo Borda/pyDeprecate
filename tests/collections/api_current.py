@@ -1438,6 +1438,15 @@ class LocCustomModuleType(types.ModuleType):
     """Module subclass standing in for a lazy loader's module class, which ``deprecated_module`` overwrites."""
 
 
+class _SlottedModuleType(types.ModuleType):
+    """Custom module subclass with an incompatible ``__slots__`` layout.
+
+    Stands in for a memory-optimized module shim; ``deprecated_module`` cannot swap ``__class__`` on its instances.
+    """
+
+    __slots__ = ("extra_slot",)
+
+
 def stream_message_only(msg: str) -> None:
     """Stream that takes only the message, like a ``print``-style sink with no ``stacklevel`` support."""
 

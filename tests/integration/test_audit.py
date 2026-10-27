@@ -21,7 +21,6 @@ import tests.collections.misconfigured as sample_module
 from deprecate import (
     DeprecatedCallableInfo,
     TableStyle,
-    TargetMode,
     deprecated,
     find_deprecated_callables,
     validate_deprecated_callable,
@@ -451,21 +450,9 @@ class TestFindDeprecatedWrappers:
     def test_scan_class_no_recursion_on_self_referential_class(self) -> None:
         """Member scanning terminates and finds exactly one result on a self-referential class."""
         mod = types.ModuleType("selfref_test_module")
-
-        def _new_compute(x: int) -> int:
-            return x
-
-        class SelfRef:
-            """A class that holds a reference to itself as a class attribute."""
-
-            # one-off mechanical fixture: wrapper belongs to a dynamically-built class attached to types.ModuleType
-            @deprecated(target=_new_compute, deprecated_in="1.0", remove_in="2.0")
-            def old_compute(self, x: int) -> None:
-                """Deprecated redirect."""
-
-        SelfRef.__module__ = "selfref_test_module"
-        SelfRef.cls_ref = SelfRef  # type: ignore[attr-defined]
-        mod.SelfRef = SelfRef  # type: ignore[attr-defined]
+        self_ref_cls = proxy_module.make_self_referential_class()
+        self_ref_cls.__module__ = "selfref_test_module"
+        mod.SelfRef = self_ref_cls  # type: ignore[attr-defined]
 
         result = find_deprecation_wrappers(mod, include_members=True, recursive=False)
         assert len(result) == 1
@@ -848,13 +835,7 @@ class TestGenerateDeprecationMarkdown:
 
         mod = types.ModuleType("deprecate")
         mod.__name__ = "deprecate"  # type: ignore[attr-defined]
-
-        # one-off mechanical fixture: wrapper must live in a fake module with a specific __name__ for this test
-        @deprecated(target=TargetMode.NOTIFY, deprecated_in="0.1", remove_in="0.2")
-        def _old_fn() -> None:
-            """Old."""
-
-        mod._old_fn = _old_fn  # type: ignore[attr-defined]
+        mod._old_fn = proxy_module.make_installed_version_notify_wrapper()  # type: ignore[attr-defined]
         report = generate_deprecation_table(mod, current_version=None, recursive=False)
         # With no version resolving (mod.__name__=="deprecate" but it's a fake module object),
         # status degrades to Status Unknown — that's fine; the path is exercised without crash.
@@ -879,12 +860,7 @@ class TestGenerateDeprecationMarkdown:
     def test_markdown_invalid_removal_target_status(self) -> None:
         """Symbol with unparsable remove_in produces Invalid Removal Target status."""
         mod = types.ModuleType("test_bad_remove")
-
-        # one-off mechanical fixture: wrapper with invalid remove_in must be in a controlled fake module
-        @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="not-a-version")
-        def bad_remove() -> None:
-            """Bad remove_in."""
-
+        bad_remove = proxy_module.make_loc_audit_wrapper("not-a-version")
         # find_deprecation_wrappers attributes wrappers to their defining module; align the wrapper's
         # __module__ with the fake module so the re-export filter keeps it (mirrors the class fixtures).
         bad_remove.__module__ = mod.__name__
@@ -965,12 +941,7 @@ class TestCheckDeprecationExpiry:
 
     def test_invalid_remove_in_raises_value_error(self) -> None:
         """Callable with a malformed remove_in string raises ValueError naming the callable."""
-
-        # one-off mechanical fixture: wrapper with malformed remove_in must be created inline for direct inspection
-        @deprecated(target=None, deprecated_in="1.0", remove_in="not-semver")
-        def _bad_version_fn() -> None:
-            pass
-
+        _bad_version_fn = sample_module.make_malformed_remove_in_wrapper()
         with pytest.raises(ValueError, match="Invalid remove_in.*_bad_version_fn"):
             _check_deprecated_wrapper_expiry(_bad_version_fn, "1.0")
 
