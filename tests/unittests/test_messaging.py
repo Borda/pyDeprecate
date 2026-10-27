@@ -34,6 +34,7 @@ from deprecate.messaging import (
     _validate_message_template,
 )
 from deprecate.utils import _partial_chain
+from tests._helpers import captured_warnings
 from tests.collections.api_current import (
     CallableAdder,
     EqualMessageOnlyStream,
@@ -788,8 +789,7 @@ class TestEmit:
         Every emitter in the package routes custom streams through ``_emit``, which walks past its own frame and
         any other ``deprecate`` frame; called straight from this test, the warning must land in this file.
         """
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             _emit(stream, "old is deprecated")
         assert len(caught) == 1
         assert caught[0].filename.endswith("test_messaging.py")

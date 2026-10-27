@@ -16,6 +16,7 @@ import warnings
 import pytest
 
 from deprecate.proxy import _DeprecatedProxy, _ProxySpec, deprecated_class
+from tests._helpers import captured_warnings
 from tests.collections.api_current import (
     SelfDeprecatedModel,
     StackingArgsAttrsBase,
@@ -96,8 +97,7 @@ class TestStackedDeprecatedClass:
             )
         )
 
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             outer_proxy()  # instantiate
 
         future_warns = [w for w in caught if issubclass(w.category, FutureWarning)]
@@ -214,8 +214,7 @@ class TestStackingCombinations:
             )
         )
 
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             value = proxy.canonical
 
         future_warns = [w for w in caught if issubclass(w.category, FutureWarning)]
@@ -238,14 +237,12 @@ class TestStackingCombinations:
 
         outer = deprecated_class(deprecated_in="2.0", remove_in="3.0", num_warns=-1)(inner)  # type: ignore[arg-type]
 
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             _ = outer.colour  # canonical — outer warns, inner silent
         future_warns = [w for w in caught if issubclass(w.category, FutureWarning)]
         assert len(future_warns) == 1
 
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             _ = outer.color  # type: ignore[attr-defined]  # deprecated alias — outer + inner warn
         future_warns = [w for w in caught if issubclass(w.category, FutureWarning)]
         assert len(future_warns) == 2
@@ -292,8 +289,7 @@ class TestStackingCombinations:
             )
         )
 
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             proxy()
 
         future_warns = [w for w in caught if issubclass(w.category, FutureWarning)]

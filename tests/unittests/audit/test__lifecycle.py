@@ -344,8 +344,9 @@ class TestCheckExpiryForCallables:
         assert "fn" in expired[0]
 
     def test_invalid_remove_in_skipped(self) -> None:
-        """Wrappers with non-PEP-440 remove_in are silently skipped."""
+        """Wrappers with non-PEP-440 remove_in are skipped."""
         config = DeprecationConfig(deprecated_in="1.0", remove_in="not-a-version")
         results = [DeprecationWrapperInfo(module="mod", function="fn", deprecated_info=config)]
-        expired = _check_expiry_for_callables(results, "2.0")
+        with pytest.warns(UserWarning, match="unparsable"):
+            expired = _check_expiry_for_callables(results, "2.0")
         assert expired == []
