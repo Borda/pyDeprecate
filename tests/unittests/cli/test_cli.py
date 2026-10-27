@@ -386,35 +386,10 @@ class TestCliBoolFlags:
         assert "one path per run" in capsys.readouterr().err
 
 
-class TestInternalOptionRejection:
-    """Underscore-prefixed parameters are in-process plumbing and are rejected at the command line."""
+class TestAllPolicyAdvisory:
+    """``all`` runs its policy pass in advisory mode from the command line."""
 
-    @pytest.mark.parametrize(
-        "option",
-        [
-            pytest.param("--_advisory=yes", id="non-bool-value"),
-            pytest.param("--_advisory=True", id="bool-value"),
-            pytest.param("--_advisory", id="bare"),
-        ],
-    )
-    def test_internal_option_exits_two(self, option: str, capsys: pytest.CaptureFixture[str]) -> None:
-        """``policy pkg --_advisory=<anything>`` exits 2 without running the subcommand.
-
-        Fire exposed the keyword-only ``_advisory`` of ``cmd_policy`` as a flag, so a typed value used to reach it
-        unvalidated and silently turned a gating policy run into an advisory one; the parser never declares it.
-
-        """
-        with (
-            patch("sys.argv", ["pydeprecate", "policy", "some_module", option]),
-            patch("deprecate._cli.commands.cmd_policy", autospec=True, return_value=0) as mock_policy,
-            pytest.raises(SystemExit) as exc_info,
-        ):
-            cli()
-        assert exc_info.value.code == 2
-        mock_policy.assert_not_called()
-        assert "--_advisory" in capsys.readouterr().err
-
-    @patch("deprecate._cli.commands.cmd_status", return_value=0)
+    @patch("deprecate._cli.commands._status_table", return_value="")
     @patch("deprecate._cli.commands._expiry_findings", return_value=[])
     @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[_POLICY_VIOLATION])
     def test_all_stays_advisory(
@@ -422,8 +397,8 @@ class TestInternalOptionRejection:
     ) -> None:
         """``all pkg`` still runs its policy pass in advisory mode and exits 0 despite a violation.
 
-        ``cmd_all`` passes ``_advisory=True`` in process, which the command-line rejection must not disturb: the
-        violation prints as a warning with the advisory trailer and does not gate the run.
+        The advisory switch is no command-line option, only ``all`` turns it on: the violation prints as a warning
+        with the advisory trailer and does not gate the run.
 
         """
         with (

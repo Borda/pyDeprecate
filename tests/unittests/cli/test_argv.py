@@ -19,7 +19,7 @@ from deprecate._cli.argv import (
     _parse_cli_args,
     _parse_switchable,
 )
-from deprecate._cli.commands import cmd_all, cmd_check, cmd_expiry, cmd_policy, cmd_status
+from deprecate._cli.commands import cmd_all, cmd_check, cmd_expiry, cmd_policy
 
 _CHECK_BOOL_PARAMS = frozenset({"exit_zero", "recursive"})
 
@@ -57,7 +57,6 @@ class TestNormalizeOptions:
             pytest.param(["--min_grace=0.10"], ["--min-grace=0.10"], id="value-option-respelled"),
             pytest.param(["--report_json=a_b.json"], ["--report-json=a_b.json"], id="value-keeps-underscores"),
             pytest.param(["--verbose", "0"], ["--verbose", "0"], id="unknown-flag-untouched"),
-            pytest.param(["--_advisory", "--_advisory=True"], ["--_advisory", "--_advisory=True"], id="internal"),
             pytest.param(["-r", "pkg"], ["-r", "pkg"], id="short-flag-untouched"),
         ],
     )
@@ -66,7 +65,7 @@ class TestNormalizeOptions:
 
         Respelling is what lets a pre-commit hook put a flag before the path (argparse would otherwise take the path
         as the optional value of a bare flag) and keeps the underscore spellings Fire accepted. An argument it does
-        not recognise must pass through byte for byte so argparse still rejects typos and internal options.
+        not recognise must pass through byte for byte so argparse still rejects typos.
 
         """
         assert _normalize_options(argv, _CHECK_BOOL_PARAMS) == expected
@@ -172,23 +171,16 @@ class TestCliCommand:
         """Only the path and, where the subcommand compares against one, the version are positional operands."""
         assert _cli_command(name).positionals == expected
 
-    @pytest.mark.parametrize(
-        ("command", "name", "hidden"),
-        [
-            pytest.param(cmd_expiry, "expiry", "_version_explicit", id="expiry"),
-            pytest.param(cmd_policy, "policy", "_advisory", id="policy"),
-            pytest.param(cmd_status, "status", "_version_explicit", id="status"),
-        ],
-    )
-    def test_underscore_boolean_is_not_a_flag(self, command: Callable[..., int], name: str, hidden: str) -> None:
-        """A ``bool``-annotated underscore parameter stays out of the flag set.
+    @pytest.mark.parametrize("name", ["check", "expiry", "policy", "chains", "all", "status"])
+    def test_every_parameter_is_an_option(self, name: str) -> None:
+        """Every parameter of a ``cmd_*`` function is a command-line operand or option, none is in-process plumbing.
 
-        ``cmd_all`` passes ``_advisory=True`` and ``_version_explicit`` to its siblings in process; they are not
-        part of the command-line surface, so the filter on the leading underscore is what keeps them out.
+        The parser is built from these signatures, so a parameter only ``cmd_all`` passes (pre-scanned wrappers, an
+        advisory switch) would need hiding from the command line; such inputs belong to the private helpers instead.
 
         """
-        assert inspect.signature(command).parameters[hidden].annotation is bool
-        assert hidden not in _cli_command(name).bool_params
+        params = inspect.signature(_cli_command(name).function).parameters
+        assert [param for param in params if param.startswith("_")] == []
 
     @pytest.mark.parametrize(
         ("command", "name", "other_flag"),
@@ -299,7 +291,6 @@ class TestParseCliArgs:
         ("argv", "message"),
         [
             pytest.param(["check", "pkg_a", "pkg_b"], "pass one path per run", id="second-path"),
-            pytest.param(["check", "pkg", "--_advisory"], "unrecognized arguments: --_advisory", id="internal"),
             pytest.param(["check", "pkg", "--exit"], "unrecognized arguments: --exit", id="no-abbreviation"),
             pytest.param(["check", "pkg", "--exit-zero=yes"], "expects True or False", id="bad-bool"),
             pytest.param(["check", "pkg", "--no-exit-zero=1"], "ignored explicit argument", id="negation-value"),

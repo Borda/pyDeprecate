@@ -1,9 +1,8 @@
 """Command-line parsing for the CLI: UTF-8 streams and the ``argparse`` parser of every subcommand.
 
 The parser is built from the ``cmd_*`` signatures, so a subcommand's options and its direct-call keyword arguments are
-one list: ``path`` (and ``version`` where the subcommand takes it) are positional, every other public parameter is a
-``--flag``, and underscore-prefixed parameters are in-process plumbing for ``cmd_all`` that never reaches the command
-line. Option values stay strings; only boolean flags are converted, from ``true``/``false``/``1``/``0``.
+one list: ``path`` (and ``version`` where the subcommand takes it) are positional and every other parameter is a
+``--flag``. Option values stay strings; only boolean flags are converted, from ``true``/``false``/``1``/``0``.
 
 """
 
@@ -112,8 +111,6 @@ class _CliCommand(NamedTuple):
 def _cli_command(name: str) -> _CliCommand:
     """Describe the ``cmd_<name>`` function: which parameters are positional and which are boolean flags.
 
-    Underscore-prefixed parameters are internal (``cmd_all`` plumbing) and are neither.
-
     Examples:
         >>> command = _cli_command("expiry")
         >>> command.positionals, sorted(command.bool_params)
@@ -125,17 +122,19 @@ def _cli_command(name: str) -> _CliCommand:
     return _CliCommand(
         function,
         tuple(param for param in _POSITIONALS if param in params),
-        frozenset(
-            param_name
-            for param_name, param in params.items()
-            if param.annotation in (bool, _ConfigBool) and not param_name.startswith("_")
-        ),
+        frozenset(param_name for param_name, param in params.items() if param.annotation in (bool, _ConfigBool)),
     )
 
 
 def _flag(name: str) -> str:
-    """Return the option spelling of a parameter name: ``exit_zero`` → ``exit-zero``."""
-    return name.replace("_", "-")
+    """Return the option spelling of a parameter or option name: underscores between words become dashes.
+
+    Examples:
+        >>> _flag("exit_zero"), _flag("report_json")
+        ('exit-zero', 'report-json')
+
+    """
+    return re.sub(r"(?<=[A-Za-z0-9])_(?=[A-Za-z0-9])", "-", name)
 
 
 def _docstring_parts(function: Callable[..., int]) -> tuple[str, dict[str, str]]:
@@ -178,7 +177,7 @@ def _add_subcommand(subparsers: Any, name: str) -> argparse.ArgumentParser:  # n
             help=helps.get(positional),
         )
     for param_name, param in inspect.signature(command.function).parameters.items():
-        if param_name in ("path",) or param_name.startswith("_"):
+        if param_name == "path":
             continue
         flag = _flag(param_name)
         if param_name in command.bool_params:
@@ -245,8 +244,8 @@ def _build_parser() -> tuple[argparse.ArgumentParser, dict[str, argparse.Argumen
 def _normalize_options(argv: Sequence[str], bool_params: frozenset[str]) -> list[str]:
     """Respell options for argparse: dashes in every name, and every boolean flag with its value attached.
 
-    Both spellings of an option name are accepted (``--exit_zero`` and ``--exit-zero``), so underscores in a name
-    become dashes; an internal ``--_name`` option keeps its spelling and is rejected as unknown. A boolean flag takes
+    Both spellings of an option name are accepted (``--exit_zero`` and ``--exit-zero``), so underscores between the
+    words of a name become dashes; any other spelling passes through for argparse to judge. A boolean flag takes
     an optional value, and argparse would take *any* next argument as that value, swallowing the path in
     ``check --exit-zero src/pkg``; so a bare flag becomes ``--flag=true``, and only a following ``true``, ``false``,
     ``1`` or ``0`` (any case) is consumed as its value. Everything after a ``--`` separator is left untouched.
@@ -254,8 +253,8 @@ def _normalize_options(argv: Sequence[str], bool_params: frozenset[str]) -> list
     Examples:
         >>> _normalize_options(["--exit_zero", "src/pkg", "--recursive", "0"], frozenset({"exit_zero", "recursive"}))
         ['--exit-zero=true', 'src/pkg', '--recursive=0']
-        >>> _normalize_options(["--report_json=a_b.json", "--_advisory"], frozenset())
-        ['--report-json=a_b.json', '--_advisory']
+        >>> _normalize_options(["--report_json=a_b.json"], frozenset())
+        ['--report-json=a_b.json']
 
     """
     bool_flags = {_flag(name) for name in bool_params}
@@ -266,7 +265,7 @@ def _normalize_options(argv: Sequence[str], bool_params: frozenset[str]) -> list
         idx += 1
         if arg == "--":
             return [*result, arg, *argv[idx:]]
-        if not arg.startswith("--") or arg.startswith("--_"):
+        if not arg.startswith("--"):
             result.append(arg)
             continue
         name, sep, value = arg[2:].partition("=")

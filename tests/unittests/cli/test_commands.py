@@ -3,18 +3,37 @@
 import inspect
 import sys
 from collections.abc import Callable, Iterator
+from contextlib import AbstractContextManager
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from deprecate._cli.commands import cmd_all, cmd_chains, cmd_check, cmd_expiry, cmd_policy, cmd_status
+from deprecate._cli.commands import (
+    _chain_wrappers,
+    _check_wrappers,
+    _expiry_wrappers,
+    _policy_wrappers,
+    _status_table,
+    cmd_all,
+    cmd_chains,
+    cmd_check,
+    cmd_expiry,
+    cmd_policy,
+    cmd_status,
+)
 from deprecate._cli.config import _FROM_PYPROJECT, _POLICY_DEFAULTS, _ConfigFlag
-from deprecate._cli.report import _GapKind, _record_run
+from deprecate._cli.report import _GapKind, _record_run, _ScanRecord
 from deprecate._cli.scan import _ScanError
 from deprecate._types import DeprecationConfig, TargetMode
-from deprecate.audit import ChainType, DeprecationWrapperInfo, PolicyRule, validate_deprecation_policy
+from deprecate.audit import ChainType, DeprecationWrapperInfo, PolicyRule, TableStyle, validate_deprecation_policy
+from deprecate.audit._policy import _build_policy_spec
 from tests.unittests.cli._helpers import _EXPIRED_FINDING, _MESSAGE_REQUIRED_FINDING, _POLICY_VIOLATION
+
+
+def _scanned(wrappers: list[DeprecationWrapperInfo]) -> AbstractContextManager[MagicMock]:
+    """Make the subcommands' scan prologue return *wrappers* without importing anything."""
+    return patch("deprecate._cli.commands._scan_for_command", return_value=_ScanRecord("some_module", wrappers, None))
 
 
 @pytest.fixture(autouse=True)
@@ -210,7 +229,7 @@ class TestCmdCheckScanning:
         property leaves its setter and deleter without a warning.
 
         """
-        assert cmd_check(path="some_module", _wrappers=[info]) == 1
+        assert _check_wrappers([info]) == 1
         out = capsys.readouterr().out
         assert header in out
         assert line in out
@@ -328,7 +347,7 @@ class TestCmdExclude:
         assert "`excludes`" in capsys.readouterr().err
         assert mock_find.call_args.kwargs["exclude"] == []
 
-    @patch("deprecate._cli.commands.cmd_status", return_value=0)
+    @patch("deprecate._cli.commands._status_table", return_value="")
     @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
     def test_all_loads_config_once(
         self, mock_find: MagicMock, mock_status: MagicMock, tmp_path: Path, capsys: pytest.CaptureFixture[str]
@@ -376,13 +395,6 @@ class TestCmdCheck:
         """Invalid args still cause exit 1 in check subcommand."""
         mock_find.return_value = [_INVALID_ARGS]
         assert cmd_check(path="some_module") == 1
-
-    def test_pre_scanned_wrappers_skips_scan(self) -> None:
-        """_wrappers provided → find_deprecation_wrappers not called."""
-        with patch("deprecate._cli.scan.find_deprecation_wrappers") as mock_find:
-            result = cmd_check(path="some_module", _wrappers=[])
-        mock_find.assert_not_called()
-        assert result == 0
 
 
 # ---------------------------------------------------------------------------
@@ -433,12 +445,7 @@ class TestCmdExpiry:
         degrades to an advisory skip naming the version it could not read.
         """
         mock_expiry.side_effect = ValueError("Invalid version: '2024.06-nightly'")
-        result = cmd_expiry(
-            path="some_module",
-            version="2024.06-nightly",
-            _wrappers=[DeprecationWrapperInfo(module="mod", function="fn")],
-            _version_explicit=False,
-        )
+        result = _expiry_wrappers([DeprecationWrapperInfo(module="mod", function="fn")], "2024.06-nightly")
         assert result == 0
         assert "2024.06-nightly" in capsys.readouterr().err
 
@@ -493,19 +500,12 @@ class TestCmdExpiry:
         cmd_expiry(path="some_module", version="2.0")
         assert "expired" in capsys.readouterr().out.lower()
 
-    def test_pre_scanned_wrappers_skips_scan(self) -> None:
-        """_wrappers=[] provided → no scan; returns 0."""
-        with patch("deprecate._cli.scan.find_deprecation_wrappers") as mock_scan:
-            result = cmd_expiry(path="some_module", version="1.0", _wrappers=[])
-        mock_scan.assert_not_called()
-        assert result == 0
-
     def test_pre_scanned_wrappers_expired_exits_one(self) -> None:
         """_wrappers with an expired wrapper and matching version → returns 1."""
         config = DeprecationConfig(deprecated_in="1.0", remove_in="2.0")
         wrapper = DeprecationWrapperInfo(module="mod", function="fn", deprecated_info=config)
         with patch("deprecate._cli.scan.find_deprecation_wrappers") as mock_scan:
-            result = cmd_expiry(path="some_module", version="2.0", _wrappers=[wrapper])
+            result = _expiry_wrappers([wrapper], "2.0")
         mock_scan.assert_not_called()
         assert result == 1
 
@@ -523,7 +523,7 @@ class TestCmdExpiry:
             deprecated_info=DeprecationConfig(deprecated_in="1.0", remove_in="next-release"),
         )
         with _record_run() as record, pytest.warns(UserWarning, match="unparsable `remove_in`"):
-            result = cmd_expiry(path="some_module", version="2.0", _wrappers=[typo])
+            result = _expiry_wrappers([typo], "2.0")
 
         ((kind, detail),) = record.gaps
         assert result == 0
@@ -549,7 +549,7 @@ class TestCmdExpiry:
             deprecated_info=DeprecationConfig(deprecated_in="1.0", remove_in="2.0"),
         )
         with _record_run() as record, pytest.warns(UserWarning, match="unparsable `remove_in`"):
-            result = cmd_expiry(path="some_module", version="2.0", _wrappers=[typo, overdue])
+            result = _expiry_wrappers([typo, overdue], "2.0")
 
         assert result == 1
         assert [kind for kind, _ in record.gaps] == [_GapKind.REMOVE_IN_INVALID]
@@ -571,7 +571,7 @@ class TestCmdExpiry:
             deprecated_info=DeprecationConfig(deprecated_in="1.0"),
         )
         with _record_run() as record:
-            result = cmd_expiry(path="some_module", version="2.0", _wrappers=[scheduled, unscheduled])
+            result = _expiry_wrappers([scheduled, unscheduled], "2.0")
 
         assert result == 0
         assert record.gaps == []
@@ -589,7 +589,7 @@ class TestCmdExpiry:
             deprecated_info=DeprecationConfig(deprecated_in="1.0", remove_in="next-release"),
         )
         with _record_run() as record:
-            result = cmd_expiry(path="some_module", version="not-a-version", _wrappers=[typo], _version_explicit=False)
+            result = _expiry_wrappers([typo], "not-a-version")
 
         assert result == 0
         assert [kind for kind, _ in record.gaps] == [_GapKind.VERSION_INVALID]
@@ -597,7 +597,7 @@ class TestCmdExpiry:
     def test_pre_scanned_wrappers_version_none_skips(self, capsys: pytest.CaptureFixture[str]) -> None:
         """_wrappers provided but version=None → warns on stderr and returns 0."""
         with patch("deprecate._cli.scan.find_deprecation_wrappers") as mock_scan:
-            result = cmd_expiry(path="some_module", version=None, _wrappers=[])
+            result = _expiry_wrappers([], None)
         mock_scan.assert_not_called()
         assert result == 0
         assert "version" in capsys.readouterr().err.lower()
@@ -680,7 +680,7 @@ class TestCmdChains:
     def test_pre_scanned_wrappers_skips_scan(self) -> None:
         """_wrappers provided → find_deprecation_wrappers not called; returns 0."""
         with patch("deprecate._cli.scan.find_deprecation_wrappers") as mock_scan:
-            result = cmd_chains(path="some_module", _wrappers=[_TARGET_CHAIN])
+            result = _chain_wrappers([_TARGET_CHAIN])
         mock_scan.assert_not_called()
         assert result == 1
 
@@ -688,7 +688,7 @@ class TestCmdChains:
         """_wrappers with no chain_type entries → returns 0."""
         plain = DeprecationWrapperInfo(module="mod", function="fn")
         with patch("deprecate._cli.scan.find_deprecation_wrappers") as mock_scan:
-            result = cmd_chains(path="some_module", _wrappers=[plain])
+            result = _chain_wrappers([plain])
         mock_scan.assert_not_called()
         assert result == 0
 
@@ -840,7 +840,7 @@ class TestCmdAll:
         mock_find.return_value = [_POLICY_VIOLATION]
         assert cmd_all(path="some_module", version="2.0") == 0
 
-    @patch("deprecate._cli.commands.cmd_status", return_value=0)
+    @patch("deprecate._cli.commands._status_table", return_value="")
     @patch("deprecate._cli.commands._expiry_findings", return_value=[])
     @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[_POLICY_VIOLATION])
     def test_policy_violations_render_as_advisory(
@@ -860,7 +860,7 @@ class TestCmdAll:
         assert "(advisory here — run `pydeprecate policy` to gate on it)" in captured.out
 
     @pytest.mark.parametrize("exit_zero", [False, True])
-    @patch("deprecate._cli.commands.cmd_status", return_value=0)
+    @patch("deprecate._cli.commands._status_table", return_value="")
     @patch("deprecate._cli.commands._expiry_findings", return_value=[])
     @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
     def test_malformed_policy_value_exits_two(
@@ -901,7 +901,7 @@ class TestCmdAll:
         assert f"Cannot read {broken}" in capsys.readouterr().err
         mock_find.assert_not_called()
 
-    @patch("deprecate._cli.commands.cmd_status", side_effect=RuntimeError("table rendering failed"))
+    @patch("deprecate._cli.commands._status_table", side_effect=RuntimeError("table rendering failed"))
     @patch("deprecate._cli.commands._expiry_findings", return_value=[])
     @patch("deprecate._cli.scan.find_deprecation_wrappers")
     def test_status_exception_does_not_affect_exit_code(
@@ -911,13 +911,13 @@ class TestCmdAll:
         mock_status: MagicMock,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        """cmd_status raising inside cmd_all must not change the aggregate exit code.
+        """The status table raising inside cmd_all must not change the aggregate exit code.
 
         The status table is a display artifact appended after the three gates. If ``generate_deprecation_table``
         or any rendering step throws, cmd_all must still report exit 0 (no issues) or exit 1 (issues found)
         based solely on the check, expiry, and chains outcomes — not on the table step crashing.
 
-        Scenario: clean scan (no wrappers, no issues) with a broken cmd_status. The aggregate must be
+        Scenario: clean scan (no wrappers, no issues) with a broken status table. The aggregate must be
         exit 0 and the failure message must appear in stderr so the user knows the table failed.
 
         """
@@ -1068,21 +1068,16 @@ class TestCmdStatus:
         assert "| A | B |" in capsys.readouterr().out
 
     @patch("deprecate._cli.commands.generate_deprecation_table", return_value="| A |")
-    def test_pre_scanned_wrappers_skip_scan(
-        self, mock_gen: MagicMock, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        """Providing _wrappers bypasses find_deprecation_wrappers."""
-        wrappers = [DeprecationWrapperInfo(module="m", function="f")]
-        pkg = tmp_path / "mypkg"
-        pkg.mkdir()
-        (pkg / "__init__.py").touch()
+    def test_table_renders_the_given_wrappers(self, mock_gen: MagicMock, capsys: pytest.CaptureFixture[str]) -> None:
+        """The table helper renders exactly the wrappers it is handed, the ones of the caller's own scan.
 
-        with patch("deprecate._cli.scan.find_deprecation_wrappers") as mock_find:
-            cmd_status(path=str(pkg), _wrappers=wrappers)
-            mock_find.assert_not_called()
+        ``all`` scans once and renders the table of that scan; rendering a re-scan instead could show wrappers the
+        gates never saw.
+        """
+        wrappers = [DeprecationWrapperInfo(module="m", function="f")]
+        _status_table(wrappers, "some_module", None, style=TableStyle("compact"), version_explicit=False)
         mock_gen.assert_called_once()
-        _, kwargs = mock_gen.call_args
-        assert kwargs.get("_wrappers") == wrappers
+        assert mock_gen.call_args.kwargs["_wrappers"] == wrappers
 
     @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
     def test_invalid_version_exits_two(self, mock_find: MagicMock, capsys: pytest.CaptureFixture[str]) -> None:
@@ -1144,7 +1139,8 @@ class TestCmdPolicy:
         This is the steady state a team lives in after adopting the gate: the run has to stay quiet and green,
         or the check gets removed from CI within a release.
         """
-        assert cmd_policy(path="some_module", _wrappers=[]) == 0
+        with _scanned([]):
+            assert cmd_policy(path="some_module") == 0
 
     def test_violations_exit_one(self) -> None:
         """A wrapper breaking a rule fails the gate so the PR that introduced it cannot merge.
@@ -1152,7 +1148,8 @@ class TestCmdPolicy:
         The message-required rule is the one a hurried deprecation trips most often — a warning shipped without
         a replacement named, which reads as complete until a caller asks what to migrate to.
         """
-        assert cmd_policy(path="some_module", _wrappers=[_POLICY_VIOLATION]) == 1
+        with _scanned([_POLICY_VIOLATION]):
+            assert cmd_policy(path="some_module") == 1
 
     def test_exit_zero_downgrades_violations(self) -> None:
         """``exit_zero=True`` reports the violations but never blocks the pipeline.
@@ -1160,7 +1157,8 @@ class TestCmdPolicy:
         Teams adopting the gate on an existing codebase run it advisory-first to see the backlog before making
         it blocking; without this the first run would fail every branch at once.
         """
-        assert cmd_policy(path="some_module", exit_zero=True, _wrappers=[_POLICY_VIOLATION]) == 0
+        with _scanned([_POLICY_VIOLATION]):
+            assert cmd_policy(path="some_module", exit_zero=True) == 0
 
     def test_invalid_grace_specification_exits_two(self, capsys: pytest.CaptureFixture[str]) -> None:
         """A malformed ``--min-grace`` reports the accepted format and exits 2 without scanning.
@@ -1168,7 +1166,8 @@ class TestCmdPolicy:
         Exit 2 (usage error) separates "you configured the gate wrong" from exit 1 ("your code broke the
         policy") — a typo must never be reported as a clean policy run.
         """
-        assert cmd_policy(path="some_module", min_grace="1 minor", _wrappers=[]) == 2
+        with _scanned([]):
+            assert cmd_policy(path="some_module", min_grace="1 minor") == 2
         assert "min_grace" in capsys.readouterr().err
 
     def test_invalid_grace_flag_never_suggests_a_table(self, capsys: pytest.CaptureFixture[str]) -> None:
@@ -1177,7 +1176,8 @@ class TestCmdPolicy:
         A flag value is a plain string, so ``--min-grace='{"minor": 1}'`` cannot work; an error that recommended that
         table sent the user from one rejected spelling to another.
         """
-        assert cmd_policy(path="some_module", min_grace="1 minor", _wrappers=[]) == 2
+        with _scanned([]):
+            assert cmd_policy(path="some_module", min_grace="1 minor") == 2
         err = capsys.readouterr().err
         assert "`0.0.1` (one patch)." in err
         assert "one-key table" not in err
@@ -1190,7 +1190,8 @@ class TestCmdPolicy:
         should be told what to add rather than failing on a check it never ran.
         """
         mock_policy.side_effect = [ImportError("No module named 'packaging'", name="packaging"), []]
-        assert cmd_policy(path="some_module", _wrappers=[]) == 0
+        with _scanned([]):
+            assert cmd_policy(path="some_module") == 0
         assert "pyDeprecate[audit]" in capsys.readouterr().err
 
     @patch("deprecate._cli.commands._policy_findings")
@@ -1207,7 +1208,8 @@ class TestCmdPolicy:
             [_MESSAGE_REQUIRED_FINDING],
         ]
 
-        assert cmd_policy(path="some_module", _wrappers=[_POLICY_VIOLATION]) == 1
+        with _scanned([_POLICY_VIOLATION]):
+            assert cmd_policy(path="some_module") == 1
         captured = capsys.readouterr()
         assert "message-required" in captured.out
         assert "min-grace" in captured.err
@@ -1220,8 +1222,8 @@ class TestCmdPolicy:
         thing entirely, so only genuine ``packaging`` failures are converted to the advisory path.
         """
         mock_policy.side_effect = ImportError("No module named 'user_dep'", name="user_dep")
-        with pytest.raises(ImportError, match="user_dep"):
-            cmd_policy(path="some_module", _wrappers=[])
+        with pytest.raises(ImportError, match="user_dep"), _scanned([]):
+            cmd_policy(path="some_module")
 
     def test_violations_reported_plain(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Violation messages, including the rule slug, appear in the output.
@@ -1229,7 +1231,8 @@ class TestCmdPolicy:
         The bracketed slug is what a CI log grep filters on; a renderer that dropped it would leave the log
         readable but unfilterable, which is how the old Rich table renderer behaved before its escape was added.
         """
-        cmd_policy(path="some_module", _wrappers=[_POLICY_VIOLATION])
+        with _scanned([_POLICY_VIOLATION]):
+            cmd_policy(path="some_module")
         captured = capsys.readouterr()
         assert "[ERROR] Found deprecation policy violations:" in captured.out
         assert "[message-required]" in captured.out
@@ -1239,13 +1242,14 @@ class TestCmdPolicy:
     def test_advisory_rendering_leaves_exit_code_alone(
         self, exit_zero: bool, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        """``_advisory`` changes only how violations are printed; the exit code still follows ``exit_zero``.
+        """``advisory`` changes only how violations are printed; the exit code still follows ``exit_zero``.
 
         ``all`` decides what to do with the policy result itself, so the advisory register must not quietly
-        turn into a second ``exit_zero`` — otherwise a future caller passing ``_advisory=True`` would lose the
+        turn into a second ``exit_zero`` — otherwise a future caller passing ``advisory=True`` would lose the
         truthful exit 1 that ``all`` reads and ignores on purpose.
         """
-        result = cmd_policy(path="some_module", exit_zero=exit_zero, _wrappers=[_POLICY_VIOLATION], _advisory=True)
+        spec = _build_policy_spec(None, True)
+        result = _policy_wrappers([_POLICY_VIOLATION], spec, "Policy:", exit_zero=exit_zero, advisory=True)
         captured = capsys.readouterr()
         assert result == (0 if exit_zero else 1)
         assert "[WARNING] Found deprecation policy violations:" in captured.out
@@ -1257,7 +1261,8 @@ class TestCmdPolicy:
         The flags are the escape hatch for a project whose conventions differ; if a disabled rule still fired,
         the gate could not be adopted incrementally.
         """
-        result = cmd_policy(path="some_module", min_grace=None, message_required=False, _wrappers=[_POLICY_VIOLATION])
+        with _scanned([_POLICY_VIOLATION]):
+            result = cmd_policy(path="some_module", min_grace=None, message_required=False)
         assert result == 0
 
     def test_header_names_built_in_source(self, capsys: pytest.CaptureFixture[str]) -> None:
@@ -1266,7 +1271,8 @@ class TestCmdPolicy:
         A reader of a CI log has to know which convention the gate applied and where it came from before deciding
         whether to change the code or the configuration.
         """
-        cmd_policy(path="some_module", _wrappers=[])
+        with _scanned([]):
+            cmd_policy(path="some_module")
         assert "min-grace=0.3 (built-in)" in capsys.readouterr().out
 
     def test_pyproject_table_supplies_defaults(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -1276,7 +1282,8 @@ class TestCmdPolicy:
         bare ``pydeprecate policy`` invocation — local or CI — applies the same rules without flags.
         """
         (tmp_path / "pyproject.toml").write_text("[tool.pydeprecate.policy]\nmessage-required = false\n")
-        assert cmd_policy(path=str(tmp_path), _wrappers=[_POLICY_VIOLATION]) == 0
+        with _scanned([_POLICY_VIOLATION]):
+            assert cmd_policy(path=str(tmp_path)) == 0
         assert "message-required=False (pyproject.toml)" in capsys.readouterr().out
 
     def test_flag_overrides_pyproject(self, tmp_path: Path) -> None:
@@ -1286,7 +1293,8 @@ class TestCmdPolicy:
         silently overruled by the file, or the flag would become a no-op nobody can trust.
         """
         (tmp_path / "pyproject.toml").write_text("[tool.pydeprecate.policy]\nmessage-required = false\n")
-        assert cmd_policy(path=str(tmp_path), message_required=True, _wrappers=[_POLICY_VIOLATION]) == 1
+        with _scanned([_POLICY_VIOLATION]):
+            assert cmd_policy(path=str(tmp_path), message_required=True) == 1
 
     def test_pyproject_false_disables_grace_window(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         """``min-grace = false`` in TOML stands in for the ``None`` a flag would pass.
@@ -1295,7 +1303,8 @@ class TestCmdPolicy:
         and must reach the engine as a disabled window rather than as a malformed delta (exit 2).
         """
         (tmp_path / "pyproject.toml").write_text("[tool.pydeprecate.policy]\nmin-grace = false\n")
-        assert cmd_policy(path=str(tmp_path), _wrappers=[]) == 0
+        with _scanned([]):
+            assert cmd_policy(path=str(tmp_path)) == 0
         assert "min-grace=None (pyproject.toml)" in capsys.readouterr().out
 
     def test_malformed_pyproject_value_exits_two_naming_file(
@@ -1307,7 +1316,8 @@ class TestCmdPolicy:
         reader hunting through flags that were never typed.
         """
         (tmp_path / "pyproject.toml").write_text('[tool.pydeprecate.policy]\nmin-grace = "1.2"\n')
-        assert cmd_policy(path=str(tmp_path), _wrappers=[]) == 2
+        with _scanned([]):
+            assert cmd_policy(path=str(tmp_path)) == 2
         assert "pyproject.toml" in capsys.readouterr().err
 
     def test_non_bool_message_required_exits_two(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -1317,7 +1327,8 @@ class TestCmdPolicy:
         meant to switch off; rejecting it keeps a typo from silently inverting the configuration.
         """
         (tmp_path / "pyproject.toml").write_text('[tool.pydeprecate.policy]\nmessage-required = "no"\n')
-        assert cmd_policy(path=str(tmp_path), _wrappers=[]) == 2
+        with _scanned([]):
+            assert cmd_policy(path=str(tmp_path)) == 2
         assert "message_required" in capsys.readouterr().err
 
     def test_unreadable_pyproject_exits_two_naming_file(
@@ -1331,7 +1342,8 @@ class TestCmdPolicy:
         """
         broken = tmp_path / "pyproject.toml"
         broken.write_text("[tool.pydeprecate.policy\nmin-grace = oops\n")
-        assert cmd_policy(path=str(tmp_path), _wrappers=[_POLICY_VIOLATION]) == 2
+        with _scanned([_POLICY_VIOLATION]):
+            assert cmd_policy(path=str(tmp_path)) == 2
         assert f"Cannot read {broken}" in capsys.readouterr().err
 
     def test_non_table_policy_exits_two(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -1342,7 +1354,8 @@ class TestCmdPolicy:
         stop the run and name the file.
         """
         (tmp_path / "pyproject.toml").write_text('[tool.pydeprecate]\npolicy = "strict"\n')
-        assert cmd_policy(path=str(tmp_path), _wrappers=[]) == 2
+        with _scanned([]):
+            assert cmd_policy(path=str(tmp_path)) == 2
         captured = capsys.readouterr()
         assert "`policy`" in captured.err
         assert "pyproject.toml" in captured.err
@@ -1354,7 +1367,8 @@ class TestCmdPolicy:
         force while the author believes they configured a different one.
         """
         (tmp_path / "pyproject.toml").write_text('[tool.pydeprecate.policy]\nmin_grace = "1"\n')
-        assert cmd_policy(path=str(tmp_path), _wrappers=[]) == 0
+        with _scanned([]):
+            assert cmd_policy(path=str(tmp_path)) == 0
         captured = capsys.readouterr()
         assert "`min_grace`" in captured.err
         assert "min-grace=0.3 (built-in)" in captured.out
@@ -1369,7 +1383,8 @@ class TestCmdPolicy:
         """
         (tmp_path / "pyproject.toml").write_text("[tool.pydeprecate.policy]\nmessage-required = false\n")
         monkeypatch.chdir(tmp_path)
-        assert cmd_policy(path="some_module", _wrappers=[_POLICY_VIOLATION]) == 1
+        with _scanned([_POLICY_VIOLATION]):
+            assert cmd_policy(path="some_module") == 1
         assert "(built-in)" in capsys.readouterr().out
 
     @pytest.mark.parametrize(
@@ -1399,7 +1414,8 @@ class TestCmdPolicy:
         the silent no-op the advisory exists to expose, and it names the extra that fixes it.
         """
         (tmp_path / "pyproject.toml").write_text("[tool.pydeprecate.policy]\nmessage-required = false\n")
-        assert cmd_policy(path=str(tmp_path), _wrappers=[_POLICY_VIOLATION]) == 1
+        with _scanned([_POLICY_VIOLATION]):
+            assert cmd_policy(path=str(tmp_path)) == 1
         assert "pyDeprecate[audit]" in capsys.readouterr().err
 
 

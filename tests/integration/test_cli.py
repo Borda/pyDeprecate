@@ -873,14 +873,13 @@ class TestCliParserParity:
         assert "Version: 9.0 (user-provided)" in result.stdout
 
     @pytest.mark.parametrize(("subcommand", "extra", "exit_code"), _PARITY_SUBCOMMANDS)
-    @pytest.mark.parametrize("option", ["--bogus-flag", "--_advisory", "--_wrappers=x"])
-    def test_unknown_or_internal_option_exits_two(
+    @pytest.mark.parametrize("option", ["--bogus-flag", "--exit-zeros"])
+    def test_unknown_option_exits_two(
         self, tmp_path: Path, subcommand: str, extra: tuple[str, ...], exit_code: int, option: str
     ) -> None:
-        """An unknown or an internal option exits 2 on every subcommand without scanning anything.
+        """An unknown option exits 2 on every subcommand without scanning anything.
 
-        Internal ``cmd_*`` plumbing (``_advisory``, ``_wrappers``) is never a command-line option, and a typo must fail
-        the CI step rather than run the gate with the option silently dropped.
+        A typo must fail the CI step rather than run the gate with the option silently dropped.
 
         """
         pkg = _make_pkg(tmp_path)
