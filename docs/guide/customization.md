@@ -13,11 +13,11 @@ pyDeprecate picks a deprecation message template automatically based on how you 
 
 Three built-in templates cover the common scenarios:
 
-| Template                     | When it fires                                                                           | Example output                                                                                                                   |
-| ---------------------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `TEMPLATE_WARNING_CALLABLE`  | `target` is a callable (function forwarding)                                            | `The 'score' was deprecated since v1.0 in favor of 'pkg.score_predictions'. It will be removed in v2.0.`                         |
-| `TEMPLATE_WARNING_ARGUMENTS` | `TargetMode.ARGS_REMAP` with `args_mapping` and the caller passes a deprecated argument | `The 'my_func' uses deprecated arguments: 'lr' -> 'learning_rate'. They were deprecated since v1.0 and will be removed in v2.0.` |
-| `TEMPLATE_WARNING_NO_TARGET` | `TargetMode.NOTIFY` (notice-only, no forwarding)                                        | `The 'legacy_func' was deprecated since v1.0. It will be removed in v2.0.`                                                       |
+| Template                     | When it fires                                                                           | Example output                                                                                                                       |
+| ---------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `TEMPLATE_WARNING_CALLABLE`  | `target` is a callable (function forwarding)                                            | `` The `score` was deprecated since v1.0 in favor of `pkg.score_predictions`. It will be removed in v2.0. ``                         |
+| `TEMPLATE_WARNING_ARGUMENTS` | `TargetMode.ARGS_REMAP` with `args_mapping` and the caller passes a deprecated argument | `` The `my_func` uses deprecated arguments: `lr` -> `learning_rate`. They were deprecated since v1.0 and will be removed in v2.0. `` |
+| `TEMPLATE_WARNING_NO_TARGET` | `TargetMode.NOTIFY` (notice-only, no forwarding)                                        | `` The `legacy_func` was deprecated since v1.0. It will be removed in v2.0. ``                                                       |
 
 The selection logic is:
 

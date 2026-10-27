@@ -110,6 +110,7 @@ nav:
       - Agent Recipes: guide/agent-recipes.md
   - API Reference: api-reference.md
   - Troubleshooting: troubleshooting.md
+  - Limitations: limitations.md
   - Brand: brand.md
   - Changelog: changelog.md
   - Demos:
