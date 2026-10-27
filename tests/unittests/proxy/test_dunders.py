@@ -12,6 +12,7 @@ from typing import Any
 import pytest
 
 from deprecate.proxy import deprecated_instance
+from tests._helpers import captured_warnings
 from tests.collections.api_current import (
     AsyncManagedResource,
     CachedStepIterator,
@@ -24,6 +25,7 @@ from tests.collections.api_current import (
     legacy_snapshot,
     legacy_tick_stream,
 )
+from tests.collections.api_deprecated import _DEPRS_CASE_STD_ARGS
 from tests.collections.api_deprecated_regressions import (
     make_read_only_inplace_proxy,
     make_silent_proxy_stack,
@@ -70,7 +72,7 @@ class TestOperatorForwarding:
         expressions such as ``THRESHOLD + 2`` must keep working during the migration window rather than raising
         ``TypeError`` because the operand is a proxy.
         """
-        proxy = deprecated_instance(3, name="n", deprecated_in="1.0", remove_in="2.0", stream=None)
+        proxy = deprecated_instance(3, name="n", **_DEPRS_CASE_STD_ARGS, stream=None)
         assert op(proxy) == expected
 
     @pytest.mark.parametrize(
@@ -88,7 +90,7 @@ class TestOperatorForwarding:
         Code that keeps a proxied legacy value in a sorted container or gates on ``value >= limit`` must observe the
         underlying object's ordering, not a proxy-identity fallback.
         """
-        proxy = deprecated_instance(3, name="n", deprecated_in="1.0", remove_in="2.0", stream=None)
+        proxy = deprecated_instance(3, name="n", **_DEPRS_CASE_STD_ARGS, stream=None)
         assert op(proxy) is expected
 
     def test_unsupported_binary_op_raises_type_error(self) -> None:
@@ -98,7 +100,7 @@ class TestOperatorForwarding:
         own operand-resolution path runs and produces the same ``TypeError`` a user would see without the proxy —
         adding a dict and an int here.
         """
-        proxy: Any = deprecated_instance({"a": 1}, name="d", deprecated_in="1.0", remove_in="2.0", stream=None)
+        proxy: Any = deprecated_instance({"a": 1}, name="d", **_DEPRS_CASE_STD_ARGS, stream=None)
         with pytest.raises(TypeError):
             _ = proxy + 1
 
@@ -110,11 +112,9 @@ class TestOperatorForwarding:
         ``NotImplemented``), and finally raises ``TypeError``. The warning must not fire during the
         ``NotImplemented`` phase because the operation did not succeed.
         """
-        proxy: Any = deprecated_instance({"a": 1}, name="d", deprecated_in="1.0", remove_in="2.0")
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-            with pytest.raises(TypeError):
-                _ = proxy + 1
+        proxy: Any = deprecated_instance({"a": 1}, name="d", **_DEPRS_CASE_STD_ARGS)
+        with captured_warnings() as caught, pytest.raises(TypeError):
+            _ = proxy + 1
         assert not [w for w in caught if issubclass(w.category, FutureWarning)]
 
     def test_three_arg_pow_unwraps_modulus_proxy(self) -> None:
@@ -124,19 +124,19 @@ class TestOperatorForwarding:
         a proxy its raw form must reach the underlying ``int.__pow__`` implementation.  Without unwrapping,
         ``int.__pow__`` receives a ``_DeprecatedProxy`` as the modulus and raises ``TypeError``.
         """
-        proxy_base: Any = deprecated_instance(7, name="base", deprecated_in="1.0", remove_in="2.0", stream=None)
-        proxy_mod: Any = deprecated_instance(3, name="mod", deprecated_in="1.0", remove_in="2.0", stream=None)
+        proxy_base: Any = deprecated_instance(7, name="base", **_DEPRS_CASE_STD_ARGS, stream=None)
+        proxy_mod: Any = deprecated_instance(3, name="mod", **_DEPRS_CASE_STD_ARGS, stream=None)
         assert pow(proxy_base, 2, proxy_mod) == 1  # 7**2 % 3 == 49 % 3 == 1
 
     def test_inplace_add_on_immutable_rebinds_to_result(self) -> None:
         """``+=`` on a proxied immutable rebinds the name to the computed result (an int), not a re-wrapped proxy."""
-        proxy: Any = deprecated_instance(3, name="n", deprecated_in="1.0", remove_in="2.0", stream=None)
+        proxy: Any = deprecated_instance(3, name="n", **_DEPRS_CASE_STD_ARGS, stream=None)
         proxy += 2
         assert (proxy, isinstance(proxy, int)) == (5, True)
 
     def test_inplace_add_on_mutable_mutates_and_returns_active(self) -> None:
         """``+=`` on a proxied list extends the wrapped list in place and yields the active list result."""
-        proxy: Any = deprecated_instance([1, 2], name="lst", deprecated_in="1.0", remove_in="2.0", stream=None)
+        proxy: Any = deprecated_instance([1, 2], name="lst", **_DEPRS_CASE_STD_ARGS, stream=None)
         proxy += [3]
         assert proxy == [1, 2, 3]
 
@@ -146,17 +146,17 @@ class TestOperatorForwarding:
         Legacy numeric handles are frequently passed to APIs that coerce with ``int()``/``float()`` or use the value
         as an index; all of these must transparently reach the wrapped object.
         """
-        proxy = deprecated_instance(3, name="n", deprecated_in="1.0", remove_in="2.0", stream=None)
+        proxy = deprecated_instance(3, name="n", **_DEPRS_CASE_STD_ARGS, stream=None)
         assert (int(proxy), float(proxy), bin(proxy)) == (3, 3.0, "0b11")
 
     def test_reversed_forwards(self) -> None:
         """``reversed()`` iterates the wrapped sequence in reverse."""
-        proxy = deprecated_instance([1, 2, 3], name="lst", deprecated_in="1.0", remove_in="2.0", stream=None)
+        proxy = deprecated_instance([1, 2, 3], name="lst", **_DEPRS_CASE_STD_ARGS, stream=None)
         assert list(reversed(proxy)) == [3, 2, 1]
 
     def test_fspath_forwards(self) -> None:
         """``os.fspath()`` returns the wrapped path string so proxies work with filesystem APIs."""
-        proxy = deprecated_instance("data/legacy.txt", name="p", deprecated_in="1.0", remove_in="2.0", stream=None)
+        proxy = deprecated_instance("data/legacy.txt", name="p", **_DEPRS_CASE_STD_ARGS, stream=None)
         assert os.fspath(proxy) == "data/legacy.txt"
 
     def test_context_manager_protocol_forwards(self) -> None:
@@ -166,33 +166,30 @@ class TestOperatorForwarding:
         callers that still use it in a ``with`` block; both transitions reach the underlying resource.
         """
         resource = ManagedResource()
-        proxy = deprecated_instance(resource, name="res", deprecated_in="1.0", remove_in="2.0", stream=None)
+        proxy = deprecated_instance(resource, name="res", **_DEPRS_CASE_STD_ARGS, stream=None)
         with proxy as entered:
             pass
         assert (resource.entered, resource.exited, entered is resource) == (True, True, True)
 
     def test_arithmetic_warns_once(self) -> None:
         """Using the proxy in an arithmetic expression emits one deprecation warning (a data-producing use)."""
-        proxy: Any = deprecated_instance(3, name="n", deprecated_in="1.0", remove_in="2.0")
+        proxy: Any = deprecated_instance(3, name="n", **_DEPRS_CASE_STD_ARGS)
         with pytest.warns(FutureWarning, match=r"The `n` was deprecated since v1\.0"):
             _ = proxy + 1
 
     def test_ordering_comparison_is_silent(self) -> None:
         """Ordering comparisons are cheap probes and emit no warning, mirroring ``__eq__`` and ``__len__``."""
-        proxy: Any = deprecated_instance(3, name="n", deprecated_in="1.0", remove_in="2.0")
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        proxy: Any = deprecated_instance(3, name="n", **_DEPRS_CASE_STD_ARGS)
+        with captured_warnings() as caught:
             _ = proxy < 5
         assert not [w for w in caught if issubclass(w.category, FutureWarning)]
 
     def test_context_entry_warns_once_exit_silent(self) -> None:
         """Context entry warns once and exit stays silent, so a ``with`` block yields exactly one warning."""
         resource = ManagedResource()
-        proxy = deprecated_instance(resource, name="res", deprecated_in="1.0", remove_in="2.0")
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-            with proxy:
-                pass
+        proxy = deprecated_instance(resource, name="res", **_DEPRS_CASE_STD_ARGS)
+        with captured_warnings() as caught, proxy:
+            pass
         assert len([w for w in caught if issubclass(w.category, FutureWarning)]) == 1
 
     def test_round_no_ndigits_forwards_and_warns(self) -> None:
@@ -201,7 +198,7 @@ class TestOperatorForwarding:
         A project deprecating a legacy float constant must still be usable in ``round(LEGACY_CONST)``
         calls; and the round operation counts as data-producing use, so a warning is expected.
         """
-        proxy = deprecated_instance(3.7, name="n", deprecated_in="1.0", remove_in="2.0")
+        proxy = deprecated_instance(3.7, name="n", **_DEPRS_CASE_STD_ARGS)
         with pytest.warns(FutureWarning, match=r"The `n` was deprecated since v1\.0"):
             result = round(proxy)
         assert result == 4
@@ -212,7 +209,7 @@ class TestOperatorForwarding:
         The two-argument form is the most common rounding call in numerical code; both the forwarding
         and the warning policy must hold for this signature.
         """
-        proxy = deprecated_instance(3.789, name="n", deprecated_in="1.0", remove_in="2.0")
+        proxy = deprecated_instance(3.789, name="n", **_DEPRS_CASE_STD_ARGS)
         with pytest.warns(FutureWarning, match=r"The `n` was deprecated since v1\.0"):
             result = round(proxy, 2)
         assert result == 3.79
@@ -232,7 +229,7 @@ class TestOperatorForwarding:
         still receive the correct integer result; because these are numeric reads, each is a data-use
         operation that consumes the warn budget.
         """
-        proxy = deprecated_instance(3.7, name="n", deprecated_in="1.0", remove_in="2.0")
+        proxy = deprecated_instance(3.7, name="n", **_DEPRS_CASE_STD_ARGS)
         with pytest.warns(FutureWarning, match=r"The `n` was deprecated since v1\.0"):
             result = func(proxy)
         assert result == expected
@@ -244,7 +241,7 @@ class TestOperatorForwarding:
         must not break code that advances it with ``next()``; the call is a data-producing read, so the
         warning fires.
         """
-        proxy = deprecated_instance(iter([10, 20]), name="it", deprecated_in="1.0", remove_in="2.0")
+        proxy = deprecated_instance(iter([10, 20]), name="it", **_DEPRS_CASE_STD_ARGS)
         with pytest.warns(FutureWarning, match=r"The `it` was deprecated since v1\.0"):
             result = next(proxy)
         assert result == 10
@@ -268,7 +265,7 @@ class TestAsyncProtocolForwarding:
         resource as the bound value.
         """
         resource = AsyncManagedResource()
-        proxy = deprecated_instance(resource, name="res", deprecated_in="1.0", remove_in="2.0", stream=None)
+        proxy = deprecated_instance(resource, name="res", **_DEPRS_CASE_STD_ARGS, stream=None)
         async with proxy as entered:
             pass
         assert (resource.entered, resource.exited, entered is resource) == (True, True, True)
@@ -277,9 +274,8 @@ class TestAsyncProtocolForwarding:
     async def test_async_context_entry_warns_once_exit_silent(self) -> None:
         """Async context entry warns exactly once; the async exit half emits no warning."""
         resource = AsyncManagedResource()
-        proxy = deprecated_instance(resource, name="res", deprecated_in="1.0", remove_in="2.0")
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        proxy = deprecated_instance(resource, name="res", **_DEPRS_CASE_STD_ARGS)
+        with captured_warnings() as caught:
             async with proxy:
                 pass
         assert len([w for w in caught if issubclass(w.category, FutureWarning)]) == 1
@@ -292,7 +288,7 @@ class TestAsyncProtocolForwarding:
         ``async for chunk in stream:`` keeps producing the underlying sequence during the migration window.
         """
         resource = AsyncManagedResource([1, 2, 3])
-        proxy = deprecated_instance(resource, name="stream", deprecated_in="1.0", remove_in="2.0", stream=None)
+        proxy = deprecated_instance(resource, name="stream", **_DEPRS_CASE_STD_ARGS, stream=None)
         collected = [item async for item in proxy]
         assert collected == [1, 2, 3]
 
@@ -300,7 +296,7 @@ class TestAsyncProtocolForwarding:
     async def test_async_iteration_warns_on_aiter(self) -> None:
         """Entering async iteration emits a deprecation warning (a data-producing use, like sync ``__iter__``)."""
         resource = AsyncManagedResource([1, 2])
-        proxy = deprecated_instance(resource, name="stream", deprecated_in="1.0", remove_in="2.0")
+        proxy = deprecated_instance(resource, name="stream", **_DEPRS_CASE_STD_ARGS)
         with pytest.warns(FutureWarning, match=r"The `stream` was deprecated since v1\.0"):
             _ = [item async for item in proxy]
 
@@ -312,7 +308,7 @@ class TestAsyncProtocolForwarding:
         own ``__anext__`` is only reached by an explicit ``await proxy.__anext__()`` — this pins that forwarding path.
         """
         resource = AsyncManagedResource([10, 20])
-        proxy = deprecated_instance(resource, name="stream", deprecated_in="1.0", remove_in="2.0", stream=None)
+        proxy = deprecated_instance(resource, name="stream", **_DEPRS_CASE_STD_ARGS, stream=None)
         proxy.__aiter__()
         assert await proxy.__anext__() == 10
 
@@ -324,7 +320,7 @@ class TestAsyncProtocolForwarding:
         through the proxy's ``__await__`` to the resource's coroutine.
         """
         resource = AsyncManagedResource()
-        proxy = deprecated_instance(resource, name="awaitable", deprecated_in="1.0", remove_in="2.0", stream=None)
+        proxy = deprecated_instance(resource, name="awaitable", **_DEPRS_CASE_STD_ARGS, stream=None)
         assert await proxy == "awaited"
 
 
@@ -406,10 +402,8 @@ class TestEntryWarningCleanup:
         resource = RecordingEntryContext(fail=fail)
         proxy = make_warn_after_success_proxy(resource)
         if fail:
-            with warnings.catch_warnings(record=True) as caught:
-                warnings.simplefilter("always")
-                with pytest.raises(RuntimeError, match="^entry failed$"):
-                    drive(proxy)
+            with captured_warnings() as caught, pytest.raises(RuntimeError, match="^entry failed$"):
+                drive(proxy)
             assert not caught
             assert resource.exits == []
         else:
@@ -433,8 +427,7 @@ class TestSkippedInplaceReadOnly:
         source = [1, 2]
         flag = {"skip": True}
         proxy = make_read_only_inplace_proxy(source, flag)
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             result = proxy.__iadd__([3])
             flag["skip"] = False
             with pytest.raises(AttributeError, match="read-only"):
@@ -461,8 +454,7 @@ class TestDeferredAsyncWarningTiming:
         with pytest.raises(StopAsyncIteration):
             asyncio.run(pending)
         source.items.append(7)
-        with warnings.catch_warnings(record=True) as later:
-            warnings.simplefilter("always")
+        with captured_warnings() as later:
             assert _drive_anext(proxy) == 7
         assert not later
 
@@ -476,10 +468,8 @@ class TestDeferredAsyncWarningTiming:
         with pytest.warns(FutureWarning) as caught, pytest.raises(RuntimeError, match="^deferred await failed$"):
             _drive_await(proxy)
         assert len(caught) == 1
-        with warnings.catch_warnings(record=True) as later:
-            warnings.simplefilter("always")
-            with pytest.raises(RuntimeError, match="^deferred await failed$"):
-                _drive_await(proxy)
+        with captured_warnings() as later, pytest.raises(RuntimeError, match="^deferred await failed$"):
+            _drive_await(proxy)
         assert not later
 
 
@@ -501,8 +491,7 @@ class TestAsyncAcquisitionCleanup:
         """
         stream = KeywordTypeErrorStream()
         proxy = make_warn_after_success_proxy(FlakyProtocolBox(), **({"stream": stream} if raising_stream else {}))
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             warnings.simplefilter("error", FutureWarning)
             with pytest.raises(TypeError if raising_stream else FutureWarning):
                 acquire(proxy)
@@ -612,7 +601,7 @@ class TestFormatAndDeclinedOperators:
         warning there would be noise.
 
         """
-        proxy = deprecated_instance(3.14159, name="legacy_pi", deprecated_in="1.0", remove_in="2.0")
+        proxy = deprecated_instance(3.14159, name="legacy_pi", **_DEPRS_CASE_STD_ARGS)
 
         with warnings.catch_warnings():
             warnings.simplefilter("error")
@@ -626,7 +615,7 @@ class TestFormatAndDeclinedOperators:
         operation that did not happen.
 
         """
-        proxy = deprecated_instance(_RefusesAddition(), name="legacy_obj", deprecated_in="1.0", remove_in="2.0")
+        proxy = deprecated_instance(_RefusesAddition(), name="legacy_obj", **_DEPRS_CASE_STD_ARGS)
 
         with warnings.catch_warnings():
             warnings.simplefilter("error")
@@ -635,7 +624,7 @@ class TestFormatAndDeclinedOperators:
 
     def test_declined_operator_falls_back_to_reflected_operand(self) -> None:
         """A declined ``proxy + other`` is retried as ``other.__radd__(proxy)``, exactly as for a plain object."""
-        proxy = deprecated_instance(_RefusesAddition(), name="legacy_obj", deprecated_in="1.0", remove_in="2.0")
+        proxy = deprecated_instance(_RefusesAddition(), name="legacy_obj", **_DEPRS_CASE_STD_ARGS)
 
         with warnings.catch_warnings():
             warnings.simplefilter("error")
