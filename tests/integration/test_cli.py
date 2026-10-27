@@ -161,6 +161,75 @@ class TestCliInvocation:
         assert "RuntimeError: broken on import" in result.stderr
         assert not report.exists()
 
+    @pytest.mark.parametrize("subcommand", ["check", "expiry", "status", "all"])
+    def test_package_exiting_on_import_exits_three(self, tmp_path: Path, subcommand: str) -> None:
+        """A package whose module-level code calls ``sys.exit(0)`` exits 3 on every subcommand and writes no report.
+
+        ``expiry``, ``status`` and ``all`` import the package once more to auto-detect its version; that import let the
+        package's own exit code through, so ``sys.exit(0)`` passed the gate silently with nothing audited.
+
+        """
+        pkg = _make_pkg(tmp_path, name="exitpkg", content="import sys\nsys.exit(0)\n")
+        report = tmp_path / "report.json"
+        result = _run_cli(subcommand, str(pkg), f"--report-json={report}", cwd=tmp_path)
+        assert result.returncode == 3, result.stdout + result.stderr
+        assert "pydeprecate: scan error: importing" in result.stderr
+        assert "ran module-level code that exited (0)" in result.stderr
+        assert not report.exists()
+
+    def test_submodule_exiting_on_import_is_a_gap(self, tmp_path: Path) -> None:
+        """A submodule that calls ``sys.exit()`` on import is a ``module not audited`` gap, not a failed run.
+
+        An unguarded ``__main__.py`` (``sys.exit(main())``) is a common layout; the run exited 3 naming the root
+        package, which the user could neither mask nor tell which module to ``--exclude``.
+
+        """
+        pkg = _make_pkg(tmp_path)
+        (pkg / "__main__.py").write_text("import sys\nsys.exit(4)\n", encoding="utf-8")
+        result = _run_cli("check", str(pkg), cwd=tmp_path)
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "pydeprecate gap: module not audited: mypkg.__main__" in result.stderr
+
+    @pytest.mark.parametrize("path", ["./typo_dir", "../typo_dir", ".typo"])
+    def test_relative_typo_exits_two(self, tmp_path: Path, path: str) -> None:
+        """A relative spelling that names no existing path is a usage error, never a scan error.
+
+        ``./typo_dir`` was handed to the importer, which failed with a ``TypeError`` about relative imports and exited
+        3, as if an existing package had failed to import.
+
+        """
+        result = _run_cli("check", path, cwd=tmp_path)
+        assert result.returncode == 2, result.stdout + result.stderr
+        assert f"No such path or importable module: {path!r}" in result.stderr
+
+    def test_exclude_list_literal_exits_two(self, tmp_path: Path) -> None:
+        """A list literal in ``--exclude`` is refused instead of becoming one pattern that matches nothing.
+
+        Fire parsed ``--exclude='["pkg.tests"]'`` into a list; as a plain string it excluded nothing, so the package
+        meant to be left out was imported and audited without a word.
+
+        """
+        pkg = _make_pkg(tmp_path)
+        result = _run_cli("check", str(pkg), '--exclude=["mypkg.tests"]', cwd=tmp_path)
+        assert result.returncode == 2, result.stdout + result.stderr
+        assert "Invalid `--exclude` value" in result.stderr
+
+    def test_all_rejects_malformed_policy_before_importing(self, tmp_path: Path) -> None:
+        """``all`` reports a malformed ``[tool.pydeprecate.policy]`` value as exit 2 before importing the package.
+
+        The rule values were resolved only in the policy pass after the scan, so the package's module-level code ran and
+        the check and expiry results printed before the run exited 2.
+
+        """
+        pkg = _make_pkg(tmp_path, content='print("MODULE CODE RAN")\n' + _MYPKG_INIT)
+        (tmp_path / "pyproject.toml").write_text(
+            '[tool.pydeprecate.policy]\nmessage-required = "maybe"\n', encoding="utf-8"
+        )
+        result = _run_cli("all", str(pkg), "--version=1.0", cwd=tmp_path)
+        assert result.returncode == 2, result.stdout + result.stderr
+        assert "Invalid `message_required` value" in result.stderr
+        assert "MODULE CODE RAN" not in result.stdout
+
     @pytest.mark.parametrize(
         ("subcommand", "extra"),
         [pytest.param("check", (), id="check"), pytest.param("all", ("--version=1.0",), id="all")],

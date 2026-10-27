@@ -129,7 +129,7 @@ Every scanning function — `find_deprecation_wrappers()`, `validate_deprecation
 
 The same six functions also accept `include_members` (default `True`): deprecated class members — methods, constructors, properties and other descriptors, and `deprecated_class` proxies bound as class attributes — are scanned unless you pass `include_members=False`, which keeps the check on module-level wrappers. Every CLI subcommand takes the matching `--noinclude-members` flag.
 
-Recursive scans import every submodule, so module-level side effects run. A submodule that fails to import — for any exception, not just `ImportError` — is skipped with a `UserWarning` of the form `audit: skipped <module>: <exception>` and the scan continues, so one broken submodule cannot abort the whole CI gate. The CLI also prints a `pydeprecate gap: module not audited: <module>: <exception>` line on stderr for each skipped submodule, even when your package silences warnings.
+Recursive scans import every submodule, so module-level side effects run. A submodule that fails to import — for any exception, not just `ImportError`, and also when its module-level code calls `sys.exit()` — is skipped with a `UserWarning` of the form `audit: skipped <module>: <exception>` and the scan continues, so one broken submodule cannot abort the whole CI gate. The CLI also prints a `pydeprecate gap: module not audited: <module>: <exception>` line on stderr for each skipped submodule, even when your package silences warnings.
 
 ```python
 from deprecate import find_deprecation_wrappers

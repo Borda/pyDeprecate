@@ -102,7 +102,7 @@ pip install 'pyDeprecate[audit]'
 
 !!! tip "Use `[audit,cli]` for command-line audit workflows"
 
-    The `pydeprecate` command itself lives in the `[cli]` extra, but `pydeprecate expiry`, `pydeprecate policy`, and the expiry/policy phases of `pydeprecate all` also need `[audit]`. Start with `pip install 'pyDeprecate[audit,cli]'` unless you only need Python API calls.
+    The `pydeprecate` command itself needs no extra (`[cli]` is kept, empty, so existing install lines keep working), but `pydeprecate expiry`, `pydeprecate policy`, and the expiry/policy phases of `pydeprecate all` need `[audit]`. Start with `pip install 'pyDeprecate[audit,cli]'` unless you only need Python API calls.
 
 ## Comparison with other tools
 

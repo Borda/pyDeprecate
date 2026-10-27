@@ -84,9 +84,9 @@ _GRACE_WINDOW_UNITS = (VersionBump.MAJOR, VersionBump.MINOR, VersionBump.PATCH)
 
 
 _GRACE_WINDOW_UNITS_BY_NAME = {unit.value: unit for unit in _GRACE_WINDOW_UNITS}
-_GRACE_WINDOW_SPELLINGS = (
-    "`1.0` (one major), `0.1` (one minor), `0.0.1` (one patch), or a one-key table such as `{'minor': 1}`"
-)
+#: The table spelling of a ``min_grace`` value, which a command-line flag cannot carry.
+_GRACE_WINDOW_TABLE_SPELLING = ", or a one-key table such as `{'minor': 1}`"
+_GRACE_WINDOW_SPELLINGS = "`1.0` (one major), `0.1` (one minor), `0.0.1` (one patch)" + _GRACE_WINDOW_TABLE_SPELLING
 
 
 def _grace_window_error(min_grace: object, detail: str) -> ValueError:

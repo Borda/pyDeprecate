@@ -1171,6 +1171,17 @@ class TestCmdPolicy:
         assert cmd_policy(path="some_module", min_grace="1 minor", _wrappers=[]) == 2
         assert "min_grace" in capsys.readouterr().err
 
+    def test_invalid_grace_flag_never_suggests_a_table(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """A malformed ``--min-grace`` flag lists only the dotted spellings a command line can carry.
+
+        A flag value is a plain string, so ``--min-grace='{"minor": 1}'`` cannot work; an error that recommended that
+        table sent the user from one rejected spelling to another.
+        """
+        assert cmd_policy(path="some_module", min_grace="1 minor", _wrappers=[]) == 2
+        err = capsys.readouterr().err
+        assert "`0.0.1` (one patch)." in err
+        assert "one-key table" not in err
+
     @patch("deprecate._cli.commands._policy_findings")
     def test_packaging_missing_exits_zero(self, mock_policy: MagicMock, capsys: pytest.CaptureFixture[str]) -> None:
         """A missing ``packaging`` library prints the install hint and stays advisory (exit 0).

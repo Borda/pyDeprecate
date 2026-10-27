@@ -186,10 +186,10 @@ def cmd_check(
         recursive: Scan submodules recursively (default True). Pass ``--no-recursive`` to scan top-level only.
         exit_zero: Always exit 0 even if hard errors (invalid argument mappings) are found.
             Useful for advisory CI steps that should report but never block.
-        exclude: Module-name glob patterns to leave out of the scan — one pattern, a comma-separated string, or a
-            list (``--exclude='my_package.tests,*._legacy*'``); the scan itself never imports a matching package
-            nor descends into it. Default: the ``exclude`` list of ``[tool.pydeprecate]`` in the nearest
-            ``pyproject.toml``, else nothing.
+        exclude: Module-name glob patterns to leave out of the scan — one pattern or a comma-separated string
+            (``--exclude='my_package.tests,*._legacy*'``), or a list in a direct call; the scan itself never imports
+            a matching package nor descends into it. Default: the ``exclude`` list of ``[tool.pydeprecate]`` in the
+            nearest ``pyproject.toml``, else nothing.
         include_members: Include deprecated class members such as methods and constructors (default True). Pass
             ``--no-include-members`` to check module-level wrappers only.
         _wrappers: Pre-scanned wrapper list. When provided, skips the scan step.
@@ -245,10 +245,10 @@ def cmd_expiry(
         recursive: Scan submodules recursively (default True). Pass ``--no-recursive`` to scan top-level only.
         exit_zero: Always exit 0 even if expired wrappers are found.
             Useful for advisory CI steps that should report but never block.
-        exclude: Module-name glob patterns to leave out of the scan — one pattern, a comma-separated string, or a
-            list (``--exclude='my_package.tests,*._legacy*'``); the scan itself never imports a matching package
-            nor descends into it. Default: the ``exclude`` list of ``[tool.pydeprecate]`` in the nearest
-            ``pyproject.toml``, else nothing.
+        exclude: Module-name glob patterns to leave out of the scan — one pattern or a comma-separated string
+            (``--exclude='my_package.tests,*._legacy*'``), or a list in a direct call; the scan itself never imports
+            a matching package nor descends into it. Default: the ``exclude`` list of ``[tool.pydeprecate]`` in the
+            nearest ``pyproject.toml``, else nothing.
         include_members: Include deprecated class members such as methods and constructors (default True). Pass
             ``--no-include-members`` to check module-level wrappers only.
         _wrappers: Pre-scanned wrapper list. When provided, skips the scan step and derives
@@ -338,15 +338,15 @@ def cmd_policy(
             Useful for advisory CI steps that should report but never block.
         min_grace: Minimum distance between ``deprecated_in`` and ``remove_in`` as a version-shaped delta with
             two or three components — ``1.0`` one major, ``0.3`` three minors, ``0.0.2`` two patches (a bare
-            ``1`` is rejected as ambiguous) — or a one-key unit table (``{"minor": 3}``, the natural spelling in
-            ``pyproject.toml``); built-in default ``0.3``, ``None`` skips the rule. The removal must be one clean
+            ``1`` is rejected as ambiguous) — or, in ``pyproject.toml`` and a direct call only, a one-key unit table
+            (``{"minor": 3}``); built-in default ``0.3``, ``None`` skips the rule. The removal must be one clean
             bump of a single component (``1.2`` → ``1.5`` or ``2.0``, never ``2.3``); a coarser bump always clears
             a finer window.
         message_required: Require every wrapper to name a replacement (built-in default True).
-        exclude: Module-name glob patterns to leave out of the scan — one pattern, a comma-separated string, or a
-            list (``--exclude='my_package.tests,*._legacy*'``); the scan itself never imports a matching package
-            nor descends into it. Default: the ``exclude`` list of ``[tool.pydeprecate]`` in the nearest
-            ``pyproject.toml``, else nothing.
+        exclude: Module-name glob patterns to leave out of the scan — one pattern or a comma-separated string
+            (``--exclude='my_package.tests,*._legacy*'``), or a list in a direct call; the scan itself never imports
+            a matching package nor descends into it. Default: the ``exclude`` list of ``[tool.pydeprecate]`` in the
+            nearest ``pyproject.toml``, else nothing.
         include_members: Include deprecated class members such as methods and constructors (default True). Pass
             ``--no-include-members`` to check module-level wrappers only.
         _wrappers: Pre-scanned wrapper list. When provided, skips the scan step.
@@ -427,10 +427,10 @@ def cmd_chains(
         recursive: Scan submodules recursively (default True). Pass ``--no-recursive`` to scan top-level only.
         exit_zero: Always exit 0 even if chains are found.
             Useful for advisory CI steps that should report but never block.
-        exclude: Module-name glob patterns to leave out of the scan — one pattern, a comma-separated string, or a
-            list (``--exclude='my_package.tests,*._legacy*'``); the scan itself never imports a matching package
-            nor descends into it. Default: the ``exclude`` list of ``[tool.pydeprecate]`` in the nearest
-            ``pyproject.toml``, else nothing.
+        exclude: Module-name glob patterns to leave out of the scan — one pattern or a comma-separated string
+            (``--exclude='my_package.tests,*._legacy*'``), or a list in a direct call; the scan itself never imports
+            a matching package nor descends into it. Default: the ``exclude`` list of ``[tool.pydeprecate]`` in the
+            nearest ``pyproject.toml``, else nothing.
         include_members: Include deprecated class members such as methods and constructors (default True). Pass
             ``--no-include-members`` to check module-level wrappers only.
         _wrappers: Pre-scanned wrapper list. When provided, skips the scan step and filters
@@ -488,10 +488,10 @@ def cmd_all(
         recursive: Scan submodules recursively (default True). Pass ``--no-recursive`` to scan top-level only.
         exit_zero: Always exit 0 even if issues are found.
             Useful for advisory CI steps that should report but never block.
-        exclude: Module-name glob patterns to leave out of the scan — one pattern, a comma-separated string, or a
-            list (``--exclude='my_package.tests,*._legacy*'``); the scan itself never imports a matching package
-            nor descends into it. Default: the ``exclude`` list of ``[tool.pydeprecate]`` in the nearest
-            ``pyproject.toml``, else nothing.
+        exclude: Module-name glob patterns to leave out of the scan — one pattern or a comma-separated string
+            (``--exclude='my_package.tests,*._legacy*'``), or a list in a direct call; the scan itself never imports
+            a matching package nor descends into it. Default: the ``exclude`` list of ``[tool.pydeprecate]`` in the
+            nearest ``pyproject.toml``, else nothing.
         output: Optional file path the appended deprecation table is also written to, as with ``status --output``,
             so a CI job gets the table of the very scan it gated on. A failure to write it is reported on stderr as
             ``Could not write the deprecation table`` — apart from a failure to render the table — and never changes
@@ -516,6 +516,12 @@ def cmd_all(
         return err_code
     config = _load_pydeprecate_config(path)
     if config is None:
+        return 2
+    # a malformed `[tool.pydeprecate.policy]` value is a usage error, reported before the package is imported
+    policy_flags: dict[str, _ConfigFlag] = {
+        rule.value: _FROM_PYPROJECT for rule in (PolicyRule.MIN_GRACE, PolicyRule.MESSAGE_REQUIRED)
+    }
+    if _resolve_policy_spec(path, policy_flags, config) is None:
         return 2
     version_explicit = version is not None
     scan = _scan_for_command(
@@ -611,10 +617,10 @@ def cmd_status(
             ``--no-include-members`` to list module-level wrappers only.
         output: Optional file path to write the markdown table. The table is always
             printed to stdout regardless of this flag.
-        exclude: Module-name glob patterns to leave out of the scan — one pattern, a comma-separated string, or a
-            list (``--exclude='my_package.tests,*._legacy*'``); the scan itself never imports a matching package
-            nor descends into it. Default: the ``exclude`` list of ``[tool.pydeprecate]`` in the nearest
-            ``pyproject.toml``, else nothing.
+        exclude: Module-name glob patterns to leave out of the scan — one pattern or a comma-separated string
+            (``--exclude='my_package.tests,*._legacy*'``), or a list in a direct call; the scan itself never imports
+            a matching package nor descends into it. Default: the ``exclude`` list of ``[tool.pydeprecate]`` in the
+            nearest ``pyproject.toml``, else nothing.
         _wrappers: Pre-scanned wrapper list. When provided, skips the scan step.
             Internal: never a command-line option (used by ``cmd_all`` only).
         _version_explicit: Whether *version* is a value the user typed rather than one the caller

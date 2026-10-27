@@ -590,9 +590,10 @@ def _walk_submodules(package: Any, exclude: Sequence[str]) -> Iterator[Any]:  # 
     Replaces :func:`pkgutil.walk_packages`, which imports a package before it can be told to skip it; here the walk
     neither imports an excluded package nor descends into it (the package's own imports may still load it). Submodule
     top-level code can raise anything at import time (``RuntimeError``, ``OSError``, ``KeyError`` from env lookups,
-    ...), not just ``ImportError``. One broken submodule must not abort the whole scan — and with it every audit gate
-    built on top — so the failure is kept as a warning (and recorded for an active :func:`_collect_skipped_modules`
-    block) and the walk continues with the remaining submodules.
+    ...), not just ``ImportError``, and an unguarded ``__main__.py`` or script module calls ``sys.exit()``. One broken
+    submodule must not abort the whole scan — and with it every audit gate built on top — so the failure is kept as a
+    warning (and recorded for an active :func:`_collect_skipped_modules` block) and the walk continues with the
+    remaining submodules.
 
     """
     for _finder, modname, ispkg in pkgutil.iter_modules(package.__path__, package.__name__ + "."):
@@ -600,7 +601,7 @@ def _walk_submodules(package: Any, exclude: Sequence[str]) -> Iterator[Any]:  # 
             continue
         try:
             submod = importlib.import_module(modname)
-        except Exception as exc:
+        except (Exception, SystemExit) as exc:
             collected = _SKIPPED_MODULES.get()
             if collected is not None:
                 collected.setdefault(modname, repr(exc))
@@ -690,8 +691,8 @@ def find_deprecation_wrappers(
         - Requires that the module be importable
         - Recursive scans import every submodule of the package, executing their module-level code; packages
           with heavy import-time work (GPU init, network access) make the scan correspondingly expensive
-        - Skips submodules that fail to import — any exception raised by module-level code is reported as a
-          ``UserWarning`` (``audit: skipped <module>: ...``) and the scan continues
+        - Skips submodules that fail to import — any exception raised by module-level code, ``SystemExit``
+          included, is reported as a ``UserWarning`` (``audit: skipped <module>: ...``) and the scan continues
         - Inspects the ``__deprecation_config__`` attribute set by the :func:`~deprecate.deprecated` decorator
         - Skips private/magic attributes and imports from other modules
         - Uses static member inspection to avoid scan-time side effects from dynamic attribute access

@@ -254,6 +254,42 @@ class TestParseCliArgs:
         assert parsed is not None
         assert (parsed[1], parsed[2]) == ({"path": "pkg"}, "out/r.json")
 
+    @pytest.mark.parametrize(
+        ("argv", "expected_kwargs"),
+        [
+            pytest.param(["check", "--", "--exit-zero"], {"path": "--exit-zero"}, id="option-spelling-is-a-path"),
+            pytest.param(
+                ["status", "--recursive=0", "--", "pkg", "0.2"],
+                {"path": "pkg", "version": "0.2", "recursive": False},
+                id="both-operands",
+            ),
+            pytest.param(["status", "pkg", "--", "0.2"], {"path": "pkg", "version": "0.2"}, id="version-operand"),
+        ],
+    )
+    def test_separator_ends_options(self, argv: list[str], expected_kwargs: dict[str, object]) -> None:
+        """Everything after ``--`` binds to the positional operands and is never parsed as an option.
+
+        ``parse_known_intermixed_args`` on Python 3.9 still parsed ``check -- --exit-zero`` as the ``--exit-zero`` flag,
+        scanning ``.`` with the gate disabled, while newer Pythons took it as the path; both now read it as the path.
+
+        """
+        parsed = _parse_cli_args(argv)
+        assert parsed is not None
+        assert parsed[1] == expected_kwargs
+
+    def test_unknown_option_value_gets_no_path_hint(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """The value of a mistyped option is not called a second path.
+
+        In ``check pkg --verison 2.0`` the ``2.0`` belongs to the unknown ``--verison``, so telling the user to pass one
+        path per run points at the wrong mistake.
+
+        """
+        with pytest.raises(SystemExit):
+            _parse_cli_args(["check", "pkg", "--verison", "2.0"])
+        err = capsys.readouterr().err
+        assert "unrecognized arguments: --verison 2.0" in err
+        assert "one path per run" not in err
+
     def test_empty_command_line_prints_help(self, capsys: pytest.CaptureFixture[str]) -> None:
         """A bare ``pydeprecate`` prints the subcommand list and runs nothing."""
         assert _parse_cli_args([]) is None
@@ -268,6 +304,9 @@ class TestParseCliArgs:
             pytest.param(["check", "pkg", "--exit-zero=yes"], "expects True or False", id="bad-bool"),
             pytest.param(["check", "pkg", "--no-exit-zero=1"], "ignored explicit argument", id="negation-value"),
             pytest.param(["check", "pkg", "--report-json"], "expected one argument", id="report-without-path"),
+            pytest.param(["check", "pkg", "--report-json="], "expects a file path", id="report-empty-path"),
+            pytest.param(["expiry", "pkg", "0.1", "--version=9.0"], "the version was given twice", id="version-twice"),
+            pytest.param(["check", "--", "pkg_a", "pkg_b"], "pass one path per run", id="operands-after-separator"),
         ],
     )
     def test_usage_error_exits_two(self, argv: list[str], message: str, capsys: pytest.CaptureFixture[str]) -> None:

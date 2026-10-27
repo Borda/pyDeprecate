@@ -26,6 +26,8 @@ _POSITIONALS = ("path", "version")
 _BOOL_LITERALS: dict[str, bool] = {"true": True, "false": False, "1": True, "0": False}
 #: Values of a ``pyproject.toml``-backed option that switch it off, as ``None`` does in a direct call.
 _OFF_LITERALS = frozenset({"none", "false"})
+#: Namespace attribute of the positional version, kept apart from ``--version`` so that giving both is caught.
+_VERSION_OPERAND = "version_operand"
 
 
 def _ensure_utf8_streams() -> None:
@@ -76,6 +78,27 @@ def _parse_switchable(text: str) -> Optional[str]:
 
     """
     return None if text.lower() in _OFF_LITERALS else text
+
+
+def _parse_file_path(text: str) -> str:
+    """Read a file-path option's value, refusing an empty one (``--report-json=``) that names no file.
+
+    Raises:
+        argparse.ArgumentTypeError: For an empty value, which argparse reports as a usage error (exit 2).
+
+    Examples:
+        >>> _parse_file_path("report.json")
+        'report.json'
+
+    """
+    if not text:
+        raise argparse.ArgumentTypeError("expects a file path, got an empty value")
+    return text
+
+
+def _positional_dest(name: str) -> str:
+    """Return the namespace attribute a positional operand is parsed into: ``path`` as is, the version apart."""
+    return _VERSION_OPERAND if name == "version" else name
 
 
 class _CliCommand(NamedTuple):
@@ -147,7 +170,13 @@ def _add_subcommand(subparsers: Any, name: str) -> argparse.ArgumentParser:  # n
         allow_abbrev=False,
     )
     for positional in command.positionals:
-        parser.add_argument(positional, nargs="?", default=argparse.SUPPRESS, help=helps.get(positional))
+        parser.add_argument(
+            _positional_dest(positional),
+            nargs="?",
+            metavar=positional,
+            default=argparse.SUPPRESS,
+            help=helps.get(positional),
+        )
     for param_name, param in inspect.signature(command.function).parameters.items():
         if param_name in ("path",) or param_name.startswith("_"):
             continue
@@ -183,6 +212,7 @@ def _add_subcommand(subparsers: Any, name: str) -> argparse.ArgumentParser:  # n
     parser.add_argument(
         _REPORT_OPTION,
         dest="report_json",
+        type=_parse_file_path,
         metavar="FILE",
         default=None,
         help="Write the run's machine-readable record (deprecation table and gaps) to FILE on exit 0 or 1.",
@@ -254,7 +284,8 @@ def _parse_cli_args(argv: Sequence[str]) -> Optional[tuple[_CliCommand, dict[str
 
     A first argument that names no subcommand selects ``check``, so ``pydeprecate src/pkg`` checks ``src/pkg``. The
     subcommand's own parser runs ``parse_intermixed_args``, which binds the path and version positionals correctly
-    with options between them, also on Python 3.9.
+    with options between them, also on Python 3.9. Arguments after a ``--`` separator are operands only, never options;
+    they are bound here, since ``parse_known_intermixed_args`` on Python 3.9 still parses options after it.
 
     Returns:
         The subcommand, its keyword arguments (only those typed) and the report path, or ``None`` after printing the
@@ -270,10 +301,22 @@ def _parse_cli_args(argv: Sequence[str]) -> Optional[tuple[_CliCommand, dict[str
     name, rest = (argv[0], argv[1:]) if argv[0] in subparsers else ("check", argv)
     command = _cli_command(name)
     subparser = subparsers[name]
-    namespace, extras = subparser.parse_known_intermixed_args(_normalize_options(rest, command.bool_params))
-    if extras:
-        hint = "" if all(extra.startswith("-") for extra in extras) else "; pass one path per run"
-        subparser.error(f"unrecognized arguments: {' '.join(extras)}{hint}")
+    options, operands = (rest[: rest.index("--")], rest[rest.index("--") + 1 :]) if "--" in rest else (rest, [])
+    namespace, extras = subparser.parse_known_intermixed_args(_normalize_options(options, command.bool_params))
     kwargs = vars(namespace)
+    for operand in operands:
+        free = [_positional_dest(name) for name in command.positionals if _positional_dest(name) not in kwargs]
+        if free:
+            kwargs[free[0]] = operand
+        else:
+            extras.append(operand)
+    if extras:
+        # an extra positional is a second path; one that follows an unknown option is likely that option's value
+        hint = "" if any(extra.startswith("-") for extra in extras) else "; pass one path per run"
+        subparser.error(f"unrecognized arguments: {' '.join(extras)}{hint}")
+    if _VERSION_OPERAND in kwargs:
+        if "version" in kwargs:
+            subparser.error("the version was given twice, as an argument and as `--version`; pass it once")
+        kwargs["version"] = kwargs.pop(_VERSION_OPERAND)
     report_path = kwargs.pop("report_json")
     return command, kwargs, report_path
