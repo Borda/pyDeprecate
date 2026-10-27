@@ -1451,7 +1451,7 @@ old_utils = deprecated_instance(
 # my_package.old_utils.add(1, 2)  # warns: FutureWarning
 ```
 
-Use `num_warns` to cap warning delivery across every public attribute access on the module. `-1` is the default and delivers a warning for each access; `0` delivers none; a positive `N` delivers exactly `N`. The standard warnings filter can still suppress repeated display at a location. `-1` skips budget locking, but each access still performs normal module lookup and warning handling.
+Use `num_warns` to cap warning delivery across every public attribute access on the module. `-1` is the default and delivers a warning for each access; `0` delivers none; a positive `N` delivers exactly `N`. The standard warnings filter can still suppress repeated display at a location. `-1` skips budget locking, but each access still performs normal module lookup and warning handling. In v1.0 the default becomes `1`, and an explicit `stream=None` (which today still delivers through `warnings.warn` and emits a `FutureWarning` at the call) will silence the module warning as on every other entry point; omit `stream` to keep the current behaviour.
 
 > [!NOTE]
 >

@@ -1943,6 +1943,14 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
+## Why does `stream=None` not silence `deprecated_module`?
+
+**Q:** I passed `stream=None` to `deprecated_module()` expecting silence, as with `@deprecated`, but the module warning still appears, and a `FutureWarning` now fires at the `deprecated_module(...)` call itself.
+
+**A:** For `deprecated_module()`, `stream=None` historically meant "use `warnings.warn`", while every other entry point treats it as silence. The default is now a separate sentinel (`help()` shows it as `<warnings.warn>`), so omitting `stream` keeps the current behaviour without any notice. An explicit `stream=None` still delivers through `warnings.warn` but announces the change with a `FutureWarning` at the call: in v1.0 `stream=None` silences the module warning, and the `num_warns` default changes from `-1` to `1`. Omit `stream` to keep warning on access, and pass `num_warns=-1` explicitly if every access must keep warning after v1.0. To silence a module deprecation today, use a warnings filter or a custom `stream` that discards the message.
+
+______________________________________________________________________
+
 ## Why do pytest, Sphinx, or my IDE trigger warnings on a deprecated module?
 
 **Q:** I only imported a deprecated module once, but pytest collection, Sphinx autodoc, or my IDE/linter triggers many `FutureWarning`s. Why?

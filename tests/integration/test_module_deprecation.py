@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import concurrent.futures
 import importlib
+import inspect
 import sys
 import threading
 import time
@@ -25,6 +26,7 @@ import tests.collections.modules.old_math as old_math
 import tests.collections.modules.old_utils as old_utils
 from deprecate import (
     TargetMode,
+    assert_no_warnings,
     find_deprecation_wrappers,
     validate_deprecation_expiry,
     validate_deprecation_wrapper,
@@ -32,7 +34,7 @@ from deprecate import (
 from deprecate._types import DeprecationConfig
 from deprecate.audit._lifecycle import _check_deprecated_wrapper_expiry
 from deprecate.audit._wrappers import _format_report_symbol
-from deprecate.module import _redirect_guard, _RedirectResolution, deprecated_module
+from deprecate.module import _STREAM_DEFAULT, _redirect_guard, _RedirectResolution, deprecated_module
 from tests.collections.api_current import (
     ContextCapturingLookup,
     FlakyTypeErrorStream,
@@ -793,6 +795,75 @@ class TestStream:
         assert len(stream.calls) == 1
 
 
+class TestStreamDefault:
+    """Omitted ``stream`` versus an explicit ``stream=None`` during the transition to v1.0 semantics."""
+
+    def test_default_is_the_warnings_sentinel(self) -> None:
+        """The ``stream`` default is a sentinel that renders as ``<warnings.warn>``, not ``None``.
+
+        Generated API docs and ``help(deprecated_module)`` show the default; it must name the behaviour an
+        omitted ``stream`` selects, and it must differ from ``None`` so an explicit ``None`` can be announced.
+        """
+        default = inspect.signature(deprecated_module).parameters["stream"].default
+        assert (default is _STREAM_DEFAULT, repr(default)) == (True, "<warnings.warn>")
+
+    def test_omitted_stream_warns_only_on_access(self, make_tmp_module: Callable[..., types.ModuleType]) -> None:
+        """An omitted ``stream`` adds no warning at the call and keeps one ``FutureWarning`` per access.
+
+        The common spelling must not change at all: library authors who never passed ``stream`` get no new
+        announcement, and their importers keep receiving the module warning through ``warnings.warn``.
+        """
+        mod = make_tmp_module("_test_stream_default_omitted_tmp")
+        with assert_no_warnings(FutureWarning):
+            deprecated_module(mod.__name__, **_DEPRS_CASE_MOD_ARGS)
+        with pytest.warns(FutureWarning, match="_test_stream_default_omitted_tmp") as caught:
+            getattr(mod, "some_attr", None)
+        assert len(caught) == 1
+
+    def test_explicit_none_announces_the_v1_change(self, make_tmp_module: Callable[..., types.ModuleType]) -> None:
+        """``stream=None`` emits one ``FutureWarning`` at the call announcing the v1.0 meaning and default.
+
+        Every other entry point treats ``stream=None`` as silence, so a module author who wrote it expecting
+        silence must learn that the module warning is still delivered today and will be silenced in v1.0, and
+        that the ``num_warns`` default changes in the same release.
+        """
+        mod = make_tmp_module("_test_stream_default_none_tmp")
+        with pytest.warns(FutureWarning, match=r"stream=None.*v1\.0.*num_warns") as caught:
+            deprecated_module(mod.__name__, stream=None, **_DEPRS_CASE_MOD_ARGS)
+        assert len(caught) == 1
+
+    def test_explicit_none_still_delivers_through_warnings(
+        self, make_tmp_module: Callable[..., types.ModuleType]
+    ) -> None:
+        """After the announcement, ``stream=None`` keeps delivering the access warning through ``warnings.warn``.
+
+        The transition only announces the change; until v1.0 an importer of a module deprecated with
+        ``stream=None`` still sees the module ``FutureWarning`` on every access.
+        """
+        mod = make_tmp_module("_test_stream_default_none_access_tmp")
+        with pytest.warns(FutureWarning, match="stream=None"):
+            deprecated_module(mod.__name__, stream=None, **_DEPRS_CASE_MOD_ARGS)
+        with pytest.warns(FutureWarning, match="_test_stream_default_none_access_tmp") as caught:
+            getattr(mod, "some_attr", None)
+        assert len(caught) == 1
+
+    def test_repeat_call_with_none_warns_again_and_keeps_config(
+        self, make_tmp_module: Callable[..., types.ModuleType]
+    ) -> None:
+        """A repeated ``stream=None`` call announces again and leaves the original configuration in place.
+
+        ``importlib.reload`` re-runs the module body, so the call repeats; the announcement fires before the
+        idempotency guard, which still keeps the first configuration.
+        """
+        mod = make_tmp_module("_test_stream_default_repeat_tmp")
+        with pytest.warns(FutureWarning, match="stream=None"):
+            deprecated_module(mod.__name__, stream=None, **_DEPRS_CASE_MOD_ARGS)
+        first = mod.__deprecation_config__  # type: ignore[attr-defined]
+        with pytest.warns(FutureWarning, match="stream=None") as caught:
+            deprecated_module(mod.__name__, stream=None, **_DEPRS_CASE_MOD_ARGS)
+        assert (len(caught), mod.__deprecation_config__) == (1, first)  # type: ignore[attr-defined]
+
+
 @pytest.fixture
 def make_tmp_module() -> Iterator[Callable[..., types.ModuleType]]:
     """Factory fixture: create and register named temp modules; auto-removes each after the test."""
@@ -1279,7 +1350,7 @@ class TestRedirectCycle:
         target.answer = 42  # type: ignore[attr-defined]
         modules = [make_tmp_module(f"_test_async_guard_{index}_tmp") for index in range(2)]
         for mod in modules:
-            deprecated_module(mod.__name__, target=target, stream=None, **_DEPRS_CASE_MOD_ARGS)
+            deprecated_module(mod.__name__, target=target, **_DEPRS_CASE_MOD_ARGS)
 
         async def run_tasks() -> list[int]:
             """Keep both simulated outer resolutions alive until both nested lookups finish."""
@@ -1326,7 +1397,7 @@ class TestRedirectCycle:
         """
         source = make_tmp_module("_test_guard_thread_source_tmp")
         target = make_tmp_module("_test_guard_thread_target_tmp")
-        deprecated_module(source.__name__, target=target, stream=None, **_DEPRS_CASE_MOD_ARGS)
+        deprecated_module(source.__name__, target=target, **_DEPRS_CASE_MOD_ARGS)
         target.__getattr__ = InheritedContextLookup(source)  # type: ignore[method-assign]
         with pytest.warns(FutureWarning, match="_test_guard_thread_source_tmp") as caught:
             assert getattr(source, "value") == 7
@@ -1339,7 +1410,7 @@ class TestRedirectCycle:
         target = make_tmp_module("_test_guard_cleanup_target_tmp")
         target.answer = 42  # type: ignore[attr-defined]
         source = make_tmp_module("_test_guard_cleanup_source_tmp")
-        deprecated_module(source.__name__, target=target, stream=None, **_DEPRS_CASE_MOD_ARGS)
+        deprecated_module(source.__name__, target=target, **_DEPRS_CASE_MOD_ARGS)
         return source
 
     def test_guard_released_after_redirect(self, redirected_source: types.ModuleType) -> None:
