@@ -879,7 +879,14 @@ class TestTargetFactsPrecompute:
         assert plain == with_cache
 
     def test_prepare_target_call_uses_supplied_facts(self) -> None:
-        """`_prepare_target_call` validates against supplied facts and raises the curated TypeError on a bad kwarg."""
+        """`_prepare_target_call` validates against supplied facts and raises the curated TypeError on a bad kwarg.
+
+        The call-plan engine precomputes the target's parameter names and ``*args``/``**kwargs`` flags once and
+        passes them in as facts.  A caller forwards the keyword ``c`` to a target that accepts only ``a`` and ``b``
+        while the facts say the same: the call must fail with the library's own ``TypeError`` ("not accepted by
+        target") rather than a raw error from calling the target.
+
+        """
 
         def _tgt(a: int, b: int) -> None:
             """Two-parameter target that does not accept ``c``."""

@@ -53,7 +53,14 @@ class TestValidateDeprecationWrapperWithProxy:
         assert result.no_effect is False
 
     def test_proxy_with_args_mapping_skips_signature_validation(self) -> None:
-        """Proxy __call__ is (*args, **kwargs) so signature check is skipped — invalid_args is always []."""
+        """Proxy __call__ is (*args, **kwargs) so signature check is skipped — invalid_args is always [].
+
+        A package deprecates a class with ``deprecated_class`` and renames a constructor argument through
+        ``args_mapping``.  The audit cannot validate the mapped names against a signature, because the proxy's
+        ``__call__`` accepts ``(*args, **kwargs)``, so it must not report the mapping keys as invalid arguments.  The
+        configured mapping is still exposed unchanged on the result.
+
+        """
         proxy = _DeprecatedProxy(
             obj={},
             spec=_ProxySpec(
@@ -70,7 +77,14 @@ class TestValidateDeprecationWrapperWithProxy:
         assert result.invalid_args == []
 
     def test_proxy_with_identity_args_mapping_detected(self) -> None:
-        """Proxy with an identity args_mapping entry still detects it — invalid_args stays []."""
+        """Proxy with an identity args_mapping entry still detects it — invalid_args stays [].
+
+        A maintainer wrote a mapping that renames an argument to itself (``{"value": "value"}``) on a
+        ``deprecated_class`` proxy, which is a mistake that would warn about nothing useful.  Although the proxy
+        offers no signature to check, the audit must still list that entry under ``identity_args_mapping`` and keep
+        ``invalid_args`` empty, so the lint rule works for proxies as it does for decorated functions.
+
+        """
         proxy = _DeprecatedProxy(
             obj={},
             spec=_ProxySpec(
@@ -87,7 +101,13 @@ class TestValidateDeprecationWrapperWithProxy:
         assert result.invalid_args == []
 
     def test_proxy_no_target_with_args_mapping(self) -> None:
-        """Proxy with target=None and args_mapping: invalid_args=[] and no_effect=False (still warns)."""
+        """Proxy with target=None and args_mapping: invalid_args=[] and no_effect=False (still warns).
+
+        A class is deprecated with warn-only behaviour (no replacement target) and also remaps an argument through
+        ``args_mapping``.  A proxy with a mapping still emits a warning when used, so the audit must not flag it as
+        having no effect, and as for every proxy the signature check is skipped, so ``invalid_args`` stays empty.
+
+        """
         proxy = _DeprecatedProxy(
             obj={},
             spec=_ProxySpec(
@@ -104,7 +124,13 @@ class TestValidateDeprecationWrapperWithProxy:
         assert result.no_effect is False
 
     def test_proxy_attrs_mapping_chain_detected_as_stacked_chain(self) -> None:
-        """Audit reports an ``attrs_mapping`` chain without decoration-time failure."""
+        """Audit reports an ``attrs_mapping`` chain without decoration-time failure.
+
+        A deprecated class proxy maps attribute ``a`` to ``b`` and ``b`` to ``c``, so a caller reading ``a`` would be
+        sent to a name that is itself deprecated.  The audit must not fail while inspecting such a proxy and must
+        classify the result as a stacked chain, so the misconfiguration is reported instead of raising.
+
+        """
 
         class Palette:
             a = 1

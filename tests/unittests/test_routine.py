@@ -297,7 +297,14 @@ class TestEmptyVersionGuardSymmetry:
         assert len(user_warnings) == 1
 
     def test_guard_silent_when_template_msg_provided(self) -> None:
-        """@deprecated with message_template and no deprecated_in does not emit the empty-version UserWarning."""
+        """@deprecated with message_template and no deprecated_in does not emit the empty-version UserWarning.
+
+        A library writes its own full deprecation wording through ``message_template`` and therefore omits
+        ``deprecated_in``, since the custom text does not use a version.  Decorating functions this way, both with a
+        forwarding target and with argument remapping, must not trigger the warning about an empty version that
+        otherwise appears when no version is given, because the version is not needed to build the message.
+
+        """
 
         def new_fn() -> None:
             pass

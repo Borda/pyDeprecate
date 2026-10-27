@@ -169,7 +169,7 @@ class TestArgsMapping:
         assert isinstance(result, NewDataClass)
         assert result.label == "x"
 
-    def test_args_mapping_stored_in_proxy(self) -> None:
+    def test_stored_in_proxy(self) -> None:
         """Proxy should retain args_mapping so audit and introspection can verify remapping behavior."""
         mapping = object.__getattribute__(MappedDataClass, "__deprecation_config__").args_mapping
         assert mapping == {"name": "label", "count": "total"}
@@ -247,7 +247,14 @@ class TestArgsExtra:
         assert instance.injected == "from-extra"  # type: ignore[attr-defined]
 
     def test_merged_after_args_mapping_rename(self) -> None:
-        """args_extra is applied after args_mapping renames kwargs."""
+        """args_extra is applied after args_mapping renames kwargs.
+
+        A deprecated class is configured both to rename the keyword ``old_key`` to ``new_key`` and to inject an extra
+        keyword ``injected`` into every call.  A caller still using the old keyword must end up with an instance
+        built from the renamed argument and the injected extra together, so the two options combine instead of
+        one overriding the other.
+
+        """
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UserWarning)
             proxy = deprecated_class(
@@ -309,7 +316,13 @@ class TestProxyArgsMappingBehavior:
             ProxyCallableWithArgsMapping(old_key=1)  # type: ignore[call-arg]
 
     def test_callable_target_with_args_mapping_warns_on_new_arg(self) -> None:
-        """Proxy forwarding to callable target always warns (class deprecated) even with new arg name."""
+        """Proxy forwarding to callable target always warns (class deprecated) even with new arg name.
+
+        A class is deprecated in favour of a callable target and also maps ``old_key`` to ``new_key``.  Using the
+        class itself is the deprecated act, so a caller who has already migrated the argument to ``new_key`` but
+        still instantiates the old class must still receive the ``FutureWarning``.
+
+        """
         proxy = _DeprecatedProxy(
             obj=SomeTargetClass,
             spec=_ProxySpec(
@@ -420,7 +433,13 @@ class TestProxyArgsMappingBehavior:
                 pass
 
     def test_num_warns_respected_per_arg(self) -> None:
-        """Per-argument warn budget: second call with same old arg does not warn."""
+        """Per-argument warn budget: second call with same old arg does not warn.
+
+        A caller keeps passing the deprecated keyword ``old_key`` in a loop while the proxy allows one warning per
+        deprecated argument (``num_warns=1``).  The first call must warn, and the second call with the same old
+        argument must stay silent, so the log is not flooded.
+
+        """
         proxy = _DeprecatedProxy(
             obj=dict,
             spec=_ProxySpec(

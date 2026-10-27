@@ -248,7 +248,15 @@ class TestValidateDeprecatedWrapperCallableProxy:
         expected_mapping: dict,
         target_name: str,
     ) -> None:
-        """deprecated_class proxy with args_mapping reports mapping with no identity entries."""
+        """deprecated_class proxy with args_mapping reports mapping with no identity entries.
+
+        A maintainer audits a package that kept its old enum or dataclass name alive through ``deprecated_class`` and
+        renamed (or dropped) constructor arguments through ``args_mapping``.  Each parametrized proxy is handed to
+        ``validate_deprecation_wrapper``, which must report the proxy's own name, expose the configured mapping
+        unchanged, resolve the forwarding target by name, and flag none of the mapping problems (empty, identity or
+        no-effect).  A healthy mapped proxy therefore passes the audit without false positives.
+
+        """
         result = validate_deprecation_wrapper(proxy_obj)
         assert result.function == fn_name
         assert result.deprecated_info.args_mapping == expected_mapping
@@ -1035,7 +1043,7 @@ class TestCheckModuleDeprecationExpiry:
         assert "WarnOnlyColorEnum" in expired_names
         assert "depr_config_dict" in expired_names
 
-    def test_silently_skips_invalid_remove_in_version(self) -> None:
+    def test_skips_invalid_remove_in_version_with_warning(self) -> None:
         """Callables with a malformed remove_in are skipped with a ``UserWarning``, not raised."""
         bad_info = DeprecationWrapperInfo(
             module="tests.collections.api_deprecated",

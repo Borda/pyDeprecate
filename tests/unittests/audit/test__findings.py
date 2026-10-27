@@ -28,7 +28,14 @@ class TestWrapperFindings:
         assert [(finding.id, finding.details) for finding in findings] == [("invalid-args:pkg:old_fn", ("a", "b", "c"))]
 
     def test_rules_come_in_fixed_order(self) -> None:
-        """A wrapper with every flag set yields the rules in report order, the chain one from the ``chains`` family."""
+        """A wrapper with every flag set yields the rules in report order, the chain one from the ``chains`` family.
+
+        A badly misconfigured wrapper trips every audit rule at once, and a report or CI gate then walks its
+        findings.  The findings must come out in one fixed order (``invalid-args`` first, ``chain`` last) so that
+        output stays stable between runs, and the ``chain`` finding, the last one, must belong to the ``chains``
+        check while all other findings belong to the plain ``check`` family.
+
+        """
         info = DeprecationWrapperInfo(
             module="pkg",
             function="old_fn",

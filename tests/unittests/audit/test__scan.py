@@ -582,7 +582,14 @@ class TestFindDeprecationWrappersClassScan:
     """find_deprecation_wrappers discovers @deprecated on class members, peeking through descriptors."""
 
     def test_finds_deprecated_regular_method(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Deprecated regular method on a class is discovered by find_deprecation_wrappers."""
+        """Deprecated regular method on a class is discovered by find_deprecation_wrappers.
+
+        A maintainer deprecates an ordinary method of a class and later runs the audit over the module that holds
+        the class.  The scan must look inside the class, not only at module-level functions, and list the method
+        among the discovered wrappers.  The class is attached to a fake module and re-labelled as living there,
+        because the scan only reports members whose ``__module__`` matches the scanned module.
+
+        """
         mod = types.ModuleType("test_mod_method")
 
         @deprecated(deprecated_in="1.0", remove_in="2.0")
@@ -605,7 +612,14 @@ class TestFindDeprecationWrappersClassScan:
         assert any("old_method" in n for n in names)
 
     def test_finds_deprecated_classmethod(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Deprecated classmethod (correct @classmethod @deprecated order) is discovered."""
+        """Deprecated classmethod (correct @classmethod @deprecated order) is discovered.
+
+        A maintainer deprecates a class method with the recommended stacking, ``@classmethod`` on the outside and
+        ``@deprecated`` directly on the function.  The class attribute is then a ``classmethod`` descriptor around
+        the wrapper, and the audit scan must see through that descriptor and list the wrapper, otherwise the method
+        would silently escape every lifecycle check.  The class is attached to a fake module for the scan.
+
+        """
         mod = types.ModuleType("test_mod_cm")
 
         class OldCls:
@@ -628,7 +642,14 @@ class TestFindDeprecationWrappersClassScan:
         assert any("old_cm" in n for n in names)
 
     def test_finds_deprecated_staticmethod(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Deprecated staticmethod (correct @staticmethod @deprecated order) is discovered."""
+        """Deprecated staticmethod (correct @staticmethod @deprecated order) is discovered.
+
+        A maintainer deprecates a static method with the recommended stacking, ``@staticmethod`` on the outside and
+        ``@deprecated`` directly on the function.  The class attribute is a ``staticmethod`` descriptor around the
+        wrapper, and the audit scan must see through that descriptor and list the wrapper, otherwise the method
+        would silently escape every lifecycle check.  The class is attached to a fake module for the scan.
+
+        """
         mod = types.ModuleType("test_mod_sm")
 
         class OldCls:
@@ -651,7 +672,14 @@ class TestFindDeprecationWrappersClassScan:
         assert any("old_sm" in n for n in names)
 
     def test_finds_deprecated_property(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Deprecated property (correct @property @deprecated order) is discovered."""
+        """Deprecated property (correct @property @deprecated order) is discovered.
+
+        A maintainer deprecates a read-only attribute with ``@property`` on the outside and ``@deprecated`` directly
+        on the getter.  The class attribute is a ``property`` object whose getter is the wrapper, and the audit scan
+        must look inside the property and list that getter, otherwise the attribute would silently escape every
+        lifecycle check.  The class is attached to a fake module for the scan.
+
+        """
         mod = types.ModuleType("test_mod_prop")
 
         class OldCls:
@@ -674,7 +702,14 @@ class TestFindDeprecationWrappersClassScan:
         assert any("old_prop" in n for n in names)
 
     def test_finds_deprecated_cached_property(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Deprecated cached_property (correct @cached_property @deprecated order) is discovered."""
+        """Deprecated cached_property (correct @cached_property @deprecated order) is discovered.
+
+        A maintainer deprecates a lazily computed attribute with ``@cached_property`` on the outside and
+        ``@deprecated`` directly on the function.  The class attribute is a ``cached_property`` object around the
+        wrapper, and the audit scan must look inside it and list the wrapper, otherwise the attribute would silently
+        escape every lifecycle check.  The class is attached to a fake module for the scan.
+
+        """
         mod = types.ModuleType("test_mod_cp")
 
         class OldCls:
@@ -697,7 +732,14 @@ class TestFindDeprecationWrappersClassScan:
         assert any("old_cp" in n for n in names)
 
     def test_finds_outer_deprecated_classmethod(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Outer @deprecated @classmethod order: wrapper is discovered by audit scan."""
+        """Outer @deprecated @classmethod order: wrapper is discovered by audit scan.
+
+        A maintainer writes the stacking the other way round, with ``@deprecated`` on the outside of
+        ``@classmethod``.  The library supports that order too, so the class attribute is the deprecation wrapper
+        itself with a ``classmethod`` inside, and the audit scan must still list it among the discovered wrappers.
+        The class is attached to a fake module for the scan.
+
+        """
         mod = types.ModuleType("test_mod_outer_cm")
 
         class OldCls:
@@ -720,7 +762,14 @@ class TestFindDeprecationWrappersClassScan:
         assert any("old_cm" in n for n in names)
 
     def test_finds_outer_deprecated_staticmethod(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Outer @deprecated @staticmethod order: wrapper is discovered by audit scan."""
+        """Outer @deprecated @staticmethod order: wrapper is discovered by audit scan.
+
+        A maintainer writes the stacking the other way round, with ``@deprecated`` on the outside of
+        ``@staticmethod``.  The library supports that order too, so the class attribute is the deprecation wrapper
+        itself with a ``staticmethod`` inside, and the audit scan must still list it among the discovered wrappers.
+        The class is attached to a fake module for the scan.
+
+        """
         mod = types.ModuleType("test_mod_outer_sm")
 
         class OldCls:
@@ -743,7 +792,14 @@ class TestFindDeprecationWrappersClassScan:
         assert any("old_sm" in n for n in names)
 
     def test_finds_outer_deprecated_property(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Outer @deprecated @property order: wrapper is discovered by audit scan."""
+        """Outer @deprecated @property order: wrapper is discovered by audit scan.
+
+        A maintainer writes the stacking the other way round, with ``@deprecated`` on the outside of ``@property``.
+        The library supports that order too, so the class attribute is the deprecation wrapper itself with a
+        ``property`` inside, and the audit scan must still list it among the discovered wrappers.  The class is
+        attached to a fake module for the scan.
+
+        """
         mod = types.ModuleType("test_mod_outer_prop")
 
         class OldCls:
@@ -766,7 +822,14 @@ class TestFindDeprecationWrappersClassScan:
         assert any("old_prop" in n for n in names)
 
     def test_finds_outer_deprecated_cached_property(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Outer @deprecated @cached_property order: wrapper is discovered by audit scan."""
+        """Outer @deprecated @cached_property order: wrapper is discovered by audit scan.
+
+        A maintainer writes the stacking the other way round, with ``@deprecated`` on the outside of
+        ``@cached_property``.  The library supports that order too, so the class attribute is the deprecation wrapper
+        itself with a ``cached_property`` inside, and the audit scan must still list it among the discovered
+        wrappers.  The class is attached to a fake module for the scan.
+
+        """
         mod = types.ModuleType("test_mod_outer_cp")
 
         class OldCls:
@@ -789,7 +852,14 @@ class TestFindDeprecationWrappersClassScan:
         assert any("old_cp" in n for n in names)
 
     def test_finds_setter_only_property(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Explicit property(fget=None, fset=deprecated_fset) is discovered by audit scan."""
+        """Explicit property(fget=None, fset=deprecated_fset) is discovered by audit scan.
+
+        A maintainer builds a write-only attribute with ``property(None, fset)`` and deprecates the whole property
+        object.  Such a property has no getter to inspect, so the audit scan must still find the deprecated setter
+        and list the attribute, instead of skipping properties whose ``fget`` is ``None``.  The class is attached to
+        a fake module for the scan.
+
+        """
         mod = types.ModuleType("test_mod_setter_only")
 
         def _fset(self: object, v: int) -> None:
@@ -811,7 +881,14 @@ class TestFindDeprecationWrappersClassScan:
         assert any("write_only" in n for n in names)
 
     def test_finds_explicit_construction_fset_deprecated(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Explicit property(plain_fget, deprecated_fset): fset accessor is discovered."""
+        """Explicit property(plain_fget, deprecated_fset): fset accessor is discovered.
+
+        A maintainer keeps a read-write attribute readable but deprecates only assigning to it, by building the
+        property explicitly from an undecorated getter and a ``@deprecated`` setter.  The audit scan must look at
+        the setter as well as the getter, and list the attribute because its ``fset`` accessor is a deprecation
+        wrapper.  The class is attached to a fake module for the scan.
+
+        """
         mod = types.ModuleType("test_mod_explicit_fset")
 
         def _plain_fget(self: object) -> int:

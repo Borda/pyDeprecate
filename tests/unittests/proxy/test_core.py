@@ -190,7 +190,14 @@ class TestProxyReadOnly:
         assert "m" in inner
 
     def test_custom_mutator_bypasses_read_only_guard(self) -> None:
-        """Custom method names not in the blocked set pass through ``read_only=True`` (known limitation)."""
+        """Custom method names not in the blocked set pass through ``read_only=True`` (known limitation).
+
+        A user wraps a registry object with ``deprecated_instance(..., read_only=True)`` expecting it to be frozen.
+        The guard blocks only well-known mutating operations, so a custom mutator such as ``register`` is not
+        recognized: calling it through the proxy must not raise and must still change the wrapped object.  The test
+        pins this documented limitation, so a change in behaviour is a conscious decision.
+
+        """
 
         class RegistryWithCustomMutator:
             def __init__(self) -> None:
@@ -427,7 +434,14 @@ class TestTypeProtocol:
         assert not isinstance(42, OldConfig)
 
     def test_isinstance_no_warning_emitted(self) -> None:
-        """``isinstance(x, proxy)`` is a structural check — must not consume the warning budget."""
+        """``isinstance(x, proxy)`` is a structural check — must not consume the warning budget.
+
+        Code written before a class was deprecated keeps type-checking against its old name.  Such an
+        ``isinstance`` check is not a use of the deprecated class, so it must stay silent and leave the single-warning
+        budget (``num_warns=1``) untouched: the first real call of the proxy afterwards still emits the
+        ``FutureWarning``.
+
+        """
 
         class Target:
             pass
@@ -461,7 +475,14 @@ class TestTypeProtocol:
         assert issubclass(Sub, OldBase)
 
     def test_issubclass_respects_metaclass_semantics(self) -> None:
-        """Issubclass uses the target metaclass logic (including virtual subclasses)."""
+        """Issubclass uses the target metaclass logic (including virtual subclasses).
+
+        A library deprecates an abstract base class whose users registered classes as virtual subclasses through
+        ``ABCMeta.register``.  Code that still asks ``issubclass(VirtualSubclass, OldAbstractBase)`` must get the
+        answer the target's metaclass gives (``True``), as if the old name were the target itself, so the proxy does
+        not break ABC-based type checks during migration.
+
+        """
 
         class AbstractBase(metaclass=abc.ABCMeta):
             pass
@@ -478,7 +499,13 @@ class TestTypeProtocol:
         assert issubclass(VirtualSubclass, OldAbstractBase)
 
     def test_issubclass_no_warning_emitted(self) -> None:
-        """``issubclass(Sub, proxy)`` is structural and must not consume warning budget."""
+        """``issubclass(Sub, proxy)`` is structural and must not consume warning budget.
+
+        Code written before a class was deprecated keeps checking subclass relationships against its old name.
+        Such an ``issubclass`` check is not a use of the deprecated class, so it must stay silent and leave the
+        warning budget untouched: the first real call of the proxy afterwards still emits the ``FutureWarning``.
+
+        """
 
         class Base:
             pass
