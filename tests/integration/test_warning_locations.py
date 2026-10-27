@@ -741,7 +741,7 @@ class TestLibraryAliasSites:
     @pytest.mark.parametrize(
         ("operation", "category", "match"),
         [
-            pytest.param(lambda: no_warning_call(), DeprecationWarning, "no_warning_call", id="no-warning-call"),
+            pytest.param(no_warning_call, DeprecationWarning, "no_warning_call", id="no-warning-call"),
             pytest.param(
                 lambda: DeprecationWrapperInfo().empty_mapping,
                 FutureWarning,
