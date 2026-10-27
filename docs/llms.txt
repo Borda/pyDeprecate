@@ -476,6 +476,7 @@ Warning timing quick reference — all callable kinds:
 - [Audit tools](https://borda.github.io/pyDeprecate/stable/guide/audit.html)
 - [CLI](https://borda.github.io/pyDeprecate/stable/guide/cli.html)
 - [Troubleshooting](https://borda.github.io/pyDeprecate/stable/troubleshooting.html)
+- [Limitations and non-goals](https://borda.github.io/pyDeprecate/stable/limitations.html)
 
 ## Markdown Mirrors
 
@@ -497,5 +498,6 @@ Warning timing quick reference — all callable kinds:
 - [Agent Recipes Markdown](https://borda.github.io/pyDeprecate/stable/guide/agent-recipes.html.md)
 - [API Reference Markdown](https://borda.github.io/pyDeprecate/stable/api-reference.html.md)
 - [Troubleshooting Markdown](https://borda.github.io/pyDeprecate/stable/troubleshooting.html.md)
+- [Limitations Markdown](https://borda.github.io/pyDeprecate/stable/limitations.html.md)
 - [Brand Markdown](https://borda.github.io/pyDeprecate/stable/brand.html.md)
 - [Changelog Markdown](https://borda.github.io/pyDeprecate/stable/changelog.html.md)
