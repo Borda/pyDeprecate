@@ -52,6 +52,7 @@ their counters across tests; tests using them reset ``_state`` / ``_cfg.state`` 
 
 from __future__ import annotations
 
+import warnings
 from importlib import import_module
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -96,6 +97,33 @@ def _iter_wrapper_states() -> list[_WrapperState]:
 #: (pytest's direct collection, Sphinx autodoc, pickle) hits the same wall, which ``docs/troubleshooting.md``
 #: documents.
 collect_ignore = ["collections/modules/fatal_utils.py"]
+
+
+#: Generated docs example tests (``make docs-tests``); gitignored, so a fresh clone has none.
+_DOCS_TESTS_DIR = Path(__file__).parent / "docs"
+
+
+def pytest_collection_finish(session: pytest.Session) -> None:
+    """Warn when a run that covers ``tests/docs/`` finds no generated docs example tests there.
+
+    The ``tests/docs/test_*.py`` files are generated from ``docs/**/*.md`` by ``make docs-tests`` and are not
+    tracked in git. On a fresh clone the directory holds only its ``conftest.py``, so ``pytest .`` passes while
+    every documentation example goes untested. The warning names the command that generates them; a run that
+    targets other paths only (``pytest tests/unittests``) stays quiet.
+
+    """
+    if any(_DOCS_TESTS_DIR.glob("test_*.py")):
+        return
+    roots = [Path(str(arg).split("::")[0]).resolve() for arg in session.config.args]
+    if not any(root == _DOCS_TESTS_DIR or root in _DOCS_TESTS_DIR.parents for root in roots):
+        return
+    warnings.warn(
+        pytest.PytestWarning(
+            "No generated docs example tests in tests/docs/: the documentation examples were not run."
+            " Generate them with `make docs-tests`."
+        ),
+        stacklevel=1,
+    )
 
 
 @pytest.fixture(autouse=True)

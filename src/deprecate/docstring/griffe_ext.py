@@ -41,7 +41,7 @@ __all__: list[str] = []
 
 try:
     import griffe
-except ImportError:
+except ImportError:  # pragma: no cover - griffe is absent only without the mkdocs docs extras; the tests install it
     pass
 else:
 

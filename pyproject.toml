@@ -195,12 +195,18 @@ ini_options.junit_duration_report = "call"
 
 [tool.coverage]
 run.parallel = true
+# measure the CLI and GitHub Action runs that the integration tests start as `python -m deprecate` subprocesses
+run.patch = [ "subprocess" ]
 run.relative_files = true
 report.exclude_lines = [
   # anchored so only a bare `pass` statement is excluded — a substring `pass` would also drop
   # lines containing `passed`, `password`, etc. and overstate coverage
   "^\\s*pass\\s*$",
   "pragma: no cover",
+  # typing-only imports and stubs: never executed at runtime by design
+  "^\\s*if TYPE_CHECKING:",
+  # Protocol method bodies: the protocols describe proxies and wrappers, they are never called themselves
+  "^\\s*raise NotImplementedError$",
 ]
 
 [tool.pydeprecate]
