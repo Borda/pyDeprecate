@@ -393,7 +393,7 @@ pyDeprecate/
 │           ├── breaking/       # Required rewrites in v0.N-to-v0.M.md snippets
 │           └── behavior/       # Observable changes in v0.N-to-v0.M.md snippets
 ├── tests/                               # Test suite
-│   ├── _helpers.py                      # Helpers shared across test packages (e.g. write_pkg)
+│   ├── _helpers.py                      # Helpers shared across test packages: captured_warnings, write_pkg
 │   ├── collections/                     # Shared current and deprecated APIs for tests and examples
 │   │   ├── api_current.py               # Target functions (new implementations)
 │   │   ├── api_deprecated.py            # Shared constants, core wrappers and stable audit/docs examples
@@ -551,6 +551,8 @@ The integration suite also keeps characterization for positional and keyword for
 >     with warnings.catch_warnings(record=True) as caught:
 >         ...
 > ```
+
+**Asserting warnings.** Use `pytest.warns(Category, match=...)` when the test only needs at least one matching warning. When it checks an exact count, the order, the absence of warnings, or a record's `filename`/`lineno`, record with `captured_warnings()` from `tests/_helpers.py`. It is `warnings.catch_warnings(record=True)` plus `simplefilter("always")`, so neither the active filters nor the once-per-location registry hide a record. A warning the test triggers but does not check must not escape into the run's warnings summary: assert it with a second `pytest.warns` in the same `with`, or, when it is pure setup noise, add a narrow `@pytest.mark.filterwarnings("ignore:<message prefix>:<Category>")` to that test. `pytest.warns` re-emits unmatched warnings from the `warnings` module, so the `tests`-scoped ignores in `pyproject.toml` no longer apply to them.
 
 > [!NOTE]
 >
