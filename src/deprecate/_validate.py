@@ -671,7 +671,9 @@ def _normalize_target(
     classmethods name their first parameter ``cls`` (PEP 8 / all major linters enforce this).  If your classmethod
     uses an unconventional name (e.g. ``klass``) or ``source`` is a ``functools.partial`` whose first argument is
     already bound, the guard may raise spuriously.  In that case pass the unwrapped target explicitly:
-    ``target=your_classmethod.__func__``.
+    ``target=your_classmethod.__func__``.  A bound target such as ``YourClass.method`` is not an alternative for
+    a genuine classmethod source: the bound target has no receiver parameter, so the source's ``klass`` argument
+    is rejected.
 
     Args:
         source: The callable being decorated with ``@deprecated``.

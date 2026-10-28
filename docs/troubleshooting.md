@@ -430,6 +430,7 @@ When moving functions across modules, import the target from its new home explic
 - `reversed()`, `next()`
 - Context-manager entry (`with proxy:`, `async with proxy:`)
 - Async iteration entry (`async for`)
+- Awaiting a proxy (`await proxy`)
 - Subclassing (`class Child(proxy):`)
 
 **What stays silent (structural probes):**
@@ -1965,10 +1966,10 @@ If that noise is expected in tests, scope it in test config with `warnings.filte
 # tests/conftest.py
 import warnings
 
-warnings.filterwarnings("ignore", category=FutureWarning, module=r"^old_module$")
+warnings.filterwarnings("ignore", category=FutureWarning, message=r"The `old_module` module was deprecated")
 ```
 
-Replace `old_module` with the deprecated module's import path. This keeps the warning visible elsewhere while silencing the noisy introspection path during test collection.
+Replace `old_module` with the deprecated module's import path (escape dots in a dotted path, e.g. `pkg\.old_module`). Filter by `message=`, not `module=`: the warning is attributed to the module that accesses the deprecated one (the caller's frame), so `module=r"^old_module$"` never matches. The pattern above matches the start of the built-in notice ("The `old_module` module was deprecated since v..."); if you pass a custom `message_template`, match the start of that text instead. This keeps the warning visible elsewhere while silencing the noisy introspection path during test collection.
 
 ______________________________________________________________________
 
