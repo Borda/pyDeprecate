@@ -101,11 +101,11 @@ class DeprecationConfig:
             Non-cyclic chains are stored and surfaced by audit tooling.  ``None`` (default) means the proxy uses its
             blanket-warning behaviour (every attribute access emits a warning).
         as_exception: Whether this deprecation raises :class:`~deprecate._fatal.DeprecatedError` instead of
-            emitting a warning.  ``None`` (default) defers to the process-wide ``deprecate.AS_EXCEPTIONS``
-            switch; ``True`` is always fatal; ``False`` means "not fatal by default" and still yields to a
-            ``True`` global, so a consumer's strict run cannot be opted out of by an upstream wrapper.  See
-            :func:`~deprecate._fatal._resolve_as_exception` for the resolution rule.  A fatal deprecation
-            bypasses ``num_warns`` entirely — it raises on every call rather than on the first one.
+            emitting a warning.  ``None`` (default) follows the open :func:`~deprecate._fatal.as_exceptions`
+            scope, else ``deprecate.AS_EXCEPTIONS``; ``True`` is always fatal; ``False`` means "not fatal by
+            default" and still yields to a ``True`` global, so a consumer's strict run cannot be opted out of by an
+            upstream wrapper.  See :func:`~deprecate._fatal._resolve_as_exception` for the resolution rule.  A fatal
+            deprecation bypasses ``num_warns`` entirely — it raises on every call rather than on the first one.
         args_mapping: Optional dict remapping argument names; values are a plain string (new argument name) or
             ``None`` (drop the argument).
         args_mapping_auto_expanded: Keys that were automatically copied from ``attrs_mapping`` into

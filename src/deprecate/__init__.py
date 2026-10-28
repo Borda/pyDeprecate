@@ -113,7 +113,9 @@ from deprecate.utils import (
 #: Process-wide default for ``as_exception``: when ``True``, every deprecation raises
 #: :class:`~deprecate._fatal.DeprecatedError` instead of warning, including ``as_exception=False``. Seeded from
 #: ``DEPRECATE_AS_EXCEPTIONS`` at import and re-read on every emission, so assigning to it at runtime (or in a
-#: test) takes effect immediately.  An explicit ``as_exception=True`` on a wrapper is fatal regardless of this.
+#: test) takes effect on the next emission, except inside an open :func:`~deprecate._fatal.as_exceptions` scope,
+#: which decides first and applies the assignment only once it closes.  An explicit ``as_exception=True`` on a
+#: wrapper is fatal regardless of this.
 AS_EXCEPTIONS: bool = _env_as_exceptions()
 
 __all__ = [
