@@ -24,8 +24,14 @@ def _code_text(text: str) -> str:
 def _troubleshooting_faq_names() -> list[str]:
     """Return the FAQPage question names from the troubleshooting JSON-LD block, in order."""
     html = (_DOCS / "overrides" / "main.html").read_text(encoding="utf-8")
-    block = html.split('page.file.src_path == "troubleshooting.md" %}', 1)[1]
-    script = block.split('<script type="application/ld+json">', 1)[1].split("</script>", 1)[0]
+    condition = re.search(r"""page\.file\.src_path\s*==\s*["']troubleshooting\.md["']\s*%\}""", html)
+    assert condition, (
+        "docs/overrides/main.html has no `page.file.src_path == troubleshooting.md` branch holding the FAQ JSON-LD"
+    )
+    block = html[condition.end() :]
+    script_open = '<script type="application/ld+json">'
+    assert script_open in block, "the troubleshooting branch of docs/overrides/main.html has no ld+json <script> block"
+    script = block.split(script_open, 1)[1].split("</script>", 1)[0]
     graph = json.loads(script.replace("{{ page.canonical_url }}", ""))["@graph"]
     (faq,) = (node for node in graph if node["@type"] == "FAQPage")
     return [question["name"] for question in faq["mainEntity"]]
@@ -33,8 +39,18 @@ def _troubleshooting_faq_names() -> list[str]:
 
 def _troubleshooting_headings() -> list[str]:
     """Return the H2 headings of the troubleshooting page as plain text, in order."""
-    text = (_DOCS / "troubleshooting.md").read_text(encoding="utf-8")
-    return [heading.replace("`", "") for heading in re.findall(r"^## (.+)$", text, flags=re.MULTILINE)]
+    headings: list[str] = []
+    fence = ""  # the opening fence marker while inside a fenced code block, else ""
+    for line in (_DOCS / "troubleshooting.md").read_text(encoding="utf-8").splitlines():
+        marker = re.match(r"\s*(`{3,}|~{3,})", line)
+        if fence:
+            if marker and marker.group(1)[0] == fence[0] and len(marker.group(1)) >= len(fence):
+                fence = ""
+        elif marker:
+            fence = marker.group(1)
+        elif line.startswith("## "):
+            headings.append(line[3:].strip().replace("`", ""))
+    return headings
 
 
 @pytest.mark.parametrize("llms_file", ["llms.txt", "llms-full.txt"])
@@ -45,11 +61,18 @@ def test_llms_files_name_every_public_export(llms_file: str, name: str) -> None:
     Coding agents read ``docs/llms.txt`` (and the condensed ``docs/llms-full.txt``) before generating code
     against pyDeprecate. A public name missing from either file is invisible to those agents, so they
     reinvent it or call an older spelling. The files are hand-written, so this guards against drift each
-    time a name is added to an ``__all__``.
+    time a name is added to an ``__all__``. A word buried in a longer code span or a code comment does not tell an
+    agent the name exists, so the name needs a real anchor: its own backticked span (optionally dotted, as in
+    ``deprecate.audit.name``), call or signature form (``name(``), attribute use (``name.MEMBER``), an import
+    statement, or at least two mentions as code.
     """
-    text = (_DOCS / llms_file).read_text(encoding="utf-8")
-    assert re.search(rf"\b{re.escape(name)}\b", _code_text(text)), (
-        f"`{name}` is exported but not mentioned as code in docs/{llms_file}"
+    code = _code_text((_DOCS / llms_file).read_text(encoding="utf-8"))
+    pattern = re.escape(name)
+    mentions = len(re.findall(rf"\b{pattern}\b", code))
+    anchors = rf"`(?:\w+\.)*{pattern}`|\b{pattern}\(|\b{pattern}\.\w|\bimport\b[^\n`]*\b{pattern}\b"
+    assert re.search(anchors, code) or mentions >= 2, (
+        f"`{name}` is exported but docs/{llms_file} only mentions it inside longer code ({mentions} time(s)); "
+        f"give it its own backticked span, a `{name}(...)` call form, an import line, or a second mention"
     )
 
 

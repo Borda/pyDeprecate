@@ -28,12 +28,40 @@ _EXPECTED_ALL: dict[str, set[str]] = {
     "deprecate.docstring": set(),
     "deprecate.docstring.inject": set(),
     "deprecate.docstring.sphinx_ext": {"setup"},
+    "deprecate.audit": {
+        "ChainType",
+        "DeprecatedCallableInfo",
+        "DeprecationStatus",
+        "DeprecationWrapperInfo",
+        "GraceWindow",
+        "GraceWindowSpec",
+        "PolicyRule",
+        "TableStyle",
+        "VersionBump",
+        "find_deprecated_callables",
+        "find_deprecation_wrappers",
+        "generate_deprecation_table",
+        "validate_deprecated_callable",
+        "validate_deprecation_chains",
+        "validate_deprecation_expiry",
+        "validate_deprecation_policy",
+        "validate_deprecation_wrapper",
+        "validate_mapping_compatibility",
+    },
+}
+
+#: Public modules deliberately left out of ``_EXPECTED_ALL``, each with the reason it is pinned elsewhere.
+_UNPINNED_PUBLIC_MODULES: dict[str, str] = {
+    "deprecate.__about__": "package metadata; its dunder names are the exports, not API names",
+    "deprecate.__main__": "``python -m deprecate`` entry point; defines no exports",
+    "deprecate.docstring.griffe_ext": "export is conditional on griffe; pinned by its own test below",
 }
 
 _ALL_MODULES = sorted(info.name for info in pkgutil.walk_packages(deprecate.__path__, prefix="deprecate."))
 _PRIVATE_MODULES = [
     name for name in _ALL_MODULES if any(part.startswith("_") and not part.startswith("__") for part in name.split("."))
 ]
+_PUBLIC_MODULES = [name for name in _ALL_MODULES if name not in _PRIVATE_MODULES]
 
 
 class TestModuleAll:
@@ -48,6 +76,29 @@ class TestModuleAll:
         the contract; a name added or dropped from it changes the public surface and must be deliberate.
         """
         assert set(importlib.import_module(module_name).__all__) == expected
+
+    def test_every_public_module_is_classified(self) -> None:
+        """Every public module is either pinned in ``_EXPECTED_ALL`` or listed with a reason in the exemptions.
+
+        A new public module added without an ``__all__`` pin would silently escape this whole class; the check
+        also fails on a pinned or exempt name that no longer exists, so renames cannot leave stale entries.
+        """
+        classified = set(_EXPECTED_ALL) | set(_UNPINNED_PUBLIC_MODULES)
+        assert (sorted(set(_PUBLIC_MODULES) - classified), sorted(classified - set(_PUBLIC_MODULES))) == ([], [])
+
+    def test_pinned_and_exempt_modules_do_not_overlap(self) -> None:
+        """No module is both pinned in ``_EXPECTED_ALL`` and listed as exempt from pinning."""
+        assert sorted(set(_EXPECTED_ALL) & set(_UNPINNED_PUBLIC_MODULES)) == []
+
+    @pytest.mark.parametrize("module_name", sorted(_EXPECTED_ALL))
+    def test_lists_no_duplicates(self, module_name: str) -> None:
+        """No name appears twice in ``__all__``.
+
+        The pinned comparison uses sets, which would hide a name pasted in twice; a duplicate is harmless at
+        runtime but signals a botched merge of the export list.
+        """
+        exported = importlib.import_module(module_name).__all__
+        assert len(exported) == len(set(exported))
 
     @pytest.mark.parametrize("module_name", sorted(_EXPECTED_ALL))
     def test_every_name_resolves(self, module_name: str) -> None:

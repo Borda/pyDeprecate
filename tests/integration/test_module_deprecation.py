@@ -25,6 +25,7 @@ import tests.collections.modules.new_utils as new_utils
 import tests.collections.modules.old_math as old_math
 import tests.collections.modules.old_utils as old_utils
 from deprecate import (
+    DeprecatedError,
     TargetMode,
     assert_no_warnings,
     find_deprecation_wrappers,
@@ -861,7 +862,59 @@ class TestStreamDefault:
         first = mod.__deprecation_config__  # type: ignore[attr-defined]
         with pytest.warns(FutureWarning, match="stream=None") as caught:
             deprecated_module(mod.__name__, stream=None, **_DEPRS_CASE_MOD_ARGS)
-        assert (len(caught), mod.__deprecation_config__) == (1, first)  # type: ignore[attr-defined]
+        assert (len(caught), mod.__deprecation_config__ is first) == (1, True)  # type: ignore[attr-defined]
+
+    def test_callable_stream_gives_no_notice(self, make_tmp_module: Callable[..., types.ModuleType]) -> None:
+        """A callable ``stream`` adds no ``FutureWarning`` at the call: only an explicit ``None`` is announced.
+
+        A library author who routes the module warning to a logging sink already chose the delivery path; telling
+        them about a v1.0 change to ``stream=None`` semantics would be noise about an argument they never wrote.
+        """
+        mod = make_tmp_module("_test_stream_default_callable_tmp")
+        with assert_no_warnings(FutureWarning):
+            deprecated_module(mod.__name__, stream=RecordingStream(), **_DEPRS_CASE_MOD_ARGS)
+
+    def test_explicit_none_with_fatal_mode_announces_and_raises_on_access(
+        self, make_tmp_module: Callable[..., types.ModuleType]
+    ) -> None:
+        """``stream=None`` with ``as_exception=True`` still announces at the call and raises on access.
+
+        A fatal module deprecation does not depend on ``stream``, so the access raises ``DeprecatedError`` whatever
+        ``stream`` holds; the call-time notice is about the argument's v1.0 meaning and is emitted regardless.
+        """
+        mod = make_tmp_module("_test_stream_default_fatal_tmp")
+        with pytest.warns(FutureWarning, match="stream=None") as caught:
+            deprecated_module(mod.__name__, stream=None, as_exception=True, **_DEPRS_CASE_MOD_ARGS)
+        with pytest.raises(DeprecatedError, match="_test_stream_default_fatal_tmp"):
+            getattr(mod, "some_attr", None)
+        assert len(caught) == 1
+
+    @pytest.mark.parametrize(
+        ("message_template", "target_is_module", "error"),
+        [
+            pytest.param("bad %d template", False, "Invalid message_template", id="invalid-message-template"),
+            pytest.param(None, True, "pointing at", id="target-is-the-module-itself"),
+        ],
+    )
+    def test_rejected_call_with_none_gives_no_notice(
+        self,
+        make_tmp_module: Callable[..., types.ModuleType],
+        message_template: str | None,
+        target_is_module: bool,
+        error: str,
+    ) -> None:
+        """A ``deprecated_module(stream=None)`` call that raises ``ValueError`` emits no ``stream=None`` notice.
+
+        A module author whose call is rejected must fix the call first; a migration notice about an installation
+        that never happened would bury the actual error. The rejection has to win over the announcement, so this
+        test depends on the fix that moves the notice behind validation.
+        """
+        mod = make_tmp_module("_test_stream_default_rejected_tmp")
+        target = mod if target_is_module else None
+        with assert_no_warnings(FutureWarning, match="stream=None"), pytest.raises(ValueError, match=error):
+            deprecated_module(
+                mod.__name__, stream=None, target=target, message_template=message_template, **_DEPRS_CASE_MOD_ARGS
+            )
 
 
 @pytest.fixture
