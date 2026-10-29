@@ -56,6 +56,9 @@ from deprecate.proxy.core import _DeprecatedProxy as _DeprecatedProxy
 from deprecate.proxy.core import _proxy_call_global as _proxy_call_global
 from deprecate.proxy.core import _proxy_type_for as _proxy_type_for
 from deprecate.proxy.core import _ProxySpec as _ProxySpec
+from deprecate.proxy.core import _rebuild_class_call as _rebuild_class_call
+from deprecate.proxy.core import _rebuild_class_instance as _rebuild_class_instance
+from deprecate.proxy.core import _rebuild_class_instance_ex as _rebuild_class_instance_ex
 from deprecate.proxy.core import _reconstruct_proxy as _reconstruct_proxy
 from deprecate.proxy.core import _restore_pep702_marker as _restore_pep702_marker
 from deprecate.proxy.factories import deprecated_class as deprecated_class

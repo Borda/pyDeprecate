@@ -8,6 +8,8 @@ allocated as a cached subclass carrying only the ones its wrapped object support
 """
 
 import copy
+import copyreg
+import importlib
 import inspect
 import sys
 import threading
@@ -1164,7 +1166,10 @@ class _DeprecatedProxy:
             directly and pickle works reliably.  For :func:`~deprecate.proxy.deprecated_class` proxies
             the wrapped class is serialised by reference; if the module-level name was replaced by the
             proxy (the typical usage), pickle cannot resolve the reference and raises
-            :class:`~pickle.PicklingError`.
+            :class:`~pickle.PicklingError`.  This applies to the class alias itself only: instances of
+            a class deprecated in place pickle through the reducer :func:`_register_class_instance_reducer`
+            installs, unless the class defines its own ``__reduce__`` or ``__reduce_ex__`` (every
+            :class:`~enum.Enum` does, so in-place deprecated Enum members still raise).
 
         """
         doc = object.__getattribute__(self, "__dict__").get("__doc__")
@@ -1386,6 +1391,173 @@ def _reconstruct_proxy(
     return proxy
 
 
+# ------------------------------------------------------------------
+# Pickle support for instances of a class deprecated in place
+#
+# ``@deprecated_class`` without a replacement class rebinds the class's module-level name to the proxy. The instances
+# are ordinary objects of the wrapped class, but pickle saves their class by reference and refuses it, because
+# ``module.<qualname>`` is now the proxy, not the class. A ``copyreg`` reducer, keyed on the exact class, swaps that
+# class reference for ``(module, qualname)`` and a rebuild helper that resolves the published proxy back to the class.
+# ------------------------------------------------------------------
+
+#: Marks a qualname part missing from its namespace while resolving a published class.
+_UNRESOLVED = object()
+
+
+def _innermost_source(obj: Any) -> Any:  # noqa: ANN401
+    """Return the object a (possibly stacked) proxy chain wraps, read without any attribute access that warns."""
+    while isinstance(obj, _DeprecatedProxy):
+        obj = obj._cfg.obj
+    return obj
+
+
+def _published_object(root: Any, qualname: str) -> Any:  # noqa: ANN401
+    """Return what *qualname* names under *root*, or :data:`_UNRESOLVED` when a part is missing or *root* is ``None``.
+
+    Walks the namespaces (``__dict__``) rather than ``getattr`` so no lookup goes through a proxy's warning
+    ``__getattr__`` or a deprecated module's attribute hook. A proxy met on the way (a nested class inside a deprecated
+    host) is unwrapped to its class first; the last part is returned as found, so the caller can tell the class itself
+    from a proxy that took over its name.
+
+    """
+    found = root
+    for part in qualname.split("."):
+        namespace = getattr(_innermost_source(found), "__dict__", None)
+        found = _UNRESOLVED if namespace is None else namespace.get(part, _UNRESOLVED)
+        if found is _UNRESOLVED:
+            break
+    return found
+
+
+def _resolve_class(module: str, qualname: str) -> type:
+    """Import *module* and return the class published as *qualname*, unwrapping the proxy that holds its name.
+
+    Raises:
+        AttributeError: When *module* no longer defines a class at *qualname*.
+
+    """
+    cls = _innermost_source(_published_object(importlib.import_module(module), qualname))
+    if not isinstance(cls, type):
+        raise AttributeError(f"Cannot rebuild the pickled instance: `{module}.{qualname}` no longer names a class.")
+    return cls
+
+
+def _rebuild_class_instance(module: str, qualname: str, *args: Any) -> Any:  # noqa: ANN401
+    """Recreate an instance of a class deprecated in place, without a deprecation warning.
+
+    The pickle counterpart of :func:`copyreg.__newobj__`: *module* and *qualname* replace the class reference, which
+    pickle cannot save while the proxy holds the class's name.  The import path of this function is stored in every
+    such payload, so it is part of the pickle compatibility contract.
+
+    Args:
+        module: ``__module__`` of the wrapped class.
+        qualname: ``__qualname__`` of the wrapped class.
+        args: Positional arguments for ``__new__`` (from ``__getnewargs__``).
+
+    """
+    cls = _resolve_class(module, qualname)
+    return cls.__new__(cls, *args)
+
+
+def _rebuild_class_instance_ex(module: str, qualname: str, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:  # noqa: ANN401
+    """Recreate an instance whose ``__new__`` takes keyword arguments, without a deprecation warning.
+
+    The pickle counterpart of :func:`copyreg.__newobj_ex__`, used when the class defines ``__getnewargs_ex__``; see
+    :func:`_rebuild_class_instance`.  Its import path is part of the pickle compatibility contract.
+
+    Args:
+        module: ``__module__`` of the wrapped class.
+        qualname: ``__qualname__`` of the wrapped class.
+        args: Positional arguments for ``__new__``.
+        kwargs: Keyword arguments for ``__new__``.
+
+    """
+    cls = _resolve_class(module, qualname)
+    return cls.__new__(cls, *args, **kwargs)
+
+
+def _rebuild_class_call(module: str, qualname: str, *args: Any) -> Any:  # noqa: ANN401
+    """Recreate an instance by calling its class, as a ``__reduce__`` that names the class itself asks.
+
+    The counterpart of a reduction whose callable is the class, the shape :class:`BaseException` and
+    :class:`collections.OrderedDict` return; see :func:`_rebuild_class_instance`.  The class is called directly rather
+    than through the proxy, so no deprecation warning fires.  Its import path is part of the pickle compatibility
+    contract.
+
+    Args:
+        module: ``__module__`` of the wrapped class.
+        qualname: ``__qualname__`` of the wrapped class.
+        args: Positional arguments for the class call.
+
+    """
+    return _resolve_class(module, qualname)(*args)
+
+
+#: The default ``__newobj__`` constructors mapped to the helpers that rebuild a class deprecated in place.
+_REBUILDERS: dict[Any, Callable[..., Any]] = {
+    copyreg.__newobj__: _rebuild_class_instance,  # type: ignore[attr-defined]  # public in CPython, absent from typeshed
+    copyreg.__newobj_ex__: _rebuild_class_instance_ex,  # type: ignore[attr-defined]  # public in CPython, absent from typeshed
+}
+
+
+def _reduce_class_instance(obj: Any) -> Union[str, tuple[Any, ...]]:  # noqa: ANN401
+    """Reduce an instance of a class deprecated in place so pickle need not save its class by reference.
+
+    Registered in :data:`copyreg.dispatch_table`, so it receives no protocol and always starts from the default
+    protocol-2 reduction, which every pickle protocol loads.  The class's published name is resolved lazily, at pickle
+    time:
+
+    - it is the class itself (the alias form ``Alias = deprecated_class(...)(Cls)``): the default reduction, unchanged;
+    - it is a proxy over this very class: the same reduction with the class reference replaced by a rebuild helper,
+      both for the default ``__newobj__`` form and for a ``__reduce__`` (own or inherited, as from
+      :class:`BaseException`) whose callable is the class itself;
+    - anything else (missing module, a local class, a name rebound to another object): the default reduction, so
+      pickle raises its own error instead of loading an instance of the wrong class.
+
+    A class that gained its own ``__reduce_ex__`` after registration gets that method's result back unchanged, because
+    the dispatch table would otherwise hide it from pickle and copy. Any other reduction (a ``__newobj__`` naming
+    another class, a callable that is not the class) passes through unchanged.
+    ``copy.copy`` and ``copy.deepcopy`` consult the same dispatch table and rebuild through the same tuple, which yields
+    the same object as the default reduction would.
+
+    """
+    cls = type(obj)
+    if cls.__reduce_ex__ is not object.__reduce_ex__:
+        return cast("Union[str, tuple[Any, ...]]", obj.__reduce_ex__(2))
+    reduced = object.__reduce_ex__(obj, 2)
+    if not isinstance(reduced, tuple):
+        return reduced
+    if reduced[0] is cls:
+        rebuild, args = _rebuild_class_call, reduced[1]
+    elif reduced[0] in _REBUILDERS and reduced[1][0] is cls:
+        rebuild, args = _REBUILDERS[reduced[0]], reduced[1][1:]
+    else:
+        return reduced
+    published = _published_object(sys.modules.get(cls.__module__), cls.__qualname__)
+    if published is cls or _innermost_source(published) is not cls:
+        return reduced
+    return (rebuild, (cls.__module__, cls.__qualname__, *args), *reduced[2:])
+
+
+def _register_class_instance_reducer(proxy: _DeprecatedProxy) -> None:
+    """Make instances of the class *proxy* deprecates in place picklable, unless the class decides ``__reduce_ex__``.
+
+    Registers :func:`_reduce_class_instance` for the wrapped class in :data:`copyreg.dispatch_table`. Skipped when the
+    proxy is stacked over another proxy (the inner one registered already), when it redirects to a replacement class
+    (instances are the target's, which pickles by its own name), when the class defines or inherits its own
+    ``__reduce_ex__`` (every :class:`~enum.Enum` does; its own protocol keeps deciding), and when a reducer is already
+    registered for it (never replace the caller's). Dispatch is keyed on the exact class, so subclasses are unaffected.
+    The table keeps the class alive for the life of the process, as a module-level class is anyway.
+
+    """
+    source = proxy._cfg.obj
+    if not isinstance(source, type) or proxy._unskipped_active() is not source:
+        return
+    if source.__reduce_ex__ is not object.__reduce_ex__:
+        return
+    copyreg.dispatch_table.setdefault(source, _reduce_class_instance)
+
+
 def _proxy_call_global(
     proxy: _DeprecatedProxy,
     dep: DeprecationConfig,
@@ -1598,6 +1770,9 @@ _DeprecatedProxy.__module__ = "deprecate.proxy"
 _BindingDeprecatedProxy.__module__ = "deprecate.proxy"
 _reconstruct_proxy.__module__ = "deprecate.proxy"
 _restore_pep702_marker.__module__ = "deprecate.proxy"
+_rebuild_class_instance.__module__ = "deprecate.proxy"
+_rebuild_class_instance_ex.__module__ = "deprecate.proxy"
+_rebuild_class_call.__module__ = "deprecate.proxy"
 
 # The proxy classes' methods keep the same module identity as their classes.
 for _class in (_DeprecatedProxy, _BindingDeprecatedProxy):

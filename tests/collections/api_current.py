@@ -1991,3 +1991,17 @@ class DoclessTarget:  # noqa: D101 - intentionally lacks documentation for proxy
 def zero_argument_target() -> int:
     """Return a fixed value without accepting any forwarded arguments."""
     return 7
+
+
+class InPlaceAliasSource:
+    """Class that keeps its own module-level name while a deprecated alias of it is published elsewhere."""
+
+    def __init__(self, level: int) -> None:
+        """Store the sample level."""
+        self.level = level
+
+    def __eq__(self, other: object) -> bool:
+        """Compare by exact type and level, so a round trip that changed the class does not compare equal."""
+        return type(other) is type(self) and vars(other) == vars(self)
+
+    __hash__ = None  # type: ignore[assignment]
