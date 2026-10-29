@@ -1,8 +1,8 @@
 """Deprecated wrappers for argument forwarding, proxy mappings, descriptors and async callables."""
 
 import asyncio
-from collections.abc import AsyncIterator, Iterator
-from typing import Any, Callable
+from collections.abc import AsyncGenerator, AsyncIterator, Generator, Iterator
+from typing import Any, Callable, Optional
 from warnings import catch_warnings, simplefilter
 
 import typing_extensions
@@ -31,10 +31,12 @@ from tests.collections.api_current import (
     async_gen_target,
     async_non_cycle_double,
     async_positional_only_target,
+    async_running_total,
     async_suspending_double,
     async_target,
     async_var_positional_target,
     both_old_new_target,
+    countdown_stream,
     del_only_prop_fdel,
     fib_recursive,
     fn_kept_name_target,
@@ -45,18 +47,23 @@ from tests.collections.api_current import (
     gen_target,
     identity_value,
     non_cycle_double,
+    open_cursor,
     pep702_target,
     positional_only_target,
     positional_only_two_params_target,
     return_default_value,
+    running_total,
     single_positional_target,
+    squares_list,
     tracked_identity,
     trio_positional_target,
     uncomparable_default,
     var_positional_remap_body,
     var_positional_target,
+    walk_down,
 )
 from tests.collections.api_deprecated import (
+    _DEPRS_CASE_OUTER_ARGS,
     _DEPRS_CASE_STD_ARGS,
     _DEPRS_CASE_STD_INF_ARGS,
     _DEPRS_CASE_TGT_MODE_ARGS,
@@ -391,8 +398,8 @@ def pep702_proxy_stacked() -> _Pep702ProxyTarget:
 # ========== generator callable kind fixtures ==========
 # Three wrappers exercise the ``@deprecated`` generator path (``inspect.isgeneratorfunction``
 # branch in ``packing()``).  Each pairs a generator source/target combination with a different
-# ``TargetMode`` so the integration tests can confirm warning timing (eager at call time, not on
-# first ``next()``) and full round-trip yield equivalence.
+# ``TargetMode`` so the integration tests can confirm warning timing (on the first ``next()``, not
+# at call time) and full round-trip yield equivalence.
 
 
 def _gen_source_remap(old_x: int = 0, x: int = 0) -> Iterator[int]:
@@ -419,7 +426,7 @@ def _gen_source_callable(x: int = 0) -> Iterator[int]:
 
 
 #: NOTIFY mode — source body runs unchanged (warning-only).  ``gen_target`` is itself the source.
-#: Uses default ``num_warns=1``; warning fires once per call via ``_build_call_plan``.
+#: Uses default ``num_warns=1``; the warning fires once, via ``_build_call_plan`` on the first ``next()``.
 #: The conftest reset clears ``warned_calls`` before every test, so each parametrize case sees a fresh budget.
 gen_notify = deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)(gen_target)
 #: ARGS_REMAP mode — self-deprecation; legacy arg ``old_x`` mapped to ``x`` before source body executes.
@@ -472,10 +479,10 @@ async_callable = deprecated(target=async_target, **_DEPRS_CASE_STD_ARGS)(_async_
 
 
 # ========== async generator callable kind fixtures ==========
-# Three wrappers exercise the ``@deprecated`` async generator path (async generator sources fall through
-# to the sync ``wrapped_fn`` in ``packing()``).  Each pairs an async generator source with one of the
-# three ``TargetMode`` variants so the integration tests can confirm: (a) round-trip async iteration
-# yields ``[1, 2, 3]``, (b) warning fires at sync call time before first ``async for``, and
+# Three wrappers exercise the ``@deprecated`` async generator path (``inspect.isasyncgenfunction``
+# selects the async generator wrapper in ``packing()``).  Each pairs an async generator source with one of
+# the three ``TargetMode`` variants so the integration tests can confirm: (a) round-trip async iteration
+# yields ``[1, 2, 3]``, (b) warning fires on the first ``async for`` step, not at call time, and
 # (c) stacklevel points to the user's call site.
 
 
@@ -522,6 +529,107 @@ async_gen_args_remap = deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"o
 )
 #: Callable-target mode — call forwarded to ``async_gen_target``; source body never executes.
 async_gen_callable = deprecated(target=async_gen_target, **_DEPRS_CASE_STD_ARGS)(_async_gen_source_callable)
+
+
+# ========== generator protocol fixtures ==========
+# Wrappers for the generator-wrapper contract: the wrapper of a generator (async generator) function is itself one, so
+# the warning fires on the first ``next()`` (``async for`` step), and the protocol forwards to the inner generator.
+# The protocol wrappers forward to callable targets, so they also run under the target-chain cycle guard.
+
+
+def _running_total_source(start: int, log: list[str]) -> Generator[int, Optional[int], None]:
+    """Placeholder generator source for ``deprecated_running_total``: body never executes under callable-target mode."""
+    if False:  # pragma: no cover - unreachable; declares this as a generator
+        yield start
+
+
+async def _async_running_total_source(start: int, log: list[str]) -> AsyncGenerator[int, Optional[int]]:
+    """Placeholder async generator source for ``deprecated_async_running_total``; the target forwards every call."""
+    if False:  # pragma: no cover - unreachable; declares this as an async generator
+        yield start
+
+
+async def _cursor_source(log: list[Any]) -> AsyncGenerator[int, Optional[int]]:
+    """Placeholder async generator source for ``deprecated_cursor``; its target returns a non-native async generator."""
+    if False:  # pragma: no cover - unreachable; declares this as an async generator
+        yield len(log)
+
+
+def _walk_source(depth: int, recurse: Callable[[int, Any], Iterator[int]]) -> Iterator[int]:
+    """Placeholder generator source for ``deprecated_walk``, whose target recurses through the ``recurse`` callable."""
+    if False:  # pragma: no cover - unreachable; declares this as a generator
+        yield depth
+
+
+def _squares_source(n: int) -> Iterator[int]:
+    """Placeholder generator source for ``deprecated_squares``, whose target returns a list instead of a generator."""
+    if False:  # pragma: no cover - unreachable; declares this as a generator
+        yield n
+
+
+async def _countdown_source(start: int) -> AsyncIterator[int]:
+    """Placeholder async generator source for ``deprecated_countdown``, whose target returns a plain async iterator."""
+    if False:  # pragma: no cover - unreachable; declares this as an async generator
+        yield start
+
+
+def _gen_source_stacked(x: int = 0) -> Iterator[int]:
+    """Placeholder generator source for the inner layer of ``gen_stacked``; the target forwards every call."""
+    if False:  # pragma: no cover - unreachable; declares this as a generator
+        yield x
+
+
+async def _async_gen_source_stacked(x: int = 0) -> AsyncIterator[int]:
+    """Placeholder async generator source for the inner layer of ``async_gen_stacked``; the target forwards."""
+    if False:  # pragma: no cover - unreachable; declares this as an async generator
+        yield x
+
+
+#: Callable target ``running_total``: ``send``/``throw``/``close`` and the return value reach the target generator.
+deprecated_running_total = deprecated(target=running_total, **_DEPRS_CASE_STD_INF_ARGS)(_running_total_source)
+#: Callable target ``async_running_total``: ``asend``/``athrow``/``aclose`` reach the target async generator.
+deprecated_async_running_total = deprecated(target=async_running_total, **_DEPRS_CASE_STD_INF_ARGS)(
+    _async_running_total_source
+)
+#: Async generator source forwarded to ``open_cursor``: ``asend``/``athrow``/``aclose`` reach a non-native cursor.
+deprecated_cursor = deprecated(target=open_cursor, **_DEPRS_CASE_STD_INF_ARGS)(_cursor_source)
+#: Generator source forwarded to ``walk_down``; passing ``deprecated_walk`` as ``recurse`` recurses through it.
+deprecated_walk = deprecated(target=walk_down, **_DEPRS_CASE_STD_INF_ARGS)(_walk_source)
+#: Generator source forwarded to ``squares_list``: the wrapper yields the items of the returned list.
+deprecated_squares = deprecated(target=squares_list, **_DEPRS_CASE_STD_INF_ARGS)(_squares_source)
+#: Async generator source forwarded to ``countdown_stream``: the wrapper iterates the plain async iterator it returns.
+deprecated_countdown = deprecated(target=countdown_stream, **_DEPRS_CASE_STD_INF_ARGS)(_countdown_source)
+#: ``skip_if=True``: the wrapper stays a generator but never warns and runs ``gen_target`` unchanged.
+gen_notify_skipped = deprecated(target=TargetMode.NOTIFY, skip_if=True, **_DEPRS_CASE_STD_INF_ARGS)(gen_target)
+#: NOTIFY outer over a callable-target inner wrapper (a supported stack): both layers warn on the first step.
+gen_stacked = deprecated(target=TargetMode.NOTIFY, num_warns=-1, **_DEPRS_CASE_OUTER_ARGS)(
+    deprecated(target=gen_target, **_DEPRS_CASE_STD_INF_ARGS)(_gen_source_stacked)
+)
+#: Async twin of ``gen_stacked``.
+async_gen_stacked = deprecated(target=TargetMode.NOTIFY, num_warns=-1, **_DEPRS_CASE_OUTER_ARGS)(
+    deprecated(target=async_gen_target, **_DEPRS_CASE_STD_INF_ARGS)(_async_gen_source_stacked)
+)
+
+
+# ========== deprecated pytest yield-fixture bodies ==========
+# A test suite that deprecates a shared ``yield`` fixture keeps registering it with ``pytest.fixture`` (or
+# ``pytest_asyncio.fixture``). pytest picks the fixture runner from ``inspect.isgeneratorfunction`` /
+# ``inspect.isasyncgenfunction``, so the wrapper must keep those flags for setup, value and teardown to work.
+# The integration test registers these bodies as fixtures in a ``pytester`` project.
+
+
+@deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_INF_ARGS)
+def legacy_db_session() -> Iterator[str]:
+    """Deprecated yield-fixture body: yields a session handle, then prints a marker line when torn down."""
+    yield "session"
+    print("legacy db session closed")
+
+
+@deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_INF_ARGS)
+async def legacy_async_db_session() -> AsyncIterator[str]:
+    """Async twin of ``legacy_db_session``, registered with ``pytest_asyncio.fixture``."""
+    yield "async session"
+    print("legacy async db session closed")
 
 
 # ========== fdel-only deprecated property regression fixture (H3) ==========

@@ -42,6 +42,7 @@ Decorator-form equivalents (same deprecated_class config as Wrapped* — for par
 
 """
 
+from collections.abc import AsyncIterator, Iterator
 from dataclasses import dataclass
 from enum import Enum
 from functools import partial
@@ -1573,6 +1574,42 @@ async def dep_async_cycle_fn_b(x: int) -> int:
 
 _dep_async_cycle["a"] = dep_async_cycle_fn_a
 _dep_async_cycle["b"] = dep_async_cycle_fn_b
+
+
+# ========== Generator circular target cycle fixtures ==========
+# The same A → B → A shape for generator and async generator sources. A generator wrapper creates its inner generator
+# and takes the first item under the cycle guard, so the loop re-enters the guard on the first step.
+
+_dep_gen_cycle: dict[str, Any] = {}
+
+
+@deprecated(target=lambda *a, **kw: _dep_gen_cycle["b"](*a, **kw), **_DEPRS_CASE_STD_ARGS)
+def dep_gen_cycle_fn_a(x: int) -> Iterator[int]:
+    """Deprecated generator cycle node A — forwards to dep_gen_cycle_fn_b; never reached directly."""
+    yield x
+
+
+@deprecated(target=lambda *a, **kw: _dep_gen_cycle["a"](*a, **kw), **_DEPRS_CASE_STD_ARGS)
+def dep_gen_cycle_fn_b(x: int) -> Iterator[int]:
+    """Deprecated generator cycle node B — forwards to dep_gen_cycle_fn_a; never reached directly."""
+    yield x
+
+
+@deprecated(target=lambda *a, **kw: _dep_gen_cycle["async_b"](*a, **kw), **_DEPRS_CASE_STD_ARGS)
+async def dep_async_gen_cycle_fn_a(x: int) -> AsyncIterator[int]:
+    """Deprecated async generator cycle node A — forwards to dep_async_gen_cycle_fn_b; never reached directly."""
+    yield x
+
+
+@deprecated(target=lambda *a, **kw: _dep_gen_cycle["async_a"](*a, **kw), **_DEPRS_CASE_STD_ARGS)
+async def dep_async_gen_cycle_fn_b(x: int) -> AsyncIterator[int]:
+    """Deprecated async generator cycle node B — forwards to dep_async_gen_cycle_fn_a; never reached directly."""
+    yield x
+
+
+_dep_gen_cycle.update(
+    a=dep_gen_cycle_fn_a, b=dep_gen_cycle_fn_b, async_a=dep_async_gen_cycle_fn_a, async_b=dep_async_gen_cycle_fn_b
+)
 
 
 def make_deprecated_notify_args_extra_alone_on_class() -> type:

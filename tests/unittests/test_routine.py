@@ -15,7 +15,13 @@ from deprecate import TargetMode, deprecated
 from deprecate._dispatch import _build_call_facts, _WrapperContext
 from deprecate._types import _WrapperState
 from deprecate.proxy import _DeprecatedProxy
-from deprecate.routine import _build_callable_config, _make_wrapper, _validate_callable_source
+from deprecate.routine import (
+    _build_callable_config,
+    _make_wrapper,
+    _validate_callable_source,
+    _wrapper_kind,
+    _WrapperKind,
+)
 from tests._helpers import captured_warnings
 from tests.collections.api_current import (
     NewCls,
@@ -23,6 +29,7 @@ from tests.collections.api_current import (
     async_gen_target,
     async_target,
     double_value,
+    gen_target,
     pep702_target,
 )
 from tests.collections.api_deprecated_forwarding import pep702_stacked
@@ -573,29 +580,60 @@ class TestBuildCallableConfig:
 
 
 class TestMakeWrapper:
-    """``_make_wrapper`` builds the sync or async wrapper and attaches the deprecation metadata."""
+    """``_make_wrapper`` builds the wrapper shape ``kind`` selects and attaches the deprecation metadata."""
 
     def test_async_wrapper_for_coroutine_source(self) -> None:
-        """``is_async=True`` yields a coroutine function that awaits the source.
+        """``_WrapperKind.COROUTINE`` yields a coroutine function that awaits the source.
 
         ``await old_func(...)`` must keep working for a deprecated ``async def``; a sync wrapper would hand back a bare
         coroutine and break ``inspect.iscoroutinefunction`` checks in frameworks.
         """
-        wrapper = _make_wrapper(_notify_context(async_target), is_async=True, update_docstring=False)
+        wrapper = _make_wrapper(_notify_context(async_target), kind=_WrapperKind.COROUTINE, update_docstring=False)
         assert inspect.iscoroutinefunction(wrapper)
         assert asyncio.run(wrapper(3)) == 6
 
-    def test_sync_wrapper_for_async_generator_source(self) -> None:
-        """An async generator source gets the sync wrapper, which returns the async generator object.
+    def test_async_generator_wrapper_for_async_generator_source(self) -> None:
+        """``_WrapperKind.ASYNC_GENERATOR`` yields an async generator function that streams the source's items.
 
-        ``inspect.iscoroutinefunction`` is ``False`` for ``async def`` + ``yield``, so ``packing`` passes
-        ``is_async=False``; the wrapper must return the generator unchanged for ``async for``.
+        pytest-asyncio and other async frameworks run an ``async def`` + ``yield`` callable only when
+        ``inspect.isasyncgenfunction`` holds, so the wrapper must be an async generator function itself.
         """
-        wrapper = _make_wrapper(_notify_context(async_gen_target), is_async=False, update_docstring=False)
-        assert not inspect.iscoroutinefunction(wrapper)
-        agen = wrapper(2)
-        assert inspect.isasyncgen(agen)
-        asyncio.run(agen.aclose())
+        wrapper = _make_wrapper(
+            _notify_context(async_gen_target), kind=_WrapperKind.ASYNC_GENERATOR, update_docstring=False
+        )
+
+        async def _collect() -> list[int]:
+            return [item async for item in wrapper(2)]
+
+        assert inspect.isasyncgenfunction(wrapper)
+        assert asyncio.run(_collect()) == [2, 4, 6]
+
+    def test_generator_wrapper_for_generator_source(self) -> None:
+        """``_WrapperKind.GENERATOR`` yields a generator function that delegates to the source generator.
+
+        pytest runs a ``yield`` fixture with setup and teardown only when ``inspect.isgeneratorfunction`` holds, so the
+        wrapper must be a generator function itself.
+        """
+        wrapper = _make_wrapper(_notify_context(gen_target), kind=_WrapperKind.GENERATOR, update_docstring=False)
+        assert inspect.isgeneratorfunction(wrapper)
+        assert list(wrapper(2)) == [2, 4, 6]
+
+    @pytest.mark.parametrize(
+        ("source", "kind"),
+        [
+            pytest.param(double_value, _WrapperKind.FUNCTION, id="function"),
+            pytest.param(async_target, _WrapperKind.COROUTINE, id="coroutine"),
+            pytest.param(gen_target, _WrapperKind.GENERATOR, id="generator"),
+            pytest.param(async_gen_target, _WrapperKind.ASYNC_GENERATOR, id="async-generator"),
+        ],
+    )
+    def test_wrapper_kind_follows_the_source(self, source: Callable[..., Any], kind: _WrapperKind) -> None:
+        """``_wrapper_kind`` maps each source kind to the wrapper shape that keeps its ``inspect`` flags.
+
+        ``packing`` picks the wrapper from this mapping, so a wrong entry would hand a framework a callable it runs the
+        wrong way (a generator object as a fixture value, an un-awaited coroutine).
+        """
+        assert _wrapper_kind(source) is kind
 
     def test_attaches_metadata(self) -> None:
         """The wrapper carries the context's config and state objects plus ``functools.wraps`` metadata.
@@ -604,7 +642,7 @@ class TestMakeWrapper:
         ``__wrapped__``, and a counter reset through ``wrapper._state`` must reach the call path.
         """
         ctx = _notify_context(double_value)
-        wrapper = _make_wrapper(ctx, is_async=False, update_docstring=False)
+        wrapper = _make_wrapper(ctx, kind=_WrapperKind.FUNCTION, update_docstring=False)
         assert wrapper.__deprecation_config__ is ctx.cfg
         assert wrapper._state is ctx.state
         assert inspect.unwrap(wrapper) is double_value
@@ -619,5 +657,5 @@ class TestMakeWrapper:
 
         Generated API docs must show the notice without the maintainer editing the docstring by hand.
         """
-        wrapper = _make_wrapper(_notify_context(double_value), is_async=False, update_docstring=True)
+        wrapper = _make_wrapper(_notify_context(double_value), kind=_WrapperKind.FUNCTION, update_docstring=True)
         assert ".. deprecated:: 1.0" in str(wrapper.__doc__)

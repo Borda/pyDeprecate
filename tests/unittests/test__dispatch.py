@@ -61,8 +61,10 @@ from tests.collections.api_current import (
 from tests.collections.api_deprecated import (
     dep_async_cycle_fn_a,
     dep_async_cycle_fn_b,
+    dep_async_gen_cycle_fn_a,
     dep_cycle_fn_a,
     dep_cycle_fn_b,
+    dep_gen_cycle_fn_a,
     depr_pow_args,
     depr_target_mode_args_only_with_args_extra_injects_kwargs,
     make_depr_args_remap_notify_with_extra,
@@ -639,6 +641,34 @@ class TestCycleDetection:
             pytest.raises(RuntimeError, match=r"Circular deprecation cycle detected.*dep_async_cycle_fn_b"),
         ):
             await dep_async_cycle_fn_b(1)
+
+    def test_generator_cycle_raises_on_first_step(self) -> None:
+        """A cycle of generator wrappers raises the cycle RuntimeError on the first next(), not RecursionError.
+
+        A generator wrapper runs its call plan on the first step and delegates to the generator the target returns.
+        When two deprecated generators forward to each other, each first step creates the next wrapper's generator and
+        steps it while the cycle guard is held, so the loop re-enters dep_gen_cycle_fn_a and the curated error fires
+        instead of generators nesting until the recursion limit.
+        """
+        with (
+            pytest.warns(FutureWarning, match="dep_gen_cycle_fn_"),
+            pytest.raises(RuntimeError, match=r"Circular deprecation cycle detected.*dep_gen_cycle_fn_a"),
+        ):
+            next(dep_gen_cycle_fn_a(1))
+
+    @pytest.mark.asyncio
+    async def test_async_generator_cycle_raises_on_first_step(self) -> None:
+        """A cycle of async generator wrappers raises the cycle RuntimeError on the first step, not RecursionError.
+
+        The async twin of the generator cycle: the first ``async for`` step of dep_async_gen_cycle_fn_a creates and
+        steps dep_async_gen_cycle_fn_b's generator under the cycle guard, which steps A again, so the guard catches the
+        re-entry of A.
+        """
+        with (
+            pytest.warns(FutureWarning, match="dep_async_gen_cycle_fn_"),
+            pytest.raises(RuntimeError, match=r"Circular deprecation cycle detected.*dep_async_gen_cycle_fn_a"),
+        ):
+            await dep_async_gen_cycle_fn_a(1).__anext__()
 
     @pytest.mark.asyncio
     async def test_concurrent_async_calls_no_false_positive(self) -> None:

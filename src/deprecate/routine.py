@@ -22,6 +22,8 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 
 import inspect
 import warnings
+from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Generator, Iterator
+from enum import Enum
 from functools import cached_property, wraps
 from typing import Any, Callable, Literal, Optional, TypeVar, Union, cast
 
@@ -381,59 +383,297 @@ def _build_callable_config(
     )
 
 
-def _make_wrapper(ctx: _WrapperContext, *, is_async: bool, update_docstring: bool) -> _DeprecatedCallable:
-    """Build the ``@deprecated`` wrapper around ``ctx.source`` and attach its deprecation metadata.
+class _WrapperKind(Enum):
+    """The shape of the ``@deprecated`` wrapper, matching the kind of its source so the ``inspect`` flags survive.
 
-    The sync and async wrapper bodies differ only by ``await``: a call that ``skip_if`` skips runs the source
-    unchanged; so does a call that warns nothing and needs no rewrite (:func:`~deprecate._dispatch._skips_call_plan`,
-    for example a ``TargetMode.NOTIFY`` call after the warn budget is spent), which only counts the call; any other
-    call enters the target-chain cycle guard, builds the call plan and invokes it. The wrapper
-    carries the ``functools.wraps`` metadata of the source (``__wrapped__`` included), ``__deprecation_config__``
-    (``ctx.cfg``), the PEP 702 ``__deprecated__`` message rendered from ``ctx.cfg``, and ``_state`` — the very
-    ``ctx.state`` object, so a counter reset through the wrapper reaches the call path.
+    Frameworks pick how to run a callable from :func:`inspect.iscoroutinefunction`, :func:`inspect.isgeneratorfunction`
+    and :func:`inspect.isasyncgenfunction` (pytest's fixture runner, for one), and those flags come from the wrapper's
+    own code object, so each source kind needs a wrapper of the same kind.
+
+    """
+
+    FUNCTION = "function"
+    COROUTINE = "coroutine"
+    GENERATOR = "generator"
+    ASYNC_GENERATOR = "async_generator"
+
+
+def _wrapper_kind(source: Callable) -> _WrapperKind:
+    """Pick the wrapper shape for ``source`` from its own ``inspect`` flags.
+
+    An async generator function is not a coroutine function, so the generator checks come first only for clarity.
+
+    Args:
+        source: The callable being deprecated.
+
+    Returns:
+        The matching :class:`_WrapperKind`.
+
+    Examples:
+        >>> def gen():
+        ...     yield 1
+        >>> async def agen():
+        ...     yield 1
+        >>> async def coro(): ...
+        >>> [_wrapper_kind(fn).value for fn in (gen, agen, coro, len)]
+        ['generator', 'async_generator', 'coroutine', 'function']
+
+    """
+    if inspect.isasyncgenfunction(source):
+        return _WrapperKind.ASYNC_GENERATOR
+    if inspect.isgeneratorfunction(source):
+        return _WrapperKind.GENERATOR
+    if inspect.iscoroutinefunction(source):
+        return _WrapperKind.COROUTINE
+    return _WrapperKind.FUNCTION
+
+
+def _sync_call_path(ctx: _WrapperContext) -> Callable[..., Any]:
+    """Return the synchronous call path every non-coroutine wrapper runs: ``skip_if``, the fast path, the planned call.
+
+    A call that ``skip_if`` skips runs the source unchanged; so does a call that warns nothing and needs no rewrite
+    (:func:`~deprecate._dispatch._skips_call_plan`, for example a ``TargetMode.NOTIFY`` call after the warn budget is
+    spent), which only counts the call; any other call enters the target-chain cycle guard, builds the call plan and
+    invokes it, and leaves the guard before it returns. The function wrapper is this closure itself; the generator
+    wrappers call it on their first step and delegate to the (async) generator it returns.
 
     Args:
         ctx: The decoration-time context the wrapper hands to every call.
-        is_async: Build an ``async def`` wrapper. ``packing`` passes ``inspect.iscoroutinefunction(source)``, so an
-            async generator source gets the sync wrapper.
+
+    Returns:
+        The call path, taking the caller's arguments and returning what the source or target returned.
+
+    """
+
+    def wrapped_fn(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+        if _eval_skip_if(ctx.skip_if):
+            return ctx.source(*args, **kwargs)
+        if _skips_call_plan(ctx, args, kwargs):
+            return ctx.source(*args, **kwargs)
+        handle = _enter_cycle_guard(ctx)
+        try:
+            return _invoke_sync(ctx, _build_call_plan(ctx, args, kwargs), args)
+        finally:
+            _exit_cycle_guard(ctx, handle)
+
+    return wrapped_fn
+
+
+def _function_wrapper(ctx: _WrapperContext) -> Callable[..., Any]:
+    """Build the plain ``def`` wrapper: the sync call path itself, with the source's ``functools.wraps`` metadata."""
+    return wraps(ctx.source)(_sync_call_path(ctx))
+
+
+def _coroutine_wrapper(ctx: _WrapperContext) -> Callable[..., Any]:
+    """Build the ``async def`` wrapper, whose call path matches :func:`_sync_call_path` but awaits the source."""
+
+    @wraps(ctx.source)
+    async def async_wrapped_fn(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+        if _eval_skip_if(ctx.skip_if):
+            return await ctx.source(*args, **kwargs)
+        if _skips_call_plan(ctx, args, kwargs):
+            return await ctx.source(*args, **kwargs)
+        handle = _enter_cycle_guard(ctx)
+        try:
+            return await _invoke_async(ctx, _build_call_plan(ctx, args, kwargs), args)
+        finally:
+            _exit_cycle_guard(ctx, handle)
+
+    return async_wrapped_fn
+
+
+def _guarded_first_step(
+    ctx: _WrapperContext, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> tuple[Iterator[Any], Any, Optional[StopIteration]]:
+    """Run a generator wrapper's call plan and take the first item of what it returns, under the cycle guard.
+
+    The guard spans the inner iterator's creation and its first step, so a ``target=`` cycle made only of generator
+    wrappers re-enters it and raises the cycle ``RuntimeError`` instead of nesting generators until ``RecursionError``.
+    It is released before the wrapper yields, so a generator suspended at a ``yield`` holds no guard entry and two live
+    generators of one wrapper on one thread cannot raise a false cycle.
+
+    Returns:
+        Tuple of ``(inner, first_item, stop)``: ``stop`` is the ``StopIteration`` of an inner iterator that ended on
+        its first step (``first_item`` is then ``None``), otherwise ``None``.
+
+    """
+    handle = _enter_cycle_guard(ctx)
+    try:
+        inner = iter(_invoke_sync(ctx, _build_call_plan(ctx, args, kwargs), args))
+        try:
+            return inner, next(inner), None
+        except StopIteration as stop:
+            return inner, None, stop
+    finally:
+        _exit_cycle_guard(ctx, handle)
+
+
+def _resume_generator(inner: Iterator[Any], item: Any) -> Generator[Any, Any, Any]:  # noqa: ANN401
+    """Yield ``item``, then delegate to ``inner`` as ``yield from`` would, forwarding ``send``, ``throw`` and ``close``.
+
+    ``item`` was already taken from ``inner``, so the consumer's resumption after a held item is forwarded by hand: a
+    sent value goes on through ``send``, a thrown exception through ``throw`` (re-raised here when ``inner`` has no
+    ``throw``, as for a list iterator), and ``close`` reaches ``inner``; each of those yields a new held item. The first
+    plain ``next()`` holds nothing, so ``yield from`` takes over there and returns ``inner``'s return value.
+
+    """
+    while True:
+        try:
+            sent = yield item
+        except GeneratorExit:
+            close = getattr(inner, "close", None)
+            if close is not None:
+                close()
+            raise
+        except BaseException as exc:
+            throw = getattr(inner, "throw", None)
+            if throw is None:
+                raise
+            try:
+                item = throw(exc)
+            except StopIteration as stop:
+                return stop.value
+            continue
+        if sent is None:
+            return (yield from inner)
+        try:
+            item = inner.send(sent)  # type: ignore[attr-defined]
+        except StopIteration as stop:
+            return stop.value
+
+
+def _generator_wrapper(ctx: _WrapperContext) -> Callable[..., Any]:
+    """Build the generator wrapper of a generator function: the call path runs on the first ``next()``.
+
+    Calling the wrapper only creates the generator object, so the warning, the ``num_warns`` budget and an
+    :func:`~deprecate.as_exceptions` error all wait for the first step, and a generator that is never iterated never
+    warns. ``send``/``throw``/``close`` and the return value are forwarded; a target that returns any other iterable (a
+    list, an iterator) has its items yielded. A call that ``skip_if`` skips, or that needs no call plan, delegates to
+    the source with ``yield from`` and no cycle guard, as the function wrapper runs it.
+
+    """
+
+    @wraps(ctx.source)
+    def generator_wrapped_fn(*args: Any, **kwargs: Any) -> Generator[Any, Any, Any]:  # noqa: ANN401
+        if _eval_skip_if(ctx.skip_if) or _skips_call_plan(ctx, args, kwargs):
+            return (yield from ctx.source(*args, **kwargs))
+        inner, item, stop = _guarded_first_step(ctx, args, kwargs)
+        if stop is not None:
+            return stop.value
+        return (yield from _resume_generator(inner, item))
+
+    return generator_wrapped_fn
+
+
+async def _await_step(step: Awaitable[Any]) -> tuple[Any, bool]:
+    """Await one step of an async iterator; return ``(item, done)`` with ``done`` set when it ended instead."""
+    try:
+        return await step, False
+    except StopAsyncIteration:
+        return None, True
+
+
+async def _guarded_first_async_step(
+    ctx: _WrapperContext, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> tuple[AsyncIterator[Any], Any, bool]:
+    """Async twin of :func:`_guarded_first_step`: create the inner async iterator and await its first item, guarded.
+
+    Returns:
+        Tuple of ``(inner, first_item, done)``; ``done`` is set when ``inner`` ended on its first step.
+
+    """
+    handle = _enter_cycle_guard(ctx)
+    try:
+        inner = _invoke_sync(ctx, _build_call_plan(ctx, args, kwargs), args).__aiter__()
+        item, done = await _await_step(inner.__anext__())
+        return inner, item, done
+    finally:
+        _exit_cycle_guard(ctx, handle)
+
+
+async def _open_async_generator(
+    ctx: _WrapperContext, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> tuple[AsyncIterator[Any], Any, bool]:
+    """Take an async generator wrapper's first step, guarded only when the call runs its call plan.
+
+    A call that ``skip_if`` skips, or that needs no call plan, starts the source unguarded; any other call goes through
+    :func:`_guarded_first_async_step`.
+
+    Returns:
+        Tuple of ``(inner, first_item, done)``; ``done`` is set when ``inner`` ended on its first step.
+
+    """
+    if _eval_skip_if(ctx.skip_if) or _skips_call_plan(ctx, args, kwargs):
+        inner = ctx.source(*args, **kwargs).__aiter__()
+        item, done = await _await_step(inner.__anext__())
+        return inner, item, done
+    return await _guarded_first_async_step(ctx, args, kwargs)
+
+
+def _async_generator_wrapper(ctx: _WrapperContext) -> Callable[..., Any]:
+    """Build the async generator wrapper of an async generator function: the call path runs on the first step.
+
+    Timing and the cycle guard match :func:`_generator_wrapper`: nothing runs until the first ``async for`` step, and
+    the guard covers only the first step. Async generators have no ``yield from``, so the inner async iterator is driven
+    by hand, duck-typed as the sync wrapper does: each value the consumer sends goes on through ``asend``, each
+    exception thrown in through ``athrow`` (re-raised here when the inner iterator has none), and ``aclose`` reaches it,
+    when it has one, as the wrapper is closed. A plain ``__anext__`` serves a resumption that sends nothing.
+
+    """
+
+    @wraps(ctx.source)
+    async def async_generator_wrapped_fn(*args: Any, **kwargs: Any) -> AsyncGenerator[Any, Any]:  # noqa: ANN401
+        inner, item, done = await _open_async_generator(ctx, args, kwargs)
+        while not done:
+            try:
+                sent = yield item
+            except GeneratorExit:
+                aclose = getattr(inner, "aclose", None)
+                if aclose is not None:
+                    await aclose()
+                raise
+            # Not swallowed: ``athrow`` raises the exception inside the inner iterator, which handles or re-raises it.
+            except BaseException as exc:
+                athrow = getattr(inner, "athrow", None)
+                if athrow is None:
+                    raise
+                step = athrow(exc)
+            else:
+                step = inner.__anext__() if sent is None else cast(AsyncGenerator[Any, Any], inner).asend(sent)
+            item, done = await _await_step(step)
+
+    return async_generator_wrapped_fn
+
+
+#: Wrapper builder per source kind; :func:`_make_wrapper` attaches the deprecation metadata to what they return.
+_WRAPPER_BUILDERS: dict[_WrapperKind, Callable[[_WrapperContext], Callable[..., Any]]] = {
+    _WrapperKind.FUNCTION: _function_wrapper,
+    _WrapperKind.COROUTINE: _coroutine_wrapper,
+    _WrapperKind.GENERATOR: _generator_wrapper,
+    _WrapperKind.ASYNC_GENERATOR: _async_generator_wrapper,
+}
+
+
+def _make_wrapper(ctx: _WrapperContext, *, kind: _WrapperKind, update_docstring: bool) -> _DeprecatedCallable:
+    """Build the ``@deprecated`` wrapper around ``ctx.source`` and attach its deprecation metadata.
+
+    ``kind`` selects the wrapper shape so the wrapper reports the same ``inspect`` flags as the source: a plain
+    function and a coroutine function run the call path (:func:`_sync_call_path` or its awaiting twin) on every call,
+    while a generator and an async generator function run it on the first step and then delegate to the generator it
+    returns. The wrapper carries the ``functools.wraps`` metadata of the source (``__wrapped__`` included),
+    ``__deprecation_config__`` (``ctx.cfg``), the PEP 702 ``__deprecated__`` message rendered from ``ctx.cfg``, and
+    ``_state`` — the very ``ctx.state`` object, so a counter reset through the wrapper reaches the call path.
+
+    Args:
+        ctx: The decoration-time context the wrapper hands to every call.
+        kind: The wrapper shape; ``packing`` passes :func:`_wrapper_kind` of the source.
         update_docstring: Inject the deprecation notice into the wrapper's docstring.
 
     Returns:
         The wrapper.
 
     """
-    if is_async:
-
-        @wraps(ctx.source)
-        async def async_wrapped_fn(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
-            if _eval_skip_if(ctx.skip_if):
-                return await ctx.source(*args, **kwargs)
-            if _skips_call_plan(ctx, args, kwargs):
-                return await ctx.source(*args, **kwargs)
-            handle = _enter_cycle_guard(ctx)
-            try:
-                return await _invoke_async(ctx, _build_call_plan(ctx, args, kwargs), args)
-            finally:
-                _exit_cycle_guard(ctx, handle)
-
-        wrapper = cast(_DeprecatedCallable, async_wrapped_fn)
-    else:
-        # Async generator sources (``async def`` + ``yield``) get the sync wrapper: ``source(**kwargs)`` returns
-        # the async generator object without executing any body code — same as sync generators.  Warning fires
-        # at sync call time; callers iterate with ``async for``.
-        @wraps(ctx.source)
-        def wrapped_fn(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
-            if _eval_skip_if(ctx.skip_if):
-                return ctx.source(*args, **kwargs)
-            if _skips_call_plan(ctx, args, kwargs):
-                return ctx.source(*args, **kwargs)
-            handle = _enter_cycle_guard(ctx)
-            try:
-                return _invoke_sync(ctx, _build_call_plan(ctx, args, kwargs), args)
-            finally:
-                _exit_cycle_guard(ctx, handle)
-
-        wrapper = cast(_DeprecatedCallable, wrapped_fn)
+    wrapper = cast(_DeprecatedCallable, _WRAPPER_BUILDERS[kind](ctx))
     # The PEP-702-conformant ``__deprecated__`` message string, computed statically at decoration time from the
     # config alone.
     source_name = _source_display_name(ctx.source)
@@ -479,8 +719,14 @@ def deprecated_callable(
     implementation.  It supports argument mapping, custom warning messages, and flexible warning control.
 
     For **generator functions** (``def gen(): yield``) and **async generator functions** (``async def gen(): yield``),
-    the deprecation warning fires at call time — when the (async) generator object is created — not at first
-    iteration.  The generator body executes lazily as normal when iterated (``next()`` / ``async for``).
+    the wrapper is itself a generator (async generator) function, so :func:`inspect.isgeneratorfunction` /
+    :func:`inspect.isasyncgenfunction` stay ``True`` and frameworks such as pytest's fixture runner treat it like the
+    original.  Calling it only creates the generator object: the deprecation warning, the ``num_warns`` budget and an
+    ``as_exception`` / :func:`~deprecate.as_exceptions` error come on the first ``next()`` / ``async for`` step, and a
+    generator that is never iterated never warns.  ``send``/``throw``/``close`` (``asend``/``athrow``/``aclose``) and
+    the return value reach the inner generator; a sync generator's target returning another iterable has its items
+    yielded, while an async generator's target must return an async iterable.  The wrapper kind follows the source,
+    so a generator stub must itself contain ``yield``.
 
     Args:
         target: How to handle the deprecation. Defaults to :attr:`~deprecate.TargetMode.NOTIFY` (warn-only; source
@@ -695,14 +941,15 @@ def deprecated_callable(
             is_stacked=_source_is_stacked,
             forward_defaults=_precompute_forward_defaults(_target, dep_meta.args_mapping),
         )
-        # Known false-negatives of ``inspect.iscoroutinefunction`` — these sources silently receive the sync
-        # wrapper, meaning ``await wrapper(...)`` will fail or return a bare coroutine:
+        # The wrapper kind follows the source's own ``inspect`` flags.  Known false-negatives of
+        # ``inspect.iscoroutinefunction`` — these sources silently receive the plain sync wrapper, meaning
+        # ``await wrapper(...)`` will fail or return a bare coroutine:
         #   • async function wrapped by a decorator that does NOT propagate ``__wrapped__`` / use
         #     ``functools.wraps`` (``inspect.iscoroutinefunction`` walks ``__wrapped__``, not ``__call__``).
         #   • callable objects whose ``__call__`` is ``async def`` — use ``async def`` thin wrapper instead.
         # Workaround for both: wrap the callable in a plain ``async def my_wrapper(*a, **kw): return
         # await callable(*a, **kw)`` before applying ``@deprecated``.
-        return _make_wrapper(ctx, is_async=inspect.iscoroutinefunction(source), update_docstring=update_docstring)
+        return _make_wrapper(ctx, kind=_wrapper_kind(source), update_docstring=update_docstring)
 
     # ``packing`` also takes a private ``_is_static`` argument the front door passes; the public
     # contract is the identity signature above.

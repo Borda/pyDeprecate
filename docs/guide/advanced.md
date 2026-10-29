@@ -388,9 +388,9 @@ print(Compute.surface(3.0))  # warns: FutureWarning
 
 ## Deprecating generator functions
 
-Generator functions — any function that contains `yield` — are fully supported by `@deprecated`. The decorator wraps them using an eager factory pattern: the deprecation warning fires when you **call** the generator function, not when you first iterate the result.
+Generator functions — any function that contains `yield` — are fully supported by `@deprecated`. The wrapper kind follows the deprecated stub, so the stub itself must contain `yield`: a stub whose body is only `return void(...)` is a plain function, gets a plain-function wrapper and warns at call time even when its target is a generator. The wrapper is itself a generator function, so `inspect.isgeneratorfunction(wrapper)` stays `True` and calling it only creates the generator object: the deprecation warning fires when you **first iterate** the result (the first `next()`), not when you call the generator function.
 
-This is the right behavior. It keeps generator deprecations consistent with regular function deprecations. If the warning fired on the first `next()` call instead, you could easily miss it: someone might call the generator, pass it around, and iterate it elsewhere — the warning would appear far from the actual deprecated call site.
+Keeping the flag matters because frameworks decide how to run a callable from it. pytest, for example, runs a `yield` fixture with its setup and teardown only when `inspect.isgeneratorfunction` is `True`, so a deprecated `yield` fixture keeps working. The trade-off: a generator that is created but never iterated never warns, and the warning points at the line that iterates, which may be far from the line that called the deprecated function.
 
 ```python
 from deprecate import deprecated, void
@@ -407,16 +407,18 @@ def generate_ids(start: int, count: int):
 @deprecated(target=generate_ids, deprecated_in="0.9", remove_in="1.0")
 def iter_ids(start: int, count: int):
     """Deprecated — use generate_ids() instead."""
-    return void(start, count)
+    void(start, count)
+    yield from ()  # `yield` keeps the stub a generator function
 
 
-# The warning fires here — at call time, before any iteration
+# No warning yet — calling the generator function runs no code
 gen = iter_ids(10, 3)
+
+# The warning fires here — on the first item
+print(list(gen))  # warns: FutureWarning
 # FutureWarning: The `iter_ids` was deprecated since v0.9 in favor of `generate_ids`.
 #                It will be removed in v1.0.
-
-# Iteration proceeds normally — you already got the warning
-print(list(gen))  # [10, 11, 12]
+# [10, 11, 12]
 ```
 
 All three TargetModes work with generator functions:
@@ -446,7 +448,7 @@ print(list(run_pipeline(["a ", "b "])))
 
 </details>
 
-Warning fires at call time (when the generator object is created), before any iteration. Unlike regular functions where the body runs immediately after the warning, the generator body executes lazily as the caller iterates.
+Warning fires on the first `next()` (here inside `list()`), not when the generator object is created. As with any generator, the body executes lazily as the caller iterates, and the warning comes just before the body's first step.
 
 **`TargetMode.ARGS_REMAP` — rename an argument within the same generator:**
 
@@ -492,7 +494,8 @@ def new_range(start: int, stop: int):
 # DEPRECATED API — `old_range` replaced by `new_range`
 @deprecated(target=new_range, deprecated_in="0.9", remove_in="1.0")
 def old_range(start: int, stop: int):
-    return void(start, stop)
+    void(start, stop)
+    yield from ()  # `yield` keeps the stub a generator function
 
 
 print(list(old_range(1, 4)))
@@ -507,9 +510,9 @@ print(list(old_range(1, 4)))
 
 </details>
 
-!!! note "Warning deduplication and the generator factory pattern"
+!!! note "Warning deduplication and the generator wrapper"
 
-    Internally, the deprecated wrapper for a generator is a regular (non-generator) function that fires the warning eagerly and then returns the actual generator object. Each external call passes through the wrapper's normal dispatch path once, so warning deduplication works as for any other function: warnings fire at most `num_warns` times as configured, and iterating the returned generator emits no further warning.
+    The deprecated wrapper for a generator is itself a generator function. On its first step it runs the normal dispatch path once — warning, `num_warns` budget, argument remapping or forwarding, and an `as_exceptions()` error — and then delegates to the generator the source or target returns with `yield from`, so `send()`, `throw()`, `close()` and the return value pass through unchanged. Each iterated generator therefore spends the budget at most once, later steps emit no further warning, and a generator that is never iterated spends nothing. A target that returns a list or another iterable instead of a generator has its items yielded.
 
 ## See also
 

@@ -8,10 +8,9 @@ pyDeprecate favours a small API over covering every corner of Python. This page 
 
 ## Async and generators
 
-- **Async-generator wrappers are synchronous.** `@deprecated` on an `async def` + `yield` function returns a plain `def` wrapper that warns at call time and hands back the async generator, so `inspect.iscoroutinefunction(wrapper)` is `False` and the warning does not wait for the first `async for`. See [Async generators](guide/async.md#async-generators).
 - **Callable objects with `async def __call__` are not detected as coroutine functions.** `inspect.iscoroutinefunction` does not look at `__call__`, and `@deprecated` rejects a plain callable instance with `TypeError`, so such an object cannot serve as an `async def` source. Define a thin `async def` that awaits the object and decorate that. See [functools.partial and callable wrappers](troubleshooting.md#why-cant-i-decorate-a-functoolspartial-or-callable-wrapper).
 - **Async and sync targets are not interchangeable in both directions.** An `async def` source may forward to a sync target, which is called directly without being awaited. A sync source whose target is a coroutine function raises `TypeError` on the first call, because a sync wrapper cannot await it. Declare the source `async def`.
-- **Cycle detection is lazy.** A `target=` chain that loops back on itself is not caught at decoration time; the `RuntimeError` fires when a wrapper in the cycle is first called. See [the cycle error](troubleshooting.md#runtimeerror-circular-deprecation-cycle-detected).
+- **Cycle detection is lazy.** A `target=` chain that loops back on itself is not caught at decoration time; the `RuntimeError` fires when a wrapper in the cycle is first called. For generator wrappers it fires on the first `next()` or `async for` step, because calling a generator wrapper runs nothing. The same error fires when a replacement recurses through the deprecated name while the wrapper is still on the call path (for a generator, before its first `yield`), so recurse through the replacement's own name instead. See [the cycle error](troubleshooting.md#runtimeerror-circular-deprecation-cycle-detected).
 
 ## Proxies (`deprecated_instance`, `deprecated_class`)
 

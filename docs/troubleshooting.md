@@ -1055,13 +1055,13 @@ print(my_func())
 
 ______________________________________________________________________
 
-## My deprecated generator fires the warning before I iterate it
+## My deprecated generator does not warn until I iterate it
 
-**Q:** My generator function is decorated with `@deprecated`. The deprecation warning fires as soon as I call the function — before I even call `next()` or iterate over it. Is this a bug?
+**Q:** My generator function is decorated with `@deprecated`. Calling the function does not warn — the deprecation warning only appears when I call `next()` or start iterating. Is this a bug?
 
-**A:** No — this is the intended behavior. pyDeprecate uses an eager factory pattern for generator wrappers: the warning fires at call time, consistent with how deprecated regular functions behave.
+**A:** No — this is the intended behavior. The wrapper of a generator function is itself a generator function, so calling it only creates the generator object and runs no code; the warning, the `num_warns` budget and an `as_exceptions()` error all come on the first step, and a generator that is never iterated never warns.
 
-When you call a deprecated generator function, you get the deprecation notice immediately at the call site — the same place you would see it for a deprecated regular function. You can then pass the generator around, iterate it later, or hand it to another function, and the warning is already recorded.
+Keeping the wrapper a generator function keeps `inspect.isgeneratorfunction(wrapper)` `True`, which frameworks depend on: pytest, for example, runs a deprecated `yield` fixture with its setup and teardown only because of that flag. The warning points at the line that takes the first item. To see it in a test, put `pytest.warns()` around the iteration, not around the call.
 
 ```python
 from deprecate import deprecated, void
@@ -1074,15 +1074,15 @@ def generate_ids(start: int, count: int):
 
 @deprecated(target=generate_ids, deprecated_in="0.9", remove_in="1.0")
 def iter_ids(start: int, count: int):
-    return void(start, count)
+    void(start, count)
+    yield from ()  # `yield` keeps the stub a generator function
 
 
-# Warning fires here — at call time
+# No warning yet — creating the generator runs no code
 gen = iter_ids(10, 3)
-# FutureWarning: The `iter_ids` was deprecated since v0.9 in favor of `generate_ids`.
 
-# Iteration is normal — warning already fired above
-print(list(gen))  # [10, 11, 12]
+# Warning fires here — on the first item
+print(list(gen))  # warns: FutureWarning
 ```
 
 <details>
@@ -1096,11 +1096,11 @@ print(list(gen))  # [10, 11, 12]
 
 ______________________________________________________________________
 
-## My deprecated async generator fires the warning before I iterate it
+## My deprecated async generator does not warn until I iterate it
 
-**Q:** My async generator function is decorated with `@deprecated`. The deprecation warning fires as soon as I call the function — before my `async for` loop starts. Is this a bug?
+**Q:** My async generator function is decorated with `@deprecated`. Calling the function does not warn — the deprecation warning only appears once my `async for` loop starts. Is this a bug?
 
-**A:** No — this is the intended behavior. pyDeprecate wraps async generator sources with a sync callable. Calling the wrapper immediately fires the deprecation warning and returns the underlying async generator object; no `await` or `__anext__` call is needed for the warning to appear.
+**A:** No — this is the intended behavior. The wrapper of an async generator function is itself an async generator function, so calling it only creates the async generator object; the warning fires on the first `async for` step (the first `__anext__()`), and an async generator that is never iterated never warns.
 
 ```python
 import asyncio
@@ -1118,8 +1118,8 @@ async def old_stream(n: int):
         yield 0
 
 
-# Warning fires here — at sync call time, before any iteration
-agen = old_stream(3)  # FutureWarning: The `old_stream` was deprecated since v0.9 ...
+# No warning yet — creating the async generator runs no code
+agen = old_stream(3)
 
 
 async def consume(gen):
@@ -1127,11 +1127,11 @@ async def consume(gen):
         pass
 
 
-# Iteration proceeds normally
-asyncio.run(consume(agen))
+# Warning fires here — on the first `async for` step
+asyncio.run(consume(agen))  # warns: FutureWarning
 ```
 
-**Note:** Because the wrapper is a sync function, `inspect.isasyncgenfunction(old_stream)` returns `False`. Frameworks that check this flag may misclassify the wrapper — wrap it in a thin `async def` passthrough if introspection matters.
+**Note:** Because the wrapper is an async generator function, `inspect.isasyncgenfunction(old_stream)` returns `True`, so frameworks that check this flag (pytest-asyncio fixtures, for one) treat it exactly like the undecorated function.
 
 ______________________________________________________________________
 
@@ -1321,7 +1321,7 @@ async def test_old_fetch_warns():
 
 !!! note "Async warning timing is by design"
 
-    The `async def` wrapper is a true coroutine (`inspect.iscoroutinefunction(wrapper)` returns `True`), so the deprecation warning fires inside the coroutine body when execution begins — on `await`. Warnings for generators and async generators fire eagerly at call time; async functions are the exception because the wrapper itself is a coroutine.
+    The `async def` wrapper is a true coroutine (`inspect.iscoroutinefunction(wrapper)` returns `True`), so the deprecation warning fires inside the coroutine body when execution begins — on `await`. Warnings for generators and async generators wait in the same way, for the first `next()` / `async for` step, because their wrappers are generator and async generator functions; only plain functions warn at call time.
 
 ______________________________________________________________________
 
@@ -1712,7 +1712,7 @@ ______________________________________________________________________
 
 **When does this happen?**
 
-You pointed `target=` of a `@deprecated` wrapper at another `@deprecated` callable, and that second wrapper's `target=` chain eventually loops back to the first one. Calling any wrapper in the cycle raises `RuntimeError` at the first re-entry point.
+You pointed `target=` of a `@deprecated` wrapper at another `@deprecated` callable, and that second wrapper's `target=` chain eventually loops back to the first one. Calling any wrapper in the cycle raises `RuntimeError` at the first re-entry point. For generator wrappers it is raised on the first `next()` or `async for` step, because calling a generator wrapper runs nothing. The same error fires when a replacement recurses through the deprecated name while the wrapper is still on the call path (for a generator, before its first `yield`), so recurse through the replacement's own name instead.
 
 ```python
 # phmdoctest:skip

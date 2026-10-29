@@ -90,7 +90,7 @@ pip install pyDeprecate
 - 🔄 Arguments are automatically mapped to the target function
 - 🚫 The deprecated function body is never executed when using `target`
 - ⚡ Minimal runtime overhead with zero dependencies (Python standard library only)
-- 🛠️ Supports deprecating callables: functions, methods, class constructors, **generator functions** (`def gen(): yield` — warning fires eagerly at call time, before iteration begins), and **`async def` coroutine functions** (wrapper is `async def`, `inspect.iscoroutinefunction(wrapper)` returns `True`; warning fires when the coroutine is awaited)
+- 🛠️ Supports deprecating callables: functions, methods, class constructors, **generator functions** (`def gen(): yield` — the wrapper stays a generator function, `inspect.isgeneratorfunction(wrapper)` returns `True`; warning fires on the first `next()`, so a generator that is never iterated never warns), and **`async def` coroutine functions** (wrapper is `async def`, `inspect.iscoroutinefunction(wrapper)` returns `True`; warning fires when the coroutine is awaited)
 - 🏠 Supports deprecating `@property` — all three accessors (`fget`, `fset`, `fdel`) fire `FutureWarning`; chain-style `.setter()` / `.deleter()` rebinding preserved via `_DeprecatedProperty` subclass. Also supports `@cached_property` (getter-only — no `fset`/`fdel`).
 - 📦 Supports deprecating classes, Enums, dataclasses, and module-level constants/objects via transparent proxies (`deprecated_class` for types; `deprecated_instance` for objects, with optional read-only enforcement — blocks standard collection mutators: `append`, `pop`, `update`, `clear`, etc.; custom mutator names bypass this guard)
 - 📝 Optionally, docstrings can be updated automatically in RST/Sphinx or MkDocs/Markdown format (auto-detected); ships bundled Griffe and Sphinx doc-engine extensions
@@ -263,7 +263,7 @@ Most alternatives emit a deprecation notice. pyDeprecate is for migrations where
 
 - **Simple Warnings**: Emits standard Python warnings, compatible with default error handling tools. Proxy context entry releases an acquired resource if warning delivery raises.
 - **Auto-Forward Calls**: Automatically redirects calls to the new function, ensuring the deprecated code is *never* executed.
-- **Generator / Async**: Works natively with generator functions, `async def` coroutines, and async generators. Generator warnings fire when the wrapper is called; coroutine warnings fire when awaited, and the wrapper preserves the relevant introspection flags.
+- **Generator / Async**: Works natively with generator functions, `async def` coroutines, and async generators. Generator and async-generator warnings fire on the first `next()` / `async for` step; coroutine warnings fire when awaited, and the wrapper preserves the relevant introspection flags (`isgeneratorfunction`, `isasyncgenfunction`, `iscoroutinefunction`).
 - **Argument Mapping**: Seamlessly translates old API arguments to new ones, handling complex renames and restructuring.
 - **Argument Deprecation**: Warns when specific arguments are used, even if the function itself isn't deprecated.
 - **Docstring Updates**: Automatically appends deprecation notices to the function's docstring.
@@ -1515,7 +1515,7 @@ b'https://example.com'
 
 > [!NOTE]
 >
-> `@deprecated` also supports **async generator functions** (`async def` + `yield`). The warning fires when the wrapper is called and callers keep iterating with `async for`. For framework introspection and async warning-budget behavior, see [Async functions](https://borda.github.io/pyDeprecate/stable/guide/async.html) and [Troubleshooting](https://borda.github.io/pyDeprecate/stable/troubleshooting.html#concurrent-async-calls-and-warning-counts).
+> `@deprecated` also supports **async generator functions** (`async def` + `yield`). The wrapper is itself an async generator function (`inspect.isasyncgenfunction(wrapper)` returns `True`), the warning fires on the first `async for` step, and callers keep iterating with `async for`. For framework introspection and async warning-budget behavior, see [Async functions](https://borda.github.io/pyDeprecate/stable/guide/async.html) and [Troubleshooting](https://borda.github.io/pyDeprecate/stable/troubleshooting.html#concurrent-async-calls-and-warning-counts).
 
 ## 🔇 Understanding the `void()` Helper
 

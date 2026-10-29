@@ -13,7 +13,7 @@ import threading
 import time
 import types
 import warnings
-from collections.abc import AsyncIterator, Coroutine, Generator, Iterator
+from collections.abc import AsyncGenerator, AsyncIterator, Coroutine, Generator, Iterator
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable, ClassVar, Optional
@@ -444,6 +444,180 @@ async def async_gen_target(x: int) -> AsyncIterator[int]:
     """
     for i in range(1, 4):
         yield x * i
+
+
+def running_total(start: int, log: list[str]) -> Generator[int, Optional[int], int]:
+    """Yield a running total that grows by every value sent in, and record in ``log`` when the generator finishes.
+
+    Driving it covers the whole generator protocol: ``send(n)`` adds ``n`` and yields the new total,
+    ``throw(ValueError())`` resets the total to ``0`` and yields it, a plain ``next()`` ends the generator with the
+    total as its return value, and ``close()`` or the end appends ``"closed"`` to ``log``.
+
+    Examples:
+        >>> log: list[str] = []
+        >>> gen = running_total(1, log)
+        >>> next(gen), gen.send(2), gen.throw(ValueError())
+        (1, 3, 0)
+        >>> gen.close()
+        >>> log
+        ['closed']
+
+    """
+    total = start
+    try:
+        while True:
+            try:
+                sent = yield total
+            except ValueError:
+                total = 0
+                continue
+            if sent is None:
+                return total
+            total += sent
+    finally:
+        log.append("closed")
+
+
+async def async_running_total(start: int, log: list[str]) -> AsyncGenerator[int, Optional[int]]:
+    """Async twin of :func:`running_total`: ``asend`` adds, ``athrow(ValueError())`` resets, ``aclose`` is logged.
+
+    A plain ``__anext__()`` (``asend(None)``) ends the generator; an async generator cannot return a value.
+
+    Examples:
+        >>> import asyncio
+        >>> log: list[str] = []
+        >>>
+        >>> async def _drive() -> list[int]:
+        ...     agen = async_running_total(1, log)
+        ...     seen = [await agen.__anext__(), await agen.asend(2), await agen.athrow(ValueError())]
+        ...     await agen.aclose()
+        ...     return seen
+        >>> asyncio.run(_drive()), log
+        ([1, 3, 0], ['closed'])
+
+    """
+    total = start
+    try:
+        while True:
+            try:
+                sent = yield total
+            except ValueError:
+                total = 0
+                continue
+            if sent is None:
+                return
+            total += sent
+    finally:
+        log.append("closed")
+
+
+class CountdownAsyncIterator:
+    """Async iterator (not an async generator) counting down from ``start`` to ``1``."""
+
+    def __init__(self, start: int) -> None:
+        """Start the countdown at ``start``."""
+        self._next = start
+
+    def __aiter__(self) -> "CountdownAsyncIterator":
+        """Return the iterator itself, as the async iterator protocol requires."""
+        return self
+
+    async def __anext__(self) -> int:
+        """Return the next count, or end the iteration after ``1``."""
+        if self._next < 1:
+            raise StopAsyncIteration
+        self._next -= 1
+        return self._next + 1
+
+
+class LoggingAsyncCursor:
+    """Async iterator with ``asend``/``athrow``/``aclose`` that is not a native async generator; logs every call."""
+
+    def __init__(self, log: list[Any]) -> None:
+        """Record calls in ``log`` and start the running total at zero."""
+        self._log = log
+        self._total = 0
+
+    def __aiter__(self) -> "LoggingAsyncCursor":
+        """Return the cursor itself, as the async iterator protocol requires."""
+        return self
+
+    async def __anext__(self) -> int:
+        """Advance without a value, the same as ``asend(None)``."""
+        return await self.asend(None)
+
+    async def asend(self, value: Optional[int]) -> int:
+        """Add ``value`` to the running total and return it."""
+        self._log.append(("send", value))
+        self._total += value or 0
+        return self._total
+
+    async def athrow(self, exc: BaseException) -> int:
+        """Reset the running total on any thrown exception and return it."""
+        self._log.append(("throw", type(exc).__name__))
+        self._total = 0
+        return self._total
+
+    async def aclose(self) -> None:
+        """Record that the cursor was closed."""
+        self._log.append("close")
+
+
+def open_cursor(log: list[Any]) -> LoggingAsyncCursor:
+    """Return a logging cursor: a replacement for a deprecated async generator with the full async generator API.
+
+    Examples:
+        >>> import asyncio
+        >>>
+        >>> async def _drive() -> list[int]:
+        ...     cursor = open_cursor([])
+        ...     return [await cursor.__anext__(), await cursor.asend(5)]
+        >>> asyncio.run(_drive())
+        [0, 5]
+
+    """
+    return LoggingAsyncCursor(log)
+
+
+def walk_down(depth: int, recurse: Callable[[int, Any], Iterator[int]]) -> Iterator[int]:
+    """Yield ``depth`` down to ``0``, reaching the lower levels through ``recurse`` before the first ``yield``.
+
+    Examples:
+        >>> def _direct(depth: int, recurse: Any) -> Iterator[int]:
+        ...     return walk_down(depth, recurse)
+        >>> list(walk_down(2, _direct))
+        [0, 1, 2]
+
+    """
+    if depth > 0:
+        yield from recurse(depth - 1, recurse)
+    yield depth
+
+
+def countdown_stream(start: int) -> CountdownAsyncIterator:
+    """Return a countdown async iterator: a replacement for a deprecated async generator that is not one itself.
+
+    Examples:
+        >>> import asyncio
+        >>>
+        >>> async def _collect() -> list[int]:
+        ...     return [item async for item in countdown_stream(3)]
+        >>> asyncio.run(_collect())
+        [3, 2, 1]
+
+    """
+    return CountdownAsyncIterator(start)
+
+
+def squares_list(n: int) -> list[int]:
+    """Return the first ``n`` squares as a list: a non-generator replacement for a deprecated generator function.
+
+    Examples:
+        >>> squares_list(3)
+        [1, 4, 9]
+
+    """
+    return [i * i for i in range(1, n + 1)]
 
 
 class SyncCallableObject:
