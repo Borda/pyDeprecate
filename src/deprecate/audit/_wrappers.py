@@ -21,6 +21,7 @@ if TYPE_CHECKING:
 
 from deprecate._frames import _caller_stacklevel
 from deprecate._types import DeprecationConfig, TargetMode, _has_deprecation_meta, get_deprecation_config
+from deprecate.deprecation import deprecated
 from deprecate.proxy import _DeprecatedProxy
 from deprecate.utils import get_func_arguments_types_defaults
 
@@ -68,8 +69,8 @@ class DeprecationWrapperInfo:
             See :class:`~deprecate.audit.ChainType` for values
             (:attr:`~deprecate.audit.ChainType.TARGET` or :attr:`~deprecate.audit.ChainType.STACKED`).
         misconfigured_target: True when the wrapper has an invalid target configuration:
-            ``target=False``, :attr:`~deprecate._types.TargetMode.NOTIFY` with ``args_mapping``, or
-            :attr:`~deprecate._types.TargetMode.ARGS_REMAP` with empty ``args_mapping``.
+            ``target=False``, :attr:`~deprecate._types.TargetMode.NOTIFY` with ``args_mapping``, ``args_extra``
+            or ``attrs_mapping``, or :attr:`~deprecate._types.TargetMode.ARGS_REMAP` with empty ``args_mapping``.
         empty_deprecated_in: True when ``deprecated_in`` is empty. Missing ``remove_in`` alone is a valid use case
             (many libraries deprecate without a scheduled removal date), so only the absence of ``deprecated_in``
             is treated as a misconfiguration signal. CI pipelines can filter on this field to surface wrappers
@@ -138,6 +139,16 @@ class DeprecationWrapperInfo:
         """Derive ``empty_deprecated_in`` from ``deprecated_info`` to keep them in sync."""
         object.__setattr__(self, "empty_deprecated_in", not self.deprecated_info.deprecated_in)
 
+    # Wrapped with pyDeprecate's own decorator (outer order) so the expiry audit of this package lists both
+    # aliases and flags them once v1.0 is the current version; `num_warns=-1` keeps a warning on every read.
+    # mypy cannot type a decorator above `@property`; pyDeprecate supports that order at runtime.
+    @deprecated(  # type: ignore[prop-decorator]
+        target=TargetMode.NOTIFY,
+        deprecated_in="0.8",
+        remove_in="1.0",
+        num_warns=-1,
+        message_template="'empty_mapping' was renamed to 'empty_args_mapping' in 0.8 and will be removed in 1.0.",
+    )
     @property
     def empty_mapping(self) -> bool:
         """Deprecated alias for :attr:`~deprecate.audit.DeprecationWrapperInfo.empty_args_mapping`.
@@ -147,17 +158,22 @@ class DeprecationWrapperInfo:
             Will be removed in v1.0.
 
         Note:
-            Python's default warning filter deduplicates per ``(message, category, module, lineno)``,
-            so accessing this property in a loop from the same call site emits at most one warning.
+            Every read emits a :class:`FutureWarning` (``num_warns=-1``). Python's default warning filter
+            deduplicates per ``(message, category, module, lineno)``, so a loop at one call site shows it once under
+            the default filter; under ``"always"`` every read warns.
 
         """
-        warnings.warn(
-            "'empty_mapping' was renamed to 'empty_args_mapping' in 0.8 and will be removed in 1.0.",
-            DeprecationWarning,
-            stacklevel=_caller_stacklevel(),
-        )
         return self.empty_args_mapping
 
+    @deprecated(  # type: ignore[prop-decorator]
+        target=TargetMode.NOTIFY,
+        deprecated_in="0.8",
+        remove_in="1.0",
+        num_warns=-1,
+        message_template=(
+            "'identity_mapping' was renamed to 'identity_args_mapping' in 0.8 and will be removed in 1.0."
+        ),
+    )
     @property
     def identity_mapping(self) -> list[str]:
         """Deprecated alias for :attr:`~deprecate.audit.DeprecationWrapperInfo.identity_args_mapping`.
@@ -167,15 +183,11 @@ class DeprecationWrapperInfo:
             Will be removed in v1.0.
 
         Note:
-            Python's default warning filter deduplicates per ``(message, category, module, lineno)``,
-            so accessing this property in a loop from the same call site emits at most one warning.
+            Every read emits a :class:`FutureWarning` (``num_warns=-1``). Python's default warning filter
+            deduplicates per ``(message, category, module, lineno)``, so a loop at one call site shows it once under
+            the default filter; under ``"always"`` every read warns.
 
         """
-        warnings.warn(
-            "'identity_mapping' was renamed to 'identity_args_mapping' in 0.8 and will be removed in 1.0.",
-            DeprecationWarning,
-            stacklevel=_caller_stacklevel(),
-        )
         return self.identity_args_mapping
 
 

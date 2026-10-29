@@ -213,7 +213,7 @@ class ThemeColor(Enum):
 Color = deprecated_class(target=ThemeColor, deprecated_in="1.0", remove_in="2.0")(ThemeColor)
 
 # All access is forwarded to ThemeColor — a FutureWarning is emitted once:
-#   The `Color` was deprecated since v1.0. It will be removed in v2.0.
+#   The `ThemeColor` was deprecated since v1.0 in favor of `<module>.ThemeColor`. It will be removed in v2.0.
 print(Color.RED is ThemeColor.RED)  # True
 print(Color(1) is ThemeColor.RED)  # True
 print(Color["RED"] is ThemeColor.RED)  # True
@@ -824,7 +824,7 @@ True
 
 </details>
 
-Each proxy layer carries its own `deprecated_in`/`remove_in`, so attribute-access warnings are version-accurate — `cfg.lr` reports the v1.0 deadline while `cfg.steps` reports the earlier v0.8 deadline. Stacking is fully supported: `isinstance()` and `issubclass()` resolve through the proxy chain, and instantiation fires at most one global warning. When stacking two `ATTRS_REMAP` layers, only the innermost layer's instantiation warning fires — the outer layer's version pair appears only in attribute-access warnings for that layer's keys.
+Each proxy layer carries its own `deprecated_in`/`remove_in`, so attribute-access warnings are version-accurate — `cfg.lr` reports the v1.0 deadline while `cfg.steps` reports the earlier v0.8 deadline. Stacking is fully supported: `isinstance()` and `issubclass()` resolve through the proxy chain, and instantiation fires at most one global warning. `ATTRS_REMAP` layers fire no instantiation warning at all, so stacking two of them warns only on attribute access — each layer's version pair appears in the warnings for that layer's keys.
 
 ### Chained redirect
 
@@ -902,16 +902,16 @@ blanket_proxy = deprecated_class(
 
 
 # Accessing the deprecated alias through the outer proxy: two warnings fire —
-# one from the outer blanket proxy ("Palette" is deprecated) and one from the
-# inner selective proxy ("color" is deprecated in favor of "colour").
-_ = blanket_proxy.color  # warns: FutureWarning × 2 — outer blanket + inner selective
+# first from the inner selective proxy ("color" is deprecated in favor of "colour"),
+# then from the outer blanket proxy ("Palette" is deprecated).
+_ = blanket_proxy.color  # warns: FutureWarning × 2 — inner selective, then outer blanket
 
 # Accessing the canonical name through the outer proxy: one warning fires —
 # only the outer blanket proxy warns; the inner proxy forwards silently.
 _ = blanket_proxy.colour  # warns: FutureWarning × 1 — outer blanket only
 ```
 
-The outer proxy issues its blanket class-deprecation warning first; the inner proxy then handles the attribute redirect. Two warnings fire for `blanket_proxy.color` — one per proxy layer. Accessing `blanket_proxy.colour` fires only the outer proxy warning because `colour` is not listed in the inner proxy's `attrs_mapping`.
+The inner proxy handles the attribute redirect first; the outer proxy then issues its blanket class-deprecation warning. Two warnings fire for `blanket_proxy.color` — one per proxy layer, the inner `color` warning before the outer one. Accessing `blanket_proxy.colour` fires only the outer proxy warning because `colour` is not listed in the inner proxy's `attrs_mapping`.
 
 ### Real-world migration: ML training config
 

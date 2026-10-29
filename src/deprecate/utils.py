@@ -32,6 +32,9 @@ from typing import Any, Callable, Optional, Union
 from deprecate._frames import _caller_stacklevel
 from deprecate._types import TargetMode
 
+# `get_func_arguments_types_defaults` is internal despite its name and gains a leading underscore in v1.0.
+__all__ = ["assert_no_warnings", "no_warning_call", "void"]
+
 
 def get_func_arguments_types_defaults(func: Callable) -> list[tuple[str, Any, Any]]:
     """Parse function arguments, types and default values.

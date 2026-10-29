@@ -18,8 +18,8 @@ repos:
         entry: python .github/scripts/check_plugin_compat_floor.py
         language: python
         pass_filenames: false
-        # run when the package version, a plugin manifest, or any plugin skill doc changes
-        files: ^(src/deprecate/__about__\.py|plugins/pydeprecate/.*/(plugin\.json|SKILL\.md))$
+        # run when the script itself, the package version, a plugin manifest, or any plugin skill doc changes
+        files: ^(\.github/scripts/check_plugin_compat_floor\.py|src/deprecate/__about__\.py|plugins/pydeprecate/.*/(plugin\.json|SKILL\.md))$
 
   - repo: https://github.com/pre-commit/pre-commit
     rev: v4.7.0

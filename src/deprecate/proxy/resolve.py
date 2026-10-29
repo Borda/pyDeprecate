@@ -14,6 +14,8 @@ from deprecate._frames import _caller_stacklevel
 from deprecate._types import TargetMode, get_deprecation_config
 from deprecate.utils import _is_dataclass_target
 
+__all__: list[str] = []
+
 
 def _get_static_attr_owner(proxy_type: Any, obj: Any) -> Any:  # noqa: ANN401
     """Return the object whose attributes should be validated without dynamic lookup.

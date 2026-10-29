@@ -23,7 +23,7 @@ Core Components:
 **Fatal deprecations** (:mod:`deprecate._fatal`):
     - :class:`~deprecate._fatal.DeprecatedError`: Raised instead of a warning when a deprecation is fatal
     - :func:`~deprecate._fatal.as_exceptions`: Context manager and decorator that makes deprecations fatal for one
-      block of code and restores the previous ``deprecate.AS_EXCEPTIONS`` setting on exit
+      block of code in the current thread or task and restores the previous setting on exit
 
 **Audit** (:mod:`deprecate.audit`, loaded on first access to ``deprecate.audit`` or any name below, so a plain
 ``import deprecate`` stays light; ``from deprecate import *`` loads it):
@@ -113,7 +113,9 @@ from deprecate.utils import (
 #: Process-wide default for ``as_exception``: when ``True``, every deprecation raises
 #: :class:`~deprecate._fatal.DeprecatedError` instead of warning, including ``as_exception=False``. Seeded from
 #: ``DEPRECATE_AS_EXCEPTIONS`` at import and re-read on every emission, so assigning to it at runtime (or in a
-#: test) takes effect immediately.  An explicit ``as_exception=True`` on a wrapper is fatal regardless of this.
+#: test) takes effect on the next emission, except inside an open :func:`~deprecate._fatal.as_exceptions` scope,
+#: which decides first and applies the assignment only once it closes.  An explicit ``as_exception=True`` on a
+#: wrapper is fatal regardless of this.
 AS_EXCEPTIONS: bool = _env_as_exceptions()
 
 __all__ = [

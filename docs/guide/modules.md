@@ -118,7 +118,7 @@ old_utils = deprecated_instance(
 
 ## Limiting warning volume with `num_warns`
 
-By default `deprecated_module()` delivers a warning on **every** public attribute access, matching its behavior before `num_warns` existed. Standard warning filters can still suppress repeated *display* at the same location. Pass `num_warns` to cap deliveries — the same semantics as `@deprecated`'s `num_warns`, just defaulting to `-1` (unlimited) instead of `1`, since a module's whole purpose is warning on every access unless you opt into a budget:
+By default `deprecated_module()` delivers a warning on **every** public attribute access, matching its behavior before `num_warns` existed. Standard warning filters can still suppress repeated *display* at the same location. Pass `num_warns` to cap deliveries — the same semantics as `@deprecated`'s `num_warns`, but defaulting to `-1` (unlimited) instead of `1` until v1.0, when the default becomes `1` like everywhere else (see the box below):
 
 ```python
 # phmdoctest:skip — old_calculator.py in-place warn template, budgeted variant
@@ -132,6 +132,10 @@ deprecated_module(
 ```
 
 `0` never delivers a warning, a positive `N` delivers exactly `N`, and `-1` (the default) delivers on every access. The counter is one budget shared across every attribute name on the module — there is no per-attribute counter the way `deprecated_class`'s `attrs_mapping` gets one. `-1` avoids budget locking but still performs metadata lookup and warning handling. Use a finite budget for a worker service whose custom stream or warning filter would otherwise record repeated accesses.
+
+!!! warning "`stream=None` and the `num_warns` default change in v1.0"
+
+    Omit `stream` to deliver the module warning through `warnings.warn` (the default; `help(deprecated_module)` shows it as `<warnings.warn>`). An explicit `stream=None` does the same today, but emits a `FutureWarning` at the `deprecated_module(...)` call: in v1.0 `stream=None` will silence the module warning, as it already does for `@deprecated`, `deprecated_class` and `deprecated_instance`. In the same release the `num_warns` default changes from `-1` to `1`; pass `num_warns=-1` explicitly to keep a warning on every access.
 
 ## Star imports also warn
 
@@ -152,7 +156,7 @@ module_items = [r for r in deprecated_items if r.api_type == "module"]
 
 ## Fatal deprecations
 
-`deprecated_module(..., as_exception=True)` turns every public attribute access on the module into a raised `DeprecatedError` — see [Fatal deprecations](functions.md#fatal-deprecations) for the full contract, including the process-wide `DEPRECATE_AS_EXCEPTIONS` switch. It ignores `num_warns` (every access raises, not just the first) and is not silenced by `stream=None`.
+`deprecated_module(..., as_exception=True)` turns every public attribute access on the module into a raised `DeprecatedError` — see [Fatal deprecations](functions.md#fatal-deprecations) for the full contract, including the process-wide `DEPRECATE_AS_EXCEPTIONS` switch. It ignores `num_warns` (every access raises, not just the first) and does not depend on `stream`.
 
 A module is the broadest surface this feature covers, so expect the blast radius to match: any tool that walks module attributes stops at a fatal module rather than skipping it — pytest collection, Sphinx autodoc, `pickle`, `copy`. pyDeprecate's own audit is unaffected, because `find_deprecation_wrappers()` and the `pydeprecate` CLI read the module's `__dict__` rather than going through attribute access, so a fatal module still appears in discovery and reports like any other.
 

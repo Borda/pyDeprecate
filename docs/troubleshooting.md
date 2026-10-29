@@ -211,11 +211,11 @@ True
 
 ## TypeError: Failed mapping
 
-**Q:** I get `TypeError: Failed mapping of 'my_func', arguments not accepted by target: ['old_arg']`. What does this mean?
+**Q:** I get `` TypeError: Failed mapping of `my_func`, arguments not accepted by target: ['old_arg'] ``. What does this mean?
 
 **A:** Your deprecated function passes an argument that the target function does not accept. You need to either drop the argument, rename it to match the target's signature, or use `TargetMode.ARGS_REMAP` for in-place remapping.
 
-The error fires at call time because pyDeprecate prepares the forwarded call from the deprecated source and validates those arguments against the target's signature. If one or more mapped names are still not accepted by the target, it raises `TypeError: Failed mapping of '{source}', arguments not accepted by target: [...]`. When the target accepts `*args`, the message uses a slightly different variant, but it still indicates that the mapped arguments could not be accepted by the target.
+The error fires at call time because pyDeprecate prepares the forwarded call from the deprecated source and validates those arguments against the target's signature. If one or more mapped names are still not accepted by the target, it raises `` TypeError: Failed mapping of `{source}`, arguments not accepted by target: [...] ``. When the target accepts `*args`, the message uses a slightly different variant, but it still indicates that the mapped arguments could not be accepted by the target.
 
 Choose the fix that matches your situation:
 
@@ -398,7 +398,13 @@ True True
 
 If you are writing tests and need to verify that a warning fires, use `pytest.warns(FutureWarning)` on the first call and `assert_no_warnings(FutureWarning)` on subsequent calls. See [Testing Deprecated Code](guide/audit.md#testing-deprecated-code) for full examples.
 
-**The `num_warns` budget is per-process, not per-deployment.** A long-running service — a worker, a web server — that hits a deprecated code path once at startup exhausts the default `num_warns=1` immediately; the path stays completely silent for the rest of that process's life, even after weeks of steady-state traffic. Checking production logs and seeing nothing does not mean the deprecated path is unused — it may mean the one allowed warning already fired and scrolled out of the retained log window. To confirm whether a deprecated path is still being hit in a running service: restart the process (the counter resets) and watch for the warning again, or redeploy temporarily with `num_warns=-1` to invoke the configured warning path on every call. Standard warning filters can still suppress repeated display; a custom stream can record each delivery.
+______________________________________________________________________
+
+## Why did the deprecation warning stop appearing in my long-running service?
+
+**Q:** My worker logged the deprecation warning once after a deploy and has been silent for weeks, although the deprecated path is surely still called. Did the warning break?
+
+**A:** No. **The `num_warns` budget is per-process, not per-deployment.** A long-running service — a worker, a web server — that hits a deprecated code path once at startup exhausts the default `num_warns=1` immediately; the path stays completely silent for the rest of that process's life, even after weeks of steady-state traffic. Checking production logs and seeing nothing does not mean the deprecated path is unused — it may mean the one allowed warning already fired and scrolled out of the retained log window. To confirm whether a deprecated path is still being hit in a running service: restart the process (the counter resets) and watch for the warning again, or redeploy temporarily with `num_warns=-1` to invoke the configured warning path on every call. Standard warning filters can still suppress repeated display; a custom stream can record each delivery.
 
 ## Deprecation target path incorrect across modules
 
@@ -416,18 +422,21 @@ When moving functions across modules, import the target from its new home explic
 
 **What warns (data-use operations):**
 
-- Arithmetic operators (`+`, `-`, `*`, `/`, `//`, `**`, `%`, `@`) and their reflected/in-place forms
+- Arithmetic operators (`+`, `-`, `*`, `/`, `//`, `**`, `%`, `@`), `divmod()`, and their reflected/in-place forms
+- Bitwise and shift operators (`&`, `|`, `^`, `<<`, `>>`) and their reflected/in-place forms
 - Numeric/path conversions: `int()`, `float()`, `complex()`, `operator.index()`, `os.fspath()`
 - Unary numeric operators: `abs()`, `-obj`, `+obj`, `~obj`
 - Rounding: `round()`, `math.trunc()`, `math.floor()`, `math.ceil()`
 - `reversed()`, `next()`
 - Context-manager entry (`with proxy:`, `async with proxy:`)
 - Async iteration entry (`async for`)
+- Awaiting a proxy (`await proxy`)
 - Subclassing (`class Child(proxy):`)
 
 **What stays silent (structural probes):**
 
 - Ordering comparisons: `<`, `<=`, `>`, `>=`
+- `bool()`, `hash()`, and the `in` operator
 - `format()` / f-strings using the wrapped object
 - Context-manager exit (`__exit__` / `__aexit__`)
 
@@ -1863,6 +1872,28 @@ If a tool still renders the proxy, point it at `__wrapped__` explicitly. When th
 
 ______________________________________________________________________
 
+## How do I deprecate an entire Python module?
+
+**Q:** I am retiring a whole module, not a single function or class. Which API covers that, and how do callers get pointed at the replacement?
+
+**A:** Call `deprecated_module(__name__, deprecated_in=..., remove_in=...)` at the bottom of the module you are retiring. Three modes are available:
+
+- **Mode 1** (no `target=`) changes the module `__class__` to an intercepting wrapper that delivers a `FutureWarning` on every public attribute access, including real attributes (functions, classes, constants already in `__dict__`).
+- **Mode 2** (`target=new_module`) also forwards every missing-attribute lookup to the replacement module, optionally with `attrs_mapping` for per-name redirects. Use it when callers must be redirected to the new name transparently.
+- **Mode 3** uses `deprecated_instance()` in the parent package `__init__.py` to expose the old module name as a deprecated attribute; no extra API is needed.
+
+`num_warns=-1` is the default and delivers on every access; `0` delivers none and a positive `N` delivers exactly `N`. See the [module deprecation guide](guide/modules.md) for each mode with runnable examples.
+
+______________________________________________________________________
+
+## Does `deprecated_module()` warn when accessing real attributes (functions, classes, constants) on the deprecated module?
+
+**Q:** My deprecated module still defines its functions and constants. Do callers that use those real attributes get the warning, or only callers of names that no longer exist?
+
+**A:** Yes, real attributes warn too. `deprecated_module()` changes the module's `__class__` to a wrapper that overrides `__getattribute__`, so every public attribute access invokes the `FutureWarning` path, including attributes already in `__dict__`. Standard warning filters can suppress repeated display. A PEP 562 module-level `__getattr__` hook would fire only for missing names; `__getattribute__` intercepts all lookups. Star imports are not an exception (see below).
+
+______________________________________________________________________
+
 ## Module deprecation: accessing a missing attribute raises AttributeError
 
 **Q:** I called `deprecated_module()` in Mode 1 (no `target=`). Real attributes invoke the warning path correctly, but accessing a name that is not in the module raises `AttributeError` instead of just invoking that path. Is there a way to forward missing-attr lookups to a replacement module?
@@ -1915,6 +1946,14 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
+## Why does `stream=None` not silence `deprecated_module`?
+
+**Q:** I passed `stream=None` to `deprecated_module()` expecting silence, as with `@deprecated`, but the module warning still appears, and a `FutureWarning` now fires at the `deprecated_module(...)` call itself.
+
+**A:** For `deprecated_module()`, `stream=None` historically meant "use `warnings.warn`", while every other entry point treats it as silence. The default is now a separate sentinel (`help()` shows it as `<warnings.warn>`), so omitting `stream` keeps the current behaviour without any notice. An explicit `stream=None` still delivers through `warnings.warn` but announces the change with a `FutureWarning` at the call: in v1.0 `stream=None` silences the module warning, and the `num_warns` default changes from `-1` to `1`. Omit `stream` to keep warning on access, and pass `num_warns=-1` explicitly if every access must keep warning after v1.0. To silence a module deprecation today, use a warnings filter or a custom `stream` that discards the message.
+
+______________________________________________________________________
+
 ## Why do pytest, Sphinx, or my IDE trigger warnings on a deprecated module?
 
 **Q:** I only imported a deprecated module once, but pytest collection, Sphinx autodoc, or my IDE/linter triggers many `FutureWarning`s. Why?
@@ -1927,10 +1966,10 @@ If that noise is expected in tests, scope it in test config with `warnings.filte
 # tests/conftest.py
 import warnings
 
-warnings.filterwarnings("ignore", category=FutureWarning, module=r"^old_module$")
+warnings.filterwarnings("ignore", category=FutureWarning, message=r"The `old_module` module was deprecated")
 ```
 
-Replace `old_module` with the deprecated module's import path. This keeps the warning visible elsewhere while silencing the noisy introspection path during test collection.
+Replace `old_module` with the deprecated module's import path (escape dots in a dotted path, e.g. `pkg\.old_module`). Filter by `message=`, not `module=`: the warning is attributed to the module that accesses the deprecated one (the caller's frame), so `module=r"^old_module$"` never matches. The pattern above matches the start of the built-in notice ("The `old_module` module was deprecated since v..."); if you pass a custom `message_template`, match the start of that text instead. This keeps the warning visible elsewhere while silencing the noisy introspection path during test collection.
 
 ______________________________________________________________________
 
@@ -2158,7 +2197,7 @@ ______________________________________________________________________
 
 **Q:** A call that used to emit a `FutureWarning` now raises `deprecate.DeprecatedError`. Nothing in my code changed.
 
-**A:** Something switched the deprecation to fatal. Three places to check, in order: the wrapper itself (`as_exception=True` on the `@deprecated` / `deprecated_class` / `deprecated_instance` / `deprecated_module` call), the process-wide `deprecate.AS_EXCEPTIONS` attribute (an application bootstrap, a test fixture, or an enclosing `with deprecate.as_exceptions():` block may set it), and the `DEPRECATE_AS_EXCEPTIONS` environment variable, which seeds that attribute at import when set to `1`, `true`, `yes`, or `on`. Precedence is monotonic, so `as_exception=False` on the wrapper does **not** escape a `True` global — that is deliberate, so a strict CI run cannot be opted out of through a wrapper's own `as_exception` flag (only the consumer's own `as_exceptions(False)` scope or `AS_EXCEPTIONS` setting can). To find the source, print `deprecate.AS_EXCEPTIONS` and `os.environ.get("DEPRECATE_AS_EXCEPTIONS")` at the failing call site, and read `get_deprecation_config(the_wrapper).as_exception` for the wrapper's own value.
+**A:** Something switched the deprecation to fatal. Four places to check, in order: the wrapper itself (`as_exception=True` on the `@deprecated` / `deprecated_class` / `deprecated_instance` / `deprecated_module` call), an enclosing `with deprecate.as_exceptions():` block in the same thread or task, the process-wide `deprecate.AS_EXCEPTIONS` attribute (an application bootstrap or a test fixture may set it), and the `DEPRECATE_AS_EXCEPTIONS` environment variable, which seeds that attribute at import when set to `1`, `true`, `yes`, or `on`. Precedence is monotonic, so `as_exception=False` on the wrapper does **not** escape a `True` global — that is deliberate, so a strict CI run cannot be opted out of through a wrapper's own `as_exception` flag (only the consumer's own `as_exceptions(False)` scope or `AS_EXCEPTIONS` setting can). To find the source, print `deprecate.AS_EXCEPTIONS` and `os.environ.get("DEPRECATE_AS_EXCEPTIONS")` at the failing call site, and read `get_deprecation_config(the_wrapper).as_exception` for the wrapper's own value. An open `as_exceptions()` scope never shows in `deprecate.AS_EXCEPTIONS`; if all three read `False`, look for a `with as_exceptions():` block or an `@as_exceptions()` decorator in the call stack of the failing call (the traceback lists it).
 
 ______________________________________________________________________
 
@@ -2232,16 +2271,16 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-## Still stuck?
-
-!!! question "Open a GitHub issue"
-
-    If none of the above covers your situation, open an issue on [GitHub Issues](https://github.com/Borda/pyDeprecate/issues). Include the full traceback, the decorator call you used, and the Python and pyDeprecate versions (`pip show pyDeprecate`).
-
-______________________________________________________________________
-
 ## Why did the GitHub Action skip my job summary?
 
 **Q:** The action ran with `summary: true`, but the job summary is absent or warns that the gate wrote no pyDeprecate report, or that no pyDeprecate report is available, or another runner warning about the summary.
 
 **A:** The summary is optional and never changes the gate's exit code. The action takes the table from the report the CLI writes with `--report-json`, and the CLI writes that report only when the scan ran to the end with exit `0` or `1`. "The gate wrote no pyDeprecate report" means the report could not be written; the cause is in the CLI's stderr just above the warning. A usage error (exit `2`) and a crashed scan (exit `3`, for example a package that fails to import) write no summary and no warning, because no scan finished; the step's error annotation names the exit code. "No pyDeprecate report is available" means the job runs a pyDeprecate older than `--report-json` with `install: false`: keep `install: true`, or upgrade the pyDeprecate your job installs. The same "no report is available" warning also appears when the runner could not create the temporary directory for the report (its preceding warning gives the OS error). Other warnings: "`summary: true` needs GITHUB_STEP_SUMMARY" means the job is not on a GitHub runner, and "could not write the job summary" shows the OS error; both are self-describing. "The gate's report holds no deprecation table" means the CLI could not render the table (the reason is on its stderr). "Could not read the pyDeprecate report" or "not of layout version" means the report file is corrupt or comes from a different pyDeprecate than the action's (for example `install: false` with another version); the preceding runner warning names the cause, and the gate result is unaffected.
+
+______________________________________________________________________
+
+## Still stuck?
+
+!!! question "Open a GitHub issue"
+
+    If none of the above covers your situation, open an issue on [GitHub Issues](https://github.com/Borda/pyDeprecate/issues). Include the full traceback, the decorator call you used, and the Python and pyDeprecate versions (`pip show pyDeprecate`).

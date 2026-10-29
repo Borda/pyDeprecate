@@ -69,7 +69,8 @@ Calling `addition(1, 2)` now emits a `FutureWarning` and transparently forwards 
 - **Conditional skip** — `skip_if=callable` suppresses the deprecation machinery when a runtime condition is met (e.g. caller has migrated to a newer dependency); available on decorators and proxies alike.
 - **CI audit tools** — [`validate_deprecation_expiry()`](guide/audit.md#enforcing-removal-deadlines) catches zombie code past its deadline, [`validate_deprecation_policy()`](guide/audit.md#enforcing-a-deprecation-policy) catches deprecations scheduled against your release policy, [`validate_deprecation_chains()`](guide/audit.md#detecting-deprecation-chains) detects double-deprecation chains, and [`find_deprecation_wrappers()`](guide/audit.md#validating-wrapper-configuration) surfaces misconfigured `args_mapping` keys before they silently do nothing.
 - **Static type-checker signals** — native PEP 702 static diagnostics come from `warnings.deprecated`, which type checkers recognise by name only. For both static-checker hints and runtime call-forwarding, stack `@warnings.deprecated("literal message", category=None)` directly above pyDeprecate's `@deprecated(...)` — see [Static type checkers](guide/functions.md#static-type-checkers-pep-702).
-- **CLI** — `pydeprecate check src/` / `pydeprecate all src/` runs all audit checks from the command line. See [CLI Reference](guide/cli.md).
+- **CLI** — `pydeprecate check src/` scans for misconfigured wrappers and chains; `pydeprecate all src/` also runs the expiry and policy checks and appends a deprecation table. Ready-made [pre-commit hooks](guide/audit.md#pre-commit-integration) and a [GitHub Action](guide/audit.md#github-action) run them in CI. See [CLI Reference](guide/cli.md).
+- **Fatal mode** — `as_exception=True` or `deprecate.as_exceptions()` raises `DeprecatedError` instead of warning, so a test run can refuse deprecated calls. See [Fatal deprecations](guide/functions.md#fatal-deprecations).
 - **Testing helpers** — `assert_no_warnings()` context manager asserts no warnings of a given type escape a block; `no_warning_call` retained as legacy alias.
 - **Zero runtime dependencies** — nothing added to `install_requires`.
 - **Python 3.9+** supported.
@@ -80,11 +81,11 @@ Calling `addition(1, 2)` now emits a `FutureWarning` and transparently forwards 
 
 Choose the install that matches the workflow you need:
 
-| Workflow                     | Command                                | Includes                                                                                                                                                                        |
-| ---------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Runtime deprecation wrappers | `pip install pyDeprecate`              | `@deprecated`, `@deprecated_class`, `deprecated_instance`, docstring helpers, and most audit metadata helpers                                                                   |
-| CI deadline checks           | `pip install 'pyDeprecate[audit]'`     | Adds `packaging` for PEP 440 version comparison in `validate_deprecation_expiry()` and `validate_deprecation_policy()`                                                          |
-| Command-line audit workflows | `pip install 'pyDeprecate[audit,cli]'` | Adds version support for `pydeprecate expiry`, `pydeprecate policy`, and `pydeprecate all`; the CLI itself needs no dependency (`cli` is an empty extra kept for compatibility) |
+| Workflow                     | Command                                | Includes                                                                                                                                                                                    |
+| ---------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runtime deprecation wrappers | `pip install pyDeprecate`              | `@deprecated`, `@deprecated_class`, `deprecated_instance`, docstring helpers, and most audit metadata helpers                                                                               |
+| CI deadline checks           | `pip install 'pyDeprecate[audit]'`     | Adds `packaging` for PEP 440 version comparison in `validate_deprecation_expiry()` and `validate_deprecation_policy()`                                                                      |
+| Command-line audit workflows | `pip install 'pyDeprecate[audit,cli]'` | Adds `packaging` version support for `pydeprecate expiry`, `pydeprecate policy`, and `pydeprecate all`; the CLI itself needs no dependency (`cli` is an empty extra kept for compatibility) |
 
 ```bash
 pip install pyDeprecate
@@ -130,7 +131,7 @@ The alternatives emit a deprecation notice but leave forwarding, argument mappin
 
 ✍️ = possible but requires manual implementation <br /> † `warnings.deprecated` in the stdlib on Python 3.13+ (PEP 702); also available as the `typing_extensions.deprecated` backport for Python < 3.13
 
-_Positioning guide reviewed for pyDeprecate v0.12.0, August 2026. This is not a full cell-by-cell external audit; [open an issue](https://github.com/Borda/pyDeprecate/issues) if you spot an inaccuracy._
+_Positioning guide last reviewed August 2026. This is not a full cell-by-cell external audit; [open an issue](https://github.com/Borda/pyDeprecate/issues) if you spot an inaccuracy._
 
 > **When to prefer `warnings.deprecated` (PEP 702):** If your project targets Python 3.13+ and you only need simple call-site warnings visible to static type-checkers (mypy, pyright, IDEs), the stdlib decorator is the right choice — zero extra dependency. Choose `pyDeprecate` when you need call-forwarding, argument remapping, proxy wrapping of module-level constants, or CI audit tools — none of those exist in PEP 702.
 

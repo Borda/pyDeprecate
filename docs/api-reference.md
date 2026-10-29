@@ -1,6 +1,6 @@
 # API Reference
 
-Auto-generated from source docstrings. For usage examples see the [User Guide](getting-started.md).
+Auto-generated from source docstrings. For usage examples see the [Use Cases](guide/use-cases.md) guide, or [Getting Started](getting-started.md) for installation and a first deprecation. The `pydeprecate` command-line tool is documented in the [CLI Reference](guide/cli.md).
 
 ## Decorator
 
@@ -17,6 +17,14 @@ Auto-generated from source docstrings. For usage examples see the [User Guide](g
 ## Module
 
 ::: deprecate.module.deprecated_module
+
+## Fatal deprecations
+
+`deprecate.AS_EXCEPTIONS` is a plain `bool` module attribute: the process-wide switch that turns every deprecation into a `DeprecatedError`. It is seeded at import from the `DEPRECATE_AS_EXCEPTIONS` environment variable and re-read on every emission. See [Fatal deprecations](guide/functions.md#fatal-deprecations).
+
+::: deprecate.as_exceptions
+
+::: deprecate.DeprecatedError
 
 ## Audit
 
@@ -42,11 +50,23 @@ Auto-generated from source docstrings. For usage examples see the [User Guide](g
 
 ::: deprecate.audit.GraceWindow
 
+::: deprecate.audit.GraceWindowSpec
+
 ::: deprecate.audit.VersionBump
 
 ::: deprecate.audit.DeprecationStatus
 
 ::: deprecate.audit.TableStyle
+
+### Legacy audit aliases
+
+Deprecated since 0.6 and removed in 1.0; use the replacement named in each entry.
+
+::: deprecate.audit.DeprecatedCallableInfo
+
+::: deprecate.audit.find_deprecated_callables
+
+::: deprecate.audit.validate_deprecated_callable
 
 ## Types
 
@@ -54,8 +74,14 @@ Auto-generated from source docstrings. For usage examples see the [User Guide](g
 
 ::: deprecate.DeprecationProxy
 
+::: deprecate.get_deprecation_config
+
 ## Utilities
 
 ::: deprecate.utils.void
 
 ::: deprecate.utils.assert_no_warnings
+
+## Command line
+
+The `pydeprecate` command wraps the audit functions above for CI and pre-commit use; its subcommands, flags and exit codes are listed in the [CLI Reference](guide/cli.md).

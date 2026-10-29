@@ -1,10 +1,11 @@
 """Fatal deprecations: :class:`DeprecatedError`, the global switch and the scoped :func:`as_exceptions`.
 
 A deprecation can be promoted from a warning to a raised :class:`DeprecatedError`, either per wrapper
-(``as_exception=True``) or process-wide (``deprecate.AS_EXCEPTIONS`` / the ``DEPRECATE_AS_EXCEPTIONS``
-environment variable).  Python's own ``-W error::FutureWarning`` covers neither of the two cases this exists
-for: it cannot distinguish pyDeprecate's warnings from any other library's ``FutureWarning``, and it has no
-effect at all when the wrapper routes through a non-``warnings`` ``stream`` such as :func:`logging.warning`.
+(``as_exception=True``), process-wide (``deprecate.AS_EXCEPTIONS`` / the ``DEPRECATE_AS_EXCEPTIONS``
+environment variable), or for one block in the current thread or task (:func:`as_exceptions`).  Python's own
+``-W error::FutureWarning`` covers neither of the two cases this exists for: it cannot distinguish pyDeprecate's
+warnings from any other library's ``FutureWarning``, and it has no effect at all when the wrapper routes through a
+non-``warnings`` ``stream`` such as :func:`logging.warning`.
 
 This module deliberately imports nothing from the rest of the package, so every emission path
 (:mod:`deprecate.messaging`, :mod:`deprecate.proxy`, :mod:`deprecate.module`) can import it without a cycle.
@@ -17,6 +18,7 @@ import inspect
 import os
 import sys
 from contextlib import ContextDecorator
+from contextvars import ContextVar
 from typing import Any, Callable, Optional, TypeVar
 
 _F = TypeVar("_F", bound=Callable[..., Any])
@@ -75,21 +77,33 @@ def _env_as_exceptions(environ: Optional[dict] = None) -> bool:
 #: :func:`_global_as_exceptions` while the package's own ``__init__`` is still executing.
 _ENV_DEFAULT = _env_as_exceptions()
 
+#: The :func:`as_exceptions` scopes open in the current context, oldest first, as ``(scope, enabled)`` pairs; the
+#: last pair decides.  A :class:`~contextvars.ContextVar` holding an immutable tuple, so a scope is local to its
+#: thread and ``asyncio`` task: tasks created inside a scope inherit the stack (they copy the context), sibling
+#: tasks and other threads do not see it, and each context unwinds only its own entries.
+_SCOPES: ContextVar[tuple[tuple["_ScopedSwitch", bool], ...]] = ContextVar("deprecate_as_exceptions_scopes", default=())
+
 
 def _global_as_exceptions() -> bool:
-    """Return the current value of the ``deprecate.AS_EXCEPTIONS`` package attribute.
+    """Return whether deprecations are fatal by default in the current context.
 
-    Read through :data:`sys.modules` on every call rather than imported once, so that assigning
-    ``deprecate.AS_EXCEPTIONS = True`` (or monkeypatching it in a test) takes effect immediately.
+    An open :func:`as_exceptions` scope in the current context decides first.  Outside any scope the
+    ``deprecate.AS_EXCEPTIONS`` package attribute decides, read through :data:`sys.modules` on every call rather
+    than imported once, so that assigning ``deprecate.AS_EXCEPTIONS = True`` (or monkeypatching it in a test)
+    takes effect immediately.
 
     Returns:
-        The package attribute when it is a ``bool``, else the import-time environment snapshot.
+        The innermost scope's value, else the package attribute when it is a ``bool``, else the import-time
+        environment snapshot.
 
     Examples:
         >>> isinstance(_global_as_exceptions(), bool)
         True
 
     """
+    scopes = _SCOPES.get()
+    if scopes:
+        return scopes[-1][1]
     value = getattr(sys.modules.get("deprecate"), "AS_EXCEPTIONS", None)
     return value if isinstance(value, bool) else _ENV_DEFAULT
 
@@ -126,29 +140,56 @@ def _resolve_as_exception(as_exception: Optional[bool]) -> bool:
     return as_exception is True or _global_as_exceptions()
 
 
+def _body_runs_after_call(candidate: object) -> bool:
+    """Return whether calling ``candidate`` hands back a coroutine or generator instead of running its body.
+
+    A callable instance is judged by its class's ``__call__``, since the instance itself is not a function; a class
+    is judged by itself only, because calling it runs ``__init__`` synchronously whatever its ``__call__`` does.
+
+    Args:
+        candidate: The object an :func:`as_exceptions` scope is asked to decorate.
+
+    Returns:
+        ``True`` for an ``async def``, generator or async-generator function, or an instance whose ``__call__`` is one.
+
+    Examples:
+        >>> async def coro() -> None: ...
+        >>> class AsyncCallable:
+        ...     async def __call__(self) -> None: ...
+        >>> _body_runs_after_call(coro), _body_runs_after_call(AsyncCallable())
+        (True, True)
+        >>> _body_runs_after_call(AsyncCallable), _body_runs_after_call(len), _body_runs_after_call(5)
+        (False, False, False)
+
+    """
+    checked = [candidate]
+    if not inspect.isclass(candidate):
+        # absent on a non-callable, which ``ContextDecorator`` has always let through to fail at call time instead
+        checked.append(getattr(type(candidate), "__call__", None))
+    return any(
+        inspect.iscoroutinefunction(fn) or inspect.isgeneratorfunction(fn) or inspect.isasyncgenfunction(fn)
+        for fn in checked
+    )
+
+
 class _ScopedSwitch(ContextDecorator):
     """Context manager and function decorator returned by :func:`as_exceptions`.
 
-    A class rather than a ``@contextmanager`` generator so that decorating a function whose body would run after the
+    A class rather than a ``@contextmanager`` generator so that decorating a callable whose body would run after the
     scope has closed fails at decoration time instead of silently doing nothing.
 
     """
 
     def __init__(self, enabled: bool) -> None:
         self._enabled = enabled
-        self._previous: list[Any] = []  # one saved value per open entry, so a reused instance unwinds in order
 
     def _recreate_cm(self) -> "_ScopedSwitch":
-        # a fresh instance per decorated call: a recursive or concurrent call then saves and restores its own value
+        # a fresh instance per decorated call: ``__exit__`` matches entries by object identity, so each call then
+        # removes exactly its own entry
         return _ScopedSwitch(self._enabled)
 
     def __call__(self, func: _F) -> _F:
-        if any(
-            inspect.iscoroutinefunction(candidate)
-            or inspect.isgeneratorfunction(candidate)
-            or inspect.isasyncgenfunction(candidate)
-            for candidate in (func, inspect.unwrap(func))
-        ):
+        if any(_body_runs_after_call(candidate) for candidate in (func, inspect.unwrap(func))):
             name = getattr(func, "__qualname__", repr(func))
             raise TypeError(
                 f"`as_exceptions` cannot decorate `{name}`: its body runs after the scope would have closed;"
@@ -157,36 +198,60 @@ class _ScopedSwitch(ContextDecorator):
         return super().__call__(func)
 
     def __enter__(self) -> None:
-        package: Any = sys.modules["deprecate"]  # the package's own attribute; typed Any to set it without a cycle
-        self._previous.append(getattr(package, "AS_EXCEPTIONS", _ENV_DEFAULT))
-        package.AS_EXCEPTIONS = self._enabled
+        _SCOPES.set((*_SCOPES.get(), (self, self._enabled)))
 
     def __exit__(self, *exc_info: object) -> None:
-        package: Any = sys.modules["deprecate"]
-        package.AS_EXCEPTIONS = self._previous.pop()
+        # Remove the newest entry for this scope object from the *current* context only.  The state lives in the
+        # context, not on the instance, so a scope object shared by concurrent tasks, or exits out of entry order,
+        # never pop another context's entry.  That entry may be an inherited copy (a task created inside the scope
+        # closing an async generator) or the closer's own activation of the same object, which is then removed in
+        # place of the one the exit was meant for.  Only a context holding no entry for this object is left
+        # unchanged, and the exit never raises over the block's error.
+        scopes = _SCOPES.get()
+        for index in range(len(scopes) - 1, -1, -1):
+            if scopes[index][0] is self:
+                _SCOPES.set(scopes[:index] + scopes[index + 1 :])
+                return
 
 
 def as_exceptions(enabled: bool = True) -> _ScopedSwitch:
-    """Make deprecations fatal for one block of code, then restore the previous global setting.
+    """Make deprecations fatal for one block of code, then restore the previous setting.
 
-    Sets ``deprecate.AS_EXCEPTIONS`` to ``enabled`` on entry and puts back the value it found on exit, also when
-    the block raises, so nested scopes compose.  ``as_exceptions(False)`` exempts a block from a strict run
-    (e.g. one seeded by ``DEPRECATE_AS_EXCEPTIONS=1``).  Precedence stays monotonic: a wrapper's own
-    ``as_exception=True`` raises inside an ``as_exceptions(False)`` block too.  Like the global itself, this is
-    the consumer's switch (an application or a test suite), not something library code should set.
+    Inside the block, deprecations that defer to the global switch raise (``enabled=True``) or warn
+    (``enabled=False``); on exit the previous setting applies again, also when the block raises, so nested scopes
+    compose.  ``as_exceptions(False)`` exempts a block from a strict run (e.g. one seeded by
+    ``DEPRECATE_AS_EXCEPTIONS=1``).  Precedence stays monotonic: a wrapper's own ``as_exception=True`` raises inside
+    an ``as_exceptions(False)`` block too.  Like the global itself, this is the consumer's switch (an application or
+    a test suite), not something library code should set.
 
     Also usable as a decorator, but only on plain synchronous functions: an ``async def``, generator or
-    async-generator function is rejected with a :class:`TypeError` at decoration time, because its body runs after
-    the scope would have closed.  Use ``with as_exceptions():`` inside such a body instead.
+    async-generator function, or an instance whose ``__call__`` is one, is rejected with a :class:`TypeError` at
+    decoration time, because its body runs after the scope would have closed.  Use ``with as_exceptions():``
+    inside such a body instead.
 
-    The switch is a plain package attribute, so the scope is process-wide — not local to a thread or an
-    ``asyncio`` task.  Code running concurrently with the block sees the same setting, and scopes opened from
-    different threads or tasks that overlap out of order can leave the switch in the wrong state for the rest of
-    the process (for example ``True`` after both scopes have closed).  Do not hold a scope across an ``await`` in
-    concurrent code.
+    The scope is local to the current thread and ``asyncio`` task (a :class:`~contextvars.ContextVar`), and it
+    never modifies ``deprecate.AS_EXCEPTIONS``: inside a scope that attribute still reports the global value, and
+    assigning it there takes effect once the scope closes.  Sibling tasks keep the global setting, so holding a
+    scope across an ``await`` is safe for concurrent code; other threads keep it too unless they inherit the
+    context.  Tasks created inside a scope inherit it, because a task copies the context at creation.  A new thread
+    inherits the scope only when the interpreter copies the starting context into it
+    (``sys.flags.thread_inherit_context``, Python 3.14+: on by default in free-threaded builds, opt-in with
+    ``-X thread_inherit_context=1`` otherwise): an inheriting thread, including a pool worker started inside
+    the scope, keeps the scope after the block closes, whereas otherwise ``asyncio.to_thread`` carries the scope
+    into a thread by default and ``loop.run_in_executor`` workers see the global setting.  Any other thread
+    inherits only through explicit propagation: run its target through
+    :meth:`contextvars.copy_context().run <contextvars.Context.run>`, or pass ``context=`` to
+    :class:`threading.Thread` on Python 3.14+.
+
+    A generator or async generator shares its consumer's context, so a scope held across a ``yield`` applies to
+    the consumer while the generator is suspended; leaving the scope from another task or context (for example
+    ``aclose()`` called elsewhere) never raises, but it removes the newest entry for that scope object in the
+    closing context, be that an inherited copy of the scope or the closer's own activation of the same object, and
+    changes nothing there only when the context holds none; either way the scope stays open in the consumer's
+    context.  Open and close a scope within one step of a generator.
 
     Args:
-        enabled: Value of ``deprecate.AS_EXCEPTIONS`` inside the block.
+        enabled: Whether deferring deprecations raise inside the block.
 
     Returns:
         A scope usable in a ``with`` statement or as a decorator for a synchronous function.

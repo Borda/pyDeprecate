@@ -82,8 +82,9 @@ class DeprecationConfig:
             when a redirect module is provided). Legacy sentinels (``True``/``False``) are normalised at
             decoration time and never stored verbatim.
         args_extra: Optional kwargs injected into forwarded calls; stored for audit visibility.
-        misconfigured: ``True`` when an invalid raw target sentinel (``False``) was passed at decoration time.
-            Audit tools surface this via
+        misconfigured: ``True`` when the configuration contradicts itself at decoration time: the invalid raw
+            target sentinel ``False``, or :attr:`~deprecate._types.TargetMode.NOTIFY` with an ``args_mapping``,
+            ``args_extra`` or ``attrs_mapping`` it ignores.  Audit tools surface this via
             :attr:`~deprecate.audit.DeprecationWrapperInfo.misconfigured_target`.
         docstring_style: Docstring notice output style when ``update_docstring=True``.
         message_template: Optional custom warning-message template (``%``-style placeholders) that overrides the
@@ -100,11 +101,11 @@ class DeprecationConfig:
             Non-cyclic chains are stored and surfaced by audit tooling.  ``None`` (default) means the proxy uses its
             blanket-warning behaviour (every attribute access emits a warning).
         as_exception: Whether this deprecation raises :class:`~deprecate._fatal.DeprecatedError` instead of
-            emitting a warning.  ``None`` (default) defers to the process-wide ``deprecate.AS_EXCEPTIONS``
-            switch; ``True`` is always fatal; ``False`` means "not fatal by default" and still yields to a
-            ``True`` global, so a consumer's strict run cannot be opted out of by an upstream wrapper.  See
-            :func:`~deprecate._fatal._resolve_as_exception` for the resolution rule.  A fatal deprecation
-            bypasses ``num_warns`` entirely — it raises on every call rather than on the first one.
+            emitting a warning.  ``None`` (default) follows the open :func:`~deprecate._fatal.as_exceptions`
+            scope, else ``deprecate.AS_EXCEPTIONS``; ``True`` is always fatal; ``False`` means "not fatal by
+            default" and still yields to a ``True`` global, so a consumer's strict run cannot be opted out of by an
+            upstream wrapper.  See :func:`~deprecate._fatal._resolve_as_exception` for the resolution rule.  A fatal
+            deprecation bypasses ``num_warns`` entirely — it raises on every call rather than on the first one.
         args_mapping: Optional dict remapping argument names; values are a plain string (new argument name) or
             ``None`` (drop the argument).
         args_mapping_auto_expanded: Keys that were automatically copied from ``attrs_mapping`` into
@@ -130,40 +131,42 @@ class DeprecationConfig:
             POSITIONAL_ONLY parameter names of the *active* class constructor (target class when
             configured, wrapped class otherwise) so the proxy call path can apply the same
             positional split (see also :attr:`args_mapping_positional_only`).  Empty frozenset
-            for non-callable targets.
+            for non-callable targets.  Internal; removed from ``DeprecationConfig`` in v1.0.
         target_positional_only_order: Full parameter-name sequence of the forwarding target callable,
             in declaration order.  Pre-computed at decoration time alongside
             :attr:`target_positional_only` so the call dispatcher can iterate in declaration order
             without calling ``inspect.signature`` on every dispatch.  Not included in ``repr``.
-            Empty tuple when ``target_positional_only`` is empty.
+            Empty tuple when ``target_positional_only`` is empty.  Internal; removed from
+            ``DeprecationConfig`` in v1.0.
         source_positional_only: Names of POSITIONAL_ONLY parameters declared by the decorated
             *source* callable itself.  The wrapper converts positional args to kwargs internally,
             so whenever the dispatcher invokes the source body (NOTIFY, ARGS_REMAP, and the
             migrated-caller short-circuit) it must split these names back out of the resolved
             kwargs and pass them positionally — otherwise every call would raise ``TypeError``.
             Mirrors :attr:`target_positional_only` on the source side.  Empty frozenset when the
-            source declares no ``/``.
+            source declares no ``/``.  Internal; removed from ``DeprecationConfig`` in v1.0.
         source_positional_only_order: Full parameter-name sequence of the decorated source in
             declaration order; the source-side twin of :attr:`target_positional_only_order`.
             Not included in ``repr``.  Empty tuple when :attr:`source_positional_only` is empty.
+            Internal; removed from ``DeprecationConfig`` in v1.0.
         source_var_positional_prefix: Number of named positional parameters declared before the
             source's ``*args``.  Used by the forwarding dispatcher to compute the surplus
             positional tail (``args[prefix:]``) that must be forwarded to a callable target
             rather than silently dropped.  ``0`` when the source declares no var-positional
-            parameter.
+            parameter.  Internal; removed from ``DeprecationConfig`` in v1.0.
         target_all_param_names: All parameter names of the forwarding target callable (including any
             ``*args`` / ``**kwargs`` names), pre-computed at decoration time so the call-time kwarg
             validation in :func:`~deprecate._dispatch._prepare_target_call` does not re-inspect the
             target on every forwarded call.  ``None`` when facts are not precomputed (manual
             ``DeprecationConfig`` construction or non-callable target); ``frozenset()`` for zero-arg
             callables.  Internal call-time cache — excluded from ``repr`` and equality so audit output
-            and stored-config comparisons stay stable.
+            and stored-config comparisons stay stable.  Internal; removed from ``DeprecationConfig`` in v1.0.
         target_accepts_var_positional: ``True`` when the forwarding target declares ``*args``.  Pre-computed
             decoration-time replacement for the per-call ``inspect.getfullargspec`` probe.  Internal cache —
-            excluded from ``repr`` and equality.
+            excluded from ``repr`` and equality.  Internal; removed from ``DeprecationConfig`` in v1.0.
         target_accepts_var_keyword: ``True`` when the forwarding target declares ``**kwargs``.  Pre-computed
             decoration-time replacement for the per-call ``inspect.getfullargspec`` probe.  Internal cache —
-            excluded from ``repr`` and equality.
+            excluded from ``repr`` and equality.  Internal; removed from ``DeprecationConfig`` in v1.0.
 
     Note:
         ``@dataclass(frozen=True)`` blocks attribute *rebinding* on the config object itself, but the

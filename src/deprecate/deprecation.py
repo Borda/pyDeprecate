@@ -29,6 +29,8 @@ from deprecate._validate import _reject_non_callable_source, _resolve_legacy_tar
 from deprecate.messaging import _resolve_message_template_alias, _validate_message_template, deprecation_warning
 from deprecate.routine import _SourceT, deprecated_callable
 
+__all__ = ["deprecated"]
+
 
 class _FrontDoorDecorator(Protocol):
     """Decorator returned by :func:`deprecated`: every source keeps its own static type.
@@ -215,7 +217,7 @@ def deprecated(
             callers to use :attr:`~deprecate.TargetMode.NOTIFY`.
         deprecated_in: Version when the source was deprecated (e.g., "1.0.0"). Default is empty string.
         remove_in: Version when the source will be removed (e.g., "2.0.0"). Default is empty string.
-        stream: Function to output warnings (default: :func:`~deprecate.deprecation.deprecation_warning`, which is
+        stream: Function to output warnings (default: :func:`~deprecate.messaging.deprecation_warning`, which is
             :func:`warnings.warn` with ``FutureWarning`` category). Set to ``None`` to disable warnings entirely —
             this also silences the one-time class-dispatch notice described under ``Warns`` below.
             The ``stacklevel`` passed is counted from the frame that calls ``stream``, so it points at the caller
@@ -251,8 +253,8 @@ def deprecated(
             :class:`~deprecate._fatal.DeprecatedError` — see :func:`~deprecate.routine.deprecated_callable`'s
             ``as_exception`` for the full contract (message text, ``num_warns`` bypass, ``stream=None`` and
             ``skip_if`` interaction, and the monotonic precedence against ``deprecate.AS_EXCEPTIONS``).
-            ``None`` (default) follows the global switch, which is off unless ``DEPRECATE_AS_EXCEPTIONS`` is
-            set.
+            ``None`` (default) follows the open :func:`~deprecate._fatal.as_exceptions` scope, else
+            ``deprecate.AS_EXCEPTIONS`` (off unless ``DEPRECATE_AS_EXCEPTIONS`` is set).
 
     Returns:
         Decorator that wraps the source callable, or the class proxy for a class source.

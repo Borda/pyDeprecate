@@ -6,7 +6,13 @@ import warnings
 
 import pytest
 
-from deprecate import deprecated
+from deprecate import (
+    DeprecatedError,
+    as_exceptions,
+    deprecated,
+    find_deprecation_wrappers,
+    validate_deprecation_expiry,
+)
 from deprecate._types import DeprecationConfig
 from deprecate.audit import (
     ChainType,
@@ -193,7 +199,7 @@ class TestDeprecationWrapperInfoEmptyVersions:
 
 
 class TestDeprecationWrapperInfoCompatAliases:
-    """Deprecated @property aliases emit DeprecationWarning on access (H3)."""
+    """Deprecated @property aliases are deprecated through pyDeprecate itself and so are audit-visible (H3)."""
 
     def _make_info(self) -> DeprecationWrapperInfo:
         """Return a minimal DeprecationWrapperInfo for alias access tests."""
@@ -206,31 +212,94 @@ class TestDeprecationWrapperInfoCompatAliases:
 
         return validate_deprecation_wrapper(_fn)
 
-    def test_empty_mapping_alias_emits_deprecation_warning(self) -> None:
-        """Accessing .empty_mapping emits DeprecationWarning naming the replacement."""
-        info = self._make_info()
-        with pytest.warns(DeprecationWarning, match="renamed to 'empty_args_mapping'"):
-            _ = info.empty_mapping
+    @pytest.mark.parametrize(
+        ("alias", "replacement"),
+        [
+            pytest.param("empty_mapping", "empty_args_mapping", id="empty_mapping"),
+            pytest.param("identity_mapping", "identity_args_mapping", id="identity_mapping"),
+        ],
+    )
+    def test_alias_emits_future_warning(self, alias: str, replacement: str) -> None:
+        """Accessing a legacy alias emits a FutureWarning naming the replacement.
 
-    def test_empty_mapping_alias_returns_correct_value(self) -> None:
-        """Accessing .empty_mapping returns the same value as .empty_args_mapping."""
+        The alias is wrapped with pyDeprecate's own decorator, so it warns with the library's category rather
+        than a plain ``DeprecationWarning`` that default filters hide from the code reading the audit result.
+        """
+        info = self._make_info()
+        with pytest.warns(FutureWarning, match=f"renamed to '{replacement}'"):
+            getattr(info, alias)
+
+    @pytest.mark.parametrize(
+        ("alias", "replacement"),
+        [
+            pytest.param("empty_mapping", "empty_args_mapping", id="empty_mapping"),
+            pytest.param("identity_mapping", "identity_args_mapping", id="identity_mapping"),
+        ],
+    )
+    def test_alias_returns_replacement_value(self, alias: str, replacement: str) -> None:
+        """Accessing a legacy alias returns the same value as its replacement field."""
         info = self._make_info()
         with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            assert info.empty_mapping == info.empty_args_mapping
+            warnings.simplefilter("ignore", FutureWarning)
+            assert getattr(info, alias) == getattr(info, replacement)
 
-    def test_identity_mapping_alias_emits_deprecation_warning(self) -> None:
-        """Accessing .identity_mapping emits DeprecationWarning naming the replacement."""
-        info = self._make_info()
-        with pytest.warns(DeprecationWarning, match="renamed to 'identity_args_mapping'"):
-            _ = info.identity_mapping
+    @pytest.mark.parametrize("alias", ["empty_mapping", "identity_mapping"])
+    def test_alias_warns_on_every_read(self, alias: str) -> None:
+        """A legacy alias warns on each read, not only the first (``num_warns=-1``).
 
-    def test_identity_mapping_alias_returns_correct_value(self) -> None:
-        """Accessing .identity_mapping returns the same value as .identity_args_mapping."""
+        A caller reading the alias in several places must be told at every one of them; a one-shot warning would
+        leave the second and later call sites quietly on the removed name until v1.0 breaks them.
+        """
         info = self._make_info()
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            assert info.identity_mapping == info.identity_args_mapping
+        with pytest.warns(FutureWarning, match="renamed to") as caught:
+            [getattr(info, alias) for _ in range(2)]
+        assert len([w for w in caught if issubclass(w.category, FutureWarning)]) == 2
+
+    @pytest.mark.parametrize("alias", ["empty_mapping", "identity_mapping"])
+    def test_alias_raises_inside_as_exceptions(self, alias: str) -> None:
+        """Reading a legacy alias inside ``as_exceptions()`` raises ``DeprecatedError`` instead of warning.
+
+        A strict CI section that sweeps for deprecated usage must catch the audit result's old field names too,
+        since the aliases are ordinary pyDeprecate wrappers deferring to the global switch.
+        """
+        info = self._make_info()
+        with as_exceptions(), pytest.raises(DeprecatedError, match="renamed to"):
+            getattr(info, alias)
+
+    @pytest.mark.parametrize("alias", ["empty_mapping", "identity_mapping"])
+    def test_alias_is_listed_by_find_deprecation_wrappers(self, alias: str) -> None:
+        """The package's own audit lists each legacy alias with its 0.8 deprecation and 1.0 removal versions.
+
+        The scheduled removal of these aliases is tracked by the same audit the package offers its users, so the
+        alias must be discoverable as a class member of the module defining it, with the versions it documents.
+        """
+        found = {
+            item.function: item for item in find_deprecation_wrappers("deprecate.audit._wrappers", recursive=False)
+        }
+        config = found[f"DeprecationWrapperInfo.{alias}"].deprecated_info
+        assert (config.deprecated_in, config.remove_in) == ("0.8", "1.0")
+
+    @_requires_packaging
+    @pytest.mark.parametrize("alias", ["empty_mapping", "identity_mapping"])
+    @pytest.mark.parametrize(
+        ("current_version", "flagged"),
+        [
+            pytest.param("0.9", False, id="before-removal"),
+            pytest.param("1.0", True, id="at-removal"),
+            pytest.param("1.1", True, id="past-removal"),
+        ],
+    )
+    def test_alias_is_flagged_by_expiry_audit_from_v1_0(self, alias: str, current_version: str, flagged: bool) -> None:
+        """The expiry audit flags a legacy alias once the current version reaches its scheduled 1.0 removal.
+
+        The aliases exist so that the project's own CI turns red when v1.0 is cut with them still in place; at
+        0.9 they are still within their deprecation period and must not be reported.
+        """
+        expired = validate_deprecation_expiry("deprecate.audit._wrappers", current_version, recursive=False)
+        assert (
+            any(f"`deprecate.audit._wrappers.DeprecationWrapperInfo.{alias}`" in message for message in expired)
+            is flagged
+        )
 
 
 class TestDwiCompatInit:

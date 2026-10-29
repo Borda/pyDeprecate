@@ -44,6 +44,8 @@ from deprecate.proxy.resolve import (
 )
 from deprecate.utils import _remap_kwargs, _SigFacts, _signature_facts
 
+__all__: list[str] = []
+
 #: Standard collection methods blocked by the read-only proxy guard.
 _MUTATING_METHOD_NAMES = frozenset(
     {
@@ -78,7 +80,7 @@ class _ProxySpec:
         deprecated_in: Version string when the object was deprecated.
         remove_in: Version string when the object will be removed.
         num_warns: Maximum number of warnings to emit. ``1`` (default) warns once; ``-1`` warns on every access.
-        stream: Callable used to emit warnings. Defaults to :data:`~deprecate.deprecation.deprecation_warning`
+        stream: Callable used to emit warnings. Defaults to :data:`~deprecate.messaging.deprecation_warning`
             (:class:`FutureWarning`).  Pass ``None`` to suppress warnings.
             A custom ``stream`` is called once per warning, with ``stacklevel=`` only when its signature declares a
             ``stacklevel`` parameter or ``**kwargs``; a C-level callable without an introspectable signature gets the
@@ -546,7 +548,8 @@ class _DeprecatedProxy:
 
         Raises:
             AttributeError: If *read_only_op* is given and the live proxy is read-only.
-            DeprecatedError: If ``as_exception`` (or the process-wide switch) makes this deprecation fatal.
+            DeprecatedError: If ``as_exception``, the open :func:`~deprecate._fatal.as_exceptions` scope or
+                ``deprecate.AS_EXCEPTIONS`` makes this deprecation fatal.
 
         """
         active, live = self._activation()
@@ -560,7 +563,8 @@ class _DeprecatedProxy:
         """Raise ``DeprecatedError`` when this live deprecation is fatal; otherwise do nothing.
 
         Raises:
-            DeprecatedError: If ``as_exception`` (or the process-wide switch) makes this deprecation fatal.
+            DeprecatedError: If ``as_exception``, the open :func:`~deprecate._fatal.as_exceptions` scope or
+                ``deprecate.AS_EXCEPTIONS`` makes this deprecation fatal.
 
         """
         dep = self._dep

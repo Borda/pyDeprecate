@@ -20,18 +20,21 @@ Three deprecation modes are supported:
 
 """
 
+import enum
 import sys
 import threading
 import types
 import warnings
 from contextvars import ContextVar
 from dataclasses import dataclass
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Final, Literal, Optional, Union
 
 from deprecate._fatal import DeprecatedError, _resolve_as_exception
 from deprecate._frames import _caller_stacklevel
 from deprecate._types import DeprecationConfig, TargetMode, _WrapperState, get_deprecation_config
 from deprecate.messaging import _consume_warn_budget, _emit, _format_deprecation_message, _validate_message_template
+
+__all__ = ["deprecated_module"]
 
 
 @dataclass
@@ -151,7 +154,7 @@ def _emit_module_warning(
     """
     warn_msg: str = config.message_template or ""
     # Fatal first: a fatal module deprecation raises on every access, so it never consults the warn budget and
-    # is not silenced by ``stream=None`` (which suppresses only the message).
+    # does not depend on ``stream``.
     if _resolve_as_exception(config.as_exception):
         raise DeprecatedError(warn_msg)
     if num_warns >= 0:
@@ -327,6 +330,29 @@ def _resolve_module_name(name: Optional[str], caller_frame: types.FrameType) -> 
     return caller_name
 
 
+class _StreamDefault(enum.Enum):
+    """Sentinel type for the omitted ``stream`` of :func:`deprecated_module`."""
+
+    WARNINGS = "warnings.warn"
+
+    def __repr__(self) -> str:
+        """Render as the behaviour it selects, so signatures read ``stream=<warnings.warn>``."""
+        return "<warnings.warn>"
+
+
+#: Default ``stream`` of :func:`deprecated_module`: deliver through :func:`warnings.warn`.  A distinct sentinel, so
+#: an explicit ``stream=None`` can be told apart and announced (it means "silence" on every other entry point).
+_STREAM_DEFAULT: Final = _StreamDefault.WARNINGS
+
+#: Announcement emitted at the call site when ``deprecated_module`` receives an explicit ``stream=None``.
+_STREAM_NONE_NOTICE: Final = (
+    "`deprecated_module(stream=None)` currently delivers the module warning through `warnings.warn`."
+    " In v1.0 `stream=None` will silence the module warning, as it does for `@deprecated`, `deprecated_class`"
+    " and `deprecated_instance`, and the `num_warns` default will change from -1 to 1."
+    " Omit `stream` to keep the current behaviour, and pass `num_warns=-1` explicitly to keep unlimited delivery."
+)
+
+
 def deprecated_module(
     name: Optional[str] = None,
     *,
@@ -334,7 +360,7 @@ def deprecated_module(
     attrs_mapping: Optional[dict[str, Optional[str]]] = None,
     deprecated_in: str = "",
     remove_in: str = "",
-    stream: Optional[Callable[..., Any]] = None,
+    stream: Union[Callable[..., Any], None, Literal[_StreamDefault.WARNINGS]] = _STREAM_DEFAULT,
     message_template: Optional[str] = None,
     num_warns: int = -1,
     as_exception: Optional[bool] = None,
@@ -376,10 +402,14 @@ def deprecated_module(
             when omitted a decoration-time :class:`UserWarning` fires (the notice omits the version and expiry
             audits cannot gate the module), matching :func:`~deprecate.deprecated`.
         remove_in: Version string when this module will be removed (e.g. ``"2.0"``).  Defaults to ``""``.
-        stream: Callable used to emit the warning instead of :func:`warnings.warn`.  Pass ``None`` (default) to use
-            the standard :mod:`warnings` machinery.  Subject to the same ``num_warns`` budget as every other
-            emission path: a custom ``stream`` (e.g. ``logging.warning``) stops being invoked once the budget is
-            exhausted, exactly like the default :func:`warnings.warn` path.  A custom ``stream`` is called once per
+        stream: Callable used to emit the warning instead of :func:`warnings.warn`.  Omit it (the default, which
+            :func:`help` and :func:`inspect.signature` show as ``<warnings.warn>``) to use the standard
+            :mod:`warnings` machinery.  An explicit ``None`` still selects :func:`warnings.warn` but emits a
+            :class:`FutureWarning` at the call: in v1.0 ``stream=None`` will silence the module warning, as on
+            every other entry point, and the ``num_warns`` default will change from ``-1`` to ``1``.  Subject to
+            the same ``num_warns`` budget as every other emission path: a custom ``stream`` (e.g.
+            ``logging.warning``) stops being invoked once the budget is exhausted, exactly like the default
+            :func:`warnings.warn` path.  A custom ``stream`` is called once per
             warning, with ``stacklevel=`` only when its signature declares a ``stacklevel`` parameter or ``**kwargs``;
             a C-level callable without an introspectable signature gets the message alone and loses caller attribution.
             The ``stacklevel`` passed is counted from the frame that calls ``stream``, so it points at the caller
@@ -401,12 +431,13 @@ def deprecated_module(
             shared across every attribute name on the module (there is no per-attribute budget, unlike
             ``deprecated_class``'s ``attrs_mapping``-scoped counters) and is thread-safe under concurrent
             access. The default ``-1`` takes no budget lock on the ``__getattribute__`` hot path, but each access
-            still performs normal metadata lookup and warning handling.
+            still performs normal metadata lookup and warning handling. The default becomes ``1`` in v1.0, matching
+            the other entry points; pass ``num_warns=-1`` explicitly to keep unlimited delivery.
         as_exception: Promote every access to this module into a raised
             :class:`~deprecate._fatal.DeprecatedError` instead of a warning — see
             :func:`~deprecate.routine.deprecated_callable`'s ``as_exception`` for the full contract. A fatal
-            module deprecation ignores ``num_warns`` (every access raises) and is not silenced by
-            ``stream=None``. ``None`` (default) defers to the process-wide ``deprecate.AS_EXCEPTIONS`` switch.
+            module deprecation ignores ``num_warns`` (every access raises) and does not depend on
+            ``stream``. ``None`` (default) follows the open ``as_exceptions()`` scope, else ``deprecate.AS_EXCEPTIONS``.
 
     Raises:
         ValueError: If the resolved module ``name`` is not found in :data:`sys.modules`; if ``name`` is omitted
@@ -439,18 +470,6 @@ def deprecated_module(
     if module_name not in sys.modules:
         raise ValueError(f"`deprecated_module()` called with {module_name!r} which is not in `sys.modules`.")
 
-    # Missing-version notice, mirroring `@deprecated`: a deprecation without a `deprecated_in` version
-    # produces a vaguer notice and cannot be gated by expiry audits. Fired once here at call time (module
-    # deprecation runs once at import) so the gap surfaces during development, not silently at runtime.
-    if not deprecated_in:
-        warnings.warn(
-            f"`deprecated_module` on {module_name!r} has no `deprecated_in` set."
-            " Deprecation notices and expiry audits will omit the `deprecated_in` version."
-            " Pass `deprecated_in` for a meaningful deprecation notice.",
-            UserWarning,
-            stacklevel=_caller_stacklevel(),
-        )
-
     mod = sys.modules[module_name]
 
     # Reject a self-target redirect: forwarding the module to itself would make every missing
@@ -462,6 +481,25 @@ def deprecated_module(
     # other factories: a bare `%`-conversion or unknown `%(name)s` key raises a clear ValueError here
     # instead of a cryptic TypeError/KeyError (or silent dict-dump corruption) on the first warn emit.
     _validate_message_template(message_template)
+
+    # Missing-version notice, mirroring `@deprecated`: a deprecation without a `deprecated_in` version
+    # produces a vaguer notice and cannot be gated by expiry audits. Fired once here at call time (module
+    # deprecation runs once at import) so the gap surfaces during development, not silently at runtime.
+    # Both notices below follow every argument check above, so a rejected call raises without announcing.
+    if not deprecated_in:
+        warnings.warn(
+            f"`deprecated_module` on {module_name!r} has no `deprecated_in` set."
+            " Deprecation notices and expiry audits will omit the `deprecated_in` version."
+            " Pass `deprecated_in` for a meaningful deprecation notice.",
+            UserWarning,
+            stacklevel=_caller_stacklevel(),
+        )
+
+    # `stream=None` is announced before the idempotency guard, so a repeat call warns again; the sentinel and
+    # `None` both store `None` and keep delivering through `warnings.warn` until v1.0.
+    if stream is None:
+        warnings.warn(_STREAM_NONE_NOTICE, FutureWarning, stacklevel=_caller_stacklevel())
+    emit_stream: Optional[Callable[..., Any]] = None if stream is _STREAM_DEFAULT else stream
 
     warn_msg = _build_module_warn_msg(module_name, deprecated_in, remove_in, target, message_template)
 
@@ -527,7 +565,7 @@ def deprecated_module(
     # Class swap succeeded: attach metadata. Underscore-prefixed names never trigger the wrapper's
     # warning (see _DeprecatedModuleWrapper.__getattribute__), so ordering here is warning-free and
     # static scanners (e.g. find_deprecation_wrappers) read __deprecation_config__ cleanly.
-    vars(mod)["__deprecated_stream__"] = stream
+    vars(mod)["__deprecated_stream__"] = emit_stream
     vars(mod)["__deprecated_num_warns__"] = num_warns
     vars(mod)["__deprecated_state__"] = _WrapperState()
     if existing_getattr is not None:

@@ -716,6 +716,22 @@ class TestModuleSites:
         expected = (api_deprecated.__file__, _line_ending_with(make_loc_module, "# warn-site"))
         assert _location(caught, UserWarning, "different configuration") == expected
 
+    def test_explicit_none_stream_notice_points_at_call(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """The ``stream=None`` migration notice reports the ``deprecated_module(...)`` call line.
+
+        A maintainer who wrote ``stream=None`` expecting silence needs the notice to name the exact call to edit,
+        not a frame inside pyDeprecate; the call reaches ``deprecated_module`` through a helper, so the frame count
+        has to skip pyDeprecate's own frames and stop at that call.
+
+        """
+        monkeypatch.setitem(sys.modules, _LOC_MODULE_NAME, types.ModuleType(_LOC_MODULE_NAME))
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            make_loc_module(_LOC_MODULE_NAME, stream=None)
+
+        expected = (api_deprecated.__file__, _line_ending_with(make_loc_module, "# warn-site"))
+        assert _location(caught, FutureWarning, "stream=None") == expected
+
     def test_custom_stream_access_points_at_access(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """A module deprecated with a custom ``stream`` reports the attribute-access line.
 
@@ -739,32 +755,43 @@ class TestLibraryAliasSites:
     """pyDeprecate's own renamed APIs warn at the line that still uses the old spelling."""
 
     @pytest.mark.parametrize(
-        ("operation", "match"),
+        ("operation", "category", "match"),
         [
-            pytest.param(lambda: no_warning_call(), "no_warning_call", id="no-warning-call"),
-            pytest.param(lambda: DeprecationWrapperInfo().empty_mapping, "'empty_mapping'", id="empty-mapping-read"),
+            pytest.param(lambda: no_warning_call(), DeprecationWarning, "no_warning_call", id="no-warning-call"),
             pytest.param(
-                lambda: DeprecationWrapperInfo().identity_mapping, "'identity_mapping'", id="identity-mapping-read"
+                lambda: DeprecationWrapperInfo().empty_mapping,
+                FutureWarning,
+                "'empty_mapping'",
+                id="empty-mapping-read",
+            ),
+            pytest.param(
+                lambda: DeprecationWrapperInfo().identity_mapping,
+                FutureWarning,
+                "'identity_mapping'",
+                id="identity-mapping-read",
             ),
             pytest.param(
                 lambda: DeprecationWrapperInfo(empty_mapping=True),  # type: ignore[call-arg]
+                DeprecationWarning,
                 "'empty_mapping'",
                 id="empty-mapping-ctor",
             ),
         ],
     )
-    def test_points_at_calling_line(self, operation: Callable[[], Any], match: str) -> None:
-        """The ``DeprecationWarning`` reports this file and the line of the old-spelling expression.
+    def test_points_at_calling_line(self, operation: Callable[[], Any], category: type[Warning], match: str) -> None:
+        """The alias warning reports this file and the line of the old-spelling expression.
 
         Downstream test suites still construct ``no_warning_call()`` or read the pre-0.8 ``DeprecationWrapperInfo``
-        field names; the warning must point at that use, not at the alias shim inside pyDeprecate.
+        field names; the warning must point at that use, not at the alias shim inside pyDeprecate. The two property
+        reads are wrapped with pyDeprecate's own decorator and warn ``FutureWarning``; the other two shims still
+        warn ``DeprecationWarning``.
 
         """
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             operation()
 
-        assert _location(caught, DeprecationWarning, match) == (__file__, operation.__code__.co_firstlineno)
+        assert _location(caught, category, match) == (__file__, operation.__code__.co_firstlineno)
 
 
 def _write_scan_package(root: Path, name: str, broken_parts: tuple[str, ...]) -> None:

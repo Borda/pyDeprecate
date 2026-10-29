@@ -22,6 +22,14 @@ from deprecate._types import DeprecationConfig, TargetMode, _WrapperState
 from deprecate._validate import _MAJOR_BREAK_VERSION
 from deprecate.utils import _partial_chain, _unwrap_descriptor_target
 
+__all__ = [
+    "TEMPLATE_ARGUMENT_MAPPING",
+    "TEMPLATE_WARNING_ARGUMENTS",
+    "TEMPLATE_WARNING_CALLABLE",
+    "TEMPLATE_WARNING_NO_TARGET",
+    "deprecation_warning",
+]
+
 #: Memoised ``stacklevel`` decisions of :func:`_stream_accepts_stacklevel`: one entry per live ``stream`` object,
 #: keyed by ``id(stream)``.  Each entry pairs the decision with a *weak* reference to its stream.  A hit counts only
 #: while that reference still resolves to the very same object, so an id recycled after garbage collection, or a
@@ -153,8 +161,9 @@ def _raise_warn(
         source: The deprecated function/method being wrapped.
         message_template: Python format string with placeholders for message variables.
         as_exception: When ``True``, raise :class:`~deprecate._fatal.DeprecatedError` carrying the rendered
-            message instead of writing it to ``stream`` — the fatal-deprecation path (``as_exception=True`` or
-            ``deprecate.AS_EXCEPTIONS``).  The text is identical either way, so an author maintains one message.
+            message instead of writing it to ``stream`` — the fatal-deprecation path (``as_exception=True``, an open
+            :func:`~deprecate._fatal.as_exceptions` scope, or ``deprecate.AS_EXCEPTIONS``).  The text is identical
+            either way, so an author maintains one message.
         **extras: Additional string values to substitute into the template (e.g., deprecated_in="1.0", remove_in="2.0").
 
     Raises:
