@@ -8,6 +8,7 @@ isolated interpreter (``python -I``) because the test process itself has already
 """
 
 import json
+import os
 import subprocess
 import sys
 
@@ -20,8 +21,16 @@ _HEAVY_MODULES = ("importlib.metadata", "zipfile", "json", "tempfile")
 
 
 def _run_isolated(code: str) -> str:
-    """Run ``code`` in a fresh isolated interpreter and return its stripped stdout."""
-    result = subprocess.run([sys.executable, "-I", "-c", code], capture_output=True, text=True, check=True, timeout=60)
+    """Run ``code`` in a fresh isolated interpreter and return its stripped stdout.
+
+    The child gets no ``COVERAGE_*`` variables. Under ``--cov``, ``run.patch = ["subprocess"]`` would start coverage in
+    it, and coverage imports ``json``, one of the modules these probes check is absent.
+
+    """
+    env = {key: value for key, value in os.environ.items() if not key.startswith("COVERAGE_")}
+    result = subprocess.run(
+        [sys.executable, "-I", "-c", code], capture_output=True, text=True, check=True, timeout=60, env=env
+    )
     return result.stdout.strip()
 
 
