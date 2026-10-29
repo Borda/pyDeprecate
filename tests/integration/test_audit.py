@@ -840,16 +840,24 @@ class TestGenerateDeprecationMarkdown:
 
     @_requires_packaging
     def test_markdown_current_version_none_resolves_installed_version(self) -> None:
-        """When packaging installed and package resolvable, auto-resolved version drives status."""
-        # Add a synthetic wrapper so a data row appears; use packaging so status isn't "Status Unknown"
+        """When packaging installed and package resolvable, auto-resolved version drives status.
 
+        A release job renders the table without passing ``current_version``, so the report must look up the
+        installed distribution behind the module name.  The fake module is named ``deprecate``, which resolves to
+        this package's installed version (at least 0.14), past the wrapper's ``remove_in="0.2"``; the row therefore
+        reads "Past Removal Date" rather than "Status Unknown", which proves the resolved version reached the status.
+
+        """
         mod = types.ModuleType("deprecate")
-        mod.__name__ = "deprecate"  # type: ignore[attr-defined]
-        mod._old_fn = proxy_module.make_installed_version_notify_wrapper()  # type: ignore[attr-defined]
+        old_fn = proxy_module.make_installed_version_notify_wrapper()
+        # find_deprecation_wrappers attributes wrappers to their defining module; align the wrapper's
+        # __module__ with the fake module so the re-export filter keeps it (mirrors the class fixtures).
+        old_fn.__module__ = mod.__name__
+        mod.old_fn = old_fn  # type: ignore[attr-defined]
         report = generate_deprecation_table(mod, current_version=None, recursive=False)
-        # With no version resolving (mod.__name__=="deprecate" but it's a fake module object),
-        # status degrades to Status Unknown — that's fine; the path is exercised without crash.
-        assert "| Original API |" in report
+        assert "<!-- Current version: " in report
+        assert "| `deprecate.old_fn` | callable |" in report
+        assert "💥 Past Removal Date" in report
 
     def test_markdown_include_members_false_excludes_class_methods(self) -> None:
         """include_members=False suppresses class member rows from the markdown output."""

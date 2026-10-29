@@ -2,14 +2,13 @@
 
 import builtins
 import types
-import warnings
 from functools import cached_property
 from typing import Optional
 from unittest.mock import patch
 
 import pytest
 
-from deprecate import TargetMode, deprecated
+from deprecate import TargetMode, assert_no_warnings, deprecated
 from deprecate import property as strict_property
 from deprecate._properties import _DeprecatedProperty, _StrictProperty
 from deprecate.audit import validate_deprecation_expiry
@@ -744,8 +743,7 @@ class TestPropertyOrderAgnostic:
         OldCls.__module__ = mod.__name__
         mod.OldCls = OldCls  # type: ignore[attr-defined]
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("always")
+        with assert_no_warnings():
             expired = validate_deprecation_expiry(mod, current_version="2.0", recursive=False, include_members=True)
 
         assert expired, "expected at least one expired entry for deprecated property past remove_in"

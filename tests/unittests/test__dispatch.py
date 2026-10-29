@@ -28,13 +28,15 @@ from deprecate._dispatch import (
     _precompute_forward_defaults,
     _prepare_target_call,
     _raise_target_signature_error,
+    _reorder_kwargs_for_surplus,
     _split_positional_only_kwargs,
     _target_signature_facts,
     _update_kwargs_with_args,
     _update_kwargs_with_defaults,
+    _var_positional_source_call,
     _WrapperContext,
 )
-from deprecate._types import DeprecationConfig, _CallFacts, _DeprecatedCallable, _WrapperState
+from deprecate._types import DeprecationConfig, _CallFacts, _CallPlan, _DeprecatedCallable, _WrapperState
 from deprecate.utils import _signature_facts
 from tests._helpers import captured_warnings
 from tests.collections.api_current import (
@@ -1001,11 +1003,13 @@ def _make_context(
     *,
     is_stacked: bool = False,
     forward_defaults: Optional[_ForwardDefaults] = None,
+    facts: Optional[_CallFacts] = None,
 ) -> _WrapperContext:
     """Return the decoration-time context a ``@deprecated`` wrapper over ``source`` would build, without a stream.
 
-    The facts come from the real :func:`_build_call_facts` and the state is fresh; ``stream=None`` keeps
-    :func:`_build_call_plan` from emitting warnings, so a test only reads the plan and ``ctx.state``.
+    The facts come from the real :func:`_build_call_facts` unless ``facts`` passes hand-built ones, and the state is
+    fresh; ``stream=None`` keeps :func:`_build_call_plan` from emitting warnings, so a test only reads the plan and
+    ``ctx.state``.
 
     """
     return _WrapperContext(
@@ -1013,7 +1017,7 @@ def _make_context(
         raw_target=target,
         target=target,
         cfg=cfg,
-        facts=_build_call_facts(source, target, None),
+        facts=_build_call_facts(source, target, None) if facts is None else facts,
         state=_WrapperState(),
         stream=None,
         num_warns=1,
@@ -1211,6 +1215,42 @@ def test_source_is_stacked_skips_positional_conversion() -> None:
     with pytest.warns(FutureWarning, match="compute_power"):
         result = fn(2.0, scale=3.0)
     assert result == 8.0, "Stacked wrapper must compute compute_power(2.0, scale=3.0) == 8.0"
+
+
+def test_surplus_reorder_reads_target_slots_for_hand_built_facts() -> None:
+    """Hand-built facts without slot names make the surplus reorder read the slots from the target.
+
+    A wrapper always precomputes ``target_positional_names`` at decoration, but a context built by hand (as in the
+    ``routine.py`` example, or by a caller reusing the dispatch helpers) carries an empty :class:`_CallFacts`.  The
+    reorder must then read the target's own signature instead of treating it as having no positional slots: ``a``
+    moves back to positional form so the surplus tail can follow it into ``*extras``.
+
+    """
+    cfg = DeprecationConfig(deprecated_in="1.0", remove_in="2.0", name="src", target=var_positional_target)
+    ctx = _make_context(var_positional_target, cfg, var_positional_target, facts=_CallFacts())
+
+    pos_args, kw_args = _reorder_kwargs_for_surplus(ctx, var_positional_target, (5, 6), {"a": 1})
+
+    assert (pos_args, kw_args) == ([1], {})
+
+
+def test_var_positional_source_gets_caller_args_on_short_circuit() -> None:
+    """A short-circuit plan hands a ``*args`` source the caller's own positionals and keywords.
+
+    ``_build_call_plan`` marks every short-circuit plan verbatim, so the wrapper returns before this helper runs; the
+    guard keeps a hand-built short-circuit plan that is not verbatim from rewriting the call.  The caller's tuple and
+    original keywords pass through, and the converted ``resolved_kwargs`` are ignored, so ``a`` is not bound twice.
+
+    """
+    cfg = DeprecationConfig(
+        deprecated_in="1.0", remove_in="2.0", name="src", target=TargetMode.ARGS_REMAP, args_mapping={"old_x": "x"}
+    )
+    ctx = _make_context(var_positional_target, cfg, TargetMode.ARGS_REMAP)
+    plan = _CallPlan(short_circuit=True, original_kwargs={}, resolved_kwargs={"a": 1})
+
+    pos_args, kw_args = _var_positional_source_call(ctx, plan, (1, 2, 3))
+
+    assert (pos_args, kw_args) == ([1, 2, 3], {})
 
 
 # ---------------------------------------------------------------------------

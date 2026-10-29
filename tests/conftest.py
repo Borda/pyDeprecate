@@ -155,6 +155,25 @@ collect_ignore_glob = ["collections/modules/*.py"]
 
 #: Generated docs example tests (``make docs-tests``); gitignored, so a fresh clone has none.
 _DOCS_TESTS_DIR = Path(__file__).parent / "docs"
+#: The README examples, which ``make docs-tests`` generates next to the docs ones.
+_README_TEST = Path(__file__).parent / "integration" / "test_readme.py"
+#: Categories the docs examples raise on purpose; the Markdown marks each such call with a ``# warns:`` comment.
+_DOCS_EXAMPLE_WARNINGS = ("DeprecationWarning", "FutureWarning", "UserWarning")
+
+
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    """Keep the deprecation warnings that the generated docs examples demonstrate out of the warnings summary.
+
+    A docs example shows a deprecated call warning, and its generated test checks only the printed output, so each
+    demonstrated warning would otherwise land in the run's summary and bury warnings from the hand-written suite.
+    The ignore applies to the generated items only; every other test keeps the configured filters.
+
+    """
+    for item in items:
+        path = item.path
+        if path == _README_TEST or (path.parent == _DOCS_TESTS_DIR and path.name.startswith("test_")):
+            for category in _DOCS_EXAMPLE_WARNINGS:
+                item.add_marker(pytest.mark.filterwarnings(f"ignore::{category}"))
 
 
 def pytest_collection_finish(session: pytest.Session) -> None:

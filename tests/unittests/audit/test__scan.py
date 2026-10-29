@@ -3,7 +3,6 @@
 import dataclasses
 import pkgutil
 import types
-import warnings
 from collections.abc import Callable
 from functools import cached_property
 from pathlib import Path
@@ -17,6 +16,7 @@ import tests.collections.misconfigured as clean_module
 import tests.collections.pep702 as pep702_module
 from deprecate import (
     TargetMode,
+    assert_no_warnings,
     deprecated,
     validate_mapping_compatibility,
 )
@@ -604,8 +604,7 @@ class TestFindDeprecationWrappersClassScan:
         # inject into mod.__dict__ so inspect.getmembers() finds it
         mod.OldCls = OldCls  # type: ignore[attr-defined]
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("always")
+        with assert_no_warnings():
             results = find_deprecation_wrappers(mod)
 
         names = [r.function for r in results]
@@ -634,8 +633,7 @@ class TestFindDeprecationWrappersClassScan:
         # inject into mod.__dict__ so inspect.getmembers() finds it
         mod.OldCls = OldCls  # type: ignore[attr-defined]
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("always")
+        with assert_no_warnings():
             results = find_deprecation_wrappers(mod)
 
         names = [r.function for r in results]
@@ -664,8 +662,7 @@ class TestFindDeprecationWrappersClassScan:
         # inject into mod.__dict__ so inspect.getmembers() finds it
         mod.OldCls = OldCls  # type: ignore[attr-defined]
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("always")
+        with assert_no_warnings():
             results = find_deprecation_wrappers(mod)
 
         names = [r.function for r in results]
@@ -694,8 +691,7 @@ class TestFindDeprecationWrappersClassScan:
         # inject into mod.__dict__ so inspect.getmembers() finds it
         mod.OldCls = OldCls  # type: ignore[attr-defined]
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("always")
+        with assert_no_warnings():
             results = find_deprecation_wrappers(mod)
 
         names = [r.function for r in results]
@@ -724,8 +720,7 @@ class TestFindDeprecationWrappersClassScan:
         # inject into mod.__dict__ so inspect.getmembers() finds it
         mod.OldCls = OldCls  # type: ignore[attr-defined]
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("always")
+        with assert_no_warnings():
             results = find_deprecation_wrappers(mod)
 
         names = [r.function for r in results]
@@ -754,8 +749,7 @@ class TestFindDeprecationWrappersClassScan:
         # inject into mod.__dict__ so inspect.getmembers() finds it
         mod.OldCls = OldCls  # type: ignore[attr-defined]
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("always")
+        with assert_no_warnings():
             results = find_deprecation_wrappers(mod)
 
         names = [r.function for r in results]
@@ -784,8 +778,7 @@ class TestFindDeprecationWrappersClassScan:
         # inject into mod.__dict__ so inspect.getmembers() finds it
         mod.OldCls = OldCls  # type: ignore[attr-defined]
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("always")
+        with assert_no_warnings():
             results = find_deprecation_wrappers(mod)
 
         names = [r.function for r in results]
@@ -814,8 +807,7 @@ class TestFindDeprecationWrappersClassScan:
         # inject into mod.__dict__ so inspect.getmembers() finds it
         mod.OldCls = OldCls  # type: ignore[attr-defined]
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("always")
+        with assert_no_warnings():
             results = find_deprecation_wrappers(mod)
 
         names = [r.function for r in results]
@@ -844,8 +836,7 @@ class TestFindDeprecationWrappersClassScan:
         # inject into mod.__dict__ so inspect.getmembers() finds it
         mod.OldCls = OldCls  # type: ignore[attr-defined]
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("always")
+        with assert_no_warnings():
             results = find_deprecation_wrappers(mod)
 
         names = [r.function for r in results]
@@ -873,8 +864,7 @@ class TestFindDeprecationWrappersClassScan:
         # inject into mod.__dict__ so inspect.getmembers() finds it
         mod.OldCls = OldCls  # type: ignore[attr-defined]
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("always")
+        with assert_no_warnings():
             results = find_deprecation_wrappers(mod)
 
         names = [r.function for r in results]
@@ -907,8 +897,7 @@ class TestFindDeprecationWrappersClassScan:
         # inject into mod.__dict__ so inspect.getmembers() finds it
         mod.OldCls = OldCls  # type: ignore[attr-defined]
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("always")
+        with assert_no_warnings():
             results = find_deprecation_wrappers(mod)
 
         names = [r.function for r in results]
@@ -936,8 +925,7 @@ class TestFindDeprecationWrappersClassScan:
         # inject into mod.__dict__ so inspect.getmembers() finds it
         mod.OldCls = OldCls  # type: ignore[attr-defined]
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("always")
+        with assert_no_warnings():
             results = find_deprecation_wrappers(mod)
 
         names = [r.function for r in results]
@@ -1011,8 +999,7 @@ class TestValidateMappingCompatibility:
         # Construct the proxy with a warn-only (None) mapping to the positional-only param name.
         # Suppress the decoration-time UserWarning that fires when a real remap key is positional-only;
         # here "old_val" maps to None (drop), so no UserWarning fires — but wrap defensively.
-        with warnings.catch_warnings():
-            warnings.simplefilter("always")
+        with assert_no_warnings():
             proxy = deprecated_class(
                 args_mapping={"old_val": None},
                 deprecated_in="1.0",
@@ -1049,8 +1036,7 @@ class TestInnerOrderPropertyAudit:
         # inject into mod.__dict__ so inspect.getmembers() finds it
         mod.InnerOrderDeprecatedPropCls = col.InnerOrderDeprecatedPropCls  # type: ignore[attr-defined]
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("always")
+        with assert_no_warnings():
             results = find_deprecation_wrappers(mod)
 
         prop_results = [r for r in results if r.function.endswith(".value")]
@@ -1078,8 +1064,7 @@ class TestInnerOrderPropertyAudit:
         # inject into mod.__dict__ so inspect.getmembers() finds it
         mod.OldCls = OldCls  # type: ignore[attr-defined]
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("always")
+        with assert_no_warnings():
             results = find_deprecation_wrappers(mod)
 
         prop_results = [r for r in results if r.function.endswith(".value")]
@@ -1108,8 +1093,7 @@ class TestInnerOrderPropertyAudit:
         # inject into mod.__dict__ so inspect.getmembers() finds it
         mod.OldCls = OldCls  # type: ignore[attr-defined]
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("always")
+        with assert_no_warnings():
             results = find_deprecation_wrappers(mod)
 
         prop_results = [r for r in results if r.function.endswith(".value")]

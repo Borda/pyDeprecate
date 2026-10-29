@@ -4,12 +4,12 @@ import importlib
 import importlib.metadata
 import importlib.util
 import types
-import warnings
 
 import pytest
 
 from deprecate import (
     TargetMode,
+    assert_no_warnings,
     deprecated,
     validate_deprecation_expiry,
 )
@@ -267,8 +267,7 @@ class TestValidateDeprecationExpiryDefaults:
         monkeypatch.setattr(Service, "__module__", mod.__name__)
         mod.Service = Service  # type: ignore[attr-defined]
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("always")
+        with assert_no_warnings():
             expired = validate_deprecation_expiry(mod, "1.0")
 
         assert len(expired) == 1
