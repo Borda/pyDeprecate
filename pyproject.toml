@@ -211,7 +211,7 @@ report.exclude_lines = [
   # lines containing `passed`, `password`, etc. and overstate coverage
   "^\\s*pass\\s*$",
   "pragma: no cover",
-  # typing-only imports and stubs: never executed at runtime by design
+  # typing-only import blocks: the body of `if TYPE_CHECKING:` never runs at runtime by design
   "^\\s*if TYPE_CHECKING:",
 ]
 
