@@ -47,9 +47,9 @@ jobs:
             name="${md#docs/}"; name="${name%.md}"; name="${name//\//_}"; name="${name//-/_}"; \
             python -m phmdoctest "$md" -s "phmdoctest:skip" --outfile "tests/docs/test_${name}.py"; \
           done
-          # tests marked `no_cov` (see pyproject.toml) cannot run under subprocess coverage: separate invocation
-          python -m pytest . -vv --cov=deprecate -m "not no_cov"
-          python -m pytest . -vv -m no_cov
+          # tests marked `without_coverage` (see pyproject.toml) cannot run under subprocess coverage: separate invocation
+          python -m pytest . -vv --cov=deprecate -m "not without_coverage"
+          python -m pytest . -vv -m without_coverage
 
       - name: 📊 Statistics
         if: success()
