@@ -27,7 +27,7 @@ from deprecate._types import (
     _CallPlan,
     _WrapperState,
 )
-from deprecate._validate import _MAJOR_BREAK_VERSION, _warn_target_positional_only
+from deprecate._validate import _MAJOR_BREAK_VERSION, _classmethod_target_error, _warn_target_positional_only
 from deprecate.messaging import (
     _callable_display_name,
     _consume_argument_warn_budget,
@@ -512,6 +512,12 @@ class _WrapperContext:
             so a call after the warn budget is spent may skip the call plan (:func:`_skips_call_plan`).
         fast_remap: Derived; ``True`` for ``TargetMode.ARGS_REMAP`` without ``args_extra`` over a source that is not
             itself a ``@deprecated`` wrapper, so a caller using none of the deprecated names may skip the call plan.
+        source_receiver: Derived; for a ``classmethod`` descriptor target, the name of the source's first positional
+            parameter, which receives the class whatever it is called (``cls``, ``klass``, ``mcs``); ``None``
+            otherwise.  Its value is checked to be a class on every call (:func:`_check_classmethod_receiver`).
+        target_receiver: Derived; for a ``classmethod`` descriptor target, the name of the target's own receiver
+            parameter, under which the source's receiver is forwarded (:func:`_forward_receiver_name`); ``None``
+            when there is none or the target signature is unreadable.
 
     """
 
@@ -530,6 +536,8 @@ class _WrapperContext:
     cycle_guarded: bool = field(init=False)
     fast_notify: bool = field(init=False)
     fast_remap: bool = field(init=False)
+    source_receiver: Optional[str] = field(init=False)
+    target_receiver: Optional[str] = field(init=False)
 
     def __post_init__(self) -> None:
         """Derive the per-wrapper flags the call path would otherwise recompute on every call."""
@@ -542,6 +550,92 @@ class _WrapperContext:
             "fast_remap",
             self.target is TargetMode.ARGS_REMAP and not self.cfg.args_extra and not self.is_stacked,
         )
+        source_receiver, target_receiver = _classmethod_receivers(self.raw_target, self.facts)
+        object.__setattr__(self, "source_receiver", source_receiver)
+        object.__setattr__(self, "target_receiver", target_receiver)
+
+
+def _classmethod_receivers(
+    raw_target: Union[bool, None, Callable[..., Any], TargetMode, staticmethod, classmethod],
+    facts: _CallFacts,
+) -> tuple[Optional[str], Optional[str]]:
+    """Name the parameters that carry the class from the source to a ``classmethod`` descriptor target.
+
+    A classmethod's receiver is its first positional parameter, whatever it is called, so the names are read by
+    position rather than matched against ``cls``.  The decoration guard
+    (:func:`~deprecate._validate._normalize_target`) already rejected a source with no leading positional parameter.
+
+    Args:
+        raw_target: The ``target`` argument as given to ``@deprecated``, before the descriptor was unwrapped.
+        facts: Signature facts of the source and the target.
+
+    Returns:
+        Tuple of ``(source_receiver, target_receiver)``: both ``None`` unless ``raw_target`` is a ``classmethod``;
+        ``target_receiver`` is also ``None`` when the target has no positional parameter or its signature is
+        unreadable.
+
+    Example:
+        >>> def make(kls, value): pass
+        >>> def old(klass, value): pass
+        >>> _classmethod_receivers(classmethod(make), _build_call_facts(old, make, None))
+        ('klass', 'kls')
+        >>> _classmethod_receivers(make, _build_call_facts(old, make, None))
+        (None, None)
+
+    """
+    if not isinstance(raw_target, classmethod) or not facts.source_positional_names:
+        return None, None
+    target_names = facts.target_positional_names
+    return facts.source_positional_names[0], (target_names[0] if target_names else None)
+
+
+def _check_classmethod_receiver(ctx: _WrapperContext, kwargs: Mapping[str, Any]) -> None:
+    """Raise when the value a source hands to its ``classmethod`` descriptor target as the receiver is not a class.
+
+    A static or plain source pointed at a ``classmethod`` descriptor decorates fine, because the receiver's name is
+    free, but its first argument is a caller's value: forwarding it would run the replacement with a wrong ``cls``.
+    Runs before any warning is emitted or any budget is spent, like :func:`_check_source_arity`.
+
+    Args:
+        ctx: The wrapper's context; :attr:`_WrapperContext.source_receiver` must be set.
+        kwargs: The caller's arguments, positionals already mapped to their parameter names.
+
+    Raises:
+        TypeError: When the receiver is missing or is not a class.
+
+    """
+    name = cast(str, ctx.source_receiver)
+    if name not in kwargs:
+        problem = f"the call supplied no value for its first parameter `{name}`"
+    elif not isinstance(kwargs[name], type):
+        problem = f"its first parameter `{name}` received a value of type `{type(kwargs[name]).__name__}`, not a class"
+    else:
+        return
+    raise _classmethod_target_error(ctx.source.__name__, cast(Callable, ctx.target), problem)
+
+
+def _forward_receiver_name(ctx: _WrapperContext, kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Rename the source's receiver keyword to the target's receiver name for a ``classmethod`` descriptor target.
+
+    The call path forwards by keyword, so a source receiver named ``klass`` would reach a target whose receiver is
+    ``cls`` as a keyword the target does not accept.  Renaming it puts the class in the target's receiver slot, and
+    every later step (the target-accepts check, the POSITIONAL_ONLY split, the ``*args`` surplus reorder) handles it as
+    it handles a ``cls`` named on both sides.  A later source parameter with the target's receiver name is rejected at
+    decoration (``_validate._receiver_name_clash``); a name the target already receives from ``args_mapping`` or
+    ``args_extra`` is left alone.
+
+    Args:
+        ctx: The wrapper's context.
+        kwargs: The final keyword arguments for the target.
+
+    Returns:
+        ``kwargs`` itself when nothing is renamed, otherwise a new dict in the same order with the receiver renamed.
+
+    """
+    source_name, target_name = ctx.source_receiver, ctx.target_receiver
+    if target_name is None or source_name == target_name or source_name not in kwargs or target_name in kwargs:
+        return kwargs
+    return {(target_name if name == source_name else name): value for name, value in kwargs.items()}
 
 
 class _CycleEntry:
@@ -820,6 +914,7 @@ def _resolve_forward_kwargs(
     if not callable(target):
         return kwargs, None
     facts = ctx.facts
+    kwargs = _forward_receiver_name(ctx, kwargs)
     if kwargs:
         # Empty cached names can mean an unreadable signature, not a target that rejects every keyword.
         _raise_target_signature_error(facts)
@@ -1024,6 +1119,9 @@ def _build_call_plan(ctx: _WrapperContext, args: tuple[Any, ...], kwargs: dict[s
     original_kwargs = dict(kwargs)
     if not verbatim:
         kwargs = _update_kwargs_with_args(args, kwargs, facts)
+    if ctx.source_receiver is not None:
+        # A classmethod descriptor target needs a class as the receiver; reject any other value before warning.
+        _check_classmethod_receiver(ctx, kwargs)
     reason_callable, reason_argument = _resolve_reasons(ctx, kwargs)
     if _is_short_circuit(ctx, reason_callable, reason_argument):
         return _CallPlan(short_circuit=True, original_kwargs=original_kwargs, resolved_kwargs=kwargs, verbatim=verbatim)

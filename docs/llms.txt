@@ -247,7 +247,8 @@ What is being deprecated?
          │             pyDeprecate unwraps it automatically.
          │             Anti-pattern: target=new_method.__func__ (unnecessary — omit .__func__)
          │             Note: @classmethod descriptor target requires source to also be a @classmethod
-         │             (symmetric same-class pattern only)
+         │             (symmetric same-class pattern only); the receiver may have any name (cls, klass,
+         │             mcs); a static/plain source raises TypeError on its first call (not a class)
          ├─ Only renaming an argument within the same function?
          │    → target=TargetMode.ARGS_REMAP with args_mapping; keep working body
          ├─ No replacement, warn-only?

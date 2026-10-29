@@ -1061,3 +1061,64 @@ with catch_warnings():
     async def deprecated_async_positional_only_to_sync(x: int, y: int = 0) -> int:
         """Async source forwarding to a SYNC target with a POSITIONAL_ONLY parameter."""
         return 0
+
+
+# ========== classmethod descriptor target: receiver of any name ==========
+
+# A classmethod source names its receiver as it likes (``cls``, ``klass``, ``mcs``); the receiver reaches the
+# classmethod target in its own receiver slot whatever either side calls it.  The replacement and the deprecated
+# methods live in one class body, because the raw ``classmethod`` descriptor is only reachable there.
+
+
+class ReceiverNamedFactory:
+    """Factory whose deprecated classmethods name their receiver in different ways."""
+
+    @classmethod
+    def make(cls, value: int) -> tuple[str, int]:
+        """Replacement classmethod: report the receiving class and the value."""
+        return cls.__name__, value
+
+    @classmethod
+    def make_kls(kls, value: int) -> tuple[str, int]:  # noqa: N804
+        """Replacement classmethod whose receiver is not named ``cls``."""
+        return kls.__name__, value
+
+    @classmethod
+    @deprecated(target=make, **_DEPRS_CASE_STD_INF_ARGS)
+    def old_make_cls(cls, value: int) -> tuple[str, int]:
+        """Deprecated classmethod with the conventional ``cls`` receiver."""
+        return void(value)
+
+    @classmethod
+    @deprecated(target=make, **_DEPRS_CASE_STD_INF_ARGS)
+    def old_make_klass(klass, value: int) -> tuple[str, int]:  # noqa: N804
+        """Deprecated classmethod whose receiver is named ``klass``."""
+        return void(value)
+
+    @deprecated(target=make, **_DEPRS_CASE_STD_INF_ARGS)
+    @classmethod
+    def old_make_mcs(mcs, value: int) -> tuple[str, int]:  # noqa: N804
+        """Deprecated classmethod named ``mcs``, with ``@deprecated`` outside ``@classmethod``."""
+        return void(value)
+
+    @classmethod
+    @deprecated(target=make_kls, **_DEPRS_CASE_STD_INF_ARGS)
+    def old_make_to_kls(cls, value: int) -> tuple[str, int]:
+        """Deprecated ``cls`` classmethod forwarding to a target whose receiver is named ``kls``."""
+        return void(value)
+
+    @classmethod
+    @deprecated(target=make, args_mapping={"old_value": "value"}, **_DEPRS_CASE_STD_INF_ARGS)
+    def old_make_mapped(klass, old_value: int = 0, value: int = 0) -> tuple[str, int]:  # noqa: N804
+        """Deprecated ``klass`` classmethod that also renames ``old_value`` to ``value``."""
+        return void(old_value, value)
+
+    @staticmethod
+    @deprecated(target=make, **_DEPRS_CASE_STD_INF_ARGS)
+    def old_make_static(value: int) -> tuple[str, int]:
+        """Mistaken static source pointed at a classmethod target: its first argument is never a class."""
+        return void(value)
+
+
+class ReceiverNamedFactoryChild(ReceiverNamedFactory):
+    """Subclass that inherits the deprecated classmethods, so they receive the subclass."""

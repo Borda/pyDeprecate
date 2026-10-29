@@ -355,7 +355,11 @@ print(Compute.surface(r=3.0))  # warns: FutureWarning
 
 </details>
 
-The same pattern works for `@classmethod`. Both the deprecated and the replacement must be classmethods. A mismatch surfaces as `TypeError`, but the result depends on the direction: a `classmethod` replacement with a source that has no leading `cls` parameter raises at decoration time, while a `classmethod` source forwarding to a `staticmethod` replacement decorates fine and raises `` TypeError: Failed mapping of `old`, arguments not accepted by target: ['cls'] `` on the first call.
+The same pattern works for `@classmethod`. Both the deprecated and the replacement must be classmethods. The receiver may have any name on either side (`cls`, `klass`, `mcs`): the class the call is bound to, a subclass included, is forwarded into the replacement's own receiver parameter. A mismatch surfaces as `TypeError`, at a point that depends on the direction:
+
+- a `classmethod` replacement with a source that has no leading positional parameter raises at decoration time;
+- a `classmethod` replacement with a static or plain source decorates fine and raises on the first call, before any warning, because the source's first argument is not a class;
+- a `classmethod` source forwarding to a `staticmethod` replacement decorates fine and raises `` TypeError: Failed mapping of `old`, arguments not accepted by target: ['cls'] `` on the first call.
 
 ```python
 from deprecate import deprecated, void
