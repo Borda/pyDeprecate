@@ -3,9 +3,10 @@
 Libraries import ``deprecate`` at module import time just to decorate a few functions, so every module the package pulls
 in is paid by every downstream ``import``.  The audit tooling (``deprecate.audit``) and its ``importlib.metadata``,
 ``zipfile``, ``json`` and ``tempfile`` dependencies are needed only by CI scans and the CLI.  Each check runs in a fresh
-isolated interpreter (``python -I``) because the test process itself has already imported everything. CI runs this
-file in its own pytest invocation without ``--cov``: coverage 7.10.x, the newest release for Python 3.9, imports
-``json`` in every child interpreter, which these probes would read as a regression in ``deprecate``.
+isolated interpreter (``python -I``) because the test process itself has already imported everything. The module
+carries the ``no_cov`` marker: run it as ``pytest -m no_cov`` without ``--cov``, because coverage 7.10.x, the newest
+release for Python 3.9, imports ``json`` in every child interpreter, which these probes would read as a regression in
+``deprecate``.
 
 """
 
@@ -15,6 +16,8 @@ import pytest
 
 import deprecate
 from tests._helpers import run_isolated_python
+
+pytestmark = pytest.mark.no_cov
 
 #: Modules that a plain ``import deprecate`` must not load.
 _HEAVY_MODULES = ("importlib.metadata", "zipfile", "json", "tempfile")

@@ -178,6 +178,9 @@ ini_options.addopts = [
 ini_options.markers = [
   # an execution requirement, not a speed tier: a fast local loop is `pytest -m "not subprocess"`; CI runs everything
   "subprocess: starts a real Python interpreter or external CLI as a child process",
+  # coverage 7.10.x (Python 3.9) imports `json` in every child interpreter under `run.patch = ["subprocess"]`, so a test
+  # that reads `sys.modules` of a child must run in a pytest invocation without `--cov`: `-m no_cov` after `-m "not no_cov"`
+  "no_cov: must run in a separate pytest invocation without `--cov` (child-interpreter module probes)",
 ]
 ini_options.xfail_strict = true
 # Suppress only the specific legacy-sentinel warnings emitted by `TargetMode.from_legacy()`

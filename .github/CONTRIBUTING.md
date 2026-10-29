@@ -194,7 +194,7 @@ pytest . -m "not subprocess"
 
 A test that starts a Python interpreter or an external CLI as a child process, directly or through the action runner, carries `@pytest.mark.subprocess` on the test or on its class when every test in the class does. The marker states an execution requirement, not a speed tier; CI always runs the full suite. A process a third-party library starts for its own bookkeeping (for example Griffe probing `git` while it loads a module) does not count.
 
-Under `--cov`, `run.patch = ["subprocess"]` starts coverage in every child interpreter, and stripping the `COVERAGE_*` variables is not enough on coverage 7.10.x (the newest release that installs on Python 3.9), which imports coverage and with it `json` from a site `.pth` file. A test that reads `sys.modules` of a child therefore starts it with `run_isolated_python` from `tests/_helpers.py` and lives in `tests/integration/test_import_cost.py`, which CI runs in its own pytest invocation without `--cov`.
+Under `--cov`, `run.patch = ["subprocess"]` starts coverage in every child interpreter, and stripping the `COVERAGE_*` variables is not enough on coverage 7.10.x (the newest release that installs on Python 3.9), which imports coverage and with it `json` from a site `.pth` file. A test that reads `sys.modules` of a child therefore starts it with `run_isolated_python` from `tests/_helpers.py` and carries the `no_cov` marker (`tests/integration/test_import_cost.py`); CI runs `pytest . --cov=deprecate -m "not no_cov"` and then `pytest . -m no_cov` without `--cov`.
 
 > [!TIP]
 >

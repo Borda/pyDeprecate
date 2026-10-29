@@ -47,10 +47,9 @@ jobs:
             name="${md#docs/}"; name="${name%.md}"; name="${name//\//_}"; name="${name//-/_}"; \
             python -m phmdoctest "$md" -s "phmdoctest:skip" --outfile "tests/docs/test_${name}.py"; \
           done
-          # the import-cost probes read `sys.modules` of a child interpreter, which subprocess coverage fills with
-          # `json` on coverage 7.10.x (Python 3.9), so that file runs in its own invocation without --cov
-          python -m pytest . -vv --cov=deprecate --ignore=tests/integration/test_import_cost.py
-          python -m pytest tests/integration/test_import_cost.py -vv
+          # tests marked `no_cov` (see pyproject.toml) cannot run under subprocess coverage: separate invocation
+          python -m pytest . -vv --cov=deprecate -m "not no_cov"
+          python -m pytest . -vv -m no_cov
 
       - name: 📊 Statistics
         if: success()
