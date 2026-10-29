@@ -1230,6 +1230,33 @@
   
   
     <li class="md-nav__item">
+      <a href="limitations.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Limitations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="brand.html" class="md-nav__link">
         
   
@@ -1292,10 +1319,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_12" >
         
           
-          <label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_12" id="__nav_12_label" tabindex="0">
             
   
   
@@ -1313,8 +1340,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_11">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_12">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1567,7 +1594,8 @@
 <li><strong>Conditional skip</strong> — <code>skip_if=callable</code> suppresses the deprecation machinery when a runtime condition is met (e.g. caller has migrated to a newer dependency); available on decorators and proxies alike.</li>
 <li><strong>CI audit tools</strong> — <a href="guide/audit.html#enforcing-removal-deadlines"><code>validate_deprecation_expiry()</code></a> catches zombie code past its deadline, <a href="guide/audit.html#enforcing-a-deprecation-policy"><code>validate_deprecation_policy()</code></a> catches deprecations scheduled against your release policy, <a href="guide/audit.html#detecting-deprecation-chains"><code>validate_deprecation_chains()</code></a> detects double-deprecation chains, and <a href="guide/audit.html#validating-wrapper-configuration"><code>find_deprecation_wrappers()</code></a> surfaces misconfigured <code>args_mapping</code> keys before they silently do nothing.</li>
 <li><strong>Static type-checker signals</strong> — native PEP 702 static diagnostics come from <code>warnings.deprecated</code>, which type checkers recognise by name only. For both static-checker hints and runtime call-forwarding, stack <code>@warnings.deprecated("literal message", category=None)</code> directly above pyDeprecate's <code>@deprecated(...)</code> — see <a href="guide/functions.html#static-type-checkers-pep-702">Static type checkers</a>.</li>
-<li><strong>CLI</strong> — <code>pydeprecate check src/</code> / <code>pydeprecate all src/</code> runs all audit checks from the command line. See <a href="guide/cli.html">CLI Reference</a>.</li>
+<li><strong>CLI</strong> — <code>pydeprecate check src/</code> scans for misconfigured wrappers and chains; <code>pydeprecate all src/</code> also runs the expiry and policy checks and appends a deprecation table. Ready-made <a href="guide/audit.html#pre-commit-integration">pre-commit hooks</a> and a <a href="guide/audit.html#github-action">GitHub Action</a> run them in CI. See <a href="guide/cli.html">CLI Reference</a>.</li>
+<li><strong>Fatal mode</strong> — <code>as_exception=True</code> or <code>deprecate.as_exceptions()</code> raises <code>DeprecatedError</code> instead of warning, so a test run can refuse deprecated calls. See <a href="guide/functions.html#fatal-deprecations">Fatal deprecations</a>.</li>
 <li><strong>Testing helpers</strong> — <code>assert_no_warnings()</code> context manager asserts no warnings of a given type escape a block; <code>no_warning_call</code> retained as legacy alias.</li>
 <li><strong>Zero runtime dependencies</strong> — nothing added to <code>install_requires</code>.</li>
 <li><strong>Python 3.9+</strong> supported.</li>
@@ -1598,7 +1626,7 @@
 <tr>
 <td>Command-line audit workflows</td>
 <td><code>pip install 'pyDeprecate[audit,cli]'</code></td>
-<td>Adds version support for <code>pydeprecate expiry</code>, <code>pydeprecate policy</code>, and <code>pydeprecate all</code>; the CLI itself needs no dependency (<code>cli</code> is an empty extra kept for compatibility)</td>
+<td>Adds <code>packaging</code> version support for <code>pydeprecate expiry</code>, <code>pydeprecate policy</code>, and <code>pydeprecate all</code>; the CLI itself needs no dependency (<code>cli</code> is an empty extra kept for compatibility)</td>
 </tr>
 </tbody>
 </table>
@@ -1768,7 +1796,7 @@
 </tbody>
 </table>
 <p>✍️ = possible but requires manual implementation <br /> † <code>warnings.deprecated</code> in the stdlib on Python 3.13+ (PEP 702); also available as the <code>typing_extensions.deprecated</code> backport for Python &lt; 3.13</p>
-<p><em>Positioning guide reviewed for pyDeprecate v0.12.0, August 2026. This is not a full cell-by-cell external audit; <a href="https://github.com/Borda/pyDeprecate/issues">open an issue</a> if you spot an inaccuracy.</em></p>
+<p><em>Positioning guide last reviewed August 2026. This is not a full cell-by-cell external audit; <a href="https://github.com/Borda/pyDeprecate/issues">open an issue</a> if you spot an inaccuracy.</em></p>
 <blockquote>
 <p><strong>When to prefer <code>warnings.deprecated</code> (PEP 702):</strong> If your project targets Python 3.13+ and you only need simple call-site warnings visible to static type-checkers (mypy, pyright, IDEs), the stdlib decorator is the right choice — zero extra dependency. Choose <code>pyDeprecate</code> when you need call-forwarding, argument remapping, proxy wrapping of module-level constants, or CI audit tools — none of those exist in PEP 702.</p>
 </blockquote>
@@ -1857,7 +1885,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 27, 2026 11:29:28 UTC">2026-10-27</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 29, 2026 09:40:07 UTC">2026-10-29</span>
   </span>
 
     

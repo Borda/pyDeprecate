@@ -118,13 +118,79 @@ def _pydeprecate_markdown_url(page: Page) -> str:
     return f"{base}{page_url}.md"
 
 
+_PYDEPRECATE_FAQ_PAGE = "troubleshooting.md"
+_PYDEPRECATE_FAQ_CLOSING_HEADING = "Still stuck?"
+_PYDEPRECATE_FAQ_SKIPPED_PARAGRAPH = ("**Q:**", "!!!", "<", "|", ">", "-")
+
+
+def _pydeprecate_plain_text(markdown: str) -> str:
+    """Return Markdown inline text as plain text: links keep their label, bold markers go, code spans keep their
+    text."""
+
+    def _keep(match: re.Match[str]) -> str:
+        code, label = match.group(1), match.group(2)
+        return code if code is not None else (label or "")
+
+    return re.sub(r"`([^`]*)`|\[([^\]]+)\]\([^)]*\)|\*\*", _keep, markdown).strip()
+
+
+def _pydeprecate_h2_paragraphs(markdown: str) -> list[tuple[str, list[str]]]:
+    """Split Markdown into ``(H2 heading, prose paragraphs)`` pairs, skipping fenced code."""
+    sections: list[tuple[str, list[str]]] = []
+    fence = ""
+    buffer: list[str] = []
+    for line in [*markdown.splitlines(), ""]:
+        marker = re.match(r"\s*(`{3,}|~{3,})", line)
+        if fence:
+            if marker and marker.group(1)[0] == fence[0] and len(marker.group(1)) >= len(fence):
+                fence = ""
+            continue
+        if marker:
+            fence, line = marker.group(1), ""
+        heading = line.startswith("## ")
+        if buffer and (heading or not line.strip()):
+            if sections:
+                sections[-1][1].append(" ".join(buffer))
+            buffer = []
+        if heading:
+            sections.append((line[3:].strip(), []))
+        elif line.strip() and sections:
+            buffer.append(line.strip())
+    return sections
+
+
+def _pydeprecate_faq_entries(markdown: str) -> list[dict[str, str]]:
+    """Build the FAQPage questions from the troubleshooting page: each H2 is a question, its first prose paragraph the
+    answer."""
+    entries: list[dict[str, str]] = []
+    for heading, paragraphs in _pydeprecate_h2_paragraphs(markdown):
+        if heading == _PYDEPRECATE_FAQ_CLOSING_HEADING:
+            continue
+        prose = [
+            para
+            for para in paragraphs
+            if not para.startswith(_PYDEPRECATE_FAQ_SKIPPED_PARAGRAPH)
+            and not re.fullmatch(r"[-_*\s]{3,}", para)
+            and not re.fullmatch(r"\*\*[^*]+\*\*", para)
+        ]
+        if not prose:
+            raise ValueError(f"{_PYDEPRECATE_FAQ_PAGE}: section {heading!r} has no answer paragraph for the FAQ JSON-LD")
+        answer = re.sub(r"^\*\*A:\*\*\s*", "", prose[0])
+        if answer.endswith(":"):  # a lead-in to code or a list: continue with the next prose paragraph, if any
+            answer = f"{answer} {prose[1]}" if len(prose) > 1 else answer.rstrip(":")
+        entries.append({"name": heading.replace("`", ""), "text": _pydeprecate_plain_text(answer)})
+    return entries
+
+
 def on_page_context(
     context: dict[str, object], page: Page, config: MkDocsConfig, nav: object
 ) -> dict[str, object]:
-    """Inject canonical URLs into the page context."""
+    """Inject canonical URLs, and the FAQ questions of the troubleshooting page, into the page context."""
     canonical = _pydeprecate_public_url(page)
     context["pydeprecate_canonical_url"] = canonical
     page.canonical_url = canonical
+    if page.file.src_path == _PYDEPRECATE_FAQ_PAGE:
+        context["pydeprecate_faq"] = _pydeprecate_faq_entries(page.markdown)
     return context
 
 

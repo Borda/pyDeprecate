@@ -100,7 +100,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-05-23",
-  "dateModified": "2026-09-18"
+  "dateModified": "2026-10-29"
 }
 </script>
 
@@ -1158,7 +1158,7 @@
   <a href="#deprecate.routine.deprecated_callable--a-class-source-is-rejected-up-front-use-deprecated_class-or-deprecated-instead" class="md-nav__link">
     <span class="md-ellipsis">
       
-        A class source is rejected up front (use deprecate.deprecation.deprecated(target=TargetMode.AUTO, deprecated_in='', remove_in='', stream=deprecation_warning, num_warns=1, message_template=None, args_mapping=None, args_extra=None, skip_if=False, update_docstring=False, docstring_style='auto', template_mgs=None, *, as_exception=None) 🔗 Deprecate a function, method, or class — the friendly front door. For a callable source (function, method, lambda, or descriptor) this forwards to the strict :func:deprecated_callable implementation: identical call forwarding, argument mapping, warning control, and __deprecation_config__ metadata. For a class source it delegates to :func:~deprecate.proxy.deprecated_class, emitting a UserWarning (suppressed when stream=None); prefer @deprecated_class() directly for classes. deprecated() deliberately exposes only the arguments common to both shapes. The one shape-specific option, attrs_mapping (selective attribute deprecation, class-only), lives on :func:~deprecate.proxy.deprecated_class — reach for it directly when you need the full class scope. Parameters: Name Type Description Default target Union[bool, None, Callable, TargetMode, staticmethod, classmethod] How to handle the deprecation. Defaults to :attr:~deprecate.TargetMode.AUTO, a decoration-time inference value that is resolved before metadata is stored. Pass an explicit value to forward calls or select a fixed mode: Callable: Forward all calls to this callable (function, method, or class). The decorated source's body is not executed under normal forwarding — use pass or ... as the body. :attr:~deprecate.TargetMode.ARGS_REMAP (or legacy True): Self-deprecation — deprecate argument names only, remapping them within the same function body (callable source) or constructor (class source). :attr:~deprecate.TargetMode.NOTIFY: Warning-only mode — no forwarding. The source body executes unchanged for a callable; a class proxy emits class-wide warnings. An explicitly selected NOTIFY is never rewritten: combining it with args_mapping is a misconfiguration, leaves the mapping inert, and emits :class:UserWarning. :attr:~deprecate.TargetMode.AUTO (default): Infer the mode only when target is omitted. args_mapping resolves to :attr:~deprecate.TargetMode.ARGS_REMAP; no mapping resolves to warning-only behavior. The resolved value, never AUTO, is stored in :class:~deprecate.DeprecationConfig. Passing target=None is a legacy warn-only synonym that emits :class:FutureWarning directing callers to use :attr:~deprecate.TargetMode.NOTIFY. AUTO deprecated_in str Version when the source was deprecated (e.g., "1.0.0"). Default is empty string. &#39;&#39; remove_in str Version when the source will be removed (e.g., "2.0.0"). Default is empty string. &#39;&#39; stream Optional[Callable] Function to output warnings (default: :func:~deprecate.deprecation.deprecation_warning, which is :func:warnings.warn with FutureWarning category). Set to None to disable warnings entirely — this also silences the one-time class-dispatch notice described under Warns below. The stacklevel passed is counted from the frame that calls stream, so it points at the caller for :func:warnings.warn and a C-level :func:functools.partial of it; a pure-Python stream, and the module-level :func:logging.warning before Python 3.11, land one frame short (see deprecate._frames._caller_stacklevel for the full rule). deprecation_warning num_warns int Number of times to show the warning, per callable/attribute name or per proxy access: - 1 (default): Show warning once - -1: Show warning on every call/access - 0: Suppress deprecation warnings - N &gt; 1: Show warning N times total 1 message_template Optional[str] Custom warning message template with format specifiers (source_name, source_path, target_name, target_path, deprecated_in, remove_in, argument_map); see :func:deprecated_callable for the full specifier reference. None args_mapping Optional[dict[str, Optional[str]]] Map or skip arguments when forwarding — {"old_arg": "new_arg"} renames, {"old_arg": None} drops. When target is omitted, a mapping auto-resolves a callable or class source to :attr:~deprecate.TargetMode.ARGS_REMAP. An explicit :attr:~deprecate.TargetMode.NOTIFY leaves the mapping inert and emits :class:UserWarning. None args_extra Optional[dict[str, Any]] Additional keyword arguments merged into the forwarded call after args_mapping is applied. Ignored under :attr:~deprecate.TargetMode.NOTIFY. None skip_if Union[bool, Callable] Conditionally deactivate the deprecation machinery — a bool, or a zero-argument Callable returning bool. When it evaluates True, a callable source executes its body with no warning and no forwarding; a class source is served as-is by the proxy with no warning, no mapping, and no target forwarding. False update_docstring bool If True, inject a deprecation notice into the docstring — function or class — at decoration time. False docstring_style Literal[&#39;auto&#39;, &#39;rst&#39;, &#39;mkdocs&#39;, &#39;markdown&#39;] Output style for the injected notice when update_docstring=True — "auto" (default, chosen from the active doc engine), "rst", or "mkdocs" / "markdown". &#39;auto&#39; template_mgs Optional[str] Deprecated alias for message_template (renamed in v0.12; the old spelling was a typo). Supplying it emits a :class:FutureWarning and its value is used as message_template; supplying both raises :class:TypeError. Removed in v1.0. None as_exception Optional[bool] Promote this deprecation from a warning to a raised :class:~deprecate._fatal.DeprecatedError — see :func:~deprecate.routine.deprecated_callable's as_exception for the full contract (message text, num_warns bypass, stream=None and skip_if interaction, and the monotonic precedence against deprecate.AS_EXCEPTIONS). None (default) follows the global switch, which is off unless DEPRECATE_AS_EXCEPTIONS is set. None Returns: Type Description _FrontDoorDecorator Decorator that wraps the source callable, or the class proxy for a class source. Warns: Type Description UserWarning If applied directly to a class. The decorator delegates to :func:~deprecate.proxy.deprecated_class and emits this informational notice once per class qualname per process. Use @deprecated_class() directly to skip it entirely. Suppressed when stream=None. UserWarning If deprecated_in is absent, stream is not None, no message_template is set, and the decorated source is not a class. Fired at decoration time (not call time) to catch missing version metadata early. Suppressed by passing stream=None or message_template. Example Basic forwarding🔗 def new_func(x: int) -&gt; int: ... return x * 2 @deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0") ... def old_func(x: int) -&gt; int: ... pass Warn-only (default — no target needed)🔗 @deprecated(deprecated_in="1.0", remove_in="2.0") ... def legacy_func(x: int) -&gt; int: ... return x or deprecate.routine.deprecated_callable(target=TargetMode.NOTIFY, deprecated_in='', remove_in='', stream=deprecation_warning, num_warns=1, message_template=None, args_mapping=None, args_extra=None, skip_if=False, update_docstring=False, docstring_style='auto', template_mgs=None, *, as_exception=None) 🔗 Decorate a function/method with warning message and forward calls to target — the strict callable form. This is the canonical callable-only implementation. It behaves like :func:deprecated for functions, methods, lambdas, and descriptors (classmethod / staticmethod / property): same call forwarding, argument mapping, warning control, and __deprecation_config__ metadata. It differs in one way: applying it to a class raises :class:TypeError at decoration time instead of delegating to :func:~deprecate.proxy.deprecated_class. :func:deprecated is the friendly front door that dispatches classes for you and routes callables here; reach for deprecated_callable at a call site that must never silently accept a class. This decorator marks a function or method as deprecated and can automatically forward all calls to a replacement implementation. It supports argument mapping, custom warning messages, and flexible warning control. For generator functions (def gen(): yield) and async generator functions (async def gen(): yield), the deprecation warning fires at call time — when the (async) generator object is created — not at first iteration. The generator body executes lazily as normal when iterated (next() / async for). Parameters: Name Type Description Default target Union[bool, None, Callable, TargetMode, staticmethod, classmethod] How to handle the deprecation. Defaults to :attr:~deprecate.TargetMode.NOTIFY (warn-only; source body executes unchanged) — the strict form always uses an explicit mode and rejects :attr:~deprecate.TargetMode.AUTO (front-door-only inference) with :class:TypeError. Pass an explicit value to forward calls or remap arguments: Callable: Forward all calls to this callable (function, method, or class target). The decorated function's body is not executed under normal forwarding — use pass or ... as the body. Exception: when skip_if evaluates True at call time, the source body executes as a fallback, so keep a working implementation if you combine target=Callable with skip_if. :attr:~deprecate.TargetMode.ARGS_REMAP (or legacy True): Self-deprecation — deprecate argument names only, remapping them within the same function body :attr:~deprecate.TargetMode.NOTIFY (default): Warning-only mode — no forwarding, source body executes normally. Combining it with args_mapping is contradictory: the mapping is ignored and a :class:UserWarning fires (:class:TypeError in v1.0). Passing target=None is a legacy synonym that also resolves to :attr:~deprecate.TargetMode.NOTIFY but emits a :class:FutureWarning directing you to use the enum form. NOTIFY deprecated_in str Version when the function was deprecated (e.g., "1.0.0"). Default is empty string. &#39;&#39; remove_in str Version when the function will be removed (e.g., "2.0.0"). Default is empty string. &#39;&#39; stream Optional[Callable] Function to output warnings (default: :func:~deprecate.deprecation.deprecation_warning, which is :func:warnings.warn with FutureWarning category). Set to None to disable warnings entirely. A custom stream is called once per warning, with stacklevel= only when its signature declares a stacklevel parameter or **kwargs (:func:warnings.warn and its partials always qualify); a C-level callable without an introspectable signature gets the message alone and loses caller attribution. The stacklevel passed is counted from the frame that calls stream, so it points at the caller for :func:warnings.warn and a C-level :func:functools.partial of it; a pure-Python stream, and the module-level :func:logging.warning before Python 3.11, land one frame short (see deprecate._frames._caller_stacklevel for the full rule). deprecation_warning num_warns int Number of times to show warning per function or per deprecated argument: - 1 (default): Show warning once per function/argument - -1: Show warning on every call - 0: Suppress deprecation warnings emitted for the decorated function/argument - N &gt; 1: Show warning N times total 1 message_template Optional[str] Custom warning message template with format specifiers: - source_name: Function name (e.g., "my_func") - source_path: Full path (e.g., "module.my_func") - target_name: Target function name (only for callable targets) - target_path: Full target path (only for callable targets) - deprecated_in: Value of deprecated_in parameter - remove_in: Value of remove_in parameter - argument_map: String showing argument mapping (for args deprecation only) Example: "v%(deprecated_in)s: `%(source_name)s` was deprecated." None args_mapping Optional[dict[str, Optional[str]]] Map or skip arguments when forwarding: - {'old_arg': 'new_arg'}: Rename argument - {'old_arg': None}: Skip argument (don't forward it) - {}: Empty mapping (no remapping) Works with both target=Callable and target=True. None args_extra Optional[dict[str, Any]] Additional arguments merged into kwargs before the call. Used when target is a Callable or :attr:~deprecate._types.TargetMode.ARGS_REMAP (with args_mapping). Ignored when target is :attr:~deprecate._types.TargetMode.NOTIFY. Example: {'new_required_arg': 42} None skip_if Union[bool, Callable] Conditionally skip deprecation warning and forwarding: - bool: Static condition (True = skip deprecation) - Callable: Function returning bool (checked at runtime, must return bool) If condition is True, original function executes without warning. False update_docstring bool If True, automatically inject a deprecation notice into the function's docstring (inserted before Google/NumPy-style sections when present, otherwise appended at the end). False docstring_style Literal[&#39;auto&#39;, &#39;rst&#39;, &#39;mkdocs&#39;, &#39;markdown&#39;] Output style for injected deprecation notice when update_docstring=True. Supported values: - "auto" (default): Automatically choose a style based on the current environment (e.g., loaded modules, CLI/tooling context). This may resolve to either "rst" or "mkdocs"/"markdown" at decoration time. - "rst": Explicitly force Sphinx-style .. deprecated:: directive. - "mkdocs" or "markdown": Explicitly force a Markdown admonition of the form !!! warning "Deprecated in X". Validated eagerly at decoration time regardless of update_docstring. &#39;auto&#39; template_mgs Optional[str] Deprecated alias for message_template (renamed in v0.12; the old spelling was a typo). Supplying it emits a :class:FutureWarning and its value is used as message_template; supplying both raises :class:TypeError. Removed in v1.0. None as_exception Optional[bool] Promote this deprecation from a warning to a raised :class:~deprecate._fatal.DeprecatedError — the warn/raise/delete lifecycle step before the symbol goes away. The raised message is the same text the warning would have carried, the replacement target is never invoked, and the source body never runs (so TargetMode.NOTIFY and TargetMode.ARGS_REMAP stop instead of falling through). A fatal deprecation ignores num_warns and raises on every call, and stream=None silences only the message, never the raise; skip_if still suppresses it entirely. None (default) defers to the process-wide deprecate.AS_EXCEPTIONS switch (seeded from the DEPRECATE_AS_EXCEPTIONS environment variable); True is always fatal; False means "not fatal by default" and still yields to a True global, so a consumer's strict run cannot be opted out of by an upstream wrapper. Python's own -W error::FutureWarning is the alternative when you want every library's FutureWarning to raise; this flag is scoped to pyDeprecate's own deprecations and also works when stream is not a warnings function (e.g. :func:logging.warning). None Returns: Type Description Callable[[_SourceT], _SourceT] Decorator function that wraps the source function/method. Warns: Type Description UserWarning If deprecated_in is absent, stream is not None, and no message_template is set. Fired at decoration time (not call time) to catch missing version metadata early. Suppressed by passing stream=None or message_template. Raises: Type Description TypeError If applied to a class. The strict form rejects a class source at decoration time (naming deprecated_class and deprecated as the alternatives) instead of delegating to :func:~deprecate.proxy.deprecated_class. TypeError If the source is a class method and target is a method on a different class (cross-class method forwarding detected at decoration time via __qualname__ comparison). Skipped silently when the target's qualname prefix names a class absent from the target's module globals. TypeError If skip_if is a callable that doesn't return a bool. TypeError If arguments in args_mapping don't exist in target function and target doesn't accept **kwargs. Example Basic forwarding🔗 def new_func(x: int) -&gt; int: ... return x * 2 @deprecated_callable(target=new_func, deprecated_in="1.0", remove_in="2.0") ... def old_func(x: int) -&gt; int: ... pass Argument mapping🔗 @deprecated_callable( ... target=new_func, ... args_mapping={'old_name': 'new_name', 'unused': None} ... ) ... def old_func(old_name: int, unused: str) -&gt; int: ... pass Self-deprecation🔗 from deprecate import TargetMode @deprecated_callable(target=TargetMode.ARGS_REMAP, args_mapping={'old_arg': 'new_arg'}) ... def my_func(old_arg: int = 0, new_arg: int = 0) -&gt; int: ... return new_arg * 2 Warn-only (default — no target needed)🔗 @deprecated_callable(deprecated_in="1.0", remove_in="2.0") ... def legacy_func(x: int) -&gt; int: ... return x A class source is rejected up front (use deprecated_class or deprecated instead)🔗 @deprecated_callable(deprecated_in="1.0", remove_in="2.0") # doctest: +IGNORE_EXCEPTION_DETAIL ... class OldClass: ... pass Traceback (most recent call last): TypeError: @deprecated_callable cannot decorate class OldClass ... instead)
+        A class source is rejected up front (use deprecate.deprecation.deprecated(target=TargetMode.AUTO, deprecated_in='', remove_in='', stream=deprecation_warning, num_warns=1, message_template=None, args_mapping=None, args_extra=None, skip_if=False, update_docstring=False, docstring_style='auto', template_mgs=None, *, as_exception=None) 🔗 Deprecate a function, method, or class — the friendly front door. For a callable source (function, method, lambda, or descriptor) this forwards to the strict :func:deprecated_callable implementation: identical call forwarding, argument mapping, warning control, and __deprecation_config__ metadata. For a class source it delegates to :func:~deprecate.proxy.deprecated_class, emitting a UserWarning (suppressed when stream=None); prefer @deprecated_class() directly for classes. deprecated() deliberately exposes only the arguments common to both shapes. The one shape-specific option, attrs_mapping (selective attribute deprecation, class-only), lives on :func:~deprecate.proxy.deprecated_class — reach for it directly when you need the full class scope. Parameters: Name Type Description Default target Union[bool, None, Callable, TargetMode, staticmethod, classmethod] How to handle the deprecation. Defaults to :attr:~deprecate.TargetMode.AUTO, a decoration-time inference value that is resolved before metadata is stored. Pass an explicit value to forward calls or select a fixed mode: Callable: Forward all calls to this callable (function, method, or class). The decorated source's body is not executed under normal forwarding — use pass or ... as the body. :attr:~deprecate.TargetMode.ARGS_REMAP (or legacy True): Self-deprecation — deprecate argument names only, remapping them within the same function body (callable source) or constructor (class source). :attr:~deprecate.TargetMode.NOTIFY: Warning-only mode — no forwarding. The source body executes unchanged for a callable; a class proxy emits class-wide warnings. An explicitly selected NOTIFY is never rewritten: combining it with args_mapping is a misconfiguration, leaves the mapping inert, and emits :class:UserWarning. :attr:~deprecate.TargetMode.AUTO (default): Infer the mode only when target is omitted. args_mapping resolves to :attr:~deprecate.TargetMode.ARGS_REMAP; no mapping resolves to warning-only behavior. The resolved value, never AUTO, is stored in :class:~deprecate.DeprecationConfig. Passing target=None is a legacy warn-only synonym that emits :class:FutureWarning directing callers to use :attr:~deprecate.TargetMode.NOTIFY. AUTO deprecated_in str Version when the source was deprecated (e.g., "1.0.0"). Default is empty string. &#39;&#39; remove_in str Version when the source will be removed (e.g., "2.0.0"). Default is empty string. &#39;&#39; stream Optional[Callable] Function to output warnings (default: :func:~deprecate.messaging.deprecation_warning, which is :func:warnings.warn with FutureWarning category). Set to None to disable warnings entirely — this also silences the one-time class-dispatch notice described under Warns below. The stacklevel passed is counted from the frame that calls stream, so it points at the caller for :func:warnings.warn and a C-level :func:functools.partial of it; a pure-Python stream, and the module-level :func:logging.warning before Python 3.11, land one frame short (see deprecate._frames._caller_stacklevel for the full rule). deprecation_warning num_warns int Number of times to show the warning, per callable/attribute name or per proxy access: - 1 (default): Show warning once - -1: Show warning on every call/access - 0: Suppress deprecation warnings - N &gt; 1: Show warning N times total 1 message_template Optional[str] Custom warning message template with format specifiers (source_name, source_path, target_name, target_path, deprecated_in, remove_in, argument_map); see :func:deprecated_callable for the full specifier reference. None args_mapping Optional[dict[str, Optional[str]]] Map or skip arguments when forwarding — {"old_arg": "new_arg"} renames, {"old_arg": None} drops. When target is omitted, a mapping auto-resolves a callable or class source to :attr:~deprecate.TargetMode.ARGS_REMAP. An explicit :attr:~deprecate.TargetMode.NOTIFY leaves the mapping inert and emits :class:UserWarning. None args_extra Optional[dict[str, Any]] Additional keyword arguments merged into the forwarded call after args_mapping is applied. Ignored under :attr:~deprecate.TargetMode.NOTIFY. None skip_if Union[bool, Callable] Conditionally deactivate the deprecation machinery — a bool, or a zero-argument Callable returning bool. When it evaluates True, a callable source executes its body with no warning and no forwarding; a class source is served as-is by the proxy with no warning, no mapping, and no target forwarding. False update_docstring bool If True, inject a deprecation notice into the docstring — function or class — at decoration time. False docstring_style Literal[&#39;auto&#39;, &#39;rst&#39;, &#39;mkdocs&#39;, &#39;markdown&#39;] Output style for the injected notice when update_docstring=True — "auto" (default, chosen from the active doc engine), "rst", or "mkdocs" / "markdown". &#39;auto&#39; template_mgs Optional[str] Deprecated alias for message_template (renamed in v0.12; the old spelling was a typo). Supplying it emits a :class:FutureWarning and its value is used as message_template; supplying both raises :class:TypeError. Removed in v1.0. None as_exception Optional[bool] Promote this deprecation from a warning to a raised :class:~deprecate._fatal.DeprecatedError — see :func:~deprecate.routine.deprecated_callable's as_exception for the full contract (message text, num_warns bypass, stream=None and skip_if interaction, and the monotonic precedence against deprecate.AS_EXCEPTIONS). None (default) follows the open :func:~deprecate._fatal.as_exceptions scope, else deprecate.AS_EXCEPTIONS (off unless DEPRECATE_AS_EXCEPTIONS is set). None Returns: Type Description _FrontDoorDecorator Decorator that wraps the source callable, or the class proxy for a class source. Warns: Type Description UserWarning If applied directly to a class. The decorator delegates to :func:~deprecate.proxy.deprecated_class and emits this informational notice once per class qualname per process. Use @deprecated_class() directly to skip it entirely. Suppressed when stream=None. UserWarning If deprecated_in is absent, stream is not None, no message_template is set, and the decorated source is not a class. Fired at decoration time (not call time) to catch missing version metadata early. Suppressed by passing stream=None or message_template. Example Basic forwarding🔗 def new_func(x: int) -&gt; int: ... return x * 2 @deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0") ... def old_func(x: int) -&gt; int: ... pass Warn-only (default — no target needed)🔗 @deprecated(deprecated_in="1.0", remove_in="2.0") ... def legacy_func(x: int) -&gt; int: ... return x or deprecate.routine.deprecated_callable(target=TargetMode.NOTIFY, deprecated_in='', remove_in='', stream=deprecation_warning, num_warns=1, message_template=None, args_mapping=None, args_extra=None, skip_if=False, update_docstring=False, docstring_style='auto', template_mgs=None, *, as_exception=None) 🔗 Decorate a function/method with warning message and forward calls to target — the strict callable form. This is the canonical callable-only implementation. It behaves like :func:deprecated for functions, methods, lambdas, and descriptors (classmethod / staticmethod / property): same call forwarding, argument mapping, warning control, and __deprecation_config__ metadata. It differs in one way: applying it to a class raises :class:TypeError at decoration time instead of delegating to :func:~deprecate.proxy.deprecated_class. :func:deprecated is the friendly front door that dispatches classes for you and routes callables here; reach for deprecated_callable at a call site that must never silently accept a class. This decorator marks a function or method as deprecated and can automatically forward all calls to a replacement implementation. It supports argument mapping, custom warning messages, and flexible warning control. For generator functions (def gen(): yield) and async generator functions (async def gen(): yield), the deprecation warning fires at call time — when the (async) generator object is created — not at first iteration. The generator body executes lazily as normal when iterated (next() / async for). Parameters: Name Type Description Default target Union[bool, None, Callable, TargetMode, staticmethod, classmethod] How to handle the deprecation. Defaults to :attr:~deprecate.TargetMode.NOTIFY (warn-only; source body executes unchanged) — the strict form always uses an explicit mode and rejects :attr:~deprecate.TargetMode.AUTO (front-door-only inference) with :class:TypeError. Pass an explicit value to forward calls or remap arguments: Callable: Forward all calls to this callable (function, method, or class target). The decorated function's body is not executed under normal forwarding — use pass or ... as the body. Exception: when skip_if evaluates True at call time, the source body executes as a fallback, so keep a working implementation if you combine target=Callable with skip_if. :attr:~deprecate.TargetMode.ARGS_REMAP (or legacy True): Self-deprecation — deprecate argument names only, remapping them within the same function body :attr:~deprecate.TargetMode.NOTIFY (default): Warning-only mode — no forwarding, source body executes normally. Combining it with args_mapping is contradictory: the mapping is ignored and a :class:UserWarning fires (:class:TypeError in v1.0). Passing target=None is a legacy synonym that also resolves to :attr:~deprecate.TargetMode.NOTIFY but emits a :class:FutureWarning directing you to use the enum form. NOTIFY deprecated_in str Version when the function was deprecated (e.g., "1.0.0"). Default is empty string. &#39;&#39; remove_in str Version when the function will be removed (e.g., "2.0.0"). Default is empty string. &#39;&#39; stream Optional[Callable] Function to output warnings (default: :func:~deprecate.messaging.deprecation_warning, which is :func:warnings.warn with FutureWarning category). Set to None to disable warnings entirely. A custom stream is called once per warning, with stacklevel= only when its signature declares a stacklevel parameter or **kwargs (:func:warnings.warn and its partials always qualify); a C-level callable without an introspectable signature gets the message alone and loses caller attribution. The stacklevel passed is counted from the frame that calls stream, so it points at the caller for :func:warnings.warn and a C-level :func:functools.partial of it; a pure-Python stream, and the module-level :func:logging.warning before Python 3.11, land one frame short (see deprecate._frames._caller_stacklevel for the full rule). deprecation_warning num_warns int Number of times to show warning per function or per deprecated argument: - 1 (default): Show warning once per function/argument - -1: Show warning on every call - 0: Suppress deprecation warnings emitted for the decorated function/argument - N &gt; 1: Show warning N times total 1 message_template Optional[str] Custom warning message template with format specifiers: - source_name: Function name (e.g., "my_func") - source_path: Full path (e.g., "module.my_func") - target_name: Target function name (only for callable targets) - target_path: Full target path (only for callable targets) - deprecated_in: Value of deprecated_in parameter - remove_in: Value of remove_in parameter - argument_map: String showing argument mapping (for args deprecation only) Example: "v%(deprecated_in)s: `%(source_name)s` was deprecated." None args_mapping Optional[dict[str, Optional[str]]] Map or skip arguments when forwarding: - {'old_arg': 'new_arg'}: Rename argument - {'old_arg': None}: Skip argument (don't forward it) - {}: Empty mapping (no remapping) Works with both target=Callable and target=True. None args_extra Optional[dict[str, Any]] Additional arguments merged into kwargs before the call. Used when target is a Callable or :attr:~deprecate._types.TargetMode.ARGS_REMAP (with args_mapping). Ignored when target is :attr:~deprecate._types.TargetMode.NOTIFY. Example: {'new_required_arg': 42} None skip_if Union[bool, Callable] Conditionally skip deprecation warning and forwarding: - bool: Static condition (True = skip deprecation) - Callable: Function returning bool (checked at runtime, must return bool) If condition is True, original function executes without warning. False update_docstring bool If True, automatically inject a deprecation notice into the function's docstring (inserted before Google/NumPy-style sections when present, otherwise appended at the end). False docstring_style Literal[&#39;auto&#39;, &#39;rst&#39;, &#39;mkdocs&#39;, &#39;markdown&#39;] Output style for injected deprecation notice when update_docstring=True. Supported values: - "auto" (default): Automatically choose a style based on the current environment (e.g., loaded modules, CLI/tooling context). This may resolve to either "rst" or "mkdocs"/"markdown" at decoration time. - "rst": Explicitly force Sphinx-style .. deprecated:: directive. - "mkdocs" or "markdown": Explicitly force a Markdown admonition of the form !!! warning "Deprecated in X". Validated eagerly at decoration time regardless of update_docstring. &#39;auto&#39; template_mgs Optional[str] Deprecated alias for message_template (renamed in v0.12; the old spelling was a typo). Supplying it emits a :class:FutureWarning and its value is used as message_template; supplying both raises :class:TypeError. Removed in v1.0. None as_exception Optional[bool] Promote this deprecation from a warning to a raised :class:~deprecate._fatal.DeprecatedError — the warn/raise/delete lifecycle step before the symbol goes away. The raised message is the same text the warning would have carried, the replacement target is never invoked, and the source body never runs (so TargetMode.NOTIFY and TargetMode.ARGS_REMAP stop instead of falling through). A fatal deprecation ignores num_warns and raises on every call, and stream=None silences only the message, never the raise; skip_if still suppresses it entirely. None (default) follows the open :func:~deprecate._fatal.as_exceptions scope, else deprecate.AS_EXCEPTIONS (seeded from the DEPRECATE_AS_EXCEPTIONS environment variable); True is always fatal; False means "not fatal by default" and still yields to a True global, so a consumer's strict run cannot be opted out of by an upstream wrapper. Python's own -W error::FutureWarning is the alternative when you want every library's FutureWarning to raise; this flag is scoped to pyDeprecate's own deprecations and also works when stream is not a warnings function (e.g. :func:logging.warning). None Returns: Type Description Callable[[_SourceT], _SourceT] Decorator function that wraps the source function/method. Warns: Type Description UserWarning If deprecated_in is absent, stream is not None, and no message_template is set. Fired at decoration time (not call time) to catch missing version metadata early. Suppressed by passing stream=None or message_template. Raises: Type Description TypeError If applied to a class. The strict form rejects a class source at decoration time (naming deprecated_class and deprecated as the alternatives) instead of delegating to :func:~deprecate.proxy.deprecated_class. TypeError If the source is a class method and target is a method on a different class (cross-class method forwarding detected at decoration time via __qualname__ comparison). Skipped silently when the target's qualname prefix names a class absent from the target's module globals. TypeError If skip_if is a callable that doesn't return a bool. TypeError If arguments in args_mapping don't exist in target function and target doesn't accept **kwargs. Example Basic forwarding🔗 def new_func(x: int) -&gt; int: ... return x * 2 @deprecated_callable(target=new_func, deprecated_in="1.0", remove_in="2.0") ... def old_func(x: int) -&gt; int: ... pass Argument mapping🔗 @deprecated_callable( ... target=new_func, ... args_mapping={'old_name': 'new_name', 'unused': None} ... ) ... def old_func(old_name: int, unused: str) -&gt; int: ... pass Self-deprecation🔗 from deprecate import TargetMode @deprecated_callable(target=TargetMode.ARGS_REMAP, args_mapping={'old_arg': 'new_arg'}) ... def my_func(old_arg: int = 0, new_arg: int = 0) -&gt; int: ... return new_arg * 2 Warn-only (default — no target needed)🔗 @deprecated_callable(deprecated_in="1.0", remove_in="2.0") ... def legacy_func(x: int) -&gt; int: ... return x A class source is rejected up front (use deprecated_class or deprecated instead)🔗 @deprecated_callable(deprecated_in="1.0", remove_in="2.0") # doctest: +IGNORE_EXCEPTION_DETAIL ... class OldClass: ... pass Traceback (most recent call last): TypeError: @deprecated_callable cannot decorate class OldClass ... instead)
       
     </span>
   </a>
@@ -1219,6 +1219,39 @@
     <span class="md-ellipsis">
       
         <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;deprecated_module
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fatal-deprecations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fatal deprecations
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deprecate.as_exceptions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;as_exceptions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deprecate.DeprecatedError" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;DeprecatedError
       
     </span>
   </a>
@@ -1520,6 +1553,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#deprecate.audit.GraceWindowSpec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;GraceWindowSpec
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#deprecate.audit.VersionBump" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1600,6 +1644,56 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label=" TableStyle">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#legacy-audit-aliases" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Legacy audit aliases
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deprecate.audit.DeprecatedCallableInfo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;DeprecatedCallableInfo
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deprecate.audit.find_deprecated_callables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;find_deprecated_callables
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deprecate.audit.validate_deprecated_callable" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;validate_deprecated_callable
+      
+    </span>
+  </a>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1671,6 +1765,17 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deprecate.get_deprecation_config" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;get_deprecation_config
+      
+    </span>
+  </a>
   
 </li>
       
@@ -1757,6 +1862,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#command-line" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Command line
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1780,6 +1896,33 @@
     
   
     Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="limitations.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Limitations
   
 
     
@@ -1861,10 +2004,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_12" >
         
           
-          <label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_12" id="__nav_12_label" tabindex="0">
             
   
   
@@ -1882,8 +2025,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_11">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_12">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2092,7 +2235,7 @@
   <a href="#deprecate.routine.deprecated_callable--a-class-source-is-rejected-up-front-use-deprecated_class-or-deprecated-instead" class="md-nav__link">
     <span class="md-ellipsis">
       
-        A class source is rejected up front (use deprecate.deprecation.deprecated(target=TargetMode.AUTO, deprecated_in='', remove_in='', stream=deprecation_warning, num_warns=1, message_template=None, args_mapping=None, args_extra=None, skip_if=False, update_docstring=False, docstring_style='auto', template_mgs=None, *, as_exception=None) 🔗 Deprecate a function, method, or class — the friendly front door. For a callable source (function, method, lambda, or descriptor) this forwards to the strict :func:deprecated_callable implementation: identical call forwarding, argument mapping, warning control, and __deprecation_config__ metadata. For a class source it delegates to :func:~deprecate.proxy.deprecated_class, emitting a UserWarning (suppressed when stream=None); prefer @deprecated_class() directly for classes. deprecated() deliberately exposes only the arguments common to both shapes. The one shape-specific option, attrs_mapping (selective attribute deprecation, class-only), lives on :func:~deprecate.proxy.deprecated_class — reach for it directly when you need the full class scope. Parameters: Name Type Description Default target Union[bool, None, Callable, TargetMode, staticmethod, classmethod] How to handle the deprecation. Defaults to :attr:~deprecate.TargetMode.AUTO, a decoration-time inference value that is resolved before metadata is stored. Pass an explicit value to forward calls or select a fixed mode: Callable: Forward all calls to this callable (function, method, or class). The decorated source's body is not executed under normal forwarding — use pass or ... as the body. :attr:~deprecate.TargetMode.ARGS_REMAP (or legacy True): Self-deprecation — deprecate argument names only, remapping them within the same function body (callable source) or constructor (class source). :attr:~deprecate.TargetMode.NOTIFY: Warning-only mode — no forwarding. The source body executes unchanged for a callable; a class proxy emits class-wide warnings. An explicitly selected NOTIFY is never rewritten: combining it with args_mapping is a misconfiguration, leaves the mapping inert, and emits :class:UserWarning. :attr:~deprecate.TargetMode.AUTO (default): Infer the mode only when target is omitted. args_mapping resolves to :attr:~deprecate.TargetMode.ARGS_REMAP; no mapping resolves to warning-only behavior. The resolved value, never AUTO, is stored in :class:~deprecate.DeprecationConfig. Passing target=None is a legacy warn-only synonym that emits :class:FutureWarning directing callers to use :attr:~deprecate.TargetMode.NOTIFY. AUTO deprecated_in str Version when the source was deprecated (e.g., "1.0.0"). Default is empty string. &#39;&#39; remove_in str Version when the source will be removed (e.g., "2.0.0"). Default is empty string. &#39;&#39; stream Optional[Callable] Function to output warnings (default: :func:~deprecate.deprecation.deprecation_warning, which is :func:warnings.warn with FutureWarning category). Set to None to disable warnings entirely — this also silences the one-time class-dispatch notice described under Warns below. The stacklevel passed is counted from the frame that calls stream, so it points at the caller for :func:warnings.warn and a C-level :func:functools.partial of it; a pure-Python stream, and the module-level :func:logging.warning before Python 3.11, land one frame short (see deprecate._frames._caller_stacklevel for the full rule). deprecation_warning num_warns int Number of times to show the warning, per callable/attribute name or per proxy access: - 1 (default): Show warning once - -1: Show warning on every call/access - 0: Suppress deprecation warnings - N &gt; 1: Show warning N times total 1 message_template Optional[str] Custom warning message template with format specifiers (source_name, source_path, target_name, target_path, deprecated_in, remove_in, argument_map); see :func:deprecated_callable for the full specifier reference. None args_mapping Optional[dict[str, Optional[str]]] Map or skip arguments when forwarding — {"old_arg": "new_arg"} renames, {"old_arg": None} drops. When target is omitted, a mapping auto-resolves a callable or class source to :attr:~deprecate.TargetMode.ARGS_REMAP. An explicit :attr:~deprecate.TargetMode.NOTIFY leaves the mapping inert and emits :class:UserWarning. None args_extra Optional[dict[str, Any]] Additional keyword arguments merged into the forwarded call after args_mapping is applied. Ignored under :attr:~deprecate.TargetMode.NOTIFY. None skip_if Union[bool, Callable] Conditionally deactivate the deprecation machinery — a bool, or a zero-argument Callable returning bool. When it evaluates True, a callable source executes its body with no warning and no forwarding; a class source is served as-is by the proxy with no warning, no mapping, and no target forwarding. False update_docstring bool If True, inject a deprecation notice into the docstring — function or class — at decoration time. False docstring_style Literal[&#39;auto&#39;, &#39;rst&#39;, &#39;mkdocs&#39;, &#39;markdown&#39;] Output style for the injected notice when update_docstring=True — "auto" (default, chosen from the active doc engine), "rst", or "mkdocs" / "markdown". &#39;auto&#39; template_mgs Optional[str] Deprecated alias for message_template (renamed in v0.12; the old spelling was a typo). Supplying it emits a :class:FutureWarning and its value is used as message_template; supplying both raises :class:TypeError. Removed in v1.0. None as_exception Optional[bool] Promote this deprecation from a warning to a raised :class:~deprecate._fatal.DeprecatedError — see :func:~deprecate.routine.deprecated_callable's as_exception for the full contract (message text, num_warns bypass, stream=None and skip_if interaction, and the monotonic precedence against deprecate.AS_EXCEPTIONS). None (default) follows the global switch, which is off unless DEPRECATE_AS_EXCEPTIONS is set. None Returns: Type Description _FrontDoorDecorator Decorator that wraps the source callable, or the class proxy for a class source. Warns: Type Description UserWarning If applied directly to a class. The decorator delegates to :func:~deprecate.proxy.deprecated_class and emits this informational notice once per class qualname per process. Use @deprecated_class() directly to skip it entirely. Suppressed when stream=None. UserWarning If deprecated_in is absent, stream is not None, no message_template is set, and the decorated source is not a class. Fired at decoration time (not call time) to catch missing version metadata early. Suppressed by passing stream=None or message_template. Example Basic forwarding🔗 def new_func(x: int) -&gt; int: ... return x * 2 @deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0") ... def old_func(x: int) -&gt; int: ... pass Warn-only (default — no target needed)🔗 @deprecated(deprecated_in="1.0", remove_in="2.0") ... def legacy_func(x: int) -&gt; int: ... return x or deprecate.routine.deprecated_callable(target=TargetMode.NOTIFY, deprecated_in='', remove_in='', stream=deprecation_warning, num_warns=1, message_template=None, args_mapping=None, args_extra=None, skip_if=False, update_docstring=False, docstring_style='auto', template_mgs=None, *, as_exception=None) 🔗 Decorate a function/method with warning message and forward calls to target — the strict callable form. This is the canonical callable-only implementation. It behaves like :func:deprecated for functions, methods, lambdas, and descriptors (classmethod / staticmethod / property): same call forwarding, argument mapping, warning control, and __deprecation_config__ metadata. It differs in one way: applying it to a class raises :class:TypeError at decoration time instead of delegating to :func:~deprecate.proxy.deprecated_class. :func:deprecated is the friendly front door that dispatches classes for you and routes callables here; reach for deprecated_callable at a call site that must never silently accept a class. This decorator marks a function or method as deprecated and can automatically forward all calls to a replacement implementation. It supports argument mapping, custom warning messages, and flexible warning control. For generator functions (def gen(): yield) and async generator functions (async def gen(): yield), the deprecation warning fires at call time — when the (async) generator object is created — not at first iteration. The generator body executes lazily as normal when iterated (next() / async for). Parameters: Name Type Description Default target Union[bool, None, Callable, TargetMode, staticmethod, classmethod] How to handle the deprecation. Defaults to :attr:~deprecate.TargetMode.NOTIFY (warn-only; source body executes unchanged) — the strict form always uses an explicit mode and rejects :attr:~deprecate.TargetMode.AUTO (front-door-only inference) with :class:TypeError. Pass an explicit value to forward calls or remap arguments: Callable: Forward all calls to this callable (function, method, or class target). The decorated function's body is not executed under normal forwarding — use pass or ... as the body. Exception: when skip_if evaluates True at call time, the source body executes as a fallback, so keep a working implementation if you combine target=Callable with skip_if. :attr:~deprecate.TargetMode.ARGS_REMAP (or legacy True): Self-deprecation — deprecate argument names only, remapping them within the same function body :attr:~deprecate.TargetMode.NOTIFY (default): Warning-only mode — no forwarding, source body executes normally. Combining it with args_mapping is contradictory: the mapping is ignored and a :class:UserWarning fires (:class:TypeError in v1.0). Passing target=None is a legacy synonym that also resolves to :attr:~deprecate.TargetMode.NOTIFY but emits a :class:FutureWarning directing you to use the enum form. NOTIFY deprecated_in str Version when the function was deprecated (e.g., "1.0.0"). Default is empty string. &#39;&#39; remove_in str Version when the function will be removed (e.g., "2.0.0"). Default is empty string. &#39;&#39; stream Optional[Callable] Function to output warnings (default: :func:~deprecate.deprecation.deprecation_warning, which is :func:warnings.warn with FutureWarning category). Set to None to disable warnings entirely. A custom stream is called once per warning, with stacklevel= only when its signature declares a stacklevel parameter or **kwargs (:func:warnings.warn and its partials always qualify); a C-level callable without an introspectable signature gets the message alone and loses caller attribution. The stacklevel passed is counted from the frame that calls stream, so it points at the caller for :func:warnings.warn and a C-level :func:functools.partial of it; a pure-Python stream, and the module-level :func:logging.warning before Python 3.11, land one frame short (see deprecate._frames._caller_stacklevel for the full rule). deprecation_warning num_warns int Number of times to show warning per function or per deprecated argument: - 1 (default): Show warning once per function/argument - -1: Show warning on every call - 0: Suppress deprecation warnings emitted for the decorated function/argument - N &gt; 1: Show warning N times total 1 message_template Optional[str] Custom warning message template with format specifiers: - source_name: Function name (e.g., "my_func") - source_path: Full path (e.g., "module.my_func") - target_name: Target function name (only for callable targets) - target_path: Full target path (only for callable targets) - deprecated_in: Value of deprecated_in parameter - remove_in: Value of remove_in parameter - argument_map: String showing argument mapping (for args deprecation only) Example: "v%(deprecated_in)s: `%(source_name)s` was deprecated." None args_mapping Optional[dict[str, Optional[str]]] Map or skip arguments when forwarding: - {'old_arg': 'new_arg'}: Rename argument - {'old_arg': None}: Skip argument (don't forward it) - {}: Empty mapping (no remapping) Works with both target=Callable and target=True. None args_extra Optional[dict[str, Any]] Additional arguments merged into kwargs before the call. Used when target is a Callable or :attr:~deprecate._types.TargetMode.ARGS_REMAP (with args_mapping). Ignored when target is :attr:~deprecate._types.TargetMode.NOTIFY. Example: {'new_required_arg': 42} None skip_if Union[bool, Callable] Conditionally skip deprecation warning and forwarding: - bool: Static condition (True = skip deprecation) - Callable: Function returning bool (checked at runtime, must return bool) If condition is True, original function executes without warning. False update_docstring bool If True, automatically inject a deprecation notice into the function's docstring (inserted before Google/NumPy-style sections when present, otherwise appended at the end). False docstring_style Literal[&#39;auto&#39;, &#39;rst&#39;, &#39;mkdocs&#39;, &#39;markdown&#39;] Output style for injected deprecation notice when update_docstring=True. Supported values: - "auto" (default): Automatically choose a style based on the current environment (e.g., loaded modules, CLI/tooling context). This may resolve to either "rst" or "mkdocs"/"markdown" at decoration time. - "rst": Explicitly force Sphinx-style .. deprecated:: directive. - "mkdocs" or "markdown": Explicitly force a Markdown admonition of the form !!! warning "Deprecated in X". Validated eagerly at decoration time regardless of update_docstring. &#39;auto&#39; template_mgs Optional[str] Deprecated alias for message_template (renamed in v0.12; the old spelling was a typo). Supplying it emits a :class:FutureWarning and its value is used as message_template; supplying both raises :class:TypeError. Removed in v1.0. None as_exception Optional[bool] Promote this deprecation from a warning to a raised :class:~deprecate._fatal.DeprecatedError — the warn/raise/delete lifecycle step before the symbol goes away. The raised message is the same text the warning would have carried, the replacement target is never invoked, and the source body never runs (so TargetMode.NOTIFY and TargetMode.ARGS_REMAP stop instead of falling through). A fatal deprecation ignores num_warns and raises on every call, and stream=None silences only the message, never the raise; skip_if still suppresses it entirely. None (default) defers to the process-wide deprecate.AS_EXCEPTIONS switch (seeded from the DEPRECATE_AS_EXCEPTIONS environment variable); True is always fatal; False means "not fatal by default" and still yields to a True global, so a consumer's strict run cannot be opted out of by an upstream wrapper. Python's own -W error::FutureWarning is the alternative when you want every library's FutureWarning to raise; this flag is scoped to pyDeprecate's own deprecations and also works when stream is not a warnings function (e.g. :func:logging.warning). None Returns: Type Description Callable[[_SourceT], _SourceT] Decorator function that wraps the source function/method. Warns: Type Description UserWarning If deprecated_in is absent, stream is not None, and no message_template is set. Fired at decoration time (not call time) to catch missing version metadata early. Suppressed by passing stream=None or message_template. Raises: Type Description TypeError If applied to a class. The strict form rejects a class source at decoration time (naming deprecated_class and deprecated as the alternatives) instead of delegating to :func:~deprecate.proxy.deprecated_class. TypeError If the source is a class method and target is a method on a different class (cross-class method forwarding detected at decoration time via __qualname__ comparison). Skipped silently when the target's qualname prefix names a class absent from the target's module globals. TypeError If skip_if is a callable that doesn't return a bool. TypeError If arguments in args_mapping don't exist in target function and target doesn't accept **kwargs. Example Basic forwarding🔗 def new_func(x: int) -&gt; int: ... return x * 2 @deprecated_callable(target=new_func, deprecated_in="1.0", remove_in="2.0") ... def old_func(x: int) -&gt; int: ... pass Argument mapping🔗 @deprecated_callable( ... target=new_func, ... args_mapping={'old_name': 'new_name', 'unused': None} ... ) ... def old_func(old_name: int, unused: str) -&gt; int: ... pass Self-deprecation🔗 from deprecate import TargetMode @deprecated_callable(target=TargetMode.ARGS_REMAP, args_mapping={'old_arg': 'new_arg'}) ... def my_func(old_arg: int = 0, new_arg: int = 0) -&gt; int: ... return new_arg * 2 Warn-only (default — no target needed)🔗 @deprecated_callable(deprecated_in="1.0", remove_in="2.0") ... def legacy_func(x: int) -&gt; int: ... return x A class source is rejected up front (use deprecated_class or deprecated instead)🔗 @deprecated_callable(deprecated_in="1.0", remove_in="2.0") # doctest: +IGNORE_EXCEPTION_DETAIL ... class OldClass: ... pass Traceback (most recent call last): TypeError: @deprecated_callable cannot decorate class OldClass ... instead)
+        A class source is rejected up front (use deprecate.deprecation.deprecated(target=TargetMode.AUTO, deprecated_in='', remove_in='', stream=deprecation_warning, num_warns=1, message_template=None, args_mapping=None, args_extra=None, skip_if=False, update_docstring=False, docstring_style='auto', template_mgs=None, *, as_exception=None) 🔗 Deprecate a function, method, or class — the friendly front door. For a callable source (function, method, lambda, or descriptor) this forwards to the strict :func:deprecated_callable implementation: identical call forwarding, argument mapping, warning control, and __deprecation_config__ metadata. For a class source it delegates to :func:~deprecate.proxy.deprecated_class, emitting a UserWarning (suppressed when stream=None); prefer @deprecated_class() directly for classes. deprecated() deliberately exposes only the arguments common to both shapes. The one shape-specific option, attrs_mapping (selective attribute deprecation, class-only), lives on :func:~deprecate.proxy.deprecated_class — reach for it directly when you need the full class scope. Parameters: Name Type Description Default target Union[bool, None, Callable, TargetMode, staticmethod, classmethod] How to handle the deprecation. Defaults to :attr:~deprecate.TargetMode.AUTO, a decoration-time inference value that is resolved before metadata is stored. Pass an explicit value to forward calls or select a fixed mode: Callable: Forward all calls to this callable (function, method, or class). The decorated source's body is not executed under normal forwarding — use pass or ... as the body. :attr:~deprecate.TargetMode.ARGS_REMAP (or legacy True): Self-deprecation — deprecate argument names only, remapping them within the same function body (callable source) or constructor (class source). :attr:~deprecate.TargetMode.NOTIFY: Warning-only mode — no forwarding. The source body executes unchanged for a callable; a class proxy emits class-wide warnings. An explicitly selected NOTIFY is never rewritten: combining it with args_mapping is a misconfiguration, leaves the mapping inert, and emits :class:UserWarning. :attr:~deprecate.TargetMode.AUTO (default): Infer the mode only when target is omitted. args_mapping resolves to :attr:~deprecate.TargetMode.ARGS_REMAP; no mapping resolves to warning-only behavior. The resolved value, never AUTO, is stored in :class:~deprecate.DeprecationConfig. Passing target=None is a legacy warn-only synonym that emits :class:FutureWarning directing callers to use :attr:~deprecate.TargetMode.NOTIFY. AUTO deprecated_in str Version when the source was deprecated (e.g., "1.0.0"). Default is empty string. &#39;&#39; remove_in str Version when the source will be removed (e.g., "2.0.0"). Default is empty string. &#39;&#39; stream Optional[Callable] Function to output warnings (default: :func:~deprecate.messaging.deprecation_warning, which is :func:warnings.warn with FutureWarning category). Set to None to disable warnings entirely — this also silences the one-time class-dispatch notice described under Warns below. The stacklevel passed is counted from the frame that calls stream, so it points at the caller for :func:warnings.warn and a C-level :func:functools.partial of it; a pure-Python stream, and the module-level :func:logging.warning before Python 3.11, land one frame short (see deprecate._frames._caller_stacklevel for the full rule). deprecation_warning num_warns int Number of times to show the warning, per callable/attribute name or per proxy access: - 1 (default): Show warning once - -1: Show warning on every call/access - 0: Suppress deprecation warnings - N &gt; 1: Show warning N times total 1 message_template Optional[str] Custom warning message template with format specifiers (source_name, source_path, target_name, target_path, deprecated_in, remove_in, argument_map); see :func:deprecated_callable for the full specifier reference. None args_mapping Optional[dict[str, Optional[str]]] Map or skip arguments when forwarding — {"old_arg": "new_arg"} renames, {"old_arg": None} drops. When target is omitted, a mapping auto-resolves a callable or class source to :attr:~deprecate.TargetMode.ARGS_REMAP. An explicit :attr:~deprecate.TargetMode.NOTIFY leaves the mapping inert and emits :class:UserWarning. None args_extra Optional[dict[str, Any]] Additional keyword arguments merged into the forwarded call after args_mapping is applied. Ignored under :attr:~deprecate.TargetMode.NOTIFY. None skip_if Union[bool, Callable] Conditionally deactivate the deprecation machinery — a bool, or a zero-argument Callable returning bool. When it evaluates True, a callable source executes its body with no warning and no forwarding; a class source is served as-is by the proxy with no warning, no mapping, and no target forwarding. False update_docstring bool If True, inject a deprecation notice into the docstring — function or class — at decoration time. False docstring_style Literal[&#39;auto&#39;, &#39;rst&#39;, &#39;mkdocs&#39;, &#39;markdown&#39;] Output style for the injected notice when update_docstring=True — "auto" (default, chosen from the active doc engine), "rst", or "mkdocs" / "markdown". &#39;auto&#39; template_mgs Optional[str] Deprecated alias for message_template (renamed in v0.12; the old spelling was a typo). Supplying it emits a :class:FutureWarning and its value is used as message_template; supplying both raises :class:TypeError. Removed in v1.0. None as_exception Optional[bool] Promote this deprecation from a warning to a raised :class:~deprecate._fatal.DeprecatedError — see :func:~deprecate.routine.deprecated_callable's as_exception for the full contract (message text, num_warns bypass, stream=None and skip_if interaction, and the monotonic precedence against deprecate.AS_EXCEPTIONS). None (default) follows the open :func:~deprecate._fatal.as_exceptions scope, else deprecate.AS_EXCEPTIONS (off unless DEPRECATE_AS_EXCEPTIONS is set). None Returns: Type Description _FrontDoorDecorator Decorator that wraps the source callable, or the class proxy for a class source. Warns: Type Description UserWarning If applied directly to a class. The decorator delegates to :func:~deprecate.proxy.deprecated_class and emits this informational notice once per class qualname per process. Use @deprecated_class() directly to skip it entirely. Suppressed when stream=None. UserWarning If deprecated_in is absent, stream is not None, no message_template is set, and the decorated source is not a class. Fired at decoration time (not call time) to catch missing version metadata early. Suppressed by passing stream=None or message_template. Example Basic forwarding🔗 def new_func(x: int) -&gt; int: ... return x * 2 @deprecated(target=new_func, deprecated_in="1.0", remove_in="2.0") ... def old_func(x: int) -&gt; int: ... pass Warn-only (default — no target needed)🔗 @deprecated(deprecated_in="1.0", remove_in="2.0") ... def legacy_func(x: int) -&gt; int: ... return x or deprecate.routine.deprecated_callable(target=TargetMode.NOTIFY, deprecated_in='', remove_in='', stream=deprecation_warning, num_warns=1, message_template=None, args_mapping=None, args_extra=None, skip_if=False, update_docstring=False, docstring_style='auto', template_mgs=None, *, as_exception=None) 🔗 Decorate a function/method with warning message and forward calls to target — the strict callable form. This is the canonical callable-only implementation. It behaves like :func:deprecated for functions, methods, lambdas, and descriptors (classmethod / staticmethod / property): same call forwarding, argument mapping, warning control, and __deprecation_config__ metadata. It differs in one way: applying it to a class raises :class:TypeError at decoration time instead of delegating to :func:~deprecate.proxy.deprecated_class. :func:deprecated is the friendly front door that dispatches classes for you and routes callables here; reach for deprecated_callable at a call site that must never silently accept a class. This decorator marks a function or method as deprecated and can automatically forward all calls to a replacement implementation. It supports argument mapping, custom warning messages, and flexible warning control. For generator functions (def gen(): yield) and async generator functions (async def gen(): yield), the deprecation warning fires at call time — when the (async) generator object is created — not at first iteration. The generator body executes lazily as normal when iterated (next() / async for). Parameters: Name Type Description Default target Union[bool, None, Callable, TargetMode, staticmethod, classmethod] How to handle the deprecation. Defaults to :attr:~deprecate.TargetMode.NOTIFY (warn-only; source body executes unchanged) — the strict form always uses an explicit mode and rejects :attr:~deprecate.TargetMode.AUTO (front-door-only inference) with :class:TypeError. Pass an explicit value to forward calls or remap arguments: Callable: Forward all calls to this callable (function, method, or class target). The decorated function's body is not executed under normal forwarding — use pass or ... as the body. Exception: when skip_if evaluates True at call time, the source body executes as a fallback, so keep a working implementation if you combine target=Callable with skip_if. :attr:~deprecate.TargetMode.ARGS_REMAP (or legacy True): Self-deprecation — deprecate argument names only, remapping them within the same function body :attr:~deprecate.TargetMode.NOTIFY (default): Warning-only mode — no forwarding, source body executes normally. Combining it with args_mapping is contradictory: the mapping is ignored and a :class:UserWarning fires (:class:TypeError in v1.0). Passing target=None is a legacy synonym that also resolves to :attr:~deprecate.TargetMode.NOTIFY but emits a :class:FutureWarning directing you to use the enum form. NOTIFY deprecated_in str Version when the function was deprecated (e.g., "1.0.0"). Default is empty string. &#39;&#39; remove_in str Version when the function will be removed (e.g., "2.0.0"). Default is empty string. &#39;&#39; stream Optional[Callable] Function to output warnings (default: :func:~deprecate.messaging.deprecation_warning, which is :func:warnings.warn with FutureWarning category). Set to None to disable warnings entirely. A custom stream is called once per warning, with stacklevel= only when its signature declares a stacklevel parameter or **kwargs (:func:warnings.warn and its partials always qualify); a C-level callable without an introspectable signature gets the message alone and loses caller attribution. The stacklevel passed is counted from the frame that calls stream, so it points at the caller for :func:warnings.warn and a C-level :func:functools.partial of it; a pure-Python stream, and the module-level :func:logging.warning before Python 3.11, land one frame short (see deprecate._frames._caller_stacklevel for the full rule). deprecation_warning num_warns int Number of times to show warning per function or per deprecated argument: - 1 (default): Show warning once per function/argument - -1: Show warning on every call - 0: Suppress deprecation warnings emitted for the decorated function/argument - N &gt; 1: Show warning N times total 1 message_template Optional[str] Custom warning message template with format specifiers: - source_name: Function name (e.g., "my_func") - source_path: Full path (e.g., "module.my_func") - target_name: Target function name (only for callable targets) - target_path: Full target path (only for callable targets) - deprecated_in: Value of deprecated_in parameter - remove_in: Value of remove_in parameter - argument_map: String showing argument mapping (for args deprecation only) Example: "v%(deprecated_in)s: `%(source_name)s` was deprecated." None args_mapping Optional[dict[str, Optional[str]]] Map or skip arguments when forwarding: - {'old_arg': 'new_arg'}: Rename argument - {'old_arg': None}: Skip argument (don't forward it) - {}: Empty mapping (no remapping) Works with both target=Callable and target=True. None args_extra Optional[dict[str, Any]] Additional arguments merged into kwargs before the call. Used when target is a Callable or :attr:~deprecate._types.TargetMode.ARGS_REMAP (with args_mapping). Ignored when target is :attr:~deprecate._types.TargetMode.NOTIFY. Example: {'new_required_arg': 42} None skip_if Union[bool, Callable] Conditionally skip deprecation warning and forwarding: - bool: Static condition (True = skip deprecation) - Callable: Function returning bool (checked at runtime, must return bool) If condition is True, original function executes without warning. False update_docstring bool If True, automatically inject a deprecation notice into the function's docstring (inserted before Google/NumPy-style sections when present, otherwise appended at the end). False docstring_style Literal[&#39;auto&#39;, &#39;rst&#39;, &#39;mkdocs&#39;, &#39;markdown&#39;] Output style for injected deprecation notice when update_docstring=True. Supported values: - "auto" (default): Automatically choose a style based on the current environment (e.g., loaded modules, CLI/tooling context). This may resolve to either "rst" or "mkdocs"/"markdown" at decoration time. - "rst": Explicitly force Sphinx-style .. deprecated:: directive. - "mkdocs" or "markdown": Explicitly force a Markdown admonition of the form !!! warning "Deprecated in X". Validated eagerly at decoration time regardless of update_docstring. &#39;auto&#39; template_mgs Optional[str] Deprecated alias for message_template (renamed in v0.12; the old spelling was a typo). Supplying it emits a :class:FutureWarning and its value is used as message_template; supplying both raises :class:TypeError. Removed in v1.0. None as_exception Optional[bool] Promote this deprecation from a warning to a raised :class:~deprecate._fatal.DeprecatedError — the warn/raise/delete lifecycle step before the symbol goes away. The raised message is the same text the warning would have carried, the replacement target is never invoked, and the source body never runs (so TargetMode.NOTIFY and TargetMode.ARGS_REMAP stop instead of falling through). A fatal deprecation ignores num_warns and raises on every call, and stream=None silences only the message, never the raise; skip_if still suppresses it entirely. None (default) follows the open :func:~deprecate._fatal.as_exceptions scope, else deprecate.AS_EXCEPTIONS (seeded from the DEPRECATE_AS_EXCEPTIONS environment variable); True is always fatal; False means "not fatal by default" and still yields to a True global, so a consumer's strict run cannot be opted out of by an upstream wrapper. Python's own -W error::FutureWarning is the alternative when you want every library's FutureWarning to raise; this flag is scoped to pyDeprecate's own deprecations and also works when stream is not a warnings function (e.g. :func:logging.warning). None Returns: Type Description Callable[[_SourceT], _SourceT] Decorator function that wraps the source function/method. Warns: Type Description UserWarning If deprecated_in is absent, stream is not None, and no message_template is set. Fired at decoration time (not call time) to catch missing version metadata early. Suppressed by passing stream=None or message_template. Raises: Type Description TypeError If applied to a class. The strict form rejects a class source at decoration time (naming deprecated_class and deprecated as the alternatives) instead of delegating to :func:~deprecate.proxy.deprecated_class. TypeError If the source is a class method and target is a method on a different class (cross-class method forwarding detected at decoration time via __qualname__ comparison). Skipped silently when the target's qualname prefix names a class absent from the target's module globals. TypeError If skip_if is a callable that doesn't return a bool. TypeError If arguments in args_mapping don't exist in target function and target doesn't accept **kwargs. Example Basic forwarding🔗 def new_func(x: int) -&gt; int: ... return x * 2 @deprecated_callable(target=new_func, deprecated_in="1.0", remove_in="2.0") ... def old_func(x: int) -&gt; int: ... pass Argument mapping🔗 @deprecated_callable( ... target=new_func, ... args_mapping={'old_name': 'new_name', 'unused': None} ... ) ... def old_func(old_name: int, unused: str) -&gt; int: ... pass Self-deprecation🔗 from deprecate import TargetMode @deprecated_callable(target=TargetMode.ARGS_REMAP, args_mapping={'old_arg': 'new_arg'}) ... def my_func(old_arg: int = 0, new_arg: int = 0) -&gt; int: ... return new_arg * 2 Warn-only (default — no target needed)🔗 @deprecated_callable(deprecated_in="1.0", remove_in="2.0") ... def legacy_func(x: int) -&gt; int: ... return x A class source is rejected up front (use deprecated_class or deprecated instead)🔗 @deprecated_callable(deprecated_in="1.0", remove_in="2.0") # doctest: +IGNORE_EXCEPTION_DETAIL ... class OldClass: ... pass Traceback (most recent call last): TypeError: @deprecated_callable cannot decorate class OldClass ... instead)
       
     </span>
   </a>
@@ -2153,6 +2296,39 @@
     <span class="md-ellipsis">
       
         <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;deprecated_module
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fatal-deprecations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fatal deprecations
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deprecate.as_exceptions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;as_exceptions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deprecate.DeprecatedError" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;DeprecatedError
       
     </span>
   </a>
@@ -2454,6 +2630,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#deprecate.audit.GraceWindowSpec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;GraceWindowSpec
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#deprecate.audit.VersionBump" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2534,6 +2721,56 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label=" TableStyle">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#legacy-audit-aliases" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Legacy audit aliases
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deprecate.audit.DeprecatedCallableInfo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;DeprecatedCallableInfo
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deprecate.audit.find_deprecated_callables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;find_deprecated_callables
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deprecate.audit.validate_deprecated_callable" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;validate_deprecated_callable
+      
+    </span>
+  </a>
+  
 </li>
       
         <li class="md-nav__item">
@@ -2605,6 +2842,17 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deprecate.get_deprecation_config" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;get_deprecation_config
+      
+    </span>
+  </a>
   
 </li>
       
@@ -2691,6 +2939,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#command-line" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Command line
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2709,7 +2968,7 @@
 
 
 <h1 id="api-reference">API Reference<a class="headerlink" href="#api-reference" title="Permanent link">🔗</a></h1>
-<p>Auto-generated from source docstrings. For usage examples see the <a href="getting-started.html">User Guide</a>.</p>
+<p>Auto-generated from source docstrings. For usage examples see the <a href="guide/use-cases.html">Use Cases</a> guide, or <a href="getting-started.html">Getting Started</a> for installation and a first deprecation. The <code>pydeprecate</code> command-line tool is documented in the <a href="guide/cli.html">CLI Reference</a>.</p>
 <h2 id="decorator">Decorator<a class="headerlink" href="#decorator" title="Permanent link">🔗</a></h2>
 
 
@@ -2822,7 +3081,7 @@ callers to use :attr:<code>~deprecate.TargetMode.NOTIFY</code>.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Function to output warnings (default: :func:<code>~deprecate.deprecation.deprecation_warning</code>, which is
+                <p>Function to output warnings (default: :func:<code>~deprecate.messaging.deprecation_warning</code>, which is
 :func:<code>warnings.warn</code> with <code>FutureWarning</code> category). Set to <code>None</code> to disable warnings entirely —
 this also silences the one-time class-dispatch notice described under <code>Warns</code> below.
 The <code>stacklevel</code> passed is counted from the frame that calls <code>stream</code>, so it points at the caller
@@ -2993,8 +3252,8 @@ supplying both raises :class:<code>TypeError</code>. Removed in <code>v1.0</code
 :class:<code>~deprecate._fatal.DeprecatedError</code> — see :func:<code>~deprecate.routine.deprecated_callable</code>'s
 <code>as_exception</code> for the full contract (message text, <code>num_warns</code> bypass, <code>stream=None</code> and
 <code>skip_if</code> interaction, and the monotonic precedence against <code>deprecate.AS_EXCEPTIONS</code>).
-<code>None</code> (default) follows the global switch, which is off unless <code>DEPRECATE_AS_EXCEPTIONS</code> is
-set.</p>
+<code>None</code> (default) follows the open :func:<code>~deprecate._fatal.as_exceptions</code> scope, else
+<code>deprecate.AS_EXCEPTIONS</code> (off unless <code>DEPRECATE_AS_EXCEPTIONS</code> is set).</p>
               </div>
             </td>
             <td>
@@ -3202,7 +3461,7 @@ enum form.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Function to output warnings (default: :func:<code>~deprecate.deprecation.deprecation_warning</code>, which is
+                <p>Function to output warnings (default: :func:<code>~deprecate.messaging.deprecation_warning</code>, which is
 :func:<code>warnings.warn</code> with <code>FutureWarning</code> category). Set to <code>None</code> to disable warnings entirely.
 A custom <code>stream</code> is called once per warning, with <code>stacklevel=</code> only when its signature declares a
 <code>stacklevel</code> parameter or <code>**kwargs</code> (:func:<code>warnings.warn</code> and its partials always qualify); a
@@ -3392,10 +3651,11 @@ goes away. The raised message is the same text the warning would have carried, t
 target is never invoked, and the source body never runs (so <code>TargetMode.NOTIFY</code> and
 <code>TargetMode.ARGS_REMAP</code> stop instead of falling through). A fatal deprecation ignores
 <code>num_warns</code> and raises on <strong>every</strong> call, and <code>stream=None</code> silences only the message, never
-the raise; <code>skip_if</code> still suppresses it entirely. <code>None</code> (default) defers to the process-wide
-<code>deprecate.AS_EXCEPTIONS</code> switch (seeded from the <code>DEPRECATE_AS_EXCEPTIONS</code> environment
-variable); <code>True</code> is always fatal; <code>False</code> means "not fatal by default" and still yields to a
-<code>True</code> global, so a consumer's strict run cannot be opted out of by an upstream wrapper.
+the raise; <code>skip_if</code> still suppresses it entirely. <code>None</code> (default) follows the open
+:func:<code>~deprecate._fatal.as_exceptions</code> scope, else <code>deprecate.AS_EXCEPTIONS</code> (seeded from the
+<code>DEPRECATE_AS_EXCEPTIONS</code> environment variable); <code>True</code> is always fatal; <code>False</code> means "not
+fatal by default" and still yields to a <code>True</code> global, so a consumer's strict run cannot be opted out
+of by an upstream wrapper.
 Python's own <code>-W error::FutureWarning</code> is the alternative when you want <em>every</em> library's
 <code>FutureWarning</code> to raise; this flag is scoped to pyDeprecate's own deprecations and also works
 when <code>stream</code> is not a warnings function (e.g. :func:<code>logging.warning</code>).</p>
@@ -3663,7 +3923,7 @@ access.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Callable used to emit warnings. Defaults to :data:<code>~deprecate.deprecation.deprecation_warning</code>.
+                <p>Callable used to emit warnings. Defaults to :data:<code>~deprecate.messaging.deprecation_warning</code>.
 A custom <code>stream</code> is called once per warning, with <code>stacklevel=</code> only when its signature declares a
 <code>stacklevel</code> parameter or <code>**kwargs</code>; a C-level callable without an introspectable signature gets the
 message alone and loses caller attribution.
@@ -3885,7 +4145,7 @@ supplying both raises :class:<code>TypeError</code>.  Removed in <code>v1.0</cod
 <code>as_exception</code> for the full contract. Every access that would warn raises instead (structural
 probes such as <code>isinstance</code>, <code>repr</code>, equality, and <code>len</code> stay silent, exactly as they already
 were), the warn budget does not apply, and <code>stream=None</code> silences only the message. <code>None</code>
-(default) defers to the process-wide <code>deprecate.AS_EXCEPTIONS</code> switch.</p>
+(default) follows the open :func:<code>~deprecate._fatal.as_exceptions</code> scope, else <code>deprecate.AS_EXCEPTIONS</code>.</p>
               </div>
             </td>
             <td>
@@ -4208,7 +4468,7 @@ class attribute binds like a method, so <code>Model().scale(2)</code> passes the
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Callable used to emit warnings. Defaults to :data:<code>~deprecate.deprecation.deprecation_warning</code>
+                <p>Callable used to emit warnings. Defaults to :data:<code>~deprecate.messaging.deprecation_warning</code>
 (:class:<code>FutureWarning</code>).  Pass <code>None</code> to suppress warnings.  A custom <code>stream</code> is called once per
 warning, with <code>stacklevel=</code> only when its signature declares a <code>stacklevel</code> parameter or <code>**kwargs</code>;
 a C-level callable without an introspectable signature gets the message alone and loses caller attribution.
@@ -4329,7 +4589,7 @@ supplying both raises :class:<code>TypeError</code>.  Removed in <code>v1.0</cod
 <code>as_exception</code> for the full contract. Every access that would warn raises instead (structural
 probes such as <code>isinstance</code>, <code>repr</code>, equality, and <code>len</code> stay silent, exactly as they already
 were), the warn budget does not apply, and <code>stream=None</code> silences only the message. <code>None</code>
-(default) defers to the process-wide <code>deprecate.AS_EXCEPTIONS</code> switch.</p>
+(default) follows the open :func:<code>~deprecate._fatal.as_exceptions</code> scope, else <code>deprecate.AS_EXCEPTIONS</code>.</p>
               </div>
             </td>
             <td>
@@ -4433,7 +4693,7 @@ True</p>
 
 
 <h2 id="deprecate.module.deprecated_module" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">deprecate</span><span class="o">.</span><span class="n">module</span><span class="o">.</span><span class="n">deprecated_module</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">attrs_mapping</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s1">''</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s1">''</span><span class="p">,</span> <span class="n">stream</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">message_template</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">num_warns</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">as_exception</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">deprecate</span><span class="o">.</span><span class="n">module</span><span class="o">.</span><span class="n">deprecated_module</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">attrs_mapping</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s1">''</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s1">''</span><span class="p">,</span> <span class="n">stream</span><span class="o">=</span><span class="n">_STREAM_DEFAULT</span><span class="p">,</span> <span class="n">message_template</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">num_warns</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">as_exception</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
 <a href="#deprecate.module.deprecated_module" class="headerlink" title="Permanent link">🔗</a></h2>
 
@@ -4569,14 +4829,18 @@ audits cannot gate the module), matching :func:<code>~deprecate.deprecated</code
                 <code>stream</code>
             </td>
             <td>
-                  <code><span title="typing.Optional">Optional</span>[<span title="typing.Callable">Callable</span>[..., <span title="typing.Any">Any</span>]]</code>
+                  <code><span title="typing.Union">Union</span>[<span title="typing.Callable">Callable</span>[..., <span title="typing.Any">Any</span>], None, <span title="typing.Literal">Literal</span>[<span title="deprecate.module._StreamDefault.WARNINGS">WARNINGS</span>]]</code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Callable used to emit the warning instead of :func:<code>warnings.warn</code>.  Pass <code>None</code> (default) to use
-the standard :mod:<code>warnings</code> machinery.  Subject to the same <code>num_warns</code> budget as every other
-emission path: a custom <code>stream</code> (e.g. <code>logging.warning</code>) stops being invoked once the budget is
-exhausted, exactly like the default :func:<code>warnings.warn</code> path.  A custom <code>stream</code> is called once per
+                <p>Callable used to emit the warning instead of :func:<code>warnings.warn</code>.  Omit it (the default, which
+:func:<code>help</code> and :func:<code>inspect.signature</code> show as <code>&lt;warnings.warn&gt;</code>) to use the standard
+:mod:<code>warnings</code> machinery.  An explicit <code>None</code> still selects :func:<code>warnings.warn</code> but emits a
+:class:<code>FutureWarning</code> at the call: in v1.0 <code>stream=None</code> will silence the module warning, as on
+every other entry point, and the <code>num_warns</code> default will change from <code>-1</code> to <code>1</code>.  Subject to
+the same <code>num_warns</code> budget as every other emission path: a custom <code>stream</code> (e.g.
+<code>logging.warning</code>) stops being invoked once the budget is exhausted, exactly like the default
+:func:<code>warnings.warn</code> path.  A custom <code>stream</code> is called once per
 warning, with <code>stacklevel=</code> only when its signature declares a <code>stacklevel</code> parameter or <code>**kwargs</code>;
 a C-level callable without an introspectable signature gets the message alone and loses caller attribution.
 The <code>stacklevel</code> passed is counted from the frame that calls <code>stream</code>, so it points at the caller
@@ -4586,7 +4850,7 @@ module-level :func:<code>logging.warning</code> before Python 3.11, land one fra
               </div>
             </td>
             <td>
-                  <code>None</code>
+                  <code><span title="deprecate.module._STREAM_DEFAULT">_STREAM_DEFAULT</span></code>
             </td>
           </tr>
           <tr class="doc-section-item">
@@ -4628,7 +4892,8 @@ Standard warning filters can suppress repeated display. The counter is
 shared across every attribute name on the module (there is no per-attribute budget, unlike
 <code>deprecated_class</code>'s <code>attrs_mapping</code>-scoped counters) and is thread-safe under concurrent
 access. The default <code>-1</code> takes no budget lock on the <code>__getattribute__</code> hot path, but each access
-still performs normal metadata lookup and warning handling.</p>
+still performs normal metadata lookup and warning handling. The default becomes <code>1</code> in v1.0, matching
+the other entry points; pass <code>num_warns=-1</code> explicitly to keep unlimited delivery.</p>
               </div>
             </td>
             <td>
@@ -4647,8 +4912,8 @@ still performs normal metadata lookup and warning handling.</p>
                 <p>Promote every access to this module into a raised
 :class:<code>~deprecate._fatal.DeprecatedError</code> instead of a warning — see
 :func:<code>~deprecate.routine.deprecated_callable</code>'s <code>as_exception</code> for the full contract. A fatal
-module deprecation ignores <code>num_warns</code> (every access raises) and is not silenced by
-<code>stream=None</code>. <code>None</code> (default) defers to the process-wide <code>deprecate.AS_EXCEPTIONS</code> switch.</p>
+module deprecation ignores <code>num_warns</code> (every access raises) and does not depend on
+<code>stream</code>. <code>None</code> (default) follows the open <code>as_exceptions()</code> scope, else <code>deprecate.AS_EXCEPTIONS</code>.</p>
               </div>
             </td>
             <td>
@@ -4713,6 +4978,199 @@ plain :class:<code>types.ModuleType</code> first if needed.</p>
 <a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="go">True</span>
 <a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="gp">&gt;&gt;&gt; </span><span class="k">del</span> <span class="n">sys</span><span class="o">.</span><span class="n">modules</span><span class="p">[</span><span class="s2">"demo_old"</span><span class="p">]</span>
 </code></pre></div>
+
+
+    </div>
+
+</div><h2 id="fatal-deprecations">Fatal deprecations<a class="headerlink" href="#fatal-deprecations" title="Permanent link">🔗</a></h2>
+<p><code>deprecate.AS_EXCEPTIONS</code> is a plain <code>bool</code> module attribute: the process-wide switch that turns every deprecation into a <code>DeprecatedError</code>. It is seeded at import from the <code>DEPRECATE_AS_EXCEPTIONS</code> environment variable and re-read on every emission. See <a href="guide/functions.html#fatal-deprecations">Fatal deprecations</a>.</p>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="deprecate.as_exceptions" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">deprecate</span><span class="o">.</span><span class="n">as_exceptions</span><span class="p">(</span><span class="n">enabled</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></code>
+
+<a href="#deprecate.as_exceptions" class="headerlink" title="Permanent link">🔗</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+        <p>Make deprecations fatal for one block of code, then restore the previous setting.</p>
+<p>Inside the block, deprecations that defer to the global switch raise (<code>enabled=True</code>) or warn
+(<code>enabled=False</code>); on exit the previous setting applies again, also when the block raises, so nested scopes
+compose.  <code>as_exceptions(False)</code> exempts a block from a strict run (e.g. one seeded by
+<code>DEPRECATE_AS_EXCEPTIONS=1</code>).  Precedence stays monotonic: a wrapper's own <code>as_exception=True</code> raises inside
+an <code>as_exceptions(False)</code> block too.  Like the global itself, this is the consumer's switch (an application or
+a test suite), not something library code should set.</p>
+<p>Also usable as a decorator, but only on plain synchronous functions: an <code>async def</code>, generator or
+async-generator function, or an instance whose <code>__call__</code> is one, is rejected with a :class:<code>TypeError</code> at
+decoration time, because its body runs after the scope would have closed.  Use <code>with as_exceptions():</code>
+inside such a body instead.</p>
+<p>The scope is local to the current thread and <code>asyncio</code> task (a :class:<code>~contextvars.ContextVar</code>), and it
+never modifies <code>deprecate.AS_EXCEPTIONS</code>: inside a scope that attribute still reports the global value, and
+assigning it there takes effect once the scope closes.  Sibling tasks keep the global setting, so holding a
+scope across an <code>await</code> is safe for concurrent code; other threads keep it too unless they inherit the
+context.  Tasks created inside a scope inherit it, because a task copies the context at creation.  A new thread
+inherits the scope only when the interpreter copies the starting context into it
+(<code>sys.flags.thread_inherit_context</code>, Python 3.14+: on by default in free-threaded builds, opt-in with
+<code>-X thread_inherit_context=1</code> otherwise): an inheriting thread, including a pool worker started inside
+the scope, keeps the scope after the block closes, whereas otherwise <code>asyncio.to_thread</code> carries the scope
+into a thread by default and <code>loop.run_in_executor</code> workers see the global setting.  Any other thread
+inherits only through explicit propagation: run its target through
+:meth:<code>contextvars.copy_context().run &lt;contextvars.Context.run&gt;</code>, or pass <code>context=</code> to
+:class:<code>threading.Thread</code> on Python 3.14+.</p>
+<p>A generator or async generator shares its consumer's context, so a scope held across a <code>yield</code> applies to
+the consumer while the generator is suspended; leaving the scope from another task or context (for example
+<code>aclose()</code> called elsewhere) never raises, but it removes the newest entry for that scope object in the
+closing context, be that an inherited copy of the scope or the closer's own activation of the same object, and
+changes nothing there only when the context holds none; either way the scope stays open in the consumer's
+context.  Open and close a scope within one step of a generator.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>enabled</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Whether deferring deprecations raise inside the block.</p>
+              </div>
+            </td>
+            <td>
+                  <code>True</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="deprecate._fatal._ScopedSwitch">_ScopedSwitch</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A scope usable in a <code>with</code> statement or as a decorator for a synchronous function.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="TypeError">TypeError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If <code>enabled</code> is not a <code>bool</code> — raised by the call itself, so a bare <code>@as_exceptions</code>
+(without parentheses) fails at decoration instead of silently returning a wrapper.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Examples:</span></p>
+    <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">deprecate</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">DeprecatedError</span><span class="p">,</span> <span class="n">TargetMode</span><span class="p">,</span> <span class="n">deprecated</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="gp">&gt;&gt;&gt; </span><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">TargetMode</span><span class="o">.</span><span class="n">NOTIFY</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">"1.0"</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">"2.0"</span><span class="p">,</span> <span class="n">num_warns</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="gp">... </span><span class="k">def</span><span class="w"> </span><span class="nf">legacy_total</span><span class="p">(</span><span class="n">a</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="gp">... </span>    <span class="k">return</span> <span class="n">a</span> <span class="o">+</span> <span class="n">b</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">_restore</span> <span class="o">=</span> <span class="n">deprecate</span><span class="o">.</span><span class="n">AS_EXCEPTIONS</span>  <span class="c1"># this doctest assumes the global is off; put it back afterwards</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">deprecate</span><span class="o">.</span><span class="n">AS_EXCEPTIONS</span> <span class="o">=</span> <span class="kc">False</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="gp">&gt;&gt;&gt; </span><span class="k">with</span> <span class="n">as_exceptions</span><span class="p">():</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="gp">... </span>    <span class="n">legacy_total</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="gt">Traceback (most recent call last):</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="c">...</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="gr">deprecate._fatal.DeprecatedError</span>: <span class="n">The `legacy_total` was deprecated since v1.0. It will be removed in v2.0.</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">deprecate</span><span class="o">.</span><span class="n">AS_EXCEPTIONS</span>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="go">False</span>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">as_exceptions</span><span class="p">(</span><span class="s2">"1"</span><span class="p">)</span>
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="gt">Traceback (most recent call last):</span>
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="c">...</span>
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="gr">TypeError</span>: <span class="n">`enabled` must be a bool, got str</span>
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">deprecate</span><span class="o">.</span><span class="n">AS_EXCEPTIONS</span> <span class="o">=</span> <span class="n">_restore</span>
+</code></pre></div>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="deprecate.DeprecatedError" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>deprecate.DeprecatedError</code>
+
+
+<a href="#deprecate.DeprecatedError" class="headerlink" title="Permanent link">🔗</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="RuntimeError">RuntimeError</span></code></p>
+
+
+
+        <p>Raised instead of a deprecation warning when a deprecation is configured as fatal.</p>
+<p>Derives from :class:<code>RuntimeError</code> so an existing <code>except Exception</code> still catches it and no caller can
+mistake it for a :class:<code>Warning</code> subclass.  The message is the same text the warning would have carried.</p>
+
+
+<p><span class="doc-section-title">Examples:</span></p>
+    <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="gp">&gt;&gt;&gt; </span><span class="k">raise</span> <span class="n">DeprecatedError</span><span class="p">(</span><span class="s2">"The `old_func` was deprecated since v1.0."</span><span class="p">)</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="gt">Traceback (most recent call last):</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="c">...</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="gr">deprecate._fatal.DeprecatedError</span>: <span class="n">The `old_func` was deprecated since v1.0.</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="gp">&gt;&gt;&gt; </span><span class="nb">issubclass</span><span class="p">(</span><span class="n">DeprecatedError</span><span class="p">,</span> <span class="ne">Warning</span><span class="p">)</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="go">False</span>
+</code></pre></div>
+
+
+
+
+
+
+
 
 
     </div>
@@ -5390,7 +5848,11 @@ of :func:<code>~deprecate.audit.find_deprecation_wrappers</code>.</p>
                 <code>min_grace</code>
             </td>
             <td>
-                  <code><span title="typing.Optional">Optional</span>[<span title="deprecate.audit._policy.GraceWindowSpec">GraceWindowSpec</span>]</code>
+                  <code><span title="typing.Optional">Optional</span>[<a class="autorefs autorefs-internal" title="            deprecate.audit.GraceWindowSpec = Union[str, float, Mapping[str, int], GraceWindow]
+
+  
+      module-attribute
+   (deprecate.audit._policy.GraceWindowSpec)" href="#deprecate.audit.GraceWindowSpec">GraceWindowSpec</a>]</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -6304,8 +6766,8 @@ See :class:<code>~deprecate.audit.ChainType</code> for values
             <td>
               <div class="doc-md-description">
                 <p>True when the wrapper has an invalid target configuration:
-<code>target=False</code>, :attr:<code>~deprecate._types.TargetMode.NOTIFY</code> with <code>args_mapping</code>, or
-:attr:<code>~deprecate._types.TargetMode.ARGS_REMAP</code> with empty <code>args_mapping</code>.</p>
+<code>target=False</code>, :attr:<code>~deprecate._types.TargetMode.NOTIFY</code> with <code>args_mapping</code>, <code>args_extra</code>
+or <code>attrs_mapping</code>, or :attr:<code>~deprecate._types.TargetMode.ARGS_REMAP</code> with empty <code>args_mapping</code>.</p>
               </div>
             </td>
           </tr>
@@ -6483,8 +6945,9 @@ Will be removed in v1.0.</p>
 
 <details class="note" open>
   <summary>Note</summary>
-  <p>Python's default warning filter deduplicates per <code>(message, category, module, lineno)</code>,
-so accessing this property in a loop from the same call site emits at most one warning.</p>
+  <p>Every read emits a :class:<code>FutureWarning</code> (<code>num_warns=-1</code>). Python's default warning filter
+deduplicates per <code>(message, category, module, lineno)</code>, so a loop at one call site shows it once under
+the default filter; under <code>"always"</code> every read warns.</p>
 </details>
 
     </div>
@@ -6512,8 +6975,9 @@ Will be removed in v1.0.</p>
 
 <details class="note" open>
   <summary>Note</summary>
-  <p>Python's default warning filter deduplicates per <code>(message, category, module, lineno)</code>,
-so accessing this property in a loop from the same call site emits at most one warning.</p>
+  <p>Every read emits a :class:<code>FutureWarning</code> (<code>num_warns=-1</code>). Python's default warning filter
+deduplicates per <code>(message, category, module, lineno)</code>, so a loop at one call site shows it once under
+the default filter; under <code>"always"</code> every read warns.</p>
 </details>
 
     </div>
@@ -6898,7 +7362,11 @@ window.</p>
                 <code>min_grace</code>
             </td>
             <td>
-                  <code><span title="deprecate.audit._policy.GraceWindowSpec">GraceWindowSpec</span></code>
+                  <code><a class="autorefs autorefs-internal" title="            deprecate.audit.GraceWindowSpec = Union[str, float, Mapping[str, int], GraceWindow]
+
+  
+      module-attribute
+   (deprecate.audit._policy.GraceWindowSpec)" href="#deprecate.audit.GraceWindowSpec">GraceWindowSpec</a></code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -6984,6 +7452,26 @@ already-built window.</p>
 
 
   </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h2 id="deprecate.audit.GraceWindowSpec" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">deprecate</span><span class="o">.</span><span class="n">audit</span><span class="o">.</span><span class="n">GraceWindowSpec</span> <span class="o">=</span> <span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span> <span class="n">GraceWindow</span><span class="p">]</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
+  </span>
+
+<a href="#deprecate.audit.GraceWindowSpec" class="headerlink" title="Permanent link">🔗</a></h2>
+
+
+    <div class="doc doc-contents first">
 
     </div>
 
@@ -7222,6 +7710,73 @@ The ordering operators are overridden to raise <code>TypeError</code> so acciden
 
 
   </div>
+
+    </div>
+
+</div><h3 id="legacy-audit-aliases">Legacy audit aliases<a class="headerlink" href="#legacy-audit-aliases" title="Permanent link">🔗</a></h3>
+<p>Deprecated since 0.6 and removed in 1.0; use the replacement named in each entry.</p>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="deprecate.audit.DeprecatedCallableInfo" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>deprecate.audit.DeprecatedCallableInfo</code>
+
+
+<a href="#deprecate.audit.DeprecatedCallableInfo" class="headerlink" title="Permanent link">🔗</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Deprecated name for :class:<code>~deprecate.audit.DeprecationWrapperInfo</code>, use that instead.</p>
+
+
+
+
+
+
+
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="deprecate.audit.find_deprecated_callables" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">deprecate</span><span class="o">.</span><span class="n">audit</span><span class="o">.</span><span class="n">find_deprecated_callables</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></code>
+
+<a href="#deprecate.audit.find_deprecated_callables" class="headerlink" title="Permanent link">🔗</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+        <p>Use :func:<code>~deprecate.audit.find_deprecation_wrappers</code> instead.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="deprecate.audit.validate_deprecated_callable" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">deprecate</span><span class="o">.</span><span class="n">audit</span><span class="o">.</span><span class="n">validate_deprecated_callable</span><span class="p">(</span><span class="n">func</span><span class="p">)</span></code>
+
+<a href="#deprecate.audit.validate_deprecated_callable" class="headerlink" title="Permanent link">🔗</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+        <p>Use :func:<code>~deprecate.audit.validate_deprecation_wrapper</code> instead.</p>
+
 
     </div>
 
@@ -7539,6 +8094,105 @@ True</p>
 
     </div>
 
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="deprecate.get_deprecation_config" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">deprecate</span><span class="o">.</span><span class="n">get_deprecation_config</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span></code>
+
+<a href="#deprecate.get_deprecation_config" class="headerlink" title="Permanent link">🔗</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+        <p>Return the :class:<code>~deprecate._types.DeprecationConfig</code> metadata attached to <em>obj</em>, if any.</p>
+<p>This is the supported external read path for a wrapper's deprecation metadata, replacing direct
+<code>obj.__deprecated__</code> access: since <code>v0.13</code>, <code>__deprecated__</code> holds a plain PEP-702-conformant message
+string, not the config object — see the <code>v0.12-to-v0.13</code> migration guide.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>obj</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Any object to inspect — a <code>@deprecated</code>-wrapped function/method, a class or instance proxy from
+:func:<code>~deprecate.proxy.deprecated_class</code> / :func:<code>~deprecate.proxy.deprecated_instance</code>, or a module
+deprecated via :func:<code>~deprecate.module.deprecated_module</code>.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="deprecate._types.DeprecationConfig">DeprecationConfig</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The attached :class:<code>~deprecate._types.DeprecationConfig</code>, or <code>None</code> when <em>obj</em> carries no pyDeprecate</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="deprecate._types.DeprecationConfig">DeprecationConfig</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>metadata.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Examples:</span></p>
+    <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span><span class="p">,</span> <span class="n">get_deprecation_config</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="gp">&gt;&gt;&gt; </span><span class="k">def</span><span class="w"> </span><span class="nf">new_func</span><span class="p">():</span> <span class="k">pass</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="gp">&gt;&gt;&gt; </span><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">new_func</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">"1.0"</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">"2.0"</span><span class="p">)</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="gp">... </span><span class="k">def</span><span class="w"> </span><span class="nf">old_func</span><span class="p">():</span> <span class="k">pass</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">get_deprecation_config</span><span class="p">(</span><span class="n">old_func</span><span class="p">)</span><span class="o">.</span><span class="n">target</span> <span class="ow">is</span> <span class="n">new_func</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="go">True</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">get_deprecation_config</span><span class="p">(</span><span class="n">new_func</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="go">True</span>
+</code></pre></div>
+
+
+    </div>
+
 </div><h2 id="utilities">Utilities<a class="headerlink" href="#utilities" title="Permanent link">🔗</a></h2>
 
 
@@ -7781,7 +8435,8 @@ without triggering deprecation warnings.</p>
 
     </div>
 
-</div>
+</div><h2 id="command-line">Command line<a class="headerlink" href="#command-line" title="Permanent link">🔗</a></h2>
+<p>The <code>pydeprecate</code> command wraps the audit functions above for CI and pre-commit use; its subcommands, flags and exit codes are listed in the <a href="guide/cli.html">CLI Reference</a>.</p>
 
 
 
@@ -7804,7 +8459,7 @@ without triggering deprecation warnings.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="September 18, 2026 18:25:07 UTC">2026-09-18</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 29, 2026 09:40:07 UTC">2026-10-29</span>
   </span>
 
     

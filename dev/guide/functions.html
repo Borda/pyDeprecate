@@ -100,7 +100,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-06-15",
-  "dateModified": "2026-10-26"
+  "dateModified": "2026-10-29"
 }
 </script>
 
@@ -724,6 +724,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#recipe-the-warning-becomes-an-error-at-version-x" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Recipe: the warning becomes an error at version X
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#when-to-prefer-w-error-instead" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1336,6 +1347,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../limitations.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Limitations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../brand.html" class="md-nav__link">
         
   
@@ -1398,10 +1436,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_12" >
         
           
-          <label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_12" id="__nav_12_label" tabindex="0">
             
   
   
@@ -1419,8 +1457,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_11">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_12">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1726,6 +1764,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#recipe-the-warning-becomes-an-error-at-version-x" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Recipe: the warning becomes an error at version X
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#when-to-prefer-w-error-instead" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1811,6 +1860,7 @@
 </code></pre></div>
 </div>
 <p>Apply <code>@deprecated(target=&lt;callable&gt;)</code> to the old name and pyDeprecate forwards every call (positional and keyword arguments included) to the new function. Under normal forwarding the body is dead code, so leave it empty or put a docstring there (see also <a href="void-helper.html">void() helper</a> for a null-forwarding idiom). The one exception is <code>skip_if=True</code> at call time — see the danger admonition above — where the source body executes as a fallback; keep a working body when combining <code>target=&lt;callable&gt;</code> with <code>skip_if</code>.</p>
+<p>The warning fires when the deprecated function is <strong>called</strong> (for an <code>async def</code> function, when the coroutine is <strong>awaited</strong>; async generators still warn at call time — see <a href="async.html">Async</a>), not when it is defined or imported, so importing a module that merely defines deprecated functions stays silent. The one exception is a deprecated function that is itself used as a decorator: applying it with <code>@</code> calls it at the <code>def</code> statement, so it warns at definition time — see <a href="../troubleshooting.html#my-deprecated-wrappers-warning-fires-when-i-define-a-function-not-when-i-call-it">this troubleshooting answer</a> and <a href="https://github.com/Borda/pyDeprecate/issues/96">issue #96</a>.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># NEW/FUTURE API — renamed to be more explicit about what it computes</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">compute</span><span class="p">(</span><span class="n">a</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span><span class="sd">"""New function anywhere in the codebase or even other package."""</span>
@@ -2384,7 +2434,7 @@
 <p><code>deprecate.AS_EXCEPTIONS</code> is the process-wide default, seeded at import from the <code>DEPRECATE_AS_EXCEPTIONS</code> environment variable (<code>1</code>, <code>true</code>, <code>yes</code>, or <code>on</code>; anything else is off). It is re-read on every emission, so an application can flip it during bootstrap and a test suite can toggle it per case:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="nv">DEPRECATE_AS_EXCEPTIONS</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>pytest
 </code></pre></div>
-<p>To make deprecations fatal for one stretch of code only, use the <code>as_exceptions()</code> context manager. It sets <code>deprecate.AS_EXCEPTIONS</code> on entry and restores the previous value on exit, also when the block raises, so nested scopes compose. <code>as_exceptions(False)</code> does the reverse and exempts a block from a strict run. It also works as a decorator.</p>
+<p>To make deprecations fatal for one stretch of code only, use the <code>as_exceptions()</code> context manager. Deprecations that defer to the global switch raise inside the block, and the previous setting applies again on exit, also when the block raises, so nested scopes compose. <code>as_exceptions(False)</code> does the reverse and exempts a block from a strict run. It also works as a decorator.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">DeprecatedError</span><span class="p">,</span> <span class="n">as_exceptions</span><span class="p">,</span> <span class="n">deprecated</span>
 <a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>
 <a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a>
@@ -2423,8 +2473,35 @@
 
 </details>
 
-<p>The scope is process-wide, not local to a thread or an <code>asyncio</code> task: code running concurrently with the block sees the same setting, and scopes opened from different threads or tasks that overlap out of order can leave the switch in the wrong state for the rest of the process (for example <code>True</code> after both scopes closed), so do not hold a scope across an <code>await</code> in concurrent code. As a decorator it only covers plain synchronous functions: decorating an <code>async def</code>, generator or async-generator function raises <code>TypeError</code>, because its body would run after the scope closed — use <code>with as_exceptions():</code> inside the body instead. A non-<code>bool</code> flag, including a bare <code>@as_exceptions</code> without parentheses, raises <code>TypeError</code> at the call. Like <code>deprecate.AS_EXCEPTIONS</code> itself, it is the consumer's switch (an application or test suite); library code should not use <code>as_exceptions(False)</code> to escape a caller's strict run.</p>
+<p>The scope is local to the current thread and <code>asyncio</code> task: it is held in a <code>ContextVar</code>, so other threads and sibling tasks keep the global setting, and holding a scope across an <code>await</code> is safe. Tasks created inside the block inherit the scope, because a task copies the context when it is created; whether a new thread inherits it depends on the interpreter, so run the thread's target through <code>contextvars.copy_context().run(...)</code> when it must. The scope never modifies <code>deprecate.AS_EXCEPTIONS</code>: inside the block that attribute still reports the global value, and assigning it there takes effect once the block closes. A generator or async generator shares its consumer's context, so a scope held across a <code>yield</code> also applies to the consumer while the generator is suspended; open and close the scope within one step of the generator (see <a href="../limitations.html">Limitations</a>). As a decorator it only covers plain synchronous functions: decorating an <code>async def</code>, generator or async-generator function raises <code>TypeError</code>, because its body would run after the scope closed — use <code>with as_exceptions():</code> inside the body instead. A non-<code>bool</code> flag, including a bare <code>@as_exceptions</code> without parentheses, raises <code>TypeError</code> at the call. Like <code>deprecate.AS_EXCEPTIONS</code> itself, it is the consumer's switch (an application or test suite); library code should not use <code>as_exceptions(False)</code> to escape a caller's strict run.</p>
 <p>Precedence is <strong>monotonic</strong>: an explicit <code>as_exception=True</code> is always fatal, and <code>as_exception=False</code> means "not fatal by default" but still yields to a <code>True</code> global. A wrapper's own <code>as_exception=False</code> therefore cannot opt a consumer's strict run out; only the consumer's own <code>as_exceptions(False)</code> scope or <code>AS_EXCEPTIONS</code> setting can, while an author can still promote one symbol ahead of the rest.</p>
+<h3 id="recipe-the-warning-becomes-an-error-at-version-x">Recipe: the warning becomes an error at version X<a class="headerlink" href="#recipe-the-warning-becomes-an-error-at-version-x" title="Permanent link">🔗</a></h3>
+<p>To promote a deprecation from warning to error on a schedule, pass <code>as_exception</code> a value computed from your package version and a version of your choosing (here <code>ERROR_IN</code>, typically between <code>deprecated_in</code> and <code>remove_in</code>). <code>as_exception</code> is read once, at decoration time, so the switch flips on the first import under the new version. Compare parsed versions rather than strings — tuples below keep the example dependency-free; <code>packaging.version.Version</code> works the same.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">DeprecatedError</span><span class="p">,</span> <span class="n">TargetMode</span><span class="p">,</span> <span class="n">deprecated_callable</span>
+<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>
+<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a><span class="n">PACKAGE_VERSION</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>  <span class="c1"># in a real package: parse your own `__version__`</span>
+<a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a><span class="n">ERROR_IN</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>  <span class="c1"># the release where callers must stop using the old name</span>
+<a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a>
+<a id="__codelineno-29-6" name="__codelineno-29-6" href="#__codelineno-29-6"></a>
+<a id="__codelineno-29-7" name="__codelineno-29-7" href="#__codelineno-29-7"></a><span class="nd">@deprecated_callable</span><span class="p">(</span><span class="n">TargetMode</span><span class="o">.</span><span class="n">NOTIFY</span><span class="p">,</span> <span class="s2">"1.0"</span><span class="p">,</span> <span class="s2">"2.0"</span><span class="p">,</span> <span class="n">as_exception</span><span class="o">=</span><span class="n">PACKAGE_VERSION</span> <span class="o">&gt;=</span> <span class="n">ERROR_IN</span><span class="p">)</span>
+<a id="__codelineno-29-8" name="__codelineno-29-8" href="#__codelineno-29-8"></a><span class="k">def</span><span class="w"> </span><span class="nf">legacy_digest</span><span class="p">(</span><span class="n">payload</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-29-9" name="__codelineno-29-9" href="#__codelineno-29-9"></a>    <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">payload</span><span class="p">)</span>
+<a id="__codelineno-29-10" name="__codelineno-29-10" href="#__codelineno-29-10"></a>
+<a id="__codelineno-29-11" name="__codelineno-29-11" href="#__codelineno-29-11"></a>
+<a id="__codelineno-29-12" name="__codelineno-29-12" href="#__codelineno-29-12"></a><span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-29-13" name="__codelineno-29-13" href="#__codelineno-29-13"></a>    <span class="n">legacy_digest</span><span class="p">(</span><span class="s2">"abc"</span><span class="p">)</span>
+<a id="__codelineno-29-14" name="__codelineno-29-14" href="#__codelineno-29-14"></a><span class="k">except</span> <span class="n">DeprecatedError</span> <span class="k">as</span> <span class="n">err</span><span class="p">:</span>
+<a id="__codelineno-29-15" name="__codelineno-29-15" href="#__codelineno-29-15"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">err</span><span class="p">)</span>
+</code></pre></div>
+<details>
+  <summary>Output: <code>legacy_digest("abc")</code></summary>
+
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>The `legacy_digest` was deprecated since v1.0. It will be removed in v2.0.
+</code></pre></div>
+
+</details>
+
+<p>Below <code>ERROR_IN</code> the same code only warns. As the release-time backstop, run <a href="cli.html"><code>pydeprecate expiry</code></a> in CI: it exits <code>1</code> when any wrapper is past its <code>remove_in</code> deadline, so a deprecation that was never deleted cannot ship by accident.</p>
 <h3 id="when-to-prefer-w-error-instead">When to prefer <code>-W error</code> instead<a class="headerlink" href="#when-to-prefer-w-error-instead" title="Permanent link">🔗</a></h3>
 <p>Python already turns warnings into exceptions: <code>-W error::FutureWarning</code> or <code>PYTHONWARNINGS=error::FutureWarning</code>. Use those when you want <em>every</em> library's <code>FutureWarning</code> to raise. <code>as_exception</code> exists for the three cases they cannot cover:</p>
 <ol>
@@ -2434,28 +2511,28 @@
 </ol>
 <h2 id="static-type-checkers-pep-702">Static type checkers (PEP 702)<a class="headerlink" href="#static-type-checkers-pep-702" title="Permanent link">🔗</a></h2>
 <p>mypy, pyright, and IDEs flag a deprecated symbol only when its decorator is literally <code>warnings.deprecated</code> (Python 3.13+) or its backport <code>typing_extensions.deprecated</code> — they recognise the decorator by name, not by what it does at runtime. <code>@deprecated</code> from pyDeprecate is invisible to them. To get the strikethrough in the editor <em>and</em> pyDeprecate's forwarding and warning, stack the PEP 702 decorator directly above pyDeprecate's:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">typing_extensions</span>  <span class="c1"># on Python 3.13+: `import warnings` and `@warnings.deprecated(...)`</span>
-<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>
-<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
-<a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a>
-<a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a>
-<a id="__codelineno-29-6" name="__codelineno-29-6" href="#__codelineno-29-6"></a><span class="c1"># NEW API — the renamed helper</span>
-<a id="__codelineno-29-7" name="__codelineno-29-7" href="#__codelineno-29-7"></a><span class="k">def</span><span class="w"> </span><span class="nf">fetch_orders</span><span class="p">(</span><span class="n">customer_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">:</span>
-<a id="__codelineno-29-8" name="__codelineno-29-8" href="#__codelineno-29-8"></a>    <span class="k">return</span> <span class="p">[</span><span class="n">customer_id</span><span class="p">]</span>
-<a id="__codelineno-29-9" name="__codelineno-29-9" href="#__codelineno-29-9"></a>
-<a id="__codelineno-29-10" name="__codelineno-29-10" href="#__codelineno-29-10"></a>
-<a id="__codelineno-29-11" name="__codelineno-29-11" href="#__codelineno-29-11"></a><span class="c1"># DEPRECATED API — struck through by type checkers, forwarded with a warning at runtime</span>
-<a id="__codelineno-29-12" name="__codelineno-29-12" href="#__codelineno-29-12"></a><span class="nd">@typing_extensions</span><span class="o">.</span><span class="n">deprecated</span><span class="p">(</span><span class="s2">"Use `fetch_orders` instead."</span><span class="p">,</span> <span class="n">category</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
-<a id="__codelineno-29-13" name="__codelineno-29-13" href="#__codelineno-29-13"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">fetch_orders</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">"1.4"</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">"2.0"</span><span class="p">)</span>
-<a id="__codelineno-29-14" name="__codelineno-29-14" href="#__codelineno-29-14"></a><span class="k">def</span><span class="w"> </span><span class="nf">get_orders</span><span class="p">(</span><span class="n">customer_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">:</span> <span class="o">...</span>
-<a id="__codelineno-29-15" name="__codelineno-29-15" href="#__codelineno-29-15"></a>
-<a id="__codelineno-29-16" name="__codelineno-29-16" href="#__codelineno-29-16"></a>
-<a id="__codelineno-29-17" name="__codelineno-29-17" href="#__codelineno-29-17"></a><span class="nb">print</span><span class="p">(</span><span class="n">get_orders</span><span class="p">(</span><span class="mi">7</span><span class="p">))</span>  <span class="c1"># warns: FutureWarning</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">typing_extensions</span>  <span class="c1"># on Python 3.13+: `import warnings` and `@warnings.deprecated(...)`</span>
+<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a>
+<a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
+<a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a>
+<a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a>
+<a id="__codelineno-31-6" name="__codelineno-31-6" href="#__codelineno-31-6"></a><span class="c1"># NEW API — the renamed helper</span>
+<a id="__codelineno-31-7" name="__codelineno-31-7" href="#__codelineno-31-7"></a><span class="k">def</span><span class="w"> </span><span class="nf">fetch_orders</span><span class="p">(</span><span class="n">customer_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">:</span>
+<a id="__codelineno-31-8" name="__codelineno-31-8" href="#__codelineno-31-8"></a>    <span class="k">return</span> <span class="p">[</span><span class="n">customer_id</span><span class="p">]</span>
+<a id="__codelineno-31-9" name="__codelineno-31-9" href="#__codelineno-31-9"></a>
+<a id="__codelineno-31-10" name="__codelineno-31-10" href="#__codelineno-31-10"></a>
+<a id="__codelineno-31-11" name="__codelineno-31-11" href="#__codelineno-31-11"></a><span class="c1"># DEPRECATED API — struck through by type checkers, forwarded with a warning at runtime</span>
+<a id="__codelineno-31-12" name="__codelineno-31-12" href="#__codelineno-31-12"></a><span class="nd">@typing_extensions</span><span class="o">.</span><span class="n">deprecated</span><span class="p">(</span><span class="s2">"Use `fetch_orders` instead."</span><span class="p">,</span> <span class="n">category</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+<a id="__codelineno-31-13" name="__codelineno-31-13" href="#__codelineno-31-13"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">fetch_orders</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">"1.4"</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">"2.0"</span><span class="p">)</span>
+<a id="__codelineno-31-14" name="__codelineno-31-14" href="#__codelineno-31-14"></a><span class="k">def</span><span class="w"> </span><span class="nf">get_orders</span><span class="p">(</span><span class="n">customer_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">:</span> <span class="o">...</span>
+<a id="__codelineno-31-15" name="__codelineno-31-15" href="#__codelineno-31-15"></a>
+<a id="__codelineno-31-16" name="__codelineno-31-16" href="#__codelineno-31-16"></a>
+<a id="__codelineno-31-17" name="__codelineno-31-17" href="#__codelineno-31-17"></a><span class="nb">print</span><span class="p">(</span><span class="n">get_orders</span><span class="p">(</span><span class="mi">7</span><span class="p">))</span>  <span class="c1"># warns: FutureWarning</span>
 </code></pre></div>
 <details>
   <summary>Output: <code>get_orders(7)</code></summary>
 
-<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>[7]
+<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a>[7]
 </code></pre></div>
 
 </details>
@@ -2468,11 +2545,11 @@
 <li><strong>Import the module, not the name.</strong> <code>from typing_extensions import deprecated</code> shadows pyDeprecate's <code>deprecated</code>; write <code>@typing_extensions.deprecated(...)</code> or <code>@warnings.deprecated(...)</code>.</li>
 </ul>
 <p>IDEs strike the symbol through as soon as the decorator is there. To fail CI on new uses, turn the diagnostic into an error — mypy leaves it off by default:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a><span class="k">[tool.mypy]</span>
-<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a><span class="n">enable_error_code</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"deprecated"</span><span class="p">]</span>
-<a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a>
-<a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a><span class="k">[tool.pyright]</span>
-<a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a><span class="n">reportDeprecated</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"error"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a><span class="k">[tool.mypy]</span>
+<a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a><span class="n">enable_error_code</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"deprecated"</span><span class="p">]</span>
+<a id="__codelineno-33-3" name="__codelineno-33-3" href="#__codelineno-33-3"></a>
+<a id="__codelineno-33-4" name="__codelineno-33-4" href="#__codelineno-33-4"></a><span class="k">[tool.pyright]</span>
+<a id="__codelineno-33-5" name="__codelineno-33-5" href="#__codelineno-33-5"></a><span class="n">reportDeprecated</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"error"</span>
 </code></pre></div>
 <p>Since <code>v0.14</code>, <code>@deprecated</code> and <code>deprecated_callable()</code> keep the decorated callable's own type and the package ships a <code>py.typed</code> marker, so type checkers see the real signature and name the symbol correctly in the diagnostic. For class aliases see <a href="classes.html#type-annotations-and-static-analysis">Classes → Type annotations and static analysis</a>; to list symbols deprecated with the PEP 702 decorator alone, see <a href="audit.html#pep-702-only-deprecations"><code>include_pep702</code></a>.</p>
 <p>That static type is the <em>source's</em> type, and a callable object is not preserved at runtime: decorating a <code>functools.lru_cache</code> / <code>functools.cache</code> object returns a plain function, so <code>cache_clear()</code> and <code>cache_info()</code> are gone even though type checkers still offer them. Deprecate the underlying function and put the cache on top (<code>@functools.lru_cache</code> above <code>@deprecated(...)</code>) — the cache attributes then exist, but a cache hit never reaches the wrapper, so the warning fires only on a miss. Callable objects without a <code>__name__</code>, such as <code>functools.partial</code>, are rejected at decoration time; wrap those with <code>deprecated_instance()</code>.</p>
@@ -2512,7 +2589,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 26, 2026 22:58:28 UTC">2026-10-26</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 29, 2026 09:40:07 UTC">2026-10-29</span>
   </span>
 
     

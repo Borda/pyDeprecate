@@ -97,7 +97,7 @@
   "mainEntityOfPage": { "@type": "WebPage", "@id": "https://borda.github.io/pyDeprecate/stable/changelog.html" },
   "author": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda" },
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
-  "dateModified": "2026-10-27"
+  "dateModified": "2026-10-29"
 }
 </script>
 
@@ -1040,6 +1040,33 @@
   
   
     <li class="md-nav__item">
+      <a href="limitations.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Limitations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="brand.html" class="md-nav__link">
         
   
@@ -1962,10 +1989,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_12" >
         
           
-          <label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_12" id="__nav_12_label" tabindex="0">
             
   
   
@@ -1983,8 +2010,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_11">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_12">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2917,7 +2944,7 @@
 <h2 id="unreleased-2026-mm-dd">[UnReleased] - 2026-MM-DD<a class="headerlink" href="#unreleased-2026-mm-dd" title="Permanent link">🔗</a></h2>
 <h3 id="added">Added<a class="headerlink" href="#added" title="Permanent link">🔗</a></h3>
 <ul>
-<li><strong>Scoped fatal deprecations — <code>as_exceptions()</code> context manager.</strong> <code>with deprecate.as_exceptions():</code> sets <code>deprecate.AS_EXCEPTIONS</code> for one block and restores the previous value on exit, including when the block raises, so nested scopes compose; <code>as_exceptions(False)</code> exempts a block from a strict run, while a wrapper's own <code>as_exception=True</code> stays fatal. Also usable as a decorator on synchronous functions; <code>async def</code>, generator and async-generator functions are rejected with <code>TypeError</code> at decoration. The scope is process-wide, not per thread or task, so overlapping scopes from different threads or tasks can leave the switch in the wrong state, and a non-<code>bool</code> flag (including a bare <code>@as_exceptions</code>) raises <code>TypeError</code> at the call. (<a href="https://github.com/Borda/pyDeprecate/pull/240">#240</a>)</li>
+<li><strong>Scoped fatal deprecations — <code>as_exceptions()</code> context manager.</strong> <code>with deprecate.as_exceptions():</code> makes deprecations fatal for one block and restores the previous setting on exit, including when the block raises, so nested scopes compose; <code>as_exceptions(False)</code> exempts a block from a strict run, while a wrapper's own <code>as_exception=True</code> stays fatal. The scope is held in a <code>ContextVar</code>, so it is local to the current thread and asyncio task, and the global <code>deprecate.AS_EXCEPTIONS</code> is not modified. Also usable as a decorator on synchronous functions; <code>async def</code>, generator and async-generator functions are rejected with <code>TypeError</code> at decoration, and a non-<code>bool</code> flag (including a bare <code>@as_exceptions</code>) raises <code>TypeError</code> at the call. (<a href="https://github.com/Borda/pyDeprecate/pull/240">#240</a>)</li>
 <li><strong>pre-commit hooks.</strong> The repository now ships <code>.pre-commit-hooks.yaml</code>, so other projects can run the CLI as a hook (<code>repo: https://github.com/Borda/pyDeprecate</code>) without wrapping it in a <code>repo: local</code> entry. There is one hook id per subcommand — <code>pydeprecate-check</code>, <code>pydeprecate-policy</code>, <code>pydeprecate-expiry</code>, <code>pydeprecate-chains</code>, <code>pydeprecate-all</code>, plus <code>pydeprecate</code> as an alias of <code>pydeprecate-check</code> — so <code>args</code> only carries flags, plus the package path when it is not under <code>src/</code>. The scan imports the audited package, so packages with runtime dependencies should keep a local hook; the audit guide covers both recipes. (<a href="https://github.com/Borda/pyDeprecate/pull/243">#243</a>)</li>
 <li><strong>Composite GitHub Action.</strong> Run the audit CLI as a single workflow step in the job's own Python, with inputs for the subcommand, package path, extra flags, advisory mode (<code>exit-zero</code>), installation, and an optional deprecation status table in the job summary. By default, the action installs <code>pyDeprecate[cli,audit]</code> from the action ref; <code>install: false</code> keeps the version already installed by the job. Set up Python and install the audited package's dependencies before running the action. (<a href="https://github.com/Borda/pyDeprecate/pull/245">#245</a>)</li>
 <li><strong><code>pydeprecate all --output FILE</code>.</strong> <code>all</code> can now also save the deprecation table it appends, as <code>status --output</code> does; a failure to write the file is reported but never changes the exit code. (<a href="https://github.com/Borda/pyDeprecate/pull/245">#245</a>)</li>
@@ -2943,6 +2970,9 @@
 <li><strong>CLI built on <code>argparse</code>, without <code>fire</code> or <code>rich</code>.</strong> The <code>pydeprecate</code> command uses only the standard library, so <code>pip install pyDeprecate</code> is enough to run it; the <code>cli</code> extra is kept, empty, so <code>pip install 'pyDeprecate[cli]'</code> keeps working. Option values are always strings, boolean flags are negated with <code>--no-flag</code> (the older <code>--noflag</code> spelling still works, unlisted in <code>--help</code>), options may be spelled with dashes or underscores but never abbreviated, arguments after <code>--</code> are always operands, and <code>pydeprecate &lt;subcommand&gt; --help</code> lists each subcommand's options. Spellings only Fire accepted now exit <code>2</code> with argparse's message: a quoted literal such as <code>--version '"0.10"'</code>, a list literal in <code>--exclude</code> (pass comma-separated patterns), a table in <code>--min-grace</code> (write it in <code>pyproject.toml</code>), <code>--path=pkg</code>, short flags such as <code>-r</code>, an empty <code>--report-json=</code>, and the version given both as the second argument and as <code>--version</code>. (<a href="https://github.com/Borda/pyDeprecate/pull/252">#252</a>)</li>
 <li><strong>CLI exit codes.</strong> <code>check</code> and <code>all</code> now exit <code>1</code> on misconfigured targets (<code>target=False</code>, <code>TargetMode.NOTIFY</code> with an <code>args_mapping</code>, <code>attrs_mapping</code> or <code>args_extra</code> it ignores, <code>TargetMode.ARGS_REMAP</code> without an <code>args_mapping</code>) and on inner-order <code>@property @deprecated</code> wrappers, which they used to pass. Exit <code>3</code> is new: <code>pydeprecate: scan error: …</code> when the scanned package itself cannot be imported or its module-level code calls <code>sys.exit()</code>, and <code>pydeprecate: internal error: …</code> for a bug in the CLI; both used to exit <code>1</code>, like findings. <code>--exit-zero</code> masks neither <code>2</code> nor <code>3</code>, and neither writes a <code>--report-json</code> file. A name that is neither an existing path nor an importable module, a single <code>.py</code> file and a directory holding several packages exit <code>2</code>. <code>status</code> exits <code>2</code> for an invalid <code>--version</code> (was a raw error, exit <code>1</code>) and an unknown <code>--style</code> (was a silent fallback, exit <code>0</code>). The GitHub Action annotates exit <code>3</code> as a scan or internal error. (<a href="https://github.com/Borda/pyDeprecate/pull/252">#252</a>)</li>
 <li><strong>Package metadata in <code>pyproject.toml</code>.</strong> Static metadata moved from <code>setup.py</code> into <code>[project]</code>; setuptools stays the build backend and <code>setup.py</code> only renders the PyPI long description. The wheel metadata drops the author email, states the license as <code>License-Expression: Apache-2.0</code> with its <code>License-File</code>, and lists the homepage as <code>Project-URL: Homepage</code> instead of <code>Home-page</code>. (<a href="https://github.com/Borda/pyDeprecate/pull/252">#252</a>)</li>
+<li><strong><code>deprecated_module(stream=None)</code> now warns at the call.</strong> The <code>stream</code> default is a separate sentinel, so omitting it keeps delivering through <code>warnings.warn</code> silently, while an explicit <code>stream=None</code> still delivers through <code>warnings.warn</code> but raises a <code>FutureWarning</code> at the <code>deprecated_module(...)</code> call: from v1.0 it silences the module warning like every other entry point, and the <code>num_warns</code> default changes from <code>-1</code> to <code>1</code>. The v0.14.0 docstring ("Pass <code>None</code> (default)") described the old default. (<a href="https://github.com/Borda/pyDeprecate/pull/253">#253</a>)</li>
+<li><strong><code>DeprecationWrapperInfo.empty_mapping</code> and <code>identity_mapping</code> warn with <code>FutureWarning</code>.</strong> The deprecated aliases are wrapped with pyDeprecate's own <code>@deprecated</code>, so reading them emits a <code>FutureWarning</code> on every access instead of a <code>DeprecationWarning</code>; update any filter keyed on the old category. Removal stays at v1.0. (<a href="https://github.com/Borda/pyDeprecate/pull/253">#253</a>)</li>
+<li><strong>Star-import surface follows <code>__all__</code>.</strong> <code>deprecate.utils</code>, <code>deprecate.routine</code>, <code>deprecate.messaging</code>, <code>deprecate.module</code> and <code>deprecate.deprecation</code> now define <code>__all__</code>, so <code>from deprecate.&lt;module&gt; import *</code> pulls in only the listed public names. Import the public API from the top-level <code>deprecate</code> package. (<a href="https://github.com/Borda/pyDeprecate/pull/253">#253</a>)</li>
 </ul>
 <h3 id="fixed">Fixed<a class="headerlink" href="#fixed" title="Permanent link">🔗</a></h3>
 <ul>
@@ -3373,7 +3403,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 27, 2026 11:29:28 UTC">2026-10-27</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 29, 2026 09:40:07 UTC">2026-10-29</span>
   </span>
 
     

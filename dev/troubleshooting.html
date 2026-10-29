@@ -16,7 +16,7 @@
         <link rel="prev" href="api-reference.html">
       
       
-        <link rel="next" href="brand.html">
+        <link rel="next" href="limitations.html">
       
       
         
@@ -104,486 +104,385 @@
     {
       "@type": "FAQPage",
       "mainEntity": [
+
         {
           "@type": "Question",
-          "name": "Why did the GitHub Action skip my job summary?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "The summary is optional and never changes the gate's exit code. The action takes the table from the report the CLI writes with --report-json, which exists only when the scan ran to the end with exit 0 or 1. 'The gate wrote no pyDeprecate report' means the report could not be written; the cause is in the CLI's stderr just above. A usage error (exit 2) and a crashed scan (exit 3, for example a package that fails to import) write no summary and no warning, because no scan finished; the step's error annotation names the exit code. 'No pyDeprecate report is available' means an older pyDeprecate without --report-json runs with install: false; keep install: true or upgrade it. That warning also appears when the runner could not create a temporary directory for the report. Other warnings: GITHUB_STEP_SUMMARY not set means the job is not on a GitHub runner, and 'could not write the job summary' shows the OS error. 'The gate's report holds no deprecation table' means the CLI could not render the table; the reason is on its stderr. An unreadable report or one of another layout version means a corrupt file or a different pyDeprecate than the action's (for example install: false); the preceding runner warning names the cause, and the gate result is unaffected."
-          }
+          "name": "ModuleNotFoundError: No module named \u0027pydeprecate\u0027",
+          "acceptedAnswer": { "@type": "Answer", "text": "The install name and the import name are different. The package installs as pyDeprecate but imports as deprecate." }
         },
+
         {
           "@type": "Question",
-          "name": "Why do I get UserWarning when applying @deprecated directly to a class?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Since v0.12, applying @deprecated directly to a class is first-class supported and permanent: it dispatches to @deprecated_class and produces an identical _DeprecatedProxy. The UserWarning is a one-time informational notice per class (keyed by module + qualified name, so same-named classes in different modules each warn) per process, not a deprecation of the pattern itself; only this notice is removed, in v1.0. The notice cache is thread-safe and retains at most 4096 class keys in insertion order; an evicted class may receive the notice again. Pass stream=None to suppress it, or apply @deprecated_class directly to skip the notice entirely and reach class-only options such as attrs_mapping without an extra hop."
-          }
+          "name": "UserWarning when decorating a class",
+          "acceptedAnswer": { "@type": "Answer", "text": "No \u2014 since v0.12, @deprecated on a class is first-class supported and permanent. It dispatches to @deprecated_class() under the hood and produces an identical _DeprecatedProxy; nothing is broken and nothing needs migrating. The UserWarning is a one-time informational notice \u2014 it fires at most once per class (keyed by module + qualified name, not bare name \u2014 same-named classes in different modules each warn), not on every decoration \u2014 telling you that the dispatch happened. Only this notice \u2014 not the dispatch support itself \u2014 is removed entirely, in v1.0. The notice cache is thread-safe and retains at most 4096 class keys in insertion order; an evicted class may receive the notice again." }
         },
+
         {
           "@type": "Question",
-          "name": "What changed with @deprecated on classes since v0.6.0?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Before v0.6.0, applying @deprecated directly to a class replaced the class object with a plain wrapper function, silently breaking isinstance, issubclass, and class attribute access. Since v0.6.0.post0, @deprecated on a class delegates to @deprecated_class internally, wrapping the class in a _DeprecatedProxy that forwards all attribute access and type checks correctly — that delegation is now first-class supported (see the previous question). @deprecated_class remains the explicit, recommended API for classes, Enums, and dataclasses."
-          }
+          "name": "Upgrading from @deprecated on a class to @deprecated_class",
+          "acceptedAnswer": { "@type": "Answer", "text": "Before v0.6.0, applying @deprecated directly to a class replaced the class object with a plain wrapper function. Python\u0027s isinstance, issubclass, and attribute lookup all operate on the class type \u2014 so replacing the class with a function silently broke every downstream use that depended on the class being a type." }
         },
+
         {
           "@type": "Question",
-          "name": "How do I fix TypeError: Failed mapping?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "The target function does not have an argument expected by the deprecated function. Either map the argument to None to drop it silently via args_mapping={'old_arg': None}, rename it to match the target's parameter name via args_mapping={'old': 'new'}, or use target=TargetMode.ARGS_REMAP for self-deprecation where the same function handles the renamed argument."
-          }
+          "name": "TypeError: Failed mapping",
+          "acceptedAnswer": { "@type": "Answer", "text": "Your deprecated function passes an argument that the target function does not accept. You need to either drop the argument, rename it to match the target\u0027s signature, or use TargetMode.ARGS_REMAP for in-place remapping." }
         },
+
         {
           "@type": "Question",
-          "name": "How do I fix TypeError: skip_if function must return bool?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "The callable passed to skip_if must return a strict bool value. pyDeprecate enforces the return type strictly. Wrap any non-bool expression in an explicit bool() call, or use a lambda that returns a literal True or False: skip_if=lambda: False."
-          }
+          "name": "TypeError: skip_if function must return bool",
+          "acceptedAnswer": { "@type": "Answer", "text": "The callable passed to skip_if must return a bool. If it returns any other type \u2014 including a truthy int or a string \u2014 pyDeprecate raises TypeError(\"User function \u0027skip_if\u0027 shall return bool, but got: ...\")." }
         },
+
         {
           "@type": "Question",
-          "name": "Why is my deprecation warning not showing?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "By default pyDeprecate emits the deprecation message only once per function (num_warns=1) to avoid log spam. After the first call, subsequent calls are silent. Set num_warns=-1 for unlimited emissions or num_warns=N for exactly N emissions."
-          }
+          "name": "Deprecation notice not appearing",
+          "acceptedAnswer": { "@type": "Answer", "text": "By default, pyDeprecate emits the deprecation message only once per function (num_warns=1) to avoid log spam. After the first call, subsequent calls are silent. Set num_warns=-1 for unlimited emissions or num_warns=N for exactly N emissions." }
         },
+
         {
           "@type": "Question",
           "name": "Why did the deprecation warning stop appearing in my long-running service?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "The num_warns budget is per-process, not per-deployment. A worker or server that hits a deprecated path once at startup exhausts the default num_warns=1 immediately and stays silent for the rest of that process's life, even across weeks of steady-state traffic. Seeing nothing in production logs does not mean the deprecated path is unused. To confirm whether it is still being hit: restart the process to reset the counter and watch for the warning again, or temporarily redeploy with num_warns=-1 to invoke the configured warning path on every call; standard warning filters can still suppress repeated display."
-          }
+          "acceptedAnswer": { "@type": "Answer", "text": "No. The num_warns budget is per-process, not per-deployment. A long-running service \u2014 a worker, a web server \u2014 that hits a deprecated code path once at startup exhausts the default num_warns=1 immediately; the path stays completely silent for the rest of that process\u0027s life, even after weeks of steady-state traffic. Checking production logs and seeing nothing does not mean the deprecated path is unused \u2014 it may mean the one allowed warning already fired and scrolled out of the retained log window. To confirm whether a deprecated path is still being hit in a running service: restart the process (the counter resets) and watch for the warning again, or redeploy temporarily with num_warns=-1 to invoke the configured warning path on every call. Standard warning filters can still suppress repeated display; a custom stream can record each delivery." }
         },
+
         {
           "@type": "Question",
-          "name": "Why does the deprecation path show incorrectly when the target is in another module?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "pyDeprecate builds the warning target path from the real target object's canonical module and name (target.__module__ and target.__name__), not from the call-site. Import the target from its canonical module location before applying @deprecated so the displayed path is accurate."
-          }
+          "name": "Deprecation target path incorrect across modules",
+          "acceptedAnswer": { "@type": "Answer", "text": "The deprecation message reports the fully-qualified path of the target callable as Python resolves it at decoration time. Ensure the target is imported from its canonical location before the @deprecated decorator is applied." }
         },
-        {
-          "@type": "Question",
-          "name": "Why does my deprecation warning point inside pyDeprecate or functools.py?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "pyDeprecate measures the location when a warning fires and reports the first frame outside the deprecate package, including stacked @deprecated layers, the @deprecated class front door and legacy target=None/True/False sentinels. A custom stream written in Python that forwards stacklevel to warnings.warn adds its own frame and lands one frame short; use warnings.warn, a functools.partial of it, or a bound logger method such as logging.getLogger().warning instead. The module-level logging.warning is correct only on Python 3.11 and newer; on 3.9 and 3.10 it adds one logging frame and the log record points one frame short. A @cached_property source warns from the functools frame that runs the getter."
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "My singledispatch or __signature__-patched source receives keyword arguments",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "A TargetMode.NOTIFY wrapper, and a TargetMode.ARGS_REMAP wrapper whose caller uses no deprecated argument name, calls the source with the caller's arguments unchanged, so functools.singledispatch and __signature__-patched sources keep working. Two cases still differ from calling the source directly. When a caller passes a deprecated argument name to a TargetMode.ARGS_REMAP wrapper, by keyword or positionally, the wrapper rewrites the whole call into keyword arguments to rename it, and a wrapper with args_extra rewrites every call the same way; decorate a plain def that accepts the old and new names and calls the dispatcher positionally. The number of positional arguments is checked against inspect.signature(source), so a __signature__ that reports fewer positional parameters than the source accepts raises the curated TypeError; make __signature__ list every positional slot, or give it a *args parameter."
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "Can I subclass a class created by deprecated_class?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Yes — since v0.8.1 the proxy implements PEP 560 __mro_entries__, so class Child(DeprecatedAlias) resolves to the replacement class in the MRO. Child correctly inherits from the replacement, issubclass(Child, Replacement) is True, and one FutureWarning fires at class-definition time. Exception: ATTRS_REMAP proxies (deprecated_class with attrs_mapping and no callable target) and ARGS_REMAP proxies (deprecated_class with args_mapping and no callable target) are scope-limited to specific axes (attribute names or argument names respectively) and skip the subclassing warning."
-          }
-        },
+
         {
           "@type": "Question",
           "name": "Do arithmetic and operator protocol methods emit deprecation notices on deprecated_instance proxies?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Yes — since v0.8.1 the proxy installs arithmetic, unary, and conversion dunders directly on its type, so CPython can find them via the MRO without going through __getattr__. Data-use operations warn against the shared budget: arithmetic (+, -, *, /, //, %, **, @), bitwise ops, unary operators, numeric conversions (int, float, complex), round/trunc/floor/ceil, reversed(), next(), context entry (__enter__), and subclassing (class Child(proxy)) all fire FutureWarning. Structural probes stay silent: ordering comparisons (<, <=, >=, >), format(), and context exit (__exit__) never warn. Two edge cases: (1) In-place operators return the active object's result rather than a re-wrapped proxy — proxy_val += 1 rebinds the variable to a plain int. (2) If the left-hand operand's __add__ raises TypeError directly (e.g. str.__add__), Python cannot fall back to the proxy's __radd__ — place the proxy on the left side or wrap in a container."
-          }
+          "acceptedAnswer": { "@type": "Answer", "text": "Yes, the proxy forwards operator and protocol dunders to the wrapped object and emits the deprecation warning according to a consistent policy. Python\u0027s data model invokes special methods directly on the object\u0027s type (bypassing __getattr__), so these must be defined on _DeprecatedProxy itself \u2014 and they are." }
         },
+
         {
           "@type": "Question",
-          "name": "How do I redirect deprecation output to a Python logger instead of warnings.warn?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Pass any logging method as the stream parameter: @deprecated(target=new_func, stream=logging.warning). The stream callable receives the formatted deprecation message as a single string argument. The num_warns parameter still controls emission frequency. Benefits over warnings.warn: integrates with log aggregation, respects your log format and handlers, and is always emitted regardless of Python's warning filter state."
-          }
+          "name": "Can I subclass a class created by deprecated_class?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Yes. The proxy implements PEP 560 __mro_entries__ so Python transparently subclasses the replacement class instead of the proxy. Subclassing is treated as usage of the deprecated name and emits one FutureWarning \u2014 the class hierarchy is correct at the Python level." }
         },
+
         {
           "@type": "Question",
-          "name": "Why doesn't deprecated_class warn when I call it with the new argument name?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "This is intended behaviour. When args_mapping is provided with target omitted, the proxy auto-resolves to TargetMode.ARGS_REMAP and warns only when an old argument name is actually present in the call. Callers already using the new argument name see no warning, matching the per-argument behaviour of @deprecated(target=TargetMode.ARGS_REMAP, args_mapping=...). Auto-resolve applies only when target is omitted — passing target=TargetMode.NOTIFY explicitly together with args_mapping is a misconfiguration: a UserWarning fires at decoration time, the mode stays NOTIFY, and the mapping is inert at runtime. To get a blanket warning on every call while also renaming an argument, stack two deprecated_class() layers: an inner ARGS_REMAP-only layer for the rename and an outer NOTIFY-only layer (no mapping) for the blanket notice."
-          }
+          "name": "How do I redirect deprecation output to a logger instead of warnings.warn?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Pass any logging method as the stream parameter. The stream callable receives the formatted deprecation message as a single string argument \u2014 logging methods like logging.warning have exactly this signature. For the full range of stream options (silencing, custom callables, print), see Deprecation Output Sink." }
         },
+
         {
           "@type": "Question",
-          "name": "When I pass both the old and new argument names at the same time, which value wins?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "The explicit new-name value always wins. When both the deprecated old name and the canonical new name are present in the same call, pyDeprecate snapshots the new-name value before remapping and restores it afterwards — the remapped old-name value is discarded. The order the caller lists the arguments does not affect the result. In addition to the regular FutureWarning, pyDeprecate also emits a UserWarning naming the ignored old argument: \"Both `val` (deprecated) and `new_val` were supplied to `fn()`; `val` is ignored.\" If args_extra is configured, it wins over both — args_extra is merged last and unconditionally overwrites all caller-supplied values. This applies to @deprecated with target=TargetMode.ARGS_REMAP or a callable target, and to deprecated_class() / deprecated_instance() with args_mapping."
-          }
+          "name": "Why doesn\u0027t deprecated_class warn when I call it with the new argument name?",
+          "acceptedAnswer": { "@type": "Answer", "text": "No \u2014 this is the intended behaviour. When args_mapping is provided with target omitted, the proxy auto-resolves to TargetMode.ARGS_REMAP and warns only when the old argument name is actually present in the call. Callers who have already migrated to the new argument name see no warning. This matches the per-argument warning behaviour of @deprecated(target=TargetMode.ARGS_REMAP, args_mapping=...)." }
         },
+
         {
           "@type": "Question",
-          "name": "Why did my object mutate despite setting read_only=True on deprecated_instance?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "read_only=True intercepts only the following standard collection mutator names: append, clear, discard, extend, insert, pop, remove, setdefault, update, add. These cover the mutating methods on Python's built-in list, dict, and set types. Custom method names such as register(), reload(), or set_value() are not in this list and pass through to the underlying object unchanged. Workaround: subclass the wrapped type and override the custom mutator method to raise AttributeError explicitly, then wrap an instance of that subclass. The guard is also off while skip_if evaluates True: attribute writes, item writes and deletes, and mutator calls then reach the wrapped object directly, because an active skip_if switches the whole deprecation machinery off."
-          }
+          "name": "I passed both the old and new argument names at the same time \u2014 which value wins?",
+          "acceptedAnswer": { "@type": "Answer", "text": "The explicit new-name value always wins. When both the deprecated old name and the canonical new name are present in the same call, pyDeprecate snapshots the new-name value before remapping, then restores it afterwards. new_val=6 is what the target (or source body under TargetMode.ARGS_REMAP) receives \u2014 the remapped val\u2192new_val=5 is discarded. This holds regardless of the order the caller listed the arguments." }
         },
+
         {
           "@type": "Question",
-          "name": "Why did I get UserWarning about an unsupported stacking combination?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "pyDeprecate validates @deprecated stacking combinations at decoration time and emits UserWarning for unsupported cases. Three combinations are supported: ARGS_REMAP (outer) + ARGS_REMAP (inner) for multi-step argument renames, ARGS_REMAP (outer) + NOTIFY (inner) for the lifecycle pattern of renaming args first then deprecating the whole function, and NOTIFY (outer) + callable target (inner) when the inner decorator forwards to a concrete replacement callable. The most common mistake is putting NOTIFY on top of ARGS_REMAP — reverse the order: ARGS_REMAP must be outermost (on top) and NOTIFY must be innermost (below). The warning message includes a corrective hint."
-          }
+          "name": "UserWarning when using TargetMode.ARGS_REMAP without args_mapping",
+          "acceptedAnswer": { "@type": "Answer", "text": "TargetMode.ARGS_REMAP is designed exclusively for renaming or dropping arguments within the same function. Without args_mapping there is nothing to remap \u2014 the decorator has zero call-time effect. This is a misconfiguration that emits a UserWarning today and will become a TypeError in v1.0." }
         },
+
         {
           "@type": "Question",
-          "name": "Why did I get TypeError at decoration time about a cross-class method target?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "The cross-class guard raises TypeError at decoration time when @deprecated on a method in class Foo targets a method defined on a different class Bar. Forwarding to a cross-class method silently passes self of the wrong type. Fix: target a method on the same class or a standalone function. False positives from decorators that rewrite __qualname__ and from metaclass-generated classes were fixed in v0.8. Exception: when the source is a @staticmethod the cross-class guard is skipped, because static methods receive no self — a staticmethod can safely forward to a static method on any class."
-          }
+          "name": "attrs_mapping auto-expand skips some fields on a dataclass with a custom __init__",
+          "acceptedAnswer": { "@type": "Answer", "text": "When deprecated_class() detects a @dataclass target, it automatically copies attrs_mapping entries into args_mapping so that both attribute access (proxy.old_field) and constructor calls (DC(old_field=5)) emit FutureWarning. The auto-expand consults inspect.signature to determine which names are valid __init__ kwargs." }
         },
+
         {
           "@type": "Question",
-          "name": "Why does my deprecated generator fire the warning before I iterate it?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "This is intentional. pyDeprecate uses an eager factory pattern for generator wrappers: the deprecation warning fires when you call the generator function, not on the first next() call. This is consistent with how deprecated regular functions behave and ensures the warning appears at the actual call site regardless of where iteration happens."
-          }
+          "name": "AttributeError: \u0027str\u0027 object has no attribute \u0027target\u0027 after upgrading to v0.13",
+          "acceptedAnswer": { "@type": "Answer", "text": "Since v0.13, __deprecated__ holds a plain PEP 702-conformant message string \u2014 the same convention the standard library\u0027s warnings.deprecated / typing_extensions.deprecated use \u2014 instead of the internal DeprecationConfig object. This fixes a collision: before v0.13, PEP-702-aware tooling (IDE hover, pyright, mypy) reading pyDeprecate\u0027s __deprecated__ got a DeprecationConfig repr where a message string belongs." }
         },
+
         {
           "@type": "Question",
-          "name": "Why does my deprecated async generator fire the warning before I iterate it?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "This is intentional. pyDeprecate wraps async generator sources with a sync callable that fires the deprecation warning eagerly at call time and returns the async generator object. Iteration with async for proceeds normally after that. Because the wrapper is sync, inspect.isasyncgenfunction(wrapper) returns False; if a framework checks this flag, wrap it in a thin async def passthrough before applying @deprecated."
-          }
+          "name": "My object mutated despite read_only=True",
+          "acceptedAnswer": { "@type": "Answer", "text": "read_only=True intercepts only the following standard collection mutator names: append, clear, discard, extend, insert, pop, remove, setdefault, update, add. These cover the mutating methods on Python\u0027s built-in list, dict, and set types." }
         },
+
         {
           "@type": "Question",
-          "name": "Why does my deprecated wrapper's warning fire when I define a function, not when I call it?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "This is by design, not a timing bug. Applying a deprecated decorator with @ syntax to a def statement is exactly equivalent to calling the deprecated wrapper immediately with that function as its argument, so the warning fires at definition time (which is also import time, for a def at module scope) rather than when the decorated function is later called. This is consistent with every other pyDeprecate warning: the message fires when the deprecated callable itself runs, never deferred to a later use of its return value. There is no option to defer the warning until the decorated function is called instead."
-          }
+          "name": "TypeError at decoration time: cross-class method target",
+          "acceptedAnswer": { "@type": "Answer", "text": "The cross-class guard in pyDeprecate raises TypeError at decoration time (when the class body is executed), not at call time. It fires when @deprecated on a method in class Foo points to a method defined on a different class Bar. Forwarding to a method on a different class silently passes self of the wrong type, causing AttributeError or incorrect behaviour at runtime \u2014 the guard prevents this misconfiguration from reaching production." }
         },
+
         {
           "@type": "Question",
-          "name": "Does @deprecated work when applied outside @classmethod (wrong decorator order)?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Yes. pyDeprecate silently rescues the misordered stack: it detects the classmethod descriptor, unwraps it, applies the deprecation wrapper to the underlying function, and re-wraps the result in classmethod. No UserWarning is emitted at decoration time, and a FutureWarning fires normally when the method is called. The preferred order is still @classmethod outermost with @deprecated closer to def, as it is explicit and avoids the silent rescue."
-          }
+          "name": "UserWarning at decoration time: unsupported stacking combination",
+          "acceptedAnswer": { "@type": "Answer", "text": "The message looks like one of: A: pyDeprecate validates stacking combinations at decoration time and emits UserWarning for every unsupported case. Common supported combinations include:" }
         },
+
         {
           "@type": "Question",
-          "name": "Why do concurrent async calls to a deprecated wrapper emit fewer warnings than expected?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Concurrent async calls cannot race while reserving a deprecated callable's or argument's warning budget: the async wrapper reserves it under a per-wrapper lock before its first await. Each deprecated argument has an independent num_warns budget, and warning filters can suppress records. A custom stream can also fail after a callable wrapper reserves its budget; callable delivery does not roll that reservation back. Therefore num_warns controls warning attempts, not an exact number of visible records. Use num_warns=-1 only when unlimited warning attempts are intended."
-          }
+          "name": "My deprecated generator fires the warning before I iterate it",
+          "acceptedAnswer": { "@type": "Answer", "text": "No \u2014 this is the intended behavior. pyDeprecate uses an eager factory pattern for generator wrappers: the warning fires at call time, consistent with how deprecated regular functions behave." }
         },
+
         {
           "@type": "Question",
-          "name": "Why does my deprecated async def warning not appear in CI or test output?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "For async def functions, the deprecation warning fires when the coroutine is awaited, not when the wrapper is called. coro = old_fn(val=1) produces no warning; await coro fires it. Common silent-loss scenarios: asyncio.create_task or tasks scheduled via fixtures/library hooks — the warning fires when the event loop executes the coroutine, which may be outside any active catch_warnings context (e.g., in background workers or test setup code); third-party schedulers (Celery, arq, anyio) run the coroutine in a different context; pytest.warns() wrapping only the call captures nothing. Fix 1 (recommended): use stream=logging.warning — logging bypasses Python warning filters and always appears in CI logs. Fix 2 (tests): wrap the await, not just the call, inside pytest.warns(FutureWarning)."
-          }
+          "name": "My deprecated async generator fires the warning before I iterate it",
+          "acceptedAnswer": { "@type": "Answer", "text": "No \u2014 this is the intended behavior. pyDeprecate wraps async generator sources with a sync callable. Calling the wrapper immediately fires the deprecation warning and returns the underlying async generator object; no await or __anext__ call is needed for the warning to appear." }
         },
+
         {
           "@type": "Question",
-          "name": "Why doesn't the setter or deleter on my deprecated property emit a warning?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "The two property decorator orders behave differently. Inner order (@property outermost, @deprecated closer to def) wraps the getter (fget) only. Setters and deleters added afterwards via @value.setter / @value.deleter rebuild a plain property whose fset and fdel are not deprecation-wrapped, so writes and deletes are silent. Use outer order (@deprecated outermost, @property closer to def) so all three accessors are wrapped — the _DeprecatedProperty subclass of property re-wraps any chain-style setter or deleter with the same packing config. Alternatively, construct the property explicitly via property(fget, fset, fdel) and wrap it once with @deprecated to control exactly which accessors warn."
-          }
+          "name": "My deprecated wrapper\u0027s warning fires when I define a function, not when I call it",
+          "acceptedAnswer": { "@type": "Answer", "text": "No \u2014 this is by design, not a timing bug. @my_deprecated_wrapper on def my_func(): ... is exactly equivalent to my_func = my_deprecated_wrapper(my_func): decorating a function is calling the deprecated wrapper, immediately, at the point the def statement executes (definition time \u2014 which is also import time, if the def sits at module scope). The deprecation warning fires there because that is when the deprecated callable actually runs; it has nothing to do with my_func being called later." }
         },
+
         {
           "@type": "Question",
-          "name": "Why does pyDeprecate raise TypeError when I apply @deprecated twice to a property?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Double-wrapping a deprecated property would emit two FutureWarning notices per access and fire the stacking guard three times, so pyDeprecate raises TypeError at decoration time to prevent the misconfiguration from reaching production. The error message names the offending property and points to supported alternatives. Fix: apply @deprecated once and use chain-style @value.setter / @value.deleter to add accessors — the outer-order subclass of property re-wraps the freshly-supplied accessor with the same packing config. Alternative: build the property explicitly via property(fget, fset, fdel) and wrap it once with @deprecated, which covers all three accessors in a single application."
-          }
+          "name": "Warning fires or UserWarning appears when using @deprecated @classmethod",
+          "acceptedAnswer": { "@type": "Answer", "text": "Yes \u2014 pyDeprecate silently rescues the misordered stack at decoration time. When you write: @deprecated detects that it received a classmethod descriptor, unwraps it, applies the deprecation wrapper to the underlying function, and re-wraps the result in classmethod. The outcome is a fully working deprecated classmethod: no UserWarning at decoration time, and a FutureWarning fires when the method is called." }
         },
+
         {
           "@type": "Question",
-          "name": "Why does attrs_mapping auto-expand skip some fields on a dataclass with a custom __init__?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "deprecated_class() auto-expands attrs_mapping entries into args_mapping using inspect.signature — not dataclasses.fields(). Two cases are intentionally excluded: (1) field(init=False) fields are instance attributes set inside __init__ or __post_init__ but not valid constructor kwargs; (2) a custom __init__ may intentionally omit a dataclass field from its signature. Both surfaces still work independently — attrs_mapping redirects attribute access for all listed aliases including init=False fields, while args_mapping only covers names actually present in the constructor signature."
-          }
+          "name": "Concurrent async calls and warning counts",
+          "acceptedAnswer": { "@type": "Answer", "text": "Concurrent async calls sharing one wrapper cannot race while reserving warning budgets. The async wrapper reaches warning dispatch before its first await, and the callable or per-argument budget check and reservation use the wrapper\u0027s lock. Each deprecated argument has its own num_warns budget, so that value is not one overall cap when calls use several deprecated arguments." }
         },
+
         {
           "@type": "Question",
-          "name": "Why do I get AttributeError: 'str' object has no attribute 'target' after upgrading to v0.13?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Since v0.13, __deprecated__ holds a plain PEP 702-conformant message string instead of the DeprecationConfig object, matching the convention used by the standard library's warnings.deprecated / typing_extensions.deprecated. This fixes a collision where PEP-702-aware tooling (IDE hover, pyright, mypy) reading pyDeprecate's __deprecated__ got a DeprecationConfig repr where a message string belongs. The config object moved to __deprecation_config__ — read it through the public get_deprecation_config(obj) helper rather than either attribute directly; it also falls back to a legacy __deprecated__-as-config layout for objects built by a pre-v0.13 release. Affects every wrapper kind: functions, methods, class proxies, instance proxies, and modules."
-          }
+          "name": "My deprecated async def warning does not appear in CI",
+          "acceptedAnswer": { "@type": "Answer", "text": "For async def functions, the deprecation warning fires when the coroutine is awaited, not when the wrapper is called. Creating the coroutine object \u2014 coro = old_fn(val=1) \u2014 produces no warning; await coro is what triggers it." }
         },
+
         {
           "@type": "Question",
-          "name": "How does @deprecated handle target functions with positional-only parameters?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Since v0.10, @deprecated fully supports targets with positional-only parameters (def new_fn(val, /, y=0): ...). The decorator detects positional-only params at decoration time, emits a UserWarning naming the affected parameters, and splits the call-time dispatch so those values are forwarded positionally instead of as kwargs. No TypeError is raised. A thin-adapter target (def _compat(val, y=0): return new_fn(val, y)) remains valid and suppresses the UserWarning when you want a clean wrapper. deprecated_class applies the same positional forwarding to constructor positional-only parameters — remapped values are passed positionally, so required positional-only params and frozen dataclasses work. Decorated sources declaring positional-only parameters are fully supported as well, with no decoration-time warning."
-          }
+          "name": "Why can\u0027t I decorate a functools.partial or callable wrapper?",
+          "acceptedAnswer": { "@type": "Answer", "text": "@deprecated accepts Python functions, supported descriptors, and classes as sources. Callable wrappers such as functools.partial, functools.partialmethod, and singledispatchmethod are rejected with TypeError; they do not become supported sources merely because their wrapped callable is async. Define a plain def or async def with the desired public signature and decorate that named function. For async targets, pyDeprecate follows inspect.iscoroutinefunction on the supported Python runtime; an async callable instance that returns an awaitable is a distinct kind and may not be recognized as a coroutine function. deprecated_instance is for deprecating an object alias, not a substitute for a decorated function source." }
         },
+
         {
           "@type": "Question",
-          "name": "Why do I get RuntimeError: Circular deprecation cycle detected?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "You pointed target= of a @deprecated wrapper at another @deprecated callable and that chain loops back to the first wrapper. pyDeprecate detects re-entry at call time and raises RuntimeError with the message \"Circular deprecation cycle detected: `<name>` re-entered via its own target chain.\" instead of letting Python reach RecursionError. Fix: point target= at a plain non-deprecated final implementation, not at another @deprecated callable."
-          }
+          "name": "A non-async decorator applied over my @deprecated async wrapper no longer looks like a coroutine",
+          "acceptedAnswer": { "@type": "Answer", "text": "When you wrap a @deprecated async def with a sync decorator \u2014 one that returns a sync wrapper(*args, **kwargs) via functools.wraps \u2014 the result is a sync callable. inspect.iscoroutinefunction inspects the outermost callable\u0027s CO_COROUTINE flag, not the wrapped function, so the coroutine nature is lost the moment a sync wrapper is placed on top." }
         },
+
+        {
+          "@type": "Question",
+          "name": "Setter or deleter on a deprecated property doesn\u0027t warn",
+          "acceptedAnswer": { "@type": "Answer", "text": "The two property decorator orders behave differently. Inner order (@property outermost, @deprecated closer to def) wraps the getter (fget) only. Any setter or deleter added later via @value.setter / @value.deleter is a plain accessor with no deprecation closure, so writes and deletes are silent." }
+        },
+
+        {
+          "@type": "Question",
+          "name": "TypeError: @deprecated cannot be applied twice to the already-deprecated property",
+          "acceptedAnswer": { "@type": "Answer", "text": "Double-wrapping a deprecated property would emit two FutureWarning notices per access and run the stacking guard three times. The decorator raises TypeError at decoration time so the misconfiguration cannot reach production. The error message names the offending property and points to the supported alternatives." }
+        },
+
+        {
+          "@type": "Question",
+          "name": "@deprecated and targets with POSITIONAL_ONLY parameters",
+          "acceptedAnswer": { "@type": "Answer", "text": "Yes, fully supported since v0.10. The decorator detects POSITIONAL_ONLY parameters at decoration time, emits a UserWarning advising you to remove / from the target signature if possible, and automatically splits the dispatch so positional-only values are forwarded positionally rather than as kwargs." }
+        },
+
+        {
+          "@type": "Question",
+          "name": "RuntimeError: Circular deprecation cycle detected",
+          "acceptedAnswer": { "@type": "Answer", "text": "You pointed target= of a @deprecated wrapper at another @deprecated callable, and that second wrapper\u0027s target= chain eventually loops back to the first one. Calling any wrapper in the cycle raises RuntimeError at the first re-entry point." }
+        },
+
+        {
+          "@type": "Question",
+          "name": "How do I type-annotate the object returned by deprecated_class / deprecated_instance?",
+          "acceptedAnswer": { "@type": "Answer", "text": "A class alias is typed as the class it forwards to; an instance proxy is annotated with the public DeprecationProxy." }
+        },
+
+        {
+          "@type": "Question",
+          "name": "mypy reports errors on deprecated class aliases after upgrading",
+          "acceptedAnswer": { "@type": "Answer", "text": "Releases before v0.14 shipped no type information, so type checkers treated every pyDeprecate object as Any. Since v0.14 the package ships py.typed, and a deprecated class alias is typed as the class it forwards to \u2014 deprecated_class(target=New, ...)(Cls) gives type[New], and without a class target it gives type[Cls]; the @deprecated_class(...) decorator form is read as the class statement by mypy, while pyright applies the decorator\u0027s return type (type[New] with a class target). The errors that can surface, and their fixes: See Classes \u2192 Type annotations and static analysis." }
+        },
+
+        {
+          "@type": "Question",
+          "name": "Sphinx / my IDE shows (*args, **kwargs) instead of my deprecated class\u0027s real signature",
+          "acceptedAnswer": { "@type": "Answer", "text": "Every proxy carries two breadcrumbs pointing back at what it wraps, and reading either one emits no deprecation warning \u2014 documentation builds and IDE hovers stay quiet: If a tool still renders the proxy, point it at __wrapped__ explicitly. When the wrapped object has no introspectable signature \u2014 a plain dict handed to deprecated_instance(), or any C-level type \u2014 __signature__ is None rather than missing; wrapping never fails because the source cannot be introspected." }
+        },
+
         {
           "@type": "Question",
           "name": "How do I deprecate an entire Python module?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Use deprecated_module(__name__, deprecated_in=..., remove_in=...) at the bottom of the module you are retiring. Three modes are available. Mode 1 (no target=): changes the module __class__ to an intercepting wrapper that delivers FutureWarning on every public attribute access — including real attributes (functions, classes, constants already in __dict__). Mode 2 (target=new_module): additionally forwards every missing-attribute lookup to the replacement module, optionally with attrs_mapping for per-name redirects; use this when callers need to be transparently redirected to the new name. Mode 3: use deprecated_instance() on the parent package __init__.py to expose the old module name as a deprecated attribute — no new API needed. num_warns=-1 is the default and delivers on every access; 0 delivers none and a positive N delivers exactly N. Standard warning filters can suppress repeated display, and -1 skips only budget locking, not normal warning handling. Star imports (from old_module import *) invoke the warning path once per pulled-in public name; delivery remains subject to num_warns."
-          }
+          "acceptedAnswer": { "@type": "Answer", "text": "Call deprecated_module(__name__, deprecated_in=..., remove_in=...) at the bottom of the module you are retiring. Three modes are available: num_warns=-1 is the default and delivers on every access; 0 delivers none and a positive N delivers exactly N. See the module deprecation guide for each mode with runnable examples." }
         },
-        {
-          "@type": "Question",
-          "name": "Can a context copied during a module redirect resolve the same name later?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Yes. Redirect guards expire when the original lookup finishes, whether it returns a value or raises an exception. Later work in a copied context can resolve the same name normally. A cyclic redirect that re-enters the same name during an active lookup on the same thread still raises AttributeError."
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "Does a deprecation warning survive copy.copy, copy.deepcopy, and pickle?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Yes for copy.copy and copy.deepcopy. Both proxy types return a proxy again on copy, so the deprecation warning travels with the copied object during the migration window. Warning counters are snapshotted at copy time and each copy keeps its own counter independently. Copy operations are themselves silent — the copy protocol methods rebuild the proxy directly instead of going through attribute access. For pickle: deprecated_instance proxies wrapping plain objects (dicts, lists) are fully picklable; deprecated_class proxies raise PicklingError in the common pattern where the decorated class name is replaced by the proxy (pickle cannot find the original class by reference). One additional caveat: if the proxy was created with a non-module-level stream (lambda or closure), pickle.dumps will raise PicklingError — use stream=warnings.warn or stream=None when pickling."
-          }
-        },
+
         {
           "@type": "Question",
           "name": "Does deprecated_module() warn when accessing real attributes (functions, classes, constants) on the deprecated module?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Yes. deprecated_module() changes the module's __class__ to _DeprecatedModuleWrapper, which overrides __getattribute__ to invoke the FutureWarning path on every public attribute access — including real attributes already in __dict__. Standard warning filters can suppress repeated display. Unlike a PEP 562 __getattr__ hook (which fires only for missing names), __getattribute__ intercepts all lookups. Star imports (from old_module import *) are not an exception: CPython's IMPORT_STAR bytecode calls getattr(module, name) for each pulled-in public name, which still routes through __getattribute__."
-          }
+          "acceptedAnswer": { "@type": "Answer", "text": "Yes, real attributes warn too. deprecated_module() changes the module\u0027s __class__ to a wrapper that overrides __getattribute__, so every public attribute access invokes the FutureWarning path, including attributes already in __dict__. Standard warning filters can suppress repeated display. A PEP 562 module-level __getattr__ hook would fire only for missing names; __getattribute__ intercepts all lookups. Star imports are not an exception (see below)." }
         },
+
         {
           "@type": "Question",
-          "name": "Does from old_module import * still trigger the deprecation warning?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Yes. CPython's IMPORT_STAR bytecode resolves from module import * by calling getattr(module, name) once for each public name being pulled into the importing namespace (either the names in __all__, or all non-underscore names when __all__ is absent). Each of those getattr() calls routes through the module wrapper's __getattribute__ interception (_DeprecatedModuleWrapper) exactly like any other attribute access, so deprecated_module() invokes its FutureWarning path per pulled-in public name in both Mode 1 and Mode 2. Standard warning filters can suppress repeated display. This is also why deprecated_module() is implemented via __class__ reassignment plus __getattribute__ rather than a PEP 562 module-level __getattr__ hook: __getattr__ fires only for missing names and would never see the getattr() calls issued by IMPORT_STAR, leaving star imports completely unwarned. The __getattribute__ approach closes that gap."
-          }
+          "name": "Module deprecation: accessing a missing attribute raises AttributeError",
+          "acceptedAnswer": { "@type": "Answer", "text": "Yes \u2014 that is exactly what Mode 2 (target=new_module) does. Mode 1 intercepts every public attribute access (real or missing) via __getattribute__, so real attributes invoke the warning path and are returned. Standard warning filters can suppress repeated display. However, for names not in the module\u0027s __dict__, Mode 1 raises AttributeError after invoking that path because there is no target to forward to." }
         },
+
+        {
+          "@type": "Question",
+          "name": "Can a context copied during a module redirect resolve the same name later?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Yes. Redirect guards expire when the original lookup finishes, whether it returns a value or raises an exception. Later work in a copied context can resolve the same name normally. A cyclic redirect that re-enters the same name during an active lookup on the same thread still raises AttributeError." }
+        },
+
+        {
+          "@type": "Question",
+          "name": "Does from old_calculator import * still trigger the deprecation warning?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Yes, it still invokes the warning path. CPython\u0027s IMPORT_STAR bytecode resolves from module import * by calling getattr(module, name) once for each public name being pulled into the importing namespace (either the names in __all__, or all non-underscore names when __all__ is absent). Each of those getattr() calls routes through the module wrapper\u0027s __getattribute__ interception (_DeprecatedModuleWrapper) exactly like any other attribute access. Standard warning filters can suppress repeated display." }
+        },
+
+        {
+          "@type": "Question",
+          "name": "Why does num_warns=-1 still appear in profiling?",
+          "acceptedAnswer": { "@type": "Answer", "text": "-1 disables only budget accounting. Each public access still looks up module deprecation metadata and delivers the configured warning path; the standard warnings filter may suppress repeated display, but it still evaluates the warning. Use a finite num_warns when the warning delivery work itself must stop after a known number of accesses." }
+        },
+
+        {
+          "@type": "Question",
+          "name": "Why does stream=None not silence deprecated_module?",
+          "acceptedAnswer": { "@type": "Answer", "text": "For deprecated_module(), stream=None historically meant \"use warnings.warn\", while every other entry point treats it as silence. The default is now a separate sentinel (help() shows it as \u003cwarnings.warn\u003e), so omitting stream keeps the current behaviour without any notice. An explicit stream=None still delivers through warnings.warn but announces the change with a FutureWarning at the call: in v1.0 stream=None silences the module warning, and the num_warns default changes from -1 to 1. Omit stream to keep warning on access, and pass num_warns=-1 explicitly if every access must keep warning after v1.0. To silence a module deprecation today, use a warnings filter or a custom stream that discards the message." }
+        },
+
         {
           "@type": "Question",
           "name": "Why do pytest, Sphinx, or my IDE trigger warnings on a deprecated module?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "That is expected in Mode 1 and Mode 2. deprecated_module() overrides the module's __getattribute__, so any public attribute probe invokes its FutureWarning path even when the access comes from tooling rather than your own code. pytest collection, plugin-spec lookups, Sphinx autodoc, and IDE completion can all walk module attributes repeatedly during discovery. Standard warning filters can suppress repeated display; custom streams can still observe every permitted delivery. If that noise is expected in tests, scope it in test config with warnings.filterwarnings() for the deprecated module instead of suppressing warnings globally."
-          }
+          "acceptedAnswer": { "@type": "Answer", "text": "That is expected in Mode 1 and Mode 2. deprecated_module() overrides the module\u0027s __getattribute__, so any public attribute probe invokes the warning path even when the access comes from tooling rather than your own code. Standard warning filters can suppress repeated display; custom streams can still observe every permitted delivery. Test and documentation tools often call getattr(), inspect plugin metadata, or walk module attributes repeatedly during discovery." }
         },
+
         {
           "@type": "Question",
-          "name": "Why does my expiry gate report more expired wrappers after upgrading pyDeprecate?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "validate_deprecation_expiry now includes deprecated class members by default (include_members=True), matching find_deprecation_wrappers and generate_deprecation_table. Expired member wrappers such as deprecated __init__ methods are now counted, so totals can rise after upgrading even though your code is unchanged. Pass include_members=False (CLI: --no-include-members, accepted by every subcommand) to restore the previous module-level-only scope, but prefer fixing the newly surfaced entries — they are real expired deprecations that were previously invisible to the gate."
-          }
+          "name": "Does the deprecation survive copy, deepcopy, and pickle?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Yes for copy.copy and copy.deepcopy. Copying a deprecated proxy returns a proxy again, so the deprecation warning travels with the object during the migration window. Warning counters are snapshotted at copy time, and each copy keeps its own counter independently. Copy operations are themselves silent \u2014 the copy protocol methods rebuild the proxy directly instead of going through attribute access, so no warning fires until the copy is actually used. Exception: deprecated_class proxies cannot be pickled in the common pattern where the proxy replaces the decorated class\u0027s module-level name \u2014 pickle cannot find the original class by reference and raises PicklingError. deprecated_instance proxies wrapping plain objects (dicts, lists, custom objects) are fully picklable." }
         },
+
+        {
+          "@type": "Question",
+          "name": "My expiry gate reports more expired wrappers after upgrading",
+          "acceptedAnswer": { "@type": "Answer", "text": "validate_deprecation_expiry now includes deprecated class members by default (include_members=True), matching find_deprecation_wrappers and generate_deprecation_table. Expired member wrappers \u2014 for example an __init__ carrying deprecation metadata \u2014 are now counted, so totals can rise after upgrading even though your code is unchanged. The newly reported entries are real expired deprecations that were previously invisible to the gate." }
+        },
+
         {
           "@type": "Question",
           "name": "Why does pydeprecate all report policy violations but still exit 0?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "That is deliberate. The deprecation-policy defaults (min_grace='0.3', message_required=True) encode a release convention rather than a universal rule, so pydeprecate all runs the policy check in advisory mode: violations are printed for visibility but never contribute to the exit code of all. Only invalid argument mappings, misconfigured targets, inner-order properties, deprecated-to-deprecated chains, and expired wrappers make all exit 1. This advisory treatment covers violation counts only — a policy configuration failure (an unreadable or malformed pyproject.toml, or a malformed [tool.pydeprecate.policy] value) still exits 2 even inside all, printing 'Cannot read <path>: <err>', and is checked before the chains check runs. To fail a build on a policy violation, give pydeprecate policy its own CI step — its exit code is truthful (0 clean, 1 violations found, 2 a malformed rule argument or unreadable pyproject.toml). Spell the rule flags out in that step even where they match the defaults, so the command records what your project promises and a future change to pyDeprecate's defaults cannot quietly change what your CI enforces."
-          }
+          "acceptedAnswer": { "@type": "Answer", "text": "No \u2014 that is deliberate. The policy defaults (min_grace=\"0.3\", message_required=True) encode *a* release convention, not a universal rule, so all runs the policy check in advisory mode: violations are printed for visibility but never contribute to all\u0027s exit code. Only invalid argument mappings, misconfigured targets, inner-order properties, deprecated-to-deprecated chains, and expired wrappers make all exit 1. This \"advisory\" treatment covers violation *counts* only \u2014 a policy configuration failure (the nearest pyproject.toml cannot be read or parsed, or a [tool.pydeprecate.policy] value is malformed) still exits 2 even inside all, printing Cannot read \u003cpath\u003e: \u003cerr\u003e, and that failure is checked before the chains check runs." }
         },
+
         {
           "@type": "Question",
-          "name": "How do I switch off a deprecation-policy rule my project does not follow?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Both rules checked by validate_deprecation_policy are independently controlled — pass None for min_grace or False for message_required. Nothing is all-or-nothing. Before reaching for None, check whether retargeting the window is what you want: min_grace is a version-shaped delta — '0.1' one minor of warning, '0.3' (the default) three, '1.0' a whole major — so pass the number your project really releases on; you keep the gate, pointed at your own cadence. Disabling it means nothing checks removal schedules at all. A 0.x project needs no special setting: a bump to 1.0 is a major step and clears any window. The CLI mirrors this with one flag per rule: --min-grace, --message-required. A value the parser does not recognise is rejected before the scan starts and exits 2 with a message naming the accepted spellings, so a typo can never silently disable a rule you meant to keep."
-          }
+          "name": "How do I switch off a policy rule my project does not follow?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Both rules are independently controlled \u2014 pass None for min_grace or False for message_required. Nothing is all-or-nothing." }
         },
+
         {
           "@type": "Question",
-          "name": "Where does pydeprecate policy take its rules from when no flags are passed?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Each rule is resolved independently as flag, then the [tool.pydeprecate.policy] table in the nearest pyproject.toml (scanned path's directory up to two parents, never for a bare module name), then the built-in default (min-grace = \"0.3\", message-required = true). Keys are the rule slugs; min-grace takes the dotted delta as a quoted string such as \"0.3\" or \"1.0\", and false switches it off. Every run prints a Policy: header naming the source of each value. A malformed file value, or a pyproject.toml that cannot be read or parsed at all, exits 2 naming the file ('Cannot read <path>: <err>'); unknown keys are reported on stderr and ignored, and on Python 3.9-3.10 the TOML parser comes from the [audit] extra. pydeprecate all applies the same resolved settings to its advisory policy pass, but this config-read exit 2 is the one exception to advisory — it still propagates through all, checked before chains runs. validate_deprecation_policy() never reads pyproject.toml."
-          }
+          "name": "Where does pydeprecate policy take its rules from when I pass no flags?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Each rule is resolved independently as flag \u2192 [tool.pydeprecate.policy] in pyproject.toml \u2192 built-in default (min-grace = \"0.3\", message-required = true). Declare the project\u0027s convention once: The file is found the same way --version auto-detection finds it \u2014 from the scanned *path*\u0027s directory up to two parents, nearest table wins \u2014 and never for a bare module name, so running from inside an unrelated checkout cannot adopt its policy. Every run prints a Policy: header naming the source of each value (flag, pyproject.toml, built-in), so a CI log always shows which convention was enforced. A malformed value from the file, or a pyproject.toml that cannot be read or parsed at all, exits 2 and the message names the file (Cannot read \u003cpath\u003e: \u003cerr\u003e); an unknown key (the usual typo is min_grace with an underscore) is reported on stderr and ignored, never silently enforced. On Python 3.9\u20133.10 the parser comes from the [audit] extra (tomli); without it a reachable pyproject.toml triggers an advisory rather than being skipped in silence. pydeprecate all applies the same resolved settings to its advisory policy pass \u2014 but this config-read exit 2 is the one exception to \"advisory\": it still propagates through all (checked before chains runs) even though violation counts themselves do not. The Python API validate_deprecation_policy() never reads pyproject.toml \u2014 it takes a module (object or importable name), never a filesystem path, so pass min_grace and message_required explicitly there." }
         },
+
         {
           "@type": "Question",
-          "name": "How do I keep test fixtures or a legacy tree out of the pyDeprecate audit?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Every scanning function and every CLI subcommand takes an exclude list of glob patterns over the full dotted module name: exclude = [\"my_package.tests\", \"*._legacy*\"] under [tool.pydeprecate] in pyproject.toml, --exclude='my_package.tests,*._legacy*' on the command line (quoted), or find_deprecation_wrappers(my_package, exclude=[...]) in Python. A matching package excludes its whole subtree and the scan itself never imports it (if another module in the package imports it, only its wrappers are filtered). The Exclude: header line names what was left out and where the list came from. Write the full dotted name, not a bare tests; a value that is not a string or a list of strings exits 2."
-          }
+          "name": "How do I keep test fixtures or a legacy tree out of the audit?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Yes \u2014 every scanning function and every CLI subcommand takes an exclude list of glob patterns over the full dotted module name: or pydeprecate all src/my_package --exclude=\u0027my_package.tests,*._legacy*\u0027 (quote it, or the shell expands the * first), or find_deprecation_wrappers(my_package, exclude=[\"my_package.tests\"]) in Python. A pattern that matches a package excludes its whole subtree, and the scan itself never imports an excluded package \u2014 so a fixture that raises at import time neither slows the scan nor produces an audit: skipped warning, as long as nothing else in your package imports it (if something does, the import happens as usual and only the wrappers are filtered out). The header line Exclude: my_package.tests (pyproject.toml) shows what was left out and where the list came from. Write the full name (my_package.tests), not a bare tests: patterns are matched against dotted module names, so a bare word matches only a top-level module of that name. A value that is not a string or a list of strings exits 2." }
         },
+
         {
           "@type": "Question",
-          "name": "What does the UserWarning 'audit: skipped <module>' mean during a recursive scan?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Recursive audit scans import every submodule of the scanned package, so module-level code runs. When a submodule raises any exception at import time — not just ImportError — pyDeprecate emits UserWarning 'audit: skipped <module>: <exception>' and continues scanning instead of aborting. Results are complete for every module that imported successfully; investigate and fix the named submodule to include its deprecations in the scan. The CLI also prints 'pydeprecate gap: module not audited: <module>: <exception>' on stderr for each skipped submodule, even when the package installs a warnings filter that hides the UserWarning."
-          }
+          "name": "UserWarning: audit: skipped \u003cmodule\u003e during a recursive scan",
+          "acceptedAnswer": { "@type": "Answer", "text": "Recursive scans import every submodule of the scanned package, so module-level code runs. When a submodule raises any exception at import time \u2014 not just ImportError \u2014 the scanner emits this warning and continues with the remaining modules instead of aborting the whole scan: The scan results are complete for every module that imported successfully; only the named submodule is missing. Investigate and fix that submodule (or accept the gap if the failure is expected, e.g. an optional dependency) \u2014 one broken submodule no longer kills the CI gate, but its deprecations are not audited until it imports cleanly. The CLI also prints pydeprecate gap: module not audited: \u003cmodule\u003e: \u003cexception\u003e on stderr for each skipped submodule; that line appears even when your package installs a warnings filter that hides the UserWarning." }
         },
+
         {
           "@type": "Question",
-          "name": "Why does my pydeprecate pre-commit hook pass but miss deprecations?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "The remote hook (repo: https://github.com/Borda/pyDeprecate) runs in an isolated environment that holds pyDeprecate and its CLI dependencies but not your package's runtime dependencies. The scan imports your package, so each submodule importing a missing dependency is skipped with UserWarning 'audit: skipped <module>', and pre-commit hides the output of a passing hook. Run a local hook instead (repo: local, language: system, entry: pydeprecate check) so the scan uses your development environment, or list your dependencies in additional_dependencies, starting with the hook's own \"pyDeprecate[cli,audit]\" entry (pyDeprecate's cli and audit extras) and then appending yours, because that list replaces the hook's own."
-          }
+          "name": "My pydeprecate pre-commit hook passes but misses deprecations",
+          "acceptedAnswer": { "@type": "Answer", "text": "The remote hook (repo: https://github.com/Borda/pyDeprecate) runs in an isolated environment that pre-commit builds for it. That environment holds pyDeprecate and its CLI dependencies, but not your package\u0027s runtime dependencies. The scan imports your package, so every submodule that imports a missing dependency is skipped with UserWarning: audit: skipped \u003cmodule\u003e, and pre-commit hides the output of a hook that passes." }
         },
+
         {
           "@type": "Question",
-          "name": "Why does my pydeprecate pre-commit hook fail with 'contains multiple packages'?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "With no path in args, the hook looks for a single package under src/, then at the repository root. A root holding two or more top-level packages (for example mypkg/ and tests/) is ambiguous, so pyDeprecate exits 2 (a usage error) with 'contains multiple packages (mypkg, tests)' instead of scanning nothing and passing. Src-layout repositories and single-package roots resolve on their own. For a multi-package repository, name the package in the hook args, e.g. args: [mypkg]. The same error applies to every subcommand."
-          }
+          "name": "My pydeprecate pre-commit hook fails: contains multiple packages",
+          "acceptedAnswer": { "@type": "Answer", "text": "With no path in args, the hook looks for a single package under src/, then at the repository root. A root that holds two or more top-level packages (here mypkg/ and tests/) is ambiguous, so pyDeprecate stops with an error instead of scanning nothing and passing. Src-layout repositories and single-package roots resolve on their own. For a multi-package repository, name the package to audit in the hook args: The same error, a usage error with exit 2, applies to every subcommand; see the audit guide." }
         },
+
         {
           "@type": "Question",
-          "name": "What does 'pydeprecate gap: other copy audited' mean?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "The scanned package's import name was already taken in the CLI's process by a copy from another directory — pyDeprecate's own deprecate package when scanning another checkout of pyDeprecate, or a package an editable install of another checkout resolves ahead of sys.path — so that copy was audited instead of the directory you passed. The header line 'Imported from:' names the file actually audited. When that copy is the same code (a wheel built from the checkout) the result is still right; otherwise run the scan from the checkout's own virtual environment."
-          }
+          "name": "pydeprecate gap: other copy audited",
+          "acceptedAnswer": { "@type": "Answer", "text": "The ones of the copy named in the message were \u2014 not necessarily the ones in the directory you passed. A package is imported by name, and when that name is already taken in the CLI\u0027s process the scan gets the loaded copy: pyDeprecate\u0027s own deprecate package (scanning a fork or another checkout of pyDeprecate), or a package an editable install of another checkout resolves ahead of sys.path. The header line Imported from: names the file that was actually audited. When that copy is the same code \u2014 CI installs a wheel built from the checkout and then scans src/ \u2014 the result is still right. Otherwise run the scan from the checkout\u0027s own virtual environment, where the package name resolves to the directory you pass." }
         },
+
         {
           "@type": "Question",
-          "name": "Why does pickle.dumps raise TypeError on a deprecated_instance proxy?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "This error was raised in older versions (before PR #212) because pickle's protocol 2+ consistency check detected that type(proxy) != proxy.__class__. Since PR #212, pickle.dumps(proxy) works for deprecated_instance proxies: the proxy is reconstructed on unpickle with deprecation semantics preserved. Two remaining caveats: (1) the stream callable must be picklable by reference — if you passed a lambda or closure as stream, wrap it in a module-level function or use stream=None; (2) deprecated_class proxies raise PicklingError in the common pattern where the decorated class name is replaced by the proxy — use copy.deepcopy for class aliases instead."
-          }
+          "name": "TypeError: \u003cobj\u003e is wrapped in a deprecation proxy and cannot be pickled directly",
+          "acceptedAnswer": { "@type": "Answer", "text": "This error was raised in older versions (before PR #212). Since PR #212, pickle.dumps(proxy) works for deprecated_instance proxies: the proxy is reconstructed on unpickle with deprecation semantics preserved. If you still see this error on a deprecated_instance proxy, upgrade pyDeprecate. Two remaining caveats: (1) the stream callable must be picklable by reference \u2014 if you passed a lambda or closure as stream, use stream=None or stream=warnings.warn instead; (2) deprecated_class proxies raise PicklingError in the common pattern where the decorated class name is replaced by the proxy \u2014 use copy.deepcopy for class aliases instead." }
         },
+
         {
           "@type": "Question",
-          "name": "Why do I get ModuleNotFoundError: No module named 'pydeprecate'?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "The install name and the import name are different. The package is installed with 'pip install pyDeprecate' but imported as 'deprecate': from deprecate import deprecated. The module name 'pydeprecate' does not exist — always import from 'deprecate'."
-          }
+          "name": "My deprecated function raises DeprecatedError instead of warning",
+          "acceptedAnswer": { "@type": "Answer", "text": "Something switched the deprecation to fatal. Four places to check, in order: the wrapper itself (as_exception=True on the @deprecated / deprecated_class / deprecated_instance / deprecated_module call), an enclosing with deprecate.as_exceptions(): block in the same thread or task, the process-wide deprecate.AS_EXCEPTIONS attribute (an application bootstrap or a test fixture may set it), and the DEPRECATE_AS_EXCEPTIONS environment variable, which seeds that attribute at import when set to 1, true, yes, or on. Precedence is monotonic, so as_exception=False on the wrapper does not escape a True global \u2014 that is deliberate, so a strict CI run cannot be opted out of through a wrapper\u0027s own as_exception flag (only the consumer\u0027s own as_exceptions(False) scope or AS_EXCEPTIONS setting can). To find the source, print deprecate.AS_EXCEPTIONS and os.environ.get(\"DEPRECATE_AS_EXCEPTIONS\") at the failing call site, and read get_deprecation_config(the_wrapper).as_exception for the wrapper\u0027s own value. An open as_exceptions() scope never shows in deprecate.AS_EXCEPTIONS; if all three read False, look for a with as_exceptions(): block or an @as_exceptions() decorator in the call stack of the failing call (the traceback lists it)." }
         },
+
         {
           "@type": "Question",
-          "name": "Why do I get UserWarning when using TargetMode.ARGS_REMAP without args_mapping?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "TargetMode.ARGS_REMAP is designed exclusively for renaming or dropping arguments within the same function. Without args_mapping there is nothing to remap — the decorator has zero call-time effect. Provide args_mapping={'old_name': 'new_name'} to map each renamed parameter. To deprecate the whole function with no argument changes, use target=TargetMode.NOTIFY instead. Using ARGS_REMAP without args_mapping will become a TypeError in v1.0."
-          }
+          "name": "Why does as_exception ignore num_warns, and raise even with stream=None?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Both are intended. num_warns budgets *messages*; a gate that stopped refusing after the first call would let a caller retrying inside except DeprecatedError straight through, so a fatal deprecation bypasses the budget and raises on every call, leaving the warn counters untouched. stream=None silences the message, not the lifecycle state \u2014 the raise is the gate, and making an unrelated cosmetic setting switch it off would be a trap in CI. The one switch that does suppress a fatal deprecation is skip_if: a wrapper turned off by configuration is not a deprecation at that moment. Note the flip side for whole modules: a fatal deprecated_module raises on every public attribute access, which includes attribute-walking tools such as pytest collection, Sphinx autodoc, pickle, and copy \u2014 expect those to stop at the module rather than skip it. pyDeprecate\u0027s own audit is unaffected \u2014 find_deprecation_wrappers() and the pydeprecate CLI read the module\u0027s __dict__ instead of going through attribute access, so a fatal module is still discovered and reported normally." }
         },
-        {
-          "@type": "Question",
-          "name": "Why can't I decorate a functools.partial or callable wrapper?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "@deprecated accepts Python functions, supported descriptors, and classes as sources. Callable wrappers such as functools.partial, functools.partialmethod, and singledispatchmethod are rejected with TypeError, including when their wrapped callable is async. Define a plain def or async def with the desired public signature and decorate that named function. For async targets, pyDeprecate follows inspect.iscoroutinefunction on the supported Python runtime; an async callable instance that returns an awaitable is a distinct kind and may not be recognized as a coroutine function. deprecated_instance is for deprecating an object alias, not as a substitute for decorating a function source."
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "A non-async decorator applied over my @deprecated async wrapper no longer looks like a coroutine — why?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "When you stack a sync decorator on top of a @deprecated async def, the outermost callable is sync, so inspect.iscoroutinefunction returns False and asyncio frameworks reject it. Make any outer decorator that wraps async functions coroutine-aware: check inspect.iscoroutinefunction(fn) and emit an async def wrapper when True, or a sync wrapper when False. With this pattern, @my_decorator @deprecated ... async def fn(...) produces an async def wrapper whose iscoroutinefunction returns True."
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "How do I type-annotate the object returned by deprecated_class or deprecated_instance?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "A class alias is typed as the class it forwards to: deprecated_class(target=New, ...)(Old) is typed type[New] whichever class it wraps, so it needs no annotation and isinstance(x, Old) narrows to New. Without a class target (args_mapping or attrs_mapping only) the alias keeps the wrapped class's own type, and the @deprecated_class decorator form is read as the class statement by mypy, while pyright applies the decorator's return type (type[New] with a class target). deprecated_instance returns a proxy; annotate it with the public DeprecationProxy imported from deprecate, never the private _DeprecatedProxy, spelled DeprecationProxy[T] when calling the proxy produces a T. A class alias is still a proxy at runtime, but its proxy-only attributes such as __wrapped__ and __deprecation_config__ are invisible on the class type; read them with get_deprecation_config(Old), inspect.unwrap(Old), or cast(DeprecationProxy[Any], Old). DeprecationProxy is a data protocol: isinstance(obj, DeprecationProxy) works, but issubclass(SomeType, DeprecationProxy) raises TypeError, as it does for every runtime-checkable protocol with non-method members."
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "Why does mypy report errors on deprecated class aliases after upgrading?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Releases before v0.14 shipped no type information, so type checkers treated every pyDeprecate object as Any. Since v0.14 the package ships py.typed and a deprecated class alias is typed as the class it forwards to: deprecated_class(target=New, ...)(Cls) is type[New], without a class target it is type[Cls], and the decorator form is read as the class statement by mypy (pyright applies the decorator's return type). An assignment error on Old: DeprecationProxy[New] = deprecated_class(target=New, ...)(Cls) means the alias is now type[New]: drop the annotation, the alias already has the replacement's type. An attr-defined error on Old.__wrapped__ or Old.__deprecation_config__ means a proxy-only attribute: use get_deprecation_config(Old), inspect.unwrap(Old), or cast(DeprecationProxy[Any], Old). A call-arg or attr-defined error on an old keyword or attribute name accepted through args_mapping or attrs_mapping means the alias's class (the target, or the wrapped class without one) does not declare that name, as the decorator form has always reported: keep the old names in a legacy class body, or cast the alias to DeprecationProxy[New] to make calls and attributes permissive, at the cost of isinstance against the alias no longer type-checking. A valid-type error on def f(x: Old) means a call-form alias is a variable, which no type checker accepts as a type: annotate with the replacement class or, in mypy, use the decorator form."
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "Why does Sphinx or my IDE show (*args, **kwargs) instead of my deprecated class's real signature?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "The tool is rendering the proxy rather than the class it wraps. Every pyDeprecate proxy carries two breadcrumbs back to the source: __wrapped__ is the source class or object, consumed by inspect.unwrap, Sphinx autodoc, griffe/mkdocstrings, and IDEs; __signature__ is the source's signature, consumed by inspect.signature and any tool that does not walk __wrapped__. Reading either attribute emits no deprecation warning, so documentation builds and IDE hovers stay quiet. If a tool still renders the proxy, point it at __wrapped__ explicitly. When the wrapped object has no introspectable signature — a plain dict passed to deprecated_instance, or any C-level type — __signature__ is None rather than absent, and wrapping never fails."
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "Why does my deprecated function raise DeprecatedError instead of warning?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Something switched the deprecation to fatal. Check three places in order: the wrapper itself (as_exception=True on the @deprecated, deprecated_class, deprecated_instance, or deprecated_module call), the process-wide deprecate.AS_EXCEPTIONS attribute, which an application bootstrap, a test fixture, or an enclosing deprecate.as_exceptions() block may set, and the DEPRECATE_AS_EXCEPTIONS environment variable, which seeds that attribute at import when set to 1, true, yes, or on. Precedence is monotonic: an explicit as_exception=True is always fatal, and as_exception=False means not fatal by default but still yields to a True global, so a strict CI run cannot be opted out of through a wrapper's own as_exception flag (only the consumer's own as_exceptions(False) scope or AS_EXCEPTIONS setting can). To locate the source, print deprecate.AS_EXCEPTIONS at the failing call site and read get_deprecation_config(the_wrapper).as_exception for the wrapper's own value."
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "Why does as_exception ignore num_warns and raise even with stream=None?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Both are intended. num_warns budgets messages; a gate that stopped refusing after the first call would let a caller retrying inside except DeprecatedError straight through, so a fatal deprecation bypasses the budget, raises on every call, and leaves the warn counters untouched. stream=None silences the message, not the lifecycle state: the raise is the gate, and letting an unrelated cosmetic setting switch it off would be a trap in CI. The one switch that does suppress a fatal deprecation is skip_if, because a wrapper turned off by configuration is not a deprecation at that moment. For whole modules there is a flip side: a fatal deprecated_module raises on every public attribute access, including attribute-walking tools such as pytest collection, Sphinx autodoc, pickle, and copy, so expect those to stop at the module rather than skip it."
-          }
-        },
+
         {
           "@type": "Question",
           "name": "Why did a failed proxy[key] lookup not warn?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Synchronous data-use operations warn only after success: a KeyError from proxy[key] or an AttributeError from hasattr emits nothing and leaves the num_warns budget unspent. next(proxy) is the exception: it warns before advancing the wrapped iterator, so a failed warning delivery loses no item and an exhausting next() (StopIteration) spends the budget. Async iteration and awaiting differ: __anext__ and __await__ warn when they obtain the underlying awaitable, before it runs, so a later async failure or exhaustion still consumes the budget. If warning delivery raises after context entry acquires a resource, the proxy invokes that same context’s exit method before propagating the error. Calling the proxy also warns before the call, like @deprecated. With as_exception=True, the proxy raises DeprecatedError before it touches the wrapped object for subscripts, iteration, unary and conversion operators, next(), context entry, async with, async iteration, await, in-place operators, and attrs_mapping attribute reads, so a missing key raises DeprecatedError rather than KeyError and a defaultdict gains no entry."
-          }
+          "acceptedAnswer": { "@type": "Answer", "text": "Synchronous data-use operations warn only after they succeed: a KeyError from proxy[key] or an AttributeError from hasattr emits nothing and leaves the num_warns budget unspent. next(proxy) is the exception: it warns before advancing the wrapped iterator, so a failed warning delivery loses no item and an exhausting next() (StopIteration) spends the budget. Async iteration and awaiting are different: __anext__ and __await__ warn when they obtain the underlying awaitable, before it runs, so a later async failure or exhaustion still consumes the budget. If warning delivery raises after context entry acquires a resource, the proxy invokes that same context\u2019s exit method before propagating the error. Calling the proxy also warns before the call, like @deprecated, so a deprecated constructor that raises still reports the deprecation. With as_exception=True, the proxy raises DeprecatedError before it touches the wrapped object for subscripts, iteration, unary and conversion operators, next(), with and async with entry, async iteration, await, in-place operators such as +=, and attrs_mapping attribute reads \u2014 a missing key under a fatal deprecation therefore raises DeprecatedError, not KeyError, and a defaultdict gains no entry." }
         },
+
         {
           "@type": "Question",
           "name": "Can a deprecated_instance of a function be used as a class attribute (method)?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Yes. The proxy implements the descriptor protocol: read through an instance, a proxy over a plain function (or a @deprecated wrapper) returns a bound method whose __func__ is the proxy, so Model().scale(2) calls legacy_scale(model, 2) and warns on the call, pointing at the calling line. The num_warns budget belongs to the proxy, so the default single warning is shared by every instance, and skip_if and as_exception behave as on a direct call. Read through the class, Model.scale is the proxy itself, so Model.scale(model, 2) works too. Proxies over data, classes, and non-function descriptors (property, classmethod, staticmethod objects) are returned as stored and never bound; decorate the underlying function with @deprecated instead."
-          }
+          "acceptedAnswer": { "@type": "Answer", "text": "Yes. The proxy implements the descriptor protocol: read through an instance, a proxy over a plain function (or a @deprecated wrapper) returns a bound method whose __func__ is the proxy, so Model().scale(2) calls legacy_scale(model, 2) and warns on the call, pointing at the calling line. The num_warns budget belongs to the proxy, so the default single warning is shared by every instance, and skip_if and as_exception behave as on a direct call. Read through the class, Model.scale is the proxy itself, as a plain function would be, so Model.scale(model, 2) works too. Proxies over data, classes, and non-function descriptors (property, classmethod, staticmethod objects) are returned as stored and never bound; to deprecate one of those, decorate the underlying function with @deprecated instead. Releases without this binding called legacy_scale(2) and raised TypeError: legacy_scale() missing 1 required positional argument." }
         },
+
         {
           "@type": "Question",
-          "name": "Why don't mypy, pyright, or my IDE flag functions deprecated with pyDeprecate?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Type checkers recognise a deprecation only when the decorator is literally warnings.deprecated (Python 3.13+) or typing_extensions.deprecated; they match the decorator by name, so no runtime decorator, pyDeprecate's included, can make them see it. Stack the PEP 702 decorator directly above pyDeprecate's: warnings.deprecated(\"Use new_name instead.\", category=None) over deprecated(...). Keep category=None, otherwise every call warns twice; write the message as a string literal, because mypy silently ignores a constant or f-string; and import the module rather than the name so pyDeprecate's deprecated is not shadowed. mypy only reports it with enable_error_code = [\"deprecated\"], pyright in CI with reportDeprecated = \"error\". Over deprecated_class(...), both mypy and pyright flag the old class name."
-          }
+          "name": "Why don\u0027t mypy, pyright, or my IDE flag functions deprecated with pyDeprecate?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Type checkers recognise a deprecation only when the decorator is literally warnings.deprecated (Python 3.13+) or typing_extensions.deprecated \u2014 they match the decorator by name, so no runtime decorator (pyDeprecate\u0027s included) can make them see it. Stack the PEP 702 decorator directly above pyDeprecate\u0027s: @warnings.deprecated(\"Use new_name instead.\", category=None) over @deprecated(...). Keep category=None (otherwise every call warns twice), write the message as a string literal (mypy silently ignores a constant or f-string), and import the module rather than the name so pyDeprecate\u0027s deprecated is not shadowed. mypy only reports it with enable_error_code = [\"deprecated\"], pyright in CI with reportDeprecated = \"error\". Over @deprecated_class(...), both mypy and pyright flag the old class name. See Functions \u2192 Static type checkers." }
         },
+
+        {
+          "@type": "Question",
+          "name": "Why does my deprecation warning point inside pyDeprecate or functools.py?",
+          "acceptedAnswer": { "@type": "Answer", "text": "pyDeprecate measures the location when a warning fires and reports the first frame outside the deprecate package. That holds for call-time notices, decoration-time configuration warnings and audit diagnostics, including stacked @deprecated layers, the @deprecated class front door and legacy target=None/True/False sentinels. Two cases still report a different frame" }
+        },
+
+        {
+          "@type": "Question",
+          "name": "My singledispatch or __signature__-patched source receives keyword arguments",
+          "acceptedAnswer": { "@type": "Answer", "text": "A TargetMode.NOTIFY wrapper, and a TargetMode.ARGS_REMAP wrapper whose caller uses no deprecated argument name, calls the source with the caller\u0027s arguments unchanged, so positional dispatch keeps working there. Two cases still differ from calling the source directly" }
+        },
+
         {
           "@type": "Question",
           "name": "Why does my CI step exit 3?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Exit 3 means the audit did not run: neither findings (exit 1) nor a usage error (exit 2). 'pydeprecate: scan error' means the scanned package itself could not be imported (its __init__ raised or its module-level code exited); install the package's runtime dependencies in the scanning environment. A submodule that fails to import is only a 'module not audited' gap and keeps the exit code. 'pydeprecate: internal error' is a bug in pyDeprecate and names the issue tracker. --exit-zero does not mask exit 3 and no --report-json file is written. Before 0.15 both cases exited 1."
-          }
+          "acceptedAnswer": { "@type": "Answer", "text": "The audit did not run, so there are neither findings (exit 1) nor a usage error (exit 2). A scan error means the scanned package itself could not be imported: its __init__ (or the module you named) raised, or its module-level code called sys.exit(). Install the package\u0027s runtime dependencies in the environment that runs the scan, as you would for its tests; a *submodule* that fails to import is only reported as a pydeprecate gap: module not audited line and keeps the exit code. An internal error is a bug in pyDeprecate; the message names the exception and the issue tracker to report it to. --exit-zero does not mask exit 3, and no --report-json file is written. Before 0.15 both cases exited 1, like findings." }
         },
+
         {
           "@type": "Question",
           "name": "Why does pydeprecate check now fail on a wrapper it used to pass?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Since 0.15, check and all exit 1 on misconfigured targets and inner-order properties. A misconfigured target contradicts the rest of the configuration: TargetMode.NOTIFY with an args_mapping, attrs_mapping or args_extra it ignores, TargetMode.ARGS_REMAP without an args_mapping, or the invalid target=False; use TargetMode.ARGS_REMAP to rename arguments or drop the mapping for a plain notice. An inner-order property is @property above @deprecated, where only the getter warns; put @deprecated(...) above @property instead."
-          }
+          "acceptedAnswer": { "@type": "Answer", "text": "Since 0.15 both are errors, as the CLI guide always promised. A misconfigured target is a wrapper whose target contradicts the rest of its configuration: TargetMode.NOTIFY with an args_mapping, attrs_mapping or args_extra it ignores (callers of the old argument name are never migrated), TargetMode.ARGS_REMAP without an args_mapping (nothing to remap), or the invalid target=False. Fix the target: TargetMode.ARGS_REMAP to rename arguments, or drop the mapping for a plain notice. An inner-order property is @property above @deprecated: only the getter warns, and a setter or deleter added later never does. Put @deprecated(...) above @property instead. The scan lists the same rows in find_deprecation_wrappers through the misconfigured_target and inner_order_property fields." }
+        },
+
+        {
+          "@type": "Question",
+          "name": "Why did the GitHub Action skip my job summary?",
+          "acceptedAnswer": { "@type": "Answer", "text": "The summary is optional and never changes the gate\u0027s exit code. The action takes the table from the report the CLI writes with --report-json, and the CLI writes that report only when the scan ran to the end with exit 0 or 1. \"The gate wrote no pyDeprecate report\" means the report could not be written; the cause is in the CLI\u0027s stderr just above the warning. A usage error (exit 2) and a crashed scan (exit 3, for example a package that fails to import) write no summary and no warning, because no scan finished; the step\u0027s error annotation names the exit code. \"No pyDeprecate report is available\" means the job runs a pyDeprecate older than --report-json with install: false: keep install: true, or upgrade the pyDeprecate your job installs. The same \"no report is available\" warning also appears when the runner could not create the temporary directory for the report (its preceding warning gives the OS error). Other warnings: \"summary: true needs GITHUB_STEP_SUMMARY\" means the job is not on a GitHub runner, and \"could not write the job summary\" shows the OS error; both are self-describing. \"The gate\u0027s report holds no deprecation table\" means the CLI could not render the table (the reason is on its stderr). \"Could not read the pyDeprecate report\" or \"not of layout version\" means the report file is corrupt or comes from a different pyDeprecate than the action\u0027s (for example install: false with another version); the preceding runner warning names the cause, and the gate result is unaffected." }
         }
+
       ]
     }
   ]
@@ -1628,6 +1527,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#why-did-the-deprecation-warning-stop-appearing-in-my-long-running-service" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why did the deprecation warning stop appearing in my long-running service?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#deprecation-target-path-incorrect-across-modules" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1925,6 +1835,28 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#how-do-i-deprecate-an-entire-python-module" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How do I deprecate an entire Python module?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#does-deprecated_module-warn-when-accessing-real-attributes-functions-classes-constants-on-the-deprecated-module" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Does deprecated_module() warn when accessing real attributes (functions, classes, constants) on the deprecated module?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#module-deprecation-accessing-a-missing-attribute-raises-attributeerror" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1962,6 +1894,17 @@
     <span class="md-ellipsis">
       
         Why does num_warns=-1 still appear in profiling?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-does-streamnone-not-silence-deprecated_module" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why does stream=None not silence deprecated_module?
       
     </span>
   </a>
@@ -2200,17 +2143,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#still-stuck" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Still stuck?
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#why-did-the-github-action-skip-my-job-summary" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2221,10 +2153,48 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#still-stuck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Still stuck?
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
       
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="limitations.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Limitations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -2298,10 +2268,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_12" >
         
           
-          <label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_12" id="__nav_12_label" tabindex="0">
             
   
   
@@ -2319,8 +2289,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_11">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_12">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2486,6 +2456,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#why-did-the-deprecation-warning-stop-appearing-in-my-long-running-service" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why did the deprecation warning stop appearing in my long-running service?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#deprecation-target-path-incorrect-across-modules" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2783,6 +2764,28 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#how-do-i-deprecate-an-entire-python-module" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How do I deprecate an entire Python module?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#does-deprecated_module-warn-when-accessing-real-attributes-functions-classes-constants-on-the-deprecated-module" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Does deprecated_module() warn when accessing real attributes (functions, classes, constants) on the deprecated module?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#module-deprecation-accessing-a-missing-attribute-raises-attributeerror" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2820,6 +2823,17 @@
     <span class="md-ellipsis">
       
         Why does num_warns=-1 still appear in profiling?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-does-streamnone-not-silence-deprecated_module" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why does stream=None not silence deprecated_module?
       
     </span>
   </a>
@@ -3058,10 +3072,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#still-stuck" class="md-nav__link">
+  <a href="#why-did-the-github-action-skip-my-job-summary" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Still stuck?
+        Why did the GitHub Action skip my job summary?
       
     </span>
   </a>
@@ -3069,10 +3083,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#why-did-the-github-action-skip-my-job-summary" class="md-nav__link">
+  <a href="#still-stuck" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Why did the GitHub Action skip my job summary?
+        Still stuck?
       
     </span>
   </a>
@@ -3267,9 +3281,9 @@
 </details>
 
 <h2 id="typeerror-failed-mapping">TypeError: Failed mapping<a class="headerlink" href="#typeerror-failed-mapping" title="Permanent link">🔗</a></h2>
-<p><strong>Q:</strong> I get <code>TypeError: Failed mapping of 'my_func', arguments not accepted by target: ['old_arg']</code>. What does this mean?</p>
+<p><strong>Q:</strong> I get <code>TypeError: Failed mapping of `my_func`, arguments not accepted by target: ['old_arg']</code>. What does this mean?</p>
 <p><strong>A:</strong> Your deprecated function passes an argument that the target function does not accept. You need to either drop the argument, rename it to match the target's signature, or use <code>TargetMode.ARGS_REMAP</code> for in-place remapping.</p>
-<p>The error fires at call time because pyDeprecate prepares the forwarded call from the deprecated source and validates those arguments against the target's signature. If one or more mapped names are still not accepted by the target, it raises <code>TypeError: Failed mapping of '{source}', arguments not accepted by target: [...]</code>. When the target accepts <code>*args</code>, the message uses a slightly different variant, but it still indicates that the mapped arguments could not be accepted by the target.</p>
+<p>The error fires at call time because pyDeprecate prepares the forwarded call from the deprecated source and validates those arguments against the target's signature. If one or more mapped names are still not accepted by the target, it raises <code>TypeError: Failed mapping of `{source}`, arguments not accepted by target: [...]</code>. When the target accepts <code>*args</code>, the message uses a slightly different variant, but it still indicates that the mapped arguments could not be accepted by the target.</p>
 <p>Choose the fix that matches your situation:</p>
 <p><strong>Option 1 — Drop the argument</strong> (it is no longer needed by the target):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1"># define a target that ignores the extra arg</span>
@@ -3423,7 +3437,10 @@
 </details>
 
 <p>If you are writing tests and need to verify that a warning fires, use <code>pytest.warns(FutureWarning)</code> on the first call and <code>assert_no_warnings(FutureWarning)</code> on subsequent calls. See <a href="guide/audit.html#testing-deprecated-code">Testing Deprecated Code</a> for full examples.</p>
-<p><strong>The <code>num_warns</code> budget is per-process, not per-deployment.</strong> A long-running service — a worker, a web server — that hits a deprecated code path once at startup exhausts the default <code>num_warns=1</code> immediately; the path stays completely silent for the rest of that process's life, even after weeks of steady-state traffic. Checking production logs and seeing nothing does not mean the deprecated path is unused — it may mean the one allowed warning already fired and scrolled out of the retained log window. To confirm whether a deprecated path is still being hit in a running service: restart the process (the counter resets) and watch for the warning again, or redeploy temporarily with <code>num_warns=-1</code> to invoke the configured warning path on every call. Standard warning filters can still suppress repeated display; a custom stream can record each delivery.</p>
+<hr />
+<h2 id="why-did-the-deprecation-warning-stop-appearing-in-my-long-running-service">Why did the deprecation warning stop appearing in my long-running service?<a class="headerlink" href="#why-did-the-deprecation-warning-stop-appearing-in-my-long-running-service" title="Permanent link">🔗</a></h2>
+<p><strong>Q:</strong> My worker logged the deprecation warning once after a deploy and has been silent for weeks, although the deprecated path is surely still called. Did the warning break?</p>
+<p><strong>A:</strong> No. <strong>The <code>num_warns</code> budget is per-process, not per-deployment.</strong> A long-running service — a worker, a web server — that hits a deprecated code path once at startup exhausts the default <code>num_warns=1</code> immediately; the path stays completely silent for the rest of that process's life, even after weeks of steady-state traffic. Checking production logs and seeing nothing does not mean the deprecated path is unused — it may mean the one allowed warning already fired and scrolled out of the retained log window. To confirm whether a deprecated path is still being hit in a running service: restart the process (the counter resets) and watch for the warning again, or redeploy temporarily with <code>num_warns=-1</code> to invoke the configured warning path on every call. Standard warning filters can still suppress repeated display; a custom stream can record each delivery.</p>
 <h2 id="deprecation-target-path-incorrect-across-modules">Deprecation target path incorrect across modules<a class="headerlink" href="#deprecation-target-path-incorrect-across-modules" title="Permanent link">🔗</a></h2>
 <p><strong>Q:</strong> I moved a function to a different module and the deprecation message shows an unexpected path. How do I fix the displayed module path?</p>
 <p><strong>A:</strong> The deprecation message reports the fully-qualified path of the target callable as Python resolves it at decoration time. Ensure the target is imported from its canonical location before the <code>@deprecated</code> decorator is applied.</p>
@@ -3433,18 +3450,21 @@
 <p><strong>A:</strong> Yes, the proxy forwards operator and protocol dunders to the wrapped object and emits the deprecation warning according to a consistent policy. Python's data model invokes special methods directly on the object's type (bypassing <code>__getattr__</code>), so these must be defined on <code>_DeprecatedProxy</code> itself — and they are.</p>
 <p><strong>What warns (data-use operations):</strong></p>
 <ul>
-<li>Arithmetic operators (<code>+</code>, <code>-</code>, <code>*</code>, <code>/</code>, <code>//</code>, <code>**</code>, <code>%</code>, <code>@</code>) and their reflected/in-place forms</li>
+<li>Arithmetic operators (<code>+</code>, <code>-</code>, <code>*</code>, <code>/</code>, <code>//</code>, <code>**</code>, <code>%</code>, <code>@</code>), <code>divmod()</code>, and their reflected/in-place forms</li>
+<li>Bitwise and shift operators (<code>&amp;</code>, <code>|</code>, <code>^</code>, <code>&lt;&lt;</code>, <code>&gt;&gt;</code>) and their reflected/in-place forms</li>
 <li>Numeric/path conversions: <code>int()</code>, <code>float()</code>, <code>complex()</code>, <code>operator.index()</code>, <code>os.fspath()</code></li>
 <li>Unary numeric operators: <code>abs()</code>, <code>-obj</code>, <code>+obj</code>, <code>~obj</code></li>
 <li>Rounding: <code>round()</code>, <code>math.trunc()</code>, <code>math.floor()</code>, <code>math.ceil()</code></li>
 <li><code>reversed()</code>, <code>next()</code></li>
 <li>Context-manager entry (<code>with proxy:</code>, <code>async with proxy:</code>)</li>
 <li>Async iteration entry (<code>async for</code>)</li>
+<li>Awaiting a proxy (<code>await proxy</code>)</li>
 <li>Subclassing (<code>class Child(proxy):</code>)</li>
 </ul>
 <p><strong>What stays silent (structural probes):</strong></p>
 <ul>
 <li>Ordering comparisons: <code>&lt;</code>, <code>&lt;=</code>, <code>&gt;</code>, <code>&gt;=</code></li>
+<li><code>bool()</code>, <code>hash()</code>, and the <code>in</code> operator</li>
 <li><code>format()</code> / f-strings using the wrapped object</li>
 <li>Context-manager exit (<code>__exit__</code> / <code>__aexit__</code>)</li>
 </ul>
@@ -4646,6 +4666,20 @@
 
 <p>If a tool still renders the proxy, point it at <code>__wrapped__</code> explicitly. When the wrapped object has no introspectable signature — a plain <code>dict</code> handed to <code>deprecated_instance()</code>, or any C-level type — <code>__signature__</code> is <code>None</code> rather than missing; wrapping never fails because the source cannot be introspected.</p>
 <hr />
+<h2 id="how-do-i-deprecate-an-entire-python-module">How do I deprecate an entire Python module?<a class="headerlink" href="#how-do-i-deprecate-an-entire-python-module" title="Permanent link">🔗</a></h2>
+<p><strong>Q:</strong> I am retiring a whole module, not a single function or class. Which API covers that, and how do callers get pointed at the replacement?</p>
+<p><strong>A:</strong> Call <code>deprecated_module(__name__, deprecated_in=..., remove_in=...)</code> at the bottom of the module you are retiring. Three modes are available:</p>
+<ul>
+<li><strong>Mode 1</strong> (no <code>target=</code>) changes the module <code>__class__</code> to an intercepting wrapper that delivers a <code>FutureWarning</code> on every public attribute access, including real attributes (functions, classes, constants already in <code>__dict__</code>).</li>
+<li><strong>Mode 2</strong> (<code>target=new_module</code>) also forwards every missing-attribute lookup to the replacement module, optionally with <code>attrs_mapping</code> for per-name redirects. Use it when callers must be redirected to the new name transparently.</li>
+<li><strong>Mode 3</strong> uses <code>deprecated_instance()</code> in the parent package <code>__init__.py</code> to expose the old module name as a deprecated attribute; no extra API is needed.</li>
+</ul>
+<p><code>num_warns=-1</code> is the default and delivers on every access; <code>0</code> delivers none and a positive <code>N</code> delivers exactly <code>N</code>. See the <a href="guide/modules.html">module deprecation guide</a> for each mode with runnable examples.</p>
+<hr />
+<h2 id="does-deprecated_module-warn-when-accessing-real-attributes-functions-classes-constants-on-the-deprecated-module">Does <code>deprecated_module()</code> warn when accessing real attributes (functions, classes, constants) on the deprecated module?<a class="headerlink" href="#does-deprecated_module-warn-when-accessing-real-attributes-functions-classes-constants-on-the-deprecated-module" title="Permanent link">🔗</a></h2>
+<p><strong>Q:</strong> My deprecated module still defines its functions and constants. Do callers that use those real attributes get the warning, or only callers of names that no longer exist?</p>
+<p><strong>A:</strong> Yes, real attributes warn too. <code>deprecated_module()</code> changes the module's <code>__class__</code> to a wrapper that overrides <code>__getattribute__</code>, so every public attribute access invokes the <code>FutureWarning</code> path, including attributes already in <code>__dict__</code>. Standard warning filters can suppress repeated display. A PEP 562 module-level <code>__getattr__</code> hook would fire only for missing names; <code>__getattribute__</code> intercepts all lookups. Star imports are not an exception (see below).</p>
+<hr />
 <h2 id="module-deprecation-accessing-a-missing-attribute-raises-attributeerror">Module deprecation: accessing a missing attribute raises AttributeError<a class="headerlink" href="#module-deprecation-accessing-a-missing-attribute-raises-attributeerror" title="Permanent link">🔗</a></h2>
 <p><strong>Q:</strong> I called <code>deprecated_module()</code> in Mode 1 (no <code>target=</code>). Real attributes invoke the warning path correctly, but accessing a name that is not in the module raises <code>AttributeError</code> instead of just invoking that path. Is there a way to forward missing-attr lookups to a replacement module?</p>
 <p><strong>A:</strong> Yes — that is exactly what Mode 2 (<code>target=new_module</code>) does. Mode 1 intercepts every public attribute access (real or missing) via <code>__getattribute__</code>, so real attributes invoke the warning path and are returned. Standard warning filters can suppress repeated display. However, for names <strong>not</strong> in the module's <code>__dict__</code>, Mode 1 raises <code>AttributeError</code> after invoking that path because there is no target to forward to.</p>
@@ -4678,6 +4712,10 @@
 <p><strong>Q:</strong> I left <code>deprecated_module(..., num_warns=-1)</code> at its default. Why do repeated attribute accesses still show warning-related work, even though no warning-budget lock is taken?</p>
 <p><strong>A:</strong> <code>-1</code> disables only budget accounting. Each public access still looks up module deprecation metadata and delivers the configured warning path; the standard warnings filter may suppress repeated display, but it still evaluates the warning. Use a finite <code>num_warns</code> when the warning delivery work itself must stop after a known number of accesses.</p>
 <hr />
+<h2 id="why-does-streamnone-not-silence-deprecated_module">Why does <code>stream=None</code> not silence <code>deprecated_module</code>?<a class="headerlink" href="#why-does-streamnone-not-silence-deprecated_module" title="Permanent link">🔗</a></h2>
+<p><strong>Q:</strong> I passed <code>stream=None</code> to <code>deprecated_module()</code> expecting silence, as with <code>@deprecated</code>, but the module warning still appears, and a <code>FutureWarning</code> now fires at the <code>deprecated_module(...)</code> call itself.</p>
+<p><strong>A:</strong> For <code>deprecated_module()</code>, <code>stream=None</code> historically meant "use <code>warnings.warn</code>", while every other entry point treats it as silence. The default is now a separate sentinel (<code>help()</code> shows it as <code>&lt;warnings.warn&gt;</code>), so omitting <code>stream</code> keeps the current behaviour without any notice. An explicit <code>stream=None</code> still delivers through <code>warnings.warn</code> but announces the change with a <code>FutureWarning</code> at the call: in v1.0 <code>stream=None</code> silences the module warning, and the <code>num_warns</code> default changes from <code>-1</code> to <code>1</code>. Omit <code>stream</code> to keep warning on access, and pass <code>num_warns=-1</code> explicitly if every access must keep warning after v1.0. To silence a module deprecation today, use a warnings filter or a custom <code>stream</code> that discards the message.</p>
+<hr />
 <h2 id="why-do-pytest-sphinx-or-my-ide-trigger-warnings-on-a-deprecated-module">Why do pytest, Sphinx, or my IDE trigger warnings on a deprecated module?<a class="headerlink" href="#why-do-pytest-sphinx-or-my-ide-trigger-warnings-on-a-deprecated-module" title="Permanent link">🔗</a></h2>
 <p><strong>Q:</strong> I only imported a deprecated module once, but pytest collection, Sphinx autodoc, or my IDE/linter triggers many <code>FutureWarning</code>s. Why?</p>
 <p><strong>A:</strong> That is expected in Mode 1 and Mode 2. <code>deprecated_module()</code> overrides the module's <code>__getattribute__</code>, so any public attribute probe invokes the warning path even when the access comes from tooling rather than your own code. Standard warning filters can suppress repeated display; custom streams can still observe every permitted delivery. Test and documentation tools often call <code>getattr()</code>, inspect plugin metadata, or walk module attributes repeatedly during discovery.</p>
@@ -4685,9 +4723,9 @@
 <div class="highlight"><pre><span></span><code><a id="__codelineno-96-1" name="__codelineno-96-1" href="#__codelineno-96-1"></a><span class="c1"># tests/conftest.py</span>
 <a id="__codelineno-96-2" name="__codelineno-96-2" href="#__codelineno-96-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">warnings</span>
 <a id="__codelineno-96-3" name="__codelineno-96-3" href="#__codelineno-96-3"></a>
-<a id="__codelineno-96-4" name="__codelineno-96-4" href="#__codelineno-96-4"></a><span class="n">warnings</span><span class="o">.</span><span class="n">filterwarnings</span><span class="p">(</span><span class="s2">"ignore"</span><span class="p">,</span> <span class="n">category</span><span class="o">=</span><span class="ne">FutureWarning</span><span class="p">,</span> <span class="n">module</span><span class="o">=</span><span class="sa">r</span><span class="s2">"^old_module$"</span><span class="p">)</span>
+<a id="__codelineno-96-4" name="__codelineno-96-4" href="#__codelineno-96-4"></a><span class="n">warnings</span><span class="o">.</span><span class="n">filterwarnings</span><span class="p">(</span><span class="s2">"ignore"</span><span class="p">,</span> <span class="n">category</span><span class="o">=</span><span class="ne">FutureWarning</span><span class="p">,</span> <span class="n">message</span><span class="o">=</span><span class="sa">r</span><span class="s2">"The `old_module` module was deprecated"</span><span class="p">)</span>
 </code></pre></div>
-<p>Replace <code>old_module</code> with the deprecated module's import path. This keeps the warning visible elsewhere while silencing the noisy introspection path during test collection.</p>
+<p>Replace <code>old_module</code> with the deprecated module's import path (escape dots in a dotted path, e.g. <code>pkg\.old_module</code>). Filter by <code>message=</code>, not <code>module=</code>: the warning is attributed to the module that accesses the deprecated one (the caller's frame), so <code>module=r"^old_module$"</code> never matches. The pattern above matches the start of the built-in notice ("The <code>old_module</code> module was deprecated since v..."); if you pass a custom <code>message_template</code>, match the start of that text instead. This keeps the warning visible elsewhere while silencing the noisy introspection path during test collection.</p>
 <hr />
 <h2 id="does-the-deprecation-survive-copy-deepcopy-and-pickle">Does the deprecation survive <code>copy</code>, <code>deepcopy</code>, and <code>pickle</code>?<a class="headerlink" href="#does-the-deprecation-survive-copy-deepcopy-and-pickle" title="Permanent link">🔗</a></h2>
 <p><strong>Q:</strong> I copied (or pickled and restored) an object wrapped by <code>deprecated_instance</code> / <code>deprecated_class</code> — does the deprecation still apply to the copy?</p>
@@ -4837,7 +4875,7 @@
 <hr />
 <h2 id="my-deprecated-function-raises-deprecatederror-instead-of-warning">My deprecated function raises <code>DeprecatedError</code> instead of warning<a class="headerlink" href="#my-deprecated-function-raises-deprecatederror-instead-of-warning" title="Permanent link">🔗</a></h2>
 <p><strong>Q:</strong> A call that used to emit a <code>FutureWarning</code> now raises <code>deprecate.DeprecatedError</code>. Nothing in my code changed.</p>
-<p><strong>A:</strong> Something switched the deprecation to fatal. Three places to check, in order: the wrapper itself (<code>as_exception=True</code> on the <code>@deprecated</code> / <code>deprecated_class</code> / <code>deprecated_instance</code> / <code>deprecated_module</code> call), the process-wide <code>deprecate.AS_EXCEPTIONS</code> attribute (an application bootstrap, a test fixture, or an enclosing <code>with deprecate.as_exceptions():</code> block may set it), and the <code>DEPRECATE_AS_EXCEPTIONS</code> environment variable, which seeds that attribute at import when set to <code>1</code>, <code>true</code>, <code>yes</code>, or <code>on</code>. Precedence is monotonic, so <code>as_exception=False</code> on the wrapper does <strong>not</strong> escape a <code>True</code> global — that is deliberate, so a strict CI run cannot be opted out of through a wrapper's own <code>as_exception</code> flag (only the consumer's own <code>as_exceptions(False)</code> scope or <code>AS_EXCEPTIONS</code> setting can). To find the source, print <code>deprecate.AS_EXCEPTIONS</code> and <code>os.environ.get("DEPRECATE_AS_EXCEPTIONS")</code> at the failing call site, and read <code>get_deprecation_config(the_wrapper).as_exception</code> for the wrapper's own value.</p>
+<p><strong>A:</strong> Something switched the deprecation to fatal. Four places to check, in order: the wrapper itself (<code>as_exception=True</code> on the <code>@deprecated</code> / <code>deprecated_class</code> / <code>deprecated_instance</code> / <code>deprecated_module</code> call), an enclosing <code>with deprecate.as_exceptions():</code> block in the same thread or task, the process-wide <code>deprecate.AS_EXCEPTIONS</code> attribute (an application bootstrap or a test fixture may set it), and the <code>DEPRECATE_AS_EXCEPTIONS</code> environment variable, which seeds that attribute at import when set to <code>1</code>, <code>true</code>, <code>yes</code>, or <code>on</code>. Precedence is monotonic, so <code>as_exception=False</code> on the wrapper does <strong>not</strong> escape a <code>True</code> global — that is deliberate, so a strict CI run cannot be opted out of through a wrapper's own <code>as_exception</code> flag (only the consumer's own <code>as_exceptions(False)</code> scope or <code>AS_EXCEPTIONS</code> setting can). To find the source, print <code>deprecate.AS_EXCEPTIONS</code> and <code>os.environ.get("DEPRECATE_AS_EXCEPTIONS")</code> at the failing call site, and read <code>get_deprecation_config(the_wrapper).as_exception</code> for the wrapper's own value. An open <code>as_exceptions()</code> scope never shows in <code>deprecate.AS_EXCEPTIONS</code>; if all three read <code>False</code>, look for a <code>with as_exceptions():</code> block or an <code>@as_exceptions()</code> decorator in the call stack of the failing call (the traceback lists it).</p>
 <hr />
 <h2 id="why-does-as_exception-ignore-num_warns-and-raise-even-with-streamnone">Why does <code>as_exception</code> ignore <code>num_warns</code>, and raise even with <code>stream=None</code>?<a class="headerlink" href="#why-does-as_exception-ignore-num_warns-and-raise-even-with-streamnone" title="Permanent link">🔗</a></h2>
 <p><strong>Q:</strong> I set <code>num_warns=1</code> expecting one exception, or <code>stream=None</code> expecting silence, but every call to my fatal deprecation still raises.</p>
@@ -4879,15 +4917,15 @@
 <p><strong>Q:</strong> After upgrading, <code>pydeprecate check</code> (and <code>all</code>) exits <code>1</code> with <em>Found deprecated wrappers with a misconfigured target</em> or <em>Found inner-order @property @deprecated wrappers</em>, on code that passed before.</p>
 <p><strong>A:</strong> Since 0.15 both are errors, as the CLI guide always promised. A <strong>misconfigured target</strong> is a wrapper whose <code>target</code> contradicts the rest of its configuration: <code>TargetMode.NOTIFY</code> with an <code>args_mapping</code>, <code>attrs_mapping</code> or <code>args_extra</code> it ignores (callers of the old argument name are never migrated), <code>TargetMode.ARGS_REMAP</code> without an <code>args_mapping</code> (nothing to remap), or the invalid <code>target=False</code>. Fix the target: <code>TargetMode.ARGS_REMAP</code> to rename arguments, or drop the mapping for a plain notice. An <strong>inner-order property</strong> is <code>@property</code> above <code>@deprecated</code>: only the getter warns, and a setter or deleter added later never does. Put <code>@deprecated(...)</code> above <code>@property</code> instead. The scan lists the same rows in <code>find_deprecation_wrappers</code> through the <code>misconfigured_target</code> and <code>inner_order_property</code> fields.</p>
 <hr />
+<h2 id="why-did-the-github-action-skip-my-job-summary">Why did the GitHub Action skip my job summary?<a class="headerlink" href="#why-did-the-github-action-skip-my-job-summary" title="Permanent link">🔗</a></h2>
+<p><strong>Q:</strong> The action ran with <code>summary: true</code>, but the job summary is absent or warns that the gate wrote no pyDeprecate report, or that no pyDeprecate report is available, or another runner warning about the summary.</p>
+<p><strong>A:</strong> The summary is optional and never changes the gate's exit code. The action takes the table from the report the CLI writes with <code>--report-json</code>, and the CLI writes that report only when the scan ran to the end with exit <code>0</code> or <code>1</code>. "The gate wrote no pyDeprecate report" means the report could not be written; the cause is in the CLI's stderr just above the warning. A usage error (exit <code>2</code>) and a crashed scan (exit <code>3</code>, for example a package that fails to import) write no summary and no warning, because no scan finished; the step's error annotation names the exit code. "No pyDeprecate report is available" means the job runs a pyDeprecate older than <code>--report-json</code> with <code>install: false</code>: keep <code>install: true</code>, or upgrade the pyDeprecate your job installs. The same "no report is available" warning also appears when the runner could not create the temporary directory for the report (its preceding warning gives the OS error). Other warnings: "<code>summary: true</code> needs GITHUB_STEP_SUMMARY" means the job is not on a GitHub runner, and "could not write the job summary" shows the OS error; both are self-describing. "The gate's report holds no deprecation table" means the CLI could not render the table (the reason is on its stderr). "Could not read the pyDeprecate report" or "not of layout version" means the report file is corrupt or comes from a different pyDeprecate than the action's (for example <code>install: false</code> with another version); the preceding runner warning names the cause, and the gate result is unaffected.</p>
+<hr />
 <h2 id="still-stuck">Still stuck?<a class="headerlink" href="#still-stuck" title="Permanent link">🔗</a></h2>
 <div class="admonition question">
 <p class="admonition-title">Open a GitHub issue</p>
 <p>If none of the above covers your situation, open an issue on <a href="https://github.com/Borda/pyDeprecate/issues">GitHub Issues</a>. Include the full traceback, the decorator call you used, and the Python and pyDeprecate versions (<code>pip show pyDeprecate</code>).</p>
 </div>
-<hr />
-<h2 id="why-did-the-github-action-skip-my-job-summary">Why did the GitHub Action skip my job summary?<a class="headerlink" href="#why-did-the-github-action-skip-my-job-summary" title="Permanent link">🔗</a></h2>
-<p><strong>Q:</strong> The action ran with <code>summary: true</code>, but the job summary is absent or warns that the gate wrote no pyDeprecate report, or that no pyDeprecate report is available, or another runner warning about the summary.</p>
-<p><strong>A:</strong> The summary is optional and never changes the gate's exit code. The action takes the table from the report the CLI writes with <code>--report-json</code>, and the CLI writes that report only when the scan ran to the end with exit <code>0</code> or <code>1</code>. "The gate wrote no pyDeprecate report" means the report could not be written; the cause is in the CLI's stderr just above the warning. A usage error (exit <code>2</code>) and a crashed scan (exit <code>3</code>, for example a package that fails to import) write no summary and no warning, because no scan finished; the step's error annotation names the exit code. "No pyDeprecate report is available" means the job runs a pyDeprecate older than <code>--report-json</code> with <code>install: false</code>: keep <code>install: true</code>, or upgrade the pyDeprecate your job installs. The same "no report is available" warning also appears when the runner could not create the temporary directory for the report (its preceding warning gives the OS error). Other warnings: "<code>summary: true</code> needs GITHUB_STEP_SUMMARY" means the job is not on a GitHub runner, and "could not write the job summary" shows the OS error; both are self-describing. "The gate's report holds no deprecation table" means the CLI could not render the table (the reason is on its stderr). "Could not read the pyDeprecate report" or "not of layout version" means the report file is corrupt or comes from a different pyDeprecate than the action's (for example <code>install: false</code> with another version); the preceding runner warning names the cause, and the gate result is unaffected.</p>
 
 
 
@@ -4910,7 +4948,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 27, 2026 11:29:28 UTC">2026-10-27</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 29, 2026 09:40:07 UTC">2026-10-29</span>
   </span>
 
     

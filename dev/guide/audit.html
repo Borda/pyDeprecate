@@ -100,7 +100,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-04-21",
-  "dateModified": "2026-10-27"
+  "dateModified": "2026-10-29"
 }
 </script>
 
@@ -1403,6 +1403,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../limitations.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Limitations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../brand.html" class="md-nav__link">
         
   
@@ -1465,10 +1492,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_12" >
         
           
-          <label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_12" id="__nav_12_label" tabindex="0">
             
   
   
@@ -1486,8 +1513,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_11">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_12">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1986,13 +2013,17 @@
 <li><code>identity_args_mapping</code> — list of args where key equals value (e.g. <code>{"arg": "arg"}</code> — no effect)</li>
 <li><code>self_reference</code> — <code>True</code> if target points to the same function</li>
 <li><code>no_effect</code> — <code>True</code> if the wrapper has zero impact (self-reference, empty mapping, or all-identity)</li>
-<li><code>misconfigured_target</code> — <code>True</code> if an invalid raw target sentinel (<code>False</code>) was passed at decoration time</li>
+<li><code>misconfigured_target</code> — <code>True</code> when the wrapper's target contradicts its configuration: <code>NOTIFY</code> with an <code>args_mapping</code>, <code>args_extra</code> or <code>attrs_mapping</code>, <code>ARGS_REMAP</code> with an empty <code>args_mapping</code>, or the invalid <code>target=False</code>. This is not identical to <code>DeprecationConfig.misconfigured</code>: for example, a legacy <code>target=True</code> wrapper skips the callable-mode validation, so its <code>DeprecationConfig.misconfigured</code> stays <code>False</code> while an <code>ARGS_REMAP</code> wrapper with an empty mapping is still flagged here. In CI, read this audit field rather than <code>DeprecationConfig.misconfigured</code></li>
 <li><code>all_identity</code> — <code>True</code> if every entry in <code>args_mapping</code> maps a key to itself</li>
 <li><code>chain_type</code> — chain classification used when reporting deprecation chains, such as <code>TARGET</code> or <code>STACKED</code></li>
 <li><code>empty_deprecated_in</code> — <code>True</code> when <code>deprecated_in</code> is absent or empty; useful in CI to surface wrappers with no version annotation</li>
 <li><code>api_type</code> — inferred API kind for report generation (e.g. <code>callable</code>, <code>args</code>, <code>class</code>, <code>dataclass attributes</code>, <code>class method</code>); excluded from <code>repr()</code> to keep snapshot tests stable</li>
 <li><code>pep702_message</code> — <code>None</code> for every pyDeprecate wrapper; on a row that <code>find_deprecation_wrappers(..., include_pep702=True)</code> reports for a symbol deprecated only with <code>warnings.deprecated</code>, the decorator's message (a string, possibly empty) — such rows have no versions, so <code>empty_deprecated_in</code> is <code>True</code> (see <a href="#pep-702-only-deprecations">PEP 702-only deprecations</a>); excluded from <code>repr()</code></li>
 </ul>
+<div class="admonition note">
+<p class="admonition-title"><code>DeprecationConfig</code> cache fields leave in v1.0</p>
+<p><code>deprecated_info</code> is a <code>DeprecationConfig</code> whose audit metadata fields (<code>deprecated_in</code>, <code>remove_in</code>, <code>name</code>, <code>target</code>, <code>args_mapping</code>, <code>args_extra</code>, <code>misconfigured</code>, <code>docstring_style</code>, <code>message_template</code>, <code>attrs_mapping</code>, <code>as_exception</code>, <code>args_mapping_auto_expanded</code>, <code>args_mapping_positional_only</code>) are stable. Eight further fields are internal call-time caches that the wrapper reads on every call instead of inspecting signatures again: <code>target_positional_only</code>, <code>target_positional_only_order</code>, <code>source_positional_only</code>, <code>source_positional_only_order</code>, <code>source_var_positional_prefix</code>, <code>target_all_param_names</code>, <code>target_accepts_var_positional</code> and <code>target_accepts_var_keyword</code>. They will be removed from <code>DeprecationConfig</code> in v1.0, so do not read them in audit or CI code.</p>
+</div>
 <h3 id="validating-a-single-function">Validating a single function<a class="headerlink" href="#validating-a-single-function" title="Permanent link">🔗</a></h3>
 <p><code>validate_deprecation_wrapper()</code> extracts the configuration from the function's <code>__deprecation_config__</code> attribute and returns a <code>DeprecationWrapperInfo</code> dataclass. Use it in development or in a targeted pytest assertion to confirm a specific wrapper is sound before shipping.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">TargetMode</span><span class="p">,</span> <span class="n">validate_deprecation_wrapper</span><span class="p">,</span> <span class="n">deprecated</span><span class="p">,</span> <span class="n">DeprecationWrapperInfo</span>
@@ -2274,7 +2305,7 @@
 <ul>
 <li>Class members decorated with <code>@deprecated</code> (e.g. an <code>__init__</code> wrapped by <code>deprecated_class</code> delegation) are included by default (<code>include_members=True</code>) — pass <code>include_members=False</code> to restrict the scan to module-level callables.</li>
 <li>Callables without <code>remove_in</code> are skipped — notice-only deprecations are allowed.</li>
-<li>Invalid version formats in <code>remove_in</code> are silently skipped.</li>
+<li>Invalid version formats in <code>remove_in</code> are skipped with a <code>UserWarning</code> naming the callable and the unparsable version (the CLI prints a <code>remove_in not PEP 440</code> gap line instead), so the expiry of that callable is not checked.</li>
 <li>PEP 440 versioning is used for comparison (e.g. <code>"2.0.0" &gt; "1.9.5"</code>).</li>
 <li>Pre-release versions are handled correctly (e.g. <code>"1.5.0a1" &lt; "1.5.0"</code>).</li>
 </ul>
@@ -2399,6 +2430,7 @@
 <ul>
 <li>Wrappers missing <code>deprecated_in</code> or <code>remove_in</code> are <strong>not</strong> violations — the grace-window rule simply skips them, because a deprecation without a scheduled removal is a valid and common choice.</li>
 <li>An unparsable version string emits a <code>UserWarning</code> naming the wrapper and the offending field, then the scan continues for the rest — one typo never aborts the gate.</li>
+<li>The return value is a list of message strings, not structured records. Each message starts with the <code>[slug]</code> of the rule it broke (<code>[min-grace]</code>, <code>[message-required]</code>), and that slug is the stable rule identifier: filter, group or suppress on it rather than on the wording after it, which may change. <code>validate_deprecation_expiry()</code> also returns plain message strings, without a slug. For structured per-wrapper data use the <code>DeprecationWrapperInfo</code> rows of <code>find_deprecation_wrappers()</code>; the CLI's <code>--report-json</code> file holds the rendered deprecation table and the run's gaps (see the <a href="cli.html">CLI Reference</a>), not the violation messages.</li>
 <li><code>recursive</code>, <code>include_members</code> and <code>exclude</code> behave exactly as in <code>find_deprecation_wrappers()</code>.</li>
 <li>The CLI exposes the same gate as <code>pydeprecate policy</code> — see the <a href="cli.html">CLI Reference</a> for flags and exit codes, and <a href="#enforcing-the-policy-in-ci">Enforcing the policy in CI</a> below for the workflow. The CLI can also read the rules from a <code>[tool.pydeprecate.policy]</code> table in <code>pyproject.toml</code> (<a href="cli.html#project-configuration-in-pyprojecttoml">details</a>); this function takes a module (object or importable name), never a filesystem path, and does not read that file — pass <code>min_grace</code> and <code>message_required</code> explicitly.</li>
 </ul>
@@ -3113,7 +3145,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 27, 2026 11:29:28 UTC">2026-10-27</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 29, 2026 09:40:07 UTC">2026-10-29</span>
   </span>
 
     

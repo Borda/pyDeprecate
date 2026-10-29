@@ -41,7 +41,7 @@ print(Config().timeout)
 
 </details>
 
-The `FutureWarning` fires on **attribute access** (`obj.timeout`), not on a call. For `@cached_property`, the warning fires on **first access only** — subsequent accesses return the cached value without emitting another warning.
+The `FutureWarning` fires on **attribute access** (`obj.timeout`), not on a call. For `@cached_property`, the warning fires on **first access only** — subsequent accesses return the cached value without emitting another warning. The cache is filled after the first read, so later reads of the same object never reach pyDeprecate and no `num_warns` value can raise the count. With `num_warns=-1` each new object warns once, on its first access; the default `num_warns=1` budget is shared by all objects, so only the first object to read the property warns.
 
 !!! tip "Decorator order for getter-only properties"
 

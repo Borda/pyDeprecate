@@ -100,7 +100,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-05-19",
-  "dateModified": "2026-10-23"
+  "dateModified": "2026-10-29"
 }
 </script>
 
@@ -1335,6 +1335,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../limitations.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Limitations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../brand.html" class="md-nav__link">
         
   
@@ -1397,10 +1424,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_12" >
         
           
-          <label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_12" id="__nav_12_label" tabindex="0">
             
   
   
@@ -1418,8 +1445,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_11">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_12">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1779,7 +1806,7 @@
 
 
 <h1 id="migration-guide">Migration Guide<a class="headerlink" href="#migration-guide" title="Permanent link">🔗</a></h1>
-<p>The current development target is <strong>v0.14</strong>. This guide contains only rewrites, deprecations, and observable changes that existing users need to handle when upgrading. New APIs and capabilities belong in the <a href="../changelog.html">Changelog</a> and topic guides.</p>
+<p>The latest release is <strong>v0.14</strong>; changes on the unreleased line are listed under <code>[UnReleased]</code> in the <a href="../changelog.html">Changelog</a>. This guide contains only rewrites, deprecations, and observable changes that existing users need to handle when upgrading. New APIs and capabilities belong in the <a href="../changelog.html">Changelog</a> and topic guides.</p>
 <h2 id="migrate-legacy-target-values">Migrate Legacy Target Values<a class="headerlink" href="#migrate-legacy-target-values" title="Permanent link">🔗</a></h2>
 <p>v0.8 introduced <code>TargetMode</code> so deprecation intent no longer depends on the legacy <code>None</code>, <code>True</code>, and <code>False</code> sentinels. These examples show the current form and the caller behavior to preserve during migration.</p>
 <h3 id="targetnone-targetmodenotify"><code>target=None</code> → <code>TargetMode.NOTIFY</code><a class="headerlink" href="#targetnone-targetmodenotify" title="Permanent link">🔗</a></h3>
@@ -1945,7 +1972,7 @@
 </table>
 <p>An explicitly supplied <code>NOTIFY</code> is never rewritten: its mapping stays inert. Inference happens only when <code>target</code> is omitted.</p>
 <h3 id="deprecationwrapperinfo-field-renames"><code>DeprecationWrapperInfo</code> field renames<a class="headerlink" href="#deprecationwrapperinfo-field-renames" title="Permanent link">🔗</a></h3>
-<p>Two audit fields were renamed in v0.8. The old properties still work but emit <code>DeprecationWarning</code> and will be removed in v1.0:</p>
+<p>Two audit fields were renamed in v0.8. The old names still work and will be removed in v1.0: reading the old properties emits a <code>FutureWarning</code> (and raises <code>DeprecatedError</code> in fatal mode), while passing the old names as constructor or <code>dataclasses.replace()</code> keywords emits a <code>DeprecationWarning</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="gd">- # DEPRECATED API — compatibility properties</span>
 <a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="gd">- info.empty_mapping</span>
 <a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="gd">- info.identity_mapping</span>
@@ -3363,7 +3390,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 23, 2026 14:56:30 UTC">2026-10-23</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 29, 2026 09:40:07 UTC">2026-10-29</span>
   </span>
 
     

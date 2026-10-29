@@ -100,7 +100,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-07-18",
-  "dateModified": "2026-10-26"
+  "dateModified": "2026-10-29"
 }
 </script>
 
@@ -1191,6 +1191,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../limitations.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Limitations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../brand.html" class="md-nav__link">
         
   
@@ -1253,10 +1280,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_12" >
         
           
-          <label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_12" id="__nav_12_label" tabindex="0">
             
   
   
@@ -1274,8 +1301,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_11">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_12">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1583,7 +1610,7 @@
 </code></pre></div>
 <p><code>import my_package; my_package.old_utils.add(1, 2)</code> invokes the <code>FutureWarning</code> path on the first attribute access and forwards to <code>new_calculator</code>; standard filters can suppress display.</p>
 <h2 id="limiting-warning-volume-with-num_warns">Limiting warning volume with <code>num_warns</code><a class="headerlink" href="#limiting-warning-volume-with-num_warns" title="Permanent link">🔗</a></h2>
-<p>By default <code>deprecated_module()</code> delivers a warning on <strong>every</strong> public attribute access, matching its behavior before <code>num_warns</code> existed. Standard warning filters can still suppress repeated <em>display</em> at the same location. Pass <code>num_warns</code> to cap deliveries — the same semantics as <code>@deprecated</code>'s <code>num_warns</code>, just defaulting to <code>-1</code> (unlimited) instead of <code>1</code>, since a module's whole purpose is warning on every access unless you opt into a budget:</p>
+<p>By default <code>deprecated_module()</code> delivers a warning on <strong>every</strong> public attribute access, matching its behavior before <code>num_warns</code> existed. Standard warning filters can still suppress repeated <em>display</em> at the same location. Pass <code>num_warns</code> to cap deliveries — the same semantics as <code>@deprecated</code>'s <code>num_warns</code>, but defaulting to <code>-1</code> (unlimited) instead of <code>1</code> until v1.0, when the default becomes <code>1</code> like everywhere else (see the box below):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># phmdoctest:skip — old_calculator.py in-place warn template, budgeted variant</span>
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated_module</span>
 <a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
@@ -1594,6 +1621,10 @@
 <a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="p">)</span>
 </code></pre></div>
 <p><code>0</code> never delivers a warning, a positive <code>N</code> delivers exactly <code>N</code>, and <code>-1</code> (the default) delivers on every access. The counter is one budget shared across every attribute name on the module — there is no per-attribute counter the way <code>deprecated_class</code>'s <code>attrs_mapping</code> gets one. <code>-1</code> avoids budget locking but still performs metadata lookup and warning handling. Use a finite budget for a worker service whose custom stream or warning filter would otherwise record repeated accesses.</p>
+<div class="admonition warning">
+<p class="admonition-title"><code>stream=None</code> and the <code>num_warns</code> default change in v1.0</p>
+<p>Omit <code>stream</code> to deliver the module warning through <code>warnings.warn</code> (the default; <code>help(deprecated_module)</code> shows it as <code>&lt;warnings.warn&gt;</code>). An explicit <code>stream=None</code> does the same today, but emits a <code>FutureWarning</code> at the <code>deprecated_module(...)</code> call: in v1.0 <code>stream=None</code> will silence the module warning, as it already does for <code>@deprecated</code>, <code>deprecated_class</code> and <code>deprecated_instance</code>. In the same release the <code>num_warns</code> default changes from <code>-1</code> to <code>1</code>; pass <code>num_warns=-1</code> explicitly to keep a warning on every access.</p>
+</div>
 <h2 id="star-imports-also-warn">Star imports also warn<a class="headerlink" href="#star-imports-also-warn" title="Permanent link">🔗</a></h2>
 <p>Star imports (<code>from old_calculator import *</code>) still trigger the deprecation warning. CPython's <code>IMPORT_STAR</code> bytecode calls <code>getattr(module, name)</code> for each public name being pulled in, and that call routes through the same <code>__getattribute__</code> interception installed by <code>deprecated_module()</code> — so a <code>FutureWarning</code> fires once per pulled-in public name, exactly as it would for <code>old_calculator.add(1, 2)</code>. This closes a gap that a PEP 562 module-level <code>__getattr__</code> hook would otherwise leave open, since <code>__getattr__</code> only fires for missing names and star imports never trigger it.</p>
 <h2 id="audit-integration">Audit integration<a class="headerlink" href="#audit-integration" title="Permanent link">🔗</a></h2>
@@ -1606,7 +1637,7 @@
 <a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="n">module_items</span> <span class="o">=</span> <span class="p">[</span><span class="n">r</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">deprecated_items</span> <span class="k">if</span> <span class="n">r</span><span class="o">.</span><span class="n">api_type</span> <span class="o">==</span> <span class="s2">"module"</span><span class="p">]</span>
 </code></pre></div>
 <h2 id="fatal-deprecations">Fatal deprecations<a class="headerlink" href="#fatal-deprecations" title="Permanent link">🔗</a></h2>
-<p><code>deprecated_module(..., as_exception=True)</code> turns every public attribute access on the module into a raised <code>DeprecatedError</code> — see <a href="functions.html#fatal-deprecations">Fatal deprecations</a> for the full contract, including the process-wide <code>DEPRECATE_AS_EXCEPTIONS</code> switch. It ignores <code>num_warns</code> (every access raises, not just the first) and is not silenced by <code>stream=None</code>.</p>
+<p><code>deprecated_module(..., as_exception=True)</code> turns every public attribute access on the module into a raised <code>DeprecatedError</code> — see <a href="functions.html#fatal-deprecations">Fatal deprecations</a> for the full contract, including the process-wide <code>DEPRECATE_AS_EXCEPTIONS</code> switch. It ignores <code>num_warns</code> (every access raises, not just the first) and does not depend on <code>stream</code>.</p>
 <p>A module is the broadest surface this feature covers, so expect the blast radius to match: any tool that walks module attributes stops at a fatal module rather than skipping it — pytest collection, Sphinx autodoc, <code>pickle</code>, <code>copy</code>. pyDeprecate's own audit is unaffected, because <code>find_deprecation_wrappers()</code> and the <code>pydeprecate</code> CLI read the module's <code>__dict__</code> rather than going through attribute access, so a fatal module still appears in discovery and reports like any other.</p>
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">🔗</a></h2>
 <ul>
@@ -1640,7 +1671,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 26, 2026 22:58:28 UTC">2026-10-26</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 29, 2026 09:40:07 UTC">2026-10-29</span>
   </span>
 
     

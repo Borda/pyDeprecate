@@ -100,7 +100,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-06-15",
-  "dateModified": "2026-10-26"
+  "dateModified": "2026-10-29"
 }
 </script>
 
@@ -1396,6 +1396,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../limitations.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Limitations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../brand.html" class="md-nav__link">
         
   
@@ -1458,10 +1485,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_12" >
         
           
-          <label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_12" id="__nav_12_label" tabindex="0">
             
   
   
@@ -1479,8 +1506,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_11">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_12">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2077,7 +2104,7 @@
 <a id="__codelineno-8-20" name="__codelineno-8-20" href="#__codelineno-8-20"></a><span class="n">Color</span> <span class="o">=</span> <span class="n">deprecated_class</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">ThemeColor</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">"1.0"</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">"2.0"</span><span class="p">)(</span><span class="n">ThemeColor</span><span class="p">)</span>
 <a id="__codelineno-8-21" name="__codelineno-8-21" href="#__codelineno-8-21"></a>
 <a id="__codelineno-8-22" name="__codelineno-8-22" href="#__codelineno-8-22"></a><span class="c1"># All access is forwarded to ThemeColor — a FutureWarning is emitted once:</span>
-<a id="__codelineno-8-23" name="__codelineno-8-23" href="#__codelineno-8-23"></a><span class="c1">#   The `Color` was deprecated since v1.0. It will be removed in v2.0.</span>
+<a id="__codelineno-8-23" name="__codelineno-8-23" href="#__codelineno-8-23"></a><span class="c1">#   The `ThemeColor` was deprecated since v1.0 in favor of `&lt;module&gt;.ThemeColor`. It will be removed in v2.0.</span>
 <a id="__codelineno-8-24" name="__codelineno-8-24" href="#__codelineno-8-24"></a><span class="nb">print</span><span class="p">(</span><span class="n">Color</span><span class="o">.</span><span class="n">RED</span> <span class="ow">is</span> <span class="n">ThemeColor</span><span class="o">.</span><span class="n">RED</span><span class="p">)</span>  <span class="c1"># True</span>
 <a id="__codelineno-8-25" name="__codelineno-8-25" href="#__codelineno-8-25"></a><span class="nb">print</span><span class="p">(</span><span class="n">Color</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="ow">is</span> <span class="n">ThemeColor</span><span class="o">.</span><span class="n">RED</span><span class="p">)</span>  <span class="c1"># True</span>
 <a id="__codelineno-8-26" name="__codelineno-8-26" href="#__codelineno-8-26"></a><span class="nb">print</span><span class="p">(</span><span class="n">Color</span><span class="p">[</span><span class="s2">"RED"</span><span class="p">]</span> <span class="ow">is</span> <span class="n">ThemeColor</span><span class="o">.</span><span class="n">RED</span><span class="p">)</span>  <span class="c1"># True</span>
@@ -2625,7 +2652,7 @@
 
 </details>
 
-<p>Each proxy layer carries its own <code>deprecated_in</code>/<code>remove_in</code>, so attribute-access warnings are version-accurate — <code>cfg.lr</code> reports the v1.0 deadline while <code>cfg.steps</code> reports the earlier v0.8 deadline. Stacking is fully supported: <code>isinstance()</code> and <code>issubclass()</code> resolve through the proxy chain, and instantiation fires at most one global warning. When stacking two <code>ATTRS_REMAP</code> layers, only the innermost layer's instantiation warning fires — the outer layer's version pair appears only in attribute-access warnings for that layer's keys.</p>
+<p>Each proxy layer carries its own <code>deprecated_in</code>/<code>remove_in</code>, so attribute-access warnings are version-accurate — <code>cfg.lr</code> reports the v1.0 deadline while <code>cfg.steps</code> reports the earlier v0.8 deadline. Stacking is fully supported: <code>isinstance()</code> and <code>issubclass()</code> resolve through the proxy chain, and instantiation fires at most one global warning. <code>ATTRS_REMAP</code> layers fire no instantiation warning at all, so stacking two of them warns only on attribute access — each layer's version pair appears in the warnings for that layer's keys.</p>
 <h3 id="chained-redirect">Chained redirect<a class="headerlink" href="#chained-redirect" title="Permanent link">🔗</a></h3>
 <p><code>attrs_mapping</code> supports multi-hop rename chains. <code>{"num_iters": "num_steps", "num_steps": "max_steps"}</code> is a valid chain — accessing <code>proxy.num_iters</code> warns once (for <code>num_iters</code>) and resolves directly to the value stored under <code>num_steps</code> on the active class; accessing <code>proxy.num_steps</code> warns once (for <code>num_steps</code>) and resolves to <code>max_steps</code>. Audit reports this mapping structure as <code>ChainType.STACKED</code>. Cycles such as <code>{"a": "b", "b": "a"}</code> raise <code>ValueError</code> at decoration time.</p>
 <p>Every non-<code>None</code> redirect target in the chain must be a static class attribute. In the example below, <code>num_steps</code> must exist on the class because it is a redirect target for <code>num_iters</code>:</p>
@@ -2692,15 +2719,15 @@
 <a id="__codelineno-38-23" name="__codelineno-38-23" href="#__codelineno-38-23"></a>
 <a id="__codelineno-38-24" name="__codelineno-38-24" href="#__codelineno-38-24"></a>
 <a id="__codelineno-38-25" name="__codelineno-38-25" href="#__codelineno-38-25"></a><span class="c1"># Accessing the deprecated alias through the outer proxy: two warnings fire —</span>
-<a id="__codelineno-38-26" name="__codelineno-38-26" href="#__codelineno-38-26"></a><span class="c1"># one from the outer blanket proxy ("Palette" is deprecated) and one from the</span>
-<a id="__codelineno-38-27" name="__codelineno-38-27" href="#__codelineno-38-27"></a><span class="c1"># inner selective proxy ("color" is deprecated in favor of "colour").</span>
-<a id="__codelineno-38-28" name="__codelineno-38-28" href="#__codelineno-38-28"></a><span class="n">_</span> <span class="o">=</span> <span class="n">blanket_proxy</span><span class="o">.</span><span class="n">color</span>  <span class="c1"># warns: FutureWarning × 2 — outer blanket + inner selective</span>
+<a id="__codelineno-38-26" name="__codelineno-38-26" href="#__codelineno-38-26"></a><span class="c1"># first from the inner selective proxy ("color" is deprecated in favor of "colour"),</span>
+<a id="__codelineno-38-27" name="__codelineno-38-27" href="#__codelineno-38-27"></a><span class="c1"># then from the outer blanket proxy ("Palette" is deprecated).</span>
+<a id="__codelineno-38-28" name="__codelineno-38-28" href="#__codelineno-38-28"></a><span class="n">_</span> <span class="o">=</span> <span class="n">blanket_proxy</span><span class="o">.</span><span class="n">color</span>  <span class="c1"># warns: FutureWarning × 2 — inner selective, then outer blanket</span>
 <a id="__codelineno-38-29" name="__codelineno-38-29" href="#__codelineno-38-29"></a>
 <a id="__codelineno-38-30" name="__codelineno-38-30" href="#__codelineno-38-30"></a><span class="c1"># Accessing the canonical name through the outer proxy: one warning fires —</span>
 <a id="__codelineno-38-31" name="__codelineno-38-31" href="#__codelineno-38-31"></a><span class="c1"># only the outer blanket proxy warns; the inner proxy forwards silently.</span>
 <a id="__codelineno-38-32" name="__codelineno-38-32" href="#__codelineno-38-32"></a><span class="n">_</span> <span class="o">=</span> <span class="n">blanket_proxy</span><span class="o">.</span><span class="n">colour</span>  <span class="c1"># warns: FutureWarning × 1 — outer blanket only</span>
 </code></pre></div>
-<p>The outer proxy issues its blanket class-deprecation warning first; the inner proxy then handles the attribute redirect. Two warnings fire for <code>blanket_proxy.color</code> — one per proxy layer. Accessing <code>blanket_proxy.colour</code> fires only the outer proxy warning because <code>colour</code> is not listed in the inner proxy's <code>attrs_mapping</code>.</p>
+<p>The inner proxy handles the attribute redirect first; the outer proxy then issues its blanket class-deprecation warning. Two warnings fire for <code>blanket_proxy.color</code> — one per proxy layer, the inner <code>color</code> warning before the outer one. Accessing <code>blanket_proxy.colour</code> fires only the outer proxy warning because <code>colour</code> is not listed in the inner proxy's <code>attrs_mapping</code>.</p>
 <h3 id="real-world-migration-ml-training-config">Real-world migration: ML training config<a class="headerlink" href="#real-world-migration-ml-training-config" title="Permanent link">🔗</a></h3>
 <p>The following end-to-end example shows a typical ML library migration where a <code>TrainingConfig</code> dataclass renames several fields across versions. Existing code using the old attribute names continues to work with deprecation notices guiding users toward the canonical API.</p>
 <p>Migration summary:</p>
@@ -2962,7 +2989,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 26, 2026 22:58:28 UTC">2026-10-26</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 29, 2026 09:40:07 UTC">2026-10-29</span>
   </span>
 
     

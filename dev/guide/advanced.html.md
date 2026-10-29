@@ -355,7 +355,7 @@ print(Compute.surface(r=3.0))  # warns: FutureWarning
 
 </details>
 
-The same pattern works for `@classmethod`. Both the deprecated and the replacement must be classmethods — pyDeprecate enforces this symmetry at decoration time and raises `TypeError` if the source has no `cls` parameter.
+The same pattern works for `@classmethod`. Both the deprecated and the replacement must be classmethods. A mismatch surfaces as `TypeError`, but the result depends on the direction: a `classmethod` replacement with a source that has no leading `cls` parameter raises at decoration time, while a `classmethod` source forwarding to a `staticmethod` replacement decorates fine and raises `` TypeError: Failed mapping of `old`, arguments not accepted by target: ['cls'] `` on the first call.
 
 ```python
 from deprecate import deprecated, void
