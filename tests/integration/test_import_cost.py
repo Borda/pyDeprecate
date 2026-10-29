@@ -3,10 +3,10 @@
 Libraries import ``deprecate`` at module import time just to decorate a few functions, so every module the package pulls
 in is paid by every downstream ``import``.  The audit tooling (``deprecate.audit``) and its ``importlib.metadata``,
 ``zipfile``, ``json`` and ``tempfile`` dependencies are needed only by CI scans and the CLI.  Each check runs in a fresh
-isolated interpreter (``python -I``) because the test process itself has already imported everything. The module
-carries the ``without_coverage`` marker: run it as ``pytest -m without_coverage`` without ``--cov``, because
-coverage 7.10.x, the newest release for Python 3.9, imports ``json`` in every child interpreter, which these probes
-would read as a regression in ``deprecate``.
+isolated interpreter (``python -I``) because the test process itself has already imported everything. The probes of
+``TestLazyAuditImport`` carry the ``without_coverage`` marker and run as ``pytest -m without_coverage``, without
+``--cov``: coverage 7.10.x, the newest release for Python 3.9, imports ``json`` in every child interpreter, which these
+probes would read as a regression in ``deprecate``.
 
 """
 
@@ -17,12 +17,11 @@ import pytest
 import deprecate
 from tests._helpers import run_isolated_python
 
-pytestmark = pytest.mark.without_coverage
-
 #: Modules that a plain ``import deprecate`` must not load.
 _HEAVY_MODULES = ("importlib.metadata", "zipfile", "json", "tempfile")
 
 
+@pytest.mark.without_coverage
 class TestLazyAuditImport:
     """``import deprecate`` defers the audit tooling until one of its names is used."""
 
@@ -118,20 +117,17 @@ class TestLazyAuditImport:
 
 
 @pytest.mark.subprocess
-class TestProxyPackageImport:
-    """``import deprecate`` alone gives proxies their full protocol forwarding."""
+def test_proxy_installs_forwarding_dunders() -> None:
+    """A proxy built right after a bare ``import deprecate`` forwards operators and the context protocol.
 
-    def test_installs_forwarding_dunders(self) -> None:
-        """A proxy built right after a bare ``import deprecate`` forwards operators and the context protocol.
+    The operator and context-manager forwarders live in their own module of the proxy package and are installed
+    onto the proxy class when that module is imported. A program that never imports the module itself must still
+    get a proxy that supports ``+`` and ``with``, so the package has to load it on its own.
 
-        The operator and context-manager forwarders live in their own module of the proxy package and are installed
-        onto the proxy class when that module is imported. A program that never imports the module itself must still
-        get a proxy that supports ``+`` and ``with``, so the package has to load it on its own.
-
-        """
-        code = (
-            "import deprecate\n"
-            "proxy = deprecate.deprecated_instance([1, 2], deprecated_in='1.0', remove_in='2.0', stream=None)\n"
-            "print(proxy + [3], hasattr(type(proxy), '__enter__'))\n"
-        )
-        assert run_isolated_python(code) == "[1, 2, 3] True"
+    """
+    code = (
+        "import deprecate\n"
+        "proxy = deprecate.deprecated_instance([1, 2], deprecated_in='1.0', remove_in='2.0', stream=None)\n"
+        "print(proxy + [3], hasattr(type(proxy), '__enter__'))\n"
+    )
+    assert run_isolated_python(code) == "[1, 2, 3] True"
