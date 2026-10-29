@@ -18,6 +18,7 @@ import sys
 from pathlib import Path
 from types import ModuleType
 from typing import Any, Optional
+from unittest import mock
 
 import pytest
 import yaml
@@ -212,17 +213,20 @@ class TestActionDemo:
         assert result.returncode == exit_code, result.stdout + result.stderr
         assert "Scanning: " + path in result.stdout
 
-    def test_ambient_environment_does_not_leak_into_the_runner(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    @mock.patch.dict(
+        "os.environ",
+        {
+            "PYDEPRECATE_ACTION_SUBCOMMAND": "not-a-subcommand",
+            "PYDEPRECATE_ACTION_EXIT_ZERO": "maybe",
+            "FORCE_COLOR": "1",
+        },
+    )
+    def test_ambient_environment_does_not_leak_into_the_runner(self, tmp_path: Path) -> None:
         """Inputs and colour switches set in the developer's shell do not change a test run.
 
         A contributor exports ``PYDEPRECATE_ACTION_SUBCOMMAND=status`` or ``FORCE_COLOR=1`` while debugging; the runner
         tests must still see only the inputs they pass and plain, colourless CLI text.
         """
-        monkeypatch.setenv("PYDEPRECATE_ACTION_SUBCOMMAND", "not-a-subcommand")
-        monkeypatch.setenv("PYDEPRECATE_ACTION_EXIT_ZERO", "maybe")
-        monkeypatch.setenv("FORCE_COLOR", "1")
         result = _run_action(tmp_path, subcommand="check", path="tests.collections.chains")
         assert result.returncode == 0, result.stdout + result.stderr
         assert "Scanning: tests.collections.chains" in result.stdout
@@ -1142,6 +1146,14 @@ class TestActionOutputSafety:
         token = _fence_token("\n".join(lines))
         assert lines == [f"::stop-commands::{token}", "", f"::{token}::"]
 
+    @mock.patch.dict(
+        "os.environ",
+        {
+            "PYDEPRECATE_ACTION_SUBCOMMAND": "check",
+            "PYDEPRECATE_ACTION_INSTALL": "false",
+            "PYDEPRECATE_ACTION_SUMMARY": "false",
+        },
+    )
     def test_unstartable_cli_is_annotated_after_commands_resume(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
@@ -1152,9 +1164,6 @@ class TestActionOutputSafety:
         commands are stopped, the annotation would be swallowed and the failure would show no reason.
         """
         monkeypatch.setattr(sys, "executable", str(tmp_path / "missing-python"))
-        monkeypatch.setenv("PYDEPRECATE_ACTION_SUBCOMMAND", "check")
-        monkeypatch.setenv("PYDEPRECATE_ACTION_INSTALL", "false")
-        monkeypatch.setenv("PYDEPRECATE_ACTION_SUMMARY", "false")
         code = action_runner.main()
         lines = capsys.readouterr().out.splitlines()
         token = re.fullmatch(r"::stop-commands::([0-9a-f]{32})", lines[0])
