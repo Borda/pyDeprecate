@@ -715,8 +715,7 @@ class TestModuleSites:
 
         """
         monkeypatch.setitem(sys.modules, _LOC_MODULE_NAME, types.ModuleType(_LOC_MODULE_NAME))
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             make_loc_module(_LOC_MODULE_NAME, stream=None)
 
         expected = (api_deprecated.__file__, _line_ending_with(make_loc_module, "# warn-site"))
