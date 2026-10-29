@@ -166,7 +166,10 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
 
     A docs example shows a deprecated call warning, and its generated test checks only the printed output, so each
     demonstrated warning would otherwise land in the run's summary and bury warnings from the hand-written suite.
-    The ignore applies to the generated items only; every other test keeps the configured filters.
+    The ignore applies to the generated items only; every other test keeps the configured filters. ``PytestWarning``
+    subclasses ``UserWarning``, so pytest's own diagnostics for these items (unraisable exceptions, a test returning a
+    value) would be hidden by the ``UserWarning`` ignore; a later mark takes precedence, so ``default::PytestWarning``
+    keeps them visible.
 
     """
     for item in items:
@@ -174,6 +177,7 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
         if path == _README_TEST or (path.parent == _DOCS_TESTS_DIR and path.name.startswith("test_")):
             for category in _DOCS_EXAMPLE_WARNINGS:
                 item.add_marker(pytest.mark.filterwarnings(f"ignore::{category}"))
+            item.add_marker(pytest.mark.filterwarnings("default::pytest.PytestWarning"))
 
 
 def pytest_collection_finish(session: pytest.Session) -> None:

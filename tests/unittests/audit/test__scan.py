@@ -1186,4 +1186,4 @@ class TestScanClassPrivateDeprecated:
         """
         results = _scan_class(_AudPrivateMembers, "tests.unittests.audit.test__scan", "_AudPrivateMembers")
         functions = [info.function for info in results]
-        assert any(member in fn for fn in functions)
+        assert any(fn.rsplit(".", 1)[-1] == member for fn in functions)

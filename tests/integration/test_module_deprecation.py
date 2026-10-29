@@ -229,8 +229,11 @@ class TestStarImport:
         ``IMPORT_STAR`` bytecode path.
         """
         namespace: dict[str, object] = {}
-        with pytest.warns(FutureWarning):
+        with captured_warnings() as caught:
             exec("from tests.collections.modules.old_math import *", namespace)  # noqa: S102 -- star-import under test, not arbitrary code execution
+        pulled = [name for name in namespace if not name.startswith("_")]
+        assert sorted(pulled) == ["deprecate", "square"]
+        assert [w.category for w in caught] == [FutureWarning] * len(pulled)
         square_fn: Any = namespace["square"]
         assert square_fn(4) == 16
 

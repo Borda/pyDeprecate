@@ -620,7 +620,7 @@ class TestFormatAndDeclinedOperators:
         with warnings.catch_warnings():
             warnings.simplefilter("error")
             with pytest.raises(TypeError, match=r"unsupported operand type\(s\) for \+"):
-                proxy + 1  # type: ignore[operator]
+                _ = proxy + 1  # type: ignore[operator]
 
     def test_declined_operator_falls_back_to_reflected_operand(self) -> None:
         """A declined ``proxy + other`` is retried as ``other.__radd__(proxy)``, exactly as for a plain object."""
