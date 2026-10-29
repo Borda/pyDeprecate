@@ -3,35 +3,21 @@
 Libraries import ``deprecate`` at module import time just to decorate a few functions, so every module the package pulls
 in is paid by every downstream ``import``.  The audit tooling (``deprecate.audit``) and its ``importlib.metadata``,
 ``zipfile``, ``json`` and ``tempfile`` dependencies are needed only by CI scans and the CLI.  Each check runs in a fresh
-isolated interpreter (``python -I``) because the test process itself has already imported everything.
+isolated interpreter (``python -I``) because the test process itself has already imported everything. CI runs this
+file in its own pytest invocation without ``--cov``: coverage 7.10.x, the newest release for Python 3.9, imports
+``json`` in every child interpreter, which these probes would read as a regression in ``deprecate``.
 
 """
 
 import json
-import os
-import subprocess
-import sys
 
 import pytest
 
 import deprecate
+from tests._helpers import run_isolated_python
 
 #: Modules that a plain ``import deprecate`` must not load.
 _HEAVY_MODULES = ("importlib.metadata", "zipfile", "json", "tempfile")
-
-
-def _run_isolated(code: str) -> str:
-    """Run ``code`` in a fresh isolated interpreter and return its stripped stdout.
-
-    The child gets no ``COVERAGE_*`` variables. Under ``--cov``, ``run.patch = ["subprocess"]`` would start coverage in
-    it, and coverage imports ``json``, one of the modules these probes check is absent.
-
-    """
-    env = {key: value for key, value in os.environ.items() if not key.startswith("COVERAGE_")}
-    result = subprocess.run(
-        [sys.executable, "-I", "-c", code], capture_output=True, text=True, check=True, timeout=60, env=env
-    )
-    return result.stdout.strip()
 
 
 class TestLazyAuditImport:
@@ -53,7 +39,7 @@ class TestLazyAuditImport:
             "print(json.dumps(sorted(set(sys.modules) - before)))\n"
         )
         # ``json`` is imported by the probe itself before the snapshot, so its absence here is checked separately below
-        loaded = json.loads(_run_isolated(code))
+        loaded = json.loads(run_isolated_python(code))
         assert [name for name in loaded if name.startswith("deprecate.audit")] == []
         assert [name for name in loaded if name in _HEAVY_MODULES] == []
 
@@ -66,7 +52,7 @@ class TestLazyAuditImport:
 
         """
         code = "import sys\nimport deprecate\nprint('json' in sys.modules, 'deprecate.audit' in sys.modules)\n"
-        assert _run_isolated(code) == "False False"
+        assert run_isolated_python(code) == "False False"
 
     @pytest.mark.subprocess
     @pytest.mark.parametrize("name", ["find_deprecation_wrappers", "audit", "DeprecatedCallableInfo"])
@@ -88,7 +74,7 @@ class TestLazyAuditImport:
             f"expected = audit if {name!r} == 'audit' else getattr(audit, {name!r})\n"
             "print(value is expected)\n"
         )
-        assert _run_isolated(code) == "True"
+        assert run_isolated_python(code) == "True"
 
     @pytest.mark.subprocess
     def test_star_import_binds_every_public_name(self) -> None:
@@ -104,7 +90,7 @@ class TestLazyAuditImport:
             "import deprecate\n"
             "print(sorted(set(deprecate.__all__) - set(ns)))\n"
         )
-        assert _run_isolated(code) == "[]"
+        assert run_isolated_python(code) == "[]"
 
     def test_dir_lists_audit_names(self) -> None:
         """``dir(deprecate)`` lists the lazily served audit names before they are loaded.
@@ -145,4 +131,4 @@ class TestProxyPackageImport:
             "proxy = deprecate.deprecated_instance([1, 2], deprecated_in='1.0', remove_in='2.0', stream=None)\n"
             "print(proxy + [3], hasattr(type(proxy), '__enter__'))\n"
         )
-        assert _run_isolated(code) == "[1, 2, 3] True"
+        assert run_isolated_python(code) == "[1, 2, 3] True"

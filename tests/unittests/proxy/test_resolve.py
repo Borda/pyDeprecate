@@ -365,7 +365,9 @@ class TestCircularProxyStacks:
         """Resolving the object attribute validation inspects stops inside the cycle and returns a proxy of it."""
         first, second = _circular_proxy_pair()
 
-        assert _DeprecatedProxy._get_static_attr_owner(first) in (first, second)
+        owner = _DeprecatedProxy._get_static_attr_owner(first)
+
+        assert owner is first or owner is second
 
     def test_static_owner_of_plain_object_is_itself(self) -> None:
         """An object that is no proxy is its own validation owner."""
