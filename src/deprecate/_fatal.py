@@ -236,10 +236,12 @@ def as_exceptions(enabled: bool = True) -> _ScopedSwitch:
     context.  Tasks created inside a scope inherit it, because a task copies the context at creation.  A new thread
     inherits the scope only when the interpreter copies the starting context into it
     (``sys.flags.thread_inherit_context``, Python 3.14+: on by default in free-threaded builds, opt-in with
-    ``-X thread_inherit_context=1`` otherwise): an inheriting thread, including a pool worker first started inside
-    the scope, keeps the scope after the block closes, whereas otherwise only ``asyncio.to_thread`` carries the
-    scope into a thread and ``loop.run_in_executor`` workers see the global setting.  Run the thread's target
-    through :meth:`contextvars.copy_context().run <contextvars.Context.run>` when it must inherit.
+    ``-X thread_inherit_context=1`` otherwise): an inheriting thread, including a pool worker started inside
+    the scope, keeps the scope after the block closes, whereas otherwise ``asyncio.to_thread`` carries the scope
+    into a thread by default and ``loop.run_in_executor`` workers see the global setting.  Any other thread
+    inherits only through explicit propagation: run its target through
+    :meth:`contextvars.copy_context().run <contextvars.Context.run>`, or pass ``context=`` to
+    :class:`threading.Thread` on Python 3.14+.
 
     A generator or async generator shares its consumer's context, so a scope held across a ``yield`` applies to
     the consumer while the generator is suspended; leaving the scope from another task or context (for example
