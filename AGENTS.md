@@ -101,7 +101,7 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 - **README ≠ docs/index.md** — README is the PyPI page (do not copy it to docs); `docs/index.md` is a curated overview
 - **Never add `cp README.md docs/index.md` to CI** — `docs/index.md` is tracked in git directly
 - **After any API change**: update `README.md` AND the relevant `docs/guide/` page
-- **New troubleshooting item**: add to `docs/troubleshooting.md` AND the FAQPage JSON-LD in `docs/overrides/main.html`
+- **New troubleshooting item**: add a `## question` section to `docs/troubleshooting.md` whose first prose paragraph is the answer — the FAQPage JSON-LD is generated from it at build time by `docs/mkdocs_hooks.py`, never edit it by hand
 - **`docs/overrides/main.html`** is Jinja2 (prettier-excluded); do not put content files there
 - **`docs/robots.txt`** — AI crawler access policy; add a `User-agent: <bot> / Allow: /` block when a new mainstream AI crawler is released. The comment referencing the `docs/llms.txt` URL must stay current.
 - See [Documentation Site](.github/CONTRIBUTING.md#-documentation-site) for the full consistency rules
@@ -133,7 +133,7 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 
 - **Update docs immediately after any structural change** — adding, moving, renaming, or deleting files/folders/modules must be followed by updating `.github/CONTRIBUTING.md` (project structure tree, Test Organisation table) and any other `*.md` that references affected paths or names. Do not wait to be asked.
 
-- **Keep README and docs site in sync** — any API addition, rename, or behavior change must be reflected in `README.md` **and** the relevant `docs/guide/` page; new troubleshooting items go in `docs/troubleshooting.md` **and** the FAQPage JSON-LD in `docs/overrides/main.html`
+- **Keep README and docs site in sync** — any API addition, rename, or behavior change must be reflected in `README.md` **and** the relevant `docs/guide/` page; new troubleshooting items go in `docs/troubleshooting.md` only (the FAQPage JSON-LD is generated from it)
 
 - **Update `CHANGELOG.md` at PR-creation time** — once the PR number is known and the diff is stable, add or re-assess the entry under `[UnReleased]` (new features → `Added`, fixes → `Fixed`, behavior changes → `Changed`); always include `(#N)` PR link; skip docs-only, test-only, CI, and pure internal refactoring changes; do not write entries during iterative development commits — content may pivot before the PR is opened
 

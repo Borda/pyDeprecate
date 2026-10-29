@@ -902,9 +902,9 @@ blanket_proxy = deprecated_class(
 
 
 # Accessing the deprecated alias through the outer proxy: two warnings fire —
-# one from the outer blanket proxy ("Palette" is deprecated) and one from the
-# inner selective proxy ("color" is deprecated in favor of "colour").
-_ = blanket_proxy.color  # warns: FutureWarning × 2 — outer blanket + inner selective
+# first from the inner selective proxy ("color" is deprecated in favor of "colour"),
+# then from the outer blanket proxy ("Palette" is deprecated).
+_ = blanket_proxy.color  # warns: FutureWarning × 2 — inner selective, then outer blanket
 
 # Accessing the canonical name through the outer proxy: one warning fires —
 # only the outer blanket proxy warns; the inner proxy forwards silently.

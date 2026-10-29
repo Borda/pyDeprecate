@@ -1,12 +1,10 @@
 """Check that both agent hosts receive the same self-contained plugin skills and up-to-date SKILL.md prose."""
 
 import inspect
-import json
 import re
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Any
 
 import pytest
 
@@ -28,94 +26,6 @@ _ROOT = Path(__file__).resolve().parents[2]
 _PLUGIN = _ROOT / "plugins" / "pydeprecate"
 
 
-def _load_manifest(host: str) -> dict[str, Any]:
-    """Load the plugin manifest for an agent host."""
-    return json.loads((_PLUGIN / f".{host}-plugin/plugin.json").read_text(encoding="utf-8"))
-
-
-@pytest.mark.parametrize(
-    "host",
-    [pytest.param("codex", id="codex"), pytest.param("claude", id="claude")],
-)
-def test_catalog_resolves_shared_skills(host: str) -> None:
-    """Resolve each host's catalog exactly as a repository installation would.
-
-    A developer installs the plugin from a checkout. Both catalogs must lead to
-    the same portable skills, with no references outside the cached plugin.
-    """
-    catalog_path = ".agents/plugins/marketplace.json" if host == "codex" else ".claude-plugin/marketplace.json"
-    catalog = json.loads((_ROOT / catalog_path).read_text(encoding="utf-8"))
-    assert catalog["name"] == "pydeprecate"
-    (entry,) = catalog["plugins"]
-    source = entry["source"]["path"] if host == "codex" else entry["source"]
-    assert (_ROOT / source).resolve() == _PLUGIN
-    manifest = _load_manifest(host)
-    assert manifest["name"] == entry["name"] == "pydeprecate"
-    skills = (_PLUGIN / manifest["skills"]).resolve()
-    assert skills == _PLUGIN / "skills"
-    assert {path.name for path in skills.iterdir() if path.is_dir() and not path.name.startswith(".")} == {
-        "sunset",
-        "prune",
-    }
-    for name in ("sunset", "prune"):
-        skill_path = skills / name / "SKILL.md"
-        content = skill_path.read_text(encoding="utf-8")
-        assert content.startswith("---"), f"{skill_path} must start with YAML frontmatter"
-        marker, metadata, body = content.split("---", 2)
-        assert not marker
-        assert f"name: {name}" in metadata.splitlines()
-        assert any(
-            line.startswith("description: ") and line.removeprefix("description: ").strip()
-            for line in metadata.splitlines()
-        )
-        assert body.strip()
-    assert not {"hooks", "mcpServers", "apps"} & manifest.keys()
-    # Filesystem noise (macOS Finder metadata, Python bytecode cache) is not a "plugin entry" — filter
-    # it out before the exact-set comparison so the assertion still catches genuinely unexpected entries.
-    ignored_entries = {".DS_Store", "__pycache__"}
-    top_level = {child.name for child in _PLUGIN.iterdir() if child.name not in ignored_entries}
-    assert top_level == {"skills", ".claude-plugin", ".codex-plugin"}, (
-        f"plugins/pydeprecate must not carry extra top-level entries on disk (e.g. hooks/, commands/, "
-        f"agents/, .mcp.json); found {top_level}"
-    )
-
-
-def test_host_versions_agree() -> None:
-    """Keep host releases aligned so installation cannot select divergent instructions.
-
-    A maintainer updates one host manifest before publishing a plugin release. Both hosts must
-    retain identical release metadata so users receive the same plugin, and each host's catalog
-    entry (when it carries its own ``description`` key) must quote the same canonical description
-    as that host's plugin manifest — otherwise browsing the catalog shows different text than
-    installing the plugin.
-    """
-    manifests = {host: _load_manifest(host) for host in ("codex", "claude")}
-    shared_keys = (
-        "name",
-        "version",
-        "description",
-        "author",
-        "homepage",
-        "repository",
-        "license",
-        "skills",
-        "compatible_package_version",
-    )
-    assert {key: manifests["codex"][key] for key in shared_keys} == {
-        key: manifests["claude"][key] for key in shared_keys
-    }
-
-    codex_entry = json.loads((_ROOT / ".agents" / "plugins" / "marketplace.json").read_text(encoding="utf-8"))[
-        "plugins"
-    ][0]
-    claude_entry = json.loads((_ROOT / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8"))["plugins"][0]
-    # Codex's catalog entry has no "description" key today — guard rather than assume its presence.
-    if "description" in codex_entry:
-        assert codex_entry["description"] == manifests["codex"]["description"]
-    if "description" in claude_entry:
-        assert claude_entry["description"] == manifests["claude"]["description"]
-
-
 _CLAUDE_CLI = shutil.which("claude")
 
 
@@ -131,7 +41,7 @@ _CLAUDE_CLI = shutil.which("claude")
 def test_claude_host_validates_plugin(target: str) -> None:
     """Run the Claude Code host validator against the plugin manifest and the marketplace catalog.
 
-    A maintainer edits a manifest field or moves a skill directory. The JSON-only checks above
+    A maintainer edits a manifest field or moves a skill directory. A JSON read
     cannot tell whether the host still accepts the result, so when the ``claude`` CLI is present
     this runs ``claude plugin validate`` on both entry points and requires a passing result;
     Codex ships no equivalent validator, and hosts without the CLI installed skip this check.

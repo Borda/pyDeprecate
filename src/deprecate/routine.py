@@ -560,10 +560,11 @@ def deprecated_callable(
             target is never invoked, and the source body never runs (so ``TargetMode.NOTIFY`` and
             ``TargetMode.ARGS_REMAP`` stop instead of falling through). A fatal deprecation ignores
             ``num_warns`` and raises on **every** call, and ``stream=None`` silences only the message, never
-            the raise; ``skip_if`` still suppresses it entirely. ``None`` (default) defers to the process-wide
-            ``deprecate.AS_EXCEPTIONS`` switch (seeded from the ``DEPRECATE_AS_EXCEPTIONS`` environment
-            variable); ``True`` is always fatal; ``False`` means "not fatal by default" and still yields to a
-            ``True`` global, so a consumer's strict run cannot be opted out of by an upstream wrapper.
+            the raise; ``skip_if`` still suppresses it entirely. ``None`` (default) follows the open
+            :func:`~deprecate._fatal.as_exceptions` scope, else ``deprecate.AS_EXCEPTIONS`` (seeded from the
+            ``DEPRECATE_AS_EXCEPTIONS`` environment variable); ``True`` is always fatal; ``False`` means "not
+            fatal by default" and still yields to a ``True`` global, so a consumer's strict run cannot be opted out
+            of by an upstream wrapper.
             Python's own ``-W error::FutureWarning`` is the alternative when you want *every* library's
             ``FutureWarning`` to raise; this flag is scoped to pyDeprecate's own deprecations and also works
             when ``stream`` is not a warnings function (e.g. :func:`logging.warning`).

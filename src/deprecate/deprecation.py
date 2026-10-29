@@ -253,8 +253,8 @@ def deprecated(
             :class:`~deprecate._fatal.DeprecatedError` — see :func:`~deprecate.routine.deprecated_callable`'s
             ``as_exception`` for the full contract (message text, ``num_warns`` bypass, ``stream=None`` and
             ``skip_if`` interaction, and the monotonic precedence against ``deprecate.AS_EXCEPTIONS``).
-            ``None`` (default) follows the global switch, which is off unless ``DEPRECATE_AS_EXCEPTIONS`` is
-            set.
+            ``None`` (default) follows the open :func:`~deprecate._fatal.as_exceptions` scope, else
+            ``deprecate.AS_EXCEPTIONS`` (off unless ``DEPRECATE_AS_EXCEPTIONS`` is set).
 
     Returns:
         Decorator that wraps the source callable, or the class proxy for a class source.

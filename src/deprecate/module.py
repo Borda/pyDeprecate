@@ -349,7 +349,7 @@ _STREAM_NONE_NOTICE: Final = (
     "`deprecated_module(stream=None)` currently delivers the module warning through `warnings.warn`."
     " In v1.0 `stream=None` will silence the module warning, as it does for `@deprecated`, `deprecated_class`"
     " and `deprecated_instance`, and the `num_warns` default will change from -1 to 1."
-    " Omit `stream` to keep the current behaviour."
+    " Omit `stream` to keep the current behaviour, and pass `num_warns=-1` explicitly to keep unlimited delivery."
 )
 
 
@@ -437,7 +437,7 @@ def deprecated_module(
             :class:`~deprecate._fatal.DeprecatedError` instead of a warning — see
             :func:`~deprecate.routine.deprecated_callable`'s ``as_exception`` for the full contract. A fatal
             module deprecation ignores ``num_warns`` (every access raises) and does not depend on
-            ``stream``. ``None`` (default) defers to the process-wide ``deprecate.AS_EXCEPTIONS`` switch.
+            ``stream``. ``None`` (default) follows the open ``as_exceptions()`` scope, else ``deprecate.AS_EXCEPTIONS``.
 
     Raises:
         ValueError: If the resolved module ``name`` is not found in :data:`sys.modules`; if ``name`` is omitted
@@ -470,9 +470,22 @@ def deprecated_module(
     if module_name not in sys.modules:
         raise ValueError(f"`deprecated_module()` called with {module_name!r} which is not in `sys.modules`.")
 
+    mod = sys.modules[module_name]
+
+    # Reject a self-target redirect: forwarding the module to itself would make every missing
+    # attribute lookup recurse through _resolve_missing_attr -> getattr(target, name) forever.
+    if target is mod:
+        raise ValueError(f"`deprecated_module()` called with `target` pointing at {module_name!r} itself.")
+
+    # Validate the raw template at decoration time (module deprecation runs once at import), matching the
+    # other factories: a bare `%`-conversion or unknown `%(name)s` key raises a clear ValueError here
+    # instead of a cryptic TypeError/KeyError (or silent dict-dump corruption) on the first warn emit.
+    _validate_message_template(message_template)
+
     # Missing-version notice, mirroring `@deprecated`: a deprecation without a `deprecated_in` version
     # produces a vaguer notice and cannot be gated by expiry audits. Fired once here at call time (module
     # deprecation runs once at import) so the gap surfaces during development, not silently at runtime.
+    # Both notices below follow every argument check above, so a rejected call raises without announcing.
     if not deprecated_in:
         warnings.warn(
             f"`deprecated_module` on {module_name!r} has no `deprecated_in` set."
@@ -487,18 +500,6 @@ def deprecated_module(
     if stream is None:
         warnings.warn(_STREAM_NONE_NOTICE, FutureWarning, stacklevel=_caller_stacklevel())
     emit_stream: Optional[Callable[..., Any]] = None if stream is _STREAM_DEFAULT else stream
-
-    mod = sys.modules[module_name]
-
-    # Reject a self-target redirect: forwarding the module to itself would make every missing
-    # attribute lookup recurse through _resolve_missing_attr -> getattr(target, name) forever.
-    if target is mod:
-        raise ValueError(f"`deprecated_module()` called with `target` pointing at {module_name!r} itself.")
-
-    # Validate the raw template at decoration time (module deprecation runs once at import), matching the
-    # other factories: a bare `%`-conversion or unknown `%(name)s` key raises a clear ValueError here
-    # instead of a cryptic TypeError/KeyError (or silent dict-dump corruption) on the first warn emit.
-    _validate_message_template(message_template)
 
     warn_msg = _build_module_warn_msg(module_name, deprecated_in, remove_in, target, message_template)
 

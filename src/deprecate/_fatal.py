@@ -140,10 +140,42 @@ def _resolve_as_exception(as_exception: Optional[bool]) -> bool:
     return as_exception is True or _global_as_exceptions()
 
 
+def _body_runs_after_call(candidate: object) -> bool:
+    """Return whether calling ``candidate`` hands back a coroutine or generator instead of running its body.
+
+    A callable instance is judged by its class's ``__call__``, since the instance itself is not a function; a class
+    is judged by itself only, because calling it runs ``__init__`` synchronously whatever its ``__call__`` does.
+
+    Args:
+        candidate: The object an :func:`as_exceptions` scope is asked to decorate.
+
+    Returns:
+        ``True`` for an ``async def``, generator or async-generator function, or an instance whose ``__call__`` is one.
+
+    Examples:
+        >>> async def coro() -> None: ...
+        >>> class AsyncCallable:
+        ...     async def __call__(self) -> None: ...
+        >>> _body_runs_after_call(coro), _body_runs_after_call(AsyncCallable())
+        (True, True)
+        >>> _body_runs_after_call(AsyncCallable), _body_runs_after_call(len), _body_runs_after_call(5)
+        (False, False, False)
+
+    """
+    checked = [candidate]
+    if not inspect.isclass(candidate):
+        # absent on a non-callable, which ``ContextDecorator`` has always let through to fail at call time instead
+        checked.append(getattr(type(candidate), "__call__", None))
+    return any(
+        inspect.iscoroutinefunction(fn) or inspect.isgeneratorfunction(fn) or inspect.isasyncgenfunction(fn)
+        for fn in checked
+    )
+
+
 class _ScopedSwitch(ContextDecorator):
     """Context manager and function decorator returned by :func:`as_exceptions`.
 
-    A class rather than a ``@contextmanager`` generator so that decorating a function whose body would run after the
+    A class rather than a ``@contextmanager`` generator so that decorating a callable whose body would run after the
     scope has closed fails at decoration time instead of silently doing nothing.
 
     """
@@ -152,16 +184,12 @@ class _ScopedSwitch(ContextDecorator):
         self._enabled = enabled
 
     def _recreate_cm(self) -> "_ScopedSwitch":
-        # a fresh instance per decorated call: a recursive or concurrent call then saves and restores its own value
+        # a fresh instance per decorated call: ``__exit__`` matches entries by object identity, so each call then
+        # removes exactly its own entry
         return _ScopedSwitch(self._enabled)
 
     def __call__(self, func: _F) -> _F:
-        if any(
-            inspect.iscoroutinefunction(candidate)
-            or inspect.isgeneratorfunction(candidate)
-            or inspect.isasyncgenfunction(candidate)
-            for candidate in (func, inspect.unwrap(func))
-        ):
+        if any(_body_runs_after_call(candidate) for candidate in (func, inspect.unwrap(func))):
             name = getattr(func, "__qualname__", repr(func))
             raise TypeError(
                 f"`as_exceptions` cannot decorate `{name}`: its body runs after the scope would have closed;"
@@ -173,10 +201,12 @@ class _ScopedSwitch(ContextDecorator):
         _SCOPES.set((*_SCOPES.get(), (self, self._enabled)))
 
     def __exit__(self, *exc_info: object) -> None:
-        # Remove this scope's newest entry from the *current* context only.  The state lives in the context, not
-        # on the instance, so a scope object shared by concurrent tasks, or exits out of entry order, never pop
-        # another context's entry.  Leaving a scope from a context that never entered it (an async generator
-        # closed in another task, a copied context) changes nothing here and never raises over the block's error.
+        # Remove the newest entry for this scope object from the *current* context only.  The state lives in the
+        # context, not on the instance, so a scope object shared by concurrent tasks, or exits out of entry order,
+        # never pop another context's entry.  That entry may be an inherited copy (a task created inside the scope
+        # closing an async generator) or the closer's own activation of the same object, which is then removed in
+        # place of the one the exit was meant for.  Only a context holding no entry for this object is left
+        # unchanged, and the exit never raises over the block's error.
         scopes = _SCOPES.get()
         for index in range(len(scopes) - 1, -1, -1):
             if scopes[index][0] is self:
@@ -195,20 +225,30 @@ def as_exceptions(enabled: bool = True) -> _ScopedSwitch:
     a test suite), not something library code should set.
 
     Also usable as a decorator, but only on plain synchronous functions: an ``async def``, generator or
-    async-generator function is rejected with a :class:`TypeError` at decoration time, because its body runs after
-    the scope would have closed.  Use ``with as_exceptions():`` inside such a body instead.
+    async-generator function, or an instance whose ``__call__`` is one, is rejected with a :class:`TypeError` at
+    decoration time, because its body runs after the scope would have closed.  Use ``with as_exceptions():``
+    inside such a body instead.
 
     The scope is local to the current thread and ``asyncio`` task (a :class:`~contextvars.ContextVar`), and it
     never modifies ``deprecate.AS_EXCEPTIONS``: inside a scope that attribute still reports the global value, and
-    assigning it there takes effect once the scope closes.  Other threads and sibling tasks keep the global
-    setting, so holding a scope across an ``await`` is safe for concurrent code.  Tasks created inside a scope
-    inherit it, because a task copies the context at creation.  Whether a new thread inherits it depends on the
-    interpreter; run the thread's target through :meth:`contextvars.copy_context().run
-    <contextvars.Context.run>` when it must.  A generator or async generator shares its consumer's context, so a
-    scope held across a ``yield`` applies to the consumer while the generator is suspended; leaving the scope
-    from another task or context (for example ``aclose()`` called elsewhere) never raises and changes nothing in
-    that context, but the scope then stays open in the consumer's context.  Open and close a scope within one
-    step of a generator.
+    assigning it there takes effect once the scope closes.  Sibling tasks keep the global setting, so holding a
+    scope across an ``await`` is safe for concurrent code; other threads keep it too unless they inherit the
+    context.  Tasks created inside a scope inherit it, because a task copies the context at creation.  A new thread
+    inherits the scope only when the interpreter copies the starting context into it
+    (``sys.flags.thread_inherit_context``, Python 3.14+: on by default in free-threaded builds, opt-in with
+    ``-X thread_inherit_context=1`` otherwise): an inheriting thread, including a pool worker started inside
+    the scope, keeps the scope after the block closes, whereas otherwise ``asyncio.to_thread`` carries the scope
+    into a thread by default and ``loop.run_in_executor`` workers see the global setting.  Any other thread
+    inherits only through explicit propagation: run its target through
+    :meth:`contextvars.copy_context().run <contextvars.Context.run>`, or pass ``context=`` to
+    :class:`threading.Thread` on Python 3.14+.
+
+    A generator or async generator shares its consumer's context, so a scope held across a ``yield`` applies to
+    the consumer while the generator is suspended; leaving the scope from another task or context (for example
+    ``aclose()`` called elsewhere) never raises, but it removes the newest entry for that scope object in the
+    closing context, be that an inherited copy of the scope or the closer's own activation of the same object, and
+    changes nothing there only when the context holds none; either way the scope stays open in the consumer's
+    context.  Open and close a scope within one step of a generator.
 
     Args:
         enabled: Whether deferring deprecations raise inside the block.

@@ -241,7 +241,7 @@ def deprecated_class(
             ``as_exception`` for the full contract. Every access that would warn raises instead (structural
             probes such as ``isinstance``, ``repr``, equality, and ``len`` stay silent, exactly as they already
             were), the warn budget does not apply, and ``stream=None`` silences only the message. ``None``
-            (default) defers to the process-wide ``deprecate.AS_EXCEPTIONS`` switch.
+            (default) follows the open :func:`~deprecate._fatal.as_exceptions` scope, else ``deprecate.AS_EXCEPTIONS``.
 
     Returns:
         A decorator that wraps the class in a :class:`~deprecate.proxy._DeprecatedProxy`, which satisfies the public
@@ -436,7 +436,7 @@ def deprecated_instance(
             ``as_exception`` for the full contract. Every access that would warn raises instead (structural
             probes such as ``isinstance``, ``repr``, equality, and ``len`` stay silent, exactly as they already
             were), the warn budget does not apply, and ``stream=None`` silences only the message. ``None``
-            (default) defers to the process-wide ``deprecate.AS_EXCEPTIONS`` switch.
+            (default) follows the open :func:`~deprecate._fatal.as_exceptions` scope, else ``deprecate.AS_EXCEPTIONS``.
 
     Returns:
         A :class:`~deprecate.proxy._DeprecatedProxy` wrapping *obj*, satisfying the public

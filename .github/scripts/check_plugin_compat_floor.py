@@ -30,7 +30,8 @@ SKILLS = sorted(PLUGIN.glob("skills/*/SKILL.md"))
 SUPPORT_WINDOW_MINORS = 3
 
 _VERSION_RE = re.compile(r'^__version__\s*=\s*"(\d+)\.(\d+)', re.MULTILINE)
-_FLOOR_RE = re.compile(r"^>=(\d+)\.(\d+)$")
+# matched with ``fullmatch``: ``$`` would also accept a trailing newline (``">=1.2\n"``)
+_FLOOR_RE = re.compile(r">=(\d+)\.(\d+)")
 _SKILL_RE = re.compile(r"Verified against pyDeprecate `([^`]+)`")
 
 
@@ -42,8 +43,14 @@ def _package_minor() -> tuple[int, int]:
 
 
 def _manifest_floor(path: Path) -> tuple[str, tuple[int, int]]:
-    spec = json.loads(path.read_text(encoding="utf-8")).get("compatible_package_version", "")
-    match = _FLOOR_RE.match(spec)
+    try:
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:  # unreadable file, bad encoding or invalid JSON
+        sys.exit(f"{path}: cannot read the manifest: {exc}")
+    if not isinstance(manifest, dict):
+        sys.exit(f"{path}: manifest must be a JSON object, got {type(manifest).__name__}")
+    spec = manifest.get("compatible_package_version", "")
+    match = _FLOOR_RE.fullmatch(spec) if isinstance(spec, str) else None
     if match is None:
         sys.exit(f"{path}: compatible_package_version must be a bare `>=X.Y` floor, got {spec!r}")
     return spec, (int(match.group(1)), int(match.group(2)))
@@ -55,7 +62,10 @@ def main() -> int:
     installed = _package_minor()
     # clamp at X.0: a minor-based window cannot count back into the previous major (no negative minors)
     oldest_supported = (installed[0], max(installed[1] - SUPPORT_WINDOW_MINORS, 0))
-    clamped = installed[1] < SUPPORT_WINDOW_MINORS
+
+    # an empty glob would let the mirror check below pass vacuously (renamed/moved skills dir)
+    if not SKILLS:
+        sys.exit(f"{PLUGIN}: no skills/*/SKILL.md found, so the mirrored floor cannot be checked")
 
     specs = {path: _manifest_floor(path) for path in MANIFESTS}
     if len({spec for spec, _ in specs.values()}) != 1:
@@ -65,9 +75,10 @@ def main() -> int:
         if floor > installed:
             errors.append(f"{rel}: {spec!r} is ahead of the package version {installed[0]}.{installed[1]}")
         if floor < oldest_supported:
+            # a floor from an older major crosses the major boundary whatever the current minor is
             reach = (
                 f"reaches back across the {installed[0]}.0 major release"
-                if clamped
+                if floor[0] < installed[0]
                 else f"trails the package version by more than {SUPPORT_WINDOW_MINORS} minors"
             )
             errors.append(

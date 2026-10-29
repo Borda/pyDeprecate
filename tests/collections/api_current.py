@@ -446,6 +446,30 @@ async def async_gen_target(x: int) -> AsyncIterator[int]:
         yield x * i
 
 
+class SyncCallableObject:
+    """Callable object with a plain synchronous ``__call__`` — a callable instance a scope may safely decorate."""
+
+    def __call__(self, x: int) -> int:
+        """Return ``x`` unchanged."""
+        return x
+
+
+class AsyncCallableObject:
+    """Callable object whose ``__call__`` is a coroutine function, so calling an instance only builds a coroutine."""
+
+    async def __call__(self, x: int) -> int:
+        """Return ``x`` unchanged once awaited."""
+        return x
+
+
+class GeneratorCallableObject:
+    """Callable object whose ``__call__`` is a generator function, so calling an instance only builds a generator."""
+
+    def __call__(self, x: int) -> Iterator[int]:
+        """Yield ``x`` once iterated."""
+        yield x
+
+
 class _InnerOrderPropTarget:
     """Target class for inner-order ``@property @deprecated`` regression tests (H2 fixture).
 

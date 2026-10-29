@@ -10,6 +10,9 @@ import asyncio
 import contextvars
 import logging
 import threading
+from collections.abc import Generator, Iterator
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import AbstractContextManager
 from typing import Any, Callable
 
 import pytest
@@ -26,6 +29,9 @@ from deprecate import (
 )
 from tests.collections import modules
 from tests.collections.api_current import (
+    AsyncCallableObject,
+    GeneratorCallableObject,
+    SyncCallableObject,
     async_gen_target,
     async_target,
     base_sum_kwargs,
@@ -55,6 +61,9 @@ from tests.collections.modules import fatal_utils, old_stats
 
 _VERSION_ARGS: dict[str, Any] = {"deprecated_in": "1.0", "remove_in": "2.0"}
 
+#: A strict and an exempt `as_exceptions` scope, as handed to a test that enters and exits them by hand.
+_ScopePair = tuple[AbstractContextManager[None], AbstractContextManager[None]]
+
 
 def _call_outcome(wrapper: Callable[[int], int]) -> str:
     """Call a deferring wrapper once and report whether it raised `DeprecatedError` or returned."""
@@ -65,27 +74,37 @@ def _call_outcome(wrapper: Callable[[int], int]) -> str:
     return "returned"
 
 
+#: Seconds a helper thread waits at a barrier or for a join before the test fails instead of hanging the run.
+_THREAD_TIMEOUT = 10
+
+
 def _run_scoped_and_unscoped_threads(wrapper: Callable[[int], int]) -> dict[str, str]:
-    """Call ``wrapper`` from a thread inside a scope and, while that scope is open, from a second thread outside."""
+    """Call ``wrapper`` from a thread inside a scope and, while that scope is open, from a second thread outside.
+
+    Every barrier wait is bounded and the threads are daemons, so a thread that dies before reaching a barrier
+    breaks the test with a clear message rather than leaving its partner blocked forever.
+    """
     outcomes: dict[str, str] = {}
     scope_open, unscoped_done = threading.Barrier(2), threading.Barrier(2)
 
     def scoped() -> None:
         with as_exceptions():
-            scope_open.wait()
-            unscoped_done.wait()
+            scope_open.wait(timeout=_THREAD_TIMEOUT)
+            unscoped_done.wait(timeout=_THREAD_TIMEOUT)
             outcomes["scoped"] = _call_outcome(wrapper)
 
     def unscoped() -> None:
-        scope_open.wait()
+        scope_open.wait(timeout=_THREAD_TIMEOUT)
         outcomes["unscoped"] = _call_outcome(wrapper)
-        unscoped_done.wait()
+        unscoped_done.wait(timeout=_THREAD_TIMEOUT)
 
-    threads = [threading.Thread(target=scoped), threading.Thread(target=unscoped)]
+    threads = [threading.Thread(target=scoped, daemon=True), threading.Thread(target=unscoped, daemon=True)]
     for thread in threads:
         thread.start()
     for thread in threads:
-        thread.join(timeout=10)
+        thread.join(timeout=_THREAD_TIMEOUT)
+    stuck = [thread for thread in threads if thread.is_alive()]
+    assert not stuck, f"helper threads still running after {_THREAD_TIMEOUT}s: {stuck}"
     return outcomes
 
 
@@ -129,6 +148,67 @@ async def _shared_scope_outcomes(wrapper: Callable[[int], int]) -> list[str]:
             return _call_outcome(wrapper)
 
     return list(await asyncio.gather(exempt(), strict()))
+
+
+async def _created_task_outcome(wrapper: Callable[[int], int]) -> str:
+    """Create a task inside a scope, leave the scope before the task first runs, and report the task's outcome."""
+    with as_exceptions():
+        task = asyncio.create_task(_unscoped_task_outcome(wrapper))
+    return await task
+
+
+async def _to_thread_outcome(wrapper: Callable[[int], int]) -> str:
+    """Call ``wrapper`` through :func:`asyncio.to_thread` from inside a scope."""
+    with as_exceptions():
+        return await asyncio.to_thread(_call_outcome, wrapper)
+
+
+async def _run_in_executor_outcome(wrapper: Callable[[int], int]) -> str:
+    """Call ``wrapper`` through :meth:`asyncio.loop.run_in_executor` from inside a scope.
+
+    The pool's only worker is started before the scope opens, so the result does not depend on whether an
+    interpreter lets a freshly created thread inherit the creating context.
+    """
+    loop = asyncio.get_running_loop()
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        await loop.run_in_executor(pool, int)
+        with as_exceptions():
+            return await loop.run_in_executor(pool, _call_outcome, wrapper)
+
+
+def _copied_context_thread_outcome(wrapper: Callable[[int], int]) -> str:
+    """Copy the context inside a scope, close the scope, then run ``wrapper`` on a pool thread via ``Context.run``."""
+    with as_exceptions():
+        context = contextvars.copy_context()
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        return pool.submit(context.run, _call_outcome, wrapper).result(timeout=_THREAD_TIMEOUT)
+
+
+def _generator_holding_scope() -> Generator[None, None, None]:
+    """Hold a strict scope across a ``yield``, as a generator-based resource manager would."""
+    with as_exceptions():
+        yield
+
+
+@as_exceptions()
+def _reentered_outcomes(depth: int) -> list[str]:
+    """Report the outcome of a deferring call after each nested re-entry of this function returns, innermost first."""
+    nested = _reentered_outcomes(depth - 1) if depth else []
+    return [*nested, _call_outcome(depr_scoped_switch_log_stream)]
+
+
+async def _inherited_entry_exit_outcomes(wrapper: Callable[[int], int]) -> list[str]:
+    """A task created inside an exempt scope closes that scope object; report the task's and the parent's outcome."""
+    scope = as_exceptions(False)
+
+    async def closer() -> str:
+        scope.__exit__(None, None, None)
+        return _call_outcome(wrapper)
+
+    with as_exceptions(), scope:
+        child = await asyncio.create_task(closer())
+        parent = _call_outcome(wrapper)
+    return [child, parent]
 
 
 class TestFatalCallable:
@@ -446,13 +526,14 @@ class TestScopedSwitch:
         """The previous value comes back even when the block exits with an exception.
 
         Without a `finally`-style restore, the first `DeprecatedError` escaping the block would leave the whole
-        process in strict mode, turning every later warning into a failure far from the cause.
+        process in strict mode, turning every later warning into a failure far from the cause. The scope never
+        writes `deprecate.AS_EXCEPTIONS`, so the proof is behavioural: a deferring call after the block returns.
         """
         with pytest.raises(DeprecatedError), as_exceptions():
             warn_only(2)
-        assert deprecate.AS_EXCEPTIONS is False
+        assert _call_outcome(depr_scoped_switch_log_stream) == "returned"
 
-    def test_nested_blocks_restore_in_order(self, warn_only: Callable[[int], int]) -> None:
+    def test_nested_blocks_restore_in_order(self, global_off: None) -> None:
         """An inner `as_exceptions(False)` inside an outer `as_exceptions()` restores the outer state on exit.
 
         Helpers that open their own scope get composed inside callers that already opened one; each exit must
@@ -626,14 +707,26 @@ class TestScopedSwitch:
         """
         assert await _shared_scope_outcomes(depr_scoped_switch_log_stream) == ["returned", "raised"]
 
-    def test_out_of_order_exit_unwinds_the_right_scope(self, global_off: None) -> None:
+    @pytest.fixture
+    def hand_managed_scopes(self, global_off: None) -> Iterator[_ScopePair]:
+        """A strict and an exempt scope the test enters and exits by hand; teardown closes both if the test did not.
+
+        Closing a scope that is not open is a no-op, so a test that fails between its ``__enter__`` and ``__exit__``
+        calls cannot leave a scope open in the main thread's context for the tests that follow.
+        """
+        strict, exempt = as_exceptions(), as_exceptions(False)
+        yield strict, exempt
+        exempt.__exit__(None, None, None)
+        strict.__exit__(None, None, None)
+
+    def test_out_of_order_exit_unwinds_the_right_scope(self, hand_managed_scopes: _ScopePair) -> None:
         """Two scopes in one context that exit in the opposite order of entry leave the remaining scope in force.
 
         Scopes entered by hand (``__enter__``/``__exit__``, e.g. from setup and teardown hooks) can be closed out
         of order; closing the outer one first must remove that scope only, so the inner exemption still applies,
         and the switch is back to the global setting once both are closed.
         """
-        strict, exempt = as_exceptions(), as_exceptions(False)
+        strict, exempt = hand_managed_scopes
         strict.__enter__()
         exempt.__enter__()
         strict.__exit__(None, None, None)
@@ -681,19 +774,140 @@ class TestScopedSwitch:
         """A `KeyboardInterrupt` leaving the block still restores the previous value.
 
         Ctrl-C during a strict section of a long test run is the realistic non-`Exception` exit; leaving the
-        process strict afterwards would turn every later warning in the session into a failure.
+        process strict afterwards would turn every later warning in the session into a failure. The proof is
+        behavioural: a deferring call after the block returns instead of raising.
         """
         with pytest.raises(KeyboardInterrupt), as_exceptions():
             raise KeyboardInterrupt
-        assert deprecate.AS_EXCEPTIONS is False
+        assert _call_outcome(depr_scoped_switch_log_stream) == "returned"
 
-    def test_enabling_under_an_already_true_global_changes_nothing(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """`as_exceptions(True)` under a `True` global leaves the switch `True` inside and after the block.
+    def test_scopes_under_an_already_true_global_end_on_the_global(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Nested scopes under a `True` global unwind to strict, then to the global, which is still `True`.
 
-        Library test helpers open a strict scope unconditionally; running them under a CI job that already set
-        `DEPRECATE_AS_EXCEPTIONS=1` must not flip anything off on exit.
+        Library test helpers open a strict scope unconditionally, and may be run under a CI job that already set
+        `DEPRECATE_AS_EXCEPTIONS=1`. With the global already strict a leaked strict scope cannot be told from the
+        global, so an exempt scope is nested inside: its exit must put strict back, and the outer exit must leave
+        the global's `True` in force rather than a hard-coded default.
         """
         monkeypatch.setattr(deprecate, "AS_EXCEPTIONS", True)
         with as_exceptions():
-            inside = deprecate.AS_EXCEPTIONS
-        assert (inside, deprecate.AS_EXCEPTIONS) == (True, True)
+            with as_exceptions(False):
+                exempt = _call_outcome(depr_scoped_switch_log_stream)
+            strict = _call_outcome(depr_scoped_switch_log_stream)
+        assert (exempt, strict, _call_outcome(depr_scoped_switch_log_stream)) == ("returned", "raised", "raised")
+
+    @pytest.mark.asyncio
+    async def test_task_created_inside_a_scope_inherits_it(self, global_off: None) -> None:
+        """A task created while a scope is open raises even when the scope has closed before the task first runs.
+
+        A request handler opens a strict section and schedules background work with `asyncio.create_task`; the task
+        copies the context at creation, so the strictness travels with it for as long as it runs.
+        """
+        assert await _created_task_outcome(depr_scoped_switch_log_stream) == "raised"
+
+    def test_copied_context_carries_a_scope_into_a_thread(self, global_off: None) -> None:
+        """Running a thread's target through `copy_context().run` brings the scope along, the documented recipe.
+
+        A plain new thread may or may not inherit the caller's context depending on the interpreter, so the
+        documentation tells callers to copy the context explicitly; a copy taken inside the scope stays strict
+        after the scope has closed.
+        """
+        assert _copied_context_thread_outcome(depr_scoped_switch_log_stream) == "raised"
+
+    @pytest.mark.asyncio
+    async def test_to_thread_inherits_the_scope(self, global_off: None) -> None:
+        """`asyncio.to_thread` copies the caller's context, so the worker thread raises inside a scope.
+
+        Async code that offloads a blocking call to a thread expects the strict section around the `await` to
+        cover it, which `to_thread` guarantees by running the call in a copy of the current context.
+        """
+        assert await _to_thread_outcome(depr_scoped_switch_log_stream) == "raised"
+
+    @pytest.mark.asyncio
+    async def test_run_in_executor_does_not_inherit_the_scope(self, global_off: None) -> None:
+        """`loop.run_in_executor` does not copy the context, so the pool thread keeps the global setting.
+
+        Unlike `to_thread`, handing a call to an executor leaves the scope behind; a caller who needs the
+        strictness there wraps the call in `copy_context().run` or opens a scope inside the worker.
+        """
+        assert await _run_in_executor_outcome(depr_scoped_switch_log_stream) == "returned"
+
+    def test_scope_held_across_a_generator_yield_applies_to_the_consumer(self, global_off: None) -> None:
+        """A scope a generator holds across `yield` is in force for its consumer until the generator is closed.
+
+        A generator-based resource manager enters the scope before its `yield`; the consumer shares the
+        generator's context, so it is strict while the generator is suspended and back on the global once the
+        generator is closed.
+        """
+        generator = _generator_holding_scope()
+        next(generator)
+        suspended = _call_outcome(depr_scoped_switch_log_stream)
+        generator.close()
+        assert (suspended, _call_outcome(depr_scoped_switch_log_stream)) == ("raised", "returned")
+
+    def test_decorated_function_can_be_reentered(self, global_off: None) -> None:
+        """A decorated function called recursively stays strict at every depth and ends on the global setting.
+
+        The decorator builds a fresh scope per call, so a recursive call exiting must not unwind the scope of the
+        call that is still running.
+        """
+        outcomes = _reentered_outcomes(2)
+        assert (outcomes, _call_outcome(depr_scoped_switch_log_stream)) == (["raised"] * 3, "returned")
+
+    def test_exit_removes_the_closing_contexts_own_activation_of_the_scope(self, global_off: None) -> None:
+        """Closing a scope object removes the newest entry for that object in the closing context, even its own.
+
+        A generator that held `scope` in another context is closed from here, where the same object is open as
+        an exemption inside a strict block. The exit removes the entry of this context, so the strict setting
+        applies immediately, and the later exit of the closer's own `with` finds nothing left and changes nothing.
+        """
+        scope = as_exceptions(False)
+        contextvars.copy_context().run(scope.__enter__)
+        with as_exceptions():
+            with scope:
+                scope.__exit__(None, None, None)
+                after_foreign_exit = _call_outcome(depr_scoped_switch_log_stream)
+            after_own_exit = _call_outcome(depr_scoped_switch_log_stream)
+        assert (after_foreign_exit, after_own_exit) == ("raised", "raised")
+
+    @pytest.mark.asyncio
+    async def test_exit_in_a_child_task_removes_only_the_inherited_entry(self, global_off: None) -> None:
+        """A task created inside a scope that closes the scope object loses its inherited copy, not the parent's.
+
+        An async generator opened inside a scope may be closed by a task created within it. That task holds a
+        copy of the entry, so closing removes the copy from the task's own context while the creating context
+        stays inside the scope until its own block ends.
+        """
+        assert await _inherited_entry_exit_outcomes(depr_scoped_switch_log_stream) == ["raised", "returned"]
+
+    @pytest.mark.parametrize(
+        "target",
+        [
+            pytest.param(AsyncCallableObject(), id="async-call"),
+            pytest.param(GeneratorCallableObject(), id="generator-call"),
+        ],
+    )
+    def test_decorator_rejects_instances_whose_call_body_runs_after_the_scope(
+        self, target: Callable[..., Any], global_off: None
+    ) -> None:
+        """Decorating an instance whose `__call__` is a coroutine or generator function raises `TypeError`.
+
+        Calling such an instance only builds a coroutine or generator; its body runs after the scope has closed,
+        so accepting it would make `@as_exceptions()` look armed while the body ran with the global setting.
+        """
+        with pytest.raises(TypeError, match="with as_exceptions"):
+            as_exceptions()(target)
+
+    def test_decorator_accepts_the_class_of_an_async_callable(self, global_off: None) -> None:
+        """Decorating the class itself stays allowed: calling a class constructs an instance synchronously.
+
+        Only the instance's `__call__` is asynchronous; the class is a plain synchronous callable, so the
+        decoration-time guard must not reject it just because its instances are awaitable callables.
+        """
+        decorated = as_exceptions()(AsyncCallableObject)
+        assert isinstance(decorated(), AsyncCallableObject)
+
+    def test_decorator_accepts_an_instance_with_a_synchronous_call(self, global_off: None) -> None:
+        """An instance whose `__call__` is an ordinary function can be decorated and still returns its result."""
+        decorated = as_exceptions()(SyncCallableObject())
+        assert decorated(3) == 3

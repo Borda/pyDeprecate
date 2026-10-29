@@ -548,7 +548,8 @@ class _DeprecatedProxy:
 
         Raises:
             AttributeError: If *read_only_op* is given and the live proxy is read-only.
-            DeprecatedError: If ``as_exception`` (or the process-wide switch) makes this deprecation fatal.
+            DeprecatedError: If ``as_exception``, the open :func:`~deprecate._fatal.as_exceptions` scope or
+                ``deprecate.AS_EXCEPTIONS`` makes this deprecation fatal.
 
         """
         active, live = self._activation()
@@ -562,7 +563,8 @@ class _DeprecatedProxy:
         """Raise ``DeprecatedError`` when this live deprecation is fatal; otherwise do nothing.
 
         Raises:
-            DeprecatedError: If ``as_exception`` (or the process-wide switch) makes this deprecation fatal.
+            DeprecatedError: If ``as_exception``, the open :func:`~deprecate._fatal.as_exceptions` scope or
+                ``deprecate.AS_EXCEPTIONS`` makes this deprecation fatal.
 
         """
         dep = self._dep

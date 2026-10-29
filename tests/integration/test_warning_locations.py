@@ -706,6 +706,22 @@ class TestModuleSites:
         expected = (api_deprecated.__file__, _line_ending_with(make_loc_module, "# warn-site"))
         assert _location(caught, UserWarning, "different configuration") == expected
 
+    def test_explicit_none_stream_notice_points_at_call(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """The ``stream=None`` migration notice reports the ``deprecated_module(...)`` call line.
+
+        A maintainer who wrote ``stream=None`` expecting silence needs the notice to name the exact call to edit,
+        not a frame inside pyDeprecate; the call reaches ``deprecated_module`` through a helper, so the frame count
+        has to skip pyDeprecate's own frames and stop at that call.
+
+        """
+        monkeypatch.setitem(sys.modules, _LOC_MODULE_NAME, types.ModuleType(_LOC_MODULE_NAME))
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            make_loc_module(_LOC_MODULE_NAME, stream=None)
+
+        expected = (api_deprecated.__file__, _line_ending_with(make_loc_module, "# warn-site"))
+        assert _location(caught, FutureWarning, "stream=None") == expected
+
     def test_custom_stream_access_points_at_access(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """A module deprecated with a custom ``stream`` reports the attribute-access line.
 

@@ -158,8 +158,9 @@ class DeprecationWrapperInfo:
             Will be removed in v1.0.
 
         Note:
-            Python's default warning filter deduplicates per ``(message, category, module, lineno)``,
-            so accessing this property in a loop from the same call site emits at most one warning.
+            Every read emits a :class:`FutureWarning` (``num_warns=-1``). Python's default warning filter
+            deduplicates per ``(message, category, module, lineno)``, so a loop at one call site shows it once under
+            the default filter; under ``"always"`` every read warns.
 
         """
         return self.empty_args_mapping
@@ -182,8 +183,9 @@ class DeprecationWrapperInfo:
             Will be removed in v1.0.
 
         Note:
-            Python's default warning filter deduplicates per ``(message, category, module, lineno)``,
-            so accessing this property in a loop from the same call site emits at most one warning.
+            Every read emits a :class:`FutureWarning` (``num_warns=-1``). Python's default warning filter
+            deduplicates per ``(message, category, module, lineno)``, so a loop at one call site shows it once under
+            the default filter; under ``"always"`` every read warns.
 
         """
         return self.identity_args_mapping

@@ -62,6 +62,7 @@ from deprecate.audit._policy import GraceWindow, GraceWindowSpec, PolicyRule, Ve
 from deprecate.audit._report import TableStyle, generate_deprecation_table
 from deprecate.audit._scan import find_deprecation_wrappers, validate_deprecation_chains, validate_mapping_compatibility
 from deprecate.audit._wrappers import ChainType, DeprecationWrapperInfo, validate_deprecation_wrapper
+from deprecate.deprecation import deprecated
 from deprecate.proxy import deprecated_class
 
 __all__ = [
@@ -88,10 +89,6 @@ __all__ = [
 # ---------------------------------------------------------------------------
 # Backward-compatibility shims — deprecated since 0.6, removed in 1.0
 # ---------------------------------------------------------------------------
-
-# Import delayed to avoid a module-level circular import cycle:
-# this package is imported by ``deprecate/__init__.py`` before ``deprecate.deprecation`` is available.
-from deprecate.deprecation import deprecated
 
 
 @deprecated(target=validate_deprecation_wrapper, deprecated_in="0.6", remove_in="1.0")
