@@ -109,7 +109,8 @@ def _identity(proxy: Any) -> tuple[bool, bool, Any, str]:  # noqa: ANN401
     ``DeprecationConfig`` and the rendered PEP 702 ``__deprecated__`` marker.
 
     """
-    return type(proxy) is _DeprecatedProxy, proxy == _SETTINGS, proxy.__deprecation_config__, proxy.__deprecated__
+    is_proxy = issubclass(type(proxy), _DeprecatedProxy)
+    return is_proxy, proxy == _SETTINGS, proxy.__deprecation_config__, proxy.__deprecated__
 
 
 def _future_warning_texts(caught: list[warnings.WarningMessage]) -> list[str]:

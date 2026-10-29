@@ -16,9 +16,11 @@ import warnings
 from collections.abc import AsyncIterator, Coroutine, Generator, Iterator
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, ClassVar, Optional
+from typing import Any, Callable, ClassVar, Generic, Optional, TypeVar
 
 import typing_extensions
+
+_BoxItem = TypeVar("_BoxItem")
 
 
 def raise_pow(base: float, coef: float) -> float:
@@ -141,6 +143,14 @@ class ColorEnum(Enum):
 
     RED = 1
     BLUE = 2
+
+
+class GenericBox(Generic[_BoxItem]):
+    """Generic container class; a deprecated alias of it must stay subscriptable (``Alias[int]``) in annotations."""
+
+    def __init__(self, item: _BoxItem) -> None:
+        """Store the boxed *item*."""
+        self.item = item
 
 
 def plain_function_target(x: int) -> int:

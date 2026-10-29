@@ -301,9 +301,10 @@ class DeprecationProxy(Protocol, Generic[_T_co]):
     - Attribute, item, and call access is transparently forwarded to the wrapped source.
 
     The type parameter ``T`` describes the instance type returned by calling the proxy (i.e. the target
-    type for class-forwarding proxies). It is purely a static affordance: runtime instances of
-    :class:`~deprecate.proxy._DeprecatedProxy` satisfy this Protocol structurally, so no explicit ``isinstance``
-    check is required.
+    type for class-forwarding proxies). It is purely a static affordance: every runtime instance of
+    :class:`~deprecate.proxy._DeprecatedProxy` passes ``isinstance(proxy, DeprecationProxy)``, including a proxy over a
+    dict or a plain class that carries no ``__call__`` or ``__getitem__`` (a proxy carries only the protocols its
+    wrapped object supports, so the proxy class is registered with this Protocol rather than matched member by member).
 
     !!! note "Protocol vs implementation"
         ``DeprecationProxy`` (public, this Protocol) describes the contract; :class:`~deprecate.proxy._DeprecatedProxy`

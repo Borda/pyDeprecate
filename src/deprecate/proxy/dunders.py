@@ -1,8 +1,9 @@
-"""Install protocol forwarding on the public deprecation proxy class.
+"""Register the optional protocol forwards of the deprecation proxy classes.
 
 Context and async acquisition methods share their cleanup helpers here; generated arithmetic, comparison, and conversion
-methods follow them in the original installation order. Importing this module installs the methods on the single runtime
-class from :mod:`deprecate.proxy.core`, preserving their public names and serialization identities.
+methods follow them in the original installation order. Importing this module registers the methods with
+:func:`deprecate.proxy.core._register_protocol_forward`, preserving their public names and serialization identities;
+each proxy class built by :mod:`deprecate.proxy.core` then carries only the forwards its wrapped object supports.
 
 """
 
@@ -14,7 +15,7 @@ import sys
 import types
 from typing import Any, Callable
 
-from deprecate.proxy.core import _DeprecatedProxy
+from deprecate.proxy.core import _DeprecatedProxy, _register_protocol_forward
 
 __all__: list[str] = []
 
@@ -180,11 +181,11 @@ def __await__(self: _DeprecatedProxy) -> Any:  # noqa: ANN401, N807
     return iterator
 
 
-# Install the handwritten acquisition protocols before the generated operators, preserving their class identity.
+# Register the handwritten acquisition protocols before the generated operators, preserving their class identity.
 for _method in (__enter__, __exit__, __aenter__, __aexit__, __aiter__, __anext__, __await__):
     _method.__module__ = "deprecate.proxy"
     _method.__qualname__ = f"_DeprecatedProxy.{_method.__name__}"
-    setattr(_DeprecatedProxy, _method.__name__, _method)
+    _register_protocol_forward(_method)
 
 
 # ----------------------------------------------------------------------
@@ -194,7 +195,7 @@ for _method in (__enter__, __exit__, __aenter__, __aexit__, __aiter__, __anext__
 # Implicit special-method lookup bypasses ``__getattr__`` — Python resolves dunders on the *type*,
 # not the instance — so every operator, conversion, and protocol dunder must live on the class
 # itself for the proxy to stay transparent. These are generated from a table (rather than ~60
-# hand-written defs) and installed onto ``_DeprecatedProxy`` below.
+# hand-written defs) and registered below; each proxy class carries the ones its wrapped object supports.
 # ----------------------------------------------------------------------
 
 
@@ -322,25 +323,37 @@ _UNARY_OPS: dict[str, Callable[[Any], Any]] = {
     "__reversed__": reversed,
     "__fspath__": os.fspath,
 }
+#: Text types a conversion builtin parses natively (``int("5")``, ``open("data.txt")``) although the type defines no
+#: such dunder; a proxy over one keeps the conversion forward so a deprecated text constant still converts.
+_NATIVE_TEXT_TYPES: dict[str, tuple[type, ...]] = {
+    "__int__": (str, bytes, bytearray),
+    "__float__": (str, bytes, bytearray),
+    "__complex__": (str,),
+    "__fspath__": (str, bytes),
+}
 
 
-def _install_forwarding_dunders(cls: type) -> None:
-    """Attach the generated operator/conversion dunders to *cls* at import time.
+def _install_forwarding_dunders() -> None:
+    """Register the generated operator/conversion dunders as optional protocol forwards at import time.
 
-    Arithmetic and reflected binary operators are installed via :func:`_make_binary_forward`; in-place operators via
+    Arithmetic and reflected binary operators are built via :func:`_make_binary_forward`; in-place operators via
     :func:`_make_inplace_forward` (which also enforces ``read_only``); ordering comparisons via
     :func:`_make_binary_forward` (silent); unary and conversion protocols via :func:`_make_unary_forward`. Ordering
-    comparisons are silent (structural probes); every other generated dunder warns (data use).
+    comparisons are silent (structural probes); every other generated dunder warns (data use). In-place operators are
+    set on the base class rather than registered: every proxy carries them, so ``+=`` on a ``read_only`` proxy reaches
+    the guard even when the wrapped type has neither the in-place nor the binary operator and the right-hand operand
+    defines the reflected one. Without the hook the forward declines, so Python falls back exactly as for the wrapped
+    object; no structural ABC keys on in-place operators.
 
     """
     for _op in (*_ARITHMETIC_OPS, *_REFLECTED_OPS):
-        setattr(cls, _op, _make_binary_forward(_op, warn=True))
+        _register_protocol_forward(_make_binary_forward(_op, warn=True))
     for _op in _INPLACE_OPS:
-        setattr(cls, _op, _make_inplace_forward(_op))
+        setattr(_DeprecatedProxy, _op, _make_inplace_forward(_op))
     for _op in _ORDERING_OPS:
-        setattr(cls, _op, _make_binary_forward(_op, warn=False))
+        _register_protocol_forward(_make_binary_forward(_op, warn=False))
     for _op, _func in _UNARY_OPS.items():
-        setattr(cls, _op, _make_unary_forward(_op, _func))
+        _register_protocol_forward(_make_unary_forward(_op, _func), native_types=_NATIVE_TEXT_TYPES.get(_op, ()))
 
 
-_install_forwarding_dunders(_DeprecatedProxy)
+_install_forwarding_dunders()

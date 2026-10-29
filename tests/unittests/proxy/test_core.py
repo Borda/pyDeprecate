@@ -806,13 +806,19 @@ class TestProxyClassProperty:
         patch the wrapped class in place instead of wrapping the proxy callable.  Class-side
         transparency is covered by ``__instancecheck__``/``__subclasscheck__`` instead.
         """
-        assert DeprecatedColorEnum.__class__ is _DeprecatedProxy
+        assert DeprecatedColorEnum.__class__ is type(DeprecatedColorEnum)
+        assert issubclass(type(DeprecatedColorEnum), _DeprecatedProxy)
         assert not isinstance(DeprecatedColorEnum, type)
 
     def test_type_still_reveals_proxy(self) -> None:
-        """``type(proxy)`` keeps returning the proxy class for code that needs the truth."""
+        """``type(proxy)`` keeps returning the proxy class for code that needs the truth.
+
+        The class is the protocol subclass carrying the wrapped object's dunders; it keeps the ``_DeprecatedProxy``
+        name, so error messages and reprs name the proxy as before.
+
+        """
         proxy = deprecated_instance({"k": 1}, name="cfg", **_DEPRS_CASE_STD_ARGS, stream=None)
-        assert type(proxy) is _DeprecatedProxy
+        assert (issubclass(type(proxy), _DeprecatedProxy), type(proxy).__name__) == (True, "_DeprecatedProxy")
         assert isinstance(proxy, _DeprecatedProxy)
 
     def test_isinstance_does_not_warn(self) -> None:
@@ -842,7 +848,7 @@ class TestProxyCopyPickle:
         """
         proxy = deprecated_instance({"threshold": 0.5}, name="cfg", **_DEPRS_CASE_STD_ARGS, stream=None)
         dup = copy.copy(proxy)
-        assert type(dup) is _DeprecatedProxy
+        assert type(dup) is type(proxy)
         assert dup["threshold"] == 0.5
         dup["threshold"] = 0.9
         assert proxy["threshold"] == 0.5
@@ -855,7 +861,7 @@ class TestProxyCopyPickle:
         """
         proxy = deprecated_instance({"limits": {"low": 1}}, name="cfg", **_DEPRS_CASE_STD_ARGS, stream=None)
         dup = copy.deepcopy(proxy)
-        assert type(dup) is _DeprecatedProxy
+        assert type(dup) is type(proxy)
         dup["limits"]["low"] = 99
         assert proxy["limits"]["low"] == 1
 
@@ -881,7 +887,7 @@ class TestProxyCopyPickle:
         proxy = deprecated_instance({"k": 41}, name="cfg", **_DEPRS_CASE_STD_ARGS)
 
         restored = pickle.loads(pickle.dumps(proxy))  # noqa: S301
-        assert type(restored) is _DeprecatedProxy
+        assert type(restored) is type(proxy)
         assert object.__getattribute__(restored, "__deprecation_config__").name == "cfg"
         with pytest.warns(FutureWarning, match=r"The `cfg` was deprecated since v1\.0"):
             assert restored["k"] == 41
@@ -893,7 +899,7 @@ class TestProxyCopyPickle:
         target class object.
         """
         dup = copy.deepcopy(DeprecatedColorEnum)
-        assert type(dup) is _DeprecatedProxy
+        assert type(dup) is type(DeprecatedColorEnum)
         with pytest.warns(FutureWarning, match="`DeprecatedColorEnum` was deprecated"):
             assert dup.RED is ColorEnum.RED
 

@@ -449,9 +449,13 @@ class TestDeprecatedProtocol:
         *data* Protocol — Python only supports ``isinstance`` for those. Users reaching for
         ``issubclass`` get a hard error rather than a wrong answer, so the docstring warning is pinned
         here to catch any future change that silently loosens it.
+
+        The class is created fresh: on Python 3.9-3.11 an earlier ``isinstance`` check of a ``dict`` (or of a proxy
+        over one, which reports ``dict`` as its ``__class__``) against the Protocol leaves ``dict`` in the ABC negative
+        cache, and ``issubclass`` then answers ``False`` from the cache without reaching the check that raises.
         """
         with pytest.raises(TypeError, match="non-method members"):
-            issubclass(dict, DeprecationProxy)  # type: ignore[misc]
+            issubclass(type("FreshClass", (), {}), DeprecationProxy)  # type: ignore[misc]
 
     def test_wrapped_is_typed_as_attribute_on_proxy_class(self) -> None:
         """``_DeprecatedProxy`` declares ``__wrapped__`` and ``__signature__`` at class level.

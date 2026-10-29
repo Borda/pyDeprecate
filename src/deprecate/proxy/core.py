@@ -1,14 +1,16 @@
 """Run deprecation proxies with their original public import and serialization identities.
 
 This module owns proxy construction, runtime state, attribute and call forwarding, warning rendering, and copy/pickle
-reconstruction. Decoration-time mapping and target resolution live in :mod:`deprecate.proxy.resolve`; protocol
-forwarders are installed by :mod:`deprecate.proxy.dunders` when the package is imported.
+reconstruction. Decoration-time mapping and target resolution live in :mod:`deprecate.proxy.resolve`; optional protocol
+forwarders are registered here and by :mod:`deprecate.proxy.dunders` when the package is imported, and each proxy is
+allocated as a cached subclass carrying only the ones its wrapped object supports.
 
 """
 
 import copy
 import inspect
 import sys
+import threading
 import types
 from collections.abc import Iterator
 from dataclasses import dataclass, replace
@@ -16,7 +18,7 @@ from typing import TYPE_CHECKING, Any, Callable, Optional, SupportsIndex, Union,
 
 from deprecate._dispatch import _split_positional_only_kwargs
 from deprecate._fatal import DeprecatedError, _resolve_as_exception
-from deprecate._types import DeprecationConfig, TargetMode, _CallFacts, _ProxyConfig
+from deprecate._types import DeprecationConfig, DeprecationProxy, TargetMode, _CallFacts, _ProxyConfig
 from deprecate._validate import _resolve_legacy_proxy_target, _validate_callable_mode, _validate_proxy_mode
 from deprecate.docstring.inject import normalize_docstring_style
 from deprecate.messaging import (
@@ -66,6 +68,10 @@ _MUTATING_METHOD_NAMES = frozenset(
 def _is_dunder(name: str) -> bool:
     """Return whether *name* is a dunder attribute name (``__x__``) — introspection machinery, not user API."""
     return name.startswith("__") and name.endswith("__")
+
+
+#: Default of :meth:`_DeprecatedProxy.__new__`'s *obj*: copy and pickle reconstruction allocate without a source.
+_NO_SOURCE: Any = object()
 
 
 @dataclass(frozen=True)
@@ -168,15 +174,22 @@ class _DeprecatedProxy:
         result is lost. Those operations keep warning after success because warning first would spend the budget on
         every failed probe, and an in-place hook that declines would add a second warning to the binary fallback.
 
-    Known limitations:
-        **Structural ABC over-claim**: because dunder methods are installed unconditionally on the *type*
-        (implicit special-method lookup bypasses ``__getattr__`` and cannot be conditional per-instance),
-        ``isinstance(proxy, os.PathLike)`` returns ``True`` even when the wrapped object is not a path — then
-        ``os.fspath(proxy)`` raises ``TypeError``.  The same applies to ``Awaitable``, ``AsyncIterable``, and
-        any other structural ABC that keys on dunder presence.  Always check the *unwrapped* object's type
-        when using structural ABCs as a dispatch guard, or call ``type(deprecated_instance_proxy.__class__)``
-        to get the wrapped type (which is ``_DeprecatedProxy``).
+    Protocol surface:
+        Implicit special-method lookup goes through the *type*, so a proxy cannot decide per instance which protocols
+        it supports. Constructing a proxy therefore allocates a cached subclass of the requested class that carries
+        only the optional protocol forwards (calling, iteration, ``next``, sizing, membership, subscript, hashing,
+        ``reversed``, ``os.fspath``, ``await``, async iteration, ``with``/``async with`` and the operator and
+        conversion set) that the type of the wrapped object or of its replacement defines. ``callable(proxy)``,
+        ``isinstance(proxy, Iterator)``, ``os.PathLike``, ``Awaitable`` and the other structural ABCs then give the
+        answer the wrapped object gives. Two deliberate extras keep builtins working where the type defines no dunder:
+        an in-place operator is kept whenever its binary operator is (so ``read_only`` still refuses ``+=`` on an
+        ``int``), and ``int()``/``float()``/``complex()``/``os.fspath()`` are kept for the ``str``/``bytes`` values
+        those builtins parse natively — so a proxy over a ``str`` still reports ``os.PathLike``. A class alias gets the
+        protocols of its metaclass (``EnumMeta`` iterates and sizes), plus subscript when the class defines
+        ``__class_getitem__``. ``isinstance(proxy, _DeprecatedProxy)`` holds for every such subclass, and every proxy
+        is registered as a :class:`~deprecate._types.DeprecationProxy` whatever protocols it carries.
 
+    Known limitations:
         **Binding**: only a proxy over a plain function (a ``@deprecated`` wrapper included) or over another such proxy
         is a :class:`_BindingDeprecatedProxy` with ``__get__``, so ``inspect.isroutine(proxy)`` is ``True`` for it and
         ``False`` for proxies over data, classes, and other callables. A ``functools.partial``, a bound method, a
@@ -250,6 +263,21 @@ class _DeprecatedProxy:
     ) -> None:
         """Delegate to :func:`~deprecate.proxy.resolve._validate_attrs_warn_only_keys` with the nominal proxy type."""
         return _validate_attrs_warn_only_keys(_DeprecatedProxy, attrs_mapping, obj, attr_check_obj)
+
+    def __new__(cls, obj: Any = _NO_SOURCE, spec: Optional[_ProxySpec] = None) -> "_DeprecatedProxy":  # noqa: ANN401
+        """Allocate the proxy as the subclass of *cls* that carries exactly the protocols *obj* and its target support.
+
+        Every construction path (:func:`~deprecate.proxy.deprecated_instance`,
+        :func:`~deprecate.proxy.deprecated_class`, direct ``_DeprecatedProxy(obj=..., spec=...)``) passes through here,
+        so no proxy can claim a protocol its wrapped object lacks. Called without a source — ``cls.__new__(cls)`` in
+        :meth:`__deepcopy__` and :func:`_reconstruct_proxy` — it allocates *cls* itself, which those paths have already
+        selected.
+
+        """
+        if obj is _NO_SOURCE:
+            return object.__new__(cls)
+        target = None if spec is None else spec.target
+        return object.__new__(_select_proxy_type(cls, obj, target))
 
     def __init__(self, obj: Any, spec: _ProxySpec) -> None:  # noqa: ANN401
         """Initialise the proxy with typed runtime/config dataclasses.
@@ -1154,8 +1182,9 @@ class _DeprecatedProxy:
         honours ``__class__``, so consumer code type-checking the deprecated object (json encoders,
         validators, defensive ``isinstance``) behaves identically before and after wrapping.
         Stacked proxy chains are resolved to the innermost concrete object. ``type(proxy)`` still
-        returns :class:`_DeprecatedProxy` for code that needs the truth, and
-        ``isinstance(proxy, _DeprecatedProxy)`` remains ``True`` via the ``type()`` fast path.
+        returns the real proxy class (a protocol subclass of :class:`_DeprecatedProxy`, see its "Protocol surface"
+        section) for code that needs the truth, and ``isinstance(proxy, _DeprecatedProxy)`` remains ``True`` via the
+        ``type()`` fast path.
         No warning is emitted — type checks are structural, matching
         :meth:`~deprecate.proxy._DeprecatedProxy.__instancecheck__`.
 
@@ -1344,7 +1373,9 @@ def _reconstruct_proxy(
             target_positional_only=dep.target_positional_only,
             target_positional_only_order=dep.target_positional_only_order,
         )
-    proxy_type = _proxy_type_for(cfg.obj)
+    # The protocol subclass is re-derived from the wrapped object, never pickled by reference, so a payload stays
+    # loadable in a process whose class cache is empty and in releases whose subclasses differ.
+    proxy_type = _select_proxy_type(_proxy_type_for(cfg.obj), cfg.obj, dep.target)
     proxy = proxy_type.__new__(proxy_type)
     object.__setattr__(proxy, "_DeprecatedProxy__config", cfg)
     object.__setattr__(proxy, "__deprecation_config__", dep)
@@ -1579,3 +1610,145 @@ for _class in (_DeprecatedProxy, _BindingDeprecatedProxy):
             for _accessor in (_member.fget, _member.fset, _member.fdel):
                 if _accessor is not None:
                     _accessor.__module__ = "deprecate.proxy"
+
+
+# ----------------------------------------------------------------------
+# Protocol surface — per-protocol-set proxy subclasses (see the "Protocol surface" section of the
+# _DeprecatedProxy docstring). Implicit special-method lookup goes through the type, so the only way
+# for a proxy to support exactly the protocols of the object it wraps is to be an instance of a class
+# carrying exactly those dunders. The base classes keep the always-safe dunders; the optional ones live
+# in a registry and are copied into a cached subclass per distinct set.
+# ----------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class _ProtocolForward:
+    """One optional protocol dunder of a proxy: its forwarding method and when a proxy class carries it.
+
+    A proxy carries the dunder when the type of the wrapped object (or of its replacement) defines it, or when that
+    object is an instance of ``native_types`` (text a builtin parses without a dunder), or, for a class, when the class
+    itself defines ``class_hook`` (``__class_getitem__`` makes ``Alias[int]`` work).
+
+    """
+
+    method: Callable[..., Any]
+    native_types: tuple[type, ...] = ()
+    class_hook: Optional[str] = None
+
+
+#: Optional protocol forwards by dunder name; filled below and by :mod:`deprecate.proxy.dunders` at package import.
+_PROTOCOL_FORWARDS: dict[str, _ProtocolForward] = {}
+
+#: Proxy classes by ``(base class, carried dunder names, disabled dunder names)``. The key space is the set of
+#: distinct protocol sets real objects have, not the set of wrapped types, so the cache stays small however many types
+#: are proxied.
+_PROTOCOL_PROXY_TYPES: dict[tuple[type, frozenset[str], frozenset[str]], type[_DeprecatedProxy]] = {}
+
+#: The base class each generated proxy class was built from, so constructing through a generated class reselects.
+_PROTOCOL_PROXY_BASES: dict[type, type[_DeprecatedProxy]] = {}
+
+#: Serialises class creation: on free-threaded builds two threads may miss the cache for one new set at once.
+_PROTOCOL_PROXY_TYPES_LOCK = threading.Lock()
+
+
+def _register_protocol_forward(
+    method: Callable[..., Any],
+    *,
+    native_types: tuple[type, ...] = (),
+    class_hook: Optional[str] = None,
+) -> None:
+    """Register *method* as the optional forward for the dunder named ``method.__name__``."""
+    _PROTOCOL_FORWARDS[method.__name__] = _ProtocolForward(method, native_types, class_hook)
+
+
+def _type_defines(kind: type, name: str) -> Optional[bool]:
+    """Return whether implicit lookup of dunder *name* on instances of *kind* finds an implementation.
+
+    Walks the MRO dictionaries as the interpreter does, so a metaclass attribute (``type.__call__`` seen through
+    ``dict.__call__``) does not count.  An entry set to ``None`` (``dict.__hash__``, ``__iter__ = None``) disables the
+    protocol — the same rule :mod:`collections.abc` applies — and also disables the interpreter's fallbacks
+    (``__getitem__`` iteration, ``__iter__`` membership), so it is reported apart from an absent entry.
+
+    Returns:
+        ``True`` when defined, ``False`` when disabled by a ``None`` entry, ``None`` when no class in the MRO names it.
+
+    """
+    for klass in kind.__mro__:
+        if name in klass.__dict__:
+            return klass.__dict__[name] is not None
+    return None
+
+
+def _supports_protocol(value: Any, name: str, forward: _ProtocolForward) -> bool:  # noqa: ANN401
+    """Return whether a proxy serving *value* must carry the optional dunder *name*."""
+    kind = type(value)
+    if _type_defines(kind, name):
+        return True
+    if forward.native_types and issubclass(kind, forward.native_types):
+        return True
+    # A class (not a class proxy: its own type carries the forward already) subscripted through ``__class_getitem__``.
+    hook = forward.class_hook
+    return hook is not None and issubclass(kind, type) and inspect.getattr_static(value, hook, None) is not None
+
+
+def _protocol_names(obj: Any, target: Any) -> tuple[frozenset[str], frozenset[str]]:  # noqa: ANN401
+    """Return the optional dunders a proxy over *obj* carries, and those it disables.
+
+    A dunder is carried when *obj* or a replacement object *target* supports it: a configured replacement serves the
+    protocol use while ``skip_if`` serves the source, so both contribute. A dunder no served object supports and one of
+    them disables with a ``None`` entry is disabled on the proxy class too, so the interpreter's fallbacks stay off as
+    they are on the wrapped object. A :class:`~deprecate._types.TargetMode`, a legacy ``bool`` target or ``None`` is not
+    an object the proxy serves.
+
+    """
+    served = (obj,) if target is None or isinstance(target, (TargetMode, bool)) else (obj, target)
+    carried = frozenset(
+        name
+        for name, forward in _PROTOCOL_FORWARDS.items()
+        if any(_supports_protocol(value, name, forward) for value in served)
+    )
+    disabled = frozenset(
+        name
+        for name in _PROTOCOL_FORWARDS
+        if name not in carried and any(_type_defines(type(value), name) is False for value in served)
+    )
+    return carried, disabled
+
+
+def _select_proxy_type(base: type[_DeprecatedProxy], obj: Any, target: Any) -> type[_DeprecatedProxy]:  # noqa: ANN401
+    """Return the cached subclass of *base* carrying exactly the optional protocols *obj* and *target* support.
+
+    The subclass keeps *base*'s name, qualified name, module and docstring, so error messages (``'_DeprecatedProxy'
+    object is not callable``) and reprs read as before; it is never pickled by reference (see
+    :func:`_reconstruct_proxy`). A generated class passed as *base* is resolved back to the class it was built from.
+
+    """
+    base = _PROTOCOL_PROXY_BASES.get(base, base)
+    key = (base, *_protocol_names(obj, target))
+    proxy_type = _PROTOCOL_PROXY_TYPES.get(key)
+    if proxy_type is not None:
+        return proxy_type
+    with _PROTOCOL_PROXY_TYPES_LOCK:
+        proxy_type = _PROTOCOL_PROXY_TYPES.get(key)
+        if proxy_type is None:
+            namespace: dict[str, Any] = {name: _PROTOCOL_FORWARDS[name].method for name in sorted(key[1])}
+            namespace.update(dict.fromkeys(sorted(key[2])))
+            namespace.update(__module__=base.__module__, __qualname__=base.__qualname__, __doc__=base.__doc__)
+            proxy_type = cast("type[_DeprecatedProxy]", type(base.__name__, (base,), namespace))
+            _PROTOCOL_PROXY_BASES[proxy_type] = base
+            _PROTOCOL_PROXY_TYPES[key] = proxy_type
+    return proxy_type
+
+
+# Move the optional protocol dunders written in the class body into the registry; type checkers still see them on the
+# class. Deleting ``__hash__`` would fall back to ``object.__hash__`` (identity hashing), so the base disables it.
+for _name in ("__call__", "__contains__", "__getitem__", "__hash__", "__iter__", "__len__", "__next__"):
+    _register_protocol_forward(
+        _DeprecatedProxy.__dict__[_name], class_hook="__class_getitem__" if _name == "__getitem__" else None
+    )
+    delattr(_DeprecatedProxy, _name)
+setattr(_DeprecatedProxy, "__hash__", None)
+
+# Every proxy is a DeprecationProxy, whatever protocols it carries: the Protocol declares ``__call__`` and
+# ``__getitem__``, which a proxy over a dict or a plain class no longer has, so the runtime check uses registration.
+DeprecationProxy.register(_DeprecatedProxy)

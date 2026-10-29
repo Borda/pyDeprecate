@@ -126,8 +126,10 @@ def test_proxy_installs_forwarding_dunders() -> None:
 
     """
     code = (
-        "import deprecate\n"
+        "import deprecate, threading\n"
         "proxy = deprecate.deprecated_instance([1, 2], deprecated_in='1.0', remove_in='2.0', stream=None)\n"
-        "print(proxy + [3], hasattr(type(proxy), '__enter__'))\n"
+        "lock = deprecate.deprecated_instance(threading.Lock(), deprecated_in='1.0', remove_in='2.0', stream=None)\n"
+        "print(proxy + [3], hasattr(type(lock), '__enter__'), hasattr(type(proxy), '__enter__'))\n"
     )
-    assert run_isolated_python(code) == "[1, 2, 3] True"
+    # A list has no context protocol, so its proxy carries no ``__enter__``; a lock does, so its proxy carries one.
+    assert run_isolated_python(code) == "[1, 2, 3] True False"

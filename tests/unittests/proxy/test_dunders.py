@@ -1,34 +1,50 @@
 """Unit tests for proxy operators, context/async protocols, and acquisition cleanup."""
 
 import asyncio
+import collections.abc
+import copy
 import gc
 import math
 import os
+import pickle
 import threading
+import typing
 import warnings
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 import pytest
 
-from deprecate.proxy import deprecated_instance
+from deprecate import DeprecationProxy
+from deprecate.proxy import _DeprecatedProxy, deprecated_instance
 from tests._helpers import captured_warnings
 from tests.collections.api_current import (
     AsyncManagedResource,
     CachedStepIterator,
+    ColorEnum,
     DeferredFailureAwaitable,
     FlakyProtocolBox,
+    GenericBox,
     KeywordTypeErrorStream,
     ManagedResource,
     PendingSnapshotBox,
     RecordingEntryContext,
     legacy_snapshot,
     legacy_tick_stream,
+    plain_function_target,
 )
-from tests.collections.api_deprecated import _DEPRS_CASE_STD_ARGS
+from tests.collections.api_deprecated import (
+    _DEPRS_CASE_STD_ARGS,
+    DeprecatedDataClass,
+    DeprecatedEnum,
+    DeprecatedGenericBox,
+    LegacyColorTable,
+)
 from tests.collections.api_deprecated_regressions import (
     make_read_only_inplace_proxy,
     make_silent_proxy_stack,
+    make_skip_gated_target_proxy,
     make_switching_entry_proxy,
     make_warn_after_success_proxy,
 )
@@ -629,3 +645,296 @@ class TestFormatAndDeclinedOperators:
         with warnings.catch_warnings():
             warnings.simplefilter("error")
             assert proxy + _ReflectedAddition() == "reflected"
+
+
+class _MatmulOnly:
+    """Value supporting only ``@``, so its proxy needs a protocol set no other test builds."""
+
+    def __matmul__(self, other: object) -> int:
+        return 1
+
+
+class _IterDisabled:
+    """Value that indexes but disables iteration, so ``list()`` must not fall back to ``__getitem__``."""
+
+    __iter__ = None
+
+    def __getitem__(self, index: int) -> int:
+        if index > 2:
+            raise IndexError(index)
+        return index
+
+
+class _ContainsDisabled:
+    """Value that iterates but disables membership, so ``in`` must not fall back to iteration."""
+
+    __contains__ = None
+
+    def __iter__(self) -> typing.Iterator[int]:
+        return iter([1, 2])
+
+
+class TestProtocolSurface:
+    """A proxy carries only the protocol dunders that the wrapped object (or its replacement) supports."""
+
+    @pytest.mark.parametrize(
+        ("source", "protocol", "expected"),
+        [
+            pytest.param({}, collections.abc.Callable, False, id="dict-not-callable"),
+            pytest.param({}, collections.abc.Iterator, False, id="dict-not-iterator"),
+            pytest.param({}, os.PathLike, False, id="dict-not-pathlike"),
+            pytest.param({}, collections.abc.Awaitable, False, id="dict-not-awaitable"),
+            pytest.param({}, collections.abc.AsyncIterable, False, id="dict-not-async-iterable"),
+            pytest.param({}, collections.abc.Hashable, False, id="dict-not-hashable"),
+            pytest.param({}, typing.SupportsInt, False, id="dict-not-supports-int"),
+            pytest.param([1], collections.abc.Iterable, True, id="list-iterable"),
+            pytest.param([1], collections.abc.Sized, True, id="list-sized"),
+            pytest.param([1], collections.abc.Container, True, id="list-container"),
+            pytest.param([1], collections.abc.Reversible, True, id="list-reversible"),
+            pytest.param([1], collections.abc.Iterator, False, id="list-not-iterator"),
+            pytest.param(iter([1]), collections.abc.Iterator, True, id="iterator"),
+            pytest.param(3, typing.SupportsIndex, True, id="int-supports-index"),
+            pytest.param(3, collections.abc.Hashable, True, id="int-hashable"),
+            pytest.param(3, collections.abc.Iterable, False, id="int-not-iterable"),
+            pytest.param(plain_function_target, collections.abc.Callable, True, id="function-callable"),
+            pytest.param(threading.Lock(), typing.ContextManager, True, id="lock-context-manager"),
+        ],
+    )
+    def test_structural_check_matches_wrapped_object(self, source: object, protocol: type, expected: bool) -> None:
+        """``isinstance(proxy, ABC)`` for a structural ABC gives the answer the wrapped object gives.
+
+        Consumer code dispatches on structural ABCs — ``callable(x)`` to tell a factory from a value,
+        ``isinstance(x, Iterator)`` to tell a one-shot stream from a reusable collection, ``os.PathLike`` to accept
+        paths. A deprecated config dict that claims all of them is routed down the wrong branch, so the proxy must
+        report exactly the protocols of the object it wraps.
+
+        """
+        proxy = deprecated_instance(source, name="legacy_value", **_DEPRS_CASE_STD_ARGS, stream=None)
+        assert isinstance(proxy, protocol) is expected
+
+    def test_calling_non_callable_proxy_fails_without_warning(self) -> None:
+        """Calling a proxy over a dict raises the builtin ``TypeError`` before any deprecation warning.
+
+        Code that probes ``callable(settings)`` and falls back to calling it must see the same answer as for the plain
+        dict: not callable, and a call fails as the object itself would, without spending the warn budget.
+
+        """
+        proxy = deprecated_instance({}, name="legacy_settings", **_DEPRS_CASE_STD_ARGS)
+        with captured_warnings() as caught, pytest.raises(TypeError, match="not callable"):
+            proxy()
+        assert (callable(proxy), caught) == (False, [])
+
+    def test_unhashable_source_leaves_hash_slot_empty(self) -> None:
+        """A proxy over an unhashable dict has ``__hash__ = None`` on its type, as the dict type does.
+
+        ``collections.abc.Hashable`` and ``functools.lru_cache`` key on the type-level hash slot; an identity-hashable
+        proxy over a dict would silently cache by object identity.
+
+        """
+        proxy = deprecated_instance({}, name="legacy_settings", **_DEPRS_CASE_STD_ARGS, stream=None)
+        assert type(proxy).__hash__ is None
+
+    @pytest.mark.parametrize(
+        ("source", "convert", "expected"),
+        [
+            pytest.param("5", int, 5, id="int-from-str"),
+            pytest.param(b"7", int, 7, id="int-from-bytes"),
+            pytest.param("2.5", float, 2.5, id="float-from-str"),
+            pytest.param("1+2j", complex, 1 + 2j, id="complex-from-str"),
+            pytest.param("data/legacy.txt", os.fspath, "data/legacy.txt", id="fspath-from-str"),
+            pytest.param(b"data", os.fspath, b"data", id="fspath-from-bytes"),
+        ],
+    )
+    def test_text_source_keeps_native_conversions(self, source: object, convert: Callable, expected: object) -> None:
+        """Builtins that accept text natively still convert a proxy over a string or bytes value.
+
+        ``int("5")``, ``float("2.5")`` and ``open("path")`` accept text without the type defining ``__int__``,
+        ``__float__`` or ``__fspath__``. A deprecated ``PORT = "8080"`` or ``DATA_PATH = "data/x.txt"`` constant keeps
+        working with ``int(PORT)`` and ``open(DATA_PATH)`` during the migration window.
+
+        """
+        proxy = deprecated_instance(source, name="legacy_text", **_DEPRS_CASE_STD_ARGS, stream=None)
+        assert convert(proxy) == expected
+
+    def test_read_only_value_without_inplace_hook_still_refuses(self) -> None:
+        """``+=`` on a read-only proxy over an ``int`` raises instead of rebinding to the sum.
+
+        ``int`` has ``__add__`` but no ``__iadd__``; every proxy carries the in-place forwards, so the
+        ``read_only=True`` guard still sees the augmented assignment.
+
+        """
+        proxy = deprecated_instance(3, name="legacy_limit", **_DEPRS_CASE_STD_ARGS, read_only=True, stream=None)
+        with pytest.raises(AttributeError, match="read-only"):
+            proxy += 1  # type: ignore[operator]
+
+    def test_read_only_value_without_arithmetic_refuses_reflected_operand(self) -> None:
+        """``+=`` on a read-only proxy over a value with no arithmetic raises before the right operand's ``__radd__``.
+
+        Without the in-place forward Python would fall through to ``other.__radd__(proxy)``, which may act on the
+        deprecated object through the proxy and rebind the name, bypassing the ``read_only=True`` contract.
+
+        """
+        proxy = deprecated_instance(_MatmulOnly(), name="legacy_obj", **_DEPRS_CASE_STD_ARGS, read_only=True)
+        with pytest.raises(AttributeError, match="read-only"):
+            proxy += _ReflectedAddition()  # type: ignore[operator]
+
+    @pytest.mark.parametrize(
+        ("source", "use"),
+        [
+            pytest.param(_IterDisabled(), list, id="iter-disabled-no-getitem-fallback"),
+            pytest.param(_ContainsDisabled(), lambda value: 1 in value, id="contains-disabled-no-iter-fallback"),
+        ],
+    )
+    def test_disabled_protocol_keeps_fallback_off(self, source: object, use: Callable) -> None:
+        """A protocol the wrapped type disables with ``None`` stays disabled on the proxy, fallbacks included.
+
+        ``__iter__ = None`` stops Python from iterating through ``__getitem__``, and ``__contains__ = None`` stops it
+        from testing membership by iteration. The proxy must refuse the same operations, not fall back to them.
+
+        """
+        proxy = deprecated_instance(source, name="legacy_obj", **_DEPRS_CASE_STD_ARGS, stream=None)
+        with pytest.raises(TypeError):
+            use(proxy)
+
+    def test_enum_alias_keeps_metaclass_protocols(self) -> None:
+        """A deprecated Enum class still iterates, sizes and subscripts through the protocols ``EnumMeta`` defines.
+
+        Implicit dunder lookup on a class goes through its metaclass, so the alias must carry ``EnumMeta``'s
+        ``__iter__``, ``__len__`` and ``__getitem__`` although ``type`` itself defines none of them.
+
+        """
+        with captured_warnings():
+            members = [member.name for member in DeprecatedEnum]
+            assert (members, len(DeprecatedEnum), DeprecatedEnum["BETA"].value) == (["ALPHA", "BETA"], 2, "beta")
+
+    def test_plain_class_alias_is_callable_but_not_a_container(self) -> None:
+        """A deprecated plain class is callable (``type.__call__``) and no longer claims ``Sized`` or ``Iterable``.
+
+        Instantiation is the main use of a class alias, while ``type`` defines no container protocol: a framework that
+        treats every ``Iterable`` argument as a collection must not iterate the alias.
+
+        """
+        claims = (
+            callable(DeprecatedDataClass),
+            isinstance(DeprecatedDataClass, collections.abc.Sized),
+            isinstance(DeprecatedDataClass, collections.abc.Iterable),
+        )
+        assert claims == (True, False, False)
+
+    def test_generic_alias_stays_subscriptable(self) -> None:
+        """``Alias[int]`` on a deprecated generic class builds the parametrised generic, as on the class itself.
+
+        A class proxy is not a ``type``, so Python never falls back to ``__class_getitem__`` for it; annotations such
+        as ``list_of: OldBox[int]`` keep working only because the alias carries a subscript forward.
+
+        """
+        assert typing.get_origin(DeprecatedGenericBox[int]) is GenericBox
+
+    def test_replacement_protocols_join_source_protocols(self) -> None:
+        """A plain class redirected to an Enum serves the Enum's iteration and ``len``.
+
+        With a ``target`` the proxy forwards protocol use to the replacement, so its protocol set is the union of the
+        source's and the target's: ``list(LegacyColorTable)`` lists the replacement's members.
+
+        """
+        served = (list(LegacyColorTable), len(LegacyColorTable))  # type: ignore[call-overload, arg-type]
+        assert served == (list(ColorEnum), 2)
+
+    def test_same_protocol_set_shares_one_class(self) -> None:
+        """Proxies over two different dicts share one proxy class, so the class cache stays bounded.
+
+        A library deprecating many config dicts must not grow one class per proxy or per value: the cache is keyed by
+        the set of carried protocols, which is the same for every dict.
+
+        """
+        first = deprecated_instance({}, name="first", **_DEPRS_CASE_STD_ARGS, stream=None)
+        second = deprecated_instance({"a": 1}, name="second", **_DEPRS_CASE_STD_ARGS, stream=None)
+        assert type(first) is type(second)
+
+    def test_stacked_proxy_mirrors_inner_protocols(self) -> None:
+        """A proxy over a proxy carries the inner proxy's protocol set, which is the wrapped object's own.
+
+        Re-deprecating an already deprecated config must not resurrect the protocols the inner proxy dropped.
+
+        """
+        inner = deprecated_instance({}, name="inner", **_DEPRS_CASE_STD_ARGS, stream=None)
+        outer = deprecated_instance(inner, name="outer", **_DEPRS_CASE_STD_ARGS, stream=None)
+        assert (type(outer) is type(inner), callable(outer)) == (True, False)
+
+    @pytest.mark.parametrize(
+        "duplicate",
+        [
+            pytest.param(copy.copy, id="copy"),
+            pytest.param(copy.deepcopy, id="deepcopy"),
+            pytest.param(lambda proxy: pickle.loads(pickle.dumps(proxy)), id="pickle"),  # noqa: S301
+        ],
+    )
+    def test_copies_rebuild_same_class(self, duplicate: Callable[[Any], Any]) -> None:
+        """Copying or pickling a proxy rebuilds it with the same protocol class.
+
+        A copied deprecated config must keep claiming exactly what the original claims; an unpickled one is rebuilt
+        from its wrapped object, never from a reference to the generated class.
+
+        """
+        proxy = deprecated_instance({"k": 1}, name="legacy_settings", **_DEPRS_CASE_STD_ARGS, stream=None)
+        assert type(duplicate(proxy)) is type(proxy)
+
+    @pytest.mark.parametrize(
+        "make_proxy",
+        [
+            pytest.param(lambda: deprecated_instance({}, name="cfg", **_DEPRS_CASE_STD_ARGS, stream=None), id="dict"),
+            pytest.param(lambda: DeprecatedDataClass, id="class-alias"),
+            pytest.param(
+                lambda: deprecated_instance(plain_function_target, name="fn", **_DEPRS_CASE_STD_ARGS, stream=None),
+                id="function",
+            ),
+        ],
+    )
+    def test_every_proxy_is_a_deprecation_proxy(self, make_proxy: Callable[[], Any]) -> None:
+        """``isinstance(proxy, DeprecationProxy)`` holds for every proxy, whatever protocols it carries.
+
+        The public Protocol declares ``__call__`` and ``__getitem__``; a dict or plain-class proxy no longer has both,
+        yet audit and user code use the runtime check to recognise any deprecation proxy.
+
+        """
+        proxy = make_proxy()
+        assert (isinstance(proxy, DeprecationProxy), isinstance(proxy, _DeprecatedProxy)) == (True, True)
+
+    def test_concurrent_first_construction_builds_one_class(self) -> None:
+        """Threads that build the first proxy of a new protocol set at once all get the same class.
+
+        On free-threaded builds two threads can miss the class cache together; creation runs under a lock so they
+        cannot each build a class, which would break ``type(a) is type(b)`` for equal shapes.
+
+        """
+        barrier = threading.Barrier(8)
+
+        def build(_: int) -> type:
+            barrier.wait()
+            return type(deprecated_instance(_MatmulOnly(), name="m", **_DEPRS_CASE_STD_ARGS, stream=None))
+
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            kinds = set(pool.map(build, range(8)))
+        assert len(kinds) == 1
+
+    @pytest.mark.parametrize(
+        ("source", "target", "use", "error"),
+        [
+            pytest.param(iter([1]), [1, 2], next, "is not an iterator", id="next-on-list-target"),
+            pytest.param(3, object(), lambda proxy: proxy + 1, "unsupported operand", id="add-on-plain-target"),
+        ],
+    )
+    def test_protocol_of_source_only_fails_on_target_without_warning(
+        self, source: object, target: object, use: Callable[[Any], Any], error: str
+    ) -> None:
+        """A protocol the source has but the replacement lacks raises the builtin ``TypeError`` and does not warn.
+
+        The proxy carries the union of the source's and the target's protocols, because ``skip_if`` can switch the
+        served object back to the source. While the target is served, ``next()`` on a list replacement or ``+`` on a
+        plain replacement must fail exactly as on the replacement itself, without spending the warn budget.
+
+        """
+        proxy = make_skip_gated_target_proxy(source, target, lambda: False)
+        with captured_warnings() as caught, pytest.raises(TypeError, match=error):
+            use(proxy)
+        assert caught == []

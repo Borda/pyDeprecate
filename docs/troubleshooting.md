@@ -418,7 +418,7 @@ When moving functions across modules, import the target from its new home explic
 
 **Q:** I wrapped an `int` or `float` with `deprecated_instance` and operations like `old_value + 1` or `abs(old_value)` don't seem to emit a notice. How does operator interception work?
 
-**A:** Yes, the proxy forwards operator and protocol dunders to the wrapped object and emits the deprecation warning according to a consistent policy. Python's data model invokes special methods directly on the object's type (bypassing `__getattr__`), so these must be defined on `_DeprecatedProxy` itself — and they are.
+**A:** Yes, the proxy forwards operator and protocol dunders to the wrapped object and emits the deprecation warning according to a consistent policy. Python's data model invokes special methods directly on the object's type (bypassing `__getattr__`), so these must be defined on the proxy's class itself — and they are. Each proxy is an instance of a cached `_DeprecatedProxy` subclass that carries only the protocols the wrapped object's type defines, so a proxy over a `dict` is not `callable()` and not an `Iterator`, exactly like the dict. Text is the one exception: `int()`, `float()`, `complex()` and `os.fspath()` keep working on a proxy over a `str` or `bytes` value.
 
 **What warns (data-use operations):**
 
