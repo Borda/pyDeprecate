@@ -175,6 +175,13 @@ ini_options.addopts = [
   # basename and silently prune tests/docs/ (the generated docs-example tests) as well
   "--ignore=docs",
 ]
+ini_options.markers = [
+  # an execution requirement, not a speed tier: a fast local loop is `pytest -m "not subprocess"`; CI runs everything
+  "subprocess: starts a real Python interpreter or external CLI as a child process",
+  # coverage 7.10.x (Python 3.9) imports `json` in every child interpreter under `run.patch = ["subprocess"]`, so a test
+  # that reads `sys.modules` of a child must run in a pytest invocation without `--cov`: `-m without_coverage` after `-m "not without_coverage"`
+  "without_coverage: must run in a separate pytest invocation without `--cov` (child-interpreter module probes)",
+]
 ini_options.xfail_strict = true
 # Suppress only the specific legacy-sentinel warnings emitted by `TargetMode.from_legacy()`
 # and the construction-time misconfig warnings from `TargetMode.validate()` so that legacy
@@ -189,18 +196,26 @@ ini_options.filterwarnings = [
   "ignore:.*requires `args_mapping` to specify which arguments are being renamed.*:UserWarning:tests(\\.|\\Z)",
   "ignore:target=None is deprecated since `v0\\.8`.*:FutureWarning:tests(\\.|\\Z)",
   "ignore:target=True is deprecated since `v0\\.8`.*:FutureWarning:tests(\\.|\\Z)",
+  # decoration-time advisories of collection fixtures that exist to exercise them (asserted where they are tested)
+  "ignore:`@deprecated` on .* has no `deprecated_in` set\\..*:UserWarning:tests(\\.|\\Z)",
+  "ignore:`@deprecated` on class .* now dispatches to `@deprecated_class`\\..*:UserWarning:tests(\\.|\\Z)",
+  "ignore:`target=True` without `args_mapping` resolves to `TargetMode\\.NOTIFY`.*:FutureWarning:tests(\\.|\\Z)",
 ]
 ini_options.junit_duration_report = "call"
 # filterwarnings = [ "error::FutureWarning" ]
 
 [tool.coverage]
 run.parallel = true
+# measure the CLI and GitHub Action runs that the integration tests start as `python -m deprecate` subprocesses
+run.patch = [ "subprocess" ]
 run.relative_files = true
 report.exclude_lines = [
   # anchored so only a bare `pass` statement is excluded — a substring `pass` would also drop
   # lines containing `passed`, `password`, etc. and overstate coverage
   "^\\s*pass\\s*$",
   "pragma: no cover",
+  # typing-only import blocks: the body of `if TYPE_CHECKING:` never runs at runtime by design
+  "^\\s*if TYPE_CHECKING:",
 ]
 
 [tool.pydeprecate]

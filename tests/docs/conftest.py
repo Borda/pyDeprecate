@@ -6,8 +6,9 @@ carrying older generated files produces confusing failures: ``ModuleNotFoundErro
 assertion drift against reprs that have since changed. This conftest fails collection fast, with a clear
 instruction, when any generated test file is older than the Markdown source it was generated from.
 
-It is only loaded when ``tests/docs`` is collected explicitly (``pytest tests/docs/``); the default ``pytest .``
-run prunes this directory via ``norecursedirs`` in ``pyproject.toml`` and never triggers the check.
+It is loaded whenever ``tests/docs`` is collected, which includes the default ``pytest .`` run (``pyproject.toml``
+ignores only the top-level ``docs/`` sources). When no generated file exists at all, ``tests/conftest.py`` warns
+instead, naming ``make docs-tests``.
 
 """
 

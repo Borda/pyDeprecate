@@ -114,7 +114,7 @@ def make_deprecated_on_fresh_class() -> type:
 
     """
 
-    @deprecated(deprecated_in="1.0", remove_in="2.0")
+    @deprecated(**_DEPRS_CASE_STD_ARGS)
     class _DispatchedFreshClass:
         """Plain class source deprecated via the ``@deprecated`` front door (class-path dispatch)."""
 
@@ -128,7 +128,7 @@ def make_deprecated_on_fresh_class() -> type:
 def make_deprecated_on_fresh_class_silent() -> type:
     """Apply ``@deprecated(stream=None)`` to a fresh class — informational ``UserWarning`` suppressed."""
 
-    @deprecated(stream=None, deprecated_in="1.0", remove_in="2.0")
+    @deprecated(stream=None, **_DEPRS_CASE_STD_ARGS)
     class _DispatchedFreshClassSilent:
         """Plain class source deprecated via ``@deprecated`` with ``stream=None``."""
 
@@ -138,7 +138,7 @@ def make_deprecated_on_fresh_class_silent() -> type:
 def make_deprecated_on_fresh_enum_class() -> type:
     """Apply ``@deprecated`` directly to an Enum class — class-path routing via the dispatcher."""
 
-    @deprecated(deprecated_in="1.0", remove_in="2.0", stream=None)
+    @deprecated(**_DEPRS_CASE_STD_ARGS, stream=None)
     class _DispatchedEnum(Enum):
         """Enum source deprecated via the ``@deprecated`` dispatcher front door."""
 
@@ -150,7 +150,7 @@ def make_deprecated_on_fresh_enum_class() -> type:
 def make_deprecated_on_fresh_dataclass() -> type:
     """Apply ``@deprecated`` directly to a dataclass — class-path routing via the dispatcher."""
 
-    @deprecated(deprecated_in="1.0", remove_in="2.0", stream=None)
+    @deprecated(**_DEPRS_CASE_STD_ARGS, stream=None)
     @dataclass
     class _DispatchedDataClass:
         """Dataclass source deprecated via the ``@deprecated`` dispatcher front door."""
@@ -401,8 +401,8 @@ def make_deprecated_qualname_collision_pair() -> tuple[Any, Any]:
     first = type("_QualnameCollision", (), {"__module__": "tests.fake_module_one"})
     second = type("_QualnameCollision", (), {"__module__": "tests.fake_module_two"})
 
-    wrapped_first = deprecated(deprecated_in="1.0", remove_in="2.0")(first)
-    wrapped_second = deprecated(deprecated_in="1.0", remove_in="2.0")(second)
+    wrapped_first = deprecated(**_DEPRS_CASE_STD_ARGS)(first)
+    wrapped_second = deprecated(**_DEPRS_CASE_STD_ARGS)(second)
     return wrapped_first, wrapped_second
 
 
@@ -416,7 +416,7 @@ def make_deprecated_stacked_over_wrapped_callable() -> Any:  # noqa: ANN401
     """
 
     @deprecated(target=TargetMode.NOTIFY, deprecated_in="0.9", remove_in="1.5")
-    @deprecated(target=double_value, deprecated_in="1.0", remove_in="2.0")
+    @deprecated(target=double_value, **_DEPRS_CASE_STD_ARGS)
     def _dispatch_stacked_callable(x: int) -> int:
         """Inner source — deprecated twice via the dispatcher front door."""
         return x
@@ -495,7 +495,7 @@ def decorated_sum_fatal(a: int, b: int = 5) -> int:
     return a + b
 
 
-@deprecated(target=base_sum_kwargs, deprecated_in="1.0", remove_in="2.0", as_exception=False)
+@deprecated(target=base_sum_kwargs, **_DEPRS_CASE_STD_ARGS, as_exception=False)
 def decorated_sum_fatal_opt_out(a: int, b: int = 5) -> int:
     """Forward to `base_sum_kwargs` with `as_exception=False` — not fatal by default, yields to a True global."""
     return a + b
@@ -685,7 +685,8 @@ def make_flaky_attr_alias(host: type, **overrides: Any) -> Any:  # noqa: ANN401
 class LocDescriptorHost:
     """Descriptor sources (decorator above the descriptor) for the call-time warning-location tests.
 
-    Class-body wrappers are not module-level, so ``tests/conftest.py`` cannot reset them: unlimited budget.
+    ``tests/conftest.py`` resets these class-body wrappers before every test; the unlimited budget lets a test call
+    one repeatedly.
     """
 
     @deprecated(**_DEPRS_CASE_STD_INF_ARGS)  # type: ignore[prop-decorator]
@@ -933,9 +934,7 @@ def make_deprecated_partial_host() -> type[Any]:
 
 def make_sum_deprecation_with_stream(stream: Callable[..., Any]) -> Callable[..., int]:
     """Deprecate ``original_sum`` in favour of ``base_sum_kwargs``, delivering every warning through ``stream``."""
-    return deprecated(target=base_sum_kwargs, deprecated_in="1.0", remove_in="2.0", num_warns=-1, stream=stream)(
-        original_sum
-    )
+    return deprecated(target=base_sum_kwargs, **_DEPRS_CASE_STD_INF_ARGS, stream=stream)(original_sum)
 
 
 def make_pickle_fatal_settings_proxy() -> Any:  # noqa: ANN401

@@ -21,6 +21,7 @@ import pytest
 import deprecate
 from deprecate import DeprecatedError, as_exceptions, assert_no_warnings, deprecated
 from deprecate._types import DeprecationConfig, _DeprecatedCallable
+from tests._helpers import captured_warnings
 from tests.collections.api_current import (
     NewCls,
     SignatureNotBuiltError,
@@ -151,7 +152,15 @@ class TestDeprecationWarnings:
             assert func(2) == 7
 
     def test_function_to_class_forwarding(self) -> None:
-        """Deprecated function targeting a class should instantiate and return the class."""
+        """Deprecated function targeting a class should instantiate and return the class.
+
+        A library replaces a factory function with a class and keeps the old function as a deprecated forwarder to
+        that class (``depr_make_new_cls`` to ``NewCls``).  A user who still calls the old function with positional and
+        keyword arguments must get a warning naming the old function, the replacement class and the removal
+        version, and must receive an ``NewCls`` instance built from those arguments, with the keyword default
+        (``d="abc"``) applied.
+
+        """
         cast(_DeprecatedCallable, depr_make_new_cls)._state.warned_calls = 0
         with pytest.warns(
             FutureWarning,
@@ -270,22 +279,6 @@ class TestDeprecationWarnings:
 class TestArgumentMapping:
     """Tests for deprecated function arguments mapping."""
 
-    @pytest.fixture(autouse=True)
-    def _reset_deprecation_state(self) -> None:
-        """Reset deprecation state for functions with chained or multiple deprecations."""
-        for func in (
-            decorated_pow_self,
-            depr_collision_old_new,
-            depr_pow_self_double,
-            depr_pow_self_twice,
-            wrapped_pow_self,
-            legacy_pow_self,
-            legacy_pow_self_double,
-        ):
-            state = cast(_DeprecatedCallable, func)._state
-            state.warned_calls = 0
-            state.warned_args.clear()
-
     @pytest.mark.parametrize(
         "func",
         [
@@ -338,7 +331,15 @@ class TestArgumentMapping:
             assert func(2, **kwargs) == expected
 
     def test_arguments_double_mixed(self) -> None:
-        """Testing that preferable use the new arguments when both are provided."""
+        """Testing that preferable use the new arguments when both are provided.
+
+        A caller is mid-migration from ``c1``/``c2`` to ``nc1``/``nc2`` and passes some old and some new names at the
+        same time.  Using only the new names must stay silent.  Supplying an old name together with its new
+        counterpart (``c1`` with ``nc1``, ``c2`` with ``nc2``) must emit both the deprecated-arguments
+        ``FutureWarning`` and a ``UserWarning`` about the conflicting pair, and the explicitly supplied new value must
+        win over the value mapped from the old name.
+
+        """
         # Reset warning state to ensure test independence
         cast(_DeprecatedCallable, depr_pow_self_double)._state.warned_args.clear()
 
@@ -346,7 +347,10 @@ class TestArgumentMapping:
             assert depr_pow_self_double(2, nc1=1, nc2=2) == 8
 
         # When both c1 and c2 are provided, warns about both together
-        with pytest.warns(FutureWarning, match="The `depr_pow_self_double` uses depr. args:"):
+        with (
+            pytest.warns(FutureWarning, match="The `depr_pow_self_double` uses depr. args:"),
+            pytest.warns(UserWarning, match=r"Both `c1` \(deprecated\) and `nc1` were supplied"),
+        ):
             assert depr_pow_self_double(2, c1=3, c2=4, nc1=1) == 32
 
         # Need to reset after first warning because both counters were incremented
@@ -354,7 +358,10 @@ class TestArgumentMapping:
 
         # When both c1 and c2 are provided, warns about both together
         # Result is 32 because: c1->nc1=3, c2->nc2=4, but nc2=2 (user wins), so 2**(0+0+3+2)=32
-        with pytest.warns(FutureWarning, match="The `depr_pow_self_double` uses depr. args:"):
+        with (
+            pytest.warns(FutureWarning, match="The `depr_pow_self_double` uses depr. args:"),
+            pytest.warns(UserWarning, match=r"Both `c2` \(deprecated\) and `nc2` were supplied"),
+        ):
             assert depr_pow_self_double(2, c1=3, c2=4, nc2=2) == 32
 
     def test_spent_argument_not_listed_again(self) -> None:
@@ -416,7 +423,7 @@ class TestArgumentMapping:
         ``depr_collision_old_new(old=5, new=6)`` must forward ``new=6`` to the callable target;
         the remapped ``old→new=5`` must not overwrite the explicitly passed ``new=6``.
         """
-        with pytest.warns(FutureWarning):
+        with pytest.warns(FutureWarning), pytest.warns(UserWarning, match=r"`old` \(deprecated\) and `new`"):
             result = depr_collision_old_new(old=5, new=6)
         assert result == 6
 
@@ -427,7 +434,7 @@ class TestArgumentMapping:
         because the dict-comprehension last-write-wins caused the ``old→new`` rename to
         overwrite the explicitly passed ``new=6``.
         """
-        with pytest.warns(FutureWarning):
+        with pytest.warns(FutureWarning), pytest.warns(UserWarning, match=r"`old` \(deprecated\) and `new`"):
             result = depr_collision_old_new(new=6, old=5)
         assert result == 6
 
@@ -438,7 +445,7 @@ class TestArgumentMapping:
         ``_update_kwargs_with_args`` before ``_resolve_forward_kwargs`` computes ``_explicit_new``;
         the fix then fires identically to the kwarg-only collision case.
         """
-        with pytest.warns(FutureWarning):
+        with pytest.warns(FutureWarning), pytest.warns(UserWarning, match=r"`old` \(deprecated\) and `new`"):
             result = depr_collision_old_new(5, new=6)
         assert result == 6
 
@@ -449,7 +456,7 @@ class TestArgumentMapping:
         the ``args_extra`` merge runs after the ``explicit_new`` restore, so the target always
         receives ``new=99`` regardless of what the caller passed, pinning the priority contract.
         """
-        with pytest.warns(FutureWarning):
+        with pytest.warns(FutureWarning), pytest.warns(UserWarning, match=r"`old` \(deprecated\) and `new`"):
             result = depr_collision_old_new_extra_wins(old=5, new=6)
         assert result == 99
 
@@ -462,7 +469,10 @@ class TestArgumentMapping:
         discarded.  This test pins that a ``UserWarning`` identifying the ignored argument
         is always emitted alongside the normal ``FutureWarning``.
         """
-        with pytest.warns(UserWarning, match=r"`old` \(deprecated\) and `new`.*`old` is ignored"):
+        with (
+            pytest.warns(FutureWarning, match="`depr_collision_old_new` was deprecated"),
+            pytest.warns(UserWarning, match=r"`old` \(deprecated\) and `new`.*`old` is ignored"),
+        ):
             depr_collision_old_new(old=5, new=6)
 
 
@@ -510,13 +520,19 @@ class TestErrorHandling:
 
     def test_incomplete_missing_arg(self) -> None:
         """Test missing required argument."""
-        with pytest.raises(TypeError, match="missing 1 required positional argument: 'b'"):
+        with (
+            pytest.warns(FutureWarning, match="`depr_pow_args` >> `base_pow_args`"),
+            pytest.raises(TypeError, match="missing 1 required positional argument: 'b'"),
+        ):
             depr_pow_args(2)  # type: ignore[call-arg]
 
     def test_incomplete_missing_target(self) -> None:
         """Test missing argument in target."""
-        with pytest.raises(
-            TypeError, match=r"Failed mapping of `depr_pow_wrong`, arguments not accepted by target: \['c'\]"
+        with (
+            pytest.warns(FutureWarning, match="The `depr_pow_wrong` was deprecated"),
+            pytest.raises(
+                TypeError, match=r"Failed mapping of `depr_pow_wrong`, arguments not accepted by target: \['c'\]"
+            ),
         ):
             depr_pow_wrong(2)
 
@@ -577,11 +593,6 @@ def test_deprecated_func_attribute_set_at_decoration_time() -> None:
 class TestDeprecatedFunctionWrappers:
     """Test suite for deprecating function-based wrapper/decorators."""
 
-    @pytest.fixture(autouse=True)
-    def reset_warnings(self) -> None:
-        """Reset warning counters before each test for independence."""
-        cast(_DeprecatedCallable, depr_timing_wrapper)._state.warned_calls = 0
-
     def test_shows_warning(self) -> None:
         """Test that deprecated wrapper shows deprecation warning."""
         with pytest.warns(FutureWarning, match="`depr_timing_wrapper` was deprecated"):
@@ -623,11 +634,6 @@ class TestDeprecatedFunctionWrappers:
 class TestDeprecatedClassWrappers:
     """Test suite for deprecating class-based wrapper/decorators."""
 
-    @pytest.fixture(autouse=True)
-    def reset_warnings(self) -> None:
-        """Reset warning counters before each test for independence."""
-        cast(_DeprecatedCallable, DeprecatedTimerDecorator.__init__)._state.warned_calls = 0
-
     def test_shows_warning(self) -> None:
         """Test that deprecated wrapper shows deprecation warning."""
 
@@ -657,7 +663,15 @@ class TestDeprecatedClassWrappers:
         assert result == 8
 
     def test_preserves_attributes(self) -> None:
-        """Test that wrapper preserves tracking attributes."""
+        """Test that wrapper preserves tracking attributes.
+
+        A project keeps an old class-based timing decorator (``DeprecatedTimerDecorator``) alive as a deprecated
+        subclass of its replacement ``TimerDecorator``.  Wrapping a function with it must warn about the deprecation,
+        and the returned object must still behave like the replacement: after one call it exposes the
+        ``total_time`` and ``calls`` tracking attributes with ``calls == 1``, so existing users lose no
+        functionality while migrating.
+
+        """
 
         def sample_function(x: int) -> int:
             """A simple function for testing class-based wrappers."""
@@ -689,7 +703,14 @@ class TestDeprecatedClassWrappers:
             assert new_wrapped.calls == 1
 
     def test_with_decorator_syntax(self) -> None:
-        """Test warning when applied using @ decorator syntax."""
+        """Test warning when applied using @ decorator syntax.
+
+        Users usually apply a class-based decorator with ``@`` syntax rather than by calling it.  Decorating a
+        function with ``@DeprecatedTimerDecorator`` must emit the deprecation warning at decoration time, and the
+        decorated function must still compute its result (``3 + 5``) and expose the ``total_time`` and ``calls``
+        tracking attributes of the replacement decorator with ``calls == 1`` after one call.
+
+        """
         with pytest.warns(FutureWarning, match="`DeprecatedTimerDecorator` was deprecated"):
 
             @DeprecatedTimerDecorator
@@ -798,8 +819,7 @@ class TestVarPositionalForwarding:
         and the old value won whenever it was passed after the new one.  The warning fires once, from the caller's
         line.
         """
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             result = deprecated_var_positional_remap(1, 2, **kwargs)
         collisions = [w for w in caught if issubclass(w.category, UserWarning)]
         assert result == (1, 2, "world")

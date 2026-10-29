@@ -28,14 +28,17 @@ from deprecate._dispatch import (
     _precompute_forward_defaults,
     _prepare_target_call,
     _raise_target_signature_error,
+    _reorder_kwargs_for_surplus,
     _split_positional_only_kwargs,
     _target_signature_facts,
     _update_kwargs_with_args,
     _update_kwargs_with_defaults,
+    _var_positional_source_call,
     _WrapperContext,
 )
-from deprecate._types import DeprecationConfig, _CallFacts, _DeprecatedCallable, _WrapperState
+from deprecate._types import DeprecationConfig, _CallFacts, _CallPlan, _DeprecatedCallable, _WrapperState
 from deprecate.utils import _signature_facts
+from tests._helpers import captured_warnings
 from tests.collections.api_current import (
     KeywordCallTarget,
     NewCls,
@@ -256,8 +259,7 @@ class TestStackedArgsRemapNotify:
         fn = self._make_fresh()
         with pytest.warns(FutureWarning):
             fn(2, factor=3)  # exhausts both layer counters
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             fn(2, factor=3)
         assert not [w for w in caught if issubclass(w.category, FutureWarning)]
 
@@ -308,8 +310,7 @@ class TestStackedNotifyCallable:
         fn = self._make_fresh()
         with pytest.warns(FutureWarning):
             fn(2.0, scale=3.0)  # exhausts both layer counters
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             fn(2.0, scale=3.0)
         assert not [w for w in caught if issubclass(w.category, FutureWarning)]
 
@@ -576,9 +577,12 @@ class TestCycleDetection:
         dep_cycle_fn_a forwards to dep_cycle_fn_b which forwards back to dep_cycle_fn_a,
         forming a two-node cycle. The lazy cycle detector intercepts the re-entry of
         dep_cycle_fn_a and raises RuntimeError instead of letting Python hit RecursionError.
-        The guard fires before the warning is emitted, so no FutureWarning is raised.
+        The guard fires only on that re-entry, so the first entry of each node still emits its FutureWarning.
         """
-        with pytest.raises(RuntimeError, match=r"Circular deprecation cycle detected.*dep_cycle_fn_a"):
+        with (
+            pytest.warns(FutureWarning, match="dep_cycle_fn_"),
+            pytest.raises(RuntimeError, match=r"Circular deprecation cycle detected.*dep_cycle_fn_a"),
+        ):
             dep_cycle_fn_a(1)
 
     def test_cycle_entry_via_b_raises(self) -> None:
@@ -589,7 +593,10 @@ class TestCycleDetection:
         at dep_cycle_fn_b's re-entry and name dep_cycle_fn_b in the error message, proving
         the detector is symmetric and reports the correct wrapper regardless of entry order.
         """
-        with pytest.raises(RuntimeError, match=r"Circular deprecation cycle detected.*dep_cycle_fn_b"):
+        with (
+            pytest.warns(FutureWarning, match="dep_cycle_fn_"),
+            pytest.raises(RuntimeError, match=r"Circular deprecation cycle detected.*dep_cycle_fn_b"),
+        ):
             dep_cycle_fn_b(1)
 
     def test_non_cycle_callable_target_unaffected(self) -> None:
@@ -613,7 +620,10 @@ class TestCycleDetection:
         two-node cycle with dep_async_cycle_fn_b must raise RuntimeError on re-entry,
         proving the cycle guard in the async code path fires correctly.
         """
-        with pytest.raises(RuntimeError, match=r"Circular deprecation cycle detected.*dep_async_cycle_fn_a"):
+        with (
+            pytest.warns(FutureWarning, match="dep_async_cycle_fn_"),
+            pytest.raises(RuntimeError, match=r"Circular deprecation cycle detected.*dep_async_cycle_fn_a"),
+        ):
             await dep_async_cycle_fn_a(1)
 
     @pytest.mark.asyncio
@@ -624,7 +634,10 @@ class TestCycleDetection:
         entering from dep_async_cycle_fn_b must also trigger the guard. The error message
         must name dep_async_cycle_fn_b as the re-entered wrapper.
         """
-        with pytest.raises(RuntimeError, match=r"Circular deprecation cycle detected.*dep_async_cycle_fn_b"):
+        with (
+            pytest.warns(FutureWarning, match="dep_async_cycle_fn_"),
+            pytest.raises(RuntimeError, match=r"Circular deprecation cycle detected.*dep_async_cycle_fn_b"),
+        ):
             await dep_async_cycle_fn_b(1)
 
     @pytest.mark.asyncio
@@ -637,9 +650,10 @@ class TestCycleDetection:
         all coroutines on the same event-loop thread shared one active-id set. With ContextVar,
         each asyncio.Task gets its own copy, so concurrent calls are fully independent.
         """
-        results = await asyncio.gather(
-            dep_async_non_cycle_old_fn(1), dep_async_non_cycle_old_fn(2), dep_async_non_cycle_old_fn(3)
-        )
+        with pytest.warns(FutureWarning, match="dep_async_non_cycle_old_fn"):
+            results = await asyncio.gather(
+                dep_async_non_cycle_old_fn(1), dep_async_non_cycle_old_fn(2), dep_async_non_cycle_old_fn(3)
+            )
         assert results == [2, 4, 6]
 
     @pytest.mark.asyncio
@@ -701,8 +715,7 @@ class TestRecursiveDeprecation:
         only the first call emits a ``FutureWarning``. Subsequent recursive calls see
         ``warned_calls >= num_warns`` and skip the warning.
         """
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             dep_fib_notify(6)
         assert len(caught) == 1
         assert caught[0].category is FutureWarning
@@ -733,8 +746,7 @@ class TestRecursiveDeprecation:
         ``id(source)`` is added to ``_active`` once and removed in the ``finally`` block; only
         one ``FutureWarning`` fires.
         """
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             result = dep_fib_callable(n)
         assert result == expected
         assert len(caught) == 1
@@ -750,8 +762,7 @@ class TestRecursiveDeprecation:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", FutureWarning)
             assert dep_fib_callable(5) == 5
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             assert dep_fib_callable(5) == 5
         assert len(caught) == 0
 
@@ -782,8 +793,7 @@ class TestRecursiveDeprecation:
         ``n`` triggers a ``FutureWarning``. Subsequent recursive calls see ``state.warned_args['n']``
         already satisfied and proceed silently.
         """
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             dep_fib_remap(n=6)
         assert len(caught) == 1
         assert caught[0].category is FutureWarning
@@ -871,7 +881,14 @@ class TestTargetFactsPrecompute:
         assert plain == with_cache
 
     def test_prepare_target_call_uses_supplied_facts(self) -> None:
-        """`_prepare_target_call` validates against supplied facts and raises the curated TypeError on a bad kwarg."""
+        """`_prepare_target_call` validates against supplied facts and raises the curated TypeError on a bad kwarg.
+
+        The call-plan engine precomputes the target's parameter names and ``*args``/``**kwargs`` flags once and
+        passes them in as facts.  A caller forwards the keyword ``c`` to a target that accepts only ``a`` and ``b``
+        while the facts say the same: the call must fail with the library's own ``TypeError`` ("not accepted by
+        target") rather than a raw error from calling the target.
+
+        """
 
         def _tgt(a: int, b: int) -> None:
             """Two-parameter target that does not accept ``c``."""
@@ -986,11 +1003,13 @@ def _make_context(
     *,
     is_stacked: bool = False,
     forward_defaults: Optional[_ForwardDefaults] = None,
+    facts: Optional[_CallFacts] = None,
 ) -> _WrapperContext:
     """Return the decoration-time context a ``@deprecated`` wrapper over ``source`` would build, without a stream.
 
-    The facts come from the real :func:`_build_call_facts` and the state is fresh; ``stream=None`` keeps
-    :func:`_build_call_plan` from emitting warnings, so a test only reads the plan and ``ctx.state``.
+    The facts come from the real :func:`_build_call_facts` unless ``facts`` passes hand-built ones, and the state is
+    fresh; ``stream=None`` keeps :func:`_build_call_plan` from emitting warnings, so a test only reads the plan and
+    ``ctx.state``.
 
     """
     return _WrapperContext(
@@ -998,7 +1017,7 @@ def _make_context(
         raw_target=target,
         target=target,
         cfg=cfg,
-        facts=_build_call_facts(source, target, None),
+        facts=_build_call_facts(source, target, None) if facts is None else facts,
         state=_WrapperState(),
         stream=None,
         num_warns=1,
@@ -1094,12 +1113,10 @@ def test_misconfigured_warning_fires_exactly_once() -> None:
     target_false_deprecation._state.warned_misconfigured = False  # type: ignore[attr-defined]
     target_false_deprecation._state.warned_calls = 0  # type: ignore[attr-defined]
 
-    with warnings.catch_warnings(record=True) as call1:
-        warnings.simplefilter("always")
+    with captured_warnings() as call1:
         target_false_deprecation(x=1)
 
-    with warnings.catch_warnings(record=True) as call2:
-        warnings.simplefilter("always")
+    with captured_warnings() as call2:
         target_false_deprecation(x=2)
 
     misconfig_call1 = [w for w in call1 if w.category is UserWarning and "invalid deprecation config" in str(w.message)]
@@ -1125,10 +1142,8 @@ def test_args_extra_injection_reaches_target() -> None:
     * and return ``add_values(5, 10) == 15``.
 
     """
-    with warnings.catch_warnings(record=True) as warned:
-        warnings.simplefilter("always")
+    with pytest.warns(FutureWarning, match="uses deprecated arguments"):
         result = depr_target_mode_args_only_with_args_extra_injects_kwargs(old_x=5)
-    assert warned
     assert result == 15, "args_extra must inject y=10 alongside the remapped old_x→x=5"
 
 
@@ -1145,12 +1160,10 @@ def test_num_warns_one_exhausts_after_first_call() -> None:
     ``depr_pow_args`` uses the default ``num_warns=1`` (no override in its decorator config).
 
     """
-    with warnings.catch_warnings(record=True) as call1:
-        warnings.simplefilter("always")
+    with captured_warnings() as call1:
         depr_pow_args(2.0, 3.0)
 
-    with warnings.catch_warnings(record=True) as call2:
-        warnings.simplefilter("always")
+    with captured_warnings() as call2:
         depr_pow_args(2.0, 3.0)
 
     future_call1 = [w for w in call1 if w.category is FutureWarning]
@@ -1199,12 +1212,45 @@ def test_source_is_stacked_skips_positional_conversion() -> None:
     # End-to-end check: the real ARGS_REMAP-outer + NOTIFY-inner stack must still emit the
     # inner NOTIFY warning and return the correct value when the caller migrates to ``scale=``.
     fn = make_depr_compute_power_stacked()
-    with warnings.catch_warnings(record=True) as record:
-        warnings.simplefilter("always")
+    with pytest.warns(FutureWarning, match="compute_power"):
         result = fn(2.0, scale=3.0)
-    future_warnings = [w for w in record if w.category is FutureWarning]
     assert result == 8.0, "Stacked wrapper must compute compute_power(2.0, scale=3.0) == 8.0"
-    assert len(future_warnings) >= 1, "Inner NOTIFY layer must still fire its FutureWarning on a migrated caller"
+
+
+def test_surplus_reorder_reads_target_slots_for_hand_built_facts() -> None:
+    """Hand-built facts without slot names make the surplus reorder read the slots from the target.
+
+    A wrapper always precomputes ``target_positional_names`` at decoration, but a context built by hand (as in the
+    ``routine.py`` example, or by a caller reusing the dispatch helpers) carries an empty :class:`_CallFacts`.  The
+    reorder must then read the target's own signature instead of treating it as having no positional slots: ``a``
+    moves back to positional form so the surplus tail can follow it into ``*extras``.
+
+    """
+    cfg = DeprecationConfig(deprecated_in="1.0", remove_in="2.0", name="src", target=var_positional_target)
+    ctx = _make_context(var_positional_target, cfg, var_positional_target, facts=_CallFacts())
+
+    pos_args, kw_args = _reorder_kwargs_for_surplus(ctx, var_positional_target, (5, 6), {"a": 1})
+
+    assert (pos_args, kw_args) == ([1], {})
+
+
+def test_var_positional_source_gets_caller_args_on_short_circuit() -> None:
+    """A short-circuit plan hands a ``*args`` source the caller's own positionals and keywords.
+
+    ``_build_call_plan`` marks every short-circuit plan verbatim, so the wrapper returns before this helper runs; the
+    guard keeps a hand-built short-circuit plan that is not verbatim from rewriting the call.  The caller's tuple and
+    original keywords pass through, and the converted ``resolved_kwargs`` are ignored, so ``a`` is not bound twice.
+
+    """
+    cfg = DeprecationConfig(
+        deprecated_in="1.0", remove_in="2.0", name="src", target=TargetMode.ARGS_REMAP, args_mapping={"old_x": "x"}
+    )
+    ctx = _make_context(var_positional_target, cfg, TargetMode.ARGS_REMAP)
+    plan = _CallPlan(short_circuit=True, original_kwargs={}, resolved_kwargs={"a": 1})
+
+    pos_args, kw_args = _var_positional_source_call(ctx, plan, (1, 2, 3))
+
+    assert (pos_args, kw_args) == ([1, 2, 3], {})
 
 
 # ---------------------------------------------------------------------------
@@ -1688,3 +1734,57 @@ class TestWarnQuotaThreadSafety:
         with concurrent.futures.ThreadPoolExecutor(max_workers=n_threads) as pool:
             list(pool.map(worker, range(n_threads)))
         assert len(emissions) == 1
+
+
+class TestUserFacingTypeErrors:
+    """Calls the dispatcher cannot forward fail with a curated ``TypeError`` that names the deprecated wrapper."""
+
+    def test_async_target_behind_sync_wrapper_raises(self) -> None:
+        """A sync ``@deprecated`` function pointing at an ``async def`` target refuses the call and says how to fix it.
+
+        A team forwards a legacy sync helper to a new coroutine function. Calling the sync wrapper would hand back an
+        un-awaited coroutine, so the call fails loudly after the deprecation warning, naming the target and telling the
+        author to declare the wrapper ``async def`` or point it at a sync callable.
+
+        """
+
+        async def _async_double(x: int) -> int:
+            """Coroutine replacement that a sync wrapper cannot await."""
+            return x * 2
+
+        @deprecated(target=_async_double, deprecated_in="1.0", remove_in="2.0")
+        def legacy_double(x: int) -> int:
+            return void(x)
+
+        with (
+            pytest.warns(FutureWarning, match="legacy_double"),
+            pytest.raises(TypeError, match=r"Async target `.*_async_double` cannot be invoked from a sync") as err,
+        ):
+            legacy_double(2)
+        assert "Declare `legacy_double` as `async def`, or replace the target with a sync callable" in str(err.value)
+
+    def test_keyword_missing_from_var_positional_only_target_names_the_limitation(self) -> None:
+        """A target taking only ``*args`` rejects an unmapped keyword and the message says ``*args`` cannot take it.
+
+        The plain "arguments not accepted" text would send the author hunting for a missing parameter name; here the
+        target does accept extra positionals, just never keywords, and the message must say so.
+
+        """
+
+        def _tgt(*args: int) -> int:
+            """Target that accepts positionals only."""
+            return sum(args)
+
+        def _src(a: int) -> int:
+            return a
+
+        expected = r"`_src`, arguments not accepted by target \(target accepts \*args but these keyword"
+        with pytest.raises(TypeError, match=expected):
+            _prepare_target_call(
+                _src,
+                _tgt,
+                {"c": 1},
+                target_arg_names=frozenset(),
+                accepts_var_positional=True,
+                accepts_var_keyword=False,
+            )

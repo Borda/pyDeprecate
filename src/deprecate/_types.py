@@ -361,15 +361,15 @@ class DeprecationProxy(Protocol, Generic[_T_co]):
 
     def __call__(self, *args: Any, **kwargs: Any) -> _T_co:  # noqa: ANN401
         """Forward a call to the wrapped source (e.g. ``OldColor(1)`` -> ``NewColor(1)``)."""
-        raise NotImplementedError
+        raise NotImplementedError  # pragma: no cover - Protocol method body, never called
 
     def __getattr__(self, name: str) -> Any:  # noqa: ANN401
         """Forward attribute access (e.g. ``OldColor.RED`` -> ``NewColor.RED``)."""
-        raise NotImplementedError
+        raise NotImplementedError  # pragma: no cover - Protocol method body, never called
 
     def __getitem__(self, key: Any) -> Any:  # noqa: ANN401
         """Forward item access (e.g. ``proxy['key']`` -> ``source['key']``)."""
-        raise NotImplementedError
+        raise NotImplementedError  # pragma: no cover - Protocol method body, never called
 
 
 @dataclass
@@ -440,7 +440,7 @@ class _DeprecatedCallable(Protocol):
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
         """Call the deprecated callable."""
-        raise NotImplementedError
+        raise NotImplementedError  # pragma: no cover - Protocol method body, never called
 
 
 @dataclass(frozen=True)

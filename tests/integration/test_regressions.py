@@ -30,6 +30,7 @@ import pytest
 from deprecate import TargetMode, assert_no_warnings
 from deprecate._types import _DeprecatedCallable
 from deprecate.audit import validate_deprecation_wrapper
+from tests._helpers import captured_warnings
 from tests.collections.api_deprecated import decorated_sum
 from tests.collections.api_deprecated_forwarding import fn_old_default, fn_remap_with_extra
 from tests.collections.api_deprecated_legacy import fn_remap_with_extra as legacy_fn_remap_with_extra
@@ -111,14 +112,6 @@ class TestFix1StaleSourceDefault:
 class TestFix2ArgsExtraOnArgsRemap:
     """Fix 2 — ``args_extra`` must be injected on ARGS_REMAP regardless of caller arg name."""
 
-    @pytest.fixture(autouse=True)
-    def _reset_deprecation_state(self) -> None:
-        """Reset warning state before each test."""
-        for func in (fn_remap_with_extra, legacy_fn_remap_with_extra):
-            state = cast(_DeprecatedCallable, func)._state
-            state.warned_calls = 0
-            state.warned_args.clear()
-
     @pytest.mark.parametrize(
         "func",
         [
@@ -160,13 +153,15 @@ class TestFix3aTargetNoneWithArgsMappingOnClass:
 
     def test_legacy_sentinel_future_warning_still_fires(self) -> None:
         """The legacy ``target=None`` sentinel still emits its own FutureWarning at decoration time (unchanged)."""
-        with pytest.warns(FutureWarning, match="TargetMode.NOTIFY"):
+        with (
+            pytest.warns(FutureWarning, match="TargetMode.NOTIFY"),
+            pytest.warns(UserWarning, match="now dispatches to `@deprecated_class`"),
+        ):
             make_class_target_none_with_args_mapping()
 
     def test_construction_does_not_emit_misconfig_warning(self) -> None:
         """NOTIFY+args_mapping no longer emits a misconfig UserWarning (since 2026-07-20)."""
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             make_class_target_none_with_args_mapping()
 
         misconfig_warns = [w for w in caught if "ignores `args_mapping`" in str(w.message)]

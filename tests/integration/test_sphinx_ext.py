@@ -1,12 +1,13 @@
 """Unit tests for deprecate.docstring.sphinx_ext."""
 
+import logging
 from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from deprecate import deprecated_class
-from deprecate.docstring.sphinx_ext import _PROXY_AVAILABLE, _SPHINX_AVAILABLE
+from deprecate.docstring.sphinx_ext import _PROXY_AVAILABLE, _SPHINX_AVAILABLE, setup
 
 # Optional-dependency imports: ``sphinx`` (and therefore ``_DeprecatedProxyClassDocumenter``) may be absent.
 # Guard at module level so collection never fails; the tests below are skipped via ``_skipif_sphinx_missing``.
@@ -57,7 +58,15 @@ class TestImportObject:
     """Tests for _DeprecatedProxyClassDocumenter.import_object."""
 
     def test_swaps_proxy_for_wrapped_class_and_captures_doc(self) -> None:
-        """Proxy is replaced by the wrapped class; proxy __doc__ is stashed in _proxy_doc."""
+        """Proxy is replaced by the wrapped class; proxy __doc__ is stashed in _proxy_doc.
+
+        Sphinx autodoc imports a documented name and gets back the ``deprecated_class`` proxy instead of the real
+        class.  The documenter must swap the proxy for the wrapped class, keep the proxy's docstring (which carries
+        the ``.. deprecated::`` notice) in ``_proxy_doc``, and turn ``doc_as_attr`` off, which starts out ``True``,
+        so that the entry is documented as a class rather than as an alias attribute.  The parent ``import_object``
+        is faked to return the proxy.
+
+        """
         proxy, wrapped = _make_proxy()
         doc = object.__new__(_DeprecatedProxyClassDocumenter)
         doc.doc_as_attr = True
@@ -77,7 +86,13 @@ class TestImportObject:
         assert doc.doc_as_attr is False
 
     def test_non_proxy_object_is_left_unchanged(self) -> None:
-        """When the imported object is not a proxy, nothing is swapped."""
+        """When the imported object is not a proxy, nothing is swapped.
+
+        A documentation build can contain ordinary, non-deprecated classes next to deprecated ones.  When the parent
+        import returns a plain class, the documenter must report success, leave that class as ``doc.object`` and
+        not create a ``_proxy_doc`` attribute.  The parent ``import_object`` is faked to return the class.
+
+        """
 
         class Regular:
             """Regular class."""
@@ -99,7 +114,15 @@ class TestImportObject:
         assert not hasattr(doc, "_proxy_doc")
 
     def test_super_returns_false_skips_proxy_swap(self) -> None:
-        """When super().import_object() returns False, no proxy swap occurs."""
+        """When super().import_object() returns False, no proxy swap occurs.
+
+        When the base documenter reports an import failure, the documenter must not act on whatever object was left
+        behind.  Even if that object is a deprecation proxy, it must propagate the ``False`` result, leave
+        ``doc.object`` pointing at the proxy and not stash any ``_proxy_doc``, so the failure is not masked by a
+        swap on an object that was never imported successfully.  The parent ``import_object`` is faked to set the
+        proxy and return ``False``.
+
+        """
         proxy, _ = _make_proxy()
         doc = object.__new__(_DeprecatedProxyClassDocumenter)
 
@@ -152,3 +175,46 @@ class TestGetDoc:
             result = doc.get_doc()
 
         assert result == expected
+
+
+@_skipif_sphinx_missing
+class TestSetup:
+    """``setup(app)`` is the Sphinx extension entry point: it registers the documenter and returns the metadata."""
+
+    def test_registers_proxy_documenter_over_autodoc(self) -> None:
+        """Loading the extension enables autodoc and registers the proxy documenter with ``override=True``.
+
+        A docs build lists ``deprecate.docstring.sphinx_ext`` in ``extensions``; Sphinx then calls ``setup(app)``. The
+        autodoc extension must be loaded first, and the proxy documenter has to replace the stock class documenter
+        for ``autoclass::`` (hence ``override=True``), or deprecated class aliases render without their notice.
+
+        """
+        app = MagicMock()
+
+        setup(app)
+
+        app.setup_extension.assert_called_once_with("sphinx.ext.autodoc")
+        app.add_autodocumenter.assert_called_once_with(_DeprecatedProxyClassDocumenter, override=True)
+
+    def test_returns_parallel_safe_metadata(self) -> None:
+        """The returned dict tells Sphinx the extension's version and that parallel reads are safe."""
+        assert setup(MagicMock()) == {"version": "0.1", "parallel_read_safe": True}
+
+    def test_without_proxy_support_warns_and_registers_nothing(self, caplog: pytest.LogCaptureFixture) -> None:
+        """When the proxy type is unavailable, the extension still loads, warns once, and registers no documenter.
+
+        A partial installation must not break the docs build: ``setup`` logs that the documenter is not registered
+        and still hands Sphinx valid metadata.
+
+        """
+        app = MagicMock()
+
+        with (
+            patch("deprecate.docstring.sphinx_ext._PROXY_AVAILABLE", False),
+            caplog.at_level(logging.WARNING, logger="deprecate.docstring.sphinx_ext"),
+        ):
+            result = setup(app)
+
+        app.add_autodocumenter.assert_not_called()
+        assert "_DeprecatedProxyClassDocumenter not registered" in caplog.text
+        assert result == {"version": "0.1", "parallel_read_safe": True}

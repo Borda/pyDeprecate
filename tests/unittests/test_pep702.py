@@ -5,13 +5,13 @@ at the bottom of this module (checked by the ``typing`` pre-commit hook, never e
 
 """
 
-import warnings
 from typing import TYPE_CHECKING, Any, Callable
 
 import pytest
 
 import tests.collections.pep702 as pep702_fixtures
 from deprecate import deprecated, deprecated_callable
+from tests._helpers import captured_warnings
 
 
 class TestStackedPep702Runtime:
@@ -35,8 +35,7 @@ class TestStackedPep702Runtime:
         deprecation twice, once per decorator.
 
         """
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             result = call()
         assert (result, [w.category for w in caught]) == (expected, [FutureWarning])
 

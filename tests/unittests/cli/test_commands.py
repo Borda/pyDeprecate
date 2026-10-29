@@ -28,6 +28,7 @@ from deprecate._cli.scan import _ScanError
 from deprecate._types import DeprecationConfig, TargetMode
 from deprecate.audit import ChainType, DeprecationWrapperInfo, PolicyRule, TableStyle, validate_deprecation_policy
 from deprecate.audit._policy import _build_policy_spec
+from tests._helpers import write_pkg
 from tests.unittests.cli._helpers import _EXPIRED_FINDING, _MESSAGE_REQUIRED_FINDING, _POLICY_VIOLATION
 
 
@@ -280,7 +281,7 @@ class TestCmdExclude:
         A project keeps its fixture packages out of every audit by listing them once; each subcommand must apply
         that list without a flag and say so, or a reader cannot tell a clean scan from a skipped one.
         """
-        _write_pkg(tmp_path, "mypkg", "")
+        write_pkg(tmp_path, "mypkg", "")
         (tmp_path / "pyproject.toml").write_text('[tool.pydeprecate]\nexclude = ["mypkg.tests"]\n')
         assert cmd_check(path=str(tmp_path / "mypkg")) == 0
         assert mock_find.call_args.kwargs["exclude"] == ["mypkg.tests"]
@@ -293,7 +294,7 @@ class TestCmdExclude:
         Fire hands a single string over; splitting on commas lets a shell one-liner name several packages
         without Python list syntax, and the typed value must win over the file like every other setting.
         """
-        _write_pkg(tmp_path, "mypkg", "")
+        write_pkg(tmp_path, "mypkg", "")
         (tmp_path / "pyproject.toml").write_text('[tool.pydeprecate]\nexclude = ["mypkg.tests"]\n')
         assert cmd_check(path=str(tmp_path / "mypkg"), exclude="mypkg.a, *.b") == 0
         assert mock_find.call_args.kwargs["exclude"] == ["mypkg.a", "*.b"]
@@ -314,7 +315,7 @@ class TestCmdExclude:
         Silently coercing a number would exclude nothing while the author believes a package is skipped; the
         value is rejected before any scan starts and the message names where it came from.
         """
-        _write_pkg(tmp_path, "mypkg", "")
+        write_pkg(tmp_path, "mypkg", "")
         (tmp_path / "pyproject.toml").write_text(body)
         assert cmd_check(path=str(tmp_path / "mypkg"), exclude=flag) == 2
         assert "`exclude`" in capsys.readouterr().err
@@ -329,7 +330,7 @@ class TestCmdExclude:
         the excluded packages and report their fixtures as findings. The scan never starts, and the message names
         the file so the reader fixes the right thing.
         """
-        _write_pkg(tmp_path, "mypkg", "")
+        write_pkg(tmp_path, "mypkg", "")
         broken = tmp_path / "pyproject.toml"
         broken.write_text("[tool.pydeprecate\nexclude = oops\n")
         assert cmd_check(path=str(tmp_path / "mypkg")) == 2
@@ -341,7 +342,7 @@ class TestCmdExclude:
         self, mock_find: MagicMock, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         """An unrecognised key directly under ``[tool.pydeprecate]`` is reported, not ignored in silence."""
-        _write_pkg(tmp_path, "mypkg", "")
+        write_pkg(tmp_path, "mypkg", "")
         (tmp_path / "pyproject.toml").write_text('[tool.pydeprecate]\nexcludes = ["mypkg.tests"]\n')
         assert cmd_check(path=str(tmp_path / "mypkg")) == 0
         assert "`excludes`" in capsys.readouterr().err
@@ -357,7 +358,7 @@ class TestCmdExclude:
         ``all`` hands the loaded configuration to ``policy``; re-reading the file there would repeat every
         unknown-key advisory and make the log look like two separate problems.
         """
-        _write_pkg(tmp_path, "mypkg", "")
+        write_pkg(tmp_path, "mypkg", "")
         (tmp_path / "pyproject.toml").write_text('[tool.pydeprecate]\nexclude = ["mypkg.tests"]\ntypo = 1\n')
         assert cmd_all(path=str(tmp_path / "mypkg")) == 0
         captured = capsys.readouterr()
@@ -879,7 +880,7 @@ class TestCmdAll:
         dedicated gate. A usage error is not a violation: it stops the run before the chain check and the status
         table, and ``--exit-zero`` — which downgrades findings, not mistakes — leaves it at 2.
         """
-        pkg = _write_pkg(tmp_path, "mypkg", "")
+        pkg = write_pkg(tmp_path, "mypkg", "")
         (tmp_path / "pyproject.toml").write_text('[tool.pydeprecate.policy]\nmin-grace = "abc"\n')
         assert cmd_all(path=str(pkg), version="1.0", exit_zero=exit_zero) == 2
         assert "min_grace" in capsys.readouterr().err
@@ -894,7 +895,7 @@ class TestCmdAll:
         The file may carry both the ``exclude`` list and the policy table; scanning without either and reporting
         the outcome as clean is the silent loosening the strict reader exists to prevent.
         """
-        pkg = _write_pkg(tmp_path, "mypkg", "")
+        pkg = write_pkg(tmp_path, "mypkg", "")
         broken = tmp_path / "pyproject.toml"
         broken.write_text("[tool.pydeprecate\nexclude = oops\n")
         assert cmd_all(path=str(pkg), version="1.0") == 2
@@ -1014,7 +1015,7 @@ class TestCmdAll:
         The scan and the first gates have already run when the policy pass rejects ``min-grace = "abc"``; the
         usage error skips the appended table, so the ``--output`` file must not be created either.
         """
-        pkg = _write_pkg(tmp_path, "mypkg", "")
+        pkg = write_pkg(tmp_path, "mypkg", "")
         (tmp_path / "pyproject.toml").write_text('[tool.pydeprecate.policy]\nmin-grace = "abc"\n')
         out_file = tmp_path / "DEPRECATIONS.md"
         result = cmd_all(path=str(pkg), version="1.0", output=str(out_file))
@@ -1036,14 +1037,6 @@ class TestCmdAll:
         with _record_run() as record:
             cmd_all(path="some_module", version="1.0", output=str(out_file))
         assert record.table == _ALL_TABLE
-
-
-def _write_pkg(root: Path, name: str, init_body: str) -> Path:
-    """Create an importable ``name`` package under *root* with *init_body* as its ``__init__.py`` and return it."""
-    pkg = root / name
-    pkg.mkdir()
-    (pkg / "__init__.py").write_text(init_body)
-    return pkg
 
 
 class TestCmdStatus:
@@ -1444,3 +1437,76 @@ class TestIncludeMembersFlag:
         """
         command(path="some_module", include_members=False, **kwargs)
         mock_find.assert_called_once_with("some_module", recursive=True, include_members=False, exclude=[])
+
+
+_LIST_LITERAL_EXCLUDE = '["pkg.tests", "pkg.legacy"]'
+
+
+class TestInvalidExcludeExitsTwo:
+    """A malformed ``--exclude`` is a usage error (exit 2) for every subcommand, before anything is scanned."""
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            pytest.param(cmd_check, id="check"),
+            pytest.param(cmd_expiry, id="expiry"),
+            pytest.param(cmd_policy, id="policy"),
+            pytest.param(cmd_chains, id="chains"),
+            pytest.param(cmd_all, id="all"),
+            pytest.param(cmd_status, id="status"),
+        ],
+    )
+    @patch("deprecate._cli.scan.find_deprecation_wrappers")
+    def test_list_literal_exclude_exits_two(
+        self, mock_find: MagicMock, command: Callable[..., int], capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A list literal passed as ``--exclude`` is refused with the comma-separated hint and nothing is scanned.
+
+        ``--exclude='[a, b]'`` would become one pattern that matches nothing, leaving the scan silently unexcluded
+        while the author believes two packages are skipped; every subcommand must reject it the same way.
+
+        """
+        assert command(path="some_module", exclude=_LIST_LITERAL_EXCLUDE) == 2
+        assert f"Invalid `--exclude` value `{_LIST_LITERAL_EXCLUDE}`" in capsys.readouterr().err
+        mock_find.assert_not_called()
+
+    def test_policy_reads_exclude_from_malformed_pyproject_list(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """``policy`` rejects an ``exclude`` in ``[tool.pydeprecate]`` that is not a list of strings with exit 2."""
+        (tmp_path / "pyproject.toml").write_text("[tool.pydeprecate]\nexclude = [1, 2]\n")
+        pkg = write_pkg(tmp_path, "mypkg", "")
+
+        assert cmd_policy(path=str(pkg)) == 2
+        assert "Invalid `exclude` value" in capsys.readouterr().err
+
+
+class TestPolicyWithoutPackaging:
+    """``policy`` without the optional ``packaging`` library skips the grace rule instead of failing."""
+
+    def test_grace_only_policy_is_advisory_exit_zero(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """With ``message_required`` off, the only rule left needs ``packaging``: it is skipped, exit 0, gap printed.
+
+        A base-install CI job (no ``pyDeprecate[audit]``) running ``policy --no-message-required`` has nothing it can
+        check; it must be told which rule did not run and how to enable it, and must not fail or claim a clean pass.
+        ``packaging.version`` is made unimportable, the import the grace-window rule performs.
+
+        """
+        wrapper = DeprecationWrapperInfo(
+            module="mod",
+            function="fn",
+            deprecated_info=DeprecationConfig(deprecated_in="1.0", remove_in="1.1", target=TargetMode.NOTIFY),
+        )
+        monkeypatch.setitem(sys.modules, "packaging.version", None)
+
+        with _scanned([wrapper]):
+            result = cmd_policy(path="some_module", message_required=False)
+
+        captured = capsys.readouterr()
+        assert result == 0
+        assert "pydeprecate gap: " in captured.err
+        assert "`min-grace`" in captured.err
+        assert "pyDeprecate[audit]" in captured.err
+        assert "No deprecation policy violations found." not in captured.out

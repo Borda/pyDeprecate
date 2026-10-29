@@ -4,12 +4,12 @@ import importlib
 import importlib.metadata
 import importlib.util
 import types
-import warnings
 
 import pytest
 
 from deprecate import (
     TargetMode,
+    assert_no_warnings,
     deprecated,
     validate_deprecation_expiry,
 )
@@ -267,8 +267,7 @@ class TestValidateDeprecationExpiryDefaults:
         monkeypatch.setattr(Service, "__module__", mod.__name__)
         mod.Service = Service  # type: ignore[attr-defined]
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("always")
+        with assert_no_warnings():
             expired = validate_deprecation_expiry(mod, "1.0")
 
         assert len(expired) == 1
@@ -278,21 +277,24 @@ class TestValidateDeprecationExpiryDefaults:
 class TestNormalizeVersionStringLocalSegment:
     """The label-normalizing regex must not touch the PEP 440 local segment, and only one leading v strips."""
 
-    def test_preserves_local_segment(self) -> None:
-        """A legitimate local like ``1.2.3+cuda`` must survive verbatim instead of becoming ``1.2.3+cuda0``.
+    @pytest.mark.parametrize(
+        ("raw", "expected"),
+        [
+            pytest.param("1.2.3+cuda", "1.2.3+cuda", id="local-segment-kept"),
+            pytest.param("1.0.dev+build.a", "1.0.dev0+build.a", id="public-label-normalized-local-kept"),
+            pytest.param("vv1.0", "v1.0", id="single-leading-v-stripped"),
+        ],
+    )
+    def test_normalizes_public_part_only(self, raw: str, expected: str) -> None:
+        """Labels in the public version are normalized; the local segment and all but one leading ``v`` survive.
 
-        The trailing ``a`` of ``cuda`` used to be treated as a bare ``a`` pre-release label because the regex ran
-        over the whole string; splitting off the local segment first keeps real-world CUDA/build locals intact.
+        A legitimate local like ``1.2.3+cuda`` used to become ``1.2.3+cuda0``: the trailing ``a`` of ``cuda`` was
+        read as a bare ``a`` pre-release label because the regex ran over the whole string. Splitting off the local
+        segment first keeps CUDA/build locals intact while a bare ``dev`` in the public part still gains its ``0``,
+        and only one left-anchored ``v`` is removed (``lstrip`` used to strip every leading ``v``).
+
         """
-        assert _normalize_version_string("1.2.3+cuda") == "1.2.3+cuda"
-
-    def test_normalizes_public_but_not_local(self) -> None:
-        """A bare ``dev`` label in the public part is normalized while the local segment is left untouched."""
-        assert _normalize_version_string("1.0.dev+build.a") == "1.0.dev0+build.a"
-
-    def test_strips_only_single_leading_v(self) -> None:
-        """Only one left-anchored ``v`` is removed, not every leading ``v`` (``lstrip`` stripped all)."""
-        assert _normalize_version_string("vv1.0") == "v1.0"
+        assert _normalize_version_string(raw) == expected
 
 
 class TestBatchExpiryUnparsableVersion:
@@ -344,8 +346,9 @@ class TestCheckExpiryForCallables:
         assert "fn" in expired[0]
 
     def test_invalid_remove_in_skipped(self) -> None:
-        """Wrappers with non-PEP-440 remove_in are silently skipped."""
+        """Wrappers with non-PEP-440 remove_in are skipped."""
         config = DeprecationConfig(deprecated_in="1.0", remove_in="not-a-version")
         results = [DeprecationWrapperInfo(module="mod", function="fn", deprecated_info=config)]
-        expired = _check_expiry_for_callables(results, "2.0")
+        with pytest.warns(UserWarning, match="unparsable"):
+            expired = _check_expiry_for_callables(results, "2.0")
         assert expired == []

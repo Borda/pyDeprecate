@@ -2,12 +2,16 @@
 
 import warnings
 from dataclasses import dataclass as dc_decorator
+from typing import Any
 
 import pytest
 
-from deprecate.proxy import deprecated_class
+from deprecate.proxy import deprecated_class, deprecated_instance
+from deprecate.proxy.core import _DeprecatedProxy, _proxy_source_path
+from tests._helpers import captured_warnings
 from tests.collections.api_current import AutoExpandDC, PositionalOnlyTarget
 from tests.collections.api_deprecated import (
+    _DEPRS_CASE_STD_ARGS,
     DepAutoExpandDC,
     DepPositionalOnly,
     DepPositionalOnlyDerived,
@@ -73,12 +77,12 @@ class TestDataclassAutoExpand:
         When the user supplies ``args_mapping={"old_field": ...}`` explicitly, the auto-
         expand skips that key so the user-supplied value always wins.
         """
-        proxy = deprecated_class(
-            attrs_mapping={"old_field": "new_field"},
-            args_mapping={"old_field": "new_field"},
-            deprecated_in="1.0",
-            remove_in="2.0",
-        )(AutoExpandDC)
+        with pytest.warns(UserWarning, match="has both `args_mapping` and `attrs_mapping` configured"):
+            proxy = deprecated_class(
+                attrs_mapping={"old_field": "new_field"},
+                args_mapping={"old_field": "new_field"},
+                **_DEPRS_CASE_STD_ARGS,
+            )(AutoExpandDC)
         meta = object.__getattribute__(proxy, "__deprecation_config__")
         assert "old_field" not in meta.args_mapping_auto_expanded
 
@@ -97,9 +101,7 @@ class TestDataclassAutoExpand:
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            proxy = deprecated_class(
-                target=_Target, deprecated_in="1.0", remove_in="2.0", attrs_mapping={"field": None}
-            )(_Target)
+            proxy = deprecated_class(target=_Target, **_DEPRS_CASE_STD_ARGS, attrs_mapping={"field": None})(_Target)
         # Drop-mapping entry must not appear in args_mapping (no auto-expansion for None values)
         dep = object.__getattribute__(proxy, "__deprecation_config__")
         assert dep.args_mapping is None or "field" not in (dep.args_mapping or {})
@@ -125,10 +127,8 @@ class TestDataclassAutoExpand:
         attribute before warning, so this failed lookup — the same shape as a ``hasattr`` probe — emits nothing and
         leaves the ``old_field`` warn budget unspent.
         """
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-            with pytest.raises(AttributeError):
-                _ = DepAutoExpandReqDC.old_field  # type: ignore[attr-defined]
+        with captured_warnings() as caught, pytest.raises(AttributeError):
+            _ = DepAutoExpandReqDC.old_field  # type: ignore[attr-defined]
 
         assert [w for w in caught if issubclass(w.category, FutureWarning)] == []
 
@@ -207,7 +207,7 @@ class TestDataclassAutoExpand:
         remapping ``old_field`` to ``new_field``; the explicit new-name value takes precedence
         over the remapped old-field value.
         """
-        with pytest.warns(FutureWarning):
+        with pytest.warns(FutureWarning), pytest.warns(UserWarning, match=r"`old_field` is ignored"):
             instance = DepAutoExpandDC(old_field=5, new_field=6)  # type: ignore[call-arg]
         assert instance.new_field == 6
 
@@ -218,7 +218,7 @@ class TestDataclassAutoExpand:
         ``new_field=5`` because the dict-comprehension last-write-wins caused the
         ``old_field → new_field`` rename to overwrite the explicitly passed ``new_field=6``.
         """
-        with pytest.warns(FutureWarning):
+        with pytest.warns(FutureWarning), pytest.warns(UserWarning, match=r"`old_field` is ignored"):
             instance = DepAutoExpandDC(new_field=6, old_field=5)  # type: ignore[call-arg]
         assert instance.new_field == 6
 
@@ -249,8 +249,7 @@ class TestPositionalOnlyForwarding:
         with pytest.warns(UserWarning, match="POSITIONAL_ONLY"):
             deprecated_class(
                 args_mapping={"old_val": "new_val"},
-                deprecated_in="1.0",
-                remove_in="2.0",
+                **_DEPRS_CASE_STD_ARGS,
             )(PositionalOnlyTarget)
 
     def test_incompatible_key_recorded_on_deprecated_meta(self) -> None:
@@ -319,3 +318,65 @@ class TestPositionalOnlyForwarding:
             instance = DepPositionalOnlyMixed(1, old_x=5)  # type: ignore[call-arg]
         assert instance.w == 1
         assert instance.x == 5
+
+
+def _circular_proxy_pair() -> tuple[Any, Any]:
+    """Return two instance proxies that wrap each other, a stack no decorator produces (the cycle guard's input)."""
+    first = deprecated_instance(object(), name="first", **_DEPRS_CASE_STD_ARGS)
+    second = deprecated_instance(first, name="second", **_DEPRS_CASE_STD_ARGS)
+    object.__setattr__(object.__getattribute__(first, "_DeprecatedProxy__config"), "obj", second)
+    return first, second
+
+
+class TestAttrsMappingValidation:
+    """``attrs_mapping`` redirect targets are validated when the proxy is built, not on first access."""
+
+    def test_missing_redirect_target_raises_value_error(self) -> None:
+        """A redirect to an attribute the class lacks fails at decoration with the offending pair in the message.
+
+        Otherwise the first caller touching the deprecated alias would get an ``AttributeError`` instead of a warning.
+
+        """
+
+        class _Config:
+            new_attr = 1
+
+        expected = r"redirect targets not found on the active class: \[\"'old_attr' -> 'gone'\"\]"
+        with pytest.raises(ValueError, match=expected):
+            deprecated_class(attrs_mapping={"old_attr": "gone", "other": "new_attr"}, **_DEPRS_CASE_STD_ARGS)(_Config)
+
+
+class TestCircularProxyStacks:
+    """A circular proxy stack is cut by the cycle guards instead of looping forever."""
+
+    def test_isinstance_against_circular_stack_is_false(self) -> None:
+        """``isinstance(x, proxy)`` on a stack that wraps itself answers ``False`` rather than hanging."""
+        first, _ = _circular_proxy_pair()
+
+        assert isinstance(1, first) is False
+
+    def test_issubclass_against_circular_stack_is_false(self) -> None:
+        """``issubclass(X, proxy)`` on a stack that wraps itself answers ``False`` rather than hanging."""
+        first, _ = _circular_proxy_pair()
+
+        assert issubclass(int, first) is False
+
+    def test_static_owner_lookup_terminates_on_circular_stack(self) -> None:
+        """Resolving the object attribute validation inspects stops inside the cycle and returns a proxy of it."""
+        first, second = _circular_proxy_pair()
+
+        owner = _DeprecatedProxy._get_static_attr_owner(first)
+
+        assert owner is first or owner is second
+
+    def test_static_owner_of_plain_object_is_itself(self) -> None:
+        """An object that is no proxy is its own validation owner."""
+        plain = object()
+
+        assert _DeprecatedProxy._get_static_attr_owner(plain) is plain
+
+    def test_source_path_terminates_on_circular_stack(self) -> None:
+        """The ``%(source_path)s`` of a proxy over a self-wrapping stack falls back to the display name."""
+        first, _ = _circular_proxy_pair()
+
+        assert _proxy_source_path(first, "first") == "first"

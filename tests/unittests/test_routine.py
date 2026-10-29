@@ -16,6 +16,7 @@ from deprecate._dispatch import _build_call_facts, _WrapperContext
 from deprecate._types import _WrapperState
 from deprecate.proxy import _DeprecatedProxy
 from deprecate.routine import _build_callable_config, _make_wrapper, _validate_callable_source
+from tests._helpers import captured_warnings
 from tests.collections.api_current import (
     NewCls,
     Pep702StaticTarget,
@@ -192,8 +193,7 @@ class TestEmptyVersionGuardOnFunctions:
 
     def test_function_empty_versions_stream_none_silent(self) -> None:
         """@deprecated(stream=None) on a function with no version strings emits no UserWarning."""
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
 
             @deprecated(stream=None)
             def _fn_no_versions_silent() -> None:
@@ -213,8 +213,7 @@ class TestEmptyVersionGuardOnClasses:
 
     def test_class_empty_versions_warns_once(self) -> None:
         """@deprecated() applied to a class with no version strings emits exactly one empty-version guard warning."""
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
 
             @deprecated()
             class _OldClassNoVersions:
@@ -227,8 +226,7 @@ class TestEmptyVersionGuardOnClasses:
 
     def test_class_empty_versions_stream_none_silent(self) -> None:
         """@deprecated(stream=None) applied to a class with no version strings emits no UserWarning."""
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
 
             @deprecated(stream=None)
             class _OldClassNoVersionsSilent:
@@ -275,8 +273,7 @@ class TestEmptyVersionGuardSymmetry:
         def new_fn() -> None:
             pass
 
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
 
             @deprecated(target=new_fn, stream=None)
             def old_fn() -> None:
@@ -300,13 +297,19 @@ class TestEmptyVersionGuardSymmetry:
         assert len(user_warnings) == 1
 
     def test_guard_silent_when_template_msg_provided(self) -> None:
-        """@deprecated with message_template and no deprecated_in does not emit the empty-version UserWarning."""
+        """@deprecated with message_template and no deprecated_in does not emit the empty-version UserWarning.
+
+        A library writes its own full deprecation wording through ``message_template`` and therefore omits
+        ``deprecated_in``, since the custom text does not use a version.  Decorating functions this way, both with a
+        forwarding target and with argument remapping, must not trigger the warning about an empty version that
+        otherwise appears when no version is given, because the version is not needed to build the message.
+
+        """
 
         def new_fn() -> None:
             pass
 
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
 
             @deprecated(target=new_fn, message_template="%(source_name)s is gone, use new_fn.")
             def old_fn_notify() -> None:
@@ -343,7 +346,10 @@ class TestPEP702StackingRegression:
 
     def test_pep702_stacked_emits_pep702_deprecation_warning(self) -> None:
         """Outer ``typing_extensions.deprecated`` emits its DeprecationWarning at call time."""
-        with pytest.warns(DeprecationWarning, match="use `pep702_target`"):
+        with (
+            pytest.warns(DeprecationWarning, match="use `pep702_target`"),
+            pytest.warns(FutureWarning, match="pep702_target"),
+        ):
             pep702_stacked(2)
 
     def test_pep702_stacked_emits_pydeprecate_warning_on_first_call(self) -> None:
@@ -356,8 +362,7 @@ class TestPEP702StackingRegression:
         inner = deprecated(target=pep702_target, deprecated_in="0.8", remove_in="1.0")(lambda x: x)
         stacked = typing_extensions.deprecated("use `pep702_target`")(inner)
 
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             result = stacked(3)
 
         future_warnings = [w for w in caught if issubclass(w.category, FutureWarning)]
@@ -458,8 +463,7 @@ class TestValidateCallableSource:
         A caller that silenced the decorator, or that owns its message through ``message_template``, does not rely on
         ``deprecated_in`` and must not get the notice.
         """
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             _validate(double_value, deprecated_in="", stream=stream, message_template=message_template)
         assert not caught
 

@@ -1,5 +1,6 @@
 """Unit tests for proxy calls, argument forwarding, and descriptor binding."""
 
+import contextlib
 import copy
 import inspect
 import pickle
@@ -14,8 +15,14 @@ from deprecate import DeprecatedError
 from deprecate._types import TargetMode
 from deprecate.proxy import deprecated_class, deprecated_instance
 from deprecate.proxy.core import _DeprecatedProxy, _proxy_call_global, _ProxySpec
+from tests._helpers import captured_warnings
 from tests.collections.api_current import ColorEnum, NewDataClass, SomeTargetClass, WithInjected, base_sum_kwargs
-from tests.collections.api_deprecated import MappedColorEnum, MappedDataClass, MappedDropArgDataClass
+from tests.collections.api_deprecated import (
+    _DEPRS_CASE_STD_ARGS,
+    MappedColorEnum,
+    MappedDataClass,
+    MappedDropArgDataClass,
+)
 from tests.collections.api_deprecated_forwarding import (
     ProxyArgsMappedToEmpty,
     ProxyArgsRemapAuto,
@@ -61,8 +68,7 @@ class TestProxyCallGlobal:
                 spec=_ProxySpec(
                     name="WithInjected",
                     target=target,
-                    deprecated_in="1.0",
-                    remove_in="2.0",
+                    **_DEPRS_CASE_STD_ARGS,
                     args_extra={"injected": "configured"},
                 ),
             )
@@ -75,8 +81,7 @@ class TestProxyCallGlobal:
         assert result.new_key == 7
         assert result.injected == expected_injected
         assert kwargs == {"injected": "caller"}
-        with warnings.catch_warnings(record=True) as repeated:
-            warnings.simplefilter("always")
+        with captured_warnings() as repeated:
             _proxy_call_global(proxy, proxy._dep, (8,), kwargs)
         assert not repeated
 
@@ -87,9 +92,7 @@ class TestProxyCallGlobal:
         available for a later retry. This exercises a real side effect without mocking the call machinery.
         """
         source = iter([11, 22])
-        proxy = _DeprecatedProxy(
-            obj=source.__next__, spec=_ProxySpec(name="legacy_next", deprecated_in="1.0", remove_in="2.0")
-        )
+        proxy = _DeprecatedProxy(obj=source.__next__, spec=_ProxySpec(name="legacy_next", **_DEPRS_CASE_STD_ARGS))
         with warnings.catch_warnings():
             warnings.simplefilter("error", FutureWarning)
             with pytest.raises(FutureWarning):
@@ -103,9 +106,7 @@ class TestProxyCallGlobal:
         A deprecated function receiving an unknown keyword must still warn before its normal TypeError, matching
         the original call path's warning-before-invocation policy.
         """
-        proxy = _DeprecatedProxy(
-            obj=base_sum_kwargs, spec=_ProxySpec(name="legacy_sum", deprecated_in="1.0", remove_in="2.0")
-        )
+        proxy = _DeprecatedProxy(obj=base_sum_kwargs, spec=_ProxySpec(name="legacy_sum", **_DEPRS_CASE_STD_ARGS))
         with pytest.warns(FutureWarning), pytest.raises(TypeError, match="unexpected keyword argument 'unknown'"):
             _proxy_call_global(proxy, proxy._dep, (), {"unknown": 1})
         assert proxy._cfg.state.warned_calls == 1
@@ -115,20 +116,37 @@ class TestArgsMapping:
     """args_mapping remaps or drops kwargs when the proxy is called."""
 
     @pytest.mark.parametrize(
-        ("kwargs", "expected_label", "expected_total"),
+        ("kwargs", "expected_label", "expected_total", "extra_warning"),
         [
-            ({"name": "hello", "total": 7}, "hello", 7),
-            ({"name": "world", "count": 3}, "world", 3),
+            pytest.param({"name": "hello", "total": 7}, "hello", 7, contextlib.nullcontext, id="new-total-kept"),
+            pytest.param(
+                {"name": "world", "count": 3},
+                "world",
+                3,
+                lambda: pytest.warns(FutureWarning, match=r"`MappedDataClass` uses deprecated arguments: `count`"),
+                id="old-count-remapped",
+            ),
         ],
     )
-    def test_remap_kwargs(self, kwargs: dict[str, object], expected_label: str, expected_total: int) -> None:
+    def test_remap_kwargs(
+        self,
+        kwargs: dict[str, object],
+        expected_label: str,
+        expected_total: int,
+        extra_warning: Callable[[], contextlib.AbstractContextManager[object]],
+    ) -> None:
         """DeprecationProxy dataclass calls should remap renamed kwargs and preserve explicit non-remapped kwargs.
 
         When an old kwarg name is passed (e.g. ``name`` mapped to ``label``), the proxy emits the per-argument
-        deprecation template (``old -> new``) — matching the decorator's argument-deprecation form.
+        deprecation template (``old -> new``) — matching the decorator's argument-deprecation form. A caller that
+        also passes the old ``count`` name gets a second per-argument warning for ``count -> total``, while a caller
+        already using ``total`` gets none.
 
         """
-        with pytest.warns(FutureWarning, match=r"`MappedDataClass` uses deprecated arguments: `name` -> `label`"):
+        with (
+            pytest.warns(FutureWarning, match=r"`MappedDataClass` uses deprecated arguments: `name` -> `label`"),
+            extra_warning(),
+        ):
             result = MappedDataClass(**kwargs)  # type: ignore[arg-type]
         assert isinstance(result, NewDataClass)
         assert result.label == expected_label
@@ -141,14 +159,17 @@ class TestArgsMapping:
         ``legacy_flag`` is dropped before forwarding.
 
         """
-        with pytest.warns(
-            FutureWarning, match=r"`MappedDropArgDataClass` uses deprecated arguments: `legacy_flag` -> `None`"
+        with (
+            pytest.warns(
+                FutureWarning, match=r"`MappedDropArgDataClass` uses deprecated arguments: `legacy_flag` -> `None`"
+            ),
+            pytest.warns(FutureWarning, match=r"`MappedDropArgDataClass` uses deprecated arguments: `name`"),
         ):
             result = MappedDropArgDataClass(name="x", legacy_flag=True)  # type: ignore[call-arg]
         assert isinstance(result, NewDataClass)
         assert result.label == "x"
 
-    def test_args_mapping_stored_in_proxy(self) -> None:
+    def test_stored_in_proxy(self) -> None:
         """Proxy should retain args_mapping so audit and introspection can verify remapping behavior."""
         mapping = object.__getattribute__(MappedDataClass, "__deprecation_config__").args_mapping
         assert mapping == {"name": "label", "count": "total"}
@@ -166,8 +187,7 @@ class TestArgsMapping:
 
     def test_target_mode_args_remap_emits_per_argument_warning(self) -> None:
         """TargetMode.ARGS_REMAP path emits old -> new arg names in the warning message."""
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             ProxyArgsRemapForArgWarnMessage(old_key=5)  # type: ignore[call-arg]
         assert len(caught) >= 1
         msg = str(caught[0].message)
@@ -181,7 +201,7 @@ class TestArgsMapping:
         ``proxy(old_key=5, new_key=6)`` must construct with ``new_key=6``; the remapped
         ``old_key→new_key=5`` must not overwrite the explicitly passed ``new_key=6``.
         """
-        with pytest.warns(FutureWarning):
+        with pytest.warns(FutureWarning), pytest.warns(UserWarning, match=r"`old_key` is ignored"):
             instance = ProxyArgsRemapForArgWarnMessage(old_key=5, new_key=6)  # type: ignore[call-arg]
         assert instance.new_key == 6
 
@@ -194,7 +214,7 @@ class TestArgsMapping:
         ``new_key=6`` entry.
         This path exercises ``_proxy_call_args_remap`` (no callable target, ARGS_REMAP mode).
         """
-        with pytest.warns(FutureWarning):
+        with pytest.warns(FutureWarning), pytest.warns(UserWarning, match=r"`old_key` is ignored"):
             instance = ProxyArgsRemapForArgWarnMessage(new_key=6, old_key=5)  # type: ignore[call-arg]
         assert instance.new_key == 6
 
@@ -207,7 +227,7 @@ class TestArgsMapping:
         and the ``deprecated_class`` proxy path after the proxy-path collision guard was added.
 
         """
-        with pytest.warns(UserWarning, match=r"`old_key`.*is ignored"):
+        with pytest.warns(FutureWarning), pytest.warns(UserWarning, match=r"`old_key`.*is ignored"):
             ProxyArgsRemapForArgWarnMessage(old_key=5, new_key=6)  # type: ignore[call-arg]
 
 
@@ -227,7 +247,14 @@ class TestArgsExtra:
         assert instance.injected == "from-extra"  # type: ignore[attr-defined]
 
     def test_merged_after_args_mapping_rename(self) -> None:
-        """args_extra is applied after args_mapping renames kwargs."""
+        """args_extra is applied after args_mapping renames kwargs.
+
+        A deprecated class is configured both to rename the keyword ``old_key`` to ``new_key`` and to inject an extra
+        keyword ``injected`` into every call.  A caller still using the old keyword must end up with an instance
+        built from the renamed argument and the injected extra together, so the two options combine instead of
+        one overriding the other.
+
+        """
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UserWarning)
             proxy = deprecated_class(
@@ -269,8 +296,7 @@ class TestProxyArgsMappingBehavior:
 
     def test_auto_args_remap_silent_on_new_arg(self) -> None:
         """Proxy with args_mapping and no explicit target does NOT warn when new arg name is used."""
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             ProxyArgsRemapAuto(new_key=1)
         assert not caught
 
@@ -290,7 +316,13 @@ class TestProxyArgsMappingBehavior:
             ProxyCallableWithArgsMapping(old_key=1)  # type: ignore[call-arg]
 
     def test_callable_target_with_args_mapping_warns_on_new_arg(self) -> None:
-        """Proxy forwarding to callable target always warns (class deprecated) even with new arg name."""
+        """Proxy forwarding to callable target always warns (class deprecated) even with new arg name.
+
+        A class is deprecated in favour of a callable target and also maps ``old_key`` to ``new_key``.  Using the
+        class itself is the deprecated act, so a caller who has already migrated the argument to ``new_key`` but
+        still instantiates the old class must still receive the ``FutureWarning``.
+
+        """
         proxy = _DeprecatedProxy(
             obj=SomeTargetClass,
             spec=_ProxySpec(
@@ -323,7 +355,7 @@ class TestProxyArgsMappingBehavior:
                 args_mapping={"old_key": "new_key"},
             ),
         )
-        with pytest.warns(FutureWarning):
+        with pytest.warns(FutureWarning), pytest.warns(UserWarning, match=r"`old_key` is ignored"):
             instance = proxy(old_key=5, new_key=6)
         assert instance.new_key == 6
 
@@ -347,7 +379,7 @@ class TestProxyArgsMappingBehavior:
                 args_mapping={"old_key": "new_key"},
             ),
         )
-        with pytest.warns(FutureWarning):
+        with pytest.warns(FutureWarning), pytest.warns(UserWarning, match=r"`old_key` is ignored"):
             instance = proxy(new_key=6, old_key=5)
         assert instance.new_key == 6
 
@@ -380,8 +412,7 @@ class TestProxyArgsMappingBehavior:
         been spelled out, with no misconfig warning and clean audit metadata.
 
         """
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
 
             @deprecated_class(deprecated_in="1.2", remove_in="2.0", args_mapping={"old_key": "new_key"})
             class _ProxyOmittedWithArgsMapping:
@@ -402,7 +433,13 @@ class TestProxyArgsMappingBehavior:
                 pass
 
     def test_num_warns_respected_per_arg(self) -> None:
-        """Per-argument warn budget: second call with same old arg does not warn."""
+        """Per-argument warn budget: second call with same old arg does not warn.
+
+        A caller keeps passing the deprecated keyword ``old_key`` in a loop while the proxy allows one warning per
+        deprecated argument (``num_warns=1``).  The first call must warn, and the second call with the same old
+        argument must stay silent, so the log is not flooded.
+
+        """
         proxy = _DeprecatedProxy(
             obj=dict,
             spec=_ProxySpec(
@@ -416,8 +453,7 @@ class TestProxyArgsMappingBehavior:
         )
         with pytest.warns(FutureWarning):
             proxy(old_key=1)
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             proxy(old_key=2)
         assert not caught
 
@@ -622,8 +658,7 @@ class TestProxyDescriptorBinding:
         host_cls = make_deprecated_method_host()
         first, second = host_cls(), host_cls()
 
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             results = (first.scale(1), second.scale(2), host_cls.scale(first, 3))
 
         assert results == ((first, 1), (second, 2), (first, 3))
@@ -691,8 +726,7 @@ class TestProxyDescriptorBinding:
         """
         host = make_deprecated_method_host(num_warns=-1)()
 
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             results = (host.scale(1), host.scale(2))
 
         assert results == ((host, 1), (host, 2))

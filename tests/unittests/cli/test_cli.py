@@ -5,6 +5,7 @@ import json
 import sys
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -481,3 +482,85 @@ class TestCliCrashExitCode:
         assert exc_info.value.code == 3
         assert "pydeprecate: scan error: could not import 'some_module': ImportError: broken dependency" in err
         assert "please report" not in err
+
+
+def _nested_run_then_fail(report: Path, seen: dict[str, Any]) -> Callable[..., int]:
+    """Build a stand-in ``cmd_check``: the first call runs ``cli()`` again (an audited package that re-enters the CLI).
+
+    The nested run's exit code and whether it already wrote the report are stored in *seen*; the outer call then
+    returns 0 so the outer run is the one entitled to write the report.
+
+    """
+    calls: list[int] = []
+
+    def command(**kwargs: object) -> int:
+        """Re-enter ``cli()`` once, record what the nested run left behind, then finish."""
+        calls.append(1)
+        if len(calls) == 1:
+            with pytest.raises(SystemExit) as nested:
+                cli()
+            seen["nested_code"] = nested.value.code
+            seen["report_after_nested"] = report.exists()
+            return 0
+        return 1
+
+    return command
+
+
+class TestCliReportJson:
+    """``--report-json`` writes the run's record only for exit 0 or 1 of the outermost run; never changes the code."""
+
+    def test_usage_error_writes_no_report(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        """A command line rejected by the parser exits 2 and leaves no report file behind.
+
+        Nothing was scanned, so a report would describe a run that never happened; the typo in the option name is
+        reported on stderr instead.
+
+        """
+        report = tmp_path / "report.json"
+        with (
+            patch("sys.argv", ["pydeprecate", "check", "some_module", "--bogus", f"--report-json={report}"]),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            cli()
+        assert exc_info.value.code == 2
+        assert "unrecognized arguments: --bogus" in capsys.readouterr().err
+        assert not report.exists()
+
+    def test_unwritable_report_keeps_gate_exit_code(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        """A report path that cannot be created prints an advisory and the run still exits with the gate's code.
+
+        The report is a CI artifact; a missing artifact directory (here a parent that is a regular file) must not turn
+        a passing audit into a failing one, nor hide a failing one.
+
+        """
+        blocker = tmp_path / "blocker"
+        blocker.write_text("not a directory")
+        report = blocker / "report.json"
+        with (
+            patch("sys.argv", ["pydeprecate", "check", "some_module", f"--report-json={report}"]),
+            patch("deprecate._cli.commands.cmd_check", autospec=True, return_value=1),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            cli()
+        assert exc_info.value.code == 1
+        assert f"Could not write the JSON report {report}" in capsys.readouterr().err
+
+    def test_nested_run_leaves_the_report_to_the_outermost_run(self, tmp_path: Path) -> None:
+        """A package whose import re-enters the CLI cannot write the report in the outer scan's place.
+
+        The nested run inherits the outer ``sys.argv``, so it sees the same ``--report-json``; only the outermost run
+        may write it, or the nested run's record would pass for the outer scan's.
+
+        """
+        report = tmp_path / "report.json"
+        seen: dict[str, Any] = {}
+        with (
+            patch("sys.argv", ["pydeprecate", "check", "some_module", f"--report-json={report}"]),
+            patch("deprecate._cli.commands.cmd_check", autospec=True, side_effect=_nested_run_then_fail(report, seen)),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            cli()
+        assert exc_info.value.code == 0
+        assert seen == {"nested_code": 1, "report_after_nested": False}
+        assert report.is_file()

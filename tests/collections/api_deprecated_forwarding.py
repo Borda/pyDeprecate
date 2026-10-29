@@ -420,7 +420,7 @@ def _gen_source_callable(x: int = 0) -> Iterator[int]:
 
 #: NOTIFY mode — source body runs unchanged (warning-only).  ``gen_target`` is itself the source.
 #: Uses default ``num_warns=1``; warning fires once per call via ``_build_call_plan``.
-#: Tests reset ``warned_calls`` between parametrize cases — see ``_reset_gen_state`` fixture.
+#: The conftest reset clears ``warned_calls`` before every test, so each parametrize case sees a fresh budget.
 gen_notify = deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)(gen_target)
 #: ARGS_REMAP mode — self-deprecation; legacy arg ``old_x`` mapped to ``x`` before source body executes.
 gen_args_remap = deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old_x": "x"}, **_DEPRS_CASE_STD_ARGS)(
@@ -514,7 +514,7 @@ async def _async_gen_source_callable(x: int = 0) -> AsyncIterator[int]:
 
 
 #: NOTIFY mode — source body runs unchanged (warning-only).  Uses default ``num_warns=1``; warning fires once
-#: per call.  Tests reset ``warned_calls`` between parametrize cases — see ``_reset_async_gen_state`` fixture.
+#: per call.  The conftest reset clears ``warned_calls`` before every test, so each parametrize case starts fresh.
 async_gen_notify = deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)(_async_gen_source_notify)
 #: ARGS_REMAP mode — self-deprecation; legacy arg ``old_x`` mapped to ``x`` before source body executes.
 async_gen_args_remap = deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old_x": "x"}, **_DEPRS_CASE_STD_ARGS)(
@@ -643,8 +643,7 @@ DeprecatedAttrsPaletteNested = deprecated_class(**_DEPRS_CASE_STD_ARGS, stream=N
 # Inner proxy maps older_attr -> newer_attr (deprecated_in="0.9").
 StackedAttrProxy = deprecated_class(
     attrs_mapping={"old_attr": "new_attr"},
-    deprecated_in="1.0",
-    remove_in="2.0",
+    **_DEPRS_CASE_STD_ARGS,
     stream=None,
 )(
     deprecated_class(
@@ -718,7 +717,7 @@ DepSelfCombinedTwoLayer = deprecated_class(
 with catch_warnings():
     simplefilter("ignore", UserWarning)
 
-    @deprecated(target=positional_only_target, deprecated_in="1.0", remove_in="2.0")
+    @deprecated(target=positional_only_target, **_DEPRS_CASE_STD_ARGS)
     def deprecated_positional_only_source(x: int, y: int = 0) -> int:
         """Deprecated wrapper forwarding to a target with a POSITIONAL_ONLY parameter."""
         return 0
@@ -729,7 +728,7 @@ with catch_warnings():
 with catch_warnings():
     simplefilter("ignore", UserWarning)
 
-    @deprecated(target=async_positional_only_target, deprecated_in="1.0", remove_in="2.0")
+    @deprecated(target=async_positional_only_target, **_DEPRS_CASE_STD_ARGS)
     async def deprecated_async_positional_only_source(x: int, y: int = 0) -> int:
         """Deprecated async wrapper forwarding to an async target with a POSITIONAL_ONLY parameter."""
         return 0
@@ -740,7 +739,7 @@ with catch_warnings():
 with catch_warnings():
     simplefilter("ignore", UserWarning)
 
-    @deprecated(target=positional_only_two_params_target, deprecated_in="1.0", remove_in="2.0")
+    @deprecated(target=positional_only_two_params_target, **_DEPRS_CASE_STD_ARGS)
     def deprecated_positional_only_two_params_source(a: int, b: int, c: int = 0) -> int:
         """Deprecated wrapper forwarding to a target with two POSITIONAL_ONLY parameters."""
         return 0
@@ -753,8 +752,7 @@ with catch_warnings():
 
     @deprecated(
         target=positional_only_target,
-        deprecated_in="1.0",
-        remove_in="2.0",
+        **_DEPRS_CASE_STD_ARGS,
         args_mapping={"old_x": "x"},
     )
     def deprecated_positional_only_with_args_mapping_source(old_x: int, y: int = 0) -> int:
@@ -774,7 +772,7 @@ with catch_warnings():
     class OldPositionalOnlyClass:
         """Deprecated class whose constructor forwards to PositionalOnlyTarget."""
 
-        @deprecated(target=PositionalOnlyTarget, deprecated_in="1.0", remove_in="2.0")
+        @deprecated(target=PositionalOnlyTarget, **_DEPRS_CASE_STD_ARGS)
         def __init__(self, new_val: int = 0) -> None:
             """Constructor deprecated in favour of PositionalOnlyTarget."""
             self.new_val = new_val
@@ -793,7 +791,7 @@ with catch_warnings():
     class OldSelfOnlyClass:
         """Deprecated class forwarding to SelfOnlyPositionalOnlyTarget."""
 
-        @deprecated(target=SelfOnlyPositionalOnlyTarget, deprecated_in="1.0", remove_in="2.0")
+        @deprecated(target=SelfOnlyPositionalOnlyTarget, **_DEPRS_CASE_STD_ARGS)
         def __init__(self) -> None:
             """Constructor deprecated in favour of SelfOnlyPositionalOnlyTarget."""
 
@@ -805,7 +803,7 @@ with catch_warnings():
 # so no catch_warnings block is needed here.
 
 
-@deprecated(target=positional_only_target, deprecated_in="1.0", remove_in="2.0", stream=None)
+@deprecated(target=positional_only_target, **_DEPRS_CASE_STD_ARGS, stream=None)
 def deprecated_positional_only_stream_none(x: int, y: int = 0) -> int:
     """Deprecated wrapper forwarding to positional_only_target with stream=None (no warnings emitted)."""
     return 0
@@ -949,13 +947,13 @@ with catch_warnings():
 # ========== Non-cycling callable-target fixtures ==========
 
 
-@deprecated(target=non_cycle_double, deprecated_in="1.0", remove_in="2.0")
+@deprecated(target=non_cycle_double, **_DEPRS_CASE_STD_ARGS)
 def dep_non_cycle_old_fn(x: int) -> int:
     """Deprecated wrapper forwarding to non_cycle_double — never forms a cycle."""
     return x
 
 
-@deprecated(target=async_non_cycle_double, deprecated_in="1.0", remove_in="2.0")
+@deprecated(target=async_non_cycle_double, **_DEPRS_CASE_STD_ARGS)
 async def dep_async_non_cycle_old_fn(x: int) -> int:
     """Async deprecated wrapper forwarding to async_non_cycle_double — never forms a cycle."""
     return x
@@ -1059,7 +1057,7 @@ async def deprecated_async_var_positional_to_sync(a: int, *extras: int) -> int:
 with catch_warnings():
     simplefilter("ignore", UserWarning)
 
-    @deprecated(target=positional_only_target, deprecated_in="1.0", remove_in="2.0", num_warns=-1)
+    @deprecated(target=positional_only_target, **_DEPRS_CASE_STD_INF_ARGS)
     async def deprecated_async_positional_only_to_sync(x: int, y: int = 0) -> int:
         """Async source forwarding to a SYNC target with a POSITIONAL_ONLY parameter."""
         return 0

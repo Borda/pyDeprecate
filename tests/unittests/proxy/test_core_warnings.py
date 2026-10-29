@@ -14,6 +14,7 @@ from deprecate import DeprecatedError
 from deprecate._types import DeprecationConfig
 from deprecate.proxy import deprecated_class, deprecated_instance
 from deprecate.proxy.core import _build_proxy_warn_msg, _DeprecatedProxy, _ProxySpec
+from tests._helpers import captured_warnings
 from tests.collections.api_current import (
     ColorEnum,
     CountingSkipCondition,
@@ -30,7 +31,12 @@ from tests.collections.api_current import (
     SlowRecordingStream,
     make_flaky_attr_host,
 )
-from tests.collections.api_deprecated import MappedColorEnum, MappedDataClass
+from tests.collections.api_deprecated import (
+    _DEPRS_CASE_STD_ARGS,
+    _DEPRS_CASE_STD_INF_ARGS,
+    MappedColorEnum,
+    MappedDataClass,
+)
 from tests.collections.api_deprecated_forwarding import ProxyArgsRemapForArgWarnMessage
 from tests.collections.api_deprecated_regressions import (
     DeprSourcePathArgs,
@@ -66,15 +72,14 @@ class TestProxyWarnBehavior:
             obj={"k": 1},
             spec=_ProxySpec(name="x", deprecated_in="1.0", remove_in="2.0", num_warns=0),
         )
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             proxy._warn()
             proxy._warn()
         assert not caught
 
     def test_warn_increments_counter(self) -> None:
         """Each emitted warning increments the internal counter."""
-        proxy = _DeprecatedProxy(obj={}, spec=_ProxySpec(name="x", deprecated_in="1.0", remove_in="2.0", num_warns=-1))
+        proxy = _DeprecatedProxy(obj={}, spec=_ProxySpec(name="x", **_DEPRS_CASE_STD_INF_ARGS))
         with warnings.catch_warnings(record=True):
             warnings.simplefilter("always")
             proxy._warn()
@@ -84,25 +89,22 @@ class TestProxyWarnBehavior:
     def test_warn_stops_after_limit(self) -> None:
         """Warnings stop once num_warns threshold is reached."""
         proxy = _DeprecatedProxy(obj={}, spec=_ProxySpec(name="x", deprecated_in="1.0", remove_in="2.0", num_warns=2))
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             for _ in range(5):
                 proxy._warn()
         assert len(caught) == 2
 
     def test_warn_no_stream(self) -> None:
         """``stream=None`` suppresses all warnings."""
-        proxy = _DeprecatedProxy(obj={}, spec=_ProxySpec(name="x", deprecated_in="1.0", remove_in="2.0", stream=None))
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        proxy = _DeprecatedProxy(obj={}, spec=_ProxySpec(name="x", **_DEPRS_CASE_STD_ARGS, stream=None))
+        with captured_warnings() as caught:
             proxy._warn()
         assert not caught
 
     def test_warn_message_contains_name_and_versions(self) -> None:
         """Warning message includes the name, deprecated_in and remove_in values."""
         proxy = _DeprecatedProxy(obj={}, spec=_ProxySpec(name="legacy_cfg", deprecated_in="2.3", remove_in="4.0"))
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             proxy._warn()
         msg = str(caught[0].message)
         assert "legacy_cfg" in msg
@@ -113,10 +115,9 @@ class TestProxyWarnBehavior:
         """Warnings include replacement path when target is callable."""
         proxy = _DeprecatedProxy(
             obj={},
-            spec=_ProxySpec(name="old_color", deprecated_in="1.0", remove_in="2.0", target=ColorEnum),
+            spec=_ProxySpec(name="old_color", **_DEPRS_CASE_STD_ARGS, target=ColorEnum),
         )
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             proxy._warn()
         msg = str(caught[0].message)
         assert "old_color" in msg
@@ -124,9 +125,8 @@ class TestProxyWarnBehavior:
 
     def test_warn_category_is_future_warning(self) -> None:
         """Default stream emits FutureWarning attributed to the caller's frame."""
-        proxy = _DeprecatedProxy(obj={"k": 1}, spec=_ProxySpec(name="x", deprecated_in="1.0", remove_in="2.0"))
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        proxy = _DeprecatedProxy(obj={"k": 1}, spec=_ProxySpec(name="x", **_DEPRS_CASE_STD_ARGS))
+        with captured_warnings() as caught:
             # Trigger via subscript access — exercises the realistic accessor path
             # (``__getitem__ → _warn → stream``) that the stacklevel fix targets.
             _ = proxy["k"]
@@ -144,8 +144,7 @@ class TestProxyWarnBehavior:
         file rather than ``proxy.py``.
 
         """
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             ProxyArgsRemapForArgWarnMessage(old_key=5)  # type: ignore[call-arg]  # deprecated kwarg via ARGS_REMAP
         future_warnings = [w for w in caught if issubclass(w.category, FutureWarning)]
         assert future_warnings, "Expected FutureWarning from ARGS_REMAP path"
@@ -160,8 +159,7 @@ class TestProxyWarnBehavior:
         rather than ``proxy.py``.
 
         """
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             MappedColorEnum(val=1)  # type: ignore[call-arg]  # deprecated kwarg via callable+args_mapping
         future_warnings = [w for w in caught if issubclass(w.category, FutureWarning)]
         assert future_warnings, "Expected FutureWarning from callable+args_mapping path"
@@ -187,7 +185,7 @@ class TestProxyWarnStream:
         duplicate its side effects (two log lines, two metric increments) and then fail anyway.
         """
         stream = stream_cls()
-        proxy = deprecated_instance({"a": 1}, name="cfg", deprecated_in="1.0", remove_in="2.0", stream=stream)
+        proxy = deprecated_instance({"a": 1}, name="cfg", **_DEPRS_CASE_STD_ARGS, stream=stream)
         with pytest.raises(TypeError):
             _ = proxy["a"]
         assert len(stream.calls) == 1
@@ -199,7 +197,7 @@ class TestProxyWarnStream:
         single call instead of first trying ``stacklevel=`` and retrying after the resulting ``TypeError``.
         """
         stream = MessageOnlyRecordingStream()
-        proxy = deprecated_instance({"a": 1}, name="cfg", deprecated_in="1.0", remove_in="2.0", stream=stream)
+        proxy = deprecated_instance({"a": 1}, name="cfg", **_DEPRS_CASE_STD_ARGS, stream=stream)
         assert proxy["a"] == 1
         assert len(stream.calls) == 1
         assert "cfg" in stream.calls[0]
@@ -219,19 +217,24 @@ class TestProxyTemplateMgs:
             obj={},
             spec=_ProxySpec(
                 name="legacy_obj",
-                deprecated_in="1.0",
-                remove_in="2.0",
+                **_DEPRS_CASE_STD_ARGS,
                 message_template="CUSTOM %(source_name)s deprecated_in=%(deprecated_in)s",
             ),
         )
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             proxy._warn()
         msg = str(caught[0].message)
         assert msg == "CUSTOM legacy_obj deprecated_in=1.0"
 
     def test_custom_template_used_in_warning_message_callable_target(self) -> None:
-        """``message_template`` overrides the callable-target template, exposing target placeholders."""
+        """``message_template`` overrides the callable-target template, exposing target placeholders.
+
+        A library wants its own wording for the notice of a deprecated object that forwards to a replacement
+        callable.  With a custom ``message_template`` using ``%(source_name)s`` and ``%(target_name)s``, the emitted
+        warning text must be built from that template, containing the override text, the old object's name and the
+        replacement's name, instead of the built-in message.
+
+        """
 
         def replacement() -> None:
             """Replacement target used to confirm ``target_path`` substitution."""
@@ -240,14 +243,12 @@ class TestProxyTemplateMgs:
             obj={},
             spec=_ProxySpec(
                 name="legacy_obj",
-                deprecated_in="1.0",
-                remove_in="2.0",
+                **_DEPRS_CASE_STD_ARGS,
                 target=replacement,
                 message_template="OVERRIDE %(source_name)s -> %(target_name)s",
             ),
         )
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             proxy._warn()
         msg = str(caught[0].message)
         assert "OVERRIDE" in msg
@@ -255,19 +256,24 @@ class TestProxyTemplateMgs:
         assert "replacement" in msg
 
     def test_custom_template_used_in_per_argument_warning(self) -> None:
-        """``message_template`` overrides ``TEMPLATE_WARNING_ARGUMENTS`` for per-argument warnings."""
+        """``message_template`` overrides ``TEMPLATE_WARNING_ARGUMENTS`` for per-argument warnings.
+
+        A library renames a constructor keyword and wants its own wording for that notice.  When a per-argument
+        warning is raised for ``old_key`` on a proxy with a custom ``message_template`` using ``%(source_name)s`` and
+        ``%(argument_map)s``, the message must start with the custom text and the object name, and its argument
+        map must show the rename as ``old_key`` to ``new_key``.
+
+        """
         proxy = _DeprecatedProxy(
             obj=lambda **_: None,
             spec=_ProxySpec(
                 name="LegacyConfig",
-                deprecated_in="1.0",
-                remove_in="2.0",
+                **_DEPRS_CASE_STD_ARGS,
                 args_mapping={"old_key": "new_key"},
                 message_template="ARGS-OVERRIDE %(source_name)s :: %(argument_map)s",
             ),
         )
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             proxy._warn(arg_name="old_key")
         msg = str(caught[0].message)
         assert msg.startswith("ARGS-OVERRIDE LegacyConfig :: ")
@@ -275,9 +281,8 @@ class TestProxyTemplateMgs:
 
     def test_default_template_used_when_message_template_is_none(self) -> None:
         """Without ``message_template`` the built-in default template is rendered verbatim."""
-        proxy = _DeprecatedProxy(obj={}, spec=_ProxySpec(name="legacy_obj", deprecated_in="1.0", remove_in="2.0"))
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        proxy = _DeprecatedProxy(obj={}, spec=_ProxySpec(name="legacy_obj", **_DEPRS_CASE_STD_ARGS))
+        with captured_warnings() as caught:
             proxy._warn()
         msg = str(caught[0].message)
         # Default no-target template begins with the built-in prefix and includes both versions.
@@ -290,8 +295,7 @@ class TestProxyTemplateMgs:
             obj={},
             spec=_ProxySpec(
                 name="legacy_obj",
-                deprecated_in="1.0",
-                remove_in="2.0",
+                **_DEPRS_CASE_STD_ARGS,
                 message_template="CUSTOM %(source_name)s",
             ),
         )
@@ -299,15 +303,21 @@ class TestProxyTemplateMgs:
         assert dep.message_template == "CUSTOM %(source_name)s"
 
     def test_deprecated_class_custom_template_applied(self) -> None:
-        """``deprecated_class(message_template=...)`` propagates the override to ``_warn``."""
+        """``deprecated_class(message_template=...)`` propagates the override to ``_warn``.
+
+        A library decorates its old class with ``deprecated_class`` and passes a custom ``message_template``
+        together with a replacement class as the target.  Instantiating the old class must then warn with the
+        custom wording, naming both the old and the new class, which shows that the decorator hands the template on
+        to the proxy rather than dropping it.
+
+        """
 
         class NewCfg:
             """Replacement class used as forwarding target."""
 
         @deprecated_class(
             target=NewCfg,
-            deprecated_in="1.0",
-            remove_in="2.0",
+            **_DEPRS_CASE_STD_ARGS,
             message_template="OVERRIDE %(source_name)s -> %(target_name)s",
         )
         class OldCfg:
@@ -326,8 +336,7 @@ class TestProxyTemplateMgs:
         proxy = deprecated_instance(
             {"k": 1},
             name="legacy_cfg",
-            deprecated_in="1.0",
-            remove_in="2.0",
+            **_DEPRS_CASE_STD_ARGS,
             message_template="OVERRIDE %(source_name)s",
         )
         with pytest.warns(FutureWarning) as caught:
@@ -336,12 +345,19 @@ class TestProxyTemplateMgs:
         assert msg == "OVERRIDE legacy_cfg"
 
     def test_deprecated_class_default_template_when_message_template_omitted(self) -> None:
-        """Without ``message_template`` ``deprecated_class`` keeps the built-in template."""
+        """Without ``message_template`` ``deprecated_class`` keeps the built-in template.
+
+        A library decorates its old class with ``deprecated_class`` and a replacement class but supplies no custom
+        wording.  Instantiating the old class must warn with the library's standard callable-target message, which
+        begins "The `OldCfg2` was deprecated since v1.0 in favor of", so that adding the template option does not
+        change the default notice.
+
+        """
 
         class NewCfg2:
             """Replacement class used as forwarding target."""
 
-        @deprecated_class(target=NewCfg2, deprecated_in="1.0", remove_in="2.0")
+        @deprecated_class(target=NewCfg2, **_DEPRS_CASE_STD_ARGS)
         class OldCfg2:
             """Source class wrapped by the proxy."""
 
@@ -369,7 +385,7 @@ class TestProxyStreamStacklevelProbe:
 
         proxy = _DeprecatedProxy(
             obj=_P8Source,
-            spec=_ProxySpec(target=_P8Target, name="_P8Source", deprecated_in="1.0", remove_in="2.0", stream=stream),
+            spec=_ProxySpec(target=_P8Target, name="_P8Source", **_DEPRS_CASE_STD_ARGS, stream=stream),
         )
         with pytest.raises(TypeError, match="boom from inside the proxy stream"):
             proxy._warn()
@@ -396,13 +412,10 @@ class TestWarnAfterSuccess:
         """
         box = FlakyProtocolBox(fail=True)
         proxy = make_warn_after_success_proxy(box)
-        with warnings.catch_warnings(record=True) as failed:
-            warnings.simplefilter("always")
-            with pytest.raises(RuntimeError, match=f"{operation} failed on purpose"):
-                drive(proxy)
+        with captured_warnings() as failed, pytest.raises(RuntimeError, match=f"{operation} failed on purpose"):
+            drive(proxy)
         box.fail = False
-        with warnings.catch_warnings(record=True) as succeeded:
-            warnings.simplefilter("always")
+        with captured_warnings() as succeeded:
             drive(proxy)
         assert (_future_warning_count(failed), _future_warning_count(succeeded), box.calls[operation]) == (0, 1, 2)
 
@@ -429,8 +442,7 @@ class TestWarnAfterSuccess:
         """
         box = FlakyProtocolBox()
         proxy = make_warn_after_success_proxy(box, as_exception=True, skip_if=True)
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             drive(proxy)
         assert (_future_warning_count(caught), box.calls[operation]) == (0, 1)
 
@@ -441,12 +453,9 @@ class TestWarnAfterSuccess:
         up the one warning the real ``cfg["threshold"]`` read is meant to deliver.
         """
         proxy = make_warn_after_success_proxy({"threshold": 0.5})
-        with warnings.catch_warnings(record=True) as missed:
-            warnings.simplefilter("always")
-            with pytest.raises(KeyError):
-                _ = proxy["missing"]
-        with warnings.catch_warnings(record=True) as found:
-            warnings.simplefilter("always")
+        with captured_warnings() as missed, pytest.raises(KeyError):
+            _ = proxy["missing"]
+        with captured_warnings() as found:
             value = proxy["threshold"]
         assert (_future_warning_count(missed), value, _future_warning_count(found)) == (0, 0.5, 1)
 
@@ -481,8 +490,7 @@ class TestWarnAfterSuccess:
         statement is one use of the deprecated object, so even an unlimited budget must record exactly one warning.
         """
         proxy = make_warn_after_success_proxy(DecliningInplaceOperand(5), num_warns=-1)
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             proxy += 1
         assert (_future_warning_count(caught), proxy.value) == (1, 6)
 
@@ -495,13 +503,10 @@ class TestWarnAfterSuccess:
         host = make_flaky_attr_host()
         alias = make_flaky_attr_alias(host)
         host.fail = True
-        with warnings.catch_warnings(record=True) as failed:
-            warnings.simplefilter("always")
-            with pytest.raises(RuntimeError, match="failed on purpose"):
-                _ = alias.legacy_total
+        with captured_warnings() as failed, pytest.raises(RuntimeError, match="failed on purpose"):
+            _ = alias.legacy_total
         host.fail = False
-        with warnings.catch_warnings(record=True) as succeeded:
-            warnings.simplefilter("always")
+        with captured_warnings() as succeeded:
             value = alias.legacy_total
         assert (_future_warning_count(failed), value, _future_warning_count(succeeded)) == (0, 3, 1)
 
@@ -525,10 +530,8 @@ class TestWarnAfterSuccess:
         """
         box = FlakyProtocolBox(fail=True)
         proxy = make_warn_after_success_proxy(box)
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-            with pytest.raises(RuntimeError, match="__call__ failed on purpose"):
-                proxy()
+        with captured_warnings() as caught, pytest.raises(RuntimeError, match="__call__ failed on purpose"):
+            proxy()
         assert _future_warning_count(caught) == 1
 
 
@@ -559,10 +562,8 @@ class TestNextWarnsBeforeAdvancing:
         even when advancing it fails.
         """
         proxy = make_warn_after_success_proxy(FlakyProtocolBox(fail=True))
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-            with pytest.raises(RuntimeError, match="__next__ failed on purpose"):
-                next(proxy)
+        with captured_warnings() as caught, pytest.raises(RuntimeError, match="__next__ failed on purpose"):
+            next(proxy)
         assert _future_warning_count(caught) == 1
 
     def test_exhausting_next_spends_budget(self) -> None:
@@ -574,13 +575,10 @@ class TestNextWarnsBeforeAdvancing:
         """
         box = FlakyProtocolBox(items=())
         proxy = make_warn_after_success_proxy(box)
-        with warnings.catch_warnings(record=True) as exhausted:
-            warnings.simplefilter("always")
-            with pytest.raises(StopIteration):
-                next(proxy)
+        with captured_warnings() as exhausted, pytest.raises(StopIteration):
+            next(proxy)
         box.items.append(7)
-        with warnings.catch_warnings(record=True) as produced:
-            warnings.simplefilter("always")
+        with captured_warnings() as produced:
             item = next(proxy)
         assert (_future_warning_count(exhausted), item, _future_warning_count(produced)) == (1, 7, 0)
 
@@ -591,10 +589,8 @@ class TestNextWarnsBeforeAdvancing:
         iterator. That unsupported protocol is not a use of the deprecated object, so it must not spend the budget.
         """
         proxy = make_warn_after_success_proxy([1, 2])
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-            with pytest.raises(TypeError, match="is not an iterator"):
-                next(proxy)
+        with captured_warnings() as caught, pytest.raises(TypeError, match="is not an iterator"):
+            next(proxy)
         assert _future_warning_count(caught) == 0
 
 
@@ -625,8 +621,7 @@ class TestSingleSkipDecision:
         """
         condition = CountingSkipCondition(answers=(False, True))
         proxy = make_skip_gated_target_proxy(["legacy"], ["replacement"], condition)
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             value = proxy[0]
         assert (value, _future_warning_count(caught)) == ("replacement", 1)
 
@@ -672,8 +667,7 @@ class TestFailedDeliveryRestoresBudget:
             warnings.simplefilter("error", FutureWarning)
             with pytest.raises(FutureWarning):
                 _drive_enter(proxy)
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             _drive_enter(proxy)
         assert _future_warning_count(caught) == 1
 
@@ -736,8 +730,7 @@ class TestProxyArgumentMap:
             name="MappedDataClass",
             target=NewDataClass,
             args_mapping={"name": ""},
-            deprecated_in="1.0",
-            remove_in="2.0",
+            **_DEPRS_CASE_STD_ARGS,
         )
         proxy = cast(_DeprecatedProxy, MappedDataClass)
         cfg = object.__getattribute__(proxy, "_DeprecatedProxy__config")

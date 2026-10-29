@@ -18,6 +18,7 @@ import sys
 from pathlib import Path
 from types import ModuleType
 from typing import Any, Optional
+from unittest import mock
 
 import pytest
 import yaml
@@ -155,6 +156,7 @@ def _input_named_by(expression: str) -> str:
     return match.group(1)
 
 
+@pytest.mark.subprocess
 class TestActionDemo:
     """End-to-end use of the action as a CI step: gate on findings, or report without blocking."""
 
@@ -211,17 +213,20 @@ class TestActionDemo:
         assert result.returncode == exit_code, result.stdout + result.stderr
         assert "Scanning: " + path in result.stdout
 
-    def test_ambient_environment_does_not_leak_into_the_runner(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    @mock.patch.dict(
+        "os.environ",
+        {
+            "PYDEPRECATE_ACTION_SUBCOMMAND": "not-a-subcommand",
+            "PYDEPRECATE_ACTION_EXIT_ZERO": "maybe",
+            "FORCE_COLOR": "1",
+        },
+    )
+    def test_ambient_environment_does_not_leak_into_the_runner(self, tmp_path: Path) -> None:
         """Inputs and colour switches set in the developer's shell do not change a test run.
 
         A contributor exports ``PYDEPRECATE_ACTION_SUBCOMMAND=status`` or ``FORCE_COLOR=1`` while debugging; the runner
         tests must still see only the inputs they pass and plain, colourless CLI text.
         """
-        monkeypatch.setenv("PYDEPRECATE_ACTION_SUBCOMMAND", "not-a-subcommand")
-        monkeypatch.setenv("PYDEPRECATE_ACTION_EXIT_ZERO", "maybe")
-        monkeypatch.setenv("FORCE_COLOR", "1")
         result = _run_action(tmp_path, subcommand="check", path="tests.collections.chains")
         assert result.returncode == 0, result.stdout + result.stderr
         assert "Scanning: tests.collections.chains" in result.stdout
@@ -241,6 +246,7 @@ class TestActionDemo:
 class TestActionInputs:
     """Input validation and transport from ``action.yml`` inputs to the CLI command line."""
 
+    @pytest.mark.subprocess
     @pytest.mark.parametrize(
         ("inputs", "message"),
         [
@@ -371,6 +377,7 @@ class TestActionInputs:
         with pytest.raises(ValueError, match=re.escape(message)):
             action_runner.read_inputs({"PYDEPRECATE_ACTION_ARGS": f"--version 2.0 {token}"})
 
+    @pytest.mark.subprocess
     @pytest.mark.parametrize("path", ["--help", "-h", "--exit-zero", "--version", "  -h  "])
     def test_rejects_option_like_path(self, tmp_path: Path, path: str) -> None:
         """A ``path`` starting with ``-`` fails the step with exit code 2 instead of reaching the CLI as an option.
@@ -384,6 +391,7 @@ class TestActionInputs:
         assert "::error title=pyDeprecate::input `path` must not start with `-`" in result.stdout
         assert "Scanning:" not in result.stdout
 
+    @pytest.mark.subprocess
     def test_args_keep_quoted_values_together(self, tmp_path: Path) -> None:
         """Shell-style quoting in ``args`` keeps a comma-separated value as one CLI argument.
 
@@ -394,6 +402,7 @@ class TestActionInputs:
         assert result.returncode == 0, result.stdout + result.stderr
         assert "Exclude: a.b, c.* (flag)" in result.stdout
 
+    @pytest.mark.subprocess
     def test_empty_path_scans_src_package(self, tmp_path: Path) -> None:
         """With no ``path`` input the CLI's own discovery picks the single package under ``src/``.
 
@@ -411,6 +420,7 @@ class TestActionInputs:
 class TestActionInstall:
     """The ``install`` step and its report of a pyDeprecate of another version that it replaced."""
 
+    @pytest.mark.subprocess
     def test_reads_version_from_child_metadata(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """The installed version is read from the distribution metadata a fresh child interpreter finds.
 
@@ -500,6 +510,7 @@ class TestActionInstall:
         assert code == 0
         assert "::warning" not in capsys.readouterr().out
 
+    @pytest.mark.subprocess
     @pytest.mark.parametrize(
         ("pip_status", "step_code", "exit_text"),
         [
@@ -532,6 +543,7 @@ class TestActionInstall:
         assert "::stop-commands::" not in out
         assert "Scanning:" not in out
 
+    @pytest.mark.subprocess
     def test_requirement_is_a_file_uri_of_the_action_path(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capfd: pytest.CaptureFixture[str]
     ) -> None:
@@ -552,6 +564,7 @@ class TestActionInstall:
         assert requirement.endswith("/my%20action")
         assert " " not in requirement.split("@ ", 1)[1]
 
+    @pytest.mark.subprocess
     def test_action_path_defaults_to_the_runner_checkout(
         self, monkeypatch: pytest.MonkeyPatch, capfd: pytest.CaptureFixture[str]
     ) -> None:
@@ -572,6 +585,7 @@ class TestActionInstall:
 class TestActionSummary:
     """The opt-in ``summary`` input that appends the gate's own deprecation table to the job summary."""
 
+    @pytest.mark.subprocess
     def test_appends_status_table(self, tmp_path: Path) -> None:
         """``summary: true`` appends a markdown status table after the gate run, without changing its exit code.
 
@@ -584,6 +598,7 @@ class TestActionSummary:
         assert summary.startswith("## pyDeprecate deprecation status")
         assert "| `tests.collections.chains.caller_acc_via_depr_map` |" in summary
 
+    @pytest.mark.subprocess
     @pytest.mark.parametrize(
         ("subcommand", "args"),
         [
@@ -605,6 +620,7 @@ class TestActionSummary:
         assert result.returncode == 0, result.stdout + result.stderr
         assert "| `tests.collections.chains.caller_acc_via_depr_map` |" in summary
 
+    @pytest.mark.subprocess
     @pytest.mark.parametrize("summary", [True, False])
     def test_crashed_scan_fails_with_exit_three(self, tmp_path: Path, summary: bool) -> None:
         """A package that cannot be imported fails the gate with exit 3 and an error naming a scan or internal error.
@@ -623,6 +639,7 @@ class TestActionSummary:
         )
         assert not _summary_path(tmp_path).exists()
 
+    @pytest.mark.subprocess
     def test_unknown_module_is_a_usage_error(self, tmp_path: Path) -> None:
         """A ``path`` naming no existing path and no importable module exits 2, as a typo in the argument.
 
@@ -632,6 +649,7 @@ class TestActionSummary:
         assert result.returncode == 2, result.stdout + result.stderr
         assert "No such path or importable module: 'nonexistent_module_xyz'" in result.stdout + result.stderr
 
+    @pytest.mark.subprocess
     @pytest.mark.parametrize("separator", ["=", " "])
     def test_user_output_is_kept(self, tmp_path: Path, separator: str) -> None:
         """A user ``--output`` in ``args`` is still written, next to the job summary the runner writes.
@@ -648,6 +666,7 @@ class TestActionSummary:
         assert "| `tests.collections.chains.caller_acc_via_depr_map` |" in report.read_text(encoding="utf-8")
         assert "| `tests.collections.chains.caller_acc_via_depr_map` |" in summary
 
+    @pytest.mark.subprocess
     def test_user_report_option_is_rejected(self, tmp_path: Path) -> None:
         """A ``--report-json`` in ``args`` fails the step with exit code 2 instead of being dropped without a word.
 
@@ -669,6 +688,7 @@ class TestActionSummary:
         assert not elsewhere.exists()
         assert not _summary_path(tmp_path).exists()
 
+    @pytest.mark.subprocess
     def test_failing_gate_keeps_exit_code(self, tmp_path: Path) -> None:
         """A failing gate still gets its summary table, and the step keeps the gate's exit code 1.
 
@@ -679,6 +699,7 @@ class TestActionSummary:
         assert result.returncode == 1, result.stdout + result.stderr
         assert summary.startswith("## pyDeprecate deprecation status")
 
+    @pytest.mark.subprocess
     def test_table_is_appended_to_existing_summary_content(self, tmp_path: Path) -> None:
         """The status table is appended after what earlier steps of the job already wrote to the job summary.
 
@@ -693,6 +714,7 @@ class TestActionSummary:
         assert summary.startswith("## Earlier step\n\nunit tests: 42 passed\n")
         assert "## pyDeprecate deprecation status" in summary
 
+    @pytest.mark.subprocess
     @pytest.mark.parametrize(
         ("path", "exit_code"),
         [
@@ -711,6 +733,7 @@ class TestActionSummary:
         assert result.returncode == exit_code, result.stdout + result.stderr
         assert "::warning title=pyDeprecate::could not write the job summary: " in result.stdout
 
+    @pytest.mark.subprocess
     @pytest.mark.parametrize("subcommand", ["check", "status"])
     def test_unwritable_report_keeps_gate_result(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], subcommand: str
@@ -871,6 +894,7 @@ class TestActionSummary:
         assert code == 0
         assert "::warning" not in capsys.readouterr().out
 
+    @pytest.mark.subprocess
     @pytest.mark.parametrize("summary", [True, False])
     def test_unusable_runner_temp_runs_gate_without_report(self, tmp_path: Path, summary: bool) -> None:
         """A scratch directory that cannot be created leaves the gate result alone and warns about the lost report.
@@ -886,6 +910,7 @@ class TestActionSummary:
         assert ("::warning title=pyDeprecate::no pyDeprecate report is available" in result.stdout) is summary
         assert not _summary_path(tmp_path).exists()
 
+    @pytest.mark.subprocess
     def test_leaves_no_file_in_checkout_without_runner_temp(self, tmp_path: Path) -> None:
         """Without ``RUNNER_TEMP`` the report goes to the system temp dir and is removed afterwards.
 
@@ -907,6 +932,7 @@ class TestActionSummary:
         assert list(checkout.iterdir()) == []
         assert list(system_temp.iterdir()) == []
 
+    @pytest.mark.subprocess
     @pytest.mark.parametrize("summary", ["true", "false"])
     def test_removes_its_temporary_directory(self, tmp_path: Path, summary: str) -> None:
         """The scratch directory holding the report is removed from ``RUNNER_TEMP`` once the step ends.
@@ -918,6 +944,7 @@ class TestActionSummary:
         assert result.returncode == 0, result.stdout + result.stderr
         assert list(tmp_path.glob("pydeprecate-*")) == []
 
+    @pytest.mark.subprocess
     def test_skipped_after_usage_error(self, tmp_path: Path) -> None:
         """A CLI usage error (exit 2) writes no summary and no warning about it, since the requested scan never ran.
 
@@ -931,6 +958,7 @@ class TestActionSummary:
         assert not _summary_path(tmp_path).exists()
         assert "::warning" not in result.stdout
 
+    @pytest.mark.subprocess
     def test_warns_without_summary_file(self, tmp_path: Path) -> None:
         """Outside GitHub Actions (no ``GITHUB_STEP_SUMMARY``) the summary is skipped with a warning only.
 
@@ -942,6 +970,7 @@ class TestActionSummary:
         assert result.returncode == 0, result.stdout + result.stderr
         assert "::warning title=pyDeprecate::`summary: true` needs GITHUB_STEP_SUMMARY" in result.stdout
 
+    @pytest.mark.subprocess
     @pytest.mark.parametrize("summary", [True, False])
     def test_cli_without_report_option_still_gates(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], summary: bool
@@ -963,6 +992,7 @@ class TestActionSummary:
         assert "::warning title=pyDeprecate::the installed pyDeprecate predates `--report-json`" in out
         assert ("::warning title=pyDeprecate::no pyDeprecate report is available" in out) is summary
 
+    @pytest.mark.subprocess
     @pytest.mark.parametrize(
         ("program", "supported"),
         [
@@ -981,6 +1011,7 @@ class TestActionSummary:
         monkeypatch.setattr(action_runner, "_REPORT_PROBE", program)
         assert action_runner.report_supported(sys.executable) is supported
 
+    @pytest.mark.subprocess
     def test_probe_finds_report_option_in_checkout(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """The capability probe answers yes for the pyDeprecate of this checkout.
 
@@ -994,6 +1025,7 @@ class TestActionSummary:
 class TestActionOutputSafety:
     """Annotations and workflow-command handling around the scanned package's output."""
 
+    @pytest.mark.subprocess
     def test_unterminated_stdout_keeps_resume_command_separate(self, capfd: pytest.CaptureFixture[str]) -> None:
         """The resume token starts on its own line even after unterminated child output.
 
@@ -1006,6 +1038,7 @@ class TestActionOutputSafety:
         token = _fence_token(output)
         assert output.splitlines()[-3:] == ["partial", f"::{token}::", "::error title=pyDeprecate::later annotation"]
 
+    @pytest.mark.subprocess
     def test_startup_stderr_uses_utf8(self, tmp_path: Path) -> None:
         """Child startup diagnostics retain non-ASCII text before the CLI normalizes its streams.
 
@@ -1029,6 +1062,7 @@ class TestActionOutputSafety:
         assert "startup café sentinel" in result.stderr
         assert "\ufffd" not in result.stderr
 
+    @pytest.mark.subprocess
     def test_cli_output_stays_between_the_fence_tokens(self, tmp_path: Path) -> None:
         """Everything the audited package prints at import time lies between the stop and the resume token.
 
@@ -1064,6 +1098,7 @@ class TestActionOutputSafety:
         assert len(injected) == 3
         assert all(0 < index < resume for index in injected)
 
+    @pytest.mark.subprocess
     def test_fence_token_is_new_in_every_run(self, tmp_path: Path) -> None:
         """Two runs of the step open their fences with different tokens.
 
@@ -1075,6 +1110,7 @@ class TestActionOutputSafety:
         assert first.returncode == second.returncode == 0, first.stdout + second.stdout
         assert _fence_token(first.stdout) != _fence_token(second.stdout)
 
+    @pytest.mark.subprocess
     def test_annotation_of_a_failing_scan_follows_the_resume_token(self, tmp_path: Path) -> None:
         """The error annotation of a failing gate is printed after commands are resumed, so it takes effect.
 
@@ -1110,6 +1146,14 @@ class TestActionOutputSafety:
         token = _fence_token("\n".join(lines))
         assert lines == [f"::stop-commands::{token}", "", f"::{token}::"]
 
+    @mock.patch.dict(
+        "os.environ",
+        {
+            "PYDEPRECATE_ACTION_SUBCOMMAND": "check",
+            "PYDEPRECATE_ACTION_INSTALL": "false",
+            "PYDEPRECATE_ACTION_SUMMARY": "false",
+        },
+    )
     def test_unstartable_cli_is_annotated_after_commands_resume(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
@@ -1120,9 +1164,6 @@ class TestActionOutputSafety:
         commands are stopped, the annotation would be swallowed and the failure would show no reason.
         """
         monkeypatch.setattr(sys, "executable", str(tmp_path / "missing-python"))
-        monkeypatch.setenv("PYDEPRECATE_ACTION_SUBCOMMAND", "check")
-        monkeypatch.setenv("PYDEPRECATE_ACTION_INSTALL", "false")
-        monkeypatch.setenv("PYDEPRECATE_ACTION_SUMMARY", "false")
         code = action_runner.main()
         lines = capsys.readouterr().out.splitlines()
         token = re.fullmatch(r"::stop-commands::([0-9a-f]{32})", lines[0])
@@ -1132,6 +1173,7 @@ class TestActionOutputSafety:
         assert lines[2] == f"::{token.group(1)}::"
         assert lines[3].startswith("::error title=pyDeprecate::could not start the pyDeprecate CLI with ")
 
+    @pytest.mark.subprocess
     def test_warns_when_version_undetected(self, tmp_path: Path) -> None:
         """A package whose version cannot be detected passes ``expiry`` with a warning annotation.
 
@@ -1147,6 +1189,7 @@ class TestActionOutputSafety:
         assert "::warning title=pyDeprecate::version not resolved (1): " in result.stdout
         assert result.stdout.count("::warning") == 1
 
+    @pytest.mark.subprocess
     @pytest.mark.parametrize("broken_modules", [1, 2, 3])
     def test_warns_when_plain_directory_module_fails(self, tmp_path: Path, broken_modules: int) -> None:
         """A plain-directory scan that cannot import some modules passes with one warning counting them all.
@@ -1167,6 +1210,7 @@ class TestActionOutputSafety:
         assert warning in result.stdout
         assert result.stdout.count("::warning") == 1
 
+    @pytest.mark.subprocess
     def test_warns_when_plain_directory_has_nested_files(self, tmp_path: Path) -> None:
         """A plain directory whose nested ``.py`` files are skipped passes with a warning annotation.
 
@@ -1181,6 +1225,7 @@ class TestActionOutputSafety:
         assert result.returncode == 0, result.stdout + result.stderr
         assert "::warning title=pyDeprecate::nested files not audited (1): " in result.stdout
 
+    @pytest.mark.subprocess
     def test_clean_scan_raises_no_gap_warning(self, tmp_path: Path) -> None:
         """A scan that audited everything prints no gap line and raises no warning annotation.
 
@@ -1192,6 +1237,7 @@ class TestActionOutputSafety:
         assert "pydeprecate gap:" not in result.stderr
         assert "::warning" not in result.stdout
 
+    @pytest.mark.subprocess
     def test_gap_line_survives_a_narrow_terminal(self, tmp_path: Path) -> None:
         """A gap message stays on one line however narrow the terminal, so its warning annotation is still raised.
 
@@ -1210,6 +1256,7 @@ class TestActionOutputSafety:
         ) in result.stderr.splitlines()
         assert "::warning title=pyDeprecate::module not audited (1): " in result.stdout
 
+    @pytest.mark.subprocess
     @pytest.mark.parametrize(
         ("subcommand", "args"),
         [
@@ -1268,6 +1315,7 @@ class TestActionOutputSafety:
         assert code == 143
         assert "::error title=pyDeprecate::pydeprecate check exited 143 (killed by SIGTERM)" in capsys.readouterr().out
 
+    @pytest.mark.subprocess
     @pytest.mark.skipif(not hasattr(signal, "SIGKILL"), reason="needs SIGKILL; only POSIX kills processes by signal")
     def test_real_signal_death_maps_to_shell_status(self) -> None:
         """A CLI process really killed by SIGKILL is reported with the shell's status 137.
@@ -1283,6 +1331,7 @@ class TestActionOutputSafety:
         )
         assert action_runner.exit_status(returncode) == (137, "137 (killed by SIGKILL)")
 
+    @pytest.mark.subprocess
     def test_package_output_is_not_counted_as_a_gap(self, tmp_path: Path) -> None:
         """Text the audited package prints itself raises no gap warning, even when it quotes a gap message.
 

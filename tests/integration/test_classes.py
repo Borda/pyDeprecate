@@ -8,6 +8,7 @@ import pytest
 from deprecate import TargetMode, assert_no_warnings, deprecated_class
 from deprecate._types import DeprecationConfig, _DeprecatedCallable
 from deprecate.proxy import _DeprecatedProxy
+from tests._helpers import captured_warnings
 from tests.collections.api_current import NewCls, NewDataClass, NewEnum, NewIntEnum, Palette, SubclassableBase
 from tests.collections.api_deprecated import (
     DecoratedDataClass,
@@ -64,20 +65,6 @@ _DATACLASS_CASES = [
 
 class TestDeprecatedClass:
     """Tests for deprecated classes."""
-
-    @pytest.fixture(autouse=True)
-    def _reset_deprecation_state(self) -> None:
-        """Reset deprecation state for PastCls and PastClsMapped __init__."""
-        cast(_DeprecatedCallable, PastCls.__init__)._state.warned_calls = 0
-        cast(_DeprecatedCallable, PastClsMapped.__init__)._state.warned_calls = 0
-
-    @pytest.fixture(autouse=True)
-    def _reset_this_cls_state(self) -> None:
-        """Reset warning state before each test."""
-        for cls in (ThisCls, LegacyThisCls):
-            state = cast(_DeprecatedCallable, cls.__init__)._state
-            state.warned_calls = 0
-            state.warned_args.clear()
 
     def test_class_forward(self) -> None:
         """Test deprecated class that forwards to another class."""
@@ -221,20 +208,6 @@ class TestDeprecatedDataclasses:
 
 class TestDeprecatedClassMethod:
     """Tests for @deprecated applied to individual class methods (non-__init__)."""
-
-    @pytest.fixture(autouse=True)
-    def _reset_method_state(self) -> None:
-        """Reset warned_calls so each test gets a fresh warning budget."""
-        for method in (
-            ServiceCls.old_warn_method,
-            ServiceCls.old_redirect_method,
-            ServiceCls.old_mapped_method,
-            ServiceCls.self_renamed_method,
-            LegacyServiceCls.old_warn_method,
-            LegacyServiceCls.self_renamed_method,
-        ):
-            state = cast(_DeprecatedCallable, method)._state
-            state.warned_calls = 0
 
     @pytest.mark.parametrize("service_cls", _SERVICE_CLS_CASES)
     def test_warn_only_method_emits_warning(self, service_cls: type) -> None:
@@ -391,8 +364,7 @@ class TestEnumFormEquivalence(_ClassFormBase):
 
     def test_warn_once(self, proxy: _DeprecatedProxy, name: str) -> None:
         """With num_warns=1, two attribute accesses emit exactly one warning."""
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             _ = proxy.ALPHA
             _ = proxy.BETA
         assert len(caught) == 1
@@ -441,8 +413,7 @@ class TestDeprecatedClassWithTargetMode:
         silently rewritten.
 
         """
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             make_class_target_notify_with_args()
 
         misconfig_warns = [w for w in caught if "ignores `args_mapping`" in str(w.message)]
@@ -455,8 +426,7 @@ class TestDeprecatedClassWithTargetMode:
         into — it is a dead knob and must be flagged at decoration time alongside the ignored mapping.
 
         """
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             make_class_target_notify_with_args()
 
         misconfig_warns = [w for w in caught if "ignores `args_extra`" in str(w.message)]
@@ -501,8 +471,7 @@ class TestDeprecatedClassWithTargetMode:
         constructor, exactly as it would for an explicit ``target=TargetMode.ARGS_REMAP`` proxy.
 
         """
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             cls = make_class_omitted_target_with_args()
             instance = cls(old_key=5)
 

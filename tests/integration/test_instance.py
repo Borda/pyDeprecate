@@ -1,12 +1,12 @@
 """Integration tests for deprecated_instance."""
 
-import warnings
 from collections.abc import Callable
 from typing import Any
 
 import pytest
 
 from deprecate import deprecated_instance
+from tests._helpers import captured_warnings
 from tests.collections.api_current import ManagedResource
 from tests.collections.api_deprecated import depr_config_dict, depr_config_dict_read_only
 
@@ -23,8 +23,7 @@ class TestInstanceProxy:
     def test_num_warns_one_warns_once(self) -> None:
         """num_warns=1 emits warning only once."""
         proxy = deprecated_instance([1, 2, 3], name="lst", deprecated_in="1.0", remove_in="2.0", num_warns=1)
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             _ = proxy[0]
             _ = proxy[0]
         assert len(caught) == 1
@@ -32,8 +31,7 @@ class TestInstanceProxy:
     def test_num_warns_infinite(self) -> None:
         """num_warns=-1 emits warning on every access."""
         proxy = deprecated_instance([1, 2], name="lst", deprecated_in="1.0", remove_in="2.0", num_warns=-1)
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             _ = proxy[0]
             _ = proxy[0]
         assert len(caught) == 2

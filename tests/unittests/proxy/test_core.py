@@ -23,6 +23,7 @@ from deprecate.proxy.core import (
     _reconstruct_proxy,
     _restore_pep702_marker,
 )
+from tests._helpers import captured_warnings
 from tests.collections.api_current import (
     ColorEnum,
     DoclessTarget,
@@ -33,7 +34,12 @@ from tests.collections.api_current import (
     _Pep702ProxyTarget,
     base_sum_kwargs,
 )
-from tests.collections.api_deprecated import DeprecatedColorEnum, ast_breadcrumb_source_dict, depr_ast_breadcrumb_dict
+from tests.collections.api_deprecated import (
+    _DEPRS_CASE_STD_ARGS,
+    DeprecatedColorEnum,
+    ast_breadcrumb_source_dict,
+    depr_ast_breadcrumb_dict,
+)
 from tests.collections.api_deprecated_forwarding import pep702_proxy_stacked
 from tests.collections.api_deprecated_regressions import (
     depr_docless_class,
@@ -77,7 +83,7 @@ class TestProxySpec:
 
         Once a caller has described a proxy, later field assignments must fail rather than silently change its spec.
         """
-        spec = _ProxySpec(name="legacy", deprecated_in="1.0", remove_in="2.0")
+        spec = _ProxySpec(name="legacy", **_DEPRS_CASE_STD_ARGS)
         with pytest.raises(FrozenInstanceError):
             setattr(spec, "name", "changed")
         assert spec.name == "legacy"
@@ -129,7 +135,7 @@ class TestProxyReadOnly:
         """_check_read_only raises AttributeError in read_only mode."""
         proxy = _DeprecatedProxy(
             obj={},
-            spec=_ProxySpec(name="d", deprecated_in="1.0", remove_in="2.0", read_only=True),
+            spec=_ProxySpec(name="d", **_DEPRS_CASE_STD_ARGS, read_only=True),
         )
         with pytest.raises(AttributeError, match="read-only"):
             proxy._check_read_only("Test operation")
@@ -138,7 +144,7 @@ class TestProxyReadOnly:
         """_check_read_only does nothing when read_only is False."""
         proxy = _DeprecatedProxy(
             obj={},
-            spec=_ProxySpec(name="d", deprecated_in="1.0", remove_in="2.0", read_only=False),
+            spec=_ProxySpec(name="d", **_DEPRS_CASE_STD_ARGS, read_only=False),
         )
         proxy._check_read_only("Test operation")  # must not raise
 
@@ -155,7 +161,7 @@ class TestProxyReadOnly:
         """All write operations raise AttributeError in read_only mode."""
         proxy = _DeprecatedProxy(
             obj={"k": 1},
-            spec=_ProxySpec(name="d", deprecated_in="1.0", remove_in="2.0", read_only=True, stream=None),
+            spec=_ProxySpec(name="d", **_DEPRS_CASE_STD_ARGS, read_only=True, stream=None),
         )
         with pytest.raises(AttributeError, match="read-only"):
             operation(proxy)
@@ -165,10 +171,9 @@ class TestProxyReadOnly:
         inner = {"k": 1}
         proxy = _DeprecatedProxy(
             obj=inner,
-            spec=_ProxySpec(name="d", deprecated_in="1.0", remove_in="2.0", stream=None),
+            spec=_ProxySpec(name="d", **_DEPRS_CASE_STD_ARGS, stream=None),
         )
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             proxy["k"] = 99
         assert inner["k"] == 99
         assert not caught
@@ -178,14 +183,21 @@ class TestProxyReadOnly:
         inner = {"k": 1, "m": 2}
         proxy = _DeprecatedProxy(
             obj=inner,
-            spec=_ProxySpec(name="d", deprecated_in="1.0", remove_in="2.0", stream=None),
+            spec=_ProxySpec(name="d", **_DEPRS_CASE_STD_ARGS, stream=None),
         )
         del proxy["k"]
         assert "k" not in inner
         assert "m" in inner
 
     def test_custom_mutator_bypasses_read_only_guard(self) -> None:
-        """Custom method names not in the blocked set pass through ``read_only=True`` (known limitation)."""
+        """Custom method names not in the blocked set pass through ``read_only=True`` (known limitation).
+
+        A user wraps a registry object with ``deprecated_instance(..., read_only=True)`` expecting it to be frozen.
+        The guard blocks only well-known mutating operations, so a custom mutator such as ``register`` is not
+        recognized: calling it through the proxy must not raise and must still change the wrapped object.  The test
+        pins this documented limitation, so a change in behaviour is a conscious decision.
+
+        """
 
         class RegistryWithCustomMutator:
             def __init__(self) -> None:
@@ -195,7 +207,7 @@ class TestProxyReadOnly:
                 self.items.append(item)
 
         obj = RegistryWithCustomMutator()
-        proxy = deprecated_instance(obj, deprecated_in="1.0", remove_in="2.0", read_only=True, stream=None)
+        proxy = deprecated_instance(obj, **_DEPRS_CASE_STD_ARGS, read_only=True, stream=None)
         # `register` is not in the blocked set — it must NOT raise
         proxy.register("x")
         assert obj.items == ["x"]
@@ -207,14 +219,14 @@ class TestProxyGetActive:
     def test_returns_obj_when_no_target(self) -> None:
         """Without target, _get_active returns the source object."""
         obj = {"k": 1}
-        proxy = _DeprecatedProxy(obj=obj, spec=_ProxySpec(name="x", deprecated_in="1.0", remove_in="2.0"))
+        proxy = _DeprecatedProxy(obj=obj, spec=_ProxySpec(name="x", **_DEPRS_CASE_STD_ARGS))
         assert proxy._get_active() is obj
 
     def test_returns_target_when_set(self) -> None:
         """With target set, _get_active returns the target."""
         obj = {"k": 1}
         tgt = {"k": 2}
-        proxy = _DeprecatedProxy(obj=obj, spec=_ProxySpec(name="x", deprecated_in="1.0", remove_in="2.0", target=tgt))
+        proxy = _DeprecatedProxy(obj=obj, spec=_ProxySpec(name="x", **_DEPRS_CASE_STD_ARGS, target=tgt))
         assert proxy._get_active() is tgt
 
     def test_writes_mutate_target_when_set(self) -> None:
@@ -223,7 +235,7 @@ class TestProxyGetActive:
         target = {"k": 2}
         proxy = _DeprecatedProxy(
             obj=source,
-            spec=_ProxySpec(name="x", deprecated_in="1.0", remove_in="2.0", target=target, stream=None),
+            spec=_ProxySpec(name="x", **_DEPRS_CASE_STD_ARGS, target=target, stream=None),
         )
         proxy["k"] = 9
         assert source["k"] == 1
@@ -236,9 +248,8 @@ class TestProxyNoWarnMethods:
     def test_repr_no_warn(self) -> None:
         """``__repr__`` delegates to the source without warning."""
         inner = [1, 2, 3]
-        proxy = _DeprecatedProxy(obj=inner, spec=_ProxySpec(name="x", deprecated_in="1.0", remove_in="2.0"))
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        proxy = _DeprecatedProxy(obj=inner, spec=_ProxySpec(name="x", **_DEPRS_CASE_STD_ARGS))
+        with captured_warnings() as caught:
             r = repr(proxy)
         assert r == repr(inner)
         assert not caught
@@ -246,18 +257,16 @@ class TestProxyNoWarnMethods:
     def test_str_no_warn(self) -> None:
         """``__str__`` delegates without warning."""
         inner = {"a": 1}
-        proxy = _DeprecatedProxy(obj=inner, spec=_ProxySpec(name="x", deprecated_in="1.0", remove_in="2.0"))
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        proxy = _DeprecatedProxy(obj=inner, spec=_ProxySpec(name="x", **_DEPRS_CASE_STD_ARGS))
+        with captured_warnings() as caught:
             assert str(proxy) == str(inner)
         assert not caught
 
     def test_bool_no_warn(self) -> None:
         """``__bool__`` delegates without warning."""
-        proxy_t = _DeprecatedProxy(obj=[1], spec=_ProxySpec(name="x", deprecated_in="1.0", remove_in="2.0"))
-        proxy_f = _DeprecatedProxy(obj=[], spec=_ProxySpec(name="x", deprecated_in="1.0", remove_in="2.0"))
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        proxy_t = _DeprecatedProxy(obj=[1], spec=_ProxySpec(name="x", **_DEPRS_CASE_STD_ARGS))
+        proxy_f = _DeprecatedProxy(obj=[], spec=_ProxySpec(name="x", **_DEPRS_CASE_STD_ARGS))
+        with captured_warnings() as caught:
             assert bool(proxy_t)
             assert not bool(proxy_f)
         assert not caught
@@ -266,15 +275,14 @@ class TestProxyNoWarnMethods:
         """``bool(proxy)`` evaluates the active object (target when set), not the original source."""
         proxy = _DeprecatedProxy(
             obj=[1, 2, 3],
-            spec=_ProxySpec(target=[], name="x", deprecated_in="1.0", remove_in="2.0", stream=None),
+            spec=_ProxySpec(target=[], name="x", **_DEPRS_CASE_STD_ARGS, stream=None),
         )
         assert not bool(proxy)
 
     def test_len_no_warn(self) -> None:
         """``__len__`` delegates without warning."""
-        proxy = _DeprecatedProxy(obj=[1, 2, 3], spec=_ProxySpec(name="x", deprecated_in="1.0", remove_in="2.0"))
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        proxy = _DeprecatedProxy(obj=[1, 2, 3], spec=_ProxySpec(name="x", **_DEPRS_CASE_STD_ARGS))
+        with captured_warnings() as caught:
             assert len(proxy) == 3
         assert not caught
 
@@ -282,15 +290,14 @@ class TestProxyNoWarnMethods:
         """__len__ reflects the target when a target is configured."""
         proxy = _DeprecatedProxy(
             obj=[1],
-            spec=_ProxySpec(target=[1, 2, 3], name="x", deprecated_in="1.0", remove_in="2.0", stream=None),
+            spec=_ProxySpec(target=[1, 2, 3], name="x", **_DEPRS_CASE_STD_ARGS, stream=None),
         )
         assert len(proxy) == 3
 
     def test_contains_no_warn(self) -> None:
         """__contains__ delegates without warning."""
-        proxy = _DeprecatedProxy(obj={"k": 1}, spec=_ProxySpec(name="x", deprecated_in="1.0", remove_in="2.0"))
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        proxy = _DeprecatedProxy(obj={"k": 1}, spec=_ProxySpec(name="x", **_DEPRS_CASE_STD_ARGS))
+        with captured_warnings() as caught:
             assert "k" in proxy
             assert "z" not in proxy
         assert not caught
@@ -299,7 +306,7 @@ class TestProxyNoWarnMethods:
         """__contains__ reflects the target when a target is configured."""
         proxy = _DeprecatedProxy(
             obj={"old": 1},
-            spec=_ProxySpec(target={"new": 2}, name="x", deprecated_in="1.0", remove_in="2.0", stream=None),
+            spec=_ProxySpec(target={"new": 2}, name="x", **_DEPRS_CASE_STD_ARGS, stream=None),
         )
         assert "new" in proxy
         assert "old" not in proxy
@@ -307,9 +314,8 @@ class TestProxyNoWarnMethods:
     def test_eq_no_warn(self) -> None:
         """__eq__ does not emit a warning."""
         inner = {"a": 1}
-        proxy = _DeprecatedProxy(obj=inner, spec=_ProxySpec(name="x", deprecated_in="1.0", remove_in="2.0"))
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        proxy = _DeprecatedProxy(obj=inner, spec=_ProxySpec(name="x", **_DEPRS_CASE_STD_ARGS))
+        with captured_warnings() as caught:
             result = proxy == inner
         assert result
         assert not caught
@@ -317,14 +323,14 @@ class TestProxyNoWarnMethods:
     def test_eq_proxy_vs_proxy(self) -> None:
         """Two proxies wrapping equal objects compare equal."""
         inner = {"a": 1}
-        p1 = _DeprecatedProxy(obj=inner, spec=_ProxySpec(name="x", deprecated_in="1.0", remove_in="2.0"))
+        p1 = _DeprecatedProxy(obj=inner, spec=_ProxySpec(name="x", **_DEPRS_CASE_STD_ARGS))
         p2 = _DeprecatedProxy(obj=inner, spec=_ProxySpec(name="y", deprecated_in="2.0", remove_in="3.0"))
         assert p1 == p2
 
     def test_ne(self) -> None:
         """__ne__ is the inverse of __eq__."""
-        p1 = _DeprecatedProxy(obj={"a": 1}, spec=_ProxySpec(name="x", deprecated_in="1.0", remove_in="2.0"))
-        p2 = _DeprecatedProxy(obj={"a": 2}, spec=_ProxySpec(name="x", deprecated_in="1.0", remove_in="2.0"))
+        p1 = _DeprecatedProxy(obj={"a": 1}, spec=_ProxySpec(name="x", **_DEPRS_CASE_STD_ARGS))
+        p2 = _DeprecatedProxy(obj={"a": 2}, spec=_ProxySpec(name="x", **_DEPRS_CASE_STD_ARGS))
         assert p1 != p2
 
     def test_hash_matches_inner(self) -> None:
@@ -332,10 +338,9 @@ class TestProxyNoWarnMethods:
         inner = (1, 2, 3)
         proxy = _DeprecatedProxy(
             obj=inner,
-            spec=_ProxySpec(name="t", deprecated_in="1.0", remove_in="2.0", stream=None),
+            spec=_ProxySpec(name="t", **_DEPRS_CASE_STD_ARGS, stream=None),
         )
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             h = hash(proxy)
         assert h == hash(inner)
         assert not caught
@@ -346,28 +351,28 @@ class TestProxyWarnMethods:
 
     def test_getitem_warns(self) -> None:
         """__getitem__ emits warning."""
-        proxy = _DeprecatedProxy(obj={"k": 99}, spec=_ProxySpec(name="x", deprecated_in="1.0", remove_in="2.0"))
+        proxy = _DeprecatedProxy(obj={"k": 99}, spec=_ProxySpec(name="x", **_DEPRS_CASE_STD_ARGS))
         with pytest.warns(FutureWarning, match=r"The `x` was deprecated since v1\.0"):
             val = proxy["k"]
         assert val == 99
 
     def test_getattr_warns(self) -> None:
         """__getattr__ emits warning."""
-        proxy = _DeprecatedProxy(obj={"k": 1}, spec=_ProxySpec(name="x", deprecated_in="1.0", remove_in="2.0"))
+        proxy = _DeprecatedProxy(obj={"k": 1}, spec=_ProxySpec(name="x", **_DEPRS_CASE_STD_ARGS))
         with pytest.warns(FutureWarning, match=r"The `x` was deprecated since v1\.0"):
             method = proxy.get
         assert callable(method)
 
     def test_iter_warns(self) -> None:
         """__iter__ emits warning and yields all elements of the wrapped iterable."""
-        proxy = _DeprecatedProxy(obj=[10, 20, 30], spec=_ProxySpec(name="x", deprecated_in="1.0", remove_in="2.0"))
+        proxy = _DeprecatedProxy(obj=[10, 20, 30], spec=_ProxySpec(name="x", **_DEPRS_CASE_STD_ARGS))
         with pytest.warns(FutureWarning, match=r"The `x` was deprecated since v1\.0"):
             items = list(proxy)
         assert items == [10, 20, 30]
 
     def test_call_warns_and_invokes(self) -> None:
         """__call__ emits warning and invokes the active object."""
-        proxy = _DeprecatedProxy(obj=lambda x: x * 2, spec=_ProxySpec(name="fn", deprecated_in="1.0", remove_in="2.0"))
+        proxy = _DeprecatedProxy(obj=lambda x: x * 2, spec=_ProxySpec(name="fn", **_DEPRS_CASE_STD_ARGS))
         with pytest.warns(FutureWarning, match=r"The `fn` was deprecated since v1\.0"):
             result = proxy(5)
         assert result == 10
@@ -378,7 +383,7 @@ class TestProxyWarnMethods:
         target = lambda x: x * 3  # noqa: E731
         proxy = _DeprecatedProxy(
             obj=source,
-            spec=_ProxySpec(name="fn", deprecated_in="1.0", remove_in="2.0", target=target, stream=None),
+            spec=_ProxySpec(name="fn", **_DEPRS_CASE_STD_ARGS, target=target, stream=None),
         )
         assert proxy(4) == 12
 
@@ -394,7 +399,7 @@ class TestHashOnUnhashableType:
         """
         proxy = _DeprecatedProxy(
             obj={"k": 1},
-            spec=_ProxySpec(name="d", deprecated_in="1.0", remove_in="2.0", stream=None),
+            spec=_ProxySpec(name="d", **_DEPRS_CASE_STD_ARGS, stream=None),
         )
         with pytest.raises(TypeError):
             hash(proxy)
@@ -409,7 +414,7 @@ class TestTypeProtocol:
         class NewConfig:
             pass
 
-        @deprecated_class(target=NewConfig, deprecated_in="1.0", remove_in="2.0", stream=None)
+        @deprecated_class(target=NewConfig, **_DEPRS_CASE_STD_ARGS, stream=None)
         class OldConfig:
             pass
 
@@ -422,14 +427,21 @@ class TestTypeProtocol:
         class NewConfig:
             pass
 
-        @deprecated_class(target=NewConfig, deprecated_in="1.0", remove_in="2.0", stream=None)
+        @deprecated_class(target=NewConfig, **_DEPRS_CASE_STD_ARGS, stream=None)
         class OldConfig:
             pass
 
         assert not isinstance(42, OldConfig)
 
     def test_isinstance_no_warning_emitted(self) -> None:
-        """``isinstance(x, proxy)`` is a structural check — must not consume the warning budget."""
+        """``isinstance(x, proxy)`` is a structural check — must not consume the warning budget.
+
+        Code written before a class was deprecated keeps type-checking against its old name.  Such an
+        ``isinstance`` check is not a use of the deprecated class, so it must stay silent and leave the single-warning
+        budget (``num_warns=1``) untouched: the first real call of the proxy afterwards still emits the
+        ``FutureWarning``.
+
+        """
 
         class Target:
             pass
@@ -440,8 +452,7 @@ class TestTypeProtocol:
         )
         obj = Target()
 
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             isinstance(obj, cast(Any, proxy))
 
         assert not caught  # no warning from isinstance
@@ -457,14 +468,21 @@ class TestTypeProtocol:
         class Sub(Base):
             pass
 
-        @deprecated_class(target=Base, deprecated_in="1.0", remove_in="2.0", stream=None)
+        @deprecated_class(target=Base, **_DEPRS_CASE_STD_ARGS, stream=None)
         class OldBase:
             pass
 
         assert issubclass(Sub, OldBase)
 
     def test_issubclass_respects_metaclass_semantics(self) -> None:
-        """Issubclass uses the target metaclass logic (including virtual subclasses)."""
+        """Issubclass uses the target metaclass logic (including virtual subclasses).
+
+        A library deprecates an abstract base class whose users registered classes as virtual subclasses through
+        ``ABCMeta.register``.  Code that still asks ``issubclass(VirtualSubclass, OldAbstractBase)`` must get the
+        answer the target's metaclass gives (``True``), as if the old name were the target itself, so the proxy does
+        not break ABC-based type checks during migration.
+
+        """
 
         class AbstractBase(metaclass=abc.ABCMeta):
             pass
@@ -474,14 +492,20 @@ class TestTypeProtocol:
 
         AbstractBase.register(VirtualSubclass)
 
-        @deprecated_class(target=AbstractBase, deprecated_in="1.0", remove_in="2.0", stream=None)
+        @deprecated_class(target=AbstractBase, **_DEPRS_CASE_STD_ARGS, stream=None)
         class OldAbstractBase:
             pass
 
         assert issubclass(VirtualSubclass, OldAbstractBase)
 
     def test_issubclass_no_warning_emitted(self) -> None:
-        """``issubclass(Sub, proxy)`` is structural and must not consume warning budget."""
+        """``issubclass(Sub, proxy)`` is structural and must not consume warning budget.
+
+        Code written before a class was deprecated keeps checking subclass relationships against its old name.
+        Such an ``issubclass`` check is not a use of the deprecated class, so it must stay silent and leave the
+        warning budget untouched: the first real call of the proxy afterwards still emits the ``FutureWarning``.
+
+        """
 
         class Base:
             pass
@@ -489,9 +513,8 @@ class TestTypeProtocol:
         class Sub(Base):
             pass
 
-        proxy = _DeprecatedProxy(obj=Base, spec=_ProxySpec(name="old_cls", deprecated_in="1.0", remove_in="2.0"))
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        proxy = _DeprecatedProxy(obj=Base, spec=_ProxySpec(name="old_cls", **_DEPRS_CASE_STD_ARGS))
+        with captured_warnings() as caught:
             issubclass(Sub, cast(Any, proxy))
         assert not caught
         with pytest.warns(FutureWarning):
@@ -506,7 +529,7 @@ class TestTypeProtocol:
         """
         proxy = _DeprecatedProxy(
             obj={"key": "val"},
-            spec=_ProxySpec(name="old_cfg", deprecated_in="1.0", remove_in="2.0"),
+            spec=_ProxySpec(name="old_cfg", **_DEPRS_CASE_STD_ARGS),
         )
         with pytest.raises(TypeError, match="arg 2 must be a type"):
             isinstance(42, cast(Any, proxy))
@@ -699,9 +722,8 @@ class TestProxyIntrospectionProbes:
         The failed probe must stay silent: the attribute is resolved first and the warning fires
         only on successful access.
         """
-        proxy = deprecated_instance({"k": 1}, name="cfg", deprecated_in="1.0", remove_in="2.0")
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        proxy = deprecated_instance({"k": 1}, name="cfg", **_DEPRS_CASE_STD_ARGS)
+        with captured_warnings() as caught:
             assert not hasattr(proxy, "missing_attr")
         assert not caught
 
@@ -725,8 +747,7 @@ class TestProxyIntrospectionProbes:
         Dunder reads are machinery, never a user migrating code — they must neither warn nor
         consume the budget, mirroring the ``__instancecheck__`` "structural check" rationale.
         """
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             _ = DeprecatedColorEnum.__mro__
         assert not caught
 
@@ -737,8 +758,7 @@ class TestProxyIntrospectionProbes:
         original proxy after a deepcopy must still emit the warning.
         """
         proxy = deprecated_instance({"k": 1}, name="cfg", deprecated_in="1.0", remove_in="2.0", num_warns=1)
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             copy.deepcopy(proxy)
         assert not caught
         with pytest.warns(FutureWarning, match=r"The `cfg` was deprecated since v1\.0"):
@@ -755,26 +775,26 @@ class TestProxyClassProperty:
 
     def test_isinstance_of_wrapped_builtin_type(self) -> None:
         """Consumer code calls ``isinstance(cfg, dict)`` on a deprecated config dict."""
-        proxy = deprecated_instance({"k": 1}, name="cfg", deprecated_in="1.0", remove_in="2.0", stream=None)
+        proxy = deprecated_instance({"k": 1}, name="cfg", **_DEPRS_CASE_STD_ARGS, stream=None)
         assert isinstance(proxy, dict)
 
     def test_isinstance_against_abc(self) -> None:
         """Consumer code checks the deprecated config against ``collections.abc.Mapping``."""
-        proxy = deprecated_instance({"k": 1}, name="cfg", deprecated_in="1.0", remove_in="2.0", stream=None)
+        proxy = deprecated_instance({"k": 1}, name="cfg", **_DEPRS_CASE_STD_ARGS, stream=None)
         assert isinstance(proxy, Mapping)
 
     def test_isinstance_uses_target_when_set(self) -> None:
         """With a target configured, ``__class__`` reflects the active (target) object's type."""
         proxy = _DeprecatedProxy(
             obj=[1],
-            spec=_ProxySpec(target={"a": 1}, name="x", deprecated_in="1.0", remove_in="2.0", stream=None),
+            spec=_ProxySpec(target={"a": 1}, name="x", **_DEPRS_CASE_STD_ARGS, stream=None),
         )
         assert isinstance(proxy, dict)
         assert not isinstance(proxy, list)
 
     def test_isinstance_walks_stacked_proxies(self) -> None:
         """A proxy stacked over another proxy resolves ``__class__`` to the innermost object."""
-        inner = deprecated_instance({"k": 1}, name="inner", deprecated_in="1.0", remove_in="2.0", stream=None)
+        inner = deprecated_instance({"k": 1}, name="inner", **_DEPRS_CASE_STD_ARGS, stream=None)
         outer = deprecated_instance(inner, name="outer", deprecated_in="1.1", remove_in="2.0", stream=None)
         assert isinstance(outer, dict)
 
@@ -791,15 +811,14 @@ class TestProxyClassProperty:
 
     def test_type_still_reveals_proxy(self) -> None:
         """``type(proxy)`` keeps returning the proxy class for code that needs the truth."""
-        proxy = deprecated_instance({"k": 1}, name="cfg", deprecated_in="1.0", remove_in="2.0", stream=None)
+        proxy = deprecated_instance({"k": 1}, name="cfg", **_DEPRS_CASE_STD_ARGS, stream=None)
         assert type(proxy) is _DeprecatedProxy
         assert isinstance(proxy, _DeprecatedProxy)
 
     def test_isinstance_does_not_warn(self) -> None:
         """``isinstance(proxy, dict)`` is structural — no warning, budget untouched."""
         proxy = deprecated_instance({"k": 1}, name="cfg", deprecated_in="1.0", remove_in="2.0", num_warns=1)
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             isinstance(proxy, dict)
         assert not caught
         with pytest.warns(FutureWarning, match=r"The `cfg` was deprecated since v1\.0"):
@@ -821,7 +840,7 @@ class TestProxyCopyPickle:
         The copy must be a proxy again (the deprecation travels with the object) and must wrap
         an independent shallow copy — mutating the copy must not touch the original config.
         """
-        proxy = deprecated_instance({"threshold": 0.5}, name="cfg", deprecated_in="1.0", remove_in="2.0", stream=None)
+        proxy = deprecated_instance({"threshold": 0.5}, name="cfg", **_DEPRS_CASE_STD_ARGS, stream=None)
         dup = copy.copy(proxy)
         assert type(dup) is _DeprecatedProxy
         assert dup["threshold"] == 0.5
@@ -834,9 +853,7 @@ class TestProxyCopyPickle:
         ``deepcopy`` of the proxy must deep-copy the wrapped object so nested containers are
         fully independent of the original.
         """
-        proxy = deprecated_instance(
-            {"limits": {"low": 1}}, name="cfg", deprecated_in="1.0", remove_in="2.0", stream=None
-        )
+        proxy = deprecated_instance({"limits": {"low": 1}}, name="cfg", **_DEPRS_CASE_STD_ARGS, stream=None)
         dup = copy.deepcopy(proxy)
         assert type(dup) is _DeprecatedProxy
         dup["limits"]["low"] = 99
@@ -848,7 +865,7 @@ class TestProxyCopyPickle:
         Applications commonly copy configuration-like proxies before mutation; the duplicate must remain visible to
         audit tooling with the same name and lifecycle versions.
         """
-        proxy = deprecated_instance({"k": 1}, name="cfg", deprecated_in="1.0", remove_in="2.0", stream=None)
+        proxy = deprecated_instance({"k": 1}, name="cfg", **_DEPRS_CASE_STD_ARGS, stream=None)
         dup = copy.copy(proxy)
         meta = object.__getattribute__(dup, "__deprecation_config__")
         assert meta.name == "cfg"
@@ -861,7 +878,7 @@ class TestProxyCopyPickle:
         The unpickled object must be a proxy again with intact metadata and default warning
         stream — the first real access on the restored proxy still emits ``FutureWarning``.
         """
-        proxy = deprecated_instance({"k": 41}, name="cfg", deprecated_in="1.0", remove_in="2.0")
+        proxy = deprecated_instance({"k": 41}, name="cfg", **_DEPRS_CASE_STD_ARGS)
 
         restored = pickle.loads(pickle.dumps(proxy))  # noqa: S301
         assert type(restored) is _DeprecatedProxy
@@ -877,7 +894,8 @@ class TestProxyCopyPickle:
         """
         dup = copy.deepcopy(DeprecatedColorEnum)
         assert type(dup) is _DeprecatedProxy
-        assert dup.RED is ColorEnum.RED
+        with pytest.warns(FutureWarning, match="`DeprecatedColorEnum` was deprecated"):
+            assert dup.RED is ColorEnum.RED
 
     def test_uninitialised_instance_raises_attribute_error(self) -> None:
         """Copy/pickle machinery creates instances via ``cls.__new__(cls)`` with no config set.
@@ -912,7 +930,7 @@ class TestProxyCopyPickle:
         closures are not picklable by the standard pickle protocol.  This test documents the
         known limitation so future changes do not silently regress it.
         """
-        proxy = deprecated_instance({"k": 1}, name="cfg", deprecated_in="1.0", remove_in="2.0", stream=lambda msg: None)
+        proxy = deprecated_instance({"k": 1}, name="cfg", **_DEPRS_CASE_STD_ARGS, stream=lambda msg: None)
         with pytest.raises((AttributeError, pickle.PicklingError)):
             pickle.dumps(proxy)
 
@@ -937,9 +955,7 @@ class TestProxyCopyPickle:
         ``DeprecationProxy`` protocol — the "every proxy carries ``__wrapped__``" contract would hold only until
         somebody copied one.
         """
-        proxy = deprecated_instance(
-            base_sum_kwargs, name="legacy_sum", deprecated_in="1.0", remove_in="2.0", stream=None
-        )
+        proxy = deprecated_instance(base_sum_kwargs, name="legacy_sum", **_DEPRS_CASE_STD_ARGS, stream=None)
 
         dup = copy.copy(proxy)
 
@@ -954,9 +970,7 @@ class TestProxyCopyPickle:
         proxy would describe an object the copy does not actually serve — mutating the copy would leave
         ``inspect.unwrap`` reporting stale state. The breadcrumb must track the object the copy forwards to.
         """
-        proxy = deprecated_instance(
-            {"limits": {"low": 1}}, name="cfg", deprecated_in="1.0", remove_in="2.0", stream=None
-        )
+        proxy = deprecated_instance({"limits": {"low": 1}}, name="cfg", **_DEPRS_CASE_STD_ARGS, stream=None)
 
         dup = copy.deepcopy(proxy)
 
@@ -986,9 +1000,7 @@ class TestProxyCopyPickle:
         signature is recomputed from the restored source instead of travelling through the pickle stream,
         which keeps ``Signature`` objects out of the payload entirely.
         """
-        proxy = deprecated_instance(
-            base_sum_kwargs, name="legacy_sum", deprecated_in="1.0", remove_in="2.0", stream=None
-        )
+        proxy = deprecated_instance(base_sum_kwargs, name="legacy_sum", **_DEPRS_CASE_STD_ARGS, stream=None)
 
         restored = pickle.loads(pickle.dumps(proxy))  # noqa: S301
 
@@ -1005,7 +1017,7 @@ class TestProxySubclassing:
         During a migration window a public base class is renamed and wrapped in ``deprecated_class``; existing
         downstream ``class Child(OldName): ...`` definitions must keep resolving to a real, usable base class.
         """
-        alias = deprecated_class(deprecated_in="1.0", remove_in="2.0", stream=None)(SubclassableBase)
+        alias = deprecated_class(**_DEPRS_CASE_STD_ARGS, stream=None)(SubclassableBase)
 
         class Child(alias):  # type: ignore[misc,valid-type]
             """Subclass built off the deprecated alias."""
@@ -1014,7 +1026,7 @@ class TestProxySubclassing:
 
     def test_subclassing_warns_once(self) -> None:
         """Subclassing a deprecated alias is a use of the deprecated name and emits one deprecation warning."""
-        alias = deprecated_class(deprecated_in="1.0", remove_in="2.0")(SubclassableBase)
+        alias = deprecated_class(**_DEPRS_CASE_STD_ARGS)(SubclassableBase)
         with pytest.warns(FutureWarning, match=r"The `SubclassableBase` was deprecated since v1\.0"):
 
             class Child(alias):  # type: ignore[misc,valid-type]
@@ -1028,9 +1040,8 @@ class TestProxySubclassing:
         Mirrors the ``__call__`` policy: when only specific attribute aliases are deprecated, deriving a new
         class from the alias is not a deprecated surface and must not brand the whole class deprecated.
         """
-        alias = deprecated_class(attrs_mapping={"marker": None}, deprecated_in="1.0", remove_in="2.0")(SubclassableBase)
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        alias = deprecated_class(attrs_mapping={"marker": None}, **_DEPRS_CASE_STD_ARGS)(SubclassableBase)
+        with captured_warnings() as caught:
 
             class Child(alias):  # type: ignore[misc,valid-type]
                 """Subclass whose creation must stay silent under ATTRS_REMAP."""
@@ -1045,11 +1056,8 @@ class TestProxySubclassing:
         deprecation to a specific axis (argument names or attribute names) rather than the class name
         itself, so deriving a new class from the alias must not fire any deprecation warning.
         """
-        alias = deprecated_class(args_mapping={"old_arg": "new_arg"}, deprecated_in="1.0", remove_in="2.0")(
-            SubclassableBase
-        )
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        alias = deprecated_class(args_mapping={"old_arg": "new_arg"}, **_DEPRS_CASE_STD_ARGS)(SubclassableBase)
+        with captured_warnings() as caught:
 
             class Child(alias):  # type: ignore[misc,valid-type]
                 """Subclass whose creation must stay silent under ARGS_REMAP."""
@@ -1069,7 +1077,7 @@ class TestProxyIdentityUsesActive:
         """
         proxy = _DeprecatedProxy(
             obj=_P8Source,
-            spec=_ProxySpec(target=_P8Target, name="_P8Source", deprecated_in="1.0", remove_in="2.0"),
+            spec=_ProxySpec(target=_P8Target, name="_P8Source", **_DEPRS_CASE_STD_ARGS),
         )
         assert proxy == _P8Target
         assert proxy != _P8Source
@@ -1078,7 +1086,7 @@ class TestProxyIdentityUsesActive:
         """``repr`` of a target-forwarding proxy shows the active object rather than the deprecated source."""
         proxy = _DeprecatedProxy(
             obj=_P8Source,
-            spec=_ProxySpec(target=_P8Target, name="_P8Source", deprecated_in="1.0", remove_in="2.0"),
+            spec=_ProxySpec(target=_P8Target, name="_P8Source", **_DEPRS_CASE_STD_ARGS),
         )
         assert repr(proxy) == repr(_P8Target)
 
@@ -1090,7 +1098,7 @@ class TestProxySubclassCheckTypeError:
         """Using an instance proxy as ``issubclass`` arg 2 raises TypeError instead of silently returning False."""
         proxy = _DeprecatedProxy(
             obj={"key": "val"},
-            spec=_ProxySpec(name="old_cfg", deprecated_in="1.0", remove_in="2.0"),
+            spec=_ProxySpec(name="old_cfg", **_DEPRS_CASE_STD_ARGS),
         )
         with pytest.raises(TypeError, match="arg 2 must be a class"):
             issubclass(int, cast(Any, proxy))

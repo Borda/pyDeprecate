@@ -23,8 +23,10 @@ from deprecate.messaging import (
 )
 from deprecate.proxy import deprecated_class, deprecated_instance
 from deprecate.proxy.core import _DeprecatedProxy
+from tests._helpers import captured_warnings
 from tests.collections.api_current import ColorEnum, NewDataClass, Palette
 from tests.collections.api_deprecated import (
+    _DEPRS_CASE_STD_ARGS,
     DeprecatedColorDataClass,
     DeprecatedColorEnum,
     DeprecatedColorEnumFunctional,
@@ -89,7 +91,7 @@ class TestDecoratorFactory:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UserWarning)
 
-            @deprecated_class(deprecated_in="1.0", remove_in="2.0")
+            @deprecated_class(**_DEPRS_CASE_STD_ARGS)
             class BareDefaultTargetClass:
                 """Plain class deprecated with no explicit target — proves the factory default."""
 
@@ -116,10 +118,17 @@ class TestDecoratorFactory:
     def test_boolean_target_is_normalized_and_class_access_still_works(
         self, raw_target: bool, warning_category: type[Warning], warning_message: str
     ) -> None:
-        """Legacy boolean targets are normalized before proxy metadata and access use them."""
+        """Legacy boolean targets are normalized before proxy metadata and access use them.
+
+        Older code passed ``target=True`` or ``target=False`` to ``deprecated_class``.  Decorating a class that way
+        must emit exactly one warning with the documented text (a ``FutureWarning`` for ``True`` and a
+        ``UserWarning`` for ``False``), the stored configuration must hold ``target=None`` instead of the boolean,
+        and the class must remain usable: it can still be instantiated and its methods called.
+
+        """
         with pytest.warns(warning_category) as caught:
 
-            @deprecated_class(target=raw_target, deprecated_in="1.0", remove_in="2.0", stream=None)
+            @deprecated_class(target=raw_target, **_DEPRS_CASE_STD_ARGS, stream=None)
             class OldClass:
                 def method(self) -> str:
                     return "ok"
@@ -137,9 +146,7 @@ class TestDecoratorFactory:
         """``target=True`` + non-empty args_mapping resolves to ARGS_REMAP with FutureWarning."""
         with pytest.warns(FutureWarning, match="TargetMode.ARGS_REMAP") as caught:
 
-            @deprecated_class(
-                target=True, deprecated_in="1.0", remove_in="2.0", args_mapping={"old_attr": "new_attr"}, stream=None
-            )
+            @deprecated_class(target=True, **_DEPRS_CASE_STD_ARGS, args_mapping={"old_attr": "new_attr"}, stream=None)
             class OldClass:
                 def method(self) -> str:
                     return "ok"
@@ -231,8 +238,7 @@ class TestEmptyVersionGuard:
 
     def test_deprecated_class_empty_versions_stream_none_silent(self) -> None:
         """``@deprecated_class(stream=None)`` suppresses the empty-versions UserWarning."""
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
 
             @deprecated_class(stream=None)
             class OldEmptyVersionsSilent:
@@ -249,8 +255,7 @@ class TestEmptyVersionGuard:
 
     def test_deprecated_instance_empty_versions_stream_none_silent(self) -> None:
         """``deprecated_instance(stream=None)`` suppresses the empty-versions UserWarning."""
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             deprecated_instance({"k": 1}, stream=None)
         assert not caught
 
@@ -260,24 +265,24 @@ class TestDeprecatedInstance:
 
     def test_returns_deprecated_proxy(self) -> None:
         """deprecated_instance always returns a _DeprecatedProxy instance."""
-        proxy = deprecated_instance({}, deprecated_in="1.0", remove_in="2.0", stream=None)
+        proxy = deprecated_instance({}, **_DEPRS_CASE_STD_ARGS, stream=None)
         assert isinstance(proxy, _DeprecatedProxy)
 
     def test_name_auto_inferred_from_type(self) -> None:
         """Without name=, proxy name defaults to type(obj).__name__."""
-        proxy = deprecated_instance({"k": 1}, deprecated_in="1.0", remove_in="2.0", stream=None)
+        proxy = deprecated_instance({"k": 1}, **_DEPRS_CASE_STD_ARGS, stream=None)
         dep = object.__getattribute__(proxy, "__deprecation_config__")
         assert dep.name == "dict"
 
     def test_name_auto_inferred_for_list(self) -> None:
         """Type name inference works for any built-in type."""
-        proxy = deprecated_instance([1, 2], deprecated_in="1.0", remove_in="2.0", stream=None)
+        proxy = deprecated_instance([1, 2], **_DEPRS_CASE_STD_ARGS, stream=None)
         dep = object.__getattribute__(proxy, "__deprecation_config__")
         assert dep.name == "list"
 
     def test_name_explicitly_set(self) -> None:
         """Explicit name= overrides the type-based inference."""
-        proxy = deprecated_instance({}, name="my_config", deprecated_in="1.0", remove_in="2.0", stream=None)
+        proxy = deprecated_instance({}, name="my_config", **_DEPRS_CASE_STD_ARGS, stream=None)
         dep = object.__getattribute__(proxy, "__deprecation_config__")
         assert dep.name == "my_config"
 
@@ -295,18 +300,16 @@ class TestDeprecatedInstance:
         deprecated_instance() defaults to num_warns=1.
 
         """
-        proxy = deprecated_instance({"k": 1}, deprecated_in="1.0", remove_in="2.0")
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        proxy = deprecated_instance({"k": 1}, **_DEPRS_CASE_STD_ARGS)
+        with captured_warnings() as caught:
             _ = proxy["k"]
             _ = proxy["k"]
         assert len(caught) == 1
 
     def test_stream_none_suppresses_on_item_access(self) -> None:
         """``stream=None`` suppresses warnings even when items are accessed via __getitem__."""
-        proxy = deprecated_instance({"k": "v"}, name="x", deprecated_in="1.0", remove_in="2.0", stream=None)
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        proxy = deprecated_instance({"k": "v"}, name="x", **_DEPRS_CASE_STD_ARGS, stream=None)
+        with captured_warnings() as caught:
             _ = proxy["k"]
         assert not caught
 

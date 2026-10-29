@@ -19,6 +19,7 @@ from deprecate._validate import (
     _validate_callable_mode,
     _warn_stacking_misconfiguration,
 )
+from tests._helpers import captured_warnings
 from tests.collections.api_current import (
     double_value,
     positional_only_target,
@@ -319,8 +320,7 @@ class TestStackingGuards:
         inner = self._make_source(
             target=TargetMode.ARGS_REMAP, deprecated_in="1.0", remove_in="2.0", args_mapping={"x": "y"}
         )
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             deprecated(target=TargetMode.ARGS_REMAP, deprecated_in="2.0", remove_in="3.0", args_mapping={"y": "z"})(
                 inner
             )
@@ -336,8 +336,7 @@ class TestStackingGuards:
         fn = self._make_source(
             target=TargetMode.ARGS_REMAP, deprecated_in="1.0", remove_in="2.0", args_mapping={"old": "x"}
         )
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             fn(x=5)
         assert not [w for w in caught if issubclass(w.category, FutureWarning)]
 

@@ -10,6 +10,8 @@ from typing import Optional
 
 import pytest
 
+from tests._helpers import write_pkg
+
 _SRC_DIR = str(Path(__file__).resolve().parent.parent.parent / "src")
 _PACKAGING_AVAILABLE = importlib.util.find_spec("packaging") is not None
 _MYPKG_INIT = """\
@@ -91,10 +93,7 @@ def _cli_env(**extra: str) -> dict[str, str]:
 
 def _make_pkg(tmp_path: Path, name: str = "mypkg", content: str = _MYPKG_INIT) -> Path:
     """Create a minimal importable package with one deprecated wrapper."""
-    pkg = tmp_path / name
-    pkg.mkdir()
-    (pkg / "__init__.py").write_text(content)
-    return pkg
+    return write_pkg(tmp_path, name, content)
 
 
 def _run_cli(
@@ -118,6 +117,7 @@ def _run_cli(
     )
 
 
+@pytest.mark.subprocess
 class TestCliInvocation:
     """Tests for real CLI invocations via subprocess."""
 
@@ -264,15 +264,37 @@ class TestCliInvocation:
         assert "old_fn: `TargetMode.NOTIFY` with `args_mapping`" in result.stdout
 
 
+@pytest.mark.subprocess
 class TestCliSubcommands:
     """Integration tests for the four CLI subcommands via subprocess."""
 
-    def test_check_subcommand_explicit(self, tmp_path: Path) -> None:
-        """'pydeprecate check <path>' scans and exits 0 for a clean package."""
+    @pytest.mark.parametrize(
+        ("subcommand", "expected_output"),
+        [
+            pytest.param("check", "Scanning:", id="check"),
+            pytest.param("chains", "No deprecation chains", id="chains"),
+            pytest.param(
+                "policy",
+                "No deprecation policy violations",
+                id="policy",
+                marks=pytest.mark.skipif(
+                    not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')"
+                ),
+            ),
+        ],
+    )
+    def test_clean_package_exits_zero(self, tmp_path: Path, subcommand: str, expected_output: str) -> None:
+        """``pydeprecate <subcommand> <path>`` exits 0 and says so for a package with nothing to report.
+
+        The fixture package deprecates in `1.0` with a forwarding target and schedules removal at the `9.0`
+        major — the disciplined shape the default rules are written to wave through without any flags. ``check``
+        reports what it scanned, ``chains`` finds no chain and ``policy`` finds no violation.
+
+        """
         pkg = _make_pkg(tmp_path)
-        result = _run_cli("check", str(pkg), cwd=tmp_path)
+        result = _run_cli(subcommand, str(pkg), cwd=tmp_path)
         assert result.returncode == 0
-        assert "Scanning:" in result.stdout
+        assert expected_output in result.stdout
 
     @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
     def test_expiry_subcommand_no_expired(self, tmp_path: Path) -> None:
@@ -421,13 +443,6 @@ class TestCliSubcommands:
         assert "Version: 0.10 (user-provided)" in result.stdout, result.stdout + result.stderr
         assert "1 expired wrapper(s) found." in result.stdout, result.stdout + result.stderr
 
-    def test_chains_subcommand_no_chains(self, tmp_path: Path) -> None:
-        """'pydeprecate chains <path>' exits 0 for a package with no deprecation chains."""
-        pkg = _make_pkg(tmp_path)
-        result = _run_cli("chains", str(pkg), cwd=tmp_path)
-        assert result.returncode == 0
-        assert "No deprecation chains" in result.stdout
-
     @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
     def test_all_subcommand_clean(self, tmp_path: Path) -> None:
         """'pydeprecate all <path> --version 1.0' exits 0 when all checks pass."""
@@ -508,18 +523,6 @@ class TestCliSubcommands:
         combined = result.stdout + result.stderr
         for name in ("check", "expiry", "policy", "chains", "all", "status"):
             assert name in combined, f"subcommand '{name}' missing from --help output"
-
-    @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
-    def test_policy_subcommand_clean_package(self, tmp_path: Path) -> None:
-        """'pydeprecate policy <path>' exits 0 for a package whose wrapper respects the default policy.
-
-        The fixture package deprecates in `1.0` with a forwarding target and schedules removal at the `9.0`
-        major — the disciplined shape the default rules are written to wave through without any flags.
-        """
-        pkg = _make_pkg(tmp_path)
-        result = _run_cli("policy", str(pkg), cwd=tmp_path)
-        assert result.returncode == 0
-        assert "No deprecation policy violations" in result.stdout
 
     @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
     def test_policy_subcommand_reports_violation(self, tmp_path: Path) -> None:
@@ -724,6 +727,7 @@ class TestCliSubcommands:
         assert result.returncode == 0
 
 
+@pytest.mark.subprocess
 class TestCliPreCommitArgs:
     """Tests for argument orders a pre-commit hook produces (``entry`` + ``args``, no filenames)."""
 
@@ -834,6 +838,7 @@ _PARITY_SUBCOMMANDS = [
 ]
 
 
+@pytest.mark.subprocess
 class TestCliParserParity:
     """Golden command lines every subcommand keeps across a change of the argument parser."""
 
@@ -920,6 +925,7 @@ class TestCliParserParity:
         assert report.is_file()
 
 
+@pytest.mark.subprocess
 class TestCliArgumentValidation:
     """Unknown or misspelled flags and version auto-detection must fail safe, never silently mislead."""
 
@@ -970,6 +976,7 @@ class TestCliArgumentValidation:
         assert result.returncode == 0
 
 
+@pytest.mark.subprocess
 class TestCliBoolLiteralValues:
     """Boolean flags take ``True``/``False``/``1``/``0`` in any case, as a separate token or after ``=``."""
 
@@ -1012,6 +1019,7 @@ def _make_flat_root(tmp_path: Path, *package_names: str) -> Path:
     return tmp_path
 
 
+@pytest.mark.subprocess
 class TestCliPackageRootScan:
     """A no-path scan from a project root resolves one package, and never silently audits nothing."""
 
@@ -1104,6 +1112,7 @@ _MEMBER_GATES = [
 ]
 
 
+@pytest.mark.subprocess
 class TestCliScanTarget:
     """Every subcommand turns the same path into the same scan."""
 
@@ -1286,6 +1295,7 @@ class TestCliScanTarget:
         assert [gap["kind"] for gap in gaps] == ["other copy audited"]
 
 
+@pytest.mark.subprocess
 @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
 class TestCliIncludeMembers:
     """Every scanning subcommand takes ``--no-include-members`` and scans class members by default."""
@@ -1324,6 +1334,7 @@ class TestCliIncludeMembers:
         assert "Legacy." not in result.stdout
 
 
+@pytest.mark.subprocess
 class TestCliPolicyMessageRequiredFlag:
     """``policy --message-required`` binds like the other boolean flags, wherever it sits beside the path."""
 
@@ -1361,6 +1372,7 @@ class TestCliPolicyMessageRequiredFlag:
         assert "message-required=False (pyproject.toml)" in result.stdout
 
 
+@pytest.mark.subprocess
 class TestCliAttachedBoolLiterals:
     """``--flag=value`` accepts the same boolean spellings as ``--flag value`` instead of exiting 2."""
 
@@ -1398,6 +1410,7 @@ class TestCliAttachedBoolLiterals:
         assert "expects True or False" in result.stderr
 
 
+@pytest.mark.subprocess
 class TestCliReportJson:
     """``--report-json PATH`` writes one machine-readable record of the run: the status table and every gap."""
 

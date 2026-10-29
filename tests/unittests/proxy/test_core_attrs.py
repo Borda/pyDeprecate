@@ -9,6 +9,7 @@ from deprecate._types import TargetMode
 from deprecate.deprecation import deprecated
 from deprecate.proxy import deprecated_class
 from deprecate.proxy.core import _DeprecatedProxy, _ProxySpec
+from tests._helpers import captured_warnings
 from tests.collections.api_current import (
     CombinedAttrsArgsSource,
     CombinedAttrsArgsTarget,
@@ -17,7 +18,7 @@ from tests.collections.api_current import (
     PaletteEnum,
     PaletteOld,
 )
-from tests.collections.api_deprecated import depr_read_only_attrs_list
+from tests.collections.api_deprecated import _DEPRS_CASE_STD_ARGS, _DEPRS_CASE_STD_INF_ARGS, depr_read_only_attrs_list
 from tests.collections.api_deprecated_forwarding import (
     DeprecatedAttrsExplicitMode,
     DeprecatedAttrsLegacyTrue,
@@ -116,8 +117,7 @@ class TestCombinedArgAttrsMapping:
         proxy = deprecated_class(
             target=_Target,
             attrs_mapping={"old_attr": None},  # warn on old_attr, no rename
-            deprecated_in="1.0",
-            remove_in="2.0",
+            **_DEPRS_CASE_STD_ARGS,
             stream=None,
         )(_Target)
 
@@ -186,8 +186,7 @@ class TestDeprecatedAttrs:
         should be invisible to migrated code.
 
         """
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             value = DeprecatedAttrsPaletteWithStream.colour  # type: ignore[attr-defined]
         assert value == "red"
         assert not caught
@@ -203,8 +202,7 @@ class TestDeprecatedAttrs:
         with pytest.warns(FutureWarning, match="color"):
             DeprecatedAttrsPaletteWithStream.color = "blue"  # type: ignore[attr-defined]
         # Reading the canonical attribute must now show the new value (no warning on canonical reads).
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             assert DeprecatedAttrsPaletteWithStream.colour == "blue"  # type: ignore[attr-defined]
         assert not caught
 
@@ -217,7 +215,7 @@ class TestDeprecatedAttrs:
 
         """
         # Use a fresh proxy with stream enabled because DeprecatedAttrsNotifyOnly suppresses warnings.
-        proxy = deprecated_class(attrs_mapping={"size": None}, deprecated_in="1.0", remove_in="2.0")(Palette)
+        proxy = deprecated_class(attrs_mapping={"size": None}, **_DEPRS_CASE_STD_ARGS)(Palette)
         with pytest.warns(FutureWarning, match="size") as record:
             value = proxy.size  # type: ignore[attr-defined]
         assert value == 42
@@ -233,9 +231,7 @@ class TestDeprecatedAttrs:
         pointing at a nonexistent replacement attribute.
 
         """
-        proxy = deprecated_class(target=Palette, attrs_mapping={"size": None}, deprecated_in="1.0", remove_in="2.0")(
-            Palette
-        )
+        proxy = deprecated_class(target=Palette, attrs_mapping={"size": None}, **_DEPRS_CASE_STD_ARGS)(Palette)
         with pytest.warns(FutureWarning, match="size") as record:
             value = proxy.size  # type: ignore[attr-defined]
         assert value == 42
@@ -270,8 +266,7 @@ class TestDeprecatedAttrs:
             obj=Palette,
             spec=_ProxySpec(
                 name="Palette",
-                deprecated_in="1.0",
-                remove_in="2.0",
+                **_DEPRS_CASE_STD_ARGS,
                 read_only=True,
                 stream=None,
                 attrs_mapping={"color": "colour"},
@@ -329,15 +324,13 @@ class TestDeprecatedAttrs:
         proxy = deprecated_class(
             attrs_mapping={"color": "colour", "txt": "text"}, deprecated_in="1.0", remove_in="2.0", num_warns=1
         )(Palette)
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             _ = proxy.color  # type: ignore[attr-defined]
             _ = proxy.txt  # type: ignore[attr-defined]
         future_warnings = [w for w in caught if issubclass(w.category, FutureWarning)]
         assert len(future_warnings) == 2
         # Subsequent access on either name is silent because each budget is exhausted.
-        with warnings.catch_warnings(record=True) as caught_after:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught_after:
             _ = proxy.color  # type: ignore[attr-defined]
             _ = proxy.txt  # type: ignore[attr-defined]
         assert not [w for w in caught_after if issubclass(w.category, FutureWarning)]
@@ -354,8 +347,7 @@ class TestDeprecatedAttrs:
         proxy = deprecated_class(attrs_mapping={"color": "colour"}, deprecated_in="1.0", remove_in="2.0", num_warns=2)(
             Palette
         )
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             _ = proxy.color  # type: ignore[attr-defined]
             _ = proxy.color  # type: ignore[attr-defined]
             _ = proxy.color  # type: ignore[attr-defined]
@@ -371,8 +363,7 @@ class TestDeprecatedAttrs:
         attribute reads on non-deprecated names.
 
         """
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             value = DeprecatedAttrsPaletteWithStream.size  # type: ignore[attr-defined]
         assert value == 42
         assert not caught
@@ -386,7 +377,7 @@ class TestDeprecatedAttrs:
 
         """
         # Use a fresh stream-enabled proxy so we can assert on the FutureWarning.
-        proxy = deprecated_class(attrs_mapping={"COLOR": "COLOUR"}, deprecated_in="1.0", remove_in="2.0")(PaletteEnum)
+        proxy = deprecated_class(attrs_mapping={"COLOR": "COLOUR"}, **_DEPRS_CASE_STD_ARGS)(PaletteEnum)
         with pytest.warns(FutureWarning, match="COLOR"):
             value = proxy.COLOR  # type: ignore[attr-defined]
         assert value is PaletteEnum.COLOUR
@@ -417,7 +408,7 @@ class TestDeprecatedAttrs:
         """
         with pytest.raises(ValueError, match="circular redirects"):
 
-            @deprecated_class(attrs_mapping={"a": "b", "b": "a"}, deprecated_in="1.0", remove_in="2.0")
+            @deprecated_class(attrs_mapping={"a": "b", "b": "a"}, **_DEPRS_CASE_STD_ARGS)
             class _Circular:
                 a = 1
                 b = 2
@@ -430,7 +421,7 @@ class TestDeprecatedAttrs:
 
         """
 
-        @deprecated_class(attrs_mapping={"a": "b", "b": "c"}, deprecated_in="1.0", remove_in="2.0", stream=None)
+        @deprecated_class(attrs_mapping={"a": "b", "b": "c"}, **_DEPRS_CASE_STD_ARGS, stream=None)
         class _Chained:
             a = 1
             b = 2
@@ -493,11 +484,8 @@ class TestDeprecatedAttrs:
             old = "source_old"
             alias = "source_alias"
 
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-            deprecated_class(target=target_proxy, attrs_mapping={"old": "alias"}, deprecated_in="1.0", remove_in="2.0")(
-                SourceAlias
-            )
+        with captured_warnings() as caught:
+            deprecated_class(target=target_proxy, attrs_mapping={"old": "alias"}, **_DEPRS_CASE_STD_ARGS)(SourceAlias)
         assert not caught
         assert target_cfg.state.warned_args == {}
 
@@ -511,7 +499,7 @@ class TestDeprecatedAttrs:
 
         """
         monkeypatch.setattr(Palette, "colour", Palette.colour)
-        proxy = deprecated_class(attrs_mapping={"color": "colour"}, deprecated_in="1.0", remove_in="2.0")(Palette)
+        proxy = deprecated_class(attrs_mapping={"color": "colour"}, **_DEPRS_CASE_STD_ARGS)(Palette)
         with pytest.warns(FutureWarning, match="color"):
             del proxy.color  # type: ignore[attr-defined]
         assert not hasattr(Palette, "colour")
@@ -526,7 +514,7 @@ class TestDeprecatedAttrs:
 
         """
         monkeypatch.setattr(Palette, "size", Palette.size)
-        proxy = deprecated_class(attrs_mapping={"size": None}, deprecated_in="1.0", remove_in="2.0")(Palette)
+        proxy = deprecated_class(attrs_mapping={"size": None}, **_DEPRS_CASE_STD_ARGS)(Palette)
         with pytest.warns(FutureWarning, match="size"):
             del proxy.size  # type: ignore[attr-defined]
         assert not hasattr(Palette, "size")
@@ -542,9 +530,7 @@ class TestDeprecatedAttrs:
 
         """
         monkeypatch.setattr(PaletteOld, "color", PaletteOld.color)
-        proxy = deprecated_class(target=Palette, attrs_mapping={"color": None}, deprecated_in="1.0", remove_in="2.0")(
-            PaletteOld
-        )
+        proxy = deprecated_class(target=Palette, attrs_mapping={"color": None}, **_DEPRS_CASE_STD_ARGS)(PaletteOld)
         assert not hasattr(Palette, "color")
         original = PaletteOld.color
 
@@ -566,9 +552,7 @@ class TestDeprecatedAttrs:
 
         """
         monkeypatch.setattr(PaletteOld, "color", PaletteOld.color)
-        proxy = deprecated_class(target=Palette, attrs_mapping={"color": None}, deprecated_in="1.0", remove_in="2.0")(
-            PaletteOld
-        )
+        proxy = deprecated_class(target=Palette, attrs_mapping={"color": None}, **_DEPRS_CASE_STD_ARGS)(PaletteOld)
         assert not hasattr(Palette, "color")
 
         with pytest.warns(FutureWarning, match="color"):
@@ -588,7 +572,7 @@ class TestDeprecatedAttrs:
         """
         with pytest.raises(ValueError, match="warn-only keys not found on either class"):
 
-            @deprecated_class(attrs_mapping={"nonexistent": None}, deprecated_in="1.0", remove_in="2.0")
+            @deprecated_class(attrs_mapping={"nonexistent": None}, **_DEPRS_CASE_STD_ARGS)
             class _MissingWarnOnly:
                 colour: str = "red"
 
@@ -763,8 +747,7 @@ class TestAttrsMappingCombinations:
             proxy = deprecated_class(
                 target=TargetMode.NOTIFY,
                 attrs_mapping={"color": "colour"},
-                deprecated_in="1.0",
-                remove_in="2.0",
+                **_DEPRS_CASE_STD_ARGS,
                 stream=None,
             )(_NotifyAttrsContradiction)
 
@@ -789,7 +772,7 @@ class TestAttrsMappingCombinations:
             colour = "red"
 
         with pytest.warns(UserWarning, match="ATTRS_REMAP.*requires.*`attrs_mapping`"):
-            proxy = deprecated_class(target=TargetMode.ATTRS_REMAP, deprecated_in="1.0", remove_in="2.0", stream=None)(
+            proxy = deprecated_class(target=TargetMode.ATTRS_REMAP, **_DEPRS_CASE_STD_ARGS, stream=None)(
                 _AttrsRemapMissingMapping
             )
         meta = object.__getattribute__(proxy, "__deprecation_config__")
@@ -808,9 +791,7 @@ class TestAttrsMappingCombinations:
             colour = "red"
 
         with pytest.warns(UserWarning, match="empty dict"):
-            proxy = deprecated_class(attrs_mapping={}, deprecated_in="1.0", remove_in="2.0", stream=None)(
-                _EmptyAttrsMapping
-            )
+            proxy = deprecated_class(attrs_mapping={}, **_DEPRS_CASE_STD_ARGS, stream=None)(_EmptyAttrsMapping)
         meta = object.__getattribute__(proxy, "__deprecation_config__")
         assert meta.misconfigured is True
 
@@ -825,7 +806,7 @@ class TestAttrsMappingCombinations:
         """
         with pytest.raises(TypeError, match="ATTRS_REMAP.*not valid.*deprecated_class"):
 
-            @deprecated(target=TargetMode.ATTRS_REMAP, deprecated_in="1.0", remove_in="2.0")
+            @deprecated(target=TargetMode.ATTRS_REMAP, **_DEPRS_CASE_STD_ARGS)
             def _attempted_attrs_remap_fn(x: int) -> int:
                 return x
 
@@ -847,8 +828,7 @@ class TestAttrsMappingCombinations:
             deprecated_class(
                 args_mapping={"old_arg": "new_arg"},
                 attrs_mapping={"color": "colour"},
-                deprecated_in="1.0",
-                remove_in="2.0",
+                **_DEPRS_CASE_STD_ARGS,
                 stream=None,
             )(_BothMappingsSource)
 
@@ -871,8 +851,7 @@ class TestAttrsMappingCombinations:
                 target=TargetMode.ATTRS_REMAP,
                 args_mapping={"old_arg": "new_arg"},
                 attrs_mapping={"color": "colour"},
-                deprecated_in="1.0",
-                remove_in="2.0",
+                **_DEPRS_CASE_STD_ARGS,
                 stream=None,
             )(_ExplicitAttrsRemapSource)
 
@@ -894,12 +873,10 @@ class TestAttrsMappingCombinations:
         class _MisconfiguredForStacklevel:
             colour = "red"
 
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             deprecated_class(
                 target=TargetMode.ATTRS_REMAP,
-                deprecated_in="1.0",
-                remove_in="2.0",
+                **_DEPRS_CASE_STD_ARGS,
                 stream=None,
             )(_MisconfiguredForStacklevel)
         user_warnings = [w for w in caught if issubclass(w.category, UserWarning)]
@@ -916,15 +893,14 @@ class TestAttrsRemapCallPolicy:
         ATTRS_REMAP means "only these attribute aliases are deprecated"; instantiating the class is not a deprecated
         surface, so plain construction must neither warn nor burn the global warn budget.
         """
-        alias = deprecated_class(attrs_mapping={"color": "colour"}, deprecated_in="1.0", remove_in="2.0")(Palette)
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        alias = deprecated_class(attrs_mapping={"color": "colour"}, **_DEPRS_CASE_STD_ARGS)(Palette)
+        with captured_warnings() as caught:
             _ = alias()
         assert not [w for w in caught if issubclass(w.category, FutureWarning)]
 
     def test_deprecated_attr_still_warns_after_instantiation(self) -> None:
         """The per-attribute warning still fires after instantiation, since the budget was not consumed by the call."""
-        alias = deprecated_class(attrs_mapping={"color": "colour"}, deprecated_in="1.0", remove_in="2.0")(Palette)
+        alias = deprecated_class(attrs_mapping={"color": "colour"}, **_DEPRS_CASE_STD_ARGS)(Palette)
         alias()
         with pytest.warns(FutureWarning, match="color"):
             _ = alias.color  # type: ignore[attr-defined]
@@ -942,7 +918,96 @@ class TestProxyAttrsMappingDefensiveCopy:
         mapping: dict[str, Any] = {"old_attr": "new_attr"}
         proxy = _DeprecatedProxy(
             obj=_P9Config,
-            spec=_ProxySpec(name="_P9Config", deprecated_in="1.0", remove_in="2.0", attrs_mapping=mapping),
+            spec=_ProxySpec(name="_P9Config", **_DEPRS_CASE_STD_ARGS, attrs_mapping=mapping),
         )
         mapping["old_attr"] = "hijacked"
         assert proxy.__deprecation_config__.attrs_mapping == {"old_attr": "new_attr"}
+
+
+def _flagged_attr_proxy() -> tuple[Any, dict[str, bool], Any, Any]:
+    """Build a ``color`` -> ``colour`` attribute-redirect proxy whose ``skip_if`` reads a flag the test flips.
+
+    Returns the proxy, the mutable flag dict (``{"skip": ...}``), the wrapped source class and the target class — tiny
+    mechanical classes used only to observe where a write or delete lands.
+
+    """
+
+    class _Source:
+        color = "source-red"
+
+    class _Target:
+        colour = "target-red"
+
+    flag = {"skip": True}
+    proxy = deprecated_class(
+        target=_Target,
+        attrs_mapping={"color": "colour"},
+        skip_if=lambda: flag["skip"],
+        **_DEPRS_CASE_STD_INF_ARGS,
+    )(_Source)
+    return proxy, flag, _Source, _Target
+
+
+class TestAttributeWritesUnderSkipIf:
+    """``skip_if`` makes ``setattr``/``delattr`` on a deprecated alias behave as if the class were undecorated."""
+
+    def test_write_while_skipped_lands_on_source_without_warning(self) -> None:
+        """With ``skip_if`` true, ``proxy.color = x`` writes the source class under its own name and stays silent.
+
+        A project disables the deprecation machinery (for example on the release that already migrated) yet old code
+        still assigns the legacy name: the write must reach the original attribute with no warning and no redirect.
+
+        """
+        proxy, _, source, target = _flagged_attr_proxy()
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            proxy.color = "updated"
+
+        assert source.color == "updated"
+        assert target.colour == "target-red"
+
+    def test_write_while_active_warns_and_redirects(self) -> None:
+        """With ``skip_if`` false, the same write warns and lands on the canonical attribute of the target."""
+        proxy, flag, source, target = _flagged_attr_proxy()
+        flag["skip"] = False
+
+        with pytest.warns(FutureWarning, match="color"):
+            proxy.color = "updated"
+
+        assert target.colour == "updated"
+        assert source.color == "source-red"
+
+    def test_delete_while_skipped_removes_source_attribute_without_warning(self) -> None:
+        """With ``skip_if`` true, ``del proxy.color`` removes the source attribute and stays silent."""
+        proxy, _, source, target = _flagged_attr_proxy()
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            del proxy.color
+
+        assert not hasattr(source, "color")
+        assert target.colour == "target-red"
+
+    def test_delete_while_active_warns_and_redirects(self) -> None:
+        """With ``skip_if`` false, the same delete warns and removes the canonical attribute from the target."""
+        proxy, flag, source, target = _flagged_attr_proxy()
+        flag["skip"] = False
+
+        with pytest.warns(FutureWarning, match="color"):
+            del proxy.color
+
+        assert not hasattr(target, "colour")
+        assert source.color == "source-red"
+
+    def test_delete_of_unmapped_attribute_forwards_to_target(self) -> None:
+        """Deleting an attribute not named in ``attrs_mapping`` removes it from the active target, silently."""
+        proxy, flag, _, target = _flagged_attr_proxy()
+        flag["skip"] = False
+        target.extra = 1  # type: ignore[attr-defined]
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            del proxy.extra
+
+        assert not hasattr(target, "extra")

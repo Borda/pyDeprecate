@@ -187,7 +187,14 @@ make docs-tests
 
 # Run the full test suite (including doctests if configured in pytest)
 pytest .
+
+# Fast local loop: skip the tests that start a child interpreter (CLI and GitHub Action runs)
+pytest . -m "not subprocess"
 ```
+
+A test that starts a Python interpreter or an external CLI as a child process, directly or through the action runner, carries `@pytest.mark.subprocess` on the test or on its class when every test in the class does. The marker states an execution requirement, not a speed tier; CI always runs the full suite. A process a third-party library starts for its own bookkeeping (for example Griffe probing `git` while it loads a module) does not count.
+
+Under `--cov`, `run.patch = ["subprocess"]` starts coverage in every child interpreter, and stripping the `COVERAGE_*` variables is not enough on coverage 7.10.x (the newest release that installs on Python 3.9), which imports coverage and with it `json` from a site `.pth` file. A test that reads `sys.modules` of a child therefore starts it with `run_isolated_python` from `tests/_helpers.py` and carries the `without_coverage` marker (`tests/integration/test_import_cost.py`); CI runs `pytest . --cov=deprecate -m "not without_coverage"` and then `pytest . -m without_coverage` without `--cov`.
 
 > [!TIP]
 >
@@ -199,7 +206,7 @@ pytest .
 
 > [!IMPORTANT]
 >
-> **`make docs-tests` is the only supported way to (re)generate the docs example tests** under `tests/docs/` (and `tests/integration/test_readme.py`). It deletes the old generated `test_*.py` files first, so it never leaves stale artifacts behind. These files are gitignored local artifacts — running `pytest tests/docs/` against an out-of-date checkout otherwise produces confusing failures (e.g. `ModuleNotFoundError` for placeholder imports, or assertion drift against reprs that have since changed). A `tests/docs/conftest.py` guard fails collection with a `regenerate via make docs-tests` message when any generated file is older than the `docs/*.md` source it came from; the default `pytest .` run prunes `tests/docs/` and is unaffected.
+> **`make docs-tests` is the only supported way to (re)generate the docs example tests** under `tests/docs/` (and `tests/integration/test_readme.py`). It deletes the old generated `test_*.py` files first, so it never leaves stale artifacts behind. These files are gitignored local artifacts — running `pytest tests/docs/` against an out-of-date checkout otherwise produces confusing failures (e.g. `ModuleNotFoundError` for placeholder imports, or assertion drift against reprs that have since changed). A `tests/docs/conftest.py` guard fails collection with a `regenerate via make docs-tests` message when any generated file is older than the `docs/*.md` source it came from; the default `pytest .` run collects `tests/docs/` too, so the guard applies there as well. On a fresh clone no generated file exists yet: `pytest .` still passes, but `tests/conftest.py` adds a `PytestWarning` to the summary saying the documentation examples were not run. Run `make docs-tests` once after cloning. The generated tests check printed output only, so `tests/conftest.py` ignores the `DeprecationWarning`, `FutureWarning` and `UserWarning` their examples demonstrate (each marked `# warns:` in the Markdown); the rest of the suite keeps the configured filters.
 
 ## 💎 Quality Expectations
 
@@ -388,6 +395,7 @@ pyDeprecate/
 │           ├── breaking/       # Required rewrites in v0.N-to-v0.M.md snippets
 │           └── behavior/       # Observable changes in v0.N-to-v0.M.md snippets
 ├── tests/                               # Test suite
+│   ├── _helpers.py                      # Helpers shared across test packages: captured_warnings, write_pkg, run_isolated_python
 │   ├── collections/                     # Shared current and deprecated APIs for tests and examples
 │   │   ├── api_current.py               # Target functions (new implementations)
 │   │   ├── api_deprecated.py            # Shared constants, core wrappers and stable audit/docs examples
@@ -429,6 +437,7 @@ pyDeprecate/
 │   └── unittests/                       # Focused tests for private/internal helpers
 │       ├── audit/                       # One test__<module>.py per audit submodule (_wrappers, _scan, _lifecycle, _policy, _report)
 │       ├── cli/                         # One test_<module>.py per _cli submodule; test_cli.py covers cli() in __init__.py
+│       ├── docstring/                   # Mirrors docstring/: test_inject.py, test_griffe_ext.py; extension imports in test___init__.py
 │       └── proxy/                       # Mirrors proxy submodules; core tests split by runtime, attributes, calls, and warnings
 ├── .github/
 │   ├── scripts/                # Self-contained helpers, including plugin compat-floor, GitHub Action, and call-overhead benchmark scripts
@@ -476,6 +485,8 @@ Tests live in `tests/` and follow a **three-layer separation**:
 | `unittests/`                  | Focused tests for **private/internal helpers**, each file mirroring one source module                                                                                                                                                                                                                      |
 | `unittests/test__validate.py` | Decoration-time target resolution, source guards, mode validation, and stacking compatibility for `_validate.py`                                                                                                                                                                                           |
 | `unittests/proxy/`            | Mirrors `src/deprecate/proxy/`: factories and typing in `test_factories.py` (for `factories.py`), runtime in `test_core.py` plus `test_core_attrs.py`, `test_core_calls.py`, and `test_core_warnings.py`, resolution in `test_resolve.py`, protocols in `test_dunders.py`; shared helpers in `_helpers.py` |
+| `unittests/docstring/`        | Mirrors `src/deprecate/docstring/`: `test_inject.py` and `test_griffe_ext.py`, with the extension imports in `test___init__.py`; the Sphinx tests stay in `integration/test_sphinx_ext.py`                                                                                                                 |
+| `_helpers.py`                 | Helpers shared across test packages: `captured_warnings`, `write_pkg` and `run_isolated_python`                                                                                                                                                                                                            |
 
 **`integration/`** — Each file covers one area of the public surface (functions, classes, audit, utils, docstrings, README examples, agent-plugin manifests, or the GitHub Action runner). Tests call `@deprecated`-decorated code as a user would and assert on warnings, return values, and forwarded types. `test_readme.py` is generated by `phmdoctest` from README code blocks; `test_agent_plugin.py` verifies that both host catalogs resolve the same local plugin skills and aligned manifests; `test_action.py` runs the action runner as a subprocess and checks `action.yml` parity with the runner and CLI.
 
@@ -507,15 +518,22 @@ The integration suite also keeps characterization for positional and keyword for
 >
 > Failing to do this causes the corresponding generated test file(s) under `tests/docs/` or `tests/integration/test_readme.py` to fail in CI. Enumerating specific files here goes stale as soon as a new doc example is added — grep for the fixture module's import if in doubt.
 
-**`unittests/`** — Tests import private symbols directly (e.g. `_raise_warn`, `_parse_version`) and use mocking/monkeypatching to stay isolated from external state. Each file mirrors a source module (`deprecation.py`, `docstring/inject.py`, `utils.py`), and a source subpackage becomes a test subpackage with one file per submodule — `unittests/audit/test__policy.py` for `deprecate/audit/_policy.py`; private symbols of the `audit/` subpackage are imported from their defining submodule (`deprecate.audit._policy`), never from the package root. The internal `_cli/` package maps to `unittests/cli/` (`test_commands.py` for `_cli/commands.py`, `test_cli.py` for the `cli()` entry point in `_cli/__init__.py`), with wrapper fixtures shared by several of those files kept in `cli/_helpers.py`. It follows the same import rule, and a `patch()` targets the submodule that looks the name up at call time (`deprecate._cli.scan.find_deprecation_wrappers`, not `deprecate._cli.find_deprecation_wrappers`). `cli()` looks the `cmd_*` subcommands up in `deprecate._cli.commands` when it runs, so a test of its dispatch patches `deprecate._cli.commands.cmd_check` with `autospec=True` (the parser is built from the signature it sees), as does a test that runs the real `cmd_all` with a stubbed table (`deprecate._cli.commands._status_table`). A patch on another binding may leave the test green while it runs the real code.
+**`unittests/`** — Tests import private symbols directly (e.g. `_raise_warn`, `_parse_version`) and use mocking/monkeypatching to stay isolated from external state. Each file mirrors a source module (`deprecation.py`, `docstring/inject.py` in `unittests/docstring/test_inject.py`, `utils.py`), and a source subpackage becomes a test subpackage with one file per submodule — `unittests/audit/test__policy.py` for `deprecate/audit/_policy.py`; private symbols of the `audit/` subpackage are imported from their defining submodule (`deprecate.audit._policy`), never from the package root. The internal `_cli/` package maps to `unittests/cli/` (`test_commands.py` for `_cli/commands.py`, `test_cli.py` for the `cli()` entry point in `_cli/__init__.py`), with wrapper fixtures shared by several of those files kept in `cli/_helpers.py`. It follows the same import rule, and a `patch()` targets the submodule that looks the name up at call time (`deprecate._cli.scan.find_deprecation_wrappers`, not `deprecate._cli.find_deprecation_wrappers`). `cli()` looks the `cmd_*` subcommands up in `deprecate._cli.commands` when it runs, so a test of its dispatch patches `deprecate._cli.commands.cmd_check` with `autospec=True` (the parser is built from the signature it sees), as does a test that runs the real `cmd_all` with a stubbed table (`deprecate._cli.commands._status_table`). A patch on another binding may leave the test green while it runs the real code.
 
 > [!IMPORTANT]
 >
 > **Three-layer rule**: do not define target objects or deprecated wrappers directly inside `test_*.py` files. Place targets in `api_current.py`, deprecated wrappers in `api_deprecated*.py`, then import them in tests. This includes class definitions — do not define classes inside test functions; define them in the appropriate collection module instead.
+>
+> Exceptions:
+>
+> - **Unit-level mechanical fixtures:** a test under `tests/unittests/` may define a tiny class or function inline when it exists only to drive the code under test — a stand-in owner or operand, a source whose attributes the test inspects, or a fresh wrapper for one private helper.
+> - **A fresh definition is the behaviour under test:** in any layer, keep the definition inside the test when the test asserts a decoration-time warning or error at the definition itself, creates the class inside `pytest.warns` or `pytest.raises`, or asserts a warning location that is the definition line.
 
 > [!IMPORTANT]
 >
 > **No local imports inside test functions.** All `import` and `from … import` statements must appear at module level, not inside test methods or helper functions. Import each fixture name at the top of the test file and use it directly in the test body.
+>
+> The one exception is the autouse reset fixture in `tests/conftest.py`, which imports `deprecate.deprecation` when it runs. CI installs the package without `-e`; a module-level import there would load the installed copy before `--doctest-modules` collects `src/`, and collection then fails with `import file mismatch`.
 >
 > ```python
 > # ✗ wrong — local import inside a test method
@@ -536,6 +554,8 @@ The integration suite also keeps characterization for positional and keyword for
 >     with warnings.catch_warnings(record=True) as caught:
 >         ...
 > ```
+
+**Asserting warnings.** Use `pytest.warns(Category, match=...)` when the test only needs at least one matching warning. When it checks an exact count, the order, the absence of warnings, or a record's `filename`/`lineno`, record with `captured_warnings()` from `tests/_helpers.py`. It is `warnings.catch_warnings(record=True)` plus `simplefilter("always")`, so neither the active filters nor the once-per-location registry hide a record. A warning the test triggers but does not check must not escape into the run's warnings summary: assert it with a second `pytest.warns` in the same `with`, or, when it is pure setup noise, add a narrow `@pytest.mark.filterwarnings("ignore:<message prefix>:<Category>")` to that test. `pytest.warns` re-emits unmatched warnings from the `warnings` module, so the `tests`-scoped ignores in `pyproject.toml` no longer apply to them.
 
 > [!NOTE]
 >
@@ -654,8 +674,8 @@ def depr_class_whole_mode_warns_on_call(x: int) -> int: ...
 **Rules:**
 
 - Minimum **3 call sites** before extracting — two occurrences stay inline.
-- Only group call sites where **all three** of `deprecated_in`, `remove_in`, and `num_warns` are identical (or all three omit `num_warns`). Sites that differ on any key stay inline.
-- `_class_deprecation_*` shared instances (see above) and `_DEPRS_CASE_*` constants both go in the **constants block at the top of `api_deprecated.py`**, right after `_SHORT_MSG_FUNC` / `_SHORT_MSG_ARGS`. This makes version metadata scannable in one place. Sibling collection modules import shared constants and instances from there; the original module never imports from its siblings.
+- Only group call sites where **all three** of `deprecated_in`, `remove_in`, and `num_warns` are identical (or all three omit `num_warns`). Sites that differ on any key stay inline. One existing exception predates this rule: `**_DEPRS_CASE_STD_ARGS, num_warns=1` in `api_deprecated.py`. Do not add more.
+- `_class_deprecation_*` shared instances (see above) and `_DEPRS_CASE_*` constants both go in the **constants block at the top of `api_deprecated.py`**, right after `_SHORT_MSG_FUNC` / `_SHORT_MSG_ARGS`. This makes version metadata scannable in one place. Sibling collection modules import shared constants and instances from there; the original module never imports from its siblings. `misconfigured.py` keeps its own `_DEPRS_CASE_OLD_ARGS`, because `tests/integration/test_action.py` copies that file into a standalone package that can import only from `deprecate`. `policy.py` and `pep702.py` also define module-local constants for their own schedules.
 - When adding a new fixture group that would form a third call site for an existing tuple, extract rather than inline.
 - **Exception — fixtures under `assert_type`:** a fixture whose *static* type is pinned by `assert_type` (currently `DeprecatedColorEnumFunctional` and `DeprecatedPaletteFunctionalFallback`, asserted in `tests/unittests/proxy/test_factories.py`) spells its version kwargs out inline. mypy resolves an overloaded call against a `dict[str, Any]` splat by falling back to `Any`, which erases the overload the assertion exists to verify. Do not "unify" these back into a `_DEPRS_CASE_*` splat — the assertion would keep passing while proving nothing.
 

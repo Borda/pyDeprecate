@@ -17,6 +17,7 @@ from deprecate.utils import (
     get_func_arguments_types_defaults,
     void,
 )
+from tests._helpers import captured_warnings
 from tests.collections.api_current import (
     HostileSignatureCallable,
     RequiredPositionalOnlyTarget,
@@ -59,8 +60,7 @@ class TestRemapKwargs:
         A half-migrated caller passes both names; the keyword order must not decide the outcome, and the warning
         must point at the line that made the call.
         """
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             result = _remap_kwargs(_RENAME_AND_DROP, kwargs, name="old_func", stream=warnings.warn)
         assert result == {"new": 6}
         assert [str(w.message) for w in caught] == [
@@ -223,8 +223,7 @@ class TestWarnsRepr:
 
     def test_extracts_message_from_single_warning(self) -> None:
         """String representation of a single captured warning matches the original message."""
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             warnings.warn("hello world", UserWarning)
 
         result = _warns_repr(caught)
@@ -237,8 +236,7 @@ class TestWarnsRepr:
 
     def test_preserves_order_for_multiple_warnings(self) -> None:
         """Multiple warnings are returned in emission order, not sorted or reversed."""
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             warnings.warn("first", UserWarning)
             warnings.warn("second", FutureWarning)
 

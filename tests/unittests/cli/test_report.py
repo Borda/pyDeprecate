@@ -125,7 +125,14 @@ class TestReportIssues:
         assert _Reporter.issues(results) is expected
 
     def test_partial_identity_with_self_reference(self, capsys: pytest.CaptureFixture[str]) -> None:
-        """Partial identity mappings are not reported as all-identity."""
+        """Partial identity mappings are not reported as all-identity.
+
+        A wrapper maps ``a`` to itself but also renames ``b`` to ``c``, and it is flagged as a self-reference with no
+        effect.  Only one of its two mapping entries is an identity, so the CLI report must print the "Self
+        reference" finding and return that issues were found, but must not print the "All identity mappings"
+        wording, which describes a mapping made only of identity entries.
+
+        """
         results = [
             DeprecationWrapperInfo(
                 module="mod",

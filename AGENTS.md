@@ -82,7 +82,7 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 ### Test Organization
 
 - **Three-layer separation**: targets in `api_current.py`, deprecated wrappers in `api_deprecated*.py`, test logic in `test_*.py`
-- **Do not** define targets or `@deprecated` wrappers directly in test files
+- **Do not** define targets or `@deprecated` wrappers directly in test files, except in the two cases listed under [Three-layer rule](.github/CONTRIBUTING.md#test-organization): a test under `tests/unittests/` may define a tiny class or function inline when it exists only to drive the code under test, and in any layer the definition stays in the test when the fresh definition itself is the behaviour under test (a decoration-time warning or error, a `pytest.warns` or `pytest.raises` around the definition, or a warning location that is the definition line)
 - **No local imports inside test functions** — all `import` / `from … import` statements at module level; never inside a test method or helper function
 - **No redundant naming** — test method names must not repeat the class name; in `TestFooBar` write `test_returns_value` not `test_foo_bar_returns_value` (see [CONTRIBUTING.md: Tests and quality assurance](.github/CONTRIBUTING.md#-tests-and-quality-assurance))
 - **Scenario description required** — every non-trivial test method docstring must include a prose paragraph describing the real-world situation being tested; a one-line summary alone is not sufficient (see [Test Requirements](.github/CONTRIBUTING.md#-tests-and-quality-assurance))
@@ -113,7 +113,7 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 - Add runtime dependencies
 - Commit sensitive information (`.env`, API keys)
 - Use bare `except:` clauses
-- Define deprecated wrappers inside test files
+- Define deprecated wrappers inside test files, other than in the two cases named under Test Organization
 - Use `with warnings.catch_warnings(...)` in any `.md` documentation example in any form — neither `simplefilter("always")` for capturing nor `simplefilter("ignore", ...)` for suppressing; annotate the call with `# warns: FutureWarning` or `# warns: UserWarning` instead; output blocks show only return values
 - Use bare `assert` statements in `.md` documentation examples outside of `def test_...` bodies (e.g. `assert pt.x == 1.0`, `assert isinstance(obj, MyClass)`) — use `print()` instead and follow with a `<details><summary>Output: <code>expression</code></summary>` block showing expected output. **Exception:** bare `assert` inside `def test_...` function bodies shown as pytest integration examples is allowed and idiomatic
 - Import a fictional package name in runnable `.md` examples — executable examples must import from actual test collection modules (`from tests.collections import api_deprecated`, `api_deprecated_forwarding`, `api_deprecated_regressions`, `misconfigured`, `chains`, `policy`, or `pep702`). For CI-template snippets that intentionally show a placeholder import, add `# phmdoctest:skip — CI template: replace my_package with your actual package` as the first line so phmdoctest skips execution

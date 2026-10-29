@@ -21,7 +21,6 @@ import tests.collections.misconfigured as sample_module
 from deprecate import (
     DeprecatedCallableInfo,
     TableStyle,
-    TargetMode,
     deprecated,
     find_deprecated_callables,
     validate_deprecated_callable,
@@ -39,6 +38,7 @@ from deprecate.audit import (
     validate_mapping_compatibility,
 )
 from deprecate.audit._lifecycle import _check_deprecated_wrapper_expiry, _get_package_version, _parse_version
+from tests._helpers import captured_warnings
 from tests.collections.api_current import plain_function_target
 
 # Check if packaging is available for version comparison tests
@@ -248,7 +248,15 @@ class TestValidateDeprecatedWrapperCallableProxy:
         expected_mapping: dict,
         target_name: str,
     ) -> None:
-        """deprecated_class proxy with args_mapping reports mapping with no identity entries."""
+        """deprecated_class proxy with args_mapping reports mapping with no identity entries.
+
+        A maintainer audits a package that kept its old enum or dataclass name alive through ``deprecated_class`` and
+        renamed (or dropped) constructor arguments through ``args_mapping``.  Each parametrized proxy is handed to
+        ``validate_deprecation_wrapper``, which must report the proxy's own name, expose the configured mapping
+        unchanged, resolve the forwarding target by name, and flag none of the mapping problems (empty, identity or
+        no-effect).  A healthy mapped proxy therefore passes the audit without false positives.
+
+        """
         result = validate_deprecation_wrapper(proxy_obj)
         assert result.function == fn_name
         assert result.deprecated_info.args_mapping == expected_mapping
@@ -451,21 +459,9 @@ class TestFindDeprecatedWrappers:
     def test_scan_class_no_recursion_on_self_referential_class(self) -> None:
         """Member scanning terminates and finds exactly one result on a self-referential class."""
         mod = types.ModuleType("selfref_test_module")
-
-        def _new_compute(x: int) -> int:
-            return x
-
-        class SelfRef:
-            """A class that holds a reference to itself as a class attribute."""
-
-            # one-off mechanical fixture: wrapper belongs to a dynamically-built class attached to types.ModuleType
-            @deprecated(target=_new_compute, deprecated_in="1.0", remove_in="2.0")
-            def old_compute(self, x: int) -> None:
-                """Deprecated redirect."""
-
-        SelfRef.__module__ = "selfref_test_module"
-        SelfRef.cls_ref = SelfRef  # type: ignore[attr-defined]
-        mod.SelfRef = SelfRef  # type: ignore[attr-defined]
+        self_ref_cls = proxy_module.make_self_referential_class()
+        self_ref_cls.__module__ = "selfref_test_module"
+        mod.SelfRef = self_ref_cls  # type: ignore[attr-defined]
 
         result = find_deprecation_wrappers(mod, include_members=True, recursive=False)
         assert len(result) == 1
@@ -571,13 +567,14 @@ class TestFindDeprecatedWrappers:
         assert by_name["no_version_deprecation"].deprecated_info.deprecated_in == ""
 
 
+@pytest.fixture(scope="module")
+def chain_issues() -> list[DeprecationWrapperInfo]:
+    """Run validate_deprecation_chains once for the chain tests below and share the result."""
+    return validate_deprecation_chains(chain_module, recursive=False)
+
+
 class TestValidateDeprecationChains:
     """Tests for validate_deprecation_chains()."""
-
-    @pytest.fixture(scope="class")
-    def chain_issues(self) -> list[DeprecationWrapperInfo]:
-        """Run validate_deprecation_chains once for the class and share the result."""
-        return validate_deprecation_chains(chain_module, recursive=False)
 
     @pytest.mark.parametrize(
         ("fn_name", "expected_chain_type"),
@@ -843,22 +840,24 @@ class TestGenerateDeprecationMarkdown:
 
     @_requires_packaging
     def test_markdown_current_version_none_resolves_installed_version(self) -> None:
-        """When packaging installed and package resolvable, auto-resolved version drives status."""
-        # Add a synthetic wrapper so a data row appears; use packaging so status isn't "Status Unknown"
+        """When packaging installed and package resolvable, auto-resolved version drives status.
 
+        A release job renders the table without passing ``current_version``, so the report must look up the
+        installed distribution behind the module name.  The fake module is named ``deprecate``, which resolves to
+        this package's installed version (at least 0.14), past the wrapper's ``remove_in="0.2"``; the row therefore
+        reads "Past Removal Date" rather than "Status Unknown", which proves the resolved version reached the status.
+
+        """
         mod = types.ModuleType("deprecate")
-        mod.__name__ = "deprecate"  # type: ignore[attr-defined]
-
-        # one-off mechanical fixture: wrapper must live in a fake module with a specific __name__ for this test
-        @deprecated(target=TargetMode.NOTIFY, deprecated_in="0.1", remove_in="0.2")
-        def _old_fn() -> None:
-            """Old."""
-
-        mod._old_fn = _old_fn  # type: ignore[attr-defined]
+        old_fn = proxy_module.make_installed_version_notify_wrapper()
+        # find_deprecation_wrappers attributes wrappers to their defining module; align the wrapper's
+        # __module__ with the fake module so the re-export filter keeps it (mirrors the class fixtures).
+        old_fn.__module__ = mod.__name__
+        mod.old_fn = old_fn  # type: ignore[attr-defined]
         report = generate_deprecation_table(mod, current_version=None, recursive=False)
-        # With no version resolving (mod.__name__=="deprecate" but it's a fake module object),
-        # status degrades to Status Unknown — that's fine; the path is exercised without crash.
-        assert "| Original API |" in report
+        assert "<!-- Current version: " in report
+        assert "| `deprecate.old_fn` | callable |" in report
+        assert "💥 Past Removal Date" in report
 
     def test_markdown_include_members_false_excludes_class_methods(self) -> None:
         """include_members=False suppresses class member rows from the markdown output."""
@@ -879,12 +878,7 @@ class TestGenerateDeprecationMarkdown:
     def test_markdown_invalid_removal_target_status(self) -> None:
         """Symbol with unparsable remove_in produces Invalid Removal Target status."""
         mod = types.ModuleType("test_bad_remove")
-
-        # one-off mechanical fixture: wrapper with invalid remove_in must be in a controlled fake module
-        @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="not-a-version")
-        def bad_remove() -> None:
-            """Bad remove_in."""
-
+        bad_remove = proxy_module.make_loc_audit_wrapper("not-a-version")
         # find_deprecation_wrappers attributes wrappers to their defining module; align the wrapper's
         # __module__ with the fake module so the re-export filter keeps it (mirrors the class fixtures).
         bad_remove.__module__ = mod.__name__
@@ -965,12 +959,7 @@ class TestCheckDeprecationExpiry:
 
     def test_invalid_remove_in_raises_value_error(self) -> None:
         """Callable with a malformed remove_in string raises ValueError naming the callable."""
-
-        # one-off mechanical fixture: wrapper with malformed remove_in must be created inline for direct inspection
-        @deprecated(target=None, deprecated_in="1.0", remove_in="not-semver")
-        def _bad_version_fn() -> None:
-            pass
-
+        _bad_version_fn = sample_module.make_malformed_remove_in_wrapper()
         with pytest.raises(ValueError, match="Invalid remove_in.*_bad_version_fn"):
             _check_deprecated_wrapper_expiry(_bad_version_fn, "1.0")
 
@@ -1063,14 +1052,17 @@ class TestCheckModuleDeprecationExpiry:
         assert "WarnOnlyColorEnum" in expired_names
         assert "depr_config_dict" in expired_names
 
-    def test_silently_skips_invalid_remove_in_version(self) -> None:
-        """Callables with a malformed remove_in are silently skipped, not raised."""
+    def test_skips_invalid_remove_in_version_with_warning(self) -> None:
+        """Callables with a malformed remove_in are skipped with a ``UserWarning``, not raised."""
         bad_info = DeprecationWrapperInfo(
             module="tests.collections.api_deprecated",
             function="bad_version_fn",
             deprecated_info=DeprecationConfig(deprecated_in="1.0", remove_in="not-semver"),
         )
-        with patch("deprecate.audit._lifecycle.find_deprecation_wrappers", return_value=[bad_info]):
+        with (
+            pytest.warns(UserWarning, match="unparsable `remove_in` version"),
+            patch("deprecate.audit._lifecycle.find_deprecation_wrappers", return_value=[bad_info]),
+        ):
             result = validate_deprecation_expiry("tests.collections.api_deprecated", "2.0", recursive=False)
         assert result == []
 
@@ -1082,7 +1074,10 @@ class TestCheckModuleDeprecationExpiry:
         scan must not raise and must return a plain list.
 
         """
-        with patch.object(importlib, "import_module", side_effect=ImportError("bad submodule")):
+        with (
+            pytest.warns(UserWarning, match="audit: skipped tests"),
+            patch.object(importlib, "import_module", side_effect=ImportError("bad submodule")),
+        ):
             result = validate_deprecation_expiry(tests, "2.0", recursive=True)
         assert isinstance(result, list)
 
@@ -1185,8 +1180,7 @@ class TestBackwardCompatShims:
 
     def test_validate_deprecated_callable_emits_warning_and_forwards(self) -> None:
         """``validate_deprecated_callable`` warns and returns the same result as the new name."""
-        with warnings.catch_warnings(record=True) as recorded:
-            warnings.simplefilter("always")
+        with captured_warnings() as recorded:
             result_old = validate_deprecated_callable(proxy_module.decorated_pow_self)
 
         # The shim's own deprecation warning must appear in the record; identify it by message.
@@ -1200,8 +1194,7 @@ class TestBackwardCompatShims:
 
     def test_find_deprecated_callables_emits_warning_and_forwards(self) -> None:
         """``find_deprecated_callables`` warns and returns the same list as ``find_deprecation_wrappers``."""
-        with warnings.catch_warnings(record=True) as recorded:
-            warnings.simplefilter("always")
+        with captured_warnings() as recorded:
             result_old = find_deprecated_callables(proxy_module, recursive=False)
 
         shim_warns = [w for w in recorded if "find_deprecated_callables" in str(w.message)]
@@ -1231,8 +1224,7 @@ class TestBackwardCompatShims:
         # pytest introspection (inspect.hasattr '__wrapped__') may consume num_warns=1 before this
         # test body runs; reset the proxy's warn counter so the call below always fires the warning.
         DeprecatedCallableInfo._cfg.state.warned_calls = 0  # type: ignore[attr-defined]
-        with warnings.catch_warnings(record=True) as recorded:
-            warnings.simplefilter("always")
+        with captured_warnings() as recorded:
             info = DeprecatedCallableInfo(  # type: ignore[call-arg]
                 module="tests", function="f", deprecated_info=DeprecationConfig(deprecated_in="1.0", remove_in="2.0")
             )

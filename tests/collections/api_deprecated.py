@@ -112,6 +112,8 @@ _DEPRS_CASE_TGT_MODE_INF_ARGS: dict[str, Any] = {"deprecated_in": "1.2", "remove
 _DEPRS_CASE_STD_ARGS: dict[str, Any] = {"deprecated_in": "1.0", "remove_in": "2.0"}
 _DEPRS_CASE_STD_INF_ARGS: dict[str, Any] = {"deprecated_in": "1.0", "remove_in": "2.0", "num_warns": -1}
 _DEPRS_CASE_FATAL_ARGS: dict[str, Any] = {"deprecated_in": "1.0", "remove_in": "2.0", "as_exception": True}
+_DEPRS_CASE_OLD_ARGS: dict[str, Any] = {"deprecated_in": "0.1", "remove_in": "0.5"}
+_DEPRS_CASE_OUTER_ARGS: dict[str, Any] = {"deprecated_in": "2.0", "remove_in": "3.0"}
 
 # Shared deprecated_class() instances — used as both decorator and factory form in
 # form-equivalence and sibling fixture groups; defined here so all usages reference the
@@ -314,7 +316,7 @@ def original_sum(a: int, b: int = 5) -> int:
     return void(a, b)
 
 
-_deprecation_sum = deprecated(target=base_sum_kwargs, deprecated_in="0.1", remove_in="0.5")
+_deprecation_sum = deprecated(target=base_sum_kwargs, **_DEPRS_CASE_OLD_ARGS)
 
 
 @_deprecation_sum
@@ -408,8 +410,7 @@ wrapped_sum_calls_inf = _deprecation_sum_calls_inf(original_sum)
 
 _deprecation_sum_msg = deprecated(
     target=base_sum_kwargs,
-    deprecated_in="0.1",
-    remove_in="0.5",
+    **_DEPRS_CASE_OLD_ARGS,
     message_template="v%(deprecated_in)s: `%(source_name)s` was deprecated, use `%(target_name)s`",
 )
 
@@ -521,7 +522,7 @@ def depr_pow_args(a: float, b: float) -> float:
     return void(a, b)
 
 
-@deprecated(target=base_pow_args, deprecated_in="0.1", remove_in="0.5")
+@deprecated(target=base_pow_args, **_DEPRS_CASE_OLD_ARGS)
 def depr_pow_mix(a: int, b: float = 4) -> float:
     """Forwarding with mixed parameter types between source and target.
 
@@ -533,7 +534,7 @@ def depr_pow_mix(a: int, b: float = 4) -> float:
     return void(a, b)
 
 
-@deprecated(target=base_pow_args, deprecated_in="0.1", remove_in="0.5")
+@deprecated(target=base_pow_args, **_DEPRS_CASE_OLD_ARGS)
 def depr_pow_wrong(a: int, c: float = 4) -> float:
     """Mismatched argument name between source and target (expected failure).
 
@@ -587,7 +588,7 @@ def original_pow_self(base: float, coef: float = 0, new_coef: float = 0) -> floa
 
 
 _deprecation_pow_self = deprecated(
-    target=TargetMode.ARGS_REMAP, deprecated_in="0.1", remove_in="0.5", args_mapping={"coef": "new_coef"}
+    target=TargetMode.ARGS_REMAP, **_DEPRS_CASE_OLD_ARGS, args_mapping={"coef": "new_coef"}
 )
 
 
@@ -658,10 +659,9 @@ def make_depr_compute_power_stacked() -> Callable:
     Examples:
         Calling with the old arg name raises two warnings.
 
-        >>> import warnings
+        >>> from tests._helpers import captured_warnings
         >>> fn = make_depr_compute_power_stacked()
-        >>> with warnings.catch_warnings(record=True) as w:
-        ...     warnings.simplefilter("always")
+        >>> with captured_warnings() as w:
         ...     result = fn(2.0, factor=3.0)
         >>> result
         8.0
@@ -686,18 +686,17 @@ def make_depr_notify_callable_stacked() -> Callable:
     Examples:
         Calling the stacked wrapper emits two FutureWarnings and returns the computed value.
 
-        >>> import warnings
+        >>> from tests._helpers import captured_warnings
         >>> fn = make_depr_notify_callable_stacked()
-        >>> with warnings.catch_warnings(record=True) as w:
-        ...     warnings.simplefilter("always")
+        >>> with captured_warnings() as w:
         ...     result = fn(2.0, scale=3.0)
         >>> result
         8.0
         >>> len(w)
         2
     """
-    inner = deprecated(target=compute_power, deprecated_in="1.0", remove_in="2.0")(compute_power)
-    return deprecated(TargetMode.NOTIFY, deprecated_in="2.0", remove_in="3.0")(inner)
+    inner = deprecated(target=compute_power, **_DEPRS_CASE_STD_ARGS)(compute_power)
+    return deprecated(TargetMode.NOTIFY, **_DEPRS_CASE_OUTER_ARGS)(inner)
 
 
 def make_depr_args_remap_notify_with_extra() -> Callable:
@@ -711,21 +710,19 @@ def make_depr_args_remap_notify_with_extra() -> Callable:
     Examples:
         Calling with the deprecated arg name fires two warnings and returns the injected-base result.
 
-        >>> import warnings
+        >>> from tests._helpers import captured_warnings
         >>> fn = make_depr_args_remap_notify_with_extra()
-        >>> with warnings.catch_warnings(record=True) as w:
-        ...     warnings.simplefilter("always")
+        >>> with captured_warnings() as w:
         ...     result = fn(factor=3.0)
         >>> result
         8.0
         >>> len(w)
         2
     """
-    inner = deprecated(TargetMode.NOTIFY, deprecated_in="2.0", remove_in="3.0")(compute_power)
+    inner = deprecated(TargetMode.NOTIFY, **_DEPRS_CASE_OUTER_ARGS)(compute_power)
     return deprecated(
         TargetMode.ARGS_REMAP,
-        deprecated_in="1.0",
-        remove_in="2.0",
+        **_DEPRS_CASE_STD_ARGS,
         args_mapping={"factor": "scale"},
         args_extra={"base": 2.0},
     )(inner)
@@ -740,19 +737,22 @@ def make_async_stacked_notify() -> Callable:
     exercising the stacked-source code path in the async branch of ``packing()``.
 
     Examples:
-        Calling this factory and awaiting the result emits two FutureWarnings.
+        Building the stack flags the duplicate NOTIFY layers; awaiting the result emits two FutureWarnings.
 
-        >>> import asyncio, warnings
-        >>> fn = make_async_stacked_notify()
-        >>> with warnings.catch_warnings(record=True) as w:
-        ...     warnings.simplefilter("always")
+        >>> import asyncio
+        >>> from tests._helpers import captured_warnings
+        >>> with captured_warnings() as build:
+        ...     fn = make_async_stacked_notify()
+        >>> "duplicate @deprecated(NOTIFY) layers" in str(build[0].message)
+        True
+        >>> with captured_warnings() as w:
         ...     _ = asyncio.run(fn(x=1))
         >>> len(w)
         2
 
     """
-    inner = deprecated(TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")(_async_source_notify)
-    return deprecated(TargetMode.NOTIFY, deprecated_in="2.0", remove_in="3.0")(inner)
+    inner = deprecated(TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)(_async_source_notify)
+    return deprecated(TargetMode.NOTIFY, **_DEPRS_CASE_OUTER_ARGS)(inner)
 
 
 @deprecated_callable(
@@ -929,6 +929,47 @@ def depr_func_no_remove_in(x: int) -> int:
     return x
 
 
+# ========== Audit scan fixtures built per call ==========
+# Factories rather than module-level fixtures: each test binds the result into its own ``types.ModuleType`` and may
+# rewrite ``__module__`` on it, so a shared object would carry that edit into later tests, and the audit scans of this
+# module must not count these wrappers.
+
+
+def make_self_referential_class() -> type[Any]:
+    """Build a fresh class with one deprecated method and a ``cls_ref`` class attribute pointing back at the class.
+
+    Examples:
+        A registry class stores a reference to itself for self-registration. Member scanning must visit the class
+        once and report its one deprecated method instead of recursing through the self-reference without end.
+
+    """
+
+    class SelfRef:
+        """A class that holds a reference to itself as a class attribute."""
+
+        @deprecated(target=identity_value, **_DEPRS_CASE_STD_ARGS)
+        def old_compute(self, x: int) -> None:
+            """Deprecated redirect."""
+
+    SelfRef.cls_ref = SelfRef  # type: ignore[attr-defined]
+    return SelfRef
+
+
+def make_installed_version_notify_wrapper() -> Callable[..., Any]:
+    """Build a fresh warn-only wrapper for a deprecation report whose current version comes from the installed package.
+
+    Examples:
+        A release job renders the deprecation table with ``current_version=None`` and relies on the installed
+        distribution's version to decide each row's status.
+
+    """
+
+    def _old_fn() -> None:
+        """Old."""
+
+    return deprecated(target=TargetMode.NOTIFY, deprecated_in="0.1", remove_in="0.2")(_old_fn)
+
+
 # ========== Class deprecation with custom DeprecationWarning stream ==========
 
 
@@ -1047,7 +1088,7 @@ class ServiceCls:
         return x * 2
 
     @staticmethod
-    @deprecated(target=static_compute, deprecated_in="1.0", remove_in="2.0")
+    @deprecated(target=static_compute, **_DEPRS_CASE_STD_ARGS)
     def old_static_redirect(x: int) -> int:
         """Deprecated staticmethod — forwards to static_compute via descriptor target.
 
@@ -1065,8 +1106,7 @@ class ServiceCls:
     @deprecated(
         target=static_compute,
         args_mapping={"old_x": "x"},
-        deprecated_in="1.0",
-        remove_in="2.0",
+        **_DEPRS_CASE_STD_ARGS,
     )
     def old_static_redirect_mapped(old_x: int = 0, x: int = 0) -> int:
         """Deprecated staticmethod forwarding to static_compute with argument rename.
@@ -1081,7 +1121,7 @@ class ServiceCls:
         return void(old_x, x)
 
     @classmethod
-    @deprecated(target=class_compute, deprecated_in="1.0", remove_in="2.0")
+    @deprecated(target=class_compute, **_DEPRS_CASE_STD_ARGS)
     def old_class_redirect(cls, x: int) -> int:
         """Deprecated classmethod — forwards to class_compute via descriptor target.
 
@@ -1099,8 +1139,7 @@ class ServiceCls:
     @deprecated(
         target=class_compute,
         args_mapping={"old_x": "x"},
-        deprecated_in="1.0",
-        remove_in="2.0",
+        **_DEPRS_CASE_STD_ARGS,
     )
     def old_class_redirect_mapped(cls, old_x: int = 0, x: int = 0) -> int:
         """Deprecated classmethod forwarding to class_compute with argument rename.
@@ -1484,13 +1523,13 @@ with catch_warnings():
 _dep_cycle: dict[str, Any] = {}
 
 
-@deprecated(target=lambda *a, **kw: _dep_cycle["b"](*a, **kw), deprecated_in="1.0", remove_in="2.0")
+@deprecated(target=lambda *a, **kw: _dep_cycle["b"](*a, **kw), **_DEPRS_CASE_STD_ARGS)
 def dep_cycle_fn_a(x: int) -> int:
     """Deprecated cycle node A — forwards to dep_cycle_fn_b; never reached directly."""
     return x
 
 
-@deprecated(target=lambda *a, **kw: _dep_cycle["a"](*a, **kw), deprecated_in="1.0", remove_in="2.0")
+@deprecated(target=lambda *a, **kw: _dep_cycle["a"](*a, **kw), **_DEPRS_CASE_STD_ARGS)
 def dep_cycle_fn_b(x: int) -> int:
     """Deprecated cycle node B — forwards to dep_cycle_fn_a; never reached directly."""
     return x
@@ -1520,13 +1559,13 @@ async def _async_cycle_b_target(x: int) -> int:
     return await _dep_async_cycle["a"](x)
 
 
-@deprecated(target=_async_cycle_a_target, deprecated_in="1.0", remove_in="2.0")
+@deprecated(target=_async_cycle_a_target, **_DEPRS_CASE_STD_ARGS)
 async def dep_async_cycle_fn_a(x: int) -> int:
     """Async deprecated cycle node A — forwards to dep_async_cycle_fn_b; never reached directly."""
     return x
 
 
-@deprecated(target=_async_cycle_b_target, deprecated_in="1.0", remove_in="2.0")
+@deprecated(target=_async_cycle_b_target, **_DEPRS_CASE_STD_ARGS)
 async def dep_async_cycle_fn_b(x: int) -> int:
     """Async deprecated cycle node B — forwards to dep_async_cycle_fn_a; never reached directly."""
     return x
@@ -1546,7 +1585,7 @@ def make_deprecated_notify_args_extra_alone_on_class() -> type:
 
     """
 
-    @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0", args_extra={"z": 1})
+    @deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS, args_extra={"z": 1})
     class _DispatchedNotifyArgsExtraAlone:
         """Plain class source with NOTIFY + bare ``args_extra`` — misconfiguration fixture."""
 
@@ -1560,9 +1599,9 @@ def make_deprecated_notify_args_extra_alone_on_class() -> type:
 # Both files pin today's behaviour so internal refactors of the dispatch and stacklevel machinery are proven against it.
 #
 # Budgets: module-level ``@deprecated`` wrappers below (including the inner layers of stacks, bound to their own module
-# names on purpose) and module-level proxies are reset before every test by ``tests/conftest.py``.  Class-body
-# descriptor wrappers are out of that fixture's reach, so they use ``num_warns=-1`` and no test depends
-# on execution order.  Decoration-time warnings come from ``make_loc_*`` factories: the decorating statement of each
+# names on purpose), module-level proxies and class-body descriptor wrappers are reset before every test by
+# ``tests/conftest.py``.  The descriptor wrappers also use ``num_warns=-1``, so a location test may call one
+# repeatedly.  Decoration-time warnings come from ``make_loc_*`` factories: the decorating statement of each
 # factory carries a ``# warn-site`` marker so the test can compute the exact line the warning has to point at.
 
 
@@ -1576,7 +1615,8 @@ def make_loc_audit_wrapper(remove_in: str) -> Callable[..., Any]:
     """Build a warn-only wrapper deprecated in ``1.0`` with the given ``remove_in`` for the audit-gate location rows.
 
     Built on demand rather than defined at module level, so audit scans of this module never see the deliberately
-    unusable ``remove_in`` values (a typo'd version, an epoch change) and emit their diagnostics elsewhere.
+    unusable ``remove_in`` values (a typo'd version, an epoch change) and emit their diagnostics elsewhere.  The
+    deprecation-table tests reuse it for the row of an unparsable ``remove_in``.
 
     """
 

@@ -34,6 +34,7 @@ from deprecate.messaging import (
     _validate_message_template,
 )
 from deprecate.utils import _partial_chain
+from tests._helpers import captured_warnings
 from tests.collections.api_current import (
     CallableAdder,
     EqualMessageOnlyStream,
@@ -289,7 +290,13 @@ class TestRaiseWarnCallable:
     """Tests for _raise_warn_callable — warning variant for deprecated callables forwarding to a replacement."""
 
     def test_callable_target_uses_default_template(self) -> None:
-        """When a replacement target is provided, both old and new names appear in the default message."""
+        """When a replacement target is provided, both old and new names appear in the default message.
+
+        A function is deprecated in favour of a replacement callable and no custom template is configured.  The
+        message sent to the stream must name the old function, the new function and both the deprecation and removal
+        versions, so users know what to switch to and by when.
+
+        """
         stream = MagicMock()
 
         def old_func() -> None:
@@ -788,8 +795,7 @@ class TestEmit:
         Every emitter in the package routes custom streams through ``_emit``, which walks past its own frame and
         any other ``deprecate`` frame; called straight from this test, the warning must land in this file.
         """
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with captured_warnings() as caught:
             _emit(stream, "old is deprecated")
         assert len(caught) == 1
         assert caught[0].filename.endswith("test_messaging.py")
