@@ -2,6 +2,7 @@
 
 import sys
 from typing import Union, cast
+from unittest import mock
 
 import pytest
 
@@ -73,14 +74,14 @@ class TestDocstringStyleValidation:
         result = normalize_docstring_style("auto")
         assert result == "rst"
 
-    def test_auto_style_env_var_mkdocs(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    @mock.patch.dict("os.environ", {"DEPRECATE_DOCSTRING_STYLE": "mkdocs"})
+    def test_auto_style_env_var_mkdocs(self) -> None:
         """``DEPRECATE_DOCSTRING_STYLE=mkdocs`` forces MkDocs format."""
-        monkeypatch.setenv("DEPRECATE_DOCSTRING_STYLE", "mkdocs")
         assert normalize_docstring_style("auto") == "mkdocs"
 
-    def test_auto_style_env_var_rst(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    @mock.patch.dict("os.environ", {"DEPRECATE_DOCSTRING_STYLE": "rst"})
+    def test_auto_style_env_var_rst(self) -> None:
         """``DEPRECATE_DOCSTRING_STYLE=rst`` forces RST format."""
-        monkeypatch.setenv("DEPRECATE_DOCSTRING_STYLE", "rst")
         assert normalize_docstring_style("auto") == "rst"
 
     def test_auto_style_detects_mkdocs_from_argv(self, monkeypatch: pytest.MonkeyPatch) -> None:
