@@ -37,6 +37,7 @@ from tests.collections.api_current.core import (
     partial_target,
     positional_only_target,
     raw_signature_patched,
+    state_echo,
     wraps_chain_outer,
     zero_argument_target,
 )
@@ -934,6 +935,25 @@ def make_deprecated_partial_host() -> type[Any]:
     return PartialHost
 
 
+def make_deprecated_in_place_local_class() -> Any:  # noqa: ANN401
+    """Deprecate a brand-new class defined inside this function in place, and return only the proxy.
+
+    The class's qualified name contains ``<locals>``, so no module attribute can publish it and pickle never saves its
+    instances by name. The proxy is the only reference handed out; nothing else in this module binds the class, so a
+    test can drop the proxy and check that pyDeprecate itself keeps nothing alive.
+
+    """
+
+    class LocalInPlaceSettings:
+        """Plain class defined inside a factory function and deprecated in place, without a replacement class."""
+
+        def __init__(self, level: int = 0) -> None:
+            """Initialize with an optional level."""
+            self.level = level
+
+    return deprecated_class(**_DEPRS_CASE_STD_ARGS)(LocalInPlaceSettings)
+
+
 def make_sum_deprecation_with_stream(stream: Callable[..., Any]) -> Callable[..., int]:
     """Deprecate ``original_sum`` in favour of ``base_sum_kwargs``, delivering every warning through ``stream``."""
     return deprecated(target=base_sum_kwargs, **_DEPRS_CASE_STD_INF_ARGS, stream=stream)(original_sum)
@@ -1216,6 +1236,38 @@ class InPlaceOwnReduce:
     def __reduce__(self) -> tuple[Any, ...]:
         """Pickle as a plain dict, which shows this method, not a pyDeprecate reducer, produced the payload."""
         return dict, ({"level": self.level},)
+
+
+@deprecated_class(**_DEPRS_CASE_STD_INF_ARGS)
+class InPlaceNamedReduce:
+    """Class deprecated in place whose ``__reduce__`` names the class by its module-level name, now the proxy."""
+
+    def __init__(self, level: int) -> None:
+        """Store the level."""
+        self.level = level
+
+    def __reduce__(self) -> tuple[Any, ...]:
+        """Rebuild by calling the class with the level, the usual hand-written reduction."""
+        return InPlaceNamedReduce, (self.level,)
+
+    def __eq__(self, other: object) -> bool:
+        """Compare by exact type and level."""
+        return type(other) is type(self) and vars(other) == vars(self)
+
+    __hash__ = None  # type: ignore[assignment]
+
+
+@deprecated_class(**_DEPRS_CASE_STD_INF_ARGS)
+class InPlaceUnhashableReduce:
+    """Class deprecated in place whose ``__reduce__`` callable is an unhashable callable object."""
+
+    def __init__(self, level: int) -> None:
+        """Store the level."""
+        self.level = level
+
+    def __reduce__(self) -> tuple[Any, ...]:
+        """Pickle through an unhashable callable that loads the instance as a plain dict."""
+        return state_echo, ({"level": self.level},)
 
 
 #: Alias form ``Alias = deprecated_class(...)(Cls)``: the class keeps its own name in ``api_current``, so its instances

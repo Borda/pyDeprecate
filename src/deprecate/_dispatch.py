@@ -589,53 +589,93 @@ def _classmethod_receivers(
     return facts.source_positional_names[0], (target_names[0] if target_names else None)
 
 
+#: Marks a receiver with no value: neither the call nor the source's default supplies one
+#: (:func:`_check_classmethod_receiver`), or a forwarded call did not take it out of the keywords
+#: (:func:`_resolve_forward_kwargs`).
+_NO_RECEIVER = object()
+
+
 def _check_classmethod_receiver(ctx: _WrapperContext, kwargs: Mapping[str, Any]) -> None:
     """Raise when the value a source hands to its ``classmethod`` descriptor target as the receiver is not a class.
 
-    A static or plain source pointed at a ``classmethod`` descriptor decorates fine, because the receiver's name is
-    free, but its first argument is a caller's value: forwarding it would run the replacement with a wrong ``cls``.
-    Runs before any warning is emitted or any budget is spent, like :func:`_check_source_arity`.
+    A plain source, or a static one written ``@staticmethod`` above ``@deprecated``, pointed at a ``classmethod``
+    descriptor decorates fine, because the receiver's name is free, but its first argument is a caller's value:
+    forwarding a value that is not a class would run the replacement with a wrong ``cls``.  Only the type is checked,
+    so a class the caller passes as that first argument is forwarded as the receiver; the decorator cannot tell such a
+    source from a classmethod.  When the call leaves the first argument out, the source's default for it is checked
+    instead, because the forwarded call fills that default in later.  Runs before any warning is emitted or any budget
+    is spent, like :func:`_check_source_arity`.
+
+    The caller's keywords must not carry the target's receiver name either, when it differs from the source's: the
+    receiver is forwarded under that name, so the keyword would take the class's place.  A later source parameter of
+    that name is rejected at decoration (``_validate._receiver_name_clash``), so at this point such a keyword can only
+    arrive through the source's ``**kwargs``.  A name that is an ``args_mapping`` key is exempt: the rename moves it
+    away before the receiver is forwarded.
 
     Args:
         ctx: The wrapper's context; :attr:`_WrapperContext.source_receiver` must be set.
         kwargs: The caller's arguments, positionals already mapped to their parameter names.
 
     Raises:
-        TypeError: When the receiver is missing or is not a class.
+        TypeError: When the receiver is missing with no default, when it or its default is not a class, or when the
+            caller passed the target's receiver name as a keyword.
 
     """
     name = cast(str, ctx.source_receiver)
-    if name not in kwargs:
+    target_name = ctx.target_receiver
+    # Defaults are merged only on the forward path, after the warning, so look the default up here.
+    receiver = kwargs[name] if name in kwargs else ctx.facts.source_defaults.get(name, _NO_RECEIVER)
+    if receiver is _NO_RECEIVER:
         problem = f"the call supplied no value for its first parameter `{name}`"
-    elif not isinstance(kwargs[name], type):
-        problem = f"its first parameter `{name}` received a value of type `{type(kwargs[name]).__name__}`, not a class"
+    elif not isinstance(receiver, type):
+        problem = f"its first parameter `{name}` received a value of type `{type(receiver).__name__}`, not a class"
+    elif (
+        target_name is not None
+        and target_name != name
+        and target_name in kwargs
+        and target_name not in (ctx.cfg.args_mapping or {})
+    ):
+        problem = (
+            f"the call also passed `{target_name}`, the target's receiver name, as a keyword argument that would"
+            " replace the class; drop that keyword"
+        )
     else:
         return
     raise _classmethod_target_error(ctx.source.__name__, cast(Callable, ctx.target), problem)
 
 
-def _forward_receiver_name(ctx: _WrapperContext, kwargs: dict[str, Any]) -> dict[str, Any]:
-    """Rename the source's receiver keyword to the target's receiver name for a ``classmethod`` descriptor target.
+def _forward_receiver_name(ctx: _WrapperContext, kwargs: dict[str, Any], receiver: Any) -> dict[str, Any]:  # noqa: ANN401
+    """Put the source's receiver back into the forwarded keywords under the target's receiver name.
 
     The call path forwards by keyword, so a source receiver named ``klass`` would reach a target whose receiver is
-    ``cls`` as a keyword the target does not accept.  Renaming it puts the class in the target's receiver slot, and
-    every later step (the target-accepts check, the POSITIONAL_ONLY split, the ``*args`` surplus reorder) handles it as
-    it handles a ``cls`` named on both sides.  A later source parameter with the target's receiver name is rejected at
-    decoration (``_validate._receiver_name_clash``); a name the target already receives from ``args_mapping`` or
-    ``args_extra`` is left alone.
+    ``cls`` as a keyword the target does not accept.  :func:`_resolve_forward_kwargs` takes the receiver out of the
+    keywords before the ``args_mapping`` rename and the ``args_extra`` merge and hands it here afterwards, so neither
+    can move or replace it: a rename onto a target parameter that shares the source receiver's name
+    (``args_mapping={"old_value": "klass"}`` for a target ``make(cls, klass)``) would otherwise collide with the class.
+    Put first under the target's receiver name, the class sits in the target's receiver slot, and every later step
+    (the target-accepts check, the POSITIONAL_ONLY split, the ``*args`` surplus reorder) handles it as it handles a
+    ``cls`` named on both sides.
 
     Args:
-        ctx: The wrapper's context.
-        kwargs: The final keyword arguments for the target.
+        ctx: The wrapper's context; :attr:`_WrapperContext.target_receiver` must be set.
+        kwargs: The keyword arguments for the target, without the receiver.
+        receiver: The class the source received.
 
     Returns:
-        ``kwargs`` itself when nothing is renamed, otherwise a new dict in the same order with the receiver renamed.
+        A new dict holding the receiver under the target's receiver name, followed by ``kwargs``.
+
+    Raises:
+        TypeError: When ``kwargs`` already holds the target's receiver name, which ``args_mapping`` or ``args_extra``
+            put there: forwarding it would replace the class or drop that value.
 
     """
-    source_name, target_name = ctx.source_receiver, ctx.target_receiver
-    if target_name is None or source_name == target_name or source_name not in kwargs or target_name in kwargs:
-        return kwargs
-    return {(target_name if name == source_name else name): value for name, value in kwargs.items()}
+    name = cast(str, ctx.target_receiver)
+    if name in kwargs:
+        raise TypeError(
+            f"Failed mapping of `{ctx.source.__name__}`: the target's receiver `{name}` would receive both the class"
+            " and a value from `args_mapping` or `args_extra`. Map that value to another target parameter."
+        )
+    return {name: receiver, **kwargs}
 
 
 class _CycleEntry:
@@ -890,7 +930,9 @@ def _resolve_forward_kwargs(
     callable reason only), the ``args_mapping`` rename with its collision check, the ``args_extra`` merge, and, for a
     callable target, the check that the target accepts every resulting keyword.  Precedence when keys collide: an
     explicit new-name keyword wins over the remapped old-name value; ``args_extra`` wins over both (it is merged
-    last).
+    last).  For a ``classmethod`` descriptor target with a readable receiver, the source's receiver is taken out after
+    the defaults merge, so the rename and the extras never see it, and is put back under the target's receiver name
+    after the extras (:func:`_forward_receiver_name`).
 
     Args:
         ctx: The wrapper's context.
@@ -907,14 +949,21 @@ def _resolve_forward_kwargs(
             # Not derivable at decoration because the target signature is unreadable: raise that error now.
             _raise_target_signature_error(ctx.facts)
         kwargs = _merge_source_defaults(ctx.facts.source_defaults, target, kwargs, mapping, ctx.forward_defaults)
+    # Taken out after the defaults merge, which fills a defaulted receiver by its source name; a target without a
+    # readable receiver keeps it under that name.  ``kwargs`` is the merge's own new dict here: a set
+    # ``target_receiver`` means a classmethod descriptor target, hence a callable target and a callable reason.
+    receiver = _NO_RECEIVER
+    if ctx.target_receiver is not None:
+        receiver = kwargs.pop(cast(str, ctx.source_receiver), _NO_RECEIVER)
     if mapping and ctx.remap_active:
         kwargs = _remap_kwargs(mapping, kwargs, name=source.__name__, stream=ctx.stream)
     if extra and ctx.remap_active:
         kwargs.update(extra)
+    if receiver is not _NO_RECEIVER:
+        kwargs = _forward_receiver_name(ctx, kwargs, receiver)
     if not callable(target):
         return kwargs, None
     facts = ctx.facts
-    kwargs = _forward_receiver_name(ctx, kwargs)
     if kwargs:
         # Empty cached names can mean an unreadable signature, not a target that rejects every keyword.
         _raise_target_signature_error(facts)

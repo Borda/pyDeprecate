@@ -79,6 +79,7 @@ from tests.collections.api_current.core import (
     PositionalOnlyTarget,
     RequiredPositionalOnlyTarget,
     SideEffectBox,
+    TagList,
     TimerDecorator,
     _InnerOrderPropTarget,
     add_values,
@@ -1294,6 +1295,7 @@ class DeprecatedColorEnum(Enum):
 
 # Protocol-surface aliases: a class proxy carries exactly the protocols its wrapped class (and target) supports.
 DeprecatedGenericBox = deprecated_class(stream=None, **_DEPRS_CASE_STD_ARGS)(GenericBox)
+DeprecatedTagList = deprecated_class(stream=None, **_DEPRS_CASE_STD_ARGS)(TagList)
 
 
 @deprecated_class(target=ColorEnum, stream=None, **_DEPRS_CASE_STD_ARGS)

@@ -436,7 +436,8 @@ When moving functions across modules, import the target from its new home explic
 **What stays silent (structural probes):**
 
 - Ordering comparisons: `<`, `<=`, `>`, `>=`
-- `bool()`, `hash()`, and the `in` operator
+- `bool()` and `hash()`
+- The `in` operator, when the proxy's own `__contains__` answers it (a wrapped type without `__contains__` makes Python fall back to the proxy's warning `__iter__` / `__getitem__`, so `in` then warns like iteration)
 - `format()` / f-strings using the wrapped object
 - Context-manager exit (`__exit__` / `__aexit__`)
 
@@ -2006,6 +2007,19 @@ print(duplicate["max_retries"])  # warns: FutureWarning — each copy has its ow
 ```
 
 </details>
+
+______________________________________________________________________
+
+## What do pickled instances of a class deprecated in place need to load?
+
+**Q:** I pickle instances of a class deprecated in place (`@deprecated_class` with no replacement class) into a cache or a worker queue. What does the process that loads them need, and do the payloads survive upgrading pyDeprecate or removing the deprecation?
+
+**A:** The loading process needs pyDeprecate installed, and the class must still be deprecated in place when the payload loads. The module-level name of such a class holds the deprecation proxy, so the payload cannot name the class directly; it names one of pyDeprecate's rebuild helpers (`deprecate.proxy._rebuild_class_instance`, `_rebuild_class_instance_ex` or `_rebuild_class_call`) together with the class's module and qualified name.
+
+- **Upgrading pyDeprecate is safe.** The helper names are part of the pickle compatibility contract and stay unchanged across releases, so a payload written by one release loads in the next. pyDeprecate v0.14 and earlier have no such helpers, so they cannot load these payloads.
+- **Removing the deprecation breaks loading.** The helpers rebuild only a class whose name a deprecation proxy holds. Once the deprecation is gone and the name points at the plain class again, loading raises `AttributeError: Cannot rebuild the pickled instance: ... is not a class deprecated in place`.
+
+Load and re-pickle stored instances before you remove the deprecation. Payloads written after the removal name the class directly and need nothing from pyDeprecate.
 
 ______________________________________________________________________
 

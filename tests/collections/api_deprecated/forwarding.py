@@ -1320,6 +1320,10 @@ with catch_warnings():
 # methods live in one class body, because the raw ``classmethod`` descriptor is only reachable there.
 
 
+class ReceiverDefaultKind:
+    """Class a static source names as the default of its first parameter, so it is forwarded as the receiver."""
+
+
 class ReceiverNamedFactory:
     """Factory whose deprecated classmethods name their receiver in different ways."""
 
@@ -1363,11 +1367,80 @@ class ReceiverNamedFactory:
         """Deprecated ``klass`` classmethod that also renames ``old_value`` to ``value``."""
         return void(old_value, value)
 
+    @classmethod
+    @deprecated(target=make, args_mapping={"klass": "cls"}, **_DEPRS_CASE_STD_INF_ARGS)
+    def old_make_receiver_mapped(klass, value: int) -> tuple[str, int]:  # noqa: N804
+        """Deprecated ``klass`` classmethod whose ``args_mapping`` renames its own receiver to the target's ``cls``."""
+        return void(value)
+
     @staticmethod
     @deprecated(target=make, **_DEPRS_CASE_STD_INF_ARGS)
     def old_make_static(value: int) -> tuple[str, int]:
         """Mistaken static source pointed at a classmethod target: its first argument is never a class."""
         return void(value)
+
+    @staticmethod
+    @deprecated(target=make, **_DEPRS_CASE_STD_INF_ARGS)
+    def old_make_static_cls(cls: type, value: int) -> tuple[str, int]:
+        """Static source pointed at a classmethod target: a class the caller passes first is forwarded as receiver."""
+        return void(cls, value)
+
+    @staticmethod
+    @deprecated(target=make, **_DEPRS_CASE_STD_INF_ARGS)
+    def old_make_static_default(cls: type = ReceiverDefaultKind, value: int = 1) -> tuple[str, int]:
+        """Static source whose first parameter defaults to a class, forwarded as the receiver when left out."""
+        return void(cls, value)
+
+    @staticmethod
+    @deprecated(target=make, **_DEPRS_CASE_STD_INF_ARGS)
+    def old_make_static_none_default(cls: Optional[type] = None, value: int = 1) -> tuple[str, int]:
+        """Static source whose first parameter defaults to ``None``, which is not a class to forward."""
+        return void(cls, value)
+
+    @classmethod
+    def make_options(cls, value: int = 0, **options: object) -> tuple[str, int, dict[str, object]]:
+        """Replacement classmethod that accepts arbitrary keyword options."""
+        return cls.__name__, value, options
+
+    @classmethod
+    @deprecated(target=make_options, **_DEPRS_CASE_STD_INF_ARGS)
+    def old_make_options(klass, value: int = 0, **options: object) -> tuple[str, int, dict[str, object]]:  # noqa: N804
+        """Deprecated ``klass`` classmethod passing arbitrary keyword options through to the replacement."""
+        return void(value, options)
+
+    @classmethod
+    @deprecated(target=make_options, args_mapping={"cls": "kind"}, **_DEPRS_CASE_STD_INF_ARGS)
+    def old_make_options_mapped(klass, value: int = 0, **options: object) -> tuple[str, int, dict[str, object]]:  # noqa: N804
+        """Deprecated ``klass`` classmethod whose old ``cls`` option is renamed to ``kind``."""
+        return void(value, options)
+
+    @classmethod
+    def make_posonly(cls, /, value: int) -> tuple[str, int]:
+        """Replacement classmethod whose ``cls`` receiver is positional-only."""
+        return cls.__name__, value
+
+    @classmethod
+    @deprecated(target=make, **_DEPRS_CASE_STD_INF_ARGS)
+    def old_make_posonly_source(klass, /, value: int) -> tuple[str, int]:  # noqa: N804
+        """Deprecated classmethod whose ``klass`` receiver is positional-only."""
+        return void(value)
+
+    @classmethod
+    @deprecated(target=make_posonly, **_DEPRS_CASE_STD_INF_ARGS)
+    def old_make_to_posonly(klass, value: int) -> tuple[str, int]:  # noqa: N804
+        """Deprecated ``klass`` classmethod forwarding to a target whose ``cls`` receiver is positional-only."""
+        return void(value)
+
+    @classmethod
+    def make_from(cls, klass: str) -> tuple[str, str]:
+        """Replacement classmethod whose own ``klass`` parameter is a plain value, not its receiver."""
+        return cls.__name__, klass
+
+    @classmethod
+    @deprecated(target=make_from, args_mapping={"old_value": "klass"}, **_DEPRS_CASE_STD_INF_ARGS)
+    def old_make_from(klass, old_value: str) -> tuple[str, str]:  # noqa: N804
+        """Deprecated ``klass`` classmethod whose ``old_value`` becomes the replacement's ``klass`` parameter."""
+        return void(old_value)
 
 
 class ReceiverNamedFactoryChild(ReceiverNamedFactory):

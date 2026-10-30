@@ -357,8 +357,9 @@ print(Compute.surface(r=3.0))  # warns: FutureWarning
 
 The same pattern works for `@classmethod`. Both the deprecated and the replacement must be classmethods. The receiver may have any name on either side (`cls`, `klass`, `mcs`): the class the call is bound to, a subclass included, is forwarded into the replacement's own receiver parameter. A mismatch surfaces as `TypeError`, at a point that depends on the direction:
 
-- a `classmethod` replacement with a source that has no leading positional parameter raises at decoration time;
-- a `classmethod` replacement with a static or plain source decorates fine and raises on the first call, before any warning, because the source's first argument is not a class;
+- a `classmethod` replacement with a source that has no leading positional parameter raises at decoration time, and so does a static source written `@deprecated(...)` above `@staticmethod`, because a static method never receives the class;
+- a later source parameter, an `args_extra` key or an `args_mapping` value that carries the replacement's receiver name raises at decoration time: the class is forwarded under that name, so the value would take its place. Rename the parameter, drop the `args_extra` key, or map the argument to another parameter; an `args_mapping` entry that renames the source's own receiver onto the replacement's (`args_mapping={"klass": "cls"}`) is allowed;
+- a `classmethod` replacement with a plain source, or a static source written `@staticmethod` above `@deprecated(...)`, decorates fine, because pyDeprecate cannot tell it from a classmethod; the source's first argument is forwarded as the replacement's class, so a call raises before any warning when that argument, or the default it falls back to when the call leaves it out, is not a class, and a class passed there or given as its default is forwarded as the receiver;
 - a `classmethod` source forwarding to a `staticmethod` replacement decorates fine and raises `` TypeError: Failed mapping of `old`, arguments not accepted by target: ['cls'] `` on the first call.
 
 ```python

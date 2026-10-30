@@ -152,6 +152,25 @@ class GenericBox(Generic[_BoxItem]):
         self.item = item
 
 
+class TagList(list):
+    """List subclass; a deprecated alias of it is subscriptable through ``list.__class_getitem__`` but not iterable."""
+
+
+@dataclass
+class StateEcho:
+    """Callable record that returns the state it is called with; a non-frozen ``@dataclass`` leaves it unhashable."""
+
+    label: str = "state"
+
+    def __call__(self, state: dict[str, int]) -> dict[str, int]:
+        """Return *state* unchanged."""
+        return state
+
+
+#: Module-level unhashable callable a ``__reduce__`` can return, which pickle saves by its class reference.
+state_echo = StateEcho()
+
+
 def plain_function_target(x: int) -> int:
     """Plain function without deprecation decorator for testing error handling."""
     return x

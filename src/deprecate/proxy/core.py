@@ -180,16 +180,18 @@ class _DeprecatedProxy:
         Implicit special-method lookup goes through the *type*, so a proxy cannot decide per instance which protocols
         it supports. Constructing a proxy therefore allocates a cached subclass of the requested class that carries
         only the optional protocol forwards (calling, iteration, ``next``, sizing, membership, subscript, hashing,
-        ``reversed``, ``os.fspath``, ``await``, async iteration, ``with``/``async with`` and the operator and
-        conversion set) that the type of the wrapped object or of its replacement defines. ``callable(proxy)``,
+        ``round``, ``reversed``, ``os.fspath``, ``await``, async iteration, ``with``/``async with`` and the operator
+        and conversion set) that the type of the wrapped object or of its replacement defines. ``callable(proxy)``,
         ``isinstance(proxy, Iterator)``, ``os.PathLike``, ``Awaitable`` and the other structural ABCs then give the
-        answer the wrapped object gives. Two deliberate extras keep builtins working where the type defines no dunder:
-        an in-place operator is kept whenever its binary operator is (so ``read_only`` still refuses ``+=`` on an
-        ``int``), and ``int()``/``float()``/``complex()``/``os.fspath()`` are kept for the ``str``/``bytes`` values
-        those builtins parse natively — so a proxy over a ``str`` still reports ``os.PathLike``. A class alias gets the
-        protocols of its metaclass (``EnumMeta`` iterates and sizes), plus subscript when the class defines
-        ``__class_getitem__``. ``isinstance(proxy, _DeprecatedProxy)`` holds for every such subclass, and every proxy
-        is registered as a :class:`~deprecate._types.DeprecationProxy` whatever protocols it carries.
+        answer the wrapped object gave when the proxy was constructed: the subclass is fixed then (see
+        :meth:`__new__`), so a dunder the type gains later is not forwarded by an existing proxy. Two deliberate extras
+        keep builtins working where the type defines no dunder: an in-place operator is kept whenever its binary
+        operator is (so ``read_only`` still refuses ``+=`` on an ``int``), and
+        ``int()``/``float()``/``complex()``/``os.fspath()`` are kept for the ``str``/``bytes`` values those builtins
+        parse natively — so a proxy over a ``str`` still reports ``os.PathLike``. A class alias gets the protocols of
+        its metaclass (``EnumMeta`` iterates and sizes), plus subscript when the class defines ``__class_getitem__``
+        (never iteration or ``in`` through it). ``isinstance(proxy, _DeprecatedProxy)`` holds for every such subclass,
+        and every proxy is registered as a :class:`~deprecate._types.DeprecationProxy` whatever protocols it carries.
 
     Known limitations:
         **Binding**: only a proxy over a plain function (a ``@deprecated`` wrapper included) or over another such proxy
@@ -274,6 +276,11 @@ class _DeprecatedProxy:
         so no proxy can claim a protocol its wrapped object lacks. Called without a source — ``cls.__new__(cls)`` in
         :meth:`__deepcopy__` and :func:`_reconstruct_proxy` — it allocates *cls* itself, which those paths have already
         selected.
+
+        The protocol set is decided once, here, from the types as they are at construction: a dunder the wrapped type
+        gains afterwards (a monkeypatched ``__call__``, a magic method set on a ``Mock`` after wrapping) is not served
+        by this proxy, so ``callable(obj)`` can be ``True`` while ``callable(proxy)`` is ``False``; a proxy constructed
+        later picks the new dunder up.
 
         """
         if obj is _NO_SOURCE:
@@ -1168,8 +1175,10 @@ class _DeprecatedProxy:
             proxy (the typical usage), pickle cannot resolve the reference and raises
             :class:`~pickle.PicklingError`.  This applies to the class alias itself only: instances of
             a class deprecated in place pickle through the reducer :func:`_register_class_instance_reducer`
-            installs, unless the class defines its own ``__reduce__`` or ``__reduce_ex__`` (every
-            :class:`~enum.Enum` does, so in-place deprecated Enum members still raise).
+            installs, unless the class defines or inherits a ``__reduce_ex__`` of its own (every
+            :class:`~enum.Enum` does, so in-place deprecated Enum members still raise). A custom
+            ``__reduce__`` does not opt out: a reduction that names the class is rebuilt through the
+            same reducer, and one that names another callable passes through unchanged.
 
         """
         doc = object.__getattribute__(self, "__dict__").get("__doc__")
@@ -1432,13 +1441,27 @@ def _published_object(root: Any, qualname: str) -> Any:  # noqa: ANN401
 def _resolve_class(module: str, qualname: str) -> type:
     """Import *module* and return the class published as *qualname*, unwrapping the proxy that holds its name.
 
+    Only a class whose name a deprecation proxy holds is returned, the mirror of the condition
+    :func:`_reduce_class_instance` checks before it writes a payload naming these helpers. Any other class is refused,
+    so a restricted ``Unpickler`` that admits the rebuild helpers does not thereby admit every importable class (such
+    as ``subprocess.Popen``): a payload can reach only classes deprecated in place. The module is still imported
+    before the check, as pickle's own ``find_class`` would import it.
+
     Raises:
-        AttributeError: When *module* no longer defines a class at *qualname*.
+        AttributeError: When *module* no longer defines a class at *qualname*, or when the class there is not held by
+            a deprecation proxy, so no payload written by :func:`_reduce_class_instance` can name it.
 
     """
-    cls = _innermost_source(_published_object(importlib.import_module(module), qualname))
+    published = _published_object(importlib.import_module(module), qualname)
+    cls = _innermost_source(published)
     if not isinstance(cls, type):
         raise AttributeError(f"Cannot rebuild the pickled instance: `{module}.{qualname}` no longer names a class.")
+    if not isinstance(published, _DeprecatedProxy):
+        raise AttributeError(
+            f"Cannot rebuild the pickled instance: `{module}.{qualname}` is not a class deprecated in place, so"
+            " pyDeprecate's rebuild helpers refuse it; only instances of a class whose name a deprecation proxy holds"
+            " are pickled through them."
+        )
     return cls
 
 
@@ -1493,7 +1516,8 @@ def _rebuild_class_call(module: str, qualname: str, *args: Any) -> Any:  # noqa:
     return _resolve_class(module, qualname)(*args)
 
 
-#: The default ``__newobj__`` constructors mapped to the helpers that rebuild a class deprecated in place.
+#: The default ``__newobj__`` constructors mapped to the helpers that rebuild a class deprecated in place. Look a
+#: reduction's callable up by identity, never by key: the callable a ``__reduce__`` returns may be unhashable.
 _REBUILDERS: dict[Any, Callable[..., Any]] = {
     copyreg.__newobj__: _rebuild_class_instance,  # type: ignore[attr-defined]  # public in CPython, absent from typeshed
     copyreg.__newobj_ex__: _rebuild_class_instance_ex,  # type: ignore[attr-defined]  # public in CPython, absent from typeshed
@@ -1510,7 +1534,8 @@ def _reduce_class_instance(obj: Any) -> Union[str, tuple[Any, ...]]:  # noqa: AN
     - it is the class itself (the alias form ``Alias = deprecated_class(...)(Cls)``): the default reduction, unchanged;
     - it is a proxy over this very class: the same reduction with the class reference replaced by a rebuild helper,
       both for the default ``__newobj__`` form and for a ``__reduce__`` (own or inherited, as from
-      :class:`BaseException`) whose callable is the class itself;
+      :class:`BaseException`) whose callable is the class itself or the proxy over it (``return (Cls, args)`` written
+      in the class body reads the module-level name, which holds the proxy by then);
     - anything else (missing module, a local class, a name rebound to another object): the default reduction, so
       pickle raises its own error instead of loading an instance of the wrong class.
 
@@ -1518,7 +1543,10 @@ def _reduce_class_instance(obj: Any) -> Union[str, tuple[Any, ...]]:  # noqa: AN
     the dispatch table would otherwise hide it from pickle and copy. Any other reduction (a ``__newobj__`` naming
     another class, a callable that is not the class) passes through unchanged.
     ``copy.copy`` and ``copy.deepcopy`` consult the same dispatch table and rebuild through the same tuple, which yields
-    the same object as the default reduction would.
+    the same object as the default reduction would.  A reducer cannot tell a copy from a pickle, so each copy pays the
+    published-name walk here and the import plus walk in the rebuild helper, about a microsecond more per copy. That
+    cost is accepted on purpose: caching the resolved class would need invalidating whenever the module rebinds the
+    name, extra state for an operation on a class that is on its way out.
 
     """
     cls = type(obj)
@@ -1527,10 +1555,13 @@ def _reduce_class_instance(obj: Any) -> Union[str, tuple[Any, ...]]:  # noqa: AN
     reduced = object.__reduce_ex__(obj, 2)
     if not isinstance(reduced, tuple):
         return reduced
-    if reduced[0] is cls:
+    # The callable is matched by identity, never hashed: a ``__reduce__`` may return an unhashable callable object.
+    newobj_rebuild = next((helper for newobj, helper in _REBUILDERS.items() if newobj is reduced[0]), None)
+    # A hand-written ``__reduce__`` that names the class by its module-level name gets the proxy holding that name.
+    if _innermost_source(reduced[0]) is cls:
         rebuild, args = _rebuild_class_call, reduced[1]
-    elif reduced[0] in _REBUILDERS and reduced[1][0] is cls:
-        rebuild, args = _REBUILDERS[reduced[0]], reduced[1][1:]
+    elif newobj_rebuild is not None and reduced[1][0] is cls:
+        rebuild, args = newobj_rebuild, reduced[1][1:]
     else:
         return reduced
     published = _published_object(sys.modules.get(cls.__module__), cls.__qualname__)
@@ -1547,13 +1578,23 @@ def _register_class_instance_reducer(proxy: _DeprecatedProxy) -> None:
     (instances are the target's, which pickles by its own name), when the class defines or inherits its own
     ``__reduce_ex__`` (every :class:`~enum.Enum` does; its own protocol keeps deciding), and when a reducer is already
     registered for it (never replace the caller's). Dispatch is keyed on the exact class, so subclasses are unaffected.
-    The table keeps the class alive for the life of the process, as a module-level class is anyway.
+
+    Also skipped for a class defined inside a function (``<locals>`` in its ``__qualname__``): no module attribute can
+    ever publish that name, so the reducer would always fall back to the default reduction and pickle would refuse the
+    instance anyway, while the process-global table would keep every such class alive after its last user dropped it.
+    The ``<locals>`` marker is the only check available here: the decorator runs before the module binds the class's
+    name, so a lookup in :data:`sys.modules` would miss every ordinary module-level class too. A class the table does
+    hold stays alive for the life of the process, which costs nothing extra for a class its module keeps anyway. Two
+    cases the marker misses are still retained after their module lets go: a class built by :func:`type` inside a
+    factory under a plain qualified name, and the old class of a module that was reloaded. ``copy.copy`` and
+    ``copy.deepcopy`` of the instances then run through the reducer too, a small accepted slowdown described in
+    :func:`_reduce_class_instance`.
 
     """
     source = proxy._cfg.obj
     if not isinstance(source, type) or proxy._unskipped_active() is not source:
         return
-    if source.__reduce_ex__ is not object.__reduce_ex__:
+    if source.__reduce_ex__ is not object.__reduce_ex__ or "<locals>" in source.__qualname__:
         return
     copyreg.dispatch_table.setdefault(source, _reduce_class_instance)
 
@@ -1802,7 +1843,8 @@ class _ProtocolForward:
 
     A proxy carries the dunder when the type of the wrapped object (or of its replacement) defines it, or when that
     object is an instance of ``native_types`` (text a builtin parses without a dunder), or, for a class, when the class
-    itself defines ``class_hook`` (``__class_getitem__`` makes ``Alias[int]`` work).
+    itself defines ``class_hook`` (``__class_getitem__`` makes ``Alias[int]`` work, and only that: the class does not
+    become iterable through it, see :func:`_protocol_names`).
 
     """
 
@@ -1833,32 +1875,59 @@ def _register_protocol_forward(
     class_hook: Optional[str] = None,
 ) -> None:
     """Register *method* as the optional forward for the dunder named ``method.__name__``."""
-    _PROTOCOL_FORWARDS[method.__name__] = _ProtocolForward(method, native_types, class_hook)
+    name = method.__name__
+    forward = _ProtocolForward(method, native_types, class_hook)
+    _PROTOCOL_FORWARDS[name] = forward
+    if native_types or class_hook is not None:
+        _PROTOCOL_FORWARDS_BEYOND_TYPE[name] = forward
+    else:
+        _PROTOCOL_FORWARDS_BEYOND_TYPE.pop(name, None)
 
 
-def _type_defines(kind: type, name: str) -> Optional[bool]:
-    """Return whether implicit lookup of dunder *name* on instances of *kind* finds an implementation.
+#: The registered forwards a value may need although its type does not define the dunder (``native_types`` or
+#: ``class_hook`` set); kept apart so the protocol scan checks only these few per value.
+_PROTOCOL_FORWARDS_BEYOND_TYPE: dict[str, _ProtocolForward] = {}
 
-    Walks the MRO dictionaries as the interpreter does, so a metaclass attribute (``type.__call__`` seen through
-    ``dict.__call__``) does not count.  An entry set to ``None`` (``dict.__hash__``, ``__iter__ = None``) disables the
-    protocol — the same rule :mod:`collections.abc` applies — and also disables the interpreter's fallbacks
-    (``__getitem__`` iteration, ``__iter__`` membership), so it is reported apart from an absent entry.
+
+def _protocol_entries(kind: type) -> dict[str, bool]:
+    """Return how implicit lookup on instances of *kind* resolves each registered optional dunder its MRO names.
+
+    Walks the MRO dictionaries once, as the interpreter does, so a metaclass attribute (``type.__call__`` seen through
+    ``dict.__call__``) does not count; the first class naming a dunder decides it.  An entry set to ``None``
+    (``dict.__hash__``, ``__iter__ = None``) disables the protocol — the same rule :mod:`collections.abc` applies — and
+    also disables the interpreter's fallbacks (``__getitem__`` iteration, ``__iter__`` membership), so it is reported
+    apart from an absent entry.  One pass over the MRO for every forward at once keeps proxy construction cheap; the
+    result is not cached, so a dunder a class gains later is seen by the next proxy.
 
     Returns:
-        ``True`` when defined, ``False`` when disabled by a ``None`` entry, ``None`` when no class in the MRO names it.
+        ``True`` for a defined dunder, ``False`` for one disabled by a ``None`` entry; a dunder no class in the MRO
+        names is absent from the mapping.
 
     """
+    entries: dict[str, bool] = {}
+    forwards = _PROTOCOL_FORWARDS.keys()
     for klass in kind.__mro__:
-        if name in klass.__dict__:
-            return klass.__dict__[name] is not None
-    return None
+        namespace = klass.__dict__
+        for name in forwards & namespace.keys():
+            entries.setdefault(name, namespace[name] is not None)
+    return entries
 
 
-def _supports_protocol(value: Any, name: str, forward: _ProtocolForward) -> bool:  # noqa: ANN401
-    """Return whether a proxy serving *value* must carry the optional dunder *name*."""
+def _serves_by_fallback(entries: dict[str, bool], name: str) -> bool:
+    """Return whether a type with these :func:`_protocol_entries` serves ``in`` or ``iter()`` without naming *name*.
+
+    The interpreter tests membership by iterating when ``__contains__`` is absent, and iterates by indexing from ``0``
+    when ``__iter__`` is absent, unless the type disables the dunder it would fall back to with a ``None`` entry.
+
+    """
+    if name in entries or name not in ("__contains__", "__iter__"):
+        return False
+    return entries["__iter__"] if "__iter__" in entries else entries.get("__getitem__", False)
+
+
+def _supports_beyond_type(value: Any, forward: _ProtocolForward) -> bool:  # noqa: ANN401
+    """Return whether a proxy serving *value* needs *forward* although the type of *value* does not define it."""
     kind = type(value)
-    if _type_defines(kind, name):
-        return True
     if forward.native_types and issubclass(kind, forward.native_types):
         return True
     # A class (not a class proxy: its own type carries the forward already) subscripted through ``__class_getitem__``.
@@ -1872,30 +1941,43 @@ def _protocol_names(obj: Any, target: Any) -> tuple[frozenset[str], frozenset[st
     A dunder is carried when *obj* or a replacement object *target* supports it: a configured replacement serves the
     protocol use while ``skip_if`` serves the source, so both contribute. A dunder no served object supports and one of
     them disables with a ``None`` entry is disabled on the proxy class too, so the interpreter's fallbacks stay off as
-    they are on the wrapped object. A :class:`~deprecate._types.TargetMode`, a legacy ``bool`` target or ``None`` is not
-    an object the proxy serves.
+    they are on the wrapped object; when another served object answers ``in`` or ``iter()`` through such a fallback, the
+    proxy carries the forward instead, which raises or answers as the object currently served. A subscript that only a
+    class's ``__class_getitem__`` provides (``Alias[int]``) is not an item lookup: unless a served object iterates
+    itself, the proxy also disables ``__iter__`` and any ``__contains__`` no served object supports, so ``iter()`` and
+    ``in`` raise ``TypeError`` as they do on the class instead of iterating ``Alias[0]``, ``Alias[1]``, ... without end.
+    A :class:`~deprecate._types.TargetMode`, a legacy ``bool`` target or ``None`` is not an object the proxy serves.
 
     """
     served = (obj,) if target is None or isinstance(target, (TargetMode, bool)) else (obj, target)
-    carried = frozenset(
+    tables = [_protocol_entries(type(value)) for value in served]
+    carried = {name for table in tables for name, enabled in table.items() if enabled}
+    carried.update(
         name
-        for name, forward in _PROTOCOL_FORWARDS.items()
-        if any(_supports_protocol(value, name, forward) for value in served)
+        for name, forward in _PROTOCOL_FORWARDS_BEYOND_TYPE.items()
+        if name not in carried and any(_supports_beyond_type(value, forward) for value in served)
     )
-    disabled = frozenset(
-        name
-        for name in _PROTOCOL_FORWARDS
-        if name not in carried and any(_type_defines(type(value), name) is False for value in served)
-    )
-    return carried, disabled
+    disabled = {name for table in tables for name, enabled in table.items() if not enabled} - carried
+    # One served type disables ``in`` or ``iter()`` while another serves it by fallback: keep the forward, which
+    # delegates to the active object, so each ``skip_if`` state behaves exactly as the object it serves.
+    carried |= {name for name in disabled if any(_serves_by_fallback(table, name) for table in tables)}
+    disabled -= carried
+    if "__getitem__" in carried and "__iter__" not in carried and not any(table.get("__getitem__") for table in tables):
+        disabled |= {"__iter__", "__contains__"} - carried
+    return frozenset(carried), frozenset(disabled)
 
 
 def _select_proxy_type(base: type[_DeprecatedProxy], obj: Any, target: Any) -> type[_DeprecatedProxy]:  # noqa: ANN401
     """Return the cached subclass of *base* carrying exactly the optional protocols *obj* and *target* support.
 
-    The subclass keeps *base*'s name, qualified name, module and docstring, so error messages (``'_DeprecatedProxy'
-    object is not callable``) and reprs read as before; it is never pickled by reference (see
-    :func:`_reconstruct_proxy`). A generated class passed as *base* is resolved back to the class it was built from.
+    The subclass keeps *base*'s name, qualified name, module and docstring, so error messages and reprs name the base
+    class: calling a proxy over a ``dict`` raises ``'_DeprecatedProxy' object is not callable`` and hashing it raises
+    ``unhashable type: '_DeprecatedProxy'``, where earlier releases, whose single proxy class forwarded both, named
+    ``dict``. The subclass is deliberately not named after the wrapped type: one subclass serves every type with the
+    same protocol set, and a wrapped type's name would misreport what the object is. The copied module and name
+    resolve to *base*, not to the subclass, so ``pickle.dumps(type(proxy))`` raises :class:`~pickle.PicklingError`; a
+    proxy itself is never pickled by reference (see :func:`_reconstruct_proxy`). A generated class passed as *base* is
+    resolved back to the class it was built from.
 
     """
     base = _PROTOCOL_PROXY_BASES.get(base, base)
@@ -1917,7 +1999,7 @@ def _select_proxy_type(base: type[_DeprecatedProxy], obj: Any, target: Any) -> t
 
 # Move the optional protocol dunders written in the class body into the registry; type checkers still see them on the
 # class. Deleting ``__hash__`` would fall back to ``object.__hash__`` (identity hashing), so the base disables it.
-for _name in ("__call__", "__contains__", "__getitem__", "__hash__", "__iter__", "__len__", "__next__"):
+for _name in ("__call__", "__contains__", "__getitem__", "__hash__", "__iter__", "__len__", "__next__", "__round__"):
     _register_protocol_forward(
         _DeprecatedProxy.__dict__[_name], class_hook="__class_getitem__" if _name == "__getitem__" else None
     )
