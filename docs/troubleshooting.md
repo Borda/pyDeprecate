@@ -209,6 +209,10 @@ True
 
 </details>
 
+## Why does a classmethod receiver keyword raise even when mapped to an empty string?
+
+A caller keyword passed through `**kwargs` that matches a classmethod target's receiver name would collide with the class being forwarded. An `args_mapping` value of `""` keeps the original name, so the call raises `TypeError` before emitting a warning or spending its budget. Rename that keyword to a different target parameter or map it to `None` to drop it.
+
 ## TypeError: Failed mapping
 
 **Q:** I get `` TypeError: Failed mapping of `my_func`, arguments not accepted by target: ['old_arg'] ``. What does this mean?
@@ -2019,7 +2023,7 @@ ______________________________________________________________________
 - **Upgrading pyDeprecate is safe.** The helper names are part of the pickle compatibility contract and stay unchanged across releases, so a payload written by one release loads in the next. pyDeprecate v0.14 and earlier have no such helpers, so they cannot load these payloads.
 - **Removing the deprecation breaks loading.** The helpers rebuild only a class whose name a deprecation proxy holds. Once the deprecation is gone and the name points at the plain class again, loading raises `AttributeError: Cannot rebuild the pickled instance: ... is not a class deprecated in place`.
 
-Load and re-pickle stored instances before you remove the deprecation. Payloads written after the removal name the class directly and need nothing from pyDeprecate.
+To migrate stored instances, load them while the deprecation is still in place, then set the module attribute back to the real class in the migration process and re-pickle. Re-pickling while the proxy still holds the name does not migrate anything: the reducer looks the published name up when it runs, so it writes another helper-dependent payload that fails to load once the deprecation is removed. With the name bound to the real class the default reduction applies, and payloads written then name the class directly and need nothing from pyDeprecate.
 
 ______________________________________________________________________
 
