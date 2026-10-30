@@ -33,8 +33,8 @@ from deprecate.audit._wrappers import (
 from deprecate.proxy import _DeprecatedProxy
 
 
-# Note: Proxy objects are discoverable via the generic ``callable(obj)`` +
-# ``_has_deprecation_meta(obj)`` scan in :func:`find_deprecation_wrappers` and
+# Note: Proxy objects are discoverable via the generic ``_has_deprecation_meta(obj)`` gate (no ``callable(obj)``
+# test, so a non-callable ``deprecated_instance`` proxy qualifies too) in :func:`find_deprecation_wrappers` and
 # :func:`~deprecate.audit.validate_deprecation_expiry`. The ``__deprecation_config__`` schema is unified
 # across ``@deprecated`` and :class:`~deprecate.proxy._DeprecatedProxy` via
 # :class:`~deprecate._types.DeprecationConfig` — both always populate the ``name`` field,

@@ -325,6 +325,10 @@ _UNARY_OPS: dict[str, Callable[[Any], Any]] = {
 }
 #: Text types a conversion builtin parses natively (``int("5")``, ``open("data.txt")``) although the type defines no
 #: such dunder; a proxy over one keeps the conversion forward so a deprecated text constant still converts.
+#: The forward is broader than the native behaviour: ``int()`` and ``float()`` work on ``str``/``bytes`` proxies, and
+#: ``complex()`` also works on a ``bytes`` proxy through its ``__float__`` fallback even though ``__complex__`` is
+#: kept for ``str`` only. Consumers that read the dunder directly (``math.sqrt``, ``%d``, ``typing.SupportsInt``)
+#: therefore accept the proxy too. Dropping ``__float__`` would break ``float(b"5")`` parity.
 _NATIVE_TEXT_TYPES: dict[str, tuple[type, ...]] = {
     "__int__": (str, bytes, bytearray),
     "__float__": (str, bytes, bytearray),
