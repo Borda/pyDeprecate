@@ -116,18 +116,24 @@ def _class_members(obj: object) -> list[object]:
 def _iter_wrapper_states() -> list[_WrapperState]:
     """Return the warning state of every wrapper the collection modules hold, each state once.
 
-    Discover every ``tests/collections/*.py`` module, including modules unused by the selected tests, and visit its
-    module-level objects, the members of its module-level classes, and every stacked layer of each. Shared imports and
-    aliases can expose the same state repeatedly; deduplicate by identity. The result is computed once per session.
+    Discover every ``tests/collections/*.py`` module and every module of the ``api_current/`` and ``api_deprecated/``
+    packages, including modules unused by the selected tests, and visit its module-level objects, the members of its
+    module-level classes, and every stacked layer of each. The ``modules/`` fixtures are whole-module deprecations and
+    stay out. Shared imports and aliases can expose the same state repeatedly; deduplicate by identity. The result is
+    computed once per session.
 
     """
     if _WRAPPER_STATES:
         return _WRAPPER_STATES
     found: dict[int, _WrapperState] = {}
-    for path in sorted((Path(__file__).parent / "collections").glob("*.py")):
-        if path.stem == "__init__":
-            continue
-        module = import_module(f"tests.collections.{path.stem}")
+    root = Path(__file__).parent / "collections"
+    paths = [path for path in root.glob("*.py") if path.stem != "__init__"]
+    paths += [path for path in root.glob("*/*.py") if path.parent.name != "modules"]
+    for path in sorted(paths):
+        parts = path.relative_to(root).with_suffix("").parts
+        if parts[-1] == "__init__":
+            parts = parts[:-1]
+        module = import_module("tests.collections." + ".".join(parts))
         for obj in list(vars(module).values()):
             for candidate in [obj, *_class_members(obj)]:
                 for layer in _wrapper_layers(candidate):
@@ -208,7 +214,7 @@ def _reset_api_deprecated_state() -> None:
     """Reset every shared module-level wrapper's warning counters before each test.
 
     Runs before every test function (autouse).  See module docstring for full motivation.
-    Collection imports are deferred to avoid loading ``tests.collections.api_deprecated*`` at conftest
+    Collection imports are deferred to avoid loading ``tests.collections.api_deprecated`` at conftest
     parse time, which conflicts with ``--doctest-modules`` collection when pytest resolves
     ``src/`` imports from the installed package rather than from ``src/``.
 

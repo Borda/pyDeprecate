@@ -20,8 +20,8 @@ from deprecate import DeprecatedError, get_deprecation_config
 from deprecate._types import DeprecationConfig, _ProxyConfig
 from deprecate.proxy import _DeprecatedProxy, _reconstruct_proxy
 from tests._helpers import captured_warnings
-from tests.collections.api_deprecated import DepPositionalOnlyRequired
-from tests.collections.api_deprecated_regressions import make_pickle_fatal_settings_proxy, make_pickle_settings_proxy
+from tests.collections.api_deprecated.core import DepPositionalOnlyRequired
+from tests.collections.api_deprecated.regressions import make_pickle_fatal_settings_proxy, make_pickle_settings_proxy
 
 #: ``_ProxyConfig`` fields a 0.14.0 payload carries next to its flat ``warned`` / ``warned_args`` counters; read off
 #: the checked-in payloads above (0.14 had no ``state`` and no ``facts`` field).

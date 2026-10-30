@@ -1662,13 +1662,13 @@ The `find_deprecation_wrappers()` utility scans an entire package or module and 
 from deprecate import find_deprecation_wrappers
 
 # For testing purposes, we use the test module; normally you would import your own package
-from tests.collections import api_deprecated as my_package
+from tests.collections.api_deprecated import core as my_package
 
 # Scan an entire package for deprecated wrappers
 results = find_deprecation_wrappers(my_package)
 
 # Or scan using a string module path
-results = find_deprecation_wrappers("tests.collections.api_deprecated")
+results = find_deprecation_wrappers("tests.collections.api_deprecated.core")
 
 # Check results - each item is a DeprecationWrapperInfo dataclass
 for r in results:
@@ -1696,7 +1696,7 @@ Group validation results by issue type for better reporting:
 from deprecate import find_deprecation_wrappers
 
 # For testing purposes, we use the test module; normally you would import your own package
-from tests.collections import api_deprecated as my_package
+from tests.collections.api_deprecated import core as my_package
 
 results = find_deprecation_wrappers(my_package)
 
@@ -1739,7 +1739,7 @@ The **Current Status** column uses these labels:
 | 💥 Past Removal Date      | Current version ≥ `remove_in` — zombie code that should be deleted        |
 
 ```python
-from tests.collections import api_deprecated as my_package
+from tests.collections.api_deprecated import core as my_package
 from deprecate import generate_deprecation_table
 
 report = generate_deprecation_table(my_package, current_version="1.5", recursive=False)
@@ -1889,7 +1889,7 @@ import pytest
 from deprecate import find_deprecation_wrappers
 
 # For testing purposes, we use the test module; normally you would import your own package
-from tests.collections import api_deprecated as my_package
+from tests.collections.api_deprecated import core as my_package
 
 
 def test_deprecated_wrappers_are_valid():
@@ -1928,7 +1928,7 @@ The `validate_deprecation_expiry()` utility scans an entire module or package fo
 from deprecate import validate_deprecation_expiry
 
 # For testing purposes, we use the test module; normally you would import your own package
-from tests.collections import api_deprecated as my_package
+from tests.collections.api_deprecated import core as my_package
 
 # Scan your package for expired deprecations - using early-version that won't have expirations
 expired = validate_deprecation_expiry(my_package, "0.2")
@@ -1976,7 +1976,7 @@ import pytest
 from deprecate import validate_deprecation_expiry
 
 # For testing purposes, we use the test module; normally you would import your own package
-from tests.collections import api_deprecated as my_package
+from tests.collections.api_deprecated import core as my_package
 
 
 def test_no_zombie_deprecations():
@@ -1998,7 +1998,7 @@ def test_no_zombie_deprecations():
 @pytest.fixture(scope="session", autouse=True)
 def enforce_deprecation_deadlines():
     """Automatically check for zombie code before running any tests."""
-    from tests.collections import api_deprecated as my_package
+    from tests.collections.api_deprecated import core as my_package
 
     current_version = "0.5"  # Replace with: from mypackage import __version__
     expired = validate_deprecation_expiry(my_package, current_version)

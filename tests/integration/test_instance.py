@@ -7,8 +7,8 @@ import pytest
 
 from deprecate import deprecated_instance
 from tests._helpers import captured_warnings
-from tests.collections.api_current import ManagedResource
-from tests.collections.api_deprecated import depr_config_dict, depr_config_dict_read_only
+from tests.collections.api_current.forwarding import ManagedResource
+from tests.collections.api_deprecated.core import depr_config_dict, depr_config_dict_read_only
 
 
 class TestInstanceProxy:

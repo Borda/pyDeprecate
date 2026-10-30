@@ -22,7 +22,7 @@ import deprecate
 from deprecate import DeprecatedError, as_exceptions, assert_no_warnings, deprecated
 from deprecate._types import DeprecationConfig, _DeprecatedCallable
 from tests._helpers import captured_warnings
-from tests.collections.api_current import (
+from tests.collections.api_current.core import (
     NewCls,
     SignatureNotBuiltError,
     TimerDecorator,
@@ -31,7 +31,7 @@ from tests.collections.api_current import (
     timing_wrapper,
     uncomparable_default,
 )
-from tests.collections.api_deprecated import (
+from tests.collections.api_deprecated.core import (
     DeprecatedTimerDecorator,
     decorated_pow_self,
     decorated_pow_skip_if_func,
@@ -67,7 +67,7 @@ from tests.collections.api_deprecated import (
     wrapped_sum_no_stream,
     wrapped_sum_warn_only,
 )
-from tests.collections.api_deprecated_forwarding import (
+from tests.collections.api_deprecated.forwarding import (
     depr_args_mapping_empty_keeps_name,
     depr_collision_old_new,
     depr_collision_old_new_extra_wins,
@@ -78,10 +78,10 @@ from tests.collections.api_deprecated_forwarding import (
     deprecated_var_positional_remap,
     deprecated_var_positional_to_fixed,
 )
-from tests.collections.api_deprecated_legacy import decorated_pow_self as legacy_pow_self
-from tests.collections.api_deprecated_legacy import decorated_sum_warn_only as legacy_sum_warn_only
-from tests.collections.api_deprecated_legacy import depr_pow_self_double as legacy_pow_self_double
-from tests.collections.api_deprecated_regressions import (
+from tests.collections.api_deprecated.legacy import decorated_pow_self as legacy_pow_self
+from tests.collections.api_deprecated.legacy import decorated_sum_warn_only as legacy_sum_warn_only
+from tests.collections.api_deprecated.legacy import depr_pow_self_double as legacy_pow_self_double
+from tests.collections.api_deprecated.regressions import (
     LegacyPresetCls,
     depr_add_callable_instance,
     depr_builtin_max_target,
@@ -146,8 +146,11 @@ class TestDeprecationWarnings:
         """Testing some base/default configurations."""
         with pytest.warns(
             FutureWarning,
-            match=f"The `{name}` was deprecated since v0.1 in favor of `tests.collections.api_current.base_sum_kwargs`."
-            " It will be removed in v0.5.",
+            match=(
+                f"The `{name}` was deprecated since v0.1 in favor of "
+                "`tests.collections.api_current.core.base_sum_kwargs`."
+                " It will be removed in v0.5."
+            ),
         ):
             assert func(2) == 7
 
@@ -165,7 +168,7 @@ class TestDeprecationWarnings:
         with pytest.warns(
             FutureWarning,
             match="The `depr_make_new_cls` was deprecated since v0.2 in favor of "
-            "`tests.collections.api_current.NewCls`."
+            "`tests.collections.api_current.core.NewCls`."
             " It will be removed in v0.4.",
         ):
             instance = depr_make_new_cls(2, e=0.9)
@@ -181,7 +184,7 @@ class TestDeprecationWarnings:
         with pytest.warns(
             FutureWarning,
             match="The `depr_make_new_cls_mapped` was deprecated since v0.2 in favor of"
-            " `tests.collections.api_current.NewCls`. It will be removed in v0.4.",
+            " `tests.collections.api_current.core.NewCls`. It will be removed in v0.4.",
         ):
             instance = depr_make_new_cls_mapped(old_c=3, e=0.7)
 
@@ -210,7 +213,7 @@ class TestDeprecationWarnings:
         with pytest.warns(
             FutureWarning,
             match="The `depr_pow_mix` was deprecated since v0.1 in favor of "
-            "`tests.collections.api_current.base_pow_args`."
+            "`tests.collections.api_current.core.base_pow_args`."
             " It will be removed in v0.5.",
         ):
             assert depr_pow_mix(2, 1) == 2
@@ -875,7 +878,7 @@ class TestCallableKindTargets:
         with ``AttributeError`` on the first call (which also used to burn the one-warning budget silently).
 
         """
-        with pytest.warns(FutureWarning, match=r"in favor of `tests\.collections\.api_current\.new_scale`"):
+        with pytest.warns(FutureWarning, match=r"in favor of `tests\.collections\.api_current\.core\.new_scale`"):
             assert depr_scale_partial(2) == 10
 
     def test_partial_target_warns_only_once(self) -> None:
@@ -908,7 +911,7 @@ class TestCallableKindTargets:
         pattern; the instance has no ``__name__``, so the warning names ``CallableAdder`` by its module path.
 
         """
-        with pytest.warns(FutureWarning, match=r"in favor of `tests\.collections\.api_current\.CallableAdder`"):
+        with pytest.warns(FutureWarning, match=r"in favor of `tests\.collections\.api_current\.core\.CallableAdder`"):
             assert depr_add_callable_instance(1) == 11
 
     def test_non_string_name_falls_back_to_type_name(self) -> None:
@@ -918,7 +921,9 @@ class TestCallableKindTargets:
         concatenation), so only a string ``__name__`` counts as a name.
 
         """
-        with pytest.warns(FutureWarning, match=r"in favor of `tests\.collections\.api_current\.NonStringNameCallable`"):
+        with pytest.warns(
+            FutureWarning, match=r"in favor of `tests\.collections\.api_current\.core\.NonStringNameCallable`"
+        ):
             assert depr_non_string_name_target(3) == 3
 
     def test_nested_partial_names_innermost_function(self) -> None:
@@ -928,7 +933,7 @@ class TestCallableKindTargets:
         step would still land on a partial; the display walks the whole chain.
 
         """
-        with pytest.warns(FutureWarning, match=r"in favor of `tests\.collections\.api_current\.new_scale`"):
+        with pytest.warns(FutureWarning, match=r"in favor of `tests\.collections\.api_current\.core\.new_scale`"):
             assert depr_scale_nested_partial(1) == 5
 
     def test_partial_target_static_message(self) -> None:
@@ -939,7 +944,7 @@ class TestCallableKindTargets:
 
         """
         message = cast(Any, depr_scale_partial).__deprecated__
-        assert "in favor of `tests.collections.api_current.new_scale`" in message
+        assert "in favor of `tests.collections.api_current.core.new_scale`" in message
 
     def test_builtin_target_keeps_builtins_path(self) -> None:
         """A C builtin target (``max``) keeps its ``builtins.max`` path in the static message.
@@ -968,7 +973,7 @@ class TestCallableKindTargets:
         warning path read ``target.__name__`` directly and crashed; it must name ``NewCls`` and forward.
 
         """
-        with pytest.warns(FutureWarning, match=r"in favor of `tests\.collections\.api_current\.NewCls`"):
+        with pytest.warns(FutureWarning, match=r"in favor of `tests\.collections\.api_current\.core\.NewCls`"):
             built = cast(NewCls, LegacyPresetCls(1.5))
         assert (type(built), built.my_c, built.my_d) == (NewCls, 1.5, "preset")
 

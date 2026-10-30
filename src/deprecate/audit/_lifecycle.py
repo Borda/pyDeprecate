@@ -375,12 +375,12 @@ def validate_deprecation_expiry(
     Example:
         >>> # Check a specific module with version before any deadlines
         >>> from deprecate import validate_deprecation_expiry
-        >>> expired = validate_deprecation_expiry("tests.collections.api_deprecated", "0.1", recursive=False)
+        >>> expired = validate_deprecation_expiry("tests.collections.api_deprecated.core", "0.1", recursive=False)
         >>> len(expired)
         0
 
         >>> # Check with version past some removal deadlines
-        >>> expired = validate_deprecation_expiry("tests.collections.api_deprecated", "0.5", recursive=False)
+        >>> expired = validate_deprecation_expiry("tests.collections.api_deprecated.core", "0.5", recursive=False)
         >>> print(len(expired))  # Some functions and class members have remove_in <= "0.5"
         31
 

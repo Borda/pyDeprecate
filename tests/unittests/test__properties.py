@@ -13,8 +13,8 @@ from deprecate import property as strict_property
 from deprecate._properties import _DeprecatedProperty, _StrictProperty
 from deprecate.audit import validate_deprecation_expiry
 from tests._helpers import captured_warnings
-from tests.collections.api_deprecated import InnerOrderDeprecatedPropCls, ServiceCls
-from tests.collections.api_deprecated_forwarding import DelOnlyDeprecatedPropCls
+from tests.collections.api_deprecated.core import InnerOrderDeprecatedPropCls, ServiceCls
+from tests.collections.api_deprecated.forwarding import DelOnlyDeprecatedPropCls
 
 
 class TestDescriptorOrderAgnostic:

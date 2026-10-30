@@ -28,19 +28,16 @@ from deprecate import (
     find_deprecation_wrappers,
 )
 from tests.collections import modules
-from tests.collections.api_current import (
+from tests.collections.api_current.core import async_target, base_sum_kwargs, double_value, identity_value
+from tests.collections.api_current.forwarding import (
     AsyncCallableObject,
     GeneratorCallableObject,
     SyncCallableObject,
     async_gen_target,
-    async_target,
-    base_sum_kwargs,
-    double_value,
     gen_target,
-    identity_value,
 )
-from tests.collections.api_deprecated import wrapped_sum
-from tests.collections.api_deprecated_regressions import (
+from tests.collections.api_deprecated.core import wrapped_sum
+from tests.collections.api_deprecated.regressions import (
     DeprecatedScopedSwitchWidget,
     FatalLegacyWidget,
     FatalLegacyWidgetViaFrontDoor,

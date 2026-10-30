@@ -29,10 +29,10 @@ import pytest
 
 from deprecate import DeprecatedError, as_exceptions, deprecated, find_deprecation_wrappers
 from tests._helpers import captured_warnings
-from tests.collections import api_deprecated_forwarding
-from tests.collections.api_current import walk_down
-from tests.collections.api_deprecated import decorated_sum_calls_inf, make_async_stacked_notify
-from tests.collections.api_deprecated_forwarding import (
+from tests.collections.api_current.forwarding import walk_down
+from tests.collections.api_deprecated import forwarding as api_deprecated_forwarding
+from tests.collections.api_deprecated.core import decorated_sum_calls_inf, make_async_stacked_notify
+from tests.collections.api_deprecated.forwarding import (
     MultiplesReader,
     async_args_remap,
     async_callable,
@@ -446,7 +446,7 @@ _ASYNC_GENERATOR_WRAPPERS = [
 _SYNC_YIELD_FIXTURE_PROJECT = """
 import pytest
 
-from tests.collections.api_deprecated_forwarding import legacy_db_session
+from tests.collections.api_deprecated.forwarding import legacy_db_session
 
 db_session = pytest.fixture(name="db_session")(legacy_db_session)
 
@@ -466,7 +466,7 @@ _ASYNC_YIELD_FIXTURE_PROJECT = """
 import pytest
 import pytest_asyncio
 
-from tests.collections.api_deprecated_forwarding import legacy_async_db_session
+from tests.collections.api_deprecated.forwarding import legacy_async_db_session
 
 async_db_session = pytest_asyncio.fixture(name="async_db_session")(legacy_async_db_session)
 

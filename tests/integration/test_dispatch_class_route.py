@@ -19,6 +19,7 @@ import time
 import types
 import warnings
 from collections.abc import Iterator
+from pathlib import Path
 from typing import Any, Callable, cast
 
 import pytest
@@ -28,14 +29,14 @@ from deprecate import TargetMode, assert_no_warnings, deprecated, deprecated_cal
 from deprecate._types import DeprecationConfig, _DeprecatedCallable
 from deprecate.proxy import _DeprecatedProxy
 from tests._helpers import captured_warnings
-from tests.collections.api_current import (
+from tests.collections.api_current.core import (
     Palette,
     partial_of_double,
     partialmethod_of_double,
     singledispatchmethod_of_double,
 )
-from tests.collections.api_deprecated import make_deprecated_notify_args_extra_alone_on_class
-from tests.collections.api_deprecated_regressions import (
+from tests.collections.api_deprecated.core import make_deprecated_notify_args_extra_alone_on_class
+from tests.collections.api_deprecated.regressions import (
     make_deprecated_attrs_remap_target_on_class,
     make_deprecated_auto_args_mapping_on_function,
     make_deprecated_explicit_auto_on_function,
@@ -280,7 +281,7 @@ class TestClassDispatchInformationalWarning:
 
         misconfig_warns = [w for w in caught if issubclass(w.category, UserWarning) and "args_extra" in str(w.message)]
         assert len(misconfig_warns) == 1
-        assert misconfig_warns[0].filename.endswith("api_deprecated.py")
+        assert Path(misconfig_warns[0].filename).as_posix().endswith("api_deprecated/core.py")
 
 
 class TestEnumAndDataclassDispatch:

@@ -61,7 +61,7 @@ from deprecate import (
     void,
 )
 from deprecate.proxy import _DeprecatedProxy, _ProxySpec
-from tests.collections.api_current import (
+from tests.collections.api_current.core import (
     AutoExpandDC,
     CallableAdder,
     ColorEnum,
@@ -78,7 +78,6 @@ from tests.collections.api_current import (
     PositionalOnlyTarget,
     RequiredPositionalOnlyTarget,
     SideEffectBox,
-    SubclassableBase,
     TimerDecorator,
     _InnerOrderPropTarget,
     add_values,
@@ -96,6 +95,7 @@ from tests.collections.api_current import (
     timing_wrapper,
     tracked_identity,
 )
+from tests.collections.api_current.forwarding import SubclassableBase
 
 _deprecation_warning = partial(warn, category=DeprecationWarning)
 

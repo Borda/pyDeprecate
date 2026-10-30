@@ -37,14 +37,8 @@ from deprecate.audit._lifecycle import _check_deprecated_wrapper_expiry
 from deprecate.audit._wrappers import _format_report_symbol
 from deprecate.module import _STREAM_DEFAULT, _redirect_guard, _RedirectResolution, deprecated_module
 from tests._helpers import captured_warnings
-from tests.collections.api_current import (
-    ContextCapturingLookup,
-    FlakyTypeErrorStream,
-    InheritedContextLookup,
-    KeywordTypeErrorStream,
-    RecordingStream,
-    _SlottedModuleType,
-)
+from tests.collections.api_current.core import ContextCapturingLookup, InheritedContextLookup, _SlottedModuleType
+from tests.collections.streams import FlakyTypeErrorStream, KeywordTypeErrorStream, RecordingStream
 
 # Shared version kwargs for module deprecation call sites (see AGENTS.md Unification pattern).
 _DEPRS_CASE_MOD_ARGS: dict[str, Any] = {"deprecated_in": "1.0", "remove_in": "2.0"}

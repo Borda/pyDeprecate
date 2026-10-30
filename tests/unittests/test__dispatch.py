@@ -39,7 +39,7 @@ from deprecate._dispatch import (
 from deprecate._types import DeprecationConfig, _CallFacts, _CallPlan, _DeprecatedCallable, _WrapperState
 from deprecate.utils import _signature_facts
 from tests._helpers import captured_warnings
-from tests.collections.api_current import (
+from tests.collections.api_current.core import (
     KeywordCallTarget,
     NewCls,
     SignatureNeedsContextError,
@@ -58,7 +58,7 @@ from tests.collections.api_current import (
     source_with_forward_defaults,
     var_positional_target,
 )
-from tests.collections.api_deprecated import (
+from tests.collections.api_deprecated.core import (
     dep_async_cycle_fn_a,
     dep_async_cycle_fn_b,
     dep_async_gen_cycle_fn_a,
@@ -71,7 +71,7 @@ from tests.collections.api_deprecated import (
     make_depr_compute_power_stacked,
     make_depr_notify_callable_stacked,
 )
-from tests.collections.api_deprecated_forwarding import (
+from tests.collections.api_deprecated.forwarding import (
     OldPositionalOnlyClass,
     OldSelfOnlyClass,
     dep_async_non_cycle_old_fn,
@@ -98,7 +98,7 @@ from tests.collections.api_deprecated_forwarding import (
     fn_shared_default,
     make_deprecated_positional_only_num_warns_one,
 )
-from tests.collections.api_deprecated_regressions import depr_scale_partial_every_call
+from tests.collections.api_deprecated.regressions import depr_scale_partial_every_call
 from tests.collections.misconfigured import target_false_deprecation
 
 
@@ -403,7 +403,7 @@ class TestPositionalOnlyTarget:
         at decoration time and no ``FutureWarning`` fires at call time.  The underlying
         split dispatch must still execute so ``positional_only_target`` is called with ``x``
         as a positional arg (not as a kwarg), returning the correct value.
-        ``deprecated_positional_only_stream_none`` is defined in ``api_deprecated_forwarding.py``
+        ``deprecated_positional_only_stream_none`` is defined in ``api_deprecated/forwarding.py``
         with ``stream=None`` so no warnings are emitted at decoration time or call time.
         """
         result = deprecated_positional_only_stream_none(5)
@@ -416,7 +416,7 @@ class TestPositionalOnlyTarget:
         must still forward ``x`` positionally (the split dispatch must not be gated on
         the warning being emitted).  A caller silently migrating after the quota exhausts
         should not receive ``TypeError``.
-        ``make_deprecated_positional_only_num_warns_one`` is defined in ``api_deprecated_forwarding.py``
+        ``make_deprecated_positional_only_num_warns_one`` is defined in ``api_deprecated/forwarding.py``
         with ``num_warns=1`` so the warning fires exactly once.
         """
         quota_fn = make_deprecated_positional_only_num_warns_one()

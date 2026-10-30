@@ -20,13 +20,13 @@ from deprecate._validate import (
     _warn_stacking_misconfiguration,
 )
 from tests._helpers import captured_warnings
-from tests.collections.api_current import (
+from tests.collections.api_current.core import (
     double_value,
     positional_only_target,
     stacked_inner_target,
     stacked_outer_target,
 )
-from tests.collections.api_deprecated import (
+from tests.collections.api_deprecated.core import (
     CrossGuardModuleLevel,
     CrossGuardOldClass,
     CrossGuardSameClass,
@@ -208,7 +208,7 @@ class TestNormalizeTargetInvalidInputs:
 
     The inline ``@deprecated`` decorator in :meth:`test_invalid_target_source_body_runs`
     is parametrize-coupled (``target=bad_target`` resolves from the parametrize fixture),
-    so it cannot be moved to :mod:`tests.collections.api_deprecated` — one wrapper-per-bad-value
+    so it cannot be moved to :mod:`tests.collections.api_deprecated.core` — one wrapper-per-bad-value
     would require either four near-identical fixtures or a factory that obscures the test
     intent.  This is the AGENTS.md three-layer-rule exception for parametrize-coupled
     decorators.

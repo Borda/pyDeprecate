@@ -21,7 +21,7 @@ from deprecate.audit import (
 )
 from deprecate.audit._wrappers import _classify_member_api_type
 from deprecate.proxy import _DeprecatedProxy, _ProxySpec
-from tests.collections.api_current import ColorEnum
+from tests.collections.api_current.core import ColorEnum
 from tests.collections.chains import caller_via_notify_layer
 
 _PACKAGING_AVAILABLE = importlib.util.find_spec("packaging") is not None

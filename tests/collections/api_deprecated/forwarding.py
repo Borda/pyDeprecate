@@ -8,13 +8,12 @@ from warnings import catch_warnings, simplefilter
 import typing_extensions
 
 from deprecate import TargetMode, deprecated, deprecated_class, void
-from tests.collections.api_current import (
+from tests.collections.api_current.core import (
     AutoExpandInitFalseDC,
     AutoExpandOverriddenInitDC,
     AutoExpandReqDC,
     CombinedAttrsArgsSource,
     CombinedAttrsArgsTarget,
-    DataBatch,
     LegacyBoolAttrsSource,
     Palette,
     PaletteEnum,
@@ -29,49 +28,52 @@ from tests.collections.api_current import (
     WithInjected,
     _DelOnlyPropTarget,
     _Pep702ProxyTarget,
-    ask_once,
-    async_fetch_page,
-    async_gen_target,
     async_non_cycle_double,
-    async_parse_rows,
     async_positional_only_target,
-    async_running_total,
     async_suspending_double,
     async_target,
     async_var_positional_target,
     both_old_new_target,
-    countdown_stream,
     del_only_prop_fdel,
     fib_recursive,
-    flush_pending_jobs,
     fn_kept_name_target,
     fn_remap_with_extra_body,
     fn_shared_default_target,
     fn_with_default,
     gapped_positional_only_target,
-    gen_target,
-    generator_based_double,
     identity_value,
-    load_batches,
     non_cycle_double,
-    open_cursor,
-    parse_rows,
     pep702_target,
     positional_only_target,
     positional_only_two_params_target,
     return_default_value,
-    running_total,
     single_positional_target,
-    squares_list,
-    sync_stopping_stream,
     tracked_identity,
     trio_positional_target,
     uncomparable_default,
     var_positional_remap_body,
     var_positional_target,
+)
+from tests.collections.api_current.forwarding import (
+    DataBatch,
+    ask_once,
+    async_fetch_page,
+    async_gen_target,
+    async_parse_rows,
+    async_running_total,
+    countdown_stream,
+    flush_pending_jobs,
+    gen_target,
+    generator_based_double,
+    load_batches,
+    open_cursor,
+    parse_rows,
+    running_total,
+    squares_list,
+    sync_stopping_stream,
     walk_down,
 )
-from tests.collections.api_deprecated import (
+from tests.collections.api_deprecated.core import (
     _DEPRS_CASE_FATAL_ARGS,
     _DEPRS_CASE_OUTER_ARGS,
     _DEPRS_CASE_STD_ARGS,
@@ -1074,7 +1076,7 @@ def make_deprecated_positional_only_num_warns_one() -> "Callable[..., int]":
     activity — a module-level singleton would be depleted after the first test run.
 
     Returns:
-        A new ``@deprecated`` wrapper around :func:`~tests.collections.api_current.positional_only_target`
+        A new ``@deprecated`` wrapper around :func:`~tests.collections.api_current.core.positional_only_target`
         configured with ``num_warns=1`` and the decoration-time ``UserWarning`` suppressed.
     """
     with catch_warnings():
@@ -1158,7 +1160,7 @@ def deprecated_var_positional_remap(a: int, *extras: int, old_kwarg: str = "", n
     raised ``TypeError: got multiple values for argument 'a'`` because ``resolved_kwargs``
     included positional-to-keyword conversions already present in ``*extras``.
 
-    Wrapped body is :func:`tests.collections.api_current.var_positional_remap_body`.
+    Wrapped body is :func:`tests.collections.api_current.core.var_positional_remap_body`.
     """
     return var_positional_remap_body(a, *extras, old_kwarg=old_kwarg, new_kwarg=new_kwarg)
 

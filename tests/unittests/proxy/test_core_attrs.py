@@ -10,7 +10,7 @@ from deprecate.deprecation import deprecated
 from deprecate.proxy import deprecated_class
 from deprecate.proxy.core import _DeprecatedProxy, _ProxySpec
 from tests._helpers import captured_warnings
-from tests.collections.api_current import (
+from tests.collections.api_current.core import (
     CombinedAttrsArgsSource,
     CombinedAttrsArgsTarget,
     LegacyBoolAttrsSource,
@@ -18,8 +18,12 @@ from tests.collections.api_current import (
     PaletteEnum,
     PaletteOld,
 )
-from tests.collections.api_deprecated import _DEPRS_CASE_STD_ARGS, _DEPRS_CASE_STD_INF_ARGS, depr_read_only_attrs_list
-from tests.collections.api_deprecated_forwarding import (
+from tests.collections.api_deprecated.core import (
+    _DEPRS_CASE_STD_ARGS,
+    _DEPRS_CASE_STD_INF_ARGS,
+    depr_read_only_attrs_list,
+)
+from tests.collections.api_deprecated.forwarding import (
     DeprecatedAttrsExplicitMode,
     DeprecatedAttrsLegacyTrue,
     DeprecatedAttrsNotifyOnly,
@@ -141,7 +145,8 @@ class TestDeprecatedAttrs:
         """Re-seed the wrapped target attributes of the module-level fixture proxies between tests.
 
         The proxies' warn budgets (``_cfg.state``) are reset by the project conftest, which covers every module-level
-        proxy of :mod:`tests.collections.api_deprecated`; this fixture restores the wrapped objects' mutable attributes.
+        proxy of :mod:`tests.collections.api_deprecated.core`; this fixture restores the wrapped objects' mutable
+        attributes.
 
         """
         for proxy in (

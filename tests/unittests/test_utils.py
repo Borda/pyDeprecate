@@ -18,12 +18,12 @@ from deprecate.utils import (
     void,
 )
 from tests._helpers import captured_warnings
-from tests.collections.api_current import (
+from tests.collections.api_current.core import (
     HostileSignatureCallable,
     RequiredPositionalOnlyTarget,
-    UnintrospectableStream,
     every_parameter_kind_target,
 )
+from tests.collections.streams import UnintrospectableStream
 
 #: Not callable, so ``inspect.signature`` raises ``TypeError`` for it.
 _NON_CALLABLE = cast(Callable[..., Any], 42)

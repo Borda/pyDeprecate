@@ -24,24 +24,24 @@ from deprecate.proxy.core import (
     _restore_pep702_marker,
 )
 from tests._helpers import captured_warnings
-from tests.collections.api_current import (
+from tests.collections.api_current.core import (
     ColorEnum,
     DoclessTarget,
     HostileSignatureCallable,
     NewCls,
     Pep702StaticTarget,
-    SubclassableBase,
     _Pep702ProxyTarget,
     base_sum_kwargs,
 )
-from tests.collections.api_deprecated import (
+from tests.collections.api_current.forwarding import SubclassableBase
+from tests.collections.api_deprecated.core import (
     _DEPRS_CASE_STD_ARGS,
     DeprecatedColorEnum,
     ast_breadcrumb_source_dict,
     depr_ast_breadcrumb_dict,
 )
-from tests.collections.api_deprecated_forwarding import pep702_proxy_stacked
-from tests.collections.api_deprecated_regressions import (
+from tests.collections.api_deprecated.forwarding import pep702_proxy_stacked
+from tests.collections.api_deprecated.regressions import (
     depr_docless_class,
     depr_documented_class,
     make_deprecated_hostile_signature_instance,
@@ -939,7 +939,7 @@ class TestProxyCopyPickle:
 
         When ``@deprecated_class`` replaces the module-level name ``DeprecatedColorEnum`` with
         a proxy, the wrapped class (``cfg.obj``) cannot be serialised by reference: pickle
-        finds the proxy at ``tests.collections.api_deprecated.DeprecatedColorEnum``, not the original
+        finds the proxy at ``tests.collections.api_deprecated.core.DeprecatedColorEnum``, not the original
         class.  This test documents the known limitation — ``deprecated_instance`` proxies
         wrapping plain objects (dicts, lists) remain fully picklable.
         """

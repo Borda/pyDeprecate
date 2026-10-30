@@ -23,17 +23,9 @@ from deprecate.routine import (
     _WrapperKind,
 )
 from tests._helpers import captured_warnings
-from tests.collections.api_current import (
-    NewCls,
-    Pep702StaticTarget,
-    async_gen_target,
-    async_target,
-    double_value,
-    gen_target,
-    generator_based_double,
-    pep702_target,
-)
-from tests.collections.api_deprecated_forwarding import pep702_stacked
+from tests.collections.api_current.core import NewCls, Pep702StaticTarget, async_target, double_value, pep702_target
+from tests.collections.api_current.forwarding import async_gen_target, gen_target, generator_based_double
+from tests.collections.api_deprecated.forwarding import pep702_stacked
 
 #: Version kwargs shared by every ``_build_callable_config`` call below.
 _DEPRS_CASE_CONFIG_ARGS: dict[str, Any] = {"deprecated_in": "1.0", "remove_in": "2.0"}
@@ -250,7 +242,7 @@ class TestEmptyVersionGuardSymmetry:
     The inline ``@deprecated`` decorators in this class test *decoration-time* behavior —
     each scenario asserts that ``UserWarning`` fires (or stays silent) at the moment the
     decorator is applied, captured inside a ``with pytest.warns(...)`` / ``catch_warnings``
-    block.  Moving the wrappers to :mod:`tests.collections.api_deprecated` would fire the guard
+    block.  Moving the wrappers to :mod:`tests.collections.api_deprecated.core` would fire the guard
     warning at module import time, outside any catch context, defeating the test.  This is
     the AGENTS.md three-layer-rule exception for guard tests.
     """

@@ -2019,7 +2019,7 @@ ______________________________________________________________________
 from deprecate import validate_deprecation_expiry
 
 # For testing purposes, we use the test module; normally you would import your own package
-from tests.collections import api_deprecated as my_package
+from tests.collections.api_deprecated import core as my_package
 
 # Default scope now includes deprecated class members
 expired = validate_deprecation_expiry(my_package, "0.5")
