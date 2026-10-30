@@ -198,7 +198,7 @@ That's it! All calls to `addition()` are automatically forwarded to `compute_sum
 
 A callable target whose signature cannot be inspected still decorates successfully. A forwarded call that needs that signature, including keyword validation without `args_mapping`, raises the original introspection error; an empty call requiring no signature validation can still succeed.
 
-For a classmethod target, a caller keyword passed through `**kwargs` that matches the replacement's receiver name raises before warning unless `args_mapping` renames or drops it; mapping it to `""` keeps the collision and preserves the warning budget.
+For a classmethod target whose receiver name differs from the source's, a caller keyword passed through `**kwargs` that matches the replacement's receiver name raises before warning unless `args_mapping` renames or drops it; mapping it to `""` keeps the collision and preserves the warning budget.
 
 > [!IMPORTANT]
 >
