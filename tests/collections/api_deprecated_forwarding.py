@@ -14,6 +14,7 @@ from tests.collections.api_current import (
     AutoExpandReqDC,
     CombinedAttrsArgsSource,
     CombinedAttrsArgsTarget,
+    DataBatch,
     LegacyBoolAttrsSource,
     Palette,
     PaletteEnum,
@@ -45,7 +46,9 @@ from tests.collections.api_current import (
     fn_with_default,
     gapped_positional_only_target,
     gen_target,
+    generator_based_double,
     identity_value,
+    load_batches,
     non_cycle_double,
     open_cursor,
     pep702_target,
@@ -55,6 +58,7 @@ from tests.collections.api_current import (
     running_total,
     single_positional_target,
     squares_list,
+    sync_stopping_stream,
     tracked_identity,
     trio_positional_target,
     uncomparable_default,
@@ -573,6 +577,30 @@ async def _countdown_source(start: int) -> AsyncIterator[int]:
         yield start
 
 
+async def _sync_stopping_source(count: int) -> AsyncGenerator[int, None]:
+    """Placeholder async generator source for ``deprecated_sync_stopping``; its target ends iteration synchronously."""
+    if False:  # pragma: no cover - unreachable; declares this as an async generator
+        yield count
+
+
+def _batches_source(count: int) -> Iterator[DataBatch]:
+    """Placeholder generator source for ``deprecated_load_batches``; the target forwards every call."""
+    if False:  # pragma: no cover - unreachable; declares this as a generator
+        yield DataBatch(count)
+
+
+async def _async_squares_source(n: int) -> AsyncGenerator[int, None]:
+    """Placeholder async generator source for ``deprecated_async_squares``, whose target returns a plain list."""
+    if False:  # pragma: no cover - unreachable; declares this as an async generator
+        yield n
+
+
+async def _async_gen_coroutine_source(x: int) -> AsyncGenerator[int, None]:
+    """Placeholder async generator source for ``deprecated_async_gen_to_coroutine``; its target is a coroutine."""
+    if False:  # pragma: no cover - unreachable; declares this as an async generator
+        yield x
+
+
 def _gen_source_stacked(x: int = 0) -> Iterator[int]:
     """Placeholder generator source for the inner layer of ``gen_stacked``; the target forwards every call."""
     if False:  # pragma: no cover - unreachable; declares this as a generator
@@ -599,6 +627,20 @@ deprecated_walk = deprecated(target=walk_down, **_DEPRS_CASE_STD_INF_ARGS)(_walk
 deprecated_squares = deprecated(target=squares_list, **_DEPRS_CASE_STD_INF_ARGS)(_squares_source)
 #: Async generator source forwarded to ``countdown_stream``: the wrapper iterates the plain async iterator it returns.
 deprecated_countdown = deprecated(target=countdown_stream, **_DEPRS_CASE_STD_INF_ARGS)(_countdown_source)
+#: Async generator source forwarded to ``sync_stopping_stream``, whose plain ``def`` steps end the iteration directly.
+deprecated_sync_stopping = deprecated(target=sync_stopping_stream, **_DEPRS_CASE_STD_INF_ARGS)(_sync_stopping_source)
+#: Generator source forwarded to ``load_batches``: each batch must be freed once the consumer has moved past it.
+deprecated_load_batches = deprecated(target=load_batches, **_DEPRS_CASE_STD_INF_ARGS)(_batches_source)
+#: Misconfigured: an async generator source forwarded to ``squares_list``, which returns a list, not an async iterable.
+deprecated_async_squares = deprecated(target=squares_list, **_DEPRS_CASE_STD_INF_ARGS)(_async_squares_source)
+#: Misconfigured: an async generator source forwarded to the coroutine function ``async_target``.
+deprecated_async_gen_to_coroutine = deprecated(target=async_target, **_DEPRS_CASE_STD_INF_ARGS)(
+    _async_gen_coroutine_source
+)
+#: NOTIFY over a ``@types.coroutine`` generator: it keeps the plain wrapper, so the call warns and stays awaitable.
+deprecated_generator_based_double = deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_INF_ARGS)(
+    generator_based_double
+)
 #: ``skip_if=True``: the wrapper stays a generator but never warns and runs ``gen_target`` unchanged.
 gen_notify_skipped = deprecated(target=TargetMode.NOTIFY, skip_if=True, **_DEPRS_CASE_STD_INF_ARGS)(gen_target)
 #: NOTIFY outer over a callable-target inner wrapper (a supported stack): both layers warn on the first step.

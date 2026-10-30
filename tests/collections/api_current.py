@@ -609,6 +609,96 @@ def countdown_stream(start: int) -> CountdownAsyncIterator:
     return CountdownAsyncIterator(start)
 
 
+async def _resolved(value: int) -> int:
+    """Return ``value``: the awaitable that :class:`SyncStoppingAsyncIterator` hands out for each item."""
+    return value
+
+
+class SyncStoppingAsyncIterator:
+    """Async iterator whose plain ``def`` steps end the iteration synchronously instead of from an awaitable.
+
+    ``__anext__`` returns an awaitable for each of the counts ``1`` to ``count``, but raises ``StopAsyncIteration``
+    directly once they run out, and ``athrow`` ends the iteration the same way. Native ``async for`` treats a
+    ``StopAsyncIteration`` raised by the call itself as a normal end, so this is still a valid async iterator.
+
+    """
+
+    def __init__(self, count: int) -> None:
+        """Hold the counts ``1`` to ``count`` still to be handed out."""
+        self._remaining = list(range(1, count + 1))
+
+    def __aiter__(self) -> "SyncStoppingAsyncIterator":
+        """Return the iterator itself, as the async iterator protocol requires."""
+        return self
+
+    def __anext__(self) -> Coroutine[Any, Any, int]:
+        """Return an awaitable for the next count, or raise ``StopAsyncIteration`` at once when none is left."""
+        if not self._remaining:
+            raise StopAsyncIteration
+        return _resolved(self._remaining.pop(0))
+
+    def athrow(self, exc: BaseException) -> Coroutine[Any, Any, int]:
+        """Drop the remaining counts on any thrown exception and end the iteration before returning an awaitable."""
+        self._remaining.clear()
+        raise StopAsyncIteration from exc
+
+
+def sync_stopping_stream(count: int) -> SyncStoppingAsyncIterator:
+    """Return an async iterator that ends synchronously: a replacement for a deprecated async generator.
+
+    Examples:
+        >>> import asyncio
+        >>>
+        >>> async def _collect() -> list[int]:
+        ...     return [item async for item in sync_stopping_stream(2)]
+        >>> asyncio.run(_collect())
+        [1, 2]
+
+    """
+    return SyncStoppingAsyncIterator(count)
+
+
+@types.coroutine
+def generator_based_double(x: int) -> Generator[None, None, int]:
+    """Return ``x * 2`` from a generator-based coroutine: a generator function that ``await`` accepts.
+
+    ``@types.coroutine`` flags the code object with ``CO_ITERABLE_COROUTINE``, so ``await generator_based_double(3)``
+    works although the function is a plain generator function, not an ``async def``.
+
+    Examples:
+        >>> import asyncio
+        >>>
+        >>> async def _run() -> int:
+        ...     return await generator_based_double(3)
+        >>> asyncio.run(_run())
+        6
+
+    """
+    if False:  # pragma: no cover - unreachable; declares this as a generator
+        yield
+    return x * 2
+
+
+class DataBatch:
+    """One batch handed out by :func:`load_batches`; a plain class, so a test can hold a weak reference to it."""
+
+    def __init__(self, index: int) -> None:
+        """Record the position of the batch in its stream."""
+        self.index = index
+
+
+def load_batches(count: int) -> Iterator[DataBatch]:
+    """Yield ``count`` fresh batches, keeping no reference to a batch once it has been handed out.
+
+    Examples:
+        >>> [batch.index for batch in load_batches(3)]
+        [0, 1, 2]
+
+    """
+    for index in range(count):
+        yield DataBatch(index)
+
+
 def squares_list(n: int) -> list[int]:
     """Return the first ``n`` squares as a list: a non-generator replacement for a deprecated generator function.
 

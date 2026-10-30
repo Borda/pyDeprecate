@@ -30,6 +30,7 @@ from tests.collections.api_current import (
     async_target,
     double_value,
     gen_target,
+    generator_based_double,
     pep702_target,
 )
 from tests.collections.api_deprecated_forwarding import pep702_stacked
@@ -625,6 +626,7 @@ class TestMakeWrapper:
             pytest.param(async_target, _WrapperKind.COROUTINE, id="coroutine"),
             pytest.param(gen_target, _WrapperKind.GENERATOR, id="generator"),
             pytest.param(async_gen_target, _WrapperKind.ASYNC_GENERATOR, id="async-generator"),
+            pytest.param(generator_based_double, _WrapperKind.FUNCTION, id="types-coroutine-generator"),
         ],
     )
     def test_wrapper_kind_follows_the_source(self, source: Callable[..., Any], kind: _WrapperKind) -> None:

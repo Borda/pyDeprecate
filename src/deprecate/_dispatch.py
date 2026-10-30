@@ -1210,13 +1210,26 @@ async def _invoke_async(ctx: _WrapperContext, plan: _CallPlan, args: tuple[Any, 
 
 
 def _invoke_sync(ctx: _WrapperContext, plan: _CallPlan, args: tuple[Any, ...]) -> Any:  # noqa: ANN401
-    """Dispatch sync call after :func:`_build_call_plan` has resolved the outcome."""
+    """Dispatch sync call after :func:`_build_call_plan` has resolved the outcome.
+
+    A coroutine function target raises :class:`TypeError`, since nothing here awaits it; the advice names the fix that
+    fits the source, which for an async generator source is a target returning an async iterable.
+
+    """
     if plan.short_circuit or plan.target_func is None:
         pos_args, kw_args = _resolve_source_call_shape(ctx, plan, args)
         return ctx.source(*pos_args, **kw_args)
     if inspect.iscoroutinefunction(plan.target_func):
+        target_name = _callable_display_name(plan.target_func)[0]
+        # An async generator source is already ``async def``; its target must return an async iterable instead.
+        if inspect.isasyncgenfunction(ctx.source):
+            raise TypeError(
+                f"Coroutine function target `{target_name}` cannot replace async generator `{ctx.source.__name__}`:"
+                " an async generator's target must return an async iterable. Make the target an async generator"
+                " function, or a callable that returns an async iterator."
+            )
         raise TypeError(
-            f"Async target `{_callable_display_name(plan.target_func)[0]}` cannot be invoked from a sync wrapper."
+            f"Async target `{target_name}` cannot be invoked from a sync wrapper."
             f" Declare `{ctx.source.__name__}` as `async def`, or replace the target with a sync callable."
         )
     pos_args, kw_args = _resolve_target_call_shape(ctx, plan, args)

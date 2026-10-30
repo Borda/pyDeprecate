@@ -16,7 +16,9 @@ emitting a warning.
 
 """
 
+import gc
 import inspect
+import weakref
 
 import pytest
 
@@ -32,13 +34,18 @@ from tests.collections.api_deprecated_forwarding import (
     async_gen_notify,
     async_gen_stacked,
     async_notify,
+    deprecated_async_gen_to_coroutine,
     deprecated_async_positional_only_to_sync,
     deprecated_async_running_total,
+    deprecated_async_squares,
     deprecated_async_var_positional_to_sync,
     deprecated_countdown,
     deprecated_cursor,
+    deprecated_generator_based_double,
+    deprecated_load_batches,
     deprecated_running_total,
     deprecated_squares,
+    deprecated_sync_stopping,
     deprecated_walk,
     gen_args_remap,
     gen_callable,
@@ -589,6 +596,23 @@ def test_generator_with_list_target_yields_the_items() -> None:
     assert len(_deprecation_warnings(warned)) == 1
 
 
+def test_generator_frees_the_first_item_once_the_consumer_moves_on() -> None:
+    """The wrapper keeps no reference to its first item once the consumer has taken the second one.
+
+    A deprecated data loader yields large batches, and its consumer processes them one at a time, expecting each batch
+    to be freed as soon as it moves on. The wrapper takes the first item from the replacement before it yields it, so
+    it must drop its own hold on that item instead of keeping the first batch alive until the stream ends.
+
+    """
+    with captured_warnings():
+        batches = deprecated_load_batches(3)
+        first_ref = weakref.ref(next(batches))
+        second = next(batches)
+        gc.collect()
+    assert first_ref() is None, "The wrapper must not keep the first batch alive after the second one is taken"
+    assert second.index == 1
+
+
 def test_generator_recursing_through_its_deprecated_name_raises_cycle_error() -> None:
     """A target that recurses through the deprecated generator before its first ``yield`` raises the cycle error.
 
@@ -726,6 +750,89 @@ async def test_async_generator_ends_when_the_target_ends() -> None:
             await agen.__anext__()
     assert first == 1
     assert log == ["closed"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("count", "expected"), [pytest.param(0, [], id="empty"), pytest.param(2, [1, 2], id="exhausted-after-items")]
+)
+async def test_async_generator_ends_when_the_target_stops_synchronously(count: int, expected: list[int]) -> None:
+    """A target async iterator whose plain ``__anext__`` raises ``StopAsyncIteration`` directly ends the wrapper.
+
+    The replacement of a deprecated async generator may return a hand-written async iterator whose ``__anext__`` is a
+    plain ``def``: it returns an awaitable per item and raises ``StopAsyncIteration`` itself once the items run out.
+    Native ``async for`` treats that as the end of the stream, so the wrapper must too, whether the iterator is empty
+    from the start or runs out after some items, instead of failing with "async generator raised StopAsyncIteration".
+
+    """
+    with captured_warnings():
+        items = [item async for item in deprecated_sync_stopping(count)]
+    assert items == expected
+
+
+@pytest.mark.asyncio
+async def test_async_generator_ends_when_the_target_athrow_stops_synchronously() -> None:
+    """A target whose plain ``athrow`` raises ``StopAsyncIteration`` directly ends the wrapper with that exception.
+
+    A consumer throws an exception into a deprecated stream whose replacement handles it by ending the iteration, and
+    that replacement's ``athrow`` raises ``StopAsyncIteration`` before it returns any awaitable. The wrapper must end
+    the same way a native async generator does, so the consumer's ``athrow`` call raises ``StopAsyncIteration``.
+
+    """
+    with captured_warnings():
+        agen = deprecated_sync_stopping(2)
+        first = await agen.__anext__()
+        with pytest.raises(StopAsyncIteration):
+            await agen.athrow(ValueError())
+    assert first == 1
+
+
+@pytest.mark.asyncio
+async def test_generator_based_coroutine_source_stays_awaitable() -> None:
+    """A deprecated ``@types.coroutine`` generator warns at the call and still works with ``await``.
+
+    Legacy asyncio code written before ``async def`` uses generator-based coroutines: generator functions whose code
+    object carries ``CO_ITERABLE_COROUTINE``. A generator wrapper lacks that flag and ``await`` would reject it, so
+    such a source keeps the plain wrapper, which warns at the call and returns the awaitable source generator.
+
+    """
+    with captured_warnings() as warned:
+        awaitable = deprecated_generator_based_double(3)
+        at_call = len(_deprecation_warnings(warned))
+        result = await awaitable
+    assert at_call == 1
+    assert result == 6
+
+
+@pytest.mark.asyncio
+async def test_async_generator_with_sync_iterable_target_raises_curated_type_error() -> None:
+    """An async generator forwarded to a target returning a list fails on the first step with a ``TypeError``.
+
+    A maintainer points a deprecated async generator at a replacement that returns a plain list. That is a
+    misconfiguration, since an async generator's target must return an async iterable, and the first ``async for``
+    step must say so, naming the source, the target and the returned type, instead of a bare ``AttributeError``.
+
+    """
+    with captured_warnings():
+        agen = deprecated_async_squares(3)
+        with pytest.raises(TypeError, match=r"Target `squares_list` of async generator `_async_squares_source`") as err:
+            await agen.__anext__()
+    assert "`list`, which is not an async iterable" in str(err.value)
+
+
+@pytest.mark.asyncio
+async def test_async_generator_with_coroutine_target_raises_matching_advice() -> None:
+    """An async generator forwarded to an ``async def`` coroutine function gets advice that fits an async generator.
+
+    The source is already declared ``async def``, so the advice given to a sync source (declare it ``async def``) does
+    not apply. The error raised on the first step must instead say that the target has to return an async iterable.
+
+    """
+    with captured_warnings():
+        agen = deprecated_async_gen_to_coroutine(3)
+        with pytest.raises(TypeError, match=r"cannot replace async generator `_async_gen_coroutine_source`") as err:
+            await agen.__anext__()
+    assert "Declare" not in str(err.value)
 
 
 @pytest.mark.asyncio
