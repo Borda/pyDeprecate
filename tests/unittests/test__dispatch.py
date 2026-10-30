@@ -1077,6 +1077,75 @@ def test_callable_target_round_trip_returns_target_func() -> None:
     assert plan.reason_argument == {}
 
 
+@pytest.mark.parametrize(
+    "mapping",
+    [pytest.param({}, id="unmapped"), pytest.param({"cls": ""}, id="empty-keeps-name")],
+)
+def test_receiver_keyword_collision_preserves_warning_budget(mapping: dict[str, Optional[str]]) -> None:
+    """Reject a caller's receiver keyword before warning, even when mapped to an empty string.
+
+    A classmethod forwards from a receiver named ``klass`` to one named ``cls`` while accepting arbitrary options.
+    An empty-string mapping leaves an option named ``cls`` in place, so the invalid call must not spend the single
+    warning reserved for the next valid call.
+    """
+
+    class Factory:
+        """Forward a deprecated factory call while preserving its class receiver."""
+
+        @classmethod
+        def make(cls, **options: object) -> tuple[type, dict[str, object]]:
+            """Return the receiving class and forwarded options."""
+            return cls, options
+
+        @classmethod
+        @deprecated(target=make, deprecated_in="1.0", remove_in="2.0", args_mapping=mapping, num_warns=1)
+        def old(klass: type, **options: object) -> tuple[type, dict[str, object]]:  # noqa: N804
+            """Provide a source receiver whose name differs from the target's."""
+            return void(klass, options)
+
+    with captured_warnings() as caught, pytest.raises(TypeError, match="receiver"):
+        Factory.old(cls=123)
+    assert caught == []
+    with pytest.warns(FutureWarning, match="old"):
+        assert Factory.old() == (Factory, {})
+    with assert_no_warnings():
+        assert Factory.old() == (Factory, {})
+
+
+@pytest.mark.parametrize(
+    ("mapping", "expected_options"),
+    [
+        pytest.param({"cls": None}, {}, id="drop-receiver-keyword"),
+        pytest.param({"cls": "kind"}, {"kind": 123}, id="rename-receiver-keyword"),
+    ],
+)
+def test_receiver_keyword_can_be_dropped_or_renamed(
+    mapping: dict[str, Optional[str]], expected_options: dict[str, object]
+) -> None:
+    """Allow a receiver-named option when remapping moves it out of the receiver slot.
+
+    A classmethod accepts an old option named ``cls`` through ``**options``. Dropping that option or renaming it to
+    ``kind`` must preserve the actual receiving class while forwarding the remaining options.
+    """
+
+    class Factory:
+        """Forward a deprecated factory call while preserving its class receiver."""
+
+        @classmethod
+        def make(cls, **options: object) -> tuple[type, dict[str, object]]:
+            """Return the receiving class and forwarded options."""
+            return cls, options
+
+        @classmethod
+        @deprecated(target=make, deprecated_in="1.0", remove_in="2.0", args_mapping=mapping, num_warns=1)
+        def old(klass: type, **options: object) -> tuple[type, dict[str, object]]:  # noqa: N804
+            """Provide a source receiver whose name differs from the target's."""
+            return void(klass, options)
+
+    with pytest.warns(FutureWarning, match="old"):
+        assert Factory.old(cls=123) == (Factory, expected_options)
+
+
 def test_forward_receiver_name_raises_when_target_receiver_is_taken() -> None:
     """The class is never put under a target receiver name the forwarded keywords already hold.
 

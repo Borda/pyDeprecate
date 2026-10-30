@@ -55,8 +55,32 @@ class TestFactoryExports:
         assert pickle.loads(pickle.dumps(factory)) is factory  # noqa: S301 - trusted local round trip
 
 
+class _UnhashableMeta(type):
+    """Metaclass whose classes cannot be hashed, as when it defines ``__eq__`` without ``__hash__`` (fixture)."""
+
+    __hash__ = None  # type: ignore[assignment]
+
+
+class _UnhashableClass(metaclass=_UnhashableMeta):
+    """Module-level class that cannot key a dict, so no ``copyreg`` reducer can be registered for it (fixture)."""
+
+
 class TestDecoratorFactory:
     """deprecated_class used as a class decorator."""
+
+    def test_unhashable_class_is_deprecated_without_reducer(self) -> None:
+        """Deprecating a class whose metaclass makes it unhashable still returns a working proxy.
+
+        A metaclass that defines ``__eq__`` without ``__hash__`` (or sets ``__hash__ = None``) yields classes that
+        cannot be dict keys, while the reducer that keeps instances of an in-place deprecated class picklable is
+        stored in ``copyreg.dispatch_table`` keyed by that class. Decoration must skip the registration instead of
+        aborting with ``TypeError: unhashable type``, because instances of such a class were never picklable or
+        copyable anyway (``pickle`` and ``copy`` hash ``type(obj)``) and the deprecation itself does not need it.
+
+        """
+        proxy = deprecated_class(**_DEPRS_CASE_STD_ARGS, stream=None)(_UnhashableClass)
+
+        assert (isinstance(proxy, _DeprecatedProxy), proxy.__wrapped__ is _UnhashableClass) == (True, True)
 
     def test_decorated_class_is_deprecated_proxy(self) -> None:
         """@deprecated_class wraps the class in a _DeprecatedProxy."""

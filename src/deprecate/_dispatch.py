@@ -609,8 +609,8 @@ def _check_classmethod_receiver(ctx: _WrapperContext, kwargs: Mapping[str, Any])
     The caller's keywords must not carry the target's receiver name either, when it differs from the source's: the
     receiver is forwarded under that name, so the keyword would take the class's place.  A later source parameter of
     that name is rejected at decoration (``_validate._receiver_name_clash``), so at this point such a keyword can only
-    arrive through the source's ``**kwargs``.  A name that is an ``args_mapping`` key is exempt: the rename moves it
-    away before the receiver is forwarded.
+    arrive through the source's ``**kwargs``.  Only a mapping that renames or drops the keyword is exempt: an empty
+    string keeps the name unchanged and therefore still collides with the receiver.
 
     Args:
         ctx: The wrapper's context; :attr:`_WrapperContext.source_receiver` must be set.
@@ -633,7 +633,7 @@ def _check_classmethod_receiver(ctx: _WrapperContext, kwargs: Mapping[str, Any])
         target_name is not None
         and target_name != name
         and target_name in kwargs
-        and target_name not in (ctx.cfg.args_mapping or {})
+        and (ctx.cfg.args_mapping or {}).get(target_name, target_name) in ("", target_name)
     ):
         problem = (
             f"the call also passed `{target_name}`, the target's receiver name, as a keyword argument that would"

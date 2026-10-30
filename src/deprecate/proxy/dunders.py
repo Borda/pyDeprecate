@@ -7,6 +7,7 @@ each proxy class built by :mod:`deprecate.proxy.core` then carries only the forw
 
 """
 
+import collections.abc
 import gc
 import math
 import operator
@@ -323,15 +324,29 @@ _UNARY_OPS: dict[str, Callable[[Any], Any]] = {
     "__reversed__": reversed,
     "__fspath__": os.fspath,
 }
-#: Text types a conversion builtin parses natively (``int("5")``, ``open("data.txt")``) although the type defines no
-#: such dunder; a proxy over one keeps the conversion forward so a deprecated text constant still converts.
-#: The forward is broader than the native behaviour: ``int()`` and ``float()`` work on ``str``/``bytes`` proxies, and
-#: ``complex()`` also works on a ``bytes`` proxy through its ``__float__`` fallback even though ``__complex__`` is
-#: kept for ``str`` only. Consumers that read the dunder directly (``math.sqrt``, ``%d``, ``typing.SupportsInt``)
-#: therefore accept the proxy too. Dropping ``__float__`` would break ``float(b"5")`` parity.
-_NATIVE_TEXT_TYPES: dict[str, tuple[type, ...]] = {
-    "__int__": (str, bytes, bytearray),
-    "__float__": (str, bytes, bytearray),
+#: Bytes-like types ``int()`` and ``float()`` parse natively (``int(memoryview(b"42"))``). From Python 3.12 every type
+#: exposing the buffer protocol is a :class:`collections.abc.Buffer`, which covers ``bytes``, ``bytearray``,
+#: ``memoryview``, ``array.array`` and any other buffer type, extension types included; earlier versions have no such
+#: ABC, so the common builtin buffers are listed instead (a third-party buffer type is not recognised there).
+_BUFFER_TYPES: tuple[type, ...]
+if sys.version_info >= (3, 12):
+    _BUFFER_TYPES = (collections.abc.Buffer,)
+else:
+    import array
+
+    _BUFFER_TYPES = (bytes, bytearray, memoryview, array.array)
+
+#: Types a conversion builtin accepts natively (``int("5")``, ``float(memoryview(b"2.5"))``, ``open("data.txt")``)
+#: although the type defines no such dunder; a proxy over one keeps the conversion forward so a deprecated text or
+#: buffer constant still converts. Only ``int()`` and ``float()`` parse buffers: ``complex()`` and ``open()`` reject
+#: them, so ``__complex__`` stays text-only and ``__fspath__`` takes ``str`` and ``bytes`` alone.
+#: The forward is broader than the native behaviour: ``int()`` and ``float()`` work on ``str``/buffer proxies, and
+#: ``complex()`` also works on a ``bytes`` or buffer proxy through its ``__float__`` fallback even though
+#: ``__complex__`` is kept for ``str`` only. Consumers that read the dunder directly (``math.sqrt``, ``%d``,
+#: ``typing.SupportsInt``) therefore accept the proxy too. Dropping ``__float__`` would break ``float(b"5")`` parity.
+_NATIVE_INPUT_TYPES: dict[str, tuple[type, ...]] = {
+    "__int__": (str, *_BUFFER_TYPES),
+    "__float__": (str, *_BUFFER_TYPES),
     "__complex__": (str,),
     "__fspath__": (str, bytes),
 }
@@ -357,7 +372,7 @@ def _install_forwarding_dunders() -> None:
     for _op in _ORDERING_OPS:
         _register_protocol_forward(_make_binary_forward(_op, warn=False))
     for _op, _func in _UNARY_OPS.items():
-        _register_protocol_forward(_make_unary_forward(_op, _func), native_types=_NATIVE_TEXT_TYPES.get(_op, ()))
+        _register_protocol_forward(_make_unary_forward(_op, _func), native_types=_NATIVE_INPUT_TYPES.get(_op, ()))
 
 
 _install_forwarding_dunders()

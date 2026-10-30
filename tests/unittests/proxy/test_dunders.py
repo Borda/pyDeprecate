@@ -1,9 +1,11 @@
 """Unit tests for proxy operators, context/async protocols, and acquisition cleanup."""
 
+import array
 import asyncio
 import collections.abc
 import copy
 import gc
+import itertools
 import math
 import os
 import pickle
@@ -689,6 +691,32 @@ class _IndexOnly:
         return index
 
 
+class _ReversedDisabled:
+    """Sized, indexable value that disables ``reversed()`` with ``__reversed__ = None``, as ``Mapping`` does."""
+
+    __reversed__ = None
+
+    def __len__(self) -> int:
+        return 3
+
+    def __getitem__(self, index: int) -> int:
+        if index > 2:
+            raise IndexError(index)
+        return index
+
+
+class _SizedIndexed:
+    """Sized, indexable value without ``__reversed__``, so ``reversed()`` uses ``__len__`` and ``__getitem__``."""
+
+    def __len__(self) -> int:
+        return 3
+
+    def __getitem__(self, index: int) -> int:
+        if index > 2:
+            raise IndexError(index)
+        return index
+
+
 class TestProtocolSurface:
     """A proxy carries only the protocol dunders that the wrapped object (or its replacement) supports."""
 
@@ -773,6 +801,44 @@ class TestProtocolSurface:
         proxy = deprecated_instance(source, name="legacy_text", **_DEPRS_CASE_STD_ARGS, stream=None)
         assert convert(proxy) == expected
 
+    @pytest.mark.parametrize(
+        ("source", "convert", "expected"),
+        [
+            pytest.param(bytearray(b"7"), int, 7, id="int-from-bytearray"),
+            pytest.param(memoryview(b"42"), int, 42, id="int-from-memoryview"),
+            pytest.param(array.array("b", b"42"), int, 42, id="int-from-array"),
+            pytest.param(memoryview(b"2.5"), float, 2.5, id="float-from-memoryview"),
+            pytest.param(array.array("b", b"2.5"), float, 2.5, id="float-from-array"),
+        ],
+    )
+    def test_buffer_source_keeps_native_conversions(self, source: object, convert: Callable, expected: object) -> None:
+        """``int()`` and ``float()`` still parse a proxy over a bytes-like buffer, as they parse the buffer itself.
+
+        Native numeric parsing accepts anything exposing the buffer protocol, not only ``str`` and ``bytes``:
+        ``int(memoryview(b"42"))`` and ``float(array.array("b", b"2.5"))`` work although neither type defines
+        ``__int__`` or ``__float__``. A deprecated wire-format constant held as a ``memoryview`` or an ``array`` must
+        keep converting during the migration window.
+
+        """
+        proxy = deprecated_instance(source, name="legacy_buffer", **_DEPRS_CASE_STD_ARGS, stream=None)
+        assert convert(proxy) == expected
+
+    @pytest.mark.parametrize(
+        "source",
+        [pytest.param(memoryview(b"data"), id="memoryview"), pytest.param(array.array("b", b"data"), id="array")],
+    )
+    def test_buffer_source_is_not_path_like(self, source: object) -> None:
+        """A proxy over a bytes-like buffer is no path, as the buffer itself is none.
+
+        ``open()`` and ``os.fspath()`` accept ``str``, ``bytes`` and ``os.PathLike`` only; a ``memoryview`` is rejected
+        although it holds the same bytes. The buffer conversions must not leak into ``__fspath__``, or a deprecated
+        buffer constant would be accepted as a file name where the plain buffer raises ``TypeError``.
+
+        """
+        proxy = deprecated_instance(source, name="legacy_buffer", **_DEPRS_CASE_STD_ARGS, stream=None)
+        with pytest.raises(TypeError, match="expected str, bytes or os.PathLike"):
+            os.fspath(proxy)
+
     @pytest.mark.parametrize("source", [pytest.param("9", id="str"), pytest.param(b"9", id="bytes")])
     def test_text_source_conversion_leaks_to_dunder_readers(self, source: object) -> None:
         """A proxy over a text value is accepted by consumers that read ``__float__`` or ``__int__`` directly.
@@ -815,13 +881,15 @@ class TestProtocolSurface:
         [
             pytest.param(_IterDisabled(), list, id="iter-disabled-no-getitem-fallback"),
             pytest.param(_ContainsDisabled(), lambda value: 1 in value, id="contains-disabled-no-iter-fallback"),
+            pytest.param(_ReversedDisabled(), lambda value: list(reversed(value)), id="reversed-disabled-no-fallback"),
         ],
     )
     def test_disabled_protocol_keeps_fallback_off(self, source: object, use: Callable) -> None:
         """A protocol the wrapped type disables with ``None`` stays disabled on the proxy, fallbacks included.
 
-        ``__iter__ = None`` stops Python from iterating through ``__getitem__``, and ``__contains__ = None`` stops it
-        from testing membership by iteration. The proxy must refuse the same operations, not fall back to them.
+        ``__iter__ = None`` stops Python from iterating through ``__getitem__``, ``__contains__ = None`` stops it from
+        testing membership by iteration, and ``__reversed__ = None`` stops ``reversed()`` from using ``__len__`` and
+        ``__getitem__`` although the type has both. The proxy must refuse the same operations, not fall back to them.
 
         """
         proxy = deprecated_instance(source, name="legacy_obj", **_DEPRS_CASE_STD_ARGS, stream=None)
@@ -835,17 +903,25 @@ class TestProtocolSurface:
                 _ContainsDisabled(), _IterOnly(), lambda value: 1 in value, True, id="membership-by-iteration"
             ),
             pytest.param(_IterDisabled(), _IndexOnly(), list, [0, 1, 2], id="iteration-by-indexing"),
+            pytest.param(
+                _ReversedDisabled(),
+                _SizedIndexed(),
+                lambda value: list(reversed(value)),
+                [2, 1, 0],
+                id="reversal-by-length-and-indexing",
+            ),
         ],
     )
     def test_replacement_fallback_survives_disabled_source(
         self, source: object, target: object, use: Callable, expected: object
     ) -> None:
-        """A replacement serving ``in`` or ``iter()`` through a fallback keeps it although the source disables it.
+        """A replacement serving ``in``, ``iter()`` or ``reversed()`` by fallback keeps it despite a disabled source.
 
-        The deprecated source sets ``__contains__ = None`` (or ``__iter__ = None``) while its replacement defines no
-        ``__contains__`` (or no ``__iter__``) and answers through iteration (or indexing). With ``skip_if`` false the
-        proxy serves the replacement, so the operation must work as on the replacement instead of raising the source's
-        ``TypeError``: the proxy keeps the forward rather than copying the source's ``None`` entry.
+        The deprecated source sets ``__contains__ = None`` (or ``__iter__ = None``, or ``__reversed__ = None``) while
+        its replacement defines no ``__contains__`` (or no ``__iter__``, or no ``__reversed__``) and answers through
+        iteration (or indexing, or ``__len__`` plus indexing). With ``skip_if`` false the proxy serves the replacement,
+        so the operation must work as on the replacement instead of raising the source's ``TypeError``: the proxy keeps
+        the forward rather than copying the source's ``None`` entry.
 
         """
         proxy = make_skip_gated_target_proxy(source, target, lambda: False)
@@ -857,10 +933,16 @@ class TestProtocolSurface:
         [
             pytest.param(_ContainsDisabled(), _IterOnly(), lambda value: 1 in value, id="membership-by-iteration"),
             pytest.param(_IterDisabled(), _IndexOnly(), list, id="iteration-by-indexing"),
+            pytest.param(
+                _ReversedDisabled(),
+                _SizedIndexed(),
+                lambda value: list(reversed(value)),
+                id="reversal-by-length-and-indexing",
+            ),
         ],
     )
     def test_skipped_source_keeps_its_disabled_protocol(self, source: object, target: object, use: Callable) -> None:
-        """While ``skip_if`` serves the source, ``in`` or ``iter()`` raises ``TypeError`` as on the source itself.
+        """While ``skip_if`` serves the source, ``in``, ``iter()`` or ``reversed()`` raises ``TypeError`` as on it.
 
         Same pairing as the replacement case: the source disables the protocol, the replacement answers it through a
         fallback. The forward the proxy keeps for the replacement delegates to whichever object is served, so with
@@ -924,6 +1006,49 @@ class TestProtocolSurface:
         """
         with pytest.raises(TypeError):
             use()
+
+    @pytest.mark.parametrize(
+        "use",
+        [
+            pytest.param(iter, id="iter-generic-source"),
+            pytest.param(lambda proxy: TagList.__class_getitem__(0) in proxy, id="membership-generic-source"),
+        ],
+    )
+    def test_generic_source_beside_indexing_replacement_is_not_iterable(self, use: Callable[[Any], object]) -> None:
+        """``iter()`` and ``in`` raise ``TypeError`` while ``skip_if`` serves a generic class, whatever the replacement.
+
+        A deprecated ``TagList`` (a ``list`` subclass, subscriptable only through ``__class_getitem__``) is redirected
+        to an object that really indexes but has no ``__iter__``. The proxy carries the replacement's ``__getitem__``,
+        so without an ``__iter__`` forward Python would iterate the served class as ``TagList[0]``, ``TagList[1]``, ...
+        without end and a missing needle would hang ``in``. The needle here is ``TagList[0]``, the first item such a
+        fallback would produce, so a regression answers ``True`` instead of hanging the suite.
+
+        """
+        proxy = make_skip_gated_target_proxy(TagList, _IndexOnly(), lambda: True)
+        with pytest.raises(TypeError):
+            use(proxy)
+
+    @pytest.mark.parametrize(
+        ("use", "expected"),
+        [
+            pytest.param(lambda proxy: list(itertools.islice(iter(proxy), 4)), [0, 1, 2], id="iteration"),
+            pytest.param(lambda proxy: 2 in proxy, True, id="membership-hit"),
+            pytest.param(lambda proxy: 5 in proxy, False, id="membership-miss"),
+        ],
+    )
+    def test_indexing_replacement_beside_generic_source_stays_iterable(
+        self, use: Callable[[Any], object], expected: object
+    ) -> None:
+        """With ``skip_if`` false the indexing replacement still iterates and answers ``in`` as on its own.
+
+        The ``__iter__`` forward that refuses the generic source must delegate to the active object, not refuse
+        outright: while the replacement is served, ``iter()`` and membership run through its ``__getitem__`` until it
+        raises ``IndexError``. Iteration is capped at four items so a regression cannot loop forever.
+
+        """
+        proxy = make_skip_gated_target_proxy(TagList, _IndexOnly(), lambda: False)
+        with captured_warnings():
+            assert use(proxy) == expected
 
     def test_replacement_protocols_join_source_protocols(self) -> None:
         """A plain class redirected to an Enum serves the Enum's iteration and ``len``.

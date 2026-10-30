@@ -7,6 +7,7 @@ allocated as a cached subclass carrying only the ones its wrapped object support
 
 """
 
+import contextlib
 import copy
 import copyreg
 import importlib
@@ -188,7 +189,8 @@ class _DeprecatedProxy:
         keep builtins working where the type defines no dunder: an in-place operator is kept whenever its binary
         operator is (so ``read_only`` still refuses ``+=`` on an ``int``), and
         ``int()``/``float()``/``complex()``/``os.fspath()`` are kept for the ``str``/``bytes`` values those builtins
-        parse natively — so a proxy over a ``str`` still reports ``os.PathLike``. A class alias gets the protocols of
+        parse natively (``int()`` and ``float()`` also for bytes-like buffers such as ``memoryview`` and
+        ``array.array``) — so a proxy over a ``str`` still reports ``os.PathLike``. A class alias gets the protocols of
         its metaclass (``EnumMeta`` iterates and sizes), plus subscript when the class defines ``__class_getitem__``
         (never iteration or ``in`` through it). ``isinstance(proxy, _DeprecatedProxy)`` holds for every such subclass,
         and every proxy is registered as a :class:`~deprecate._types.DeprecationProxy` whatever protocols it carries.
@@ -1579,6 +1581,11 @@ def _register_class_instance_reducer(proxy: _DeprecatedProxy) -> None:
     ``__reduce_ex__`` (every :class:`~enum.Enum` does; its own protocol keeps deciding), and when a reducer is already
     registered for it (never replace the caller's). Dispatch is keyed on the exact class, so subclasses are unaffected.
 
+    Also skipped for a class that cannot be hashed (its metaclass sets ``__hash__ = None``, which defining ``__eq__``
+    without ``__hash__`` does implicitly): it cannot key the table, and registering it would abort the decoration with
+    ``TypeError`` although the deprecation does not need the reducer. Instances of such a class were never picklable or
+    copyable anyway, since ``pickle`` and ``copy`` hash ``type(obj)`` to find a reducer.
+
     Also skipped for a class defined inside a function (``<locals>`` in its ``__qualname__``): no module attribute can
     ever publish that name, so the reducer would always fall back to the default reduction and pickle would refuse the
     instance anyway, while the process-global table would keep every such class alive after its last user dropped it.
@@ -1596,7 +1603,9 @@ def _register_class_instance_reducer(proxy: _DeprecatedProxy) -> None:
         return
     if source.__reduce_ex__ is not object.__reduce_ex__ or "<locals>" in source.__qualname__:
         return
-    copyreg.dispatch_table.setdefault(source, _reduce_class_instance)
+    # An unhashable class cannot key the table; skip it rather than let the decoration fail (see the docstring).
+    with contextlib.suppress(TypeError):
+        copyreg.dispatch_table.setdefault(source, _reduce_class_instance)
 
 
 def _proxy_call_global(
@@ -1842,9 +1851,9 @@ class _ProtocolForward:
     """One optional protocol dunder of a proxy: its forwarding method and when a proxy class carries it.
 
     A proxy carries the dunder when the type of the wrapped object (or of its replacement) defines it, or when that
-    object is an instance of ``native_types`` (text a builtin parses without a dunder), or, for a class, when the class
-    itself defines ``class_hook`` (``__class_getitem__`` makes ``Alias[int]`` work, and only that: the class does not
-    become iterable through it, see :func:`_protocol_names`).
+    object is an instance of ``native_types`` (text or a bytes-like buffer a builtin accepts without a dunder), or, for
+    a class, when the class itself defines ``class_hook`` (``__class_getitem__`` makes ``Alias[int]`` work, and only
+    that: the class does not become iterable through it, see :func:`_protocol_names`).
 
     """
 
@@ -1914,14 +1923,18 @@ def _protocol_entries(kind: type) -> dict[str, bool]:
 
 
 def _serves_by_fallback(entries: dict[str, bool], name: str) -> bool:
-    """Return whether a type with these :func:`_protocol_entries` serves ``in`` or ``iter()`` without naming *name*.
+    """Return whether a type with these :func:`_protocol_entries` serves ``in``, ``iter()`` or ``reversed()`` unnamed.
 
-    The interpreter tests membership by iterating when ``__contains__`` is absent, and iterates by indexing from ``0``
-    when ``__iter__`` is absent, unless the type disables the dunder it would fall back to with a ``None`` entry.
+    The interpreter tests membership by iterating when ``__contains__`` is absent, iterates by indexing from ``0`` when
+    ``__iter__`` is absent, and reverses by indexing from ``len() - 1`` down when ``__reversed__`` is absent, unless the
+    type disables the dunder it would fall back to with a ``None`` entry. Reversal needs both ``__len__`` and
+    ``__getitem__``, so either one disabled or missing leaves ``reversed()`` unserved.
 
     """
-    if name in entries or name not in ("__contains__", "__iter__"):
+    if name in entries or name not in ("__contains__", "__iter__", "__reversed__"):
         return False
+    if name == "__reversed__":
+        return entries.get("__len__", False) and entries.get("__getitem__", False)
     return entries["__iter__"] if "__iter__" in entries else entries.get("__getitem__", False)
 
 
@@ -1935,17 +1948,37 @@ def _supports_beyond_type(value: Any, forward: _ProtocolForward) -> bool:  # noq
     return hook is not None and issubclass(kind, type) and inspect.getattr_static(value, hook, None) is not None
 
 
+def _subscripts_by_class_hook(value: Any, entries: dict[str, bool]) -> bool:  # noqa: ANN401
+    """Return whether *value* is a class subscriptable only through ``__class_getitem__``, its type indexing nothing.
+
+    Args:
+        value: A served object.
+        entries: The :func:`_protocol_entries` of ``type(value)``.
+
+    """
+    forward = _PROTOCOL_FORWARDS_BEYOND_TYPE.get("__getitem__")
+    return forward is not None and not entries.get("__getitem__") and _supports_beyond_type(value, forward)
+
+
 def _protocol_names(obj: Any, target: Any) -> tuple[frozenset[str], frozenset[str]]:  # noqa: ANN401
     """Return the optional dunders a proxy over *obj* carries, and those it disables.
 
     A dunder is carried when *obj* or a replacement object *target* supports it: a configured replacement serves the
     protocol use while ``skip_if`` serves the source, so both contribute. A dunder no served object supports and one of
     them disables with a ``None`` entry is disabled on the proxy class too, so the interpreter's fallbacks stay off as
-    they are on the wrapped object; when another served object answers ``in`` or ``iter()`` through such a fallback, the
-    proxy carries the forward instead, which raises or answers as the object currently served. A subscript that only a
-    class's ``__class_getitem__`` provides (``Alias[int]``) is not an item lookup: unless a served object iterates
-    itself, the proxy also disables ``__iter__`` and any ``__contains__`` no served object supports, so ``iter()`` and
-    ``in`` raise ``TypeError`` as they do on the class instead of iterating ``Alias[0]``, ``Alias[1]``, ... without end.
+    they are on the wrapped object; when another served object answers ``in``, ``iter()`` or ``reversed()`` through
+    such a fallback, the proxy carries the forward instead, which raises or answers as the object currently served
+    (a source with ``__reversed__ = None`` still refuses ``reversed()`` while ``skip_if`` serves it, and a sized,
+    indexable replacement reverses while it is served).
+
+    A subscript that only a class's ``__class_getitem__`` provides (``Alias[int]``) is not an item lookup: unless a
+    served object iterates itself, the proxy also disables ``__iter__`` and any ``__contains__`` no served object
+    supports, so ``iter()`` and ``in`` raise ``TypeError`` as they do on the class instead of iterating ``Alias[0]``,
+    ``Alias[1]``, ... without end. When another served object indexes for real (a replacement with ``__getitem__`` and
+    no ``__iter__``), the proxy must keep ``__getitem__`` for it and cannot disable iteration, because the replacement
+    still iterates through that fallback. It carries the ``__iter__`` forward instead, which raises ``TypeError`` while
+    the class is served and iterates the replacement while that is served; ``in`` falls back to the same forward.
+
     A :class:`~deprecate._types.TargetMode`, a legacy ``bool`` target or ``None`` is not an object the proxy serves.
 
     """
@@ -1958,12 +1991,18 @@ def _protocol_names(obj: Any, target: Any) -> tuple[frozenset[str], frozenset[st
         if name not in carried and any(_supports_beyond_type(value, forward) for value in served)
     )
     disabled = {name for table in tables for name, enabled in table.items() if not enabled} - carried
-    # One served type disables ``in`` or ``iter()`` while another serves it by fallback: keep the forward, which
-    # delegates to the active object, so each ``skip_if`` state behaves exactly as the object it serves.
+    # One served type disables ``in``, ``iter()`` or ``reversed()`` while another serves it by fallback: keep the
+    # forward, which delegates to the active object, so each ``skip_if`` state behaves exactly as the object it serves.
     carried |= {name for name in disabled if any(_serves_by_fallback(table, name) for table in tables)}
     disabled -= carried
-    if "__getitem__" in carried and "__iter__" not in carried and not any(table.get("__getitem__") for table in tables):
-        disabled |= {"__iter__", "__contains__"} - carried
+    if "__getitem__" in carried and "__iter__" not in carried:
+        if not any(table.get("__getitem__") for table in tables):
+            disabled |= {"__iter__", "__contains__"} - carried
+        elif "__iter__" not in disabled and any(map(_subscripts_by_class_hook, served, tables)):
+            # Mixed case: a served class is subscriptable only through ``__class_getitem__`` while another served
+            # object indexes for real. The interpreter's ``__getitem__`` fallback would iterate the class as
+            # ``Cls[0]``, ``Cls[1]``, ... without end, so ``iter()`` and ``in`` go through the forward instead.
+            carried.add("__iter__")
     return frozenset(carried), frozenset(disabled)
 
 
