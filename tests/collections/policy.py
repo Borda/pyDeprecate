@@ -31,7 +31,7 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 from typing import Any
 
 from deprecate import TargetMode, deprecated, deprecated_class, deprecated_instance, void
-from tests.collections.api_current import NewCls, Palette, base_sum_kwargs, double_value, increment_value
+from tests.collections.api_current.core import NewCls, Palette, base_sum_kwargs, double_value, increment_value
 
 #: Shared ``(deprecated_in, remove_in)`` for every fixture that is policy-clean under the default window:
 #: one major release of runway, which clears the ``"0.3"`` (three-minor) grace window outright.

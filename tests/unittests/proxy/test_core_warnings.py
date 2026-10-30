@@ -15,30 +15,25 @@ from deprecate._types import DeprecationConfig
 from deprecate.proxy import deprecated_class, deprecated_instance
 from deprecate.proxy.core import _build_proxy_warn_msg, _DeprecatedProxy, _ProxySpec
 from tests._helpers import captured_warnings
-from tests.collections.api_current import (
+from tests.collections.api_current.core import (
     ColorEnum,
     CountingSkipCondition,
     DecliningInplaceOperand,
     FlakyProtocolBox,
-    FlakyTypeErrorStream,
-    KeywordTypeErrorStream,
-    MessageOnlyRecordingStream,
     ModuleRaisingGetattributeMeta,
     ModuleRaisingPropertyMeta,
     NewDataClass,
-    RecordingEntryContext,
-    RecordingStream,
-    SlowRecordingStream,
     make_flaky_attr_host,
 )
-from tests.collections.api_deprecated import (
+from tests.collections.api_current.forwarding import RecordingEntryContext
+from tests.collections.api_deprecated.core import (
     _DEPRS_CASE_STD_ARGS,
     _DEPRS_CASE_STD_INF_ARGS,
     MappedColorEnum,
     MappedDataClass,
 )
-from tests.collections.api_deprecated_forwarding import ProxyArgsRemapForArgWarnMessage
-from tests.collections.api_deprecated_regressions import (
+from tests.collections.api_deprecated.forwarding import ProxyArgsRemapForArgWarnMessage
+from tests.collections.api_deprecated.regressions import (
     DeprSourcePathArgs,
     DeprSourcePathAttrs,
     DeprSourcePathClass,
@@ -48,6 +43,13 @@ from tests.collections.api_deprecated_regressions import (
     make_flaky_attr_alias,
     make_skip_gated_target_proxy,
     make_warn_after_success_proxy,
+)
+from tests.collections.streams import (
+    FlakyTypeErrorStream,
+    KeywordTypeErrorStream,
+    MessageOnlyRecordingStream,
+    RecordingStream,
+    SlowRecordingStream,
 )
 from tests.unittests.proxy._helpers import (
     _GATED_PROXY_OPS,
@@ -121,7 +123,7 @@ class TestProxyWarnBehavior:
             proxy._warn()
         msg = str(caught[0].message)
         assert "old_color" in msg
-        assert "tests.collections.api_current.ColorEnum" in msg
+        assert "tests.collections.api_current.core.ColorEnum" in msg
 
     def test_warn_category_is_future_warning(self) -> None:
         """Default stream emits FutureWarning attributed to the caller's frame."""
@@ -379,13 +381,13 @@ class TestProxyStreamStacklevelProbe:
         """
         calls: list[str] = []
 
-        def stream(msg: str, stacklevel: int = 1) -> None:
+        def _stream(msg: str, stacklevel: int = 1) -> None:
             calls.append(msg)
             raise TypeError("boom from inside the proxy stream")
 
         proxy = _DeprecatedProxy(
             obj=_P8Source,
-            spec=_ProxySpec(target=_P8Target, name="_P8Source", **_DEPRS_CASE_STD_ARGS, stream=stream),
+            spec=_ProxySpec(target=_P8Target, name="_P8Source", **_DEPRS_CASE_STD_ARGS, stream=_stream),
         )
         with pytest.raises(TypeError, match="boom from inside the proxy stream"):
             proxy._warn()
@@ -706,13 +708,13 @@ class TestWarnBudgetThreadSafety:
         n_threads = 16
         barrier = threading.Barrier(n_threads)
 
-        def worker(_ignored: int) -> None:
+        def _worker(_ignored: int) -> None:
             """Block until every thread has arrived, then use the deprecated proxy simultaneously."""
             barrier.wait()
             drive(proxy)
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=n_threads) as pool:
-            list(pool.map(worker, range(n_threads)))
+            list(pool.map(_worker, range(n_threads)))
         assert len(stream.calls) == 1
 
 
@@ -827,5 +829,5 @@ class TestProxySourcePath:
         with pytest.warns(FutureWarning) as record:
             proxy()
         assert [str(w.message) for w in record] == [
-            "tests.collections.api_current.ModuleRaisingTarget :: ModuleRaisingTarget"
+            "tests.collections.api_current.core.ModuleRaisingTarget :: ModuleRaisingTarget"
         ]

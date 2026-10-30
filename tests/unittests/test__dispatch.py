@@ -39,7 +39,7 @@ from deprecate._dispatch import (
 from deprecate._types import DeprecationConfig, _CallFacts, _CallPlan, _DeprecatedCallable, _WrapperState
 from deprecate.utils import _signature_facts
 from tests._helpers import captured_warnings
-from tests.collections.api_current import (
+from tests.collections.api_current.core import (
     KeywordCallTarget,
     NewCls,
     SignatureNeedsContextError,
@@ -58,18 +58,20 @@ from tests.collections.api_current import (
     source_with_forward_defaults,
     var_positional_target,
 )
-from tests.collections.api_deprecated import (
+from tests.collections.api_deprecated.core import (
     dep_async_cycle_fn_a,
     dep_async_cycle_fn_b,
+    dep_async_gen_cycle_fn_a,
     dep_cycle_fn_a,
     dep_cycle_fn_b,
+    dep_gen_cycle_fn_a,
     depr_pow_args,
     depr_target_mode_args_only_with_args_extra_injects_kwargs,
     make_depr_args_remap_notify_with_extra,
     make_depr_compute_power_stacked,
     make_depr_notify_callable_stacked,
 )
-from tests.collections.api_deprecated_forwarding import (
+from tests.collections.api_deprecated.forwarding import (
     OldPositionalOnlyClass,
     OldSelfOnlyClass,
     dep_async_non_cycle_old_fn,
@@ -96,7 +98,7 @@ from tests.collections.api_deprecated_forwarding import (
     fn_shared_default,
     make_deprecated_positional_only_num_warns_one,
 )
-from tests.collections.api_deprecated_regressions import depr_scale_partial_every_call
+from tests.collections.api_deprecated.regressions import depr_scale_partial_every_call
 from tests.collections.misconfigured import target_false_deprecation
 
 
@@ -401,7 +403,7 @@ class TestPositionalOnlyTarget:
         at decoration time and no ``FutureWarning`` fires at call time.  The underlying
         split dispatch must still execute so ``positional_only_target`` is called with ``x``
         as a positional arg (not as a kwarg), returning the correct value.
-        ``deprecated_positional_only_stream_none`` is defined in ``api_deprecated_forwarding.py``
+        ``deprecated_positional_only_stream_none`` is defined in ``api_deprecated/forwarding.py``
         with ``stream=None`` so no warnings are emitted at decoration time or call time.
         """
         result = deprecated_positional_only_stream_none(5)
@@ -414,7 +416,7 @@ class TestPositionalOnlyTarget:
         must still forward ``x`` positionally (the split dispatch must not be gated on
         the warning being emitted).  A caller silently migrating after the quota exhausts
         should not receive ``TypeError``.
-        ``make_deprecated_positional_only_num_warns_one`` is defined in ``api_deprecated_forwarding.py``
+        ``make_deprecated_positional_only_num_warns_one`` is defined in ``api_deprecated/forwarding.py``
         with ``num_warns=1`` so the warning fires exactly once.
         """
         quota_fn = make_deprecated_positional_only_num_warns_one()
@@ -639,6 +641,34 @@ class TestCycleDetection:
             pytest.raises(RuntimeError, match=r"Circular deprecation cycle detected.*dep_async_cycle_fn_b"),
         ):
             await dep_async_cycle_fn_b(1)
+
+    def test_generator_cycle_raises_on_first_step(self) -> None:
+        """A cycle of generator wrappers raises the cycle RuntimeError on the first next(), not RecursionError.
+
+        A generator wrapper runs its call plan on the first step and delegates to the generator the target returns.
+        When two deprecated generators forward to each other, each first step creates the next wrapper's generator and
+        steps it while the cycle guard is held, so the loop re-enters dep_gen_cycle_fn_a and the curated error fires
+        instead of generators nesting until the recursion limit.
+        """
+        with (
+            pytest.warns(FutureWarning, match="dep_gen_cycle_fn_"),
+            pytest.raises(RuntimeError, match=r"Circular deprecation cycle detected.*dep_gen_cycle_fn_a"),
+        ):
+            next(dep_gen_cycle_fn_a(1))
+
+    @pytest.mark.asyncio
+    async def test_async_generator_cycle_raises_on_first_step(self) -> None:
+        """A cycle of async generator wrappers raises the cycle RuntimeError on the first step, not RecursionError.
+
+        The async twin of the generator cycle: the first ``async for`` step of dep_async_gen_cycle_fn_a creates and
+        steps dep_async_gen_cycle_fn_b's generator under the cycle guard, which steps A again, so the guard catches the
+        re-entry of A.
+        """
+        with (
+            pytest.warns(FutureWarning, match="dep_async_gen_cycle_fn_"),
+            pytest.raises(RuntimeError, match=r"Circular deprecation cycle detected.*dep_async_gen_cycle_fn_a"),
+        ):
+            await dep_async_gen_cycle_fn_a(1).__anext__()
 
     @pytest.mark.asyncio
     async def test_concurrent_async_calls_no_false_positive(self) -> None:
@@ -1713,26 +1743,26 @@ class TestWarnQuotaThreadSafety:
         emissions: list[int] = []
         emit_lock = threading.Lock()
 
-        def counting_stream(message: str, *args: object, **kwargs: object) -> None:
+        def _counting_stream(message: str, *args: object, **kwargs: object) -> None:
             """Record every emission; the tiny sleep is a yield point that exposes the race when unsynchronised."""
             time.sleep(0.001)
             with emit_lock:
                 emissions.append(1)
 
-        @deprecated(target=double_value, deprecated_in="1.0", remove_in="2.0", num_warns=1, stream=counting_stream)
+        @deprecated(target=double_value, deprecated_in="1.0", remove_in="2.0", num_warns=1, stream=_counting_stream)
         def racy(x: int) -> int:
             return void(x)
 
         n_threads = 16
         barrier = threading.Barrier(n_threads)
 
-        def worker(_ignored: int) -> None:
+        def _worker(_ignored: int) -> None:
             """Block until every thread has arrived, then hit the deprecated wrapper simultaneously."""
             barrier.wait()
             racy(1)
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=n_threads) as pool:
-            list(pool.map(worker, range(n_threads)))
+            list(pool.map(_worker, range(n_threads)))
         assert len(emissions) == 1
 
 

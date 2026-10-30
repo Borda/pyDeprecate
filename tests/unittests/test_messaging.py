@@ -35,28 +35,31 @@ from deprecate.messaging import (
 )
 from deprecate.utils import _partial_chain
 from tests._helpers import captured_warnings
-from tests.collections.api_current import (
+from tests.collections.api_current.core import (
     CallableAdder,
+    NewCls,
+    NonStringNameCallable,
+    base_sum_kwargs,
+    callable_adder_target,
+    moduleless_function,
+    nested_partial_target,
+    partial_target,
+)
+from tests.collections.api_deprecated.regressions import make_sum_deprecation_with_stream
+from tests.collections.streams import (
     EqualMessageOnlyStream,
     EqualStacklevelStream,
     FlakyTypeErrorStream,
     KeywordTypeErrorStream,
     MessageNamedStacklevelRecordingStream,
     MessageOnlyRecordingStream,
-    NewCls,
-    NonStringNameCallable,
     PassThroughMessageOnlyStream,
     RecordingStream,
     RuntimeSignatureStream,
     SlottedStream,
     UnhashableStream,
     UnintrospectableStream,
-    base_sum_kwargs,
-    callable_adder_target,
     make_stream_cycle,
-    moduleless_function,
-    nested_partial_target,
-    partial_target,
     stream_keyword_only_stacklevel,
     stream_message_named_stacklevel,
     stream_message_only,
@@ -73,7 +76,6 @@ from tests.collections.api_current import (
     stream_with_stacklevel,
     stream_wraps_logging_warning,
 )
-from tests.collections.api_deprecated_regressions import make_sum_deprecation_with_stream
 
 
 class TestWarnBudgetRelease:
@@ -155,25 +157,25 @@ class TestCallableDisplayName:
         [
             pytest.param(
                 base_sum_kwargs,
-                ("base_sum_kwargs", "tests.collections.api_current.base_sum_kwargs"),
+                ("base_sum_kwargs", "tests.collections.api_current.core.base_sum_kwargs"),
                 id="function",
             ),
-            pytest.param(NewCls.__init__, ("__init__", "tests.collections.api_current.__init__"), id="method"),
-            pytest.param(NewCls, ("NewCls", "tests.collections.api_current.NewCls"), id="class"),
-            pytest.param(partial_target, ("new_scale", "tests.collections.api_current.new_scale"), id="partial"),
+            pytest.param(NewCls.__init__, ("__init__", "tests.collections.api_current.core.__init__"), id="method"),
+            pytest.param(NewCls, ("NewCls", "tests.collections.api_current.core.NewCls"), id="class"),
+            pytest.param(partial_target, ("new_scale", "tests.collections.api_current.core.new_scale"), id="partial"),
             pytest.param(
                 nested_partial_target,
-                ("new_scale", "tests.collections.api_current.new_scale"),
+                ("new_scale", "tests.collections.api_current.core.new_scale"),
                 id="nested-partial",
             ),
             pytest.param(
                 callable_adder_target,
-                ("CallableAdder", "tests.collections.api_current.CallableAdder"),
+                ("CallableAdder", "tests.collections.api_current.core.CallableAdder"),
                 id="callable-instance",
             ),
             pytest.param(
                 NonStringNameCallable(),
-                ("NonStringNameCallable", "tests.collections.api_current.NonStringNameCallable"),
+                ("NonStringNameCallable", "tests.collections.api_current.core.NonStringNameCallable"),
                 id="non-string-name",
             ),
             pytest.param(max, ("max", "builtins.max"), id="builtin"),
@@ -493,7 +495,7 @@ class TestRaiseWarnStacklevel:
         """
         calls: list[str] = []
 
-        def stream(msg: str, stacklevel: int = 1) -> None:
+        def _stream(msg: str, stacklevel: int = 1) -> None:
             calls.append(msg)
             raise TypeError("boom from inside the stream")
 
@@ -501,7 +503,7 @@ class TestRaiseWarnStacklevel:
             pass
 
         with pytest.raises(TypeError, match="boom from inside the stream"):
-            _raise_warn(stream, old, "%(source_name)s")
+            _raise_warn(_stream, old, "%(source_name)s")
         assert len(calls) == 1
 
     def test_varkw_stream_receives_stacklevel_exactly_once(self) -> None:
@@ -512,13 +514,13 @@ class TestRaiseWarnStacklevel:
         """
         calls: list[tuple[str, dict[str, object]]] = []
 
-        def stream(msg: str, **kwargs: object) -> None:
+        def _stream(msg: str, **kwargs: object) -> None:
             calls.append((msg, kwargs))
 
         def src() -> None:
             pass
 
-        _raise_warn(stream, src, "%(source_name)s")
+        _raise_warn(_stream, src, "%(source_name)s")
         assert len(calls) == 1
         assert "stacklevel" in calls[0][1]
 
@@ -540,7 +542,7 @@ class TestRaiseWarnStacklevel:
             3,
             [
                 "The `original_sum` was deprecated since v1.0 in favor of "
-                "`tests.collections.api_current.base_sum_kwargs`."
+                "`tests.collections.api_current.core.base_sum_kwargs`."
                 " It will be removed in v2.0."
             ],
         )

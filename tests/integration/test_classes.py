@@ -9,8 +9,9 @@ from deprecate import TargetMode, assert_no_warnings, deprecated_class
 from deprecate._types import DeprecationConfig, _DeprecatedCallable
 from deprecate.proxy import _DeprecatedProxy
 from tests._helpers import captured_warnings
-from tests.collections.api_current import NewCls, NewDataClass, NewEnum, NewIntEnum, Palette, SubclassableBase
-from tests.collections.api_deprecated import (
+from tests.collections.api_current.core import NewCls, NewDataClass, NewEnum, NewIntEnum, Palette
+from tests.collections.api_current.forwarding import SubclassableBase
+from tests.collections.api_deprecated.core import (
     DecoratedDataClass,
     DecoratedEnum,
     DeprecatedDataClass,
@@ -31,13 +32,13 @@ from tests.collections.api_deprecated import (
     depr_class_args_only_mode_warns_on_deprecated_arg,
     depr_class_whole_mode_warns_on_call,
 )
-from tests.collections.api_deprecated_forwarding import (
+from tests.collections.api_deprecated.forwarding import (
     make_class_omitted_target_with_args,
     make_class_target_args_remap,
     make_class_target_notify_with_args,
 )
-from tests.collections.api_deprecated_legacy import ServiceCls as LegacyServiceCls
-from tests.collections.api_deprecated_legacy import ThisCls as LegacyThisCls
+from tests.collections.api_deprecated.legacy import ServiceCls as LegacyServiceCls
+from tests.collections.api_deprecated.legacy import ThisCls as LegacyThisCls
 
 # Parametrize cases for ServiceCls method tests that exist on BOTH the modern (TargetMode.NOTIFY /
 # TargetMode.ARGS_REMAP) and legacy (target=None / target=True) ServiceCls fixtures.
@@ -70,7 +71,7 @@ class TestDeprecatedClass:
         """Test deprecated class that forwards to another class."""
         with pytest.warns(
             DeprecationWarning,
-            match="The `PastCls` was deprecated since v0.2 in favor of `tests.collections.api_current.NewCls`."
+            match="The `PastCls` was deprecated since v0.2 in favor of `tests.collections.api_current.core.NewCls`."
             " It will be removed in v0.4.",
         ):
             past = PastCls(2, e=0.1)
@@ -92,8 +93,11 @@ class TestDeprecatedClass:
         """Test deprecated class with args_mapping forwarding old_c→c to NewCls."""
         with pytest.warns(
             DeprecationWarning,
-            match="The `PastClsMapped` was deprecated since v0.2 in favor of `tests.collections.api_current.NewCls`."
-            " It will be removed in v0.4.",
+            match=(
+                "The `PastClsMapped` was deprecated since v0.2 in favor of "
+                "`tests.collections.api_current.core.NewCls`."
+                " It will be removed in v0.4."
+            ),
         ):
             past = PastClsMapped(old_c=7, e=0.3)
         assert past.my_c == 7
@@ -321,7 +325,7 @@ class _ClassFormBase:
     """Shared base for deprecated_class() form-equivalence tests.
 
     The form proxies (``WrappedEnum``, ``DecoratedEnum``, ``WrappedDataClass``, ``DecoratedDataClass``) live in
-    the ``tests.collections.api_deprecated*`` modules, so conftest resets their warn budgets before each test.
+    the ``tests.collections.api_deprecated`` modules, so conftest resets their warn budgets before each test.
     """
 
 

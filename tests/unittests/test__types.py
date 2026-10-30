@@ -20,7 +20,7 @@ from deprecate._types import (
 )
 from deprecate.audit import find_deprecation_wrappers, validate_deprecation_wrapper
 from deprecate.proxy import _DeprecatedProxy, _ProxySpec
-from tests.collections.api_current import base_sum_kwargs
+from tests.collections.api_current.core import base_sum_kwargs
 from tests.collections.chains import caller_stacked_args_enum_enum, caller_stacked_args_legacy_enum
 
 

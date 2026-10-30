@@ -19,35 +19,32 @@ import pytest
 from deprecate import DeprecationProxy
 from deprecate.proxy import _DeprecatedProxy, deprecated_instance
 from tests._helpers import captured_warnings
-from tests.collections.api_current import (
+from tests.collections.api_current.core import ColorEnum, FlakyProtocolBox, GenericBox, plain_function_target
+from tests.collections.api_current.forwarding import (
     AsyncManagedResource,
     CachedStepIterator,
-    ColorEnum,
     DeferredFailureAwaitable,
-    FlakyProtocolBox,
-    GenericBox,
-    KeywordTypeErrorStream,
     ManagedResource,
     PendingSnapshotBox,
     RecordingEntryContext,
     legacy_snapshot,
     legacy_tick_stream,
-    plain_function_target,
 )
-from tests.collections.api_deprecated import (
+from tests.collections.api_deprecated.core import (
     _DEPRS_CASE_STD_ARGS,
     DeprecatedDataClass,
     DeprecatedEnum,
     DeprecatedGenericBox,
     LegacyColorTable,
 )
-from tests.collections.api_deprecated_regressions import (
+from tests.collections.api_deprecated.regressions import (
     make_read_only_inplace_proxy,
     make_silent_proxy_stack,
     make_skip_gated_target_proxy,
     make_switching_entry_proxy,
     make_warn_after_success_proxy,
 )
+from tests.collections.streams import KeywordTypeErrorStream
 from tests.unittests.proxy._helpers import (
     _acquire_anext,
     _acquire_await,

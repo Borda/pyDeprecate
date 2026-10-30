@@ -397,11 +397,15 @@ pyDeprecate/
 ├── tests/                               # Test suite
 │   ├── _helpers.py                      # Helpers shared across test packages: captured_warnings, write_pkg, run_isolated_python
 │   ├── collections/                     # Shared current and deprecated APIs for tests and examples
-│   │   ├── api_current.py               # Target functions (new implementations)
-│   │   ├── api_deprecated.py            # Shared constants, core wrappers and stable audit/docs examples
-│   │   ├── api_deprecated_forwarding.py  # Argument/proxy forwarding, descriptors and async wrappers
-│   │   ├── api_deprecated_regressions.py # Dispatch, fatal errors and behavior regression wrappers
-│   │   ├── api_deprecated_legacy.py     # Legacy sentinel examples
+│   │   ├── api_current/                 # Target functions and classes (new implementations)
+│   │   │   ├── core.py                  # Core targets and call-shape characterization fixtures
+│   │   │   └── forwarding.py            # Generator, async, iterator and protocol-forwarding targets
+│   │   ├── api_deprecated/              # Deprecated wrappers forwarding to api_current
+│   │   │   ├── core.py                  # Shared constants, core wrappers and stable audit/docs examples
+│   │   │   ├── forwarding.py            # Argument/proxy forwarding, descriptors and async wrappers
+│   │   │   ├── regressions.py           # Dispatch, fatal errors and behavior regression wrappers
+│   │   │   └── legacy.py                # Legacy sentinel examples
+│   │   ├── streams.py                   # Stand-ins for the stream= callables passed to the decorators
 │   │   ├── misconfigured.py             # Invalid configs for validation
 │   │   ├── chains.py                    # Chained deprecation patterns
 │   │   ├── policy.py                    # Wrappers breaking one governance policy rule each
@@ -473,8 +477,9 @@ Tests live in `tests/` and follow a **three-layer separation**:
 
 | File/Folder                   | Purpose                                                                                                                                                                                                                                                                                                    |
 | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `api_current.py`              | Target functions and classes (the "new" implementations that deprecated code forwards to)                                                                                                                                                                                                                  |
-| `api_deprecated*.py`          | Deprecated wrappers grouped into core/audit/docs, forwarding/async, and behavior regression sibling modules                                                                                                                                                                                                |
+| `api_current/`                | Target functions and classes (the "new" implementations that deprecated code forwards to): core targets in `core.py`, generator, async and protocol-forwarding targets in `forwarding.py`                                                                                                                  |
+| `api_deprecated/`             | Deprecated wrappers: core/audit/docs in `core.py`, forwarding/async in `forwarding.py`, behavior regressions in `regressions.py`, legacy sentinels in `legacy.py`                                                                                                                                          |
+| `streams.py`                  | Stand-ins for the `stream=` callables, including recording streams that count every invocation                                                                                                                                                                                                             |
 | `misconfigured.py`            | Intentionally invalid/ineffective deprecation configurations for validation testing                                                                                                                                                                                                                        |
 | `chains.py`                   | Multi-hop deprecation chains (deprecated → deprecated → target) for chain-detection tests                                                                                                                                                                                                                  |
 | `policy.py`                   | Correctly configured wrappers scheduled against project policy — one broken governance rule each, for `validate_deprecation_policy`                                                                                                                                                                        |
@@ -507,7 +512,7 @@ The integration suite also keeps characterization for positional and keyword for
 > - Use `print()` to display values; follow immediately with a `<details><summary>Output: <code>expression</code></summary>` block showing expected output.
 > - Do **not** use bare `assert` statements in top-level example code (e.g. `assert pt.x == 1.0`, `assert isinstance(obj, MyClass)`) — use `print()` instead so the value is visible rather than crashing with `AssertionError`. **Exception:** bare `assert` statements inside `def test_...` function bodies shown as pytest integration examples are allowed and idiomatic.
 > - Avoid placeholders that do not validate behavior.
-> - **Never import a fictional package name** in runnable examples — executable examples must import from actual test collection modules (`from tests.collections import api_deprecated`, `api_deprecated_forwarding`, `api_deprecated_regressions`, `misconfigured`, `chains`, `policy`, or `pep702`). For CI-template snippets that intentionally show a placeholder import, add `# phmdoctest:skip — CI template: replace my_package with your actual package` as the first line of the code block so phmdoctest skips execution.
+> - **Never import a fictional package name** in runnable examples — executable examples must import from actual test collection modules (`from tests.collections.api_deprecated import core`, `forwarding` or `regressions`, `misconfigured`, `chains`, `policy`, or `pep702`). For CI-template snippets that intentionally show a placeholder import, add `# phmdoctest:skip — CI template: replace my_package with your actual package` as the first line of the code block so phmdoctest skips execution.
 >
 > [!NOTE]
 >
@@ -522,7 +527,7 @@ The integration suite also keeps characterization for positional and keyword for
 
 > [!IMPORTANT]
 >
-> **Three-layer rule**: do not define target objects or deprecated wrappers directly inside `test_*.py` files. Place targets in `api_current.py`, deprecated wrappers in `api_deprecated*.py`, then import them in tests. This includes class definitions — do not define classes inside test functions; define them in the appropriate collection module instead.
+> **Three-layer rule**: do not define target objects or deprecated wrappers directly inside `test_*.py` files. Place targets in `api_current/`, deprecated wrappers in `api_deprecated/`, then import them in tests. Package `__init__.py` files hold only a docstring; declarations go in a named submodule such as `core.py`. This includes class definitions — do not define classes inside test functions; define them in the appropriate collection module instead.
 >
 > Exceptions:
 >
@@ -539,7 +544,7 @@ The integration suite also keeps characterization for positional and keyword for
 > # ✗ wrong — local import inside a test method
 > def test_something(self) -> None:
 >     import warnings as _warnings
->     from tests.collections.api_deprecated import DepAutoExpandReqDC
+>     from tests.collections.api_deprecated.core import DepAutoExpandReqDC
 >
 >     with _warnings.catch_warnings(record=True) as caught:
 >         ...
@@ -547,13 +552,19 @@ The integration suite also keeps characterization for positional and keyword for
 >
 > # ✓ correct — module-level imports
 > import warnings
-> from tests.collections.api_deprecated import DepAutoExpandReqDC
+> from tests.collections.api_deprecated.core import DepAutoExpandReqDC
 >
 >
 > def test_something(self) -> None:
 >     with warnings.catch_warnings(record=True) as caught:
 >         ...
 > ```
+
+> [!IMPORTANT]
+>
+> **Private test helpers.** Every helper function in a `test_*.py` module carries a leading underscore (`_build_target`, not `build_target`), module-level or nested inside a test (`_worker`, `_counting_stream`); only `test_*` functions and pytest fixtures stay public. A nested function that is the subject under test (a source, target or decorated callable whose name reaches the asserted output) keeps its name. A method on a fake class keeps the name of the interface it stands in for (`read_text`, `reconfigure`).
+>
+> **Public collection objects.** In `tests/collections/`, every target, deprecated source and wrapper carries a public name (`batches_source`, not `_batches_source`), including a placeholder source that exists only to be wrapped. The leading underscore is kept for real helpers (builders, shared private state) and for a source whose public name is already taken by its own wrapper (`SelfMappedEnum = deprecated_class(...)(_SelfMappedEnum)`).
 
 **Asserting warnings.** Use `pytest.warns(Category, match=...)` when the test only needs at least one matching warning. When it checks an exact count, the order, the absence of warnings, or a record's `filename`/`lineno`, record with `captured_warnings()` from `tests/_helpers.py`. It is `warnings.catch_warnings(record=True)` plus `simplefilter("always")`, so neither the active filters nor the once-per-location registry hide a record. A warning the test triggers but does not check must not escape into the run's warnings summary: assert it with a second `pytest.warns` in the same `with`, or, when it is pure setup noise, add a narrow `@pytest.mark.filterwarnings("ignore:<message prefix>:<Category>")` to that test. `pytest.warns` re-emits unmatched warnings from the `warnings` module, so the `tests`-scoped ignores in `pyproject.toml` no longer apply to them.
 
@@ -567,7 +578,7 @@ The integration suite also keeps characterization for positional and keyword for
 >
 > If in doubt, extract. Move to a collection module when the fixture is shared across tests, models real migration behavior, or represents a reusable deprecated wrapper or target.
 
-**Fixture naming convention in `api_deprecated*.py`:**
+**Fixture naming convention in `api_deprecated/`:**
 
 The prefix encodes whether the fixture exists in one form or two:
 
@@ -681,7 +692,7 @@ def depr_class_whole_mode_warns_on_call(x: int) -> int: ...
 
 **Docstrings in test collections:**
 
-Functions in `api_deprecated*.py`, `misconfigured.py`, `chains.py`, `policy.py`, `pep702.py`, and `docstrings.py` must have Google-style docstrings with a **user-first focus** — describe the real-world scenario a user would encounter, not just the technical configuration. This keeps tests grounded in actual use cases and helps contributors understand *why* each deprecation pattern exists.
+Functions in `api_deprecated/`, `misconfigured.py`, `chains.py`, `policy.py`, `pep702.py`, and `docstrings.py` must have Google-style docstrings with a **user-first focus** — describe the real-world scenario a user would encounter, not just the technical configuration. This keeps tests grounded in actual use cases and helps contributors understand *why* each deprecation pattern exists.
 
 Use a one-line summary of the deprecation pattern, then an `Examples:` section describing the user scenario:
 
@@ -767,7 +778,7 @@ class TestMyFeature:
 <summary>Adding a new deprecation wrapper (in test collections)</summary>
 
 ```python
-# tests/collections/api_current.py — the new implementation
+# tests/collections/api_current/core.py — the new implementation
 def new_implementation(x: int) -> int:
     """New implementation."""
     return x * 2
@@ -775,7 +786,7 @@ def new_implementation(x: int) -> int:
 
 # tests/collections/api_deprecated.py — the deprecated wrapper
 from deprecate import deprecated
-from tests.collections.api_current import new_implementation
+from tests.collections.api_current.core import new_implementation
 
 
 @deprecated(target=new_implementation, deprecated_in="1.0", remove_in="2.0")
@@ -785,7 +796,7 @@ def old_implementation(x: int) -> int:
 
 # tests/integration/test_functions.py — the test
 import pytest
-from tests.collections.api_deprecated import old_implementation
+from tests.collections.api_deprecated.core import old_implementation
 
 
 def test_deprecation_warning() -> None:

@@ -58,11 +58,11 @@ class TestGetPackageVersion:
     def test_raises_import_error_when_both_methods_fail(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """When both importlib.metadata and import_module fail, raises ImportError with a clear message."""
 
-        def raise_exc(_name: str) -> None:
+        def _raise_exc(_name: str) -> None:
             raise Exception("not found")
 
-        monkeypatch.setattr(importlib.metadata, "version", raise_exc)
-        monkeypatch.setattr(importlib, "import_module", raise_exc)
+        monkeypatch.setattr(importlib.metadata, "version", _raise_exc)
+        monkeypatch.setattr(importlib, "import_module", _raise_exc)
 
         with pytest.raises(ImportError, match="Could not determine version"):
             _get_package_version("nonexistent_package_xyz")

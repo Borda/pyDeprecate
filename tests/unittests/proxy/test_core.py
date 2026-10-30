@@ -24,24 +24,24 @@ from deprecate.proxy.core import (
     _restore_pep702_marker,
 )
 from tests._helpers import captured_warnings
-from tests.collections.api_current import (
+from tests.collections.api_current.core import (
     ColorEnum,
     DoclessTarget,
     HostileSignatureCallable,
     NewCls,
+    Pep702ProxyTarget,
     Pep702StaticTarget,
-    SubclassableBase,
-    _Pep702ProxyTarget,
     base_sum_kwargs,
 )
-from tests.collections.api_deprecated import (
+from tests.collections.api_current.forwarding import SubclassableBase
+from tests.collections.api_deprecated.core import (
     _DEPRS_CASE_STD_ARGS,
     DeprecatedColorEnum,
     ast_breadcrumb_source_dict,
     depr_ast_breadcrumb_dict,
 )
-from tests.collections.api_deprecated_forwarding import pep702_proxy_stacked
-from tests.collections.api_deprecated_regressions import (
+from tests.collections.api_deprecated.forwarding import pep702_proxy_stacked
+from tests.collections.api_deprecated.regressions import (
     depr_docless_class,
     depr_documented_class,
     make_deprecated_hostile_signature_instance,
@@ -558,7 +558,7 @@ class TestPEP702ProxyStackingRegression:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             instance = pep702_proxy_stacked()
-        assert isinstance(instance, _Pep702ProxyTarget)
+        assert isinstance(instance, Pep702ProxyTarget)
 
     def test_pep702_proxy_stacked_emits_pep702_deprecation_warning(self) -> None:
         """Outer ``typing_extensions.deprecated`` emits its DeprecationWarning on call, and the inner proxy still warns.
@@ -568,7 +568,7 @@ class TestPEP702ProxyStackingRegression:
 
         """
         with (
-            pytest.warns(FutureWarning, match="`_Pep702ProxyTarget` was deprecated since v0.8"),
+            pytest.warns(FutureWarning, match="`Pep702ProxyTarget` was deprecated since v0.8"),
             pytest.warns(DeprecationWarning, match="use `Pep702ProxyTarget`"),
         ):
             pep702_proxy_stacked()
@@ -576,7 +576,7 @@ class TestPEP702ProxyStackingRegression:
     @pytest.mark.parametrize(
         "target_cls",
         [
-            pytest.param(_Pep702ProxyTarget, id="default-category"),
+            pytest.param(Pep702ProxyTarget, id="default-category"),
             pytest.param(Pep702StaticTarget, id="category-none"),
         ],
     )
@@ -945,7 +945,7 @@ class TestProxyCopyPickle:
 
         When ``@deprecated_class`` replaces the module-level name ``DeprecatedColorEnum`` with
         a proxy, the wrapped class (``cfg.obj``) cannot be serialised by reference: pickle
-        finds the proxy at ``tests.collections.api_deprecated.DeprecatedColorEnum``, not the original
+        finds the proxy at ``tests.collections.api_deprecated.core.DeprecatedColorEnum``, not the original
         class.  This test documents the known limitation — ``deprecated_instance`` proxies
         wrapping plain objects (dicts, lists) remain fully picklable.
         """

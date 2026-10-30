@@ -17,9 +17,9 @@ from unittest import mock
 import pytest
 
 from deprecate import DeprecatedError, TargetMode, deprecated, deprecated_callable
-from tests.collections.api_current import Palette, partialmethod_of_double, property_of_partial
-from tests.collections.api_deprecated import depr_pow_args, depr_pow_skip_if_true_false
-from tests.collections.api_deprecated_regressions import (
+from tests.collections.api_current.core import Palette, partialmethod_of_double, property_of_partial
+from tests.collections.api_deprecated.core import depr_pow_args, depr_pow_skip_if_true_false
+from tests.collections.api_deprecated.regressions import (
     DescriptorSourcesHolder,
     make_front_door_notify_on,
     make_positional_docstring_wrapper,

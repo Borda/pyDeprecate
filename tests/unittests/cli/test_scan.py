@@ -151,7 +151,7 @@ class TestVersionImportArguments:
             patch("deprecate._cli.scan._scan_path", return_value=[]) as scan,
         ):
 
-            def resolve(module: str, *, path: str) -> str:
+            def _resolve(module: str, *, path: str) -> str:
                 """Observe the arguments visible to the version import."""
                 assert module == path == "example"
                 assert sys.argv == original[:1]
@@ -159,7 +159,7 @@ class TestVersionImportArguments:
                     raise RuntimeError("version import failed")
                 return "3.0"
 
-            resolver.side_effect = resolve
+            resolver.side_effect = _resolve
             if raises:
                 with pytest.raises(RuntimeError, match="version import failed"):
                     _scan_for_command("example", recursive=True, exclude=_FROM_PYPROJECT, resolve_version=True)

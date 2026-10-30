@@ -30,10 +30,10 @@ from deprecate import DeprecatedError, get_deprecation_config
 from deprecate._types import DeprecationConfig, _ProxyConfig
 from deprecate.proxy import _DeprecatedProxy, _reconstruct_proxy
 from tests._helpers import captured_warnings
-from tests.collections import api_deprecated_regressions
-from tests.collections.api_current import InPlaceAliasSource
-from tests.collections.api_deprecated import DepPositionalOnlyRequired, DeprecatedEnum, RedirectedDataClass
-from tests.collections.api_deprecated_regressions import (
+from tests.collections.api_current.core import InPlaceAliasSource
+from tests.collections.api_deprecated import regressions as api_deprecated_regressions
+from tests.collections.api_deprecated.core import DepPositionalOnlyRequired, DeprecatedEnum, RedirectedDataClass
+from tests.collections.api_deprecated.regressions import (
     DeprecatedInPlaceHost,
     InPlaceCustomState,
     InPlaceDict,

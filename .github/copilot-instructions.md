@@ -46,8 +46,8 @@ pyDeprecate is a lightweight Python library (Python 3.9+) for decorator-based de
 
 Tests use a **three-layer separation**:
 
-1. **Targets** (`api_current.py`) — new implementations
-2. **Deprecated wrappers** (`api_deprecated.py`) — `@deprecated` wrappers
+1. **Targets** (`api_current/`) — new implementations
+2. **Deprecated wrappers** (`api_deprecated/`) — `@deprecated` wrappers
 3. **Test logic** (`test_*.py`) — imports from collections and asserts behavior
 
 **Important**: Do not define target functions or `@deprecated` wrappers directly in `test_*.py` files.

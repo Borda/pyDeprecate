@@ -187,8 +187,8 @@ Deprecation Chain Schema:
 """
 
 from deprecate import TargetMode, deprecated, void
-from tests.collections.api_current import base_sum_kwargs, stacked_chain_identity
-from tests.collections.api_deprecated import (
+from tests.collections.api_current.core import base_sum_kwargs, stacked_chain_identity
+from tests.collections.api_deprecated.core import (
     _DEPRS_CASE_STD_ARGS,
     _DEPRS_CASE_TGT_MODE_ARGS,
     decorated_pow_self,
