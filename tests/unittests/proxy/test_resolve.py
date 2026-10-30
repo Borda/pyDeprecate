@@ -9,8 +9,8 @@ import pytest
 from deprecate.proxy import deprecated_class, deprecated_instance
 from deprecate.proxy.core import _DeprecatedProxy, _proxy_source_path
 from tests._helpers import captured_warnings
-from tests.collections.api_current import AutoExpandDC, PositionalOnlyTarget
-from tests.collections.api_deprecated import (
+from tests.collections.api_current.core import AutoExpandDC, PositionalOnlyTarget
+from tests.collections.api_deprecated.core import (
     _DEPRS_CASE_STD_ARGS,
     DepAutoExpandDC,
     DepPositionalOnly,
@@ -19,7 +19,7 @@ from tests.collections.api_deprecated import (
     DepPositionalOnlyMixed,
     DepPositionalOnlyRequired,
 )
-from tests.collections.api_deprecated_forwarding import (
+from tests.collections.api_deprecated.forwarding import (
     DepAutoExpandInitFalseDC,
     DepAutoExpandOverriddenInitDC,
     DepAutoExpandReqDC,

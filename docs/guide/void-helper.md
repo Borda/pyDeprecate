@@ -167,6 +167,10 @@ print(compute(2, 3))
 
 If you use a strict linter that flags unused parameters (e.g. ruff's `ARG001`), `void(...)` is the cleanest solution that does not require `# noqa` comments.
 
+## void(...) in generator stubs
+
+A deprecated generator stub must still contain `yield`. The wrapper kind follows the stub: a stub whose body is only `return void(...)` is a plain function, so its wrapper is a plain function that warns at call time and `inspect.isgeneratorfunction` reports `False`, even when the target is a generator. Call `void(...)` as a statement and add `yield from ()` so the stub stays a generator function; see [Advanced](advanced.md) for a full example.
+
 ## void(...) with methods
 
 `void(...)` works identically in class methods. Reference `self` and all parameters when forwarding a deprecated method:

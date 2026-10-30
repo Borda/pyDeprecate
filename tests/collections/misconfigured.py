@@ -29,7 +29,7 @@ from deprecate._types import DeprecationConfig, TargetMode, _DeprecatedCallable
 from deprecate.proxy import _DeprecatedProxy, _ProxySpec, deprecated_class
 
 # Shared version kwargs for the misconfiguration fixtures (see the Unification pattern in CONTRIBUTING). Defined here
-# rather than imported from `tests.collections.api_deprecated`: `tests/integration/test_action.py` copies this file
+# rather than imported from `tests.collections.api_deprecated.core`: `tests/integration/test_action.py` copies this file
 # into a standalone package, so it may import only from `deprecate`.
 _DEPRS_CASE_OLD_ARGS: dict[str, Any] = {"deprecated_in": "0.1", "remove_in": "0.5"}
 

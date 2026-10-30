@@ -672,13 +672,13 @@ def find_deprecation_wrappers(
 
     Example:
         >>> from deprecate import find_deprecation_wrappers
-        >>> from tests.collections import api_deprecated as my_package
+        >>> from tests.collections.api_deprecated import core as my_package
         >>>
         >>> results = find_deprecation_wrappers(my_package)
         >>> print(len(results) > 0)  # Should find deprecated wrappers
         True
         >>> # Also works with string module paths
-        >>> results = find_deprecation_wrappers("tests.collections.api_deprecated")
+        >>> results = find_deprecation_wrappers("tests.collections.api_deprecated.core")
         >>> print(len(results) > 0)
         True
 
@@ -832,7 +832,7 @@ def validate_mapping_compatibility(
 
     Examples:
         >>> from deprecate import validate_mapping_compatibility
-        >>> import tests.collections.api_deprecated as col
+        >>> import tests.collections.api_deprecated.core as col
         >>> results = validate_mapping_compatibility(col, recursive=False)
         >>> len(results) > 0  # DepPositionalOnly remaps to a POSITIONAL_ONLY param
         True

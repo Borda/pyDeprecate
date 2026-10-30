@@ -11,7 +11,7 @@ This page covers deprecation of `async def` functions and async generator functi
 
 `@deprecated` works on `async def` functions natively. The wrapper produced is itself `async def`, so `inspect.iscoroutinefunction(wrapper)` returns `True` and callers can `await` it as expected.
 
-All three TargetModes work with async functions. The deprecation warning fires when the coroutine is awaited — not when it is created by calling the wrapper — because the warning logic runs inside the `async def` body. This differs from sync and generator wrappers where the warning fires eagerly at call time.
+All three TargetModes work with async functions. The deprecation warning fires when the coroutine is awaited — not when it is created by calling the wrapper — because the warning logic runs inside the `async def` body. This differs from plain sync wrappers, where the warning fires at call time; generator and async generator wrappers, like coroutines, wait for the first `next()` / `async for` step.
 
 **`TargetMode.NOTIFY` — warn and keep the async body:**
 
@@ -106,7 +106,7 @@ b'https://example.com'
 
 ## Async generators
 
-`@deprecated` works on async generator functions (`async def` + `yield`) too. The wrapper is a **sync** callable that fires the deprecation warning eagerly at call time and returns the underlying async generator object; callers iterate the result with `async for`. All three TargetModes — `NOTIFY`, `ARGS_REMAP`, and `target=<callable>` — work the same way they do for sync generators.
+`@deprecated` works on async generator functions (`async def` + `yield`) too. The wrapper is itself an **async generator function**: calling it only creates the async generator object, and the deprecation warning fires on the first `async for` step; callers iterate the result with `async for` as before. All three TargetModes — `NOTIFY`, `ARGS_REMAP`, and `target=<callable>` — work the same way they do for sync generators.
 
 **`TargetMode.NOTIFY` — warn and keep the async generator body:**
 
@@ -188,9 +188,9 @@ async def main() -> list[int]:
 asyncio.run(main())
 ```
 
-!!! note "The wrapper itself is sync, not an async generator"
+!!! note "The wrapper is an async generator function"
 
-    Calling `wrapper(...)` returns the async generator object directly — no `await` is required at call time, and the deprecation warning fires once at that point. Because the wrapper is implemented as a regular function (it never enters an `async def` body), `inspect.iscoroutinefunction(wrapper)` and `inspect.isasyncgenfunction(wrapper)` both return `False`. Frameworks that branch on those introspections (rare in practice — `async for` does not consult them) may need a hand-written passthrough async generator placed between `@deprecated` and the framework.
+    `inspect.isasyncgenfunction(wrapper)` returns `True` (and `inspect.iscoroutinefunction(wrapper)` returns `False`, as for the undecorated function), so frameworks that branch on these flags — a pytest-asyncio `yield` fixture, for one — run the deprecated function exactly like the original. Calling `wrapper(...)` runs no code: the deprecation warning, the `num_warns` budget and an `as_exceptions()` error all come on the first `async for` step, and an async generator that is never iterated never warns. `asend()`, `athrow()` and `aclose()` reach the inner async generator.
 
 ## See also
 

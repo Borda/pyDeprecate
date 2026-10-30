@@ -190,7 +190,7 @@ def generate_deprecation_table(
             version string and ``packaging`` is installed.
 
     Example:
-        >>> from tests.collections import api_deprecated as pkg
+        >>> from tests.collections.api_deprecated import core as pkg
         >>> report = generate_deprecation_table(pkg, recursive=False)
         >>> report.splitlines()[0]
         '| Original API | API Type | New API | Deprecated | Remove | Current Status |'

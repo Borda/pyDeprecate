@@ -31,10 +31,10 @@ from deprecate import TargetMode, assert_no_warnings
 from deprecate._types import _DeprecatedCallable
 from deprecate.audit import validate_deprecation_wrapper
 from tests._helpers import captured_warnings
-from tests.collections.api_deprecated import decorated_sum
-from tests.collections.api_deprecated_forwarding import fn_old_default, fn_remap_with_extra
-from tests.collections.api_deprecated_legacy import fn_remap_with_extra as legacy_fn_remap_with_extra
-from tests.collections.api_deprecated_regressions import deprecated_callable_double
+from tests.collections.api_deprecated.core import decorated_sum
+from tests.collections.api_deprecated.forwarding import fn_old_default, fn_remap_with_extra
+from tests.collections.api_deprecated.legacy import fn_remap_with_extra as legacy_fn_remap_with_extra
+from tests.collections.api_deprecated.regressions import deprecated_callable_double
 from tests.collections.misconfigured import (
     make_class_target_false,
     make_class_target_false_with_args_mapping,

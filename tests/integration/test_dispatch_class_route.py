@@ -19,6 +19,7 @@ import time
 import types
 import warnings
 from collections.abc import Iterator
+from pathlib import Path
 from typing import Any, Callable, cast
 
 import pytest
@@ -28,14 +29,14 @@ from deprecate import TargetMode, assert_no_warnings, deprecated, deprecated_cal
 from deprecate._types import DeprecationConfig, _DeprecatedCallable
 from deprecate.proxy import _DeprecatedProxy
 from tests._helpers import captured_warnings
-from tests.collections.api_current import (
+from tests.collections.api_current.core import (
     Palette,
     partial_of_double,
     partialmethod_of_double,
     singledispatchmethod_of_double,
 )
-from tests.collections.api_deprecated import make_deprecated_notify_args_extra_alone_on_class
-from tests.collections.api_deprecated_regressions import (
+from tests.collections.api_deprecated.core import make_deprecated_notify_args_extra_alone_on_class
+from tests.collections.api_deprecated.regressions import (
     make_deprecated_attrs_remap_target_on_class,
     make_deprecated_auto_args_mapping_on_function,
     make_deprecated_explicit_auto_on_function,
@@ -152,7 +153,7 @@ class TestClassDispatchInformationalWarning:
         source = type("ConcurrentService", (), {"__module__": __name__})
         barrier = threading.Barrier(8, timeout=10)
 
-        def decorate() -> object:
+        def _decorate() -> object:
             """Apply the existing collection wrapper after every worker reaches the barrier."""
             previous_trace = sys.gettrace()
             sys.settrace(_yield_dispatch_lines)
@@ -163,7 +164,7 @@ class TestClassDispatchInformationalWarning:
                 sys.settrace(previous_trace)
 
         with captured_warnings() as caught, concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
-            futures = [executor.submit(decorate) for _ in range(8)]
+            futures = [executor.submit(_decorate) for _ in range(8)]
             results = [future.result(timeout=10) for future in futures]
 
         assert len(results) == 8
@@ -280,7 +281,7 @@ class TestClassDispatchInformationalWarning:
 
         misconfig_warns = [w for w in caught if issubclass(w.category, UserWarning) and "args_extra" in str(w.message)]
         assert len(misconfig_warns) == 1
-        assert misconfig_warns[0].filename.endswith("api_deprecated.py")
+        assert Path(misconfig_warns[0].filename).as_posix().endswith("api_deprecated/core.py")
 
 
 class TestEnumAndDataclassDispatch:

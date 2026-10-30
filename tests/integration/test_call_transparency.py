@@ -14,12 +14,12 @@ from typing import Any, Callable
 import pytest
 
 from tests._helpers import captured_warnings
-from tests.collections.api_deprecated import loc_stack_notify_over_callable, loc_stack_remap_over_notify
-from tests.collections.api_deprecated_forwarding import (
+from tests.collections.api_deprecated.core import loc_stack_notify_over_callable, loc_stack_remap_over_notify
+from tests.collections.api_deprecated.forwarding import (
     deprecated_gapped_positional_only_source,
     deprecated_var_positional_forward,
 )
-from tests.collections.api_deprecated_regressions import (
+from tests.collections.api_deprecated.regressions import (
     shape_notify_area_dispatch,
     shape_notify_positional_only,
     shape_notify_raw_signature,
@@ -35,19 +35,19 @@ from tests.collections.api_deprecated_regressions import (
 
 # Results and warnings the two supported stacks produced before stacked layers passed the caller's shape through.
 _NOTIFY_OVER_CALLABLE_WARNINGS = [
-    "FutureWarning: The `_loc_stack_forward_source` was deprecated since v1.5. It will be removed in v2.0.",
-    "FutureWarning: The `_loc_stack_forward_source` was deprecated since v1.0 in favor of"
-    " `tests.collections.api_current.double_value`. It will be removed in v2.0.",
+    "FutureWarning: The `loc_stack_forward_source` was deprecated since v1.5. It will be removed in v2.0.",
+    "FutureWarning: The `loc_stack_forward_source` was deprecated since v1.0 in favor of"
+    " `tests.collections.api_current.core.double_value`. It will be removed in v2.0.",
 ]
 _LIFECYCLE_NOTIFY_WARNING = (
-    "FutureWarning: The `_loc_stack_lifecycle_source` was deprecated since v1.0. It will be removed in v2.0."
+    "FutureWarning: The `loc_stack_lifecycle_source` was deprecated since v1.0. It will be removed in v2.0."
 )
 _VAR_POSITIONAL_RENAME_WARNING = (
     "FutureWarning: The `shape_remap_var_positional_with_extra` uses deprecated arguments: `old` -> `new`."
     " They were deprecated since v1.0 and will be removed in v2.0."
 )
 _LIFECYCLE_RENAME_WARNING = (
-    "FutureWarning: The `_loc_stack_lifecycle_source` uses deprecated arguments: `old_x` -> `x`."
+    "FutureWarning: The `loc_stack_lifecycle_source` uses deprecated arguments: `old_x` -> `x`."
     " They were deprecated since v1.0 and will be removed in v2.0."
 )
 

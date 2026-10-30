@@ -15,7 +15,7 @@ from unittest.mock import patch
 import pytest
 
 import tests
-import tests.collections.api_deprecated as proxy_module
+import tests.collections.api_deprecated.core as proxy_module
 import tests.collections.chains as chain_module
 import tests.collections.misconfigured as sample_module
 from deprecate import (
@@ -39,7 +39,7 @@ from deprecate.audit import (
 )
 from deprecate.audit._lifecycle import _check_deprecated_wrapper_expiry, _get_package_version, _parse_version
 from tests._helpers import captured_warnings
-from tests.collections.api_current import plain_function_target
+from tests.collections.api_current.core import plain_function_target
 
 # Check if packaging is available for version comparison tests
 _PACKAGING_AVAILABLE = importlib.util.find_spec("packaging") is not None
@@ -362,7 +362,7 @@ class TestFindDeprecatedWrappers:
 
     def test_accepts_string_module_path(self) -> None:
         """String module paths are accepted in addition to module objects."""
-        results = find_deprecation_wrappers("tests.collections.api_deprecated", recursive=False)
+        results = find_deprecation_wrappers("tests.collections.api_deprecated.core", recursive=False)
         assert len(results) > 0
         assert all(isinstance(r, DeprecationWrapperInfo) for r in results)
 
@@ -721,9 +721,9 @@ class TestGenerateDeprecationMarkdown:
         """Markdown report includes functions, methods, and deprecated constructors."""
         report = generate_deprecation_table(proxy_module, current_version="1.5", recursive=False)
         assert "| Original API | API Type | New API | Deprecated | Remove | Current Status |" in report
-        assert "`tests.collections.api_deprecated.depr_pow_args`" in report
-        assert "`tests.collections.api_deprecated.ServiceCls.old_warn_method`" in report
-        assert "`tests.collections.api_deprecated.PastCls.__init__`" in report
+        assert "`tests.collections.api_deprecated.core.depr_pow_args`" in report
+        assert "`tests.collections.api_deprecated.core.ServiceCls.old_warn_method`" in report
+        assert "`tests.collections.api_deprecated.core.PastCls.__init__`" in report
         assert "v1.0 | v1.3 | 💥 Past Removal Date" in report
         assert "v1.0 | v2.0 | 📢 Deprecation Active" in report
 
@@ -731,18 +731,20 @@ class TestGenerateDeprecationMarkdown:
     def test_markdown_reports_api_types(self) -> None:
         """Markdown report differentiates callable/args/class/dataclass-attrs/method APIs."""
         report = generate_deprecation_table(proxy_module, current_version="1.5", recursive=False)
-        assert "| `tests.collections.api_deprecated.depr_pow_args` | callable |" in report
-        assert "| `tests.collections.api_deprecated.depr_accuracy_map` | args |" in report
-        assert "| `tests.collections.api_deprecated.DeprecatedColorEnum` | class |" in report
-        assert "| `tests.collections.api_deprecated.MappedDataClass` | dataclass attributes |" in report
-        assert "| `tests.collections.api_deprecated.ServiceCls.old_warn_method` | class method |" in report
+        assert "| `tests.collections.api_deprecated.core.depr_pow_args` | callable |" in report
+        assert "| `tests.collections.api_deprecated.core.depr_accuracy_map` | args |" in report
+        assert "| `tests.collections.api_deprecated.core.DeprecatedColorEnum` | class |" in report
+        assert "| `tests.collections.api_deprecated.core.MappedDataClass` | dataclass attributes |" in report
+        assert "| `tests.collections.api_deprecated.core.ServiceCls.old_warn_method` | class method |" in report
 
     def test_markdown_groups_class_members_together(self) -> None:
         """Rows are ordered by module/symbol family so class members stay contiguous."""
         report = generate_deprecation_table(proxy_module, current_version="1.5", recursive=False)
         symbols = self._extract_markdown_symbols(report)
         service_cls = [
-            i for i, symbol in enumerate(symbols) if symbol.startswith("tests.collections.api_deprecated.ServiceCls.")
+            i
+            for i, symbol in enumerate(symbols)
+            if symbol.startswith("tests.collections.api_deprecated.core.ServiceCls.")
         ]
         assert service_cls
         assert service_cls == list(range(min(service_cls), max(service_cls) + 1))
@@ -751,8 +753,8 @@ class TestGenerateDeprecationMarkdown:
 
     def test_markdown_handles_missing_or_unknown_version_status(self) -> None:
         """Missing remove_in and non-package modules degrade to informational statuses."""
-        report = generate_deprecation_table("tests.collections.api_deprecated", recursive=False)
-        assert "`tests.collections.api_deprecated.depr_func_no_remove_in`" in report
+        report = generate_deprecation_table("tests.collections.api_deprecated.core", recursive=False)
+        assert "`tests.collections.api_deprecated.core.depr_func_no_remove_in`" in report
         assert "v1.0 | — | ℹ️ No Removal Target" in report
         assert "⚪ Status Unknown" in report
 
@@ -790,7 +792,7 @@ class TestGenerateDeprecationMarkdown:
         assert "| Original API | API Type | New API |" in report
         assert "v1.0" in report
         assert "v2.0" in report
-        assert "`tests.collections.api_deprecated.depr_pow_args`" in report
+        assert "`tests.collections.api_deprecated.core.depr_pow_args`" in report
         assert " | D |" in report or "| D/R |" in report
         assert " | R |" in report or "| D/R |" in report
 
@@ -818,13 +820,13 @@ class TestGenerateDeprecationMarkdown:
     def test_markdown_matrix_same_version_produces_dr_marker(self) -> None:
         """Matrix style emits D/R marker when deprecated_in equals remove_in."""
         report = generate_deprecation_table(
-            "tests.collections.api_deprecated", recursive=False, style="matrix", current_version="2.0"
+            "tests.collections.api_deprecated.core", recursive=False, style="matrix", current_version="2.0"
         )
         assert "| D/R |" in report
 
     def test_markdown_matrix_no_remove_in_omits_r_column(self) -> None:
         """Matrix style symbol with no remove_in has D marker but no R marker in its row."""
-        report = generate_deprecation_table("tests.collections.api_deprecated", recursive=False, style="matrix")
+        report = generate_deprecation_table("tests.collections.api_deprecated.core", recursive=False, style="matrix")
         # Find the row for depr_func_no_remove_in
         rows = [ln for ln in report.splitlines() if "depr_func_no_remove_in" in ln]
         assert rows, "depr_func_no_remove_in must appear in matrix report"
@@ -869,10 +871,15 @@ class TestGenerateDeprecationMarkdown:
     def test_markdown_reports_classmethod_and_staticmethod_api_types(self) -> None:
         """Markdown report classifies classmethod and staticmethod descriptors correctly."""
         report = generate_deprecation_table(proxy_module, current_version="1.5", recursive=False)
-        assert "| `tests.collections.api_deprecated.ServiceCls.old_class_method` | classmethod |" in report
-        assert "| `tests.collections.api_deprecated.ServiceCls.old_class_method_args` | classmethod args |" in report
-        assert "| `tests.collections.api_deprecated.ServiceCls.old_static_method` | staticmethod |" in report
-        assert "| `tests.collections.api_deprecated.ServiceCls.old_static_method_args` | staticmethod args |" in report
+        assert "| `tests.collections.api_deprecated.core.ServiceCls.old_class_method` | classmethod |" in report
+        assert (
+            "| `tests.collections.api_deprecated.core.ServiceCls.old_class_method_args` | classmethod args |" in report
+        )
+        assert "| `tests.collections.api_deprecated.core.ServiceCls.old_static_method` | staticmethod |" in report
+        assert (
+            "| `tests.collections.api_deprecated.core.ServiceCls.old_static_method_args` | staticmethod args |"
+            in report
+        )
 
     @_requires_packaging
     def test_markdown_invalid_removal_target_status(self) -> None:
@@ -976,11 +983,11 @@ class TestCheckModuleDeprecationExpiry:
 
     def test_no_expired_before_deadline(self) -> None:
         """Module scan before any removal deadlines returns an empty list."""
-        assert validate_deprecation_expiry("tests.collections.api_deprecated", "0.1", recursive=False) == []
+        assert validate_deprecation_expiry("tests.collections.api_deprecated.core", "0.1", recursive=False) == []
 
     def test_expired_callables_detected(self) -> None:
         """Scan at or past a removal deadline returns error messages for expired callables."""
-        expired = validate_deprecation_expiry("tests.collections.api_deprecated", "2.0", recursive=False)
+        expired = validate_deprecation_expiry("tests.collections.api_deprecated.core", "2.0", recursive=False)
         assert len(expired) > 0
         assert all(isinstance(msg, str) for msg in expired)
         assert all("scheduled for removal" in msg and "still exists" in msg for msg in expired)
@@ -994,7 +1001,7 @@ class TestCheckModuleDeprecationExpiry:
         default. ``PastCls.__init__`` carries ``remove_in="0.4"`` and must be flagged at version 0.5.
 
         """
-        expired = validate_deprecation_expiry("tests.collections.api_deprecated", "0.5", recursive=False)
+        expired = validate_deprecation_expiry("tests.collections.api_deprecated.core", "0.5", recursive=False)
         assert any("PastCls.__init__" in msg for msg in expired)
 
     def test_accepts_module_object(self) -> None:
@@ -1009,7 +1016,7 @@ class TestCheckModuleDeprecationExpiry:
 
     def test_skips_callables_without_remove_in(self) -> None:
         """Warning-only deprecations without remove_in are silently skipped."""
-        expired = validate_deprecation_expiry("tests.collections.api_deprecated", "100.0", recursive=False)
+        expired = validate_deprecation_expiry("tests.collections.api_deprecated.core", "100.0", recursive=False)
         assert isinstance(expired, list)
 
     @pytest.mark.parametrize(
@@ -1024,12 +1031,12 @@ class TestCheckModuleDeprecationExpiry:
         that must raise clearly before any wrapper is checked, not be silently treated as "not expired".
         """
         with pytest.raises(ValueError, match="Invalid current_version"):
-            validate_deprecation_expiry("tests.collections.api_deprecated", current_version, recursive=False)
+            validate_deprecation_expiry("tests.collections.api_deprecated.core", current_version, recursive=False)
 
     def test_auto_detect_version_fails_for_non_package(self) -> None:
         """Auto-detection raises ImportError when the package has no version metadata."""
         with pytest.raises(ImportError, match="Could not determine version"):
-            validate_deprecation_expiry("tests.collections.api_deprecated", None, recursive=False)
+            validate_deprecation_expiry("tests.collections.api_deprecated.core", None, recursive=False)
 
     def test_auto_detect_requires_module_name(self) -> None:
         """Auto-detection raises ValueError when the module object has no __name__."""
@@ -1045,7 +1052,7 @@ class TestCheckModuleDeprecationExpiry:
 
     def test_proxy_objects_included_in_scan(self) -> None:
         """deprecated_class and deprecated_instance proxies appear in the expired list."""
-        expired = validate_deprecation_expiry("tests.collections.api_deprecated", "3.0", recursive=False)
+        expired = validate_deprecation_expiry("tests.collections.api_deprecated.core", "3.0", recursive=False)
         expired_names = " ".join(expired)
         assert "DeprecatedColorEnum" in expired_names
         assert "DeprecatedColorDataClass" in expired_names
@@ -1055,7 +1062,7 @@ class TestCheckModuleDeprecationExpiry:
     def test_skips_invalid_remove_in_version_with_warning(self) -> None:
         """Callables with a malformed remove_in are skipped with a ``UserWarning``, not raised."""
         bad_info = DeprecationWrapperInfo(
-            module="tests.collections.api_deprecated",
+            module="tests.collections.api_deprecated.core",
             function="bad_version_fn",
             deprecated_info=DeprecationConfig(deprecated_in="1.0", remove_in="not-semver"),
         )
@@ -1063,7 +1070,7 @@ class TestCheckModuleDeprecationExpiry:
             pytest.warns(UserWarning, match="unparsable `remove_in` version"),
             patch("deprecate.audit._lifecycle.find_deprecation_wrappers", return_value=[bad_info]),
         ):
-            result = validate_deprecation_expiry("tests.collections.api_deprecated", "2.0", recursive=False)
+            result = validate_deprecation_expiry("tests.collections.api_deprecated.core", "2.0", recursive=False)
         assert result == []
 
     def test_gracefully_skips_import_errors(self) -> None:
@@ -1083,7 +1090,7 @@ class TestCheckModuleDeprecationExpiry:
 
     def test_return_format(self) -> None:
         """Returns a list of string error messages; each message names the callable and version."""
-        expired = validate_deprecation_expiry("tests.collections.api_deprecated", "2.0", recursive=False)
+        expired = validate_deprecation_expiry("tests.collections.api_deprecated.core", "2.0", recursive=False)
         assert all(isinstance(msg, str) for msg in expired)
         for msg in expired:
             assert "Callable" in msg or "scheduled" in msg
@@ -1106,7 +1113,7 @@ class TestCheckModuleDeprecationExpiry:
         """
         messages = validate_deprecation_expiry(proxy_module, current_version=target_release, recursive=False)
         expected = (
-            "Callable `tests.collections.api_deprecated.DeprecatedEnum` was scheduled for removal in version 0.2 "
+            "Callable `tests.collections.api_deprecated.core.DeprecatedEnum` was scheduled for removal in version 0.2 "
             f"but still exists in version {target_release}. Please delete this deprecated code."
         )
         assert (expected in messages) is expired

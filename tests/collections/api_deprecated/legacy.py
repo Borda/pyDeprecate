@@ -1,6 +1,7 @@
 """Collection of deprecated wrappers using legacy ``target=bool|None`` sentinels.
 
-This module mirrors a subset of :mod:`tests.collections.api_deprecated` fixtures but uses **legacy** target sentinels
+This module mirrors a subset of :mod:`tests.collections.api_deprecated.core` fixtures but uses **legacy** target
+sentinels
 (``target=None`` for warn-only and ``target=True`` for self-deprecation/ARGS_REMAP) directly, instead of the modern
 :class:`deprecate.TargetMode` enum values.
 
@@ -9,7 +10,7 @@ Those warnings are suppressed during test discovery via the targeted ``filterwar
 (scoped by message regex AND originating module ``deprecate._types``).
 
 The file scope makes the purpose self-evident, so fixture names here match their modern counterparts in
-:mod:`tests.collections.api_deprecated` without any ``legacy_`` prefix.
+:mod:`tests.collections.api_deprecated.core` without any ``legacy_`` prefix.
 
 """
 
@@ -17,7 +18,7 @@ from functools import partial
 from warnings import warn
 
 from deprecate import deprecated, void
-from tests.collections.api_current import (
+from tests.collections.api_current.core import (
     NewCls,
     add_values,
     double_value,
@@ -26,7 +27,7 @@ from tests.collections.api_current import (
     power_with_new_coef,
     tracked_identity,
 )
-from tests.collections.api_deprecated import (
+from tests.collections.api_deprecated.core import (
     _DEPRS_CASE_OLD_ARGS,
     _DEPRS_CASE_STD_ARGS,
     _DEPRS_CASE_TGT_MODE_ARGS,
@@ -55,7 +56,7 @@ def decorated_pow_self(base: float, coef: float = 0, new_coef: float = 0) -> flo
 
 
 class ServiceCls:
-    """Class fixture mirroring :class:`tests.collections.api_deprecated.ServiceCls` legacy method variants."""
+    """Class fixture mirroring :class:`tests.collections.api_deprecated.core.ServiceCls` legacy method variants."""
 
     def compute(self, x: int) -> int:
         """Current implementation (same as modern ServiceCls)."""

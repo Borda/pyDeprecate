@@ -2,7 +2,8 @@
 
 Warning filters keyed by module, ``-W error`` tracebacks and ``pytest.warns`` location checks all depend on the
 ``filename``/``lineno`` a warning reports.  Each test below triggers one warn site and asserts the exact location: the
-calling line in this file for call-time warnings, the decorating line in :mod:`tests.collections.api_deprecated` for
+calling line in this file for call-time warnings, the decorating line in :mod:`tests.collections.api_deprecated.core`
+for
 decoration-time warnings.  The expected values are the correct user locations and every site meets them, so any
 refactor of the location machinery (:func:`deprecate._frames._caller_stacklevel`) is proven against them.
 
@@ -35,15 +36,15 @@ from deprecate.audit import (
 )
 from deprecate.utils import no_warning_call
 from tests._helpers import captured_warnings
-from tests.collections import api_deprecated
-from tests.collections.api_current import (
+from tests.collections.api_current.core import (
     LocCustomModuleType,
     NewDataClass,
     PositionalOnlyTarget,
     double_value,
     identity_value,
 )
-from tests.collections.api_deprecated import (
+from tests.collections.api_deprecated import core as api_deprecated
+from tests.collections.api_deprecated.core import (
     LocProxyBase,
     MappedDataClass,
     loc_args_remap,
@@ -72,14 +73,14 @@ from tests.collections.api_deprecated import (
     make_loc_positional_only_target,
     make_loc_side_effect_box_proxy,
 )
-from tests.collections.api_deprecated_regressions import LocDescriptorHost, loc_async_notify, loc_notify_wrapped_stream
+from tests.collections.api_deprecated.regressions import LocDescriptorHost, loc_async_notify, loc_notify_wrapped_stream
 from tests.collections.misconfigured import args_only_no_mapping_deprecation
 
 _requires_packaging = pytest.mark.skipif(
     importlib.util.find_spec("packaging") is None, reason="requires packaging library"
 )
 #: Module the audit gates scan; its own top-level name keeps the scanner from treating the
-#: ``tests.collections.api_deprecated`` wrappers as re-exports of their defining module.
+#: ``tests.collections.api_deprecated.core`` wrappers as re-exports of their defining module.
 _LOC_AUDIT_MODULE_NAME = "tests_loc_audit_module"
 #: Body of a submodule whose import fails, arming the scanner's per-submodule "skipped" diagnostic.
 _LOC_BROKEN_SUBMODULE_SRC = 'raise RuntimeError("boom at import")\n'
@@ -309,7 +310,7 @@ class TestCallTimeStatementSites:
 
 
 class TestDecorationTimeSites:
-    """Decoration-time warnings point at the decorating statement in :mod:`tests.collections.api_deprecated`."""
+    """Decoration-time warnings point at the decorating statement in :mod:`tests.collections.api_deprecated.core`."""
 
     @pytest.mark.parametrize(
         ("factory", "category", "match"),

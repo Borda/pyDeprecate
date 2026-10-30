@@ -10,8 +10,8 @@ from unittest.mock import patch
 
 import pytest
 
-import tests.collections.api_current as targets_module
-import tests.collections.api_deprecated as col
+import tests.collections.api_current.core as targets_module
+import tests.collections.api_deprecated.core as col
 import tests.collections.misconfigured as clean_module
 import tests.collections.pep702 as pep702_module
 from deprecate import (
