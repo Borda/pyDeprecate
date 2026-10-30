@@ -560,7 +560,8 @@ def _resume_generator(inner: Iterator[Any], item: Any) -> Generator[Any, Any, An
             item = None
             return (yield from inner)
         try:
-            item = inner.send(sent)  # type: ignore[attr-defined]
+            # A plain iterator without ``send`` raises ``AttributeError`` here, as PEP 380 ``yield from`` does.
+            item = cast(Generator[Any, Any, Any], inner).send(sent)
         except StopIteration as stop:
             return stop.value
 
@@ -702,6 +703,8 @@ def _async_generator_wrapper(ctx: _WrapperContext) -> Callable[..., Any]:
                     raise
                 step = partial(athrow, exc)
             else:
+                # An inner async iterator without ``asend`` raises ``AttributeError`` on a sent value, as the sync
+                # wrapper's ``send`` does, after PEP 380 ``yield from``.
                 step = inner.__anext__ if sent is None else partial(cast(AsyncGenerator[Any, Any], inner).asend, sent)
             # Called inside ``_await_step``, so a step that raises ``StopAsyncIteration`` directly ends the loop.
             item, done = await _await_step(step)
