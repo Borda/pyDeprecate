@@ -125,6 +125,12 @@
 
         {
           "@type": "Question",
+          "name": "Why does a classmethod receiver keyword raise even when mapped to an empty string?",
+          "acceptedAnswer": { "@type": "Answer", "text": "A caller keyword passed through **kwargs that matches a classmethod target\u0027s receiver name would collide with the class being forwarded. An args_mapping value of \"\" keeps the original name, so the call raises TypeError before emitting a warning or spending its budget. Rename that keyword to a different target parameter or map it to None to drop it." }
+        },
+
+        {
+          "@type": "Question",
           "name": "TypeError: Failed mapping",
           "acceptedAnswer": { "@type": "Answer", "text": "Your deprecated function passes an argument that the target function does not accept. You need to either drop the argument, rename it to match the target\u0027s signature, or use TargetMode.ARGS_REMAP for in-place remapping." }
         },
@@ -156,7 +162,7 @@
         {
           "@type": "Question",
           "name": "Do arithmetic and operator protocol methods emit deprecation notices on deprecated_instance proxies?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Yes, the proxy forwards operator and protocol dunders to the wrapped object and emits the deprecation warning according to a consistent policy. Python\u0027s data model invokes special methods directly on the object\u0027s type (bypassing __getattr__), so these must be defined on _DeprecatedProxy itself \u2014 and they are." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Yes, the proxy forwards operator and protocol dunders to the wrapped object and emits the deprecation warning according to a consistent policy. Python\u0027s data model invokes special methods directly on the object\u0027s type (bypassing __getattr__), so these must be defined on the proxy\u0027s class itself \u2014 and they are. Each proxy is an instance of a cached _DeprecatedProxy subclass that carries only the protocols the wrapped object\u0027s type defines, so a proxy over a dict is not callable() and not an Iterator, exactly like the dict. Text is the one exception: int(), float(), complex() and os.fspath() keep working on a proxy over a str or bytes value." }
         },
 
         {
@@ -360,7 +366,13 @@
         {
           "@type": "Question",
           "name": "Does the deprecation survive copy, deepcopy, and pickle?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Yes for copy.copy and copy.deepcopy. Copying a deprecated proxy returns a proxy again, so the deprecation warning travels with the object during the migration window. Warning counters are snapshotted at copy time, and each copy keeps its own counter independently. Copy operations are themselves silent \u2014 the copy protocol methods rebuild the proxy directly instead of going through attribute access, so no warning fires until the copy is actually used. Exception: deprecated_class proxies cannot be pickled in the common pattern where the proxy replaces the decorated class\u0027s module-level name \u2014 pickle cannot find the original class by reference and raises PicklingError. deprecated_instance proxies wrapping plain objects (dicts, lists, custom objects) are fully picklable." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Yes for copy.copy and copy.deepcopy. Copying a deprecated proxy returns a proxy again, so the deprecation warning travels with the object during the migration window. Warning counters are snapshotted at copy time, and each copy keeps its own counter independently. Copy operations are themselves silent \u2014 the copy protocol methods rebuild the proxy directly instead of going through attribute access, so no warning fires until the copy is actually used. Exception: a deprecated_class alias itself cannot be pickled in the common pattern where the proxy replaces the decorated class\u0027s module-level name \u2014 pickle cannot find the original class by reference and raises PicklingError. Instances of a class deprecated in place are not affected: they pickle and load as instances of the original class, and neither step warns. This includes exception and OrderedDict subclasses, so an exception raised in a process-pool worker still reaches the parent. A class with its own __reduce_ex__ keeps its own pickling, so members of an Enum deprecated in place still raise PicklingError. deprecated_instance proxies wrapping plain objects (dicts, lists, custom objects) are fully picklable." }
+        },
+
+        {
+          "@type": "Question",
+          "name": "What do pickled instances of a class deprecated in place need to load?",
+          "acceptedAnswer": { "@type": "Answer", "text": "The loading process needs pyDeprecate installed, and the class must still be deprecated in place when the payload loads. The module-level name of such a class holds the deprecation proxy, so the payload cannot name the class directly; it names one of pyDeprecate\u0027s rebuild helpers (deprecate.proxy._rebuild_class_instance, _rebuild_class_instance_ex or _rebuild_class_call) together with the class\u0027s module and qualified name." }
         },
 
         {
@@ -420,7 +432,7 @@
         {
           "@type": "Question",
           "name": "TypeError: \u003cobj\u003e is wrapped in a deprecation proxy and cannot be pickled directly",
-          "acceptedAnswer": { "@type": "Answer", "text": "This error was raised in older versions (before PR #212). Since PR #212, pickle.dumps(proxy) works for deprecated_instance proxies: the proxy is reconstructed on unpickle with deprecation semantics preserved. If you still see this error on a deprecated_instance proxy, upgrade pyDeprecate. Two remaining caveats: (1) the stream callable must be picklable by reference \u2014 if you passed a lambda or closure as stream, use stream=None or stream=warnings.warn instead; (2) deprecated_class proxies raise PicklingError in the common pattern where the decorated class name is replaced by the proxy \u2014 use copy.deepcopy for class aliases instead." }
+          "acceptedAnswer": { "@type": "Answer", "text": "This error was raised in older versions (before PR #212). Since PR #212, pickle.dumps(proxy) works for deprecated_instance proxies: the proxy is reconstructed on unpickle with deprecation semantics preserved. If you still see this error on a deprecated_instance proxy, upgrade pyDeprecate. Two remaining caveats: (1) the stream callable must be picklable by reference \u2014 if you passed a lambda or closure as stream, use stream=None or stream=warnings.warn instead; (2) a deprecated_class alias itself raises PicklingError in the common pattern where the decorated class name is replaced by the proxy \u2014 use copy.deepcopy for class aliases instead; instances of a class deprecated in place pickle fine." }
         },
 
         {
@@ -1494,6 +1506,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#why-does-a-classmethod-receiver-keyword-raise-even-when-mapped-to-an-empty-string" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why does a classmethod receiver keyword raise even when mapped to an empty string?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#typeerror-failed-mapping" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1927,6 +1950,17 @@
     <span class="md-ellipsis">
       
         Does the deprecation survive copy, deepcopy, and pickle?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-do-pickled-instances-of-a-class-deprecated-in-place-need-to-load" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What do pickled instances of a class deprecated in place need to load?
       
     </span>
   </a>
@@ -2423,6 +2457,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#why-does-a-classmethod-receiver-keyword-raise-even-when-mapped-to-an-empty-string" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why does a classmethod receiver keyword raise even when mapped to an empty string?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#typeerror-failed-mapping" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2863,6 +2908,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#what-do-pickled-instances-of-a-class-deprecated-in-place-need-to-load" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What do pickled instances of a class deprecated in place need to load?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#my-expiry-gate-reports-more-expired-wrappers-after-upgrading" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3280,6 +3336,8 @@
 
 </details>
 
+<h2 id="why-does-a-classmethod-receiver-keyword-raise-even-when-mapped-to-an-empty-string">Why does a classmethod receiver keyword raise even when mapped to an empty string?<a class="headerlink" href="#why-does-a-classmethod-receiver-keyword-raise-even-when-mapped-to-an-empty-string" title="Permanent link">🔗</a></h2>
+<p>A caller keyword passed through <code>**kwargs</code> that matches a classmethod target's receiver name would collide with the class being forwarded. An <code>args_mapping</code> value of <code>""</code> keeps the original name, so the call raises <code>TypeError</code> before emitting a warning or spending its budget. Rename that keyword to a different target parameter or map it to <code>None</code> to drop it.</p>
 <h2 id="typeerror-failed-mapping">TypeError: Failed mapping<a class="headerlink" href="#typeerror-failed-mapping" title="Permanent link">🔗</a></h2>
 <p><strong>Q:</strong> I get <code>TypeError: Failed mapping of `my_func`, arguments not accepted by target: ['old_arg']</code>. What does this mean?</p>
 <p><strong>A:</strong> Your deprecated function passes an argument that the target function does not accept. You need to either drop the argument, rename it to match the target's signature, or use <code>TargetMode.ARGS_REMAP</code> for in-place remapping.</p>
@@ -3447,7 +3505,7 @@
 <p>When moving functions across modules, import the target from its new home explicitly rather than relying on a re-export alias. The path shown in the deprecation message will then reflect the module where the function actually lives, giving callers accurate migration information. The message will correctly show the full path for real imports when used in your package.</p>
 <h2 id="do-arithmetic-and-operator-protocol-methods-emit-deprecation-notices-on-deprecated_instance-proxies">Do arithmetic and operator protocol methods emit deprecation notices on <code>deprecated_instance</code> proxies?<a class="headerlink" href="#do-arithmetic-and-operator-protocol-methods-emit-deprecation-notices-on-deprecated_instance-proxies" title="Permanent link">🔗</a></h2>
 <p><strong>Q:</strong> I wrapped an <code>int</code> or <code>float</code> with <code>deprecated_instance</code> and operations like <code>old_value + 1</code> or <code>abs(old_value)</code> don't seem to emit a notice. How does operator interception work?</p>
-<p><strong>A:</strong> Yes, the proxy forwards operator and protocol dunders to the wrapped object and emits the deprecation warning according to a consistent policy. Python's data model invokes special methods directly on the object's type (bypassing <code>__getattr__</code>), so these must be defined on <code>_DeprecatedProxy</code> itself — and they are.</p>
+<p><strong>A:</strong> Yes, the proxy forwards operator and protocol dunders to the wrapped object and emits the deprecation warning according to a consistent policy. Python's data model invokes special methods directly on the object's type (bypassing <code>__getattr__</code>), so these must be defined on the proxy's class itself — and they are. Each proxy is an instance of a cached <code>_DeprecatedProxy</code> subclass that carries only the protocols the wrapped object's type defines, so a proxy over a <code>dict</code> is not <code>callable()</code> and not an <code>Iterator</code>, exactly like the dict. Text is the one exception: <code>int()</code>, <code>float()</code>, <code>complex()</code> and <code>os.fspath()</code> keep working on a proxy over a <code>str</code> or <code>bytes</code> value.</p>
 <p><strong>What warns (data-use operations):</strong></p>
 <ul>
 <li>Arithmetic operators (<code>+</code>, <code>-</code>, <code>*</code>, <code>/</code>, <code>//</code>, <code>**</code>, <code>%</code>, <code>@</code>), <code>divmod()</code>, and their reflected/in-place forms</li>
@@ -3464,7 +3522,8 @@
 <p><strong>What stays silent (structural probes):</strong></p>
 <ul>
 <li>Ordering comparisons: <code>&lt;</code>, <code>&lt;=</code>, <code>&gt;</code>, <code>&gt;=</code></li>
-<li><code>bool()</code>, <code>hash()</code>, and the <code>in</code> operator</li>
+<li><code>bool()</code> and <code>hash()</code></li>
+<li>The <code>in</code> operator, when the proxy's own <code>__contains__</code> answers it (a wrapped type without <code>__contains__</code> makes Python fall back to the proxy's warning <code>__iter__</code> / <code>__getitem__</code>, so <code>in</code> then warns like iteration)</li>
 <li><code>format()</code> / f-strings using the wrapped object</li>
 <li>Context-manager exit (<code>__exit__</code> / <code>__aexit__</code>)</li>
 </ul>
@@ -4729,7 +4788,7 @@
 <hr />
 <h2 id="does-the-deprecation-survive-copy-deepcopy-and-pickle">Does the deprecation survive <code>copy</code>, <code>deepcopy</code>, and <code>pickle</code>?<a class="headerlink" href="#does-the-deprecation-survive-copy-deepcopy-and-pickle" title="Permanent link">🔗</a></h2>
 <p><strong>Q:</strong> I copied (or pickled and restored) an object wrapped by <code>deprecated_instance</code> / <code>deprecated_class</code> — does the deprecation still apply to the copy?</p>
-<p><strong>A:</strong> Yes for <code>copy.copy</code> and <code>copy.deepcopy</code>. Copying a deprecated proxy returns a proxy again, so the deprecation warning travels with the object during the migration window. Warning counters are snapshotted at copy time, and each copy keeps its own counter independently. Copy operations are themselves silent — the copy protocol methods rebuild the proxy directly instead of going through attribute access, so no warning fires until the copy is actually used. Exception: <code>deprecated_class</code> proxies cannot be pickled in the common pattern where the proxy replaces the decorated class's module-level name — pickle cannot find the original class by reference and raises <code>PicklingError</code>. <code>deprecated_instance</code> proxies wrapping plain objects (dicts, lists, custom objects) are fully picklable.</p>
+<p><strong>A:</strong> Yes for <code>copy.copy</code> and <code>copy.deepcopy</code>. Copying a deprecated proxy returns a proxy again, so the deprecation warning travels with the object during the migration window. Warning counters are snapshotted at copy time, and each copy keeps its own counter independently. Copy operations are themselves silent — the copy protocol methods rebuild the proxy directly instead of going through attribute access, so no warning fires until the copy is actually used. Exception: a <code>deprecated_class</code> alias itself cannot be pickled in the common pattern where the proxy replaces the decorated class's module-level name — pickle cannot find the original class by reference and raises <code>PicklingError</code>. Instances of a class deprecated in place are not affected: they pickle and load as instances of the original class, and neither step warns. This includes exception and <code>OrderedDict</code> subclasses, so an exception raised in a process-pool worker still reaches the parent. A class with its own <code>__reduce_ex__</code> keeps its own pickling, so members of an Enum deprecated in place still raise <code>PicklingError</code>. <code>deprecated_instance</code> proxies wrapping plain objects (dicts, lists, custom objects) are fully picklable.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-97-1" name="__codelineno-97-1" href="#__codelineno-97-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">copy</span>
 <a id="__codelineno-97-2" name="__codelineno-97-2" href="#__codelineno-97-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">pickle</span>
 <a id="__codelineno-97-3" name="__codelineno-97-3" href="#__codelineno-97-3"></a>
@@ -4755,6 +4814,15 @@
 
 </details>
 
+<hr />
+<h2 id="what-do-pickled-instances-of-a-class-deprecated-in-place-need-to-load">What do pickled instances of a class deprecated in place need to load?<a class="headerlink" href="#what-do-pickled-instances-of-a-class-deprecated-in-place-need-to-load" title="Permanent link">🔗</a></h2>
+<p><strong>Q:</strong> I pickle instances of a class deprecated in place (<code>@deprecated_class</code> with no replacement class) into a cache or a worker queue. What does the process that loads them need, and do the payloads survive upgrading pyDeprecate or removing the deprecation?</p>
+<p><strong>A:</strong> The loading process needs pyDeprecate installed, and the class must still be deprecated in place when the payload loads. The module-level name of such a class holds the deprecation proxy, so the payload cannot name the class directly; it names one of pyDeprecate's rebuild helpers (<code>deprecate.proxy._rebuild_class_instance</code>, <code>_rebuild_class_instance_ex</code> or <code>_rebuild_class_call</code>) together with the class's module and qualified name.</p>
+<ul>
+<li><strong>Upgrading pyDeprecate is safe.</strong> The helper names are part of the pickle compatibility contract and stay unchanged across releases, so a payload written by one release loads in the next. pyDeprecate v0.14 and earlier have no such helpers, so they cannot load these payloads.</li>
+<li><strong>Removing the deprecation breaks loading.</strong> The helpers rebuild only a class whose name a deprecation proxy holds. Once the deprecation is gone and the name points at the plain class again, loading raises <code>AttributeError: Cannot rebuild the pickled instance: ... is not a class deprecated in place</code>.</li>
+</ul>
+<p>To migrate stored instances, load them while the deprecation is still in place, then set the module attribute back to the real class in the migration process and re-pickle. Re-pickling while the proxy still holds the name does not migrate anything: the reducer looks the published name up when it runs, so it writes another helper-dependent payload that fails to load once the deprecation is removed. With the name bound to the real class the default reduction applies, and payloads written then name the class directly and need nothing from pyDeprecate.</p>
 <hr />
 <h2 id="my-expiry-gate-reports-more-expired-wrappers-after-upgrading">My expiry gate reports more expired wrappers after upgrading<a class="headerlink" href="#my-expiry-gate-reports-more-expired-wrappers-after-upgrading" title="Permanent link">🔗</a></h2>
 <p><strong>Q:</strong> After upgrading pyDeprecate, <code>validate_deprecation_expiry</code> (and <code>pydeprecate expiry</code>) suddenly reports more expired wrappers than before — nothing in my code changed. Why?</p>
@@ -4871,7 +4939,7 @@
 <hr />
 <h2 id="typeerror-obj-is-wrapped-in-a-deprecation-proxy-and-cannot-be-pickled-directly">TypeError: <code>&lt;obj&gt;</code> is wrapped in a deprecation proxy and cannot be pickled directly<a class="headerlink" href="#typeerror-obj-is-wrapped-in-a-deprecation-proxy-and-cannot-be-pickled-directly" title="Permanent link">🔗</a></h2>
 <p><strong>Q:</strong> I get <code>TypeError: ... is wrapped in a deprecation proxy and cannot be pickled directly</code> when passing a <code>deprecated_instance</code> proxy to <code>pickle.dumps</code>, <code>multiprocessing</code>, or <code>joblib</code>.</p>
-<p><strong>A:</strong> This error was raised in older versions (before <a href="https://github.com/Borda/pyDeprecate/pull/212">PR #212</a>). Since PR #212, <code>pickle.dumps(proxy)</code> works for <code>deprecated_instance</code> proxies: the proxy is reconstructed on unpickle with deprecation semantics preserved. If you still see this error on a <code>deprecated_instance</code> proxy, upgrade pyDeprecate. Two remaining caveats: (1) the <code>stream</code> callable must be picklable by reference — if you passed a lambda or closure as <code>stream</code>, use <code>stream=None</code> or <code>stream=warnings.warn</code> instead; (2) <code>deprecated_class</code> proxies raise <code>PicklingError</code> in the common pattern where the decorated class name is replaced by the proxy — use <code>copy.deepcopy</code> for class aliases instead.</p>
+<p><strong>A:</strong> This error was raised in older versions (before <a href="https://github.com/Borda/pyDeprecate/pull/212">PR #212</a>). Since PR #212, <code>pickle.dumps(proxy)</code> works for <code>deprecated_instance</code> proxies: the proxy is reconstructed on unpickle with deprecation semantics preserved. If you still see this error on a <code>deprecated_instance</code> proxy, upgrade pyDeprecate. Two remaining caveats: (1) the <code>stream</code> callable must be picklable by reference — if you passed a lambda or closure as <code>stream</code>, use <code>stream=None</code> or <code>stream=warnings.warn</code> instead; (2) a <code>deprecated_class</code> alias itself raises <code>PicklingError</code> in the common pattern where the decorated class name is replaced by the proxy — use <code>copy.deepcopy</code> for class aliases instead; instances of a class deprecated in place pickle fine.</p>
 <hr />
 <h2 id="my-deprecated-function-raises-deprecatederror-instead-of-warning">My deprecated function raises <code>DeprecatedError</code> instead of warning<a class="headerlink" href="#my-deprecated-function-raises-deprecatederror-instead-of-warning" title="Permanent link">🔗</a></h2>
 <p><strong>Q:</strong> A call that used to emit a <code>FutureWarning</code> now raises <code>deprecate.DeprecatedError</code>. Nothing in my code changed.</p>
@@ -4948,7 +5016,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 30, 2026 13:56:01 UTC">2026-10-30</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 30, 2026 19:35:40 UTC">2026-10-30</span>
   </span>
 
     

@@ -7955,9 +7955,10 @@ attribute access instead of call arguments. Selected automatically by :attr:<cod
 <li>Attribute, item, and call access is transparently forwarded to the wrapped source.</li>
 </ul>
 <p>The type parameter <code>T</code> describes the instance type returned by calling the proxy (i.e. the target
-type for class-forwarding proxies). It is purely a static affordance: runtime instances of
-:class:<code>~deprecate.proxy._DeprecatedProxy</code> satisfy this Protocol structurally, so no explicit <code>isinstance</code>
-check is required.</p>
+type for class-forwarding proxies). It is purely a static affordance: every runtime instance of
+:class:<code>~deprecate.proxy._DeprecatedProxy</code> passes <code>isinstance(proxy, DeprecationProxy)</code>, including a proxy over a
+dict or a plain class that carries no <code>__call__</code> or <code>__getitem__</code> (a proxy carries only the protocols its
+wrapped object supports, so the proxy class is registered with this Protocol rather than matched member by member).</p>
 <div class="admonition note">
 <p class="admonition-title">Protocol vs implementation</p>
 <p><code>DeprecationProxy</code> (public, this Protocol) describes the contract; :class:<code>~deprecate.proxy._DeprecatedProxy</code>

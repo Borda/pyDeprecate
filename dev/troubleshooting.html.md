@@ -209,6 +209,10 @@ True
 
 </details>
 
+## Why does a classmethod receiver keyword raise even when mapped to an empty string?
+
+A caller keyword passed through `**kwargs` that matches a classmethod target's receiver name would collide with the class being forwarded. An `args_mapping` value of `""` keeps the original name, so the call raises `TypeError` before emitting a warning or spending its budget. Rename that keyword to a different target parameter or map it to `None` to drop it.
+
 ## TypeError: Failed mapping
 
 **Q:** I get `` TypeError: Failed mapping of `my_func`, arguments not accepted by target: ['old_arg'] ``. What does this mean?
@@ -418,7 +422,7 @@ When moving functions across modules, import the target from its new home explic
 
 **Q:** I wrapped an `int` or `float` with `deprecated_instance` and operations like `old_value + 1` or `abs(old_value)` don't seem to emit a notice. How does operator interception work?
 
-**A:** Yes, the proxy forwards operator and protocol dunders to the wrapped object and emits the deprecation warning according to a consistent policy. Python's data model invokes special methods directly on the object's type (bypassing `__getattr__`), so these must be defined on `_DeprecatedProxy` itself — and they are.
+**A:** Yes, the proxy forwards operator and protocol dunders to the wrapped object and emits the deprecation warning according to a consistent policy. Python's data model invokes special methods directly on the object's type (bypassing `__getattr__`), so these must be defined on the proxy's class itself — and they are. Each proxy is an instance of a cached `_DeprecatedProxy` subclass that carries only the protocols the wrapped object's type defines, so a proxy over a `dict` is not `callable()` and not an `Iterator`, exactly like the dict. Text is the one exception: `int()`, `float()`, `complex()` and `os.fspath()` keep working on a proxy over a `str` or `bytes` value.
 
 **What warns (data-use operations):**
 
@@ -436,7 +440,8 @@ When moving functions across modules, import the target from its new home explic
 **What stays silent (structural probes):**
 
 - Ordering comparisons: `<`, `<=`, `>`, `>=`
-- `bool()`, `hash()`, and the `in` operator
+- `bool()` and `hash()`
+- The `in` operator, when the proxy's own `__contains__` answers it (a wrapped type without `__contains__` makes Python fall back to the proxy's warning `__iter__` / `__getitem__`, so `in` then warns like iteration)
 - `format()` / f-strings using the wrapped object
 - Context-manager exit (`__exit__` / `__aexit__`)
 
@@ -1977,7 +1982,7 @@ ______________________________________________________________________
 
 **Q:** I copied (or pickled and restored) an object wrapped by `deprecated_instance` / `deprecated_class` — does the deprecation still apply to the copy?
 
-**A:** Yes for `copy.copy` and `copy.deepcopy`. Copying a deprecated proxy returns a proxy again, so the deprecation warning travels with the object during the migration window. Warning counters are snapshotted at copy time, and each copy keeps its own counter independently. Copy operations are themselves silent — the copy protocol methods rebuild the proxy directly instead of going through attribute access, so no warning fires until the copy is actually used. Exception: `deprecated_class` proxies cannot be pickled in the common pattern where the proxy replaces the decorated class's module-level name — pickle cannot find the original class by reference and raises `PicklingError`. `deprecated_instance` proxies wrapping plain objects (dicts, lists, custom objects) are fully picklable.
+**A:** Yes for `copy.copy` and `copy.deepcopy`. Copying a deprecated proxy returns a proxy again, so the deprecation warning travels with the object during the migration window. Warning counters are snapshotted at copy time, and each copy keeps its own counter independently. Copy operations are themselves silent — the copy protocol methods rebuild the proxy directly instead of going through attribute access, so no warning fires until the copy is actually used. Exception: a `deprecated_class` alias itself cannot be pickled in the common pattern where the proxy replaces the decorated class's module-level name — pickle cannot find the original class by reference and raises `PicklingError`. Instances of a class deprecated in place are not affected: they pickle and load as instances of the original class, and neither step warns. This includes exception and `OrderedDict` subclasses, so an exception raised in a process-pool worker still reaches the parent. A class with its own `__reduce_ex__` keeps its own pickling, so members of an Enum deprecated in place still raise `PicklingError`. `deprecated_instance` proxies wrapping plain objects (dicts, lists, custom objects) are fully picklable.
 
 ```python
 import copy
@@ -2006,6 +2011,19 @@ print(duplicate["max_retries"])  # warns: FutureWarning — each copy has its ow
 ```
 
 </details>
+
+______________________________________________________________________
+
+## What do pickled instances of a class deprecated in place need to load?
+
+**Q:** I pickle instances of a class deprecated in place (`@deprecated_class` with no replacement class) into a cache or a worker queue. What does the process that loads them need, and do the payloads survive upgrading pyDeprecate or removing the deprecation?
+
+**A:** The loading process needs pyDeprecate installed, and the class must still be deprecated in place when the payload loads. The module-level name of such a class holds the deprecation proxy, so the payload cannot name the class directly; it names one of pyDeprecate's rebuild helpers (`deprecate.proxy._rebuild_class_instance`, `_rebuild_class_instance_ex` or `_rebuild_class_call`) together with the class's module and qualified name.
+
+- **Upgrading pyDeprecate is safe.** The helper names are part of the pickle compatibility contract and stay unchanged across releases, so a payload written by one release loads in the next. pyDeprecate v0.14 and earlier have no such helpers, so they cannot load these payloads.
+- **Removing the deprecation breaks loading.** The helpers rebuild only a class whose name a deprecation proxy holds. Once the deprecation is gone and the name points at the plain class again, loading raises `AttributeError: Cannot rebuild the pickled instance: ... is not a class deprecated in place`.
+
+To migrate stored instances, load them while the deprecation is still in place, then set the module attribute back to the real class in the migration process and re-pickle. Re-pickling while the proxy still holds the name does not migrate anything: the reducer looks the published name up when it runs, so it writes another helper-dependent payload that fails to load once the deprecation is removed. With the name bound to the real class the default reduction applies, and payloads written then name the class directly and need nothing from pyDeprecate.
 
 ______________________________________________________________________
 
@@ -2189,7 +2207,7 @@ ______________________________________________________________________
 
 **Q:** I get `TypeError: ... is wrapped in a deprecation proxy and cannot be pickled directly` when passing a `deprecated_instance` proxy to `pickle.dumps`, `multiprocessing`, or `joblib`.
 
-**A:** This error was raised in older versions (before [PR #212](https://github.com/Borda/pyDeprecate/pull/212)). Since PR #212, `pickle.dumps(proxy)` works for `deprecated_instance` proxies: the proxy is reconstructed on unpickle with deprecation semantics preserved. If you still see this error on a `deprecated_instance` proxy, upgrade pyDeprecate. Two remaining caveats: (1) the `stream` callable must be picklable by reference — if you passed a lambda or closure as `stream`, use `stream=None` or `stream=warnings.warn` instead; (2) `deprecated_class` proxies raise `PicklingError` in the common pattern where the decorated class name is replaced by the proxy — use `copy.deepcopy` for class aliases instead.
+**A:** This error was raised in older versions (before [PR #212](https://github.com/Borda/pyDeprecate/pull/212)). Since PR #212, `pickle.dumps(proxy)` works for `deprecated_instance` proxies: the proxy is reconstructed on unpickle with deprecation semantics preserved. If you still see this error on a `deprecated_instance` proxy, upgrade pyDeprecate. Two remaining caveats: (1) the `stream` callable must be picklable by reference — if you passed a lambda or closure as `stream`, use `stream=None` or `stream=warnings.warn` instead; (2) a `deprecated_class` alias itself raises `PicklingError` in the common pattern where the decorated class name is replaced by the proxy — use `copy.deepcopy` for class aliases instead; instances of a class deprecated in place pickle fine.
 
 ______________________________________________________________________
 
