@@ -15,9 +15,11 @@ import warnings
 from collections.abc import Coroutine, Generator
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, ClassVar, Optional
+from typing import Any, Callable, ClassVar, Generic, Optional, TypeVar
 
 import typing_extensions
+
+_BoxItem = TypeVar("_BoxItem")
 
 
 def raise_pow(base: float, coef: float) -> float:
@@ -140,6 +142,33 @@ class ColorEnum(Enum):
 
     RED = 1
     BLUE = 2
+
+
+class GenericBox(Generic[_BoxItem]):
+    """Generic container class; a deprecated alias of it must stay subscriptable (``Alias[int]``) in annotations."""
+
+    def __init__(self, item: _BoxItem) -> None:
+        """Store the boxed *item*."""
+        self.item = item
+
+
+class TagList(list):
+    """List subclass; a deprecated alias of it is subscriptable through ``list.__class_getitem__`` but not iterable."""
+
+
+@dataclass
+class StateEcho:
+    """Callable record that returns the state it is called with; a non-frozen ``@dataclass`` leaves it unhashable."""
+
+    label: str = "state"
+
+    def __call__(self, state: dict[str, int]) -> dict[str, int]:
+        """Return *state* unchanged."""
+        return state
+
+
+#: Module-level unhashable callable a ``__reduce__`` can return, which pickle saves by its class reference.
+state_echo = StateEcho()
 
 
 def plain_function_target(x: int) -> int:
@@ -1465,3 +1494,17 @@ class DoclessTarget:  # noqa: D101 - intentionally lacks documentation for proxy
 def zero_argument_target() -> int:
     """Return a fixed value without accepting any forwarded arguments."""
     return 7
+
+
+class InPlaceAliasSource:
+    """Class that keeps its own module-level name while a deprecated alias of it is published elsewhere."""
+
+    def __init__(self, level: int) -> None:
+        """Store the sample level."""
+        self.level = level
+
+    def __eq__(self, other: object) -> bool:
+        """Compare by exact type and level, so a round trip that changed the class does not compare equal."""
+        return type(other) is type(self) and vars(other) == vars(self)
+
+    __hash__ = None  # type: ignore[assignment]

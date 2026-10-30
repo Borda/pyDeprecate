@@ -18,7 +18,7 @@ from deprecate._frames import _caller_stacklevel
 from deprecate._types import DeprecationProxy, TargetMode, get_deprecation_config
 from deprecate.docstring.inject import _update_docstring_with_deprecation
 from deprecate.messaging import _resolve_message_template_alias, deprecation_warning
-from deprecate.proxy.core import _DeprecatedProxy, _proxy_type_for, _ProxySpec
+from deprecate.proxy.core import _DeprecatedProxy, _proxy_type_for, _ProxySpec, _register_class_instance_reducer
 
 __all__ = ["deprecated_class", "deprecated_instance"]
 
@@ -360,6 +360,9 @@ def deprecated_class(
                 _misconfigured_override=_misconfigured_override,
             ),
         )
+        # The proxy takes over the class's module-level name, so pickle can no longer save the class of its instances by
+        # reference; a ``copyreg`` reducer keeps instances of a class deprecated in place picklable.
+        _register_class_instance_reducer(proxy)
         if update_docstring:
             # Use a SimpleNamespace shim so _update_docstring_with_deprecation can set __doc__ normally; then store
             # the result on the proxy via object.__setattr__ (bypassing the proxy's forwarding __setattr__).

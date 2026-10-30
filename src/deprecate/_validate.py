@@ -21,6 +21,7 @@ from typing import Any, Callable, Optional, Union
 
 from deprecate._frames import _caller_stacklevel
 from deprecate._types import TargetMode, get_deprecation_config
+from deprecate.utils import _SigFacts, _signature_facts
 
 #: Release that removes the legacy spellings and turns misconfiguration warnings into ``TypeError``.
 #: Every runtime notice naming that sunset renders this value, so the version is set in one place.
@@ -634,9 +635,192 @@ def _warn_stacking_misconfiguration(source: Callable, outer_target: Union[Target
         warnings.warn(message.format(name=source.__name__), UserWarning, stacklevel=_caller_stacklevel())
 
 
+def _receiver_name_clash(source_facts: _SigFacts, target_facts: _SigFacts) -> Optional[str]:
+    """Name a later source parameter that shares the receiver name of a ``classmethod`` descriptor target.
+
+    The forwarded call renames the source's receiver to the target's receiver name, so a later source parameter with
+    that same name would hand the caller's value to the target as ``cls`` and the class under another keyword.  Each
+    side's receiver is its first positional parameter, the same name the call path forwards under
+    (``_dispatch._classmethod_receivers``).
+
+    Args:
+        source_facts: Signature facts of the callable being decorated with ``@deprecated``.
+        target_facts: Signature facts of the function unwrapped from the ``classmethod`` descriptor.
+
+    Returns:
+        The clashing parameter name, or ``None`` when the receivers share a name, either side has no positional
+        parameter (an unreadable signature has none), or no later source parameter uses the target's receiver name.
+
+    Example:
+        >>> def make(cls, value): pass
+        >>> def old(klass, cls=None): pass
+        >>> _receiver_name_clash(_signature_facts(old), _signature_facts(make))
+        'cls'
+        >>> def old_ok(klass, value): pass
+        >>> print(_receiver_name_clash(_signature_facts(old_ok), _signature_facts(make)))
+        None
+
+    """
+    if not source_facts.positional_names or not target_facts.positional_names:
+        return None
+    source_receiver, target_receiver = source_facts.positional_names[0], target_facts.positional_names[0]
+    # ``names`` holds the source receiver too, so once the two receivers differ a match is a later parameter.
+    if source_receiver == target_receiver or target_receiver not in source_facts.names:
+        return None
+    return target_receiver
+
+
+def _receiver_option_clash(
+    source_receiver: str,
+    target_receiver: str,
+    args_mapping: Optional[Mapping[str, Optional[str]]],
+    args_extra: Optional[Mapping[str, Any]],
+) -> Optional[str]:
+    """Describe an ``args_extra`` key or ``args_mapping`` value that would fill a ``classmethod`` target's receiver.
+
+    The target's receiver slot always receives the class the source was called on.  The forwarded call puts the class
+    under the target's receiver name after the ``args_mapping`` rename and the ``args_extra`` merge, so an
+    ``args_extra`` key with the receiver's name, or an ``args_mapping`` entry renaming another argument onto that name,
+    would collide with the class and fail every call after its warning; rejecting it here fails once, at decoration.  A
+    mapping entry whose key is the source's own receiver is exempt: it renames the receiver itself onto the target's
+    receiver name, which forwards the class as intended.
+
+    Args:
+        source_receiver: Name of the source's first positional parameter.
+        target_receiver: Name of the target's first positional parameter.
+        args_mapping: The ``args_mapping`` given to ``@deprecated``, or ``None``.
+        args_extra: The ``args_extra`` given to ``@deprecated``, or ``None``.
+
+    Returns:
+        The problem, completing the sentence "..., but <problem>." of :func:`_classmethod_target_error`, or ``None``
+        when neither option names the target's receiver.
+
+    Example:
+        >>> print(_receiver_option_clash("klass", "cls", None, {"cls": int}))
+        `args_extra` sets the target's receiver `cls`, which only the class may fill; drop that key
+        >>> print(_receiver_option_clash("klass", "cls", {"old_value": "cls"}, None))
+        `args_mapping` renames `old_value` onto the target's receiver `cls`; map it to another parameter
+        >>> print(_receiver_option_clash("klass", "cls", {"klass": "cls"}, None))
+        None
+
+    """
+    if isinstance(args_extra, Mapping) and target_receiver in args_extra:
+        return (
+            f"`args_extra` sets the target's receiver `{target_receiver}`, which only the class may fill; drop that key"
+        )
+    if isinstance(args_mapping, Mapping):
+        for old_name, new_name in args_mapping.items():
+            if new_name == target_receiver and old_name != source_receiver:
+                return (
+                    f"`args_mapping` renames `{old_name}` onto the target's receiver `{target_receiver}`;"
+                    " map it to another parameter"
+                )
+    return None
+
+
+def _check_classmethod_source(
+    source: Callable,
+    target_func: Callable,
+    *,
+    args_mapping: Optional[Mapping[str, Optional[str]]] = None,
+    args_extra: Optional[Mapping[str, Any]] = None,
+) -> None:
+    """Raise when ``source`` cannot hand a class to the ``classmethod`` descriptor target it forwards to.
+
+    ``classmethod.__func__`` expects the class as its first argument, so the source needs a leading positional
+    parameter to receive it, whatever its name: a ``*args``-first or keyword-only source can never supply one, and a
+    source whose signature cannot be read is treated as having none.  Positional parameters always come first in a
+    signature, so any positional parameter is the leading one.  A later source parameter named like the target's
+    receiver is rejected too (:func:`_receiver_name_clash`), and so is an ``args_extra`` key or ``args_mapping`` value
+    that names it (:func:`_receiver_option_clash`).  Whether the value the source supplies is a class is checked on
+    each forwarded call (``_dispatch._check_classmethod_receiver``), because the receiver's name is free.  Each
+    signature is read once here.
+
+    Args:
+        source: The callable being decorated with ``@deprecated``.
+        target_func: The function unwrapped from the ``classmethod`` descriptor.
+        args_mapping: The ``args_mapping`` given to ``@deprecated``, or ``None``.
+        args_extra: The ``args_extra`` given to ``@deprecated``, or ``None``.
+
+    Raises:
+        TypeError: When ``source`` has no leading positional parameter or a later parameter named like the target's
+            receiver, or when ``args_extra`` or ``args_mapping`` would put a value in the target's receiver.
+
+    Example:
+        >>> def make(cls, value): pass
+        >>> def old(klass, value): pass
+        >>> _check_classmethod_source(old, make)
+        >>> def old_static(*, value): pass
+        >>> _check_classmethod_source(old_static, make)  # doctest: +IGNORE_EXCEPTION_DETAIL
+        Traceback (most recent call last):
+        TypeError: ... but no leading positional parameter was found on 'old_static'. ...
+
+    """
+    source_facts = _signature_facts(source, empty_on_error=True)
+    if not source_facts.positional_names:
+        raise _classmethod_target_error(
+            source.__name__, target_func, f"no leading positional parameter was found on '{source.__name__}'"
+        )
+    target_facts = _signature_facts(target_func, empty_on_error=True)
+    clash = _receiver_name_clash(source_facts, target_facts)
+    if clash is not None:
+        raise _classmethod_target_error(
+            source.__name__,
+            target_func,
+            f"its later parameter `{clash}` shares the target's receiver name; rename that parameter",
+        )
+    if not target_facts.positional_names:
+        return
+    problem = _receiver_option_clash(
+        source_facts.positional_names[0], target_facts.positional_names[0], args_mapping, args_extra
+    )
+    if problem is not None:
+        raise _classmethod_target_error(source.__name__, target_func, problem)
+
+
+def _classmethod_target_error(source_name: str, target: Callable, problem: str) -> TypeError:
+    """Build the ``TypeError`` raised when a source cannot hand a class to its ``classmethod`` descriptor target.
+
+    Every check below shares this one message, so the remedy reads the same whichever check fires:
+
+    - at decoration, :func:`_check_classmethod_source` rejects a source with no leading positional parameter or with a
+      later parameter named like the target's receiver (:func:`_receiver_name_clash`), and an ``args_extra`` key or
+      ``args_mapping`` value that names that receiver (:func:`_receiver_option_clash`);
+    - at decoration, ``routine._validate_callable_source`` rejects a source that arrives as a ``staticmethod`` object;
+    - on a forwarded call, ``_dispatch._check_classmethod_receiver`` rejects a receiver value that is not a class.
+
+    Args:
+        source_name: ``__name__`` of the decorated source.
+        target: The function unwrapped from the ``classmethod`` descriptor.
+        problem: What was wrong, completing the sentence "..., but <problem>.".
+
+    Returns:
+        The error, for the caller to raise.
+
+    Example:
+        >>> def make(cls): pass
+        >>> print(_classmethod_target_error("old", make, "the first argument was 1"))  # doctest: +NORMALIZE_WHITESPACE
+        @deprecated(target=<classmethod descriptor>) on 'old': descriptor targets require the source to accept a
+        leading class argument so it can be forwarded to the replacement, but the first argument was 1. Either make
+        'old' a @classmethod, or pass a bound target like 'target=<YourClass>.make' after the class is defined.
+
+    """
+    func_name = getattr(target, "__name__", "target")
+    return TypeError(
+        f"@deprecated(target=<classmethod descriptor>) on '{source_name}': "
+        "descriptor targets require the source to accept a leading class argument "
+        f"so it can be forwarded to the replacement, but {problem}. "
+        f"Either make '{source_name}' a @classmethod, or pass a bound target like "
+        f"'target=<YourClass>.{func_name}' after the class is defined."
+    )
+
+
 def _normalize_target(
     source: Callable,
     target: Union[bool, None, Callable, TargetMode, staticmethod, classmethod],
+    *,
+    args_mapping: Optional[Mapping[str, Optional[str]]] = None,
+    args_extra: Optional[Mapping[str, Any]] = None,
 ) -> Union[TargetMode, Callable]:
     """Normalise the effective target callable before the wrapper closure captures it.
 
@@ -663,27 +847,32 @@ def _normalize_target(
     - ``target=staticmethod(fn)`` → unwrapped to ``fn`` (``.__func__``); enables ``target=bbb`` inside a class
       body where ``bbb`` is still the raw ``staticmethod`` descriptor, not yet bound.
     - ``target=classmethod(fn)`` → unwrapped to ``fn`` (``.__func__``); same pattern, but only when ``source``
-      accepts ``cls`` as its first positional parameter.  Asymmetric usage (non-classmethod source targeting a
-      ``classmethod`` descriptor) raises :exc:`TypeError` at decoration time because ``cls`` would be missing at
-      call time otherwise.
+      has a leading positional parameter to receive the class, whatever it is named (``cls``, ``klass``, ``mcs``).
+      A source with no such parameter raises :exc:`TypeError` at decoration time, and so does a source that arrives
+      as a ``staticmethod`` object (``@deprecated`` above ``@staticmethod``, rejected by
+      ``routine._validate_callable_source``).  Any other static or plain source looks like a classmethod here, so
+      only the type of the value that parameter receives is checked, on each forwarded call: a value that is not a
+      class raises the same :exc:`TypeError` before any warning, while a class is forwarded as the receiver.
 
-    Note on the ``classmethod`` guard: the check ``src_params[0] != "cls"`` relies on the Python convention that
-    classmethods name their first parameter ``cls`` (PEP 8 / all major linters enforce this).  If your classmethod
-    uses an unconventional name (e.g. ``klass``) or ``source`` is a ``functools.partial`` whose first argument is
-    already bound, the guard may raise spuriously.  In that case pass the unwrapped target explicitly:
-    ``target=your_classmethod.__func__``.  A bound target such as ``YourClass.method`` is not an alternative for
-    a genuine classmethod source: the bound target has no receiver parameter, so the source's ``klass`` argument
+    Note on the ``classmethod`` guard: a source whose signature cannot be read, or a ``functools.partial`` whose
+    first argument is already bound, is rejected too.  In that case pass the unwrapped target explicitly:
+    ``target=your_classmethod.__func__``; the receiver is then forwarded by name, so the source must name it as the
+    target does.  A bound target such as ``YourClass.method`` is not an alternative for
+    a genuine classmethod source: the bound target has no receiver parameter, so the source's receiver argument
     is rejected.
 
     Args:
         source: The callable being decorated with ``@deprecated``.
         target: Raw ``target`` argument from the ``@deprecated`` call.
+        args_mapping: The ``args_mapping`` given to ``@deprecated``; checked only for a ``classmethod`` target.
+        args_extra: The ``args_extra`` given to ``@deprecated``; checked only for a ``classmethod`` target.
 
     Returns:
         Normalised target suitable for use inside ``wrapped_fn``.
 
     Raises:
-        TypeError: When a class target is used on a non-``__init__`` class method.
+        TypeError: When a class target is used on a non-``__init__`` class method, or when ``target`` is a
+            ``classmethod`` descriptor and ``source`` cannot hand it the class (see :func:`_check_classmethod_source`).
 
     """
     # --- Legacy sentinel conversion (v0.8 compat shim; removed in v1.0) ---
@@ -697,21 +886,7 @@ def _normalize_target(
     # --- Descriptor unwrap (staticmethod/classmethod passed from class body before binding) ---
     if isinstance(target, (staticmethod, classmethod)):
         if isinstance(target, classmethod):
-            # Guard: classmethod.__func__ expects cls as its first arg.  If source does not
-            # accept cls, it will never be supplied → TypeError at call time.  Raise early.
-            try:
-                src_params = list(inspect.signature(source).parameters)
-            except (ValueError, TypeError):
-                src_params = []
-            if not src_params or src_params[0] != "cls":
-                func_name = getattr(target.__func__, "__name__", "target")
-                raise TypeError(
-                    f"@deprecated(target=<classmethod descriptor>) on '{source.__name__}': "
-                    "descriptor targets require the source to accept a leading class argument "
-                    "(typically named 'cls') so it can be forwarded to the replacement. "
-                    f"Either make '{source.__name__}' a @classmethod, or pass a bound target like "
-                    f"'target=<YourClass>.{func_name}' after the class is defined."
-                )
+            _check_classmethod_source(source, target.__func__, args_mapping=args_mapping, args_extra=args_extra)
         return target.__func__
 
     # --- Class target handling ---

@@ -14,7 +14,11 @@ from deprecate._properties import _DeprecatedProperty, _StrictProperty
 from deprecate.audit import validate_deprecation_expiry
 from tests._helpers import captured_warnings
 from tests.collections.api_deprecated.core import InnerOrderDeprecatedPropCls, ServiceCls
-from tests.collections.api_deprecated.forwarding import DelOnlyDeprecatedPropCls
+from tests.collections.api_deprecated.forwarding import (
+    DelOnlyDeprecatedPropCls,
+    ReceiverNamedFactory,
+    ReceiverNamedFactoryChild,
+)
 
 
 class TestDescriptorOrderAgnostic:
@@ -204,9 +208,12 @@ class TestClassMethodDescriptorTarget:
     """``target=<classmethod descriptor>`` is accepted when source is also a classmethod.
 
     The symmetric same-class case (both deprecated and replacement are classmethods) is the
-    supported pattern: ``cls`` is supplied by the caller and forwarded correctly via
-    ``_update_kwargs_with_args``.  Asymmetric usage (non-classmethod source targeting a
-    ``classmethod`` descriptor) raises ``TypeError`` at decoration time.
+    supported pattern: the class the call is bound to arrives as the source's first positional
+    argument, whatever the source names it, and reaches the target's receiver slot.  A source with
+    no leading positional parameter, or one handed over as a ``staticmethod`` object, raises
+    ``TypeError`` at decoration time; any other source whose first argument, or the default it
+    falls back to, is not a class at call time (a static or plain source) raises ``TypeError`` on
+    the call, before any warning is emitted.
     """
 
     def test_forwards_call(self) -> None:
@@ -258,12 +265,136 @@ class TestClassMethodDescriptorTarget:
 
         assert not [w for w in caught if issubclass(w.category, UserWarning)]
 
-    def test_asymmetric_raises_at_decoration_time(self) -> None:
-        """Asymmetric classmethod target raises TypeError at decoration time.
+    @pytest.mark.parametrize(
+        ("owner", "method", "expected"),
+        [
+            pytest.param(ReceiverNamedFactory, "old_make_cls", ("ReceiverNamedFactory", 3), id="cls"),
+            pytest.param(ReceiverNamedFactory, "old_make_klass", ("ReceiverNamedFactory", 3), id="klass"),
+            pytest.param(ReceiverNamedFactory, "old_make_mcs", ("ReceiverNamedFactory", 3), id="mcs-outer-order"),
+            pytest.param(ReceiverNamedFactory, "old_make_to_kls", ("ReceiverNamedFactory", 3), id="target-kls"),
+            pytest.param(ReceiverNamedFactoryChild, "old_make_klass", ("ReceiverNamedFactoryChild", 3), id="subclass"),
+            pytest.param(
+                ReceiverNamedFactory,
+                "old_make_posonly_source",
+                ("ReceiverNamedFactory", 3),
+                id="positional-only-source",
+            ),
+            pytest.param(
+                ReceiverNamedFactory, "old_make_to_posonly", ("ReceiverNamedFactory", 3), id="positional-only-target"
+            ),
+        ],
+    )
+    def test_forwards_receiver_of_any_name(self, owner: type, method: str, expected: tuple[str, int]) -> None:
+        """The class a classmethod is called on reaches the target, whatever either side names its receiver.
 
-        When source has no ``cls`` parameter, ``classmethod.__func__`` would be called without
-        its required first argument at call time.  The guard in ``_normalize_target`` detects
-        this at decoration time and raises ``TypeError`` with a descriptive message.
+        A maintainer renames a factory classmethod and keeps the old one as a deprecated classmethod. Python does
+        not force the receiver to be called ``cls``: codebases use ``klass``, metaclass-style ``mcs``, or a target
+        written as ``kls``. Each case must decorate cleanly, warn once on the call, and forward the receiving class,
+        including a subclass the call is made on, into the target's receiver slot.
+
+        """
+        with pytest.warns(FutureWarning, match="in favor of"):
+            result = getattr(owner, method)(3)
+        assert result == expected
+
+    def test_receiver_of_any_name_with_args_mapping(self) -> None:
+        """A ``klass`` receiver and an argument rename forward together.
+
+        The deprecated classmethod names its receiver ``klass`` and also renames ``old_value`` to ``value``. The
+        rename must not touch the receiver, and the receiver must not be passed to the target as a keyword it does
+        not accept.
+
+        """
+        with pytest.warns(FutureWarning, match="in favor of"):
+            result = ReceiverNamedFactory.old_make_mapped(old_value=4)
+        assert result == ("ReceiverNamedFactory", 4)
+
+    def test_args_mapping_onto_target_parameter_named_like_source_receiver(self) -> None:
+        """A rename onto a target parameter that shares the source receiver's name forwards the class and the value.
+
+        The deprecated classmethod names its receiver ``klass``, while the replacement uses ``cls`` as its receiver and
+        takes an ordinary ``klass`` parameter, which the old ``old_value`` argument maps onto.  The rename must not
+        mistake the receiver for a caller-supplied ``klass``: no collision warning fires, the value is not dropped, and
+        the replacement gets the class as ``cls`` and the value as ``klass``.
+
+        """
+        with captured_warnings() as caught:
+            result = ReceiverNamedFactory.old_make_from("blue")
+        assert result == ("ReceiverNamedFactory", "blue")
+        assert [w for w in caught if issubclass(w.category, FutureWarning)]
+        assert not [w for w in caught if issubclass(w.category, UserWarning)]
+
+    @pytest.mark.parametrize(
+        ("args", "kwargs", "problem"),
+        [
+            pytest.param((5,), {}, "received a value of type `int`", id="positional"),
+            pytest.param((), {"value": 5}, "received a value of type `int`", id="keyword"),
+            pytest.param((), {}, "supplied no value", id="missing"),
+        ],
+    )
+    def test_static_source_raises_at_call_time(self, args: tuple, kwargs: dict, problem: str) -> None:
+        """A static source pointed at a classmethod target raises TypeError on the call, before any warning.
+
+        The source cannot be told apart from a genuine classmethod at decoration, because the receiver name is free.
+        At call time its first argument is the caller's value (or nothing at all), not a class, so forwarding it as
+        the target's receiver would run the replacement with a wrong ``cls``. The call raises the same curated
+        ``TypeError`` instead, naming what the first parameter received, and no deprecation warning is emitted for a
+        call that never reaches the target.
+
+        """
+        with captured_warnings() as caught, pytest.raises(TypeError, match="leading class argument") as exc_info:
+            ReceiverNamedFactory.old_make_static(*args, **kwargs)
+        assert problem in str(exc_info.value)
+        assert "Either make" in str(exc_info.value)
+        assert not [w for w in caught if issubclass(w.category, FutureWarning)]
+
+    def test_static_source_forwards_class_passed_first(self) -> None:
+        """A class a caller passes as a static source's first argument is forwarded as the target's receiver.
+
+        A static method written ``@staticmethod`` above ``@deprecated`` reaches the decorator as a plain function, so
+        it cannot be told apart from a classmethod source.  The call-time check proves only that the first argument
+        is a class, not that the call was bound, so a caller that passes a subclass explicitly gets that subclass as
+        the replacement's ``cls``.  This pins the documented limitation: the call warns and forwards.
+
+        """
+        with pytest.warns(FutureWarning, match="in favor of"):
+            result = ReceiverNamedFactory.old_make_static_cls(ReceiverNamedFactoryChild, 3)
+        assert result == ("ReceiverNamedFactoryChild", 3)
+
+    def test_static_source_forwards_class_default_of_first_parameter(self) -> None:
+        """A class a static source gives as the default of its first parameter is forwarded as the receiver.
+
+        The static source writes its first parameter as ``cls: type = ReceiverDefaultKind`` and the caller passes only
+        ``value``.  The receiver check runs before the source defaults are merged, so it must look at that default
+        rather than report a missing first argument: the call warns and the replacement gets the default class as its
+        ``cls``.
+
+        """
+        with pytest.warns(FutureWarning, match="in favor of"):
+            result = ReceiverNamedFactory.old_make_static_default(value=4)
+        assert result == ("ReceiverDefaultKind", 4)
+
+    def test_static_source_none_default_raises_at_call_time(self) -> None:
+        """A static source whose first parameter defaults to ``None`` raises on a call that leaves it out.
+
+        The default stands in for the receiver the call did not supply, so it must pass the same class check as a
+        passed value: ``None`` is not a class, and the call raises the curated ``TypeError`` naming its type before
+        any deprecation warning is emitted.
+
+        """
+        with captured_warnings() as caught, pytest.raises(TypeError, match="leading class argument") as exc_info:
+            ReceiverNamedFactory.old_make_static_none_default(value=4)
+        assert "received a value of type `NoneType`" in str(exc_info.value)
+        assert not [w for w in caught if issubclass(w.category, FutureWarning)]
+
+    def test_staticmethod_object_source_raises_at_decoration_time(self) -> None:
+        """``@deprecated`` above ``@staticmethod`` with a classmethod target is rejected when it is decorated.
+
+        In this decorator order ``@deprecated`` receives the ``staticmethod`` object itself, so it knows the source
+        never receives the class, even though the source has a leading positional parameter named ``cls``.  Forwarding
+        to a classmethod target could only hand a caller's value over as the receiver, so the guard raises while the
+        class body runs instead of leaving the mistake to the first call.
+
         """
         with pytest.raises(TypeError, match="leading class argument") as exc_info:
 
@@ -271,23 +402,170 @@ class TestClassMethodDescriptorTarget:
                 @classmethod
                 def bbb(cls, x: int) -> int:
                     """New classmethod."""
-                    return x * 2
+                    return x
+
+                @deprecated(target=bbb, deprecated_in="1.0", remove_in="2.0")
+                @staticmethod
+                def aaa(cls: type, x: int) -> int:
+                    """Deprecated — a static method under ``@deprecated``, so the decorator sees the staticmethod."""
+                    return 0
+
+        assert "'aaa' is a @staticmethod" in str(exc_info.value)
+
+    def test_source_without_positional_parameter_raises_at_decoration_time(self) -> None:
+        """A source with no leading positional parameter is rejected when it is decorated.
+
+        Such a source has no slot through which a class could ever arrive, so forwarding to a classmethod target can
+        never work. The guard in ``_normalize_target`` raises ``TypeError`` while the class body runs instead of on
+        the first call.
+
+        """
+        with pytest.raises(TypeError, match="leading class argument") as exc_info:
+
+            class _Cls:
+                @classmethod
+                def bbb(cls) -> int:
+                    """New classmethod."""
+                    return 2
 
                 @staticmethod
                 @deprecated(target=bbb, deprecated_in="1.0", remove_in="2.0")
-                def aaa(x: int) -> int:
-                    """Deprecated — no cls param, should TypeError at decoration time."""
+                def aaa() -> int:
+                    """Deprecated — no parameter at all, so it raises at decoration time."""
                     return 0
 
         assert "Either make" in str(exc_info.value)
 
+    def test_later_parameter_named_like_target_receiver_raises_at_decoration_time(self) -> None:
+        """A source whose later parameter carries the target's receiver name is rejected when it is decorated.
+
+        The forwarded call renames the source receiver ``klass`` to the target's ``cls``; a source that also takes a
+        ``cls=None`` option would hand that option to the replacement as its class and the real class under ``klass``,
+        which a ``**kwargs`` target accepts silently. The guard names the clashing parameter instead.
+
+        """
+        with pytest.raises(TypeError, match="later parameter `cls` shares the target's receiver name; rename"):
+
+            class _Cls:
+                @classmethod
+                def bbb(cls, **kwargs: object) -> int:
+                    """New classmethod."""
+                    return 2
+
+                @classmethod
+                @deprecated(target=bbb, deprecated_in="1.0", remove_in="2.0")
+                def aaa(klass, cls: object = None) -> int:  # noqa: N804
+                    """Deprecated — a later ``cls`` option clashes with the target's receiver."""
+                    return 0
+
+    @pytest.mark.parametrize(
+        ("options", "problem"),
+        [
+            pytest.param({"args_extra": {"cls": int}}, "`args_extra` sets the target's receiver `cls`", id="extra"),
+            pytest.param(
+                {"args_mapping": {"old_value": "cls"}},
+                "`args_mapping` renames `old_value` onto the target's receiver `cls`",
+                id="mapping-value",
+            ),
+        ],
+    )
+    def test_option_naming_target_receiver_raises_at_decoration_time(self, options: dict, problem: str) -> None:
+        """An ``args_extra`` key or ``args_mapping`` value naming the target's receiver is rejected when decorated.
+
+        The deprecated classmethod names its receiver ``klass`` and forwards to a replacement whose receiver is
+        ``cls``.  A maintainer who also injects ``cls`` through ``args_extra``, or renames another argument onto
+        ``cls``, would replace the class the call was made on with that value, and each call would warn and spend its
+        budget before failing.  The guard names the offending option while the class body runs instead.
+
+        """
+        with pytest.raises(TypeError, match="leading class argument") as exc_info:
+
+            class _Cls:
+                @classmethod
+                def bbb(cls, value: int = 0) -> int:
+                    """New classmethod."""
+                    return value
+
+                @classmethod
+                @deprecated(target=bbb, deprecated_in="1.0", remove_in="2.0", **options)
+                def aaa(klass, old_value: int = 0, value: int = 1) -> int:  # noqa: N804
+                    """Deprecated — its option names the target's receiver."""
+                    return 0
+
+        assert problem in str(exc_info.value)
+
+    def test_args_extra_naming_shared_receiver_raises_at_decoration_time(self) -> None:
+        """``args_extra`` naming the receiver is rejected even when both sides call the receiver ``cls``.
+
+        The receivers share one name, so no rename happens, yet ``args_extra`` is merged into the forwarded keywords
+        after the class and would still replace it.  The guard does not depend on the receiver names differing.
+
+        """
+        with pytest.raises(TypeError, match="`args_extra` sets the target's receiver `cls`"):
+
+            class _Cls:
+                @classmethod
+                def bbb(cls, value: int = 0) -> int:
+                    """New classmethod."""
+                    return value
+
+                @classmethod
+                @deprecated(target=bbb, deprecated_in="1.0", remove_in="2.0", args_extra={"cls": int})
+                def aaa(cls, value: int = 1) -> int:
+                    """Deprecated — ``args_extra`` names the shared receiver."""
+                    return 0
+
+    def test_args_mapping_renaming_own_receiver_forwards(self) -> None:
+        """An ``args_mapping`` entry that renames the source's own receiver onto the target's receiver forwards.
+
+        The deprecated classmethod names its receiver ``klass`` and spells the rename out explicitly with
+        ``args_mapping={"klass": "cls"}``.  That entry moves the class itself into the target's receiver slot, so the
+        decoration guard exempts it, and the call warns and reaches the replacement with the receiving class.
+
+        """
+        with pytest.warns(FutureWarning, match="in favor of"):
+            result = ReceiverNamedFactory.old_make_receiver_mapped(5)
+        assert result == ("ReceiverNamedFactory", 5)
+
+    def test_keyword_named_like_target_receiver_raises_at_call_time(self) -> None:
+        """A caller keyword carrying the target's receiver name is rejected on the call, before any warning.
+
+        The deprecated classmethod names its receiver ``klass`` and passes arbitrary ``**options`` through to a
+        replacement that also takes ``**options``.  A caller sending ``cls=123`` among those options cannot be caught at
+        decoration, because the name is not declared; forwarding it would hand ``123`` to the replacement as its class
+        and the real class under ``klass``.  The call raises the curated ``TypeError`` instead, and no deprecation
+        warning is spent on a call that never reaches the target.
+
+        """
+        with (
+            captured_warnings() as caught,
+            pytest.raises(TypeError, match="also passed `cls`, the target's receiver name") as exc_info,
+        ):
+            ReceiverNamedFactory.old_make_options(3, cls=123)
+        assert "leading class argument" in str(exc_info.value)
+        assert not [w for w in caught if issubclass(w.category, FutureWarning)]
+
+    def test_keyword_named_like_target_receiver_forwards_when_renamed(self) -> None:
+        """A caller keyword with the target's receiver name forwards when ``args_mapping`` renames it away.
+
+        The deprecated classmethod used to accept a ``cls`` option and now renames it to ``kind``.  The rename moves
+        the caller's value off the receiver name before the class is forwarded under it, so the deprecated spelling
+        keeps working: the class reaches the replacement as ``cls`` and the option arrives as ``kind``.
+
+        """
+        with pytest.warns(FutureWarning, match="in favor of"):
+            result = ReceiverNamedFactory.old_make_options_mapped(3, cls="legacy")
+        assert result == ("ReceiverNamedFactory", 3, {"kind": "legacy"})
+
     def test_uninspectable_source_still_raises_at_decoration_time(self) -> None:
         """Classmethod guard fires TypeError even when inspect.signature(source) raises.
 
-        The guard wraps ``inspect.signature(source)`` in ``try/except (ValueError, TypeError)``
-        and falls back to ``src_params = []`` on failure.  An empty params list means the
-        source cannot accept ``cls``, so the guard still raises ``TypeError``.  This covers
-        C-extension sources and other callables where signature introspection is unavailable.
+        A user decorating a C-extension callable or another source whose signature cannot be read, with a
+        ``classmethod`` target, must not slip past the guard: ``_validate._has_leading_positional`` treats an
+        unreadable signature (``ValueError`` or ``TypeError`` from ``inspect.signature``) as having no leading
+        positional parameter, so the decoration still fails with ``TypeError`` instead of deferring the error to the
+        first call.
+
         """
 
         def _new_cm_fn(cls: type, x: int) -> int:

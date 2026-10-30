@@ -198,6 +198,8 @@ That's it! All calls to `addition()` are automatically forwarded to `compute_sum
 
 A callable target whose signature cannot be inspected still decorates successfully. A forwarded call that needs that signature, including keyword validation without `args_mapping`, raises the original introspection error; an empty call requiring no signature validation can still succeed.
 
+For a classmethod target whose receiver name differs from the source's, a caller keyword passed through `**kwargs` that matches the replacement's receiver name raises before warning unless `args_mapping` renames or drops it; mapping it to `""` keeps the collision and preserves the warning budget.
+
 > [!IMPORTANT]
 >
 > When `target=<callable>` is set, pyDeprecate intercepts the call **before** the body executes — the body is dead code under normal forwarding. **Exception**: if `skip_if` evaluates `True` at call time, the source body runs as the fallback, so keep a working implementation when combining `target=<callable>` with `skip_if`.

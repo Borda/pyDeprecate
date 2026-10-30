@@ -117,17 +117,19 @@ class TestLazyAuditImport:
 
 
 @pytest.mark.subprocess
-def test_proxy_installs_forwarding_dunders() -> None:
-    """A proxy built right after a bare ``import deprecate`` forwards operators and the context protocol.
+def test_proxy_carries_wrapped_object_dunders() -> None:
+    """A proxy built right after a bare ``import deprecate`` carries the dunders its wrapped object has.
 
-    The operator and context-manager forwarders live in their own module of the proxy package and are installed
-    onto the proxy class when that module is imported. A program that never imports the module itself must still
-    get a proxy that supports ``+`` and ``with``, so the package has to load it on its own.
+    Each proxy class is generated from the protocols of the object it wraps, so a program that never imports the
+    proxy's helper modules itself must still get ``+`` on a list and ``with`` on a lock, and must not get a context
+    protocol on an object that has none.
 
     """
     code = (
-        "import deprecate\n"
+        "import deprecate, threading\n"
         "proxy = deprecate.deprecated_instance([1, 2], deprecated_in='1.0', remove_in='2.0', stream=None)\n"
-        "print(proxy + [3], hasattr(type(proxy), '__enter__'))\n"
+        "lock = deprecate.deprecated_instance(threading.Lock(), deprecated_in='1.0', remove_in='2.0', stream=None)\n"
+        "print(proxy + [3], hasattr(type(lock), '__enter__'), hasattr(type(proxy), '__enter__'))\n"
     )
-    assert run_isolated_python(code) == "[1, 2, 3] True"
+    # A list has no context protocol, so its proxy carries no ``__enter__``; a lock does, so its proxy carries one.
+    assert run_isolated_python(code) == "[1, 2, 3] True False"

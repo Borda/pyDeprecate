@@ -52,6 +52,7 @@ from deprecate._types import (
 from deprecate._validate import (
     _DESCRIPTOR_SOURCE_TYPES,
     _check_cross_class_method_target,
+    _classmethod_target_error,
     _normalize_target,
     _reject_bare_decorator,
     _resolve_stored_target,
@@ -246,21 +247,24 @@ def _validate_callable_source(
 
     The guards run in this order, so the first problem found is the one reported: the missing-parentheses check
     (:func:`~deprecate._validate._reject_bare_decorator`), the class rejection, the ``message_template`` probe, the
-    missing-``deprecated_in`` notice, the cross-class method guard and the ``TargetMode.ATTRS_REMAP`` rejection.
+    missing-``deprecated_in`` notice, the cross-class method guard, the static-source rejection for a ``classmethod``
+    descriptor target and the ``TargetMode.ATTRS_REMAP`` rejection.
 
     Args:
         source: The object ``packing`` received. A descriptor never reaches here: ``packing`` hands it to
             :func:`_packing_descriptor`, whose recursion validates the unwrapped function instead.
         target: Raw ``target`` argument, before :func:`~deprecate._validate._normalize_target`.
         is_static: ``True`` when *source* is the function unwrapped from a ``staticmethod``; skips the cross-class
-            guard, since no ``self`` is passed.
+            guard, since no ``self`` is passed, and rejects a ``classmethod`` descriptor target, since no class is
+            passed either.
         message_template: The resolved ``message_template`` (after the ``template_mgs`` alias).
         deprecated_in: The ``deprecated_in`` version; an empty value triggers the missing-version notice.
         stream: Warning stream; ``None`` silences the missing-version notice.
 
     Raises:
         TypeError: When ``@deprecated`` was applied without parentheses, when *source* is a class, when a method
-            source forwards to a method of a different class, or when *target* is ``TargetMode.ATTRS_REMAP``.
+            source forwards to a method of a different class, when a ``staticmethod`` source forwards to a
+            ``classmethod`` descriptor target, or when *target* is ``TargetMode.ATTRS_REMAP``.
         ValueError: When ``message_template`` is malformed.
 
     Warns:
@@ -300,6 +304,13 @@ def _validate_callable_source(
     _guard_target = _unwrap_descriptor_target(target)
     if callable(_guard_target) and not inspect.isclass(_guard_target) and not is_static:
         _check_cross_class_method_target(source, _guard_target)
+    # A ``staticmethod`` source never receives the class, so it has nothing to hand a ``classmethod`` target as its
+    # receiver.  Only the ``@deprecated`` above ``@staticmethod`` order reveals the staticmethod here; in the other
+    # order the source is a plain function, which the call-time receiver check covers instead.
+    if is_static and isinstance(target, classmethod):
+        raise _classmethod_target_error(
+            source.__name__, target.__func__, f"'{source.__name__}' is a @staticmethod, which never receives the class"
+        )
     # ATTRS_REMAP is a proxy-only mode — it is meaningless on @deprecated functions/methods
     # because there is no attribute-access surface to intercept. Raise at decoration time
     # rather than silently producing a wrapper whose stored target has no runtime effect.
@@ -967,7 +978,7 @@ def deprecated_callable(
             deprecated_in=deprecated_in,
             stream=stream,
         )
-        _target = _normalize_target(source, target)
+        _target = _normalize_target(source, target, args_mapping=args_mapping, args_extra=args_extra)
         _source_is_stacked = _has_deprecation_meta(source)
         if _source_is_stacked:
             _warn_stacking_misconfiguration(source, _target)

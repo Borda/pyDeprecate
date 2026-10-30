@@ -23,6 +23,7 @@ from deprecate._dispatch import (
     _CycleEntry,
     _enter_cycle_guard,
     _exit_cycle_guard,
+    _forward_receiver_name,
     _ForwardDefaults,
     _merge_source_defaults,
     _precompute_forward_defaults,
@@ -1034,17 +1035,19 @@ def _make_context(
     is_stacked: bool = False,
     forward_defaults: Optional[_ForwardDefaults] = None,
     facts: Optional[_CallFacts] = None,
+    raw_target: Optional[classmethod] = None,
 ) -> _WrapperContext:
     """Return the decoration-time context a ``@deprecated`` wrapper over ``source`` would build, without a stream.
 
     The facts come from the real :func:`_build_call_facts` unless ``facts`` passes hand-built ones, and the state is
     fresh; ``stream=None`` keeps :func:`_build_call_plan` from emitting warnings, so a test only reads the plan and
-    ``ctx.state``.
+    ``ctx.state``.  ``raw_target`` passes the ``classmethod`` descriptor ``target`` was unwrapped from; by default the
+    raw target is ``target`` itself.
 
     """
     return _WrapperContext(
         source=source,
-        raw_target=target,
+        raw_target=target if raw_target is None else raw_target,
         target=target,
         cfg=cfg,
         facts=_build_call_facts(source, target, None) if facts is None else facts,
@@ -1072,6 +1075,97 @@ def test_callable_target_round_trip_returns_target_func() -> None:
     assert plan.target_func is double_value
     assert plan.resolved_kwargs == {"x": 3}
     assert plan.reason_argument == {}
+
+
+@pytest.mark.parametrize(
+    "mapping",
+    [pytest.param({}, id="unmapped"), pytest.param({"cls": ""}, id="empty-keeps-name")],
+)
+def test_receiver_keyword_collision_preserves_warning_budget(mapping: dict[str, Optional[str]]) -> None:
+    """Reject a caller's receiver keyword before warning, even when mapped to an empty string.
+
+    A classmethod forwards from a receiver named ``klass`` to one named ``cls`` while accepting arbitrary options.
+    An empty-string mapping leaves an option named ``cls`` in place, so the invalid call must not spend the single
+    warning reserved for the next valid call.
+    """
+
+    class Factory:
+        """Forward a deprecated factory call while preserving its class receiver."""
+
+        @classmethod
+        def make(cls, **options: object) -> tuple[type, dict[str, object]]:
+            """Return the receiving class and forwarded options."""
+            return cls, options
+
+        @classmethod
+        @deprecated(target=make, deprecated_in="1.0", remove_in="2.0", args_mapping=mapping, num_warns=1)
+        def old(klass: type, **options: object) -> tuple[type, dict[str, object]]:  # noqa: N804
+            """Provide a source receiver whose name differs from the target's."""
+            return void(klass, options)
+
+    with captured_warnings() as caught, pytest.raises(TypeError, match="receiver"):
+        Factory.old(cls=123)
+    assert caught == []
+    with pytest.warns(FutureWarning, match="old"):
+        assert Factory.old() == (Factory, {})
+    with assert_no_warnings():
+        assert Factory.old() == (Factory, {})
+
+
+@pytest.mark.parametrize(
+    ("mapping", "expected_options"),
+    [
+        pytest.param({"cls": None}, {}, id="drop-receiver-keyword"),
+        pytest.param({"cls": "kind"}, {"kind": 123}, id="rename-receiver-keyword"),
+    ],
+)
+def test_receiver_keyword_can_be_dropped_or_renamed(
+    mapping: dict[str, Optional[str]], expected_options: dict[str, object]
+) -> None:
+    """Allow a receiver-named option when remapping moves it out of the receiver slot.
+
+    A classmethod accepts an old option named ``cls`` through ``**options``. Dropping that option or renaming it to
+    ``kind`` must preserve the actual receiving class while forwarding the remaining options.
+    """
+
+    class Factory:
+        """Forward a deprecated factory call while preserving its class receiver."""
+
+        @classmethod
+        def make(cls, **options: object) -> tuple[type, dict[str, object]]:
+            """Return the receiving class and forwarded options."""
+            return cls, options
+
+        @classmethod
+        @deprecated(target=make, deprecated_in="1.0", remove_in="2.0", args_mapping=mapping, num_warns=1)
+        def old(klass: type, **options: object) -> tuple[type, dict[str, object]]:  # noqa: N804
+            """Provide a source receiver whose name differs from the target's."""
+            return void(klass, options)
+
+    with pytest.warns(FutureWarning, match="old"):
+        assert Factory.old(cls=123) == (Factory, expected_options)
+
+
+def test_forward_receiver_name_raises_when_target_receiver_is_taken() -> None:
+    """The class is never put under a target receiver name the forwarded keywords already hold.
+
+    A deprecated classmethod names its receiver ``klass`` and forwards to a replacement whose receiver is ``cls``.  The
+    decoration guard and the call-time receiver check keep ``args_extra``, ``args_mapping`` and caller keywords off
+    ``cls``, so this is a safety net: were a ``cls`` keyword to reach the forward step anyway, putting the class there
+    would silently replace one of the two values, so the step raises instead.
+
+    """
+
+    def _make(cls: type, value: int) -> int:
+        return value
+
+    def _old(klass: type, value: int) -> int:
+        return value
+
+    cfg = DeprecationConfig(deprecated_in="1.0", remove_in="2.0", name="_old", target=_make)
+    ctx = _make_context(_old, cfg, _make, raw_target=classmethod(_make))
+    with pytest.raises(TypeError, match="receiver `cls` would receive both the class"):
+        _forward_receiver_name(ctx, {"cls": int, "value": 1}, dict)
 
 
 # ---------------------------------------------------------------------------

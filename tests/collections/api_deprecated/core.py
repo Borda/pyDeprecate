@@ -67,6 +67,7 @@ from tests.collections.api_current.core import (
     ColorEnum,
     CrossGuardClassTargetNew,
     DerivedPositionalOnlyTarget,
+    GenericBox,
     ImmutablePositionalOnlyTarget,
     MixedPositionalOnlyTarget,
     MutableAttrsList,
@@ -78,6 +79,7 @@ from tests.collections.api_current.core import (
     PositionalOnlyTarget,
     RequiredPositionalOnlyTarget,
     SideEffectBox,
+    TagList,
     TimerDecorator,
     _InnerOrderPropTarget,
     add_values,
@@ -1289,6 +1291,21 @@ class DeprecatedColorEnum(Enum):
 
     RED = 1
     BLUE = 2
+
+
+# Protocol-surface aliases: a class proxy carries exactly the protocols its wrapped class (and target) supports.
+DeprecatedGenericBox = deprecated_class(stream=None, **_DEPRS_CASE_STD_ARGS)(GenericBox)
+DeprecatedTagList = deprecated_class(stream=None, **_DEPRS_CASE_STD_ARGS)(TagList)
+
+
+@deprecated_class(target=ColorEnum, stream=None, **_DEPRS_CASE_STD_ARGS)
+class LegacyColorTable:
+    """Plain lookup class replaced by ``ColorEnum``.
+
+    Example:
+        Code iterating ``LegacyColorTable`` or calling ``len()`` on it reaches the Enum it now serves.
+
+    """
 
 
 # source payload behind `depr_ast_breadcrumb_dict` — exported so tests can assert `__wrapped__` identity

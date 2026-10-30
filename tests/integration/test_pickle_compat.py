@@ -1,4 +1,4 @@
-"""Characterization tests: ``deprecated_instance`` proxies survive pickling, including payloads written by 0.14.0.
+"""Characterization tests: deprecated proxies and the instances they build survive pickling, across releases.
 
 Deprecated configuration objects end up in caches, multiprocessing queues and on-disk snapshots, so a proxy pickled by
 one release has to load in the next.  The payload references ``deprecate.proxy._reconstruct_proxy`` together with the
@@ -7,21 +7,58 @@ their state layout are part of the compatibility contract.  These tests pin a fr
 the highest protocol, and check that checked-in payloads produced by the released 0.14.0 wheel still load, warn exactly
 once and round-trip again.
 
+Instances of a class deprecated in place (``@deprecated_class`` without a replacement class) are ordinary objects of
+the wrapped class, but the module-level name now holds the proxy, so pickle cannot save the class by reference.  Their
+payload instead references ``deprecate.proxy._rebuild_class_instance`` (``_rebuild_class_instance_ex`` for keyword
+``__new__`` arguments, ``_rebuild_class_call`` for a ``__reduce__`` that calls the class) with the class's module and
+qualified name, which makes those three import paths part of the contract too.
+
 """
 
 import base64
+import copy
+import copyreg
+import gc
 import pickle
+import subprocess
+import sys
 import warnings
-from typing import Any
+import weakref
+from typing import Any, Callable
 
 import pytest
 
 from deprecate import DeprecatedError, get_deprecation_config
 from deprecate._types import DeprecationConfig, _ProxyConfig
-from deprecate.proxy import _DeprecatedProxy, _reconstruct_proxy
+from deprecate.proxy import (
+    _DeprecatedProxy,
+    _rebuild_class_call,
+    _rebuild_class_instance,
+    _rebuild_class_instance_ex,
+    _reconstruct_proxy,
+)
 from tests._helpers import captured_warnings
-from tests.collections.api_deprecated.core import DepPositionalOnlyRequired
-from tests.collections.api_deprecated.regressions import make_pickle_fatal_settings_proxy, make_pickle_settings_proxy
+from tests.collections.api_current.core import InPlaceAliasSource
+from tests.collections.api_deprecated import regressions as api_deprecated_regressions
+from tests.collections.api_deprecated.core import DepPositionalOnlyRequired, DeprecatedEnum, RedirectedDataClass
+from tests.collections.api_deprecated.regressions import (
+    DeprecatedInPlaceHost,
+    InPlaceCustomState,
+    InPlaceDict,
+    InPlaceError,
+    InPlaceHost,
+    InPlaceKeywordNew,
+    InPlaceList,
+    InPlaceNamedReduce,
+    InPlaceOrderedDict,
+    InPlaceOwnReduce,
+    InPlaceSettings,
+    InPlaceSlots,
+    InPlaceUnhashableReduce,
+    make_deprecated_in_place_local_class,
+    make_pickle_fatal_settings_proxy,
+    make_pickle_settings_proxy,
+)
 
 #: ``_ProxyConfig`` fields a 0.14.0 payload carries next to its flat ``warned`` / ``warned_args`` counters; read off
 #: the checked-in payloads above (0.14 had no ``state`` and no ``facts`` field).
@@ -109,7 +146,8 @@ def _identity(proxy: Any) -> tuple[bool, bool, Any, str]:  # noqa: ANN401
     ``DeprecationConfig`` and the rendered PEP 702 ``__deprecated__`` marker.
 
     """
-    return type(proxy) is _DeprecatedProxy, proxy == _SETTINGS, proxy.__deprecation_config__, proxy.__deprecated__
+    is_proxy = issubclass(type(proxy), _DeprecatedProxy)
+    return is_proxy, proxy == _SETTINGS, proxy.__deprecation_config__, proxy.__deprecated__
 
 
 def _future_warning_texts(caught: list[warnings.WarningMessage]) -> list[str]:
@@ -265,3 +303,502 @@ class TestPositionalOnlyFactsFrom014:
             built = restored(old_val=7)
         assert built.new_val == 7
         assert cfg.facts.target_positional_only == dep.target_positional_only == frozenset({"new_val"})
+
+
+#: Every pickle protocol this interpreter supports, ``0`` through ``pickle.HIGHEST_PROTOCOL``.
+_ALL_PROTOCOLS = list(range(pickle.HIGHEST_PROTOCOL + 1))
+
+#: One sample instance per reduce shape, built through the in-place deprecated alias (each call warns).
+_IN_PLACE_BUILDERS = [
+    pytest.param(lambda: InPlaceSettings(level=2, tags=["beta"]), id="dict-state"),
+    pytest.param(lambda: InPlaceSlots(level=2), id="slots"),
+    pytest.param(lambda: InPlaceCustomState(2), id="getstate-setstate"),
+    pytest.param(lambda: InPlaceKeywordNew(level=2), id="keyword-new"),
+    pytest.param(lambda: InPlaceList([1, 2]), id="list-items"),
+    pytest.param(lambda: InPlaceDict(a=1), id="dict-items"),
+    pytest.param(lambda: InPlaceOrderedDict(a=1), id="inherited-class-call-reduce"),
+    pytest.param(lambda: InPlaceNamedReduce(2), id="own-reduce-names-class"),
+    pytest.param(lambda: InPlaceHost.Inner(level=2), id="nested-in-plain-host"),
+    pytest.param(lambda: DeprecatedInPlaceHost.Inner(level=2), id="nested-in-deprecated-host"),
+]
+
+
+#: The load-path helpers a payload of an in-place class may name, each called with empty ``__new__``/call arguments.
+_REBUILD_HELPERS = [
+    pytest.param(lambda module, qualname: _rebuild_class_instance(module, qualname), id="newobj"),
+    pytest.param(lambda module, qualname: _rebuild_class_instance_ex(module, qualname, (), {}), id="newobj-ex"),
+    pytest.param(lambda module, qualname: _rebuild_class_call(module, qualname), id="class-call"),
+]
+
+#: One in-place instance per load-path helper, with the helper its payload names and the name pinned for it.
+_REBUILD_HELPER_PAYLOADS = [
+    pytest.param(
+        lambda: InPlaceSettings(level=2, tags=["beta"]),
+        _rebuild_class_instance,
+        "_rebuild_class_instance",
+        id="newobj",
+    ),
+    pytest.param(
+        lambda: InPlaceKeywordNew(level=2), _rebuild_class_instance_ex, "_rebuild_class_instance_ex", id="newobj-ex"
+    ),
+    pytest.param(lambda: InPlaceOrderedDict(a=1), _rebuild_class_call, "_rebuild_class_call", id="class-call"),
+]
+
+
+def _build_in_place(build: Callable[[], Any]) -> Any:  # noqa: ANN401
+    """Build a sample instance through its deprecated alias, asserting the alias still warns on use."""
+    with pytest.warns(FutureWarning):
+        return build()
+
+
+def _deprecation_messages(caught: list[warnings.WarningMessage]) -> list[str]:
+    """Return the text of every ``FutureWarning`` caught, the category pyDeprecate's default stream emits."""
+    return [str(w.message) for w in caught if issubclass(w.category, FutureWarning)]
+
+
+def _run_in_fresh_interpreter(code: str) -> str:
+    """Run *code* in a new interpreter that imports from the same paths as this one and return its stripped stdout.
+
+    Not ``python -I``: isolated mode ignores the path setup, so a child could import an installed ``deprecate`` that is
+    not the one under test. Copying ``sys.path`` makes ``deprecate`` and ``tests.collections`` resolve exactly as here.
+
+    """
+    prologue = f"import sys\nsys.path[:0] = {sys.path!r}\n"
+    result = subprocess.run(
+        [sys.executable, "-c", prologue + code], capture_output=True, text=True, check=True, timeout=60
+    )
+    return result.stdout.strip()
+
+
+class TestInPlaceClassInstances:
+    """Instances of a class deprecated in place pickle as instances of the class, silently, at every protocol."""
+
+    @pytest.mark.parametrize("protocol", _ALL_PROTOCOLS)
+    @pytest.mark.parametrize("build", _IN_PLACE_BUILDERS)
+    def test_round_trips(self, build: Callable[[], Any], protocol: int) -> None:
+        """The unpickled object is an instance of the wrapped class with equal state, at every protocol.
+
+        A deprecated settings class keeps working during its migration window while its instances are sent to worker
+        processes or cached on disk. Before the fix ``pickle.dumps`` raised ``PicklingError`` because the module-level
+        name is the proxy; every reduce shape (``__dict__``, ``__slots__``, ``__getstate__``, keyword ``__new__``,
+        list and dict items, nested qualnames) must come back as the same class with the same state.
+
+        """
+        instance = _build_in_place(build)
+
+        restored = pickle.loads(pickle.dumps(instance, protocol=protocol))  # noqa: S301 - payload produced in this test
+
+        assert (type(restored) is type(instance), restored == instance) == (True, True)
+
+    @pytest.mark.parametrize("protocol", _ALL_PROTOCOLS)
+    def test_runs_custom_state_hooks(self, protocol: int) -> None:
+        """A class's own ``__getstate__``/``__setstate__`` still decide what travels and how it is restored.
+
+        The class drops its cache from the pickled state and starts an empty one on load; the reducer reuses the
+        default reduction, so the cache must arrive empty while the original keeps its entry.
+
+        """
+        instance = _build_in_place(lambda: InPlaceCustomState(2))
+
+        restored = pickle.loads(pickle.dumps(instance, protocol=protocol))  # noqa: S301 - payload produced in this test
+
+        assert (restored.cache, instance.cache) == ({}, {2: 2})
+
+    @pytest.mark.parametrize(("build", "helper", "name"), _REBUILD_HELPER_PAYLOADS)
+    def test_payload_names_helper_by_stable_path(
+        self,
+        build: Callable[[], Any],
+        helper: Callable[..., Any],
+        name: str,
+    ) -> None:
+        """The payload names its rebuild helper as ``deprecate.proxy.<name>``, the path later releases must keep.
+
+        A payload written now is loaded later, by another process or a newer release (a cache on disk, a queue between
+        workers). It stores the rebuild helper by its dotted import path, not by value, so renaming, moving or merging a
+        helper would make every such payload fail with ``AttributeError: Can't get attribute``. The path written into
+        the protocol-0 payload, the helper's own ``__module__``/``__qualname__`` and the object published at that path
+        are pinned together.
+
+        """
+        instance = _build_in_place(build)
+
+        payload = pickle.dumps(instance, protocol=0)
+
+        assert (
+            f"cdeprecate.proxy\n{name}\n".encode() in payload,
+            (helper.__module__, helper.__qualname__),
+            getattr(sys.modules["deprecate.proxy"], name) is helper,
+        ) == (True, ("deprecate.proxy", name), True)
+
+    @pytest.mark.parametrize("build", _IN_PLACE_BUILDERS)
+    def test_round_trip_is_silent(self, build: Callable[[], Any]) -> None:
+        """Pickling and unpickling an instance emits no deprecation warning.
+
+        Serialisation is structural machinery, not a use of the deprecated name: a worker loading a queued instance
+        must not warn on every load, so resolving the class from its module (through the proxy that now holds the
+        name, and through a deprecated host class) has to read the wrapped class without any attribute access that
+        warns. The fixture classes warn on every use, so a single stray access would show up here.
+
+        """
+        instance = _build_in_place(build)
+        with captured_warnings() as caught:
+            pickle.loads(pickle.dumps(instance, protocol=pickle.HIGHEST_PROTOCOL))  # noqa: S301 - own round trip
+
+        assert _deprecation_messages(caught) == []
+
+    @pytest.mark.subprocess
+    def test_loads_in_fresh_interpreter(self) -> None:
+        """A payload pickled here loads silently in a new interpreter that has not imported the fixture module yet.
+
+        The real consumers of such a payload are other processes (a ``multiprocessing`` worker, a later run reading a
+        cache): unpickling has to import the defining module itself and resolve the class through the proxy published
+        under its name, with no ``FutureWarning`` naming the deprecated class.
+
+        """
+        instance = _build_in_place(lambda: InPlaceSettings(level=3, tags=["beta"]))
+        payload = base64.b64encode(pickle.dumps(instance, protocol=pickle.HIGHEST_PROTOCOL)).decode()
+        code = (
+            "import base64, pickle, warnings\n"
+            "with warnings.catch_warnings(record=True) as caught:\n"
+            "    warnings.simplefilter('always')\n"
+            f"    restored = pickle.loads(base64.b64decode({payload!r}))\n"
+            "named = [str(w.message) for w in caught if 'InPlaceSettings' in str(w.message)]\n"
+            "print((type(restored).__qualname__, restored.level, restored.tags, named))\n"
+        )
+
+        stdout = _run_in_fresh_interpreter(code)
+
+        assert stdout == repr(("InPlaceSettings", 3, ["beta"], []))
+
+    @pytest.mark.parametrize("copier", [pytest.param(copy.copy, id="copy"), pytest.param(copy.deepcopy, id="deepcopy")])
+    def test_copy_still_builds_equal_instance(self, copier: Callable[[Any], Any]) -> None:
+        """``copy.copy`` and ``copy.deepcopy`` still return a new, equal instance of the wrapped class.
+
+        Both consult ``copyreg.dispatch_table``, which now holds a reducer for the class, so they run through the same
+        reduce tuple as pickle. The result must not change: a distinct object of the same class with equal state.
+
+        """
+        instance = _build_in_place(lambda: InPlaceSettings(level=2, tags=["beta"]))
+
+        duplicate = copier(instance)
+
+        assert (duplicate is instance, type(duplicate) is type(instance), duplicate == instance) == (False, True, True)
+
+    @pytest.mark.parametrize(
+        ("copier", "shares_tags"),
+        [pytest.param(copy.copy, True, id="copy-shares"), pytest.param(copy.deepcopy, False, id="deepcopy-copies")],
+    )
+    def test_copy_keeps_its_depth(self, copier: Callable[[Any], Any], shares_tags: bool) -> None:
+        """A shallow copy shares nested mutable state and a deep copy duplicates it, exactly as before the reducer.
+
+        A reducer that rebuilt the state wrongly would make a shallow copy deep or a deep copy shallow; mutating the
+        copy's ``tags`` list after a deep copy must not leak into the original.
+
+        """
+        instance = _build_in_place(lambda: InPlaceSettings(level=2, tags=["beta"]))
+
+        duplicate = copier(instance)
+
+        assert (duplicate.tags is instance.tags) is shares_tags
+
+    @pytest.mark.parametrize("copier", [pytest.param(copy.copy, id="copy"), pytest.param(copy.deepcopy, id="deepcopy")])
+    @pytest.mark.parametrize("build", _IN_PLACE_BUILDERS)
+    def test_copy_is_silent(self, build: Callable[[], Any], copier: Callable[[Any], Any]) -> None:
+        """Copying an instance builds an equal instance of the wrapped class without a deprecation warning.
+
+        Copying an object that already exists is not a use of the deprecated name. ``copy.copy`` and ``copy.deepcopy``
+        rebuild through the same reduction as pickle, and a hand-written ``__reduce__`` returning ``(Cls, args)`` reads
+        the module-level name, which holds the proxy; the rebuild must call the class itself, or every copy warns.
+
+        """
+        instance = _build_in_place(build)
+        with captured_warnings() as caught:
+            duplicate = copier(instance)
+
+        assert (type(duplicate) is type(instance), duplicate == instance, _deprecation_messages(caught)) == (
+            True,
+            True,
+            [],
+        )
+
+    def test_class_object_stays_unpicklable(self) -> None:
+        """Pickling the deprecated class alias itself still raises ``PicklingError``.
+
+        Pickle saves a class by reference and checks that the module-level name is that very object; the name holds
+        the proxy, so the class cannot be pickled by reference. Only its instances are made picklable.
+
+        """
+        with pytest.raises(pickle.PicklingError):
+            pickle.dumps(InPlaceSettings)
+
+    def test_alias_form_pickles_by_reference(self) -> None:
+        """When the class keeps its own name, its instances pickle by reference to the class, as before.
+
+        ``Alias = deprecated_class(...)(Cls)`` leaves ``Cls`` bound to the class, so the default reduction already
+        works; the reducer must hand it through unchanged instead of routing the payload through pyDeprecate.
+
+        """
+        payload = pickle.dumps(InPlaceAliasSource(4), protocol=pickle.HIGHEST_PROTOCOL)
+
+        assert (b"_rebuild_class_instance" in payload, pickle.loads(payload) == InPlaceAliasSource(4)) == (False, True)  # noqa: S301
+
+    @pytest.mark.parametrize(
+        ("build", "unpublish"),
+        [
+            pytest.param(
+                lambda: InPlaceSettings(level=2),
+                lambda mp: mp.setattr(api_deprecated_regressions, "InPlaceSettings", object()),
+                id="rebound-to-other-object",
+            ),
+            pytest.param(
+                lambda: InPlaceSettings(level=2),
+                lambda mp: mp.delattr(api_deprecated_regressions, "InPlaceSettings"),
+                id="name-deleted",
+            ),
+            pytest.param(
+                lambda: InPlaceHost.Inner(level=2),
+                lambda mp: mp.setattr(api_deprecated_regressions, "InPlaceHost", 5),
+                id="host-without-namespace",
+            ),
+        ],
+    )
+    def test_unpublished_class_falls_back_to_pickle_error(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        build: Callable[[], Any],
+        unpublish: Callable[[pytest.MonkeyPatch], None],
+    ) -> None:
+        """When the class's qualname no longer leads to a proxy over it, pickling fails as pickle itself would.
+
+        The name may be rebound to another object, deleted, or (for a nested class) its host replaced by an object with
+        no namespace. Rebuilding through whatever the name holds now would load an object of the wrong class, so the
+        reducer falls back to the default reduction and pickle raises its own ``PicklingError``.
+
+        """
+        instance = _build_in_place(build)
+        unpublish(monkeypatch)
+
+        with pytest.raises(pickle.PicklingError):
+            pickle.dumps(instance)
+
+    def test_load_fails_when_class_is_gone(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Loading a payload whose class was removed from its module raises ``AttributeError`` naming the class.
+
+        A cache written by an older release outlives the class: the rebuild helper must fail loudly with the dotted path
+        it looked for, as pickle does for a missing class, instead of building something else.
+
+        """
+        payload = pickle.dumps(_build_in_place(lambda: InPlaceSettings(level=2)))
+        monkeypatch.setattr(api_deprecated_regressions, "InPlaceSettings", object())
+
+        with pytest.raises(AttributeError, match=r"regressions\.InPlaceSettings` no longer names a class"):
+            pickle.loads(payload)  # noqa: S301 - payload produced in this test
+
+    @pytest.mark.parametrize("rebuild", _REBUILD_HELPERS)
+    @pytest.mark.parametrize(
+        ("module", "qualname"),
+        [
+            pytest.param("subprocess", "Popen", id="process-launcher"),
+            pytest.param("builtins", "int", id="builtin-class"),
+            pytest.param("collections", "OrderedDict", id="stdlib-class"),
+            pytest.param(InPlaceAliasSource.__module__, InPlaceAliasSource.__qualname__, id="class-under-own-name"),
+        ],
+    )
+    def test_load_refuses_class_not_deprecated_in_place(
+        self, rebuild: Callable[[str, str], Any], module: str, qualname: str
+    ) -> None:
+        """A payload naming a class whose name no deprecation proxy holds is refused before the class is touched.
+
+        A restricted ``Unpickler`` has to admit the rebuild helpers to load instances of classes deprecated in place.
+        A crafted payload could then hand those helpers any importable class, such as ``subprocess.Popen`` with
+        attacker-chosen arguments. Only a class published through a deprecation proxy is ever written into such a
+        payload, so the helpers must refuse every other class, including one deprecated through the alias form, which
+        keeps its own name, instead of instantiating or calling it.
+
+        """
+        with pytest.raises(AttributeError, match="is not a class deprecated in place"):
+            rebuild(module, qualname)
+
+    @pytest.mark.parametrize("rebuild", _REBUILD_HELPERS)
+    @pytest.mark.parametrize(
+        ("module", "qualname", "error"),
+        [
+            pytest.param(
+                "tests.collections.no_such_module", "InPlaceSettings", ModuleNotFoundError, id="missing-module"
+            ),
+            pytest.param(
+                api_deprecated_regressions.__name__,
+                "make_deprecated_partial_host.<locals>.PartialHost",
+                AttributeError,
+                id="local-class",
+            ),
+            pytest.param(
+                api_deprecated_regressions.__name__, "InPlaceSettings.__class__", AttributeError, id="dunder-metaclass"
+            ),
+            pytest.param(api_deprecated_regressions.__name__, "__builtins__.int", AttributeError, id="dunder-builtins"),
+            pytest.param("os", "path.join", AttributeError, id="non-class-target"),
+        ],
+    )
+    def test_load_fails_on_unresolvable_name(
+        self, rebuild: Callable[[str, str], Any], module: str, qualname: str, error: type[Exception]
+    ) -> None:
+        """A payload whose module or qualified name leads to no class raises instead of building anything.
+
+        A corrupted or hand-edited payload may name a module that is not installed, a class defined inside a function
+        (never reachable by name), a dunder path into a class's metaclass or the module's builtins, or a function. The
+        helpers walk only module and class namespaces, so each of these fails loudly: the missing module as pickle's
+        own import error, every other one as ``AttributeError``, and none of them reaches a class through a side path.
+
+        """
+        with pytest.raises(error):
+            rebuild(module, qualname)
+
+    def test_reduce_added_later_is_used(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A ``__reduce__`` the class gains after decoration is honoured instead of the registered reduction.
+
+        The reducer stays registered, but it starts from ``object.__reduce_ex__``, which defers to an overriding
+        ``__reduce__``; whatever that method returns must pass through untouched.
+
+        """
+        instance = _build_in_place(lambda: InPlaceSettings(level=2))
+        monkeypatch.setattr(type(instance), "__reduce__", lambda self: (dict, ({"level": self.level},)))
+
+        restored = pickle.loads(pickle.dumps(instance))  # noqa: S301 - payload produced in this test
+
+        assert restored == {"level": 2}
+
+    def test_reduce_added_later_for_another_class_is_not_rewritten(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A late ``__reduce__`` naming a different class through ``__newobj__`` reaches pickle unchanged.
+
+        Only a reduction naming the deprecated class itself needs its class reference swapped for the rebuild helper.
+        Rewriting any other one would silently load an instance of the deprecated class; pickle must instead reject the
+        mismatched ``__newobj__`` class, as it does for an undeprecated class.
+
+        """
+        instance = _build_in_place(lambda: InPlaceSettings(level=2))
+        monkeypatch.setattr(type(instance), "__reduce__", lambda self: (copyreg.__newobj__, (dict,), None))  # type: ignore[attr-defined]
+
+        with pytest.raises(pickle.PicklingError, match="__newobj__"):
+            pickle.dumps(instance)
+
+    def test_reduce_ex_added_later_is_used(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A ``__reduce_ex__`` the class gains after decoration decides the payload for pickle and copy.
+
+        ``copyreg.dispatch_table`` takes precedence over an instance's ``__reduce_ex__``, so the registered reducer must
+        hand over to it; otherwise the class's own protocol would be silently ignored.
+
+        """
+        instance = _build_in_place(lambda: InPlaceSettings(level=2))
+        monkeypatch.setattr(type(instance), "__reduce_ex__", lambda self, protocol: (dict, ({"level": self.level},)))
+
+        restored = pickle.loads(pickle.dumps(instance))  # noqa: S301 - payload produced in this test
+
+        assert (restored, copy.copy(instance)) == ({"level": 2}, {"level": 2})
+
+    @pytest.mark.parametrize("protocol", _ALL_PROTOCOLS)
+    def test_exception_round_trips(self, protocol: int) -> None:
+        """An exception deprecated in place pickles as itself with its args, as process pools need.
+
+        ``concurrent.futures`` and ``multiprocessing`` pickle an exception raised in a worker to re-raise it in the
+        parent. ``BaseException.__reduce__`` names the class itself as the callable, which pickle cannot save while the
+        proxy holds the class's name, so that reduction too must go through the rebuild helper.
+
+        """
+        error = _build_in_place(lambda: InPlaceError("disk full", 28))
+
+        restored = pickle.loads(pickle.dumps(error, protocol=protocol))  # noqa: S301 - payload produced in this test
+
+        assert (type(restored) is type(error), restored.args) == (True, ("disk full", 28))
+
+    @pytest.mark.parametrize(
+        "duplicate",
+        [
+            pytest.param(lambda obj: pickle.loads(pickle.dumps(obj)), id="pickle"),  # noqa: S301 - own payload
+            pytest.param(copy.copy, id="copy"),
+            pytest.param(copy.deepcopy, id="deepcopy"),
+        ],
+    )
+    @pytest.mark.parametrize(
+        "build",
+        [
+            pytest.param(lambda: InPlaceOwnReduce(5), id="hashable-callable"),
+            pytest.param(lambda: InPlaceUnhashableReduce(5), id="unhashable-callable"),
+        ],
+    )
+    def test_own_reduce_is_used(self, build: Callable[[], Any], duplicate: Callable[[Any], Any]) -> None:
+        """A class that defines its own ``__reduce__`` keeps pickling and copying through it.
+
+        The registered reducer passes a reduction that does not call the class on unchanged, so the class's own
+        reduction decides the payload; both fixtures load as a plain dict. Their callable may be any object, including
+        an unhashable callable dataclass instance, so the reducer must not hash it while deciding, or pickle, copy and
+        deepcopy all fail with ``TypeError: unhashable type``.
+
+        """
+        instance = _build_in_place(build)
+
+        restored = duplicate(instance)
+
+        assert restored == {"level": 5}
+
+    @pytest.mark.parametrize(
+        "alias",
+        [
+            pytest.param(DeprecatedEnum, id="enum-own-reduce-ex"),
+            pytest.param(RedirectedDataClass, id="redirect-to-target"),
+        ],
+    )
+    def test_registers_no_reducer(self, alias: Any) -> None:  # noqa: ANN401
+        """No reducer is registered for a class deciding ``__reduce_ex__`` itself or for a redirect to another class.
+
+        A class overriding ``__reduce_ex__`` (every ``Enum``) must keep its own pickling, because the dispatch table
+        would take precedence over it, and a redirect alias builds instances of its target, so the wrapped class needs
+        no reducer at all.
+
+        """
+        assert alias.__wrapped__ not in copyreg.dispatch_table
+
+    def test_local_class_is_not_retained(self) -> None:
+        """A class defined inside a function and deprecated in place is collected once its proxy is dropped.
+
+        Applications and test suites deprecate classes built inside factory functions, often thousands of them over a
+        process's life. Pickle can never save such a class by name, so a reducer registered for it in the
+        process-global ``copyreg.dispatch_table`` would buy nothing and keep every one of those classes alive forever.
+        No reducer may be registered for it, and once the proxy goes away the class must be garbage collected.
+
+        """
+        alias = make_deprecated_in_place_local_class()
+        source = alias.__wrapped__
+        registered = source in copyreg.dispatch_table
+        source_ref = weakref.ref(source)
+
+        del alias, source
+        gc.collect()
+
+        assert (registered, source_ref()) == (False, None)
+
+    def test_enum_member_stays_unpicklable(self) -> None:
+        """Pickling a member of a deprecated ``Enum`` still raises ``PicklingError``, as documented.
+
+        An ``Enum`` member reduces to ``(EnumClass, (value,))``, which pickle saves by reference to the class; the
+        module-level name holds the proxy, so that reference cannot be resolved. Unlike plain in-place classes, enums
+        get no rebuild helper, so a user caching a member still gets this error. The member is read from the wrapped
+        class because iterating or indexing the proxy itself would emit the deprecation warning.
+
+        """
+        alias: Any = DeprecatedEnum
+        member = alias.__wrapped__.ALPHA
+
+        with pytest.raises(pickle.PicklingError):
+            pickle.dumps(member)
+
+    def test_subclass_is_unaffected(self) -> None:
+        """A subclass of the wrapped class gets no reducer of its own: ``copyreg`` dispatch is keyed on the exact type.
+
+        A subclass defined under its own name pickles by reference through the normal path, so registering the
+        deprecated class must not leak into it.
+
+        """
+        wrapped_class = type(_build_in_place(lambda: InPlaceSettings(level=1)))
+        child = type("InPlaceChild", (wrapped_class,), {})
+
+        assert (wrapped_class in copyreg.dispatch_table, child in copyreg.dispatch_table) == (True, False)
