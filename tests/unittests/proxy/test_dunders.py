@@ -1007,12 +1007,12 @@ class TestProtocolSurface:
         monkeypatch.setattr(proxy_core, "_PROTOCOL_PROXY_TYPES", {})
         barrier = threading.Barrier(8)
 
-        def build(_: int) -> type:
+        def _build(_: int) -> type:
             barrier.wait()
             return type(deprecated_instance(_MatmulOnly(), name="m", **_DEPRS_CASE_STD_ARGS, stream=None))
 
         with ThreadPoolExecutor(max_workers=8) as pool:
-            kinds = set(pool.map(build, range(8)))
+            kinds = set(pool.map(_build, range(8)))
         assert len(kinds) == 1
 
     @pytest.mark.parametrize(
