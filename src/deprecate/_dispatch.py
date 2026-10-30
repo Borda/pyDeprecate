@@ -954,7 +954,8 @@ def _resolve_forward_kwargs(
     # ``target_receiver`` means a classmethod descriptor target, hence a callable target and a callable reason.
     receiver = _NO_RECEIVER
     if ctx.target_receiver is not None:
-        receiver = kwargs.pop(cast(str, ctx.source_receiver), _NO_RECEIVER)
+        receiver_name = cast(str, ctx.source_receiver)
+        receiver = kwargs.pop(receiver_name, ctx.facts.source_defaults.get(receiver_name, _NO_RECEIVER))
     if mapping and ctx.remap_active:
         kwargs = _remap_kwargs(mapping, kwargs, name=source.__name__, stream=ctx.stream)
     if extra and ctx.remap_active:
