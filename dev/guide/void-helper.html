@@ -100,7 +100,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-04-21",
-  "dateModified": "2026-06-15"
+  "dateModified": "2026-10-30"
 }
 </script>
 
@@ -879,6 +879,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#void-in-generator-stubs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        void(...) in generator stubs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#void-with-methods" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1513,6 +1524,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#void-in-generator-stubs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        void(...) in generator stubs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#void-with-methods" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1732,6 +1754,8 @@
 </tbody>
 </table>
 <p>If you use a strict linter that flags unused parameters (e.g. ruff's <code>ARG001</code>), <code>void(...)</code> is the cleanest solution that does not require <code># noqa</code> comments.</p>
+<h2 id="void-in-generator-stubs">void(...) in generator stubs<a class="headerlink" href="#void-in-generator-stubs" title="Permanent link">🔗</a></h2>
+<p>A deprecated generator stub must still contain <code>yield</code>. The wrapper kind follows the stub: a stub whose body is only <code>return void(...)</code> is a plain function, so its wrapper is a plain function that warns at call time and <code>inspect.isgeneratorfunction</code> reports <code>False</code>, even when the target is a generator. Call <code>void(...)</code> as a statement and add <code>yield from ()</code> so the stub stays a generator function; see <a href="advanced.html">Advanced</a> for a full example.</p>
 <h2 id="void-with-methods">void(...) with methods<a class="headerlink" href="#void-with-methods" title="Permanent link">🔗</a></h2>
 <p><code>void(...)</code> works identically in class methods. Reference <code>self</code> and all parameters when forwarding a deprecated method:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span><span class="p">,</span> <span class="n">void</span>
@@ -1901,7 +1925,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="June 15, 2026 10:12:29 UTC">2026-06-15</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 30, 2026 13:56:01 UTC">2026-10-30</span>
   </span>
 
     

@@ -97,7 +97,7 @@
   "mainEntityOfPage": { "@type": "WebPage", "@id": "https://borda.github.io/pyDeprecate/stable/changelog.html" },
   "author": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda" },
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
-  "dateModified": "2026-10-29"
+  "dateModified": "2026-10-30"
 }
 </script>
 
@@ -2952,6 +2952,7 @@
 </ul>
 <h3 id="changed">Changed<a class="headerlink" href="#changed" title="Permanent link">🔗</a></h3>
 <ul>
+<li><strong>Generator and async-generator wrappers preserve their callable kind and defer deprecation handling until iteration.</strong> <code>inspect.isgeneratorfunction(wrapper)</code> and <code>inspect.isasyncgenfunction(wrapper)</code> now match the source, so frameworks such as pytest recognise deprecated yield fixtures. Unlike the eager call-time warnings introduced in 0.9.0, the warning, <code>num_warns</code> budget, <code>skip_if</code> evaluation, argument binding and an <code>as_exception</code> / <code>as_exceptions()</code> error now resolve on the first <code>next()</code> / <code>__anext__()</code> step; a generator that is never iterated never warns or spends the budget. Move <code>pytest.warns()</code> and <code>pytest.raises()</code> assertions around the first iteration, and keep <code>as_exceptions()</code> active at that step rather than only around generator creation. (<a href="https://github.com/Borda/pyDeprecate/pull/256">#256</a>)</li>
 <li><strong>Function proxies bind like methods, and only plain functions do.</strong> A <code>deprecated_instance</code> over a plain function or a <code>@deprecated</code> wrapper stored as a class attribute passes the instance as <code>self</code>, so <code>Model().scale(2)</code> reaches the function with the instance; use <code>staticmethod(deprecated_instance(...))</code> for static-style access. Any other callable — <code>functools.partial</code>, a bound method, a builtin or a Cython binding callable — is served unbound and silent on every Python version, so a deprecated <code>partial</code> class attribute no longer warns through Python's own binding. (<a href="https://github.com/Borda/pyDeprecate/pull/250">#250</a>)</li>
 <li><strong>Warnings are attributed to the caller's module.</strong> Every warning now points at the user's call site and carries the caller's module name, where the warnings used to report a <code>deprecate</code> frame. A warning filter keyed on <code>module="deprecate"</code> (for example an <code>ignore</code> filter that silenced these warnings) no longer matches them and they surface — and raise under <code>-W error</code> — so key filters on the calling code's module instead. (<a href="https://github.com/Borda/pyDeprecate/pull/250">#250</a>)</li>
 <li><strong>Async proxy operations warn when the awaitable is obtained.</strong> <code>__await__</code> and <code>__anext__</code> deliver the warning when they hand out the underlying awaitable, so a later failure or exhaustion inside <code>await</code> or <code>async for</code> still consumes the warning budget. When the warning itself fails (an error filter, a raising <code>stream</code>), the coroutine the proxy created is closed instead of being left un-awaited, and an async generator stays usable. (<a href="https://github.com/Borda/pyDeprecate/pull/250">#250</a>)</li>
@@ -3403,7 +3404,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 29, 2026 09:40:07 UTC">2026-10-29</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 30, 2026 13:56:01 UTC">2026-10-30</span>
   </span>
 
     

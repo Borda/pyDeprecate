@@ -139,13 +139,13 @@ Recursive scans import every submodule, so module-level side effects run. A subm
 from deprecate import find_deprecation_wrappers
 
 # For testing purposes, we use the test module; normally you would import your own package
-from tests.collections import api_deprecated as my_package
+from tests.collections.api_deprecated import core as my_package
 
 # Scan an entire package for deprecated wrappers
 results = find_deprecation_wrappers(my_package)
 
 # Or scan using a string module path
-results = find_deprecation_wrappers("tests.collections.api_deprecated")
+results = find_deprecation_wrappers("tests.collections.api_deprecated.core")
 
 # Filter to only ineffective wrappers
 ineffective = [r for r in results if r.no_effect]
@@ -164,11 +164,11 @@ for r in results[:5]:
 
 ```
 Found 0 deprecated wrappers with zero impact!
-tests.collections.api_deprecated.ChainedProxyColorEnum: no_effect=False
-tests.collections.api_deprecated.CrossGuardModuleLevel.old_method: no_effect=False
-tests.collections.api_deprecated.CrossGuardOldClass.__init__: no_effect=False
-tests.collections.api_deprecated.CrossGuardSameClass.old_method: no_effect=False
-tests.collections.api_deprecated.DecoratedDataClass: no_effect=False
+tests.collections.api_deprecated.core.ChainedProxyColorEnum: no_effect=False
+tests.collections.api_deprecated.core.CrossGuardModuleLevel.old_method: no_effect=False
+tests.collections.api_deprecated.core.CrossGuardOldClass.__init__: no_effect=False
+tests.collections.api_deprecated.core.CrossGuardSameClass.old_method: no_effect=False
+tests.collections.api_deprecated.core.DecoratedDataClass: no_effect=False
 ```
 
 </details>
@@ -224,7 +224,7 @@ Group results by issue type for structured reports — separate hard errors (inv
 from deprecate import find_deprecation_wrappers
 
 # For testing purposes, we use the test module; normally you would import your own package
-from tests.collections import api_deprecated as my_package
+from tests.collections.api_deprecated import core as my_package
 
 results = find_deprecation_wrappers(my_package)
 
@@ -310,7 +310,7 @@ import pytest
 from deprecate import find_deprecation_wrappers
 
 # For testing purposes, we use the test module; normally you would import your own package
-from tests.collections import api_deprecated as my_package
+from tests.collections.api_deprecated import core as my_package
 
 
 def test_deprecated_wrappers_are_valid():
@@ -348,7 +348,7 @@ Scan a package and control recursion depth:
 from deprecate import validate_deprecation_expiry
 
 # For testing purposes, we use the test module; normally you would import your own package
-from tests.collections import api_deprecated as my_package
+from tests.collections.api_deprecated import core as my_package
 
 # Scan your package for expired deprecations - using early-version that won't have expirations
 expired = validate_deprecation_expiry(my_package, "0.2")
@@ -399,7 +399,7 @@ import pytest
 from deprecate import validate_deprecation_expiry
 
 # For testing purposes, we use the test module; normally you would import your own package
-from tests.collections import api_deprecated as my_package
+from tests.collections.api_deprecated import core as my_package
 
 
 def test_no_zombie_deprecations():
@@ -421,7 +421,7 @@ def test_no_zombie_deprecations():
 @pytest.fixture(scope="session", autouse=True)
 def enforce_deprecation_deadlines():
     """Automatically check for zombie code before running any tests."""
-    from tests.collections import api_deprecated as my_package
+    from tests.collections.api_deprecated import core as my_package
 
     current_version = "0.5"  # Replace with: from mypackage import __version__
     expired = validate_deprecation_expiry(my_package, current_version)
@@ -685,7 +685,7 @@ Positional forwarding works whether or not the positional-only params have defau
 from deprecate import validate_mapping_compatibility
 
 # For testing purposes, we use the test module; normally you would import your own package
-from tests.collections import api_deprecated as my_package
+from tests.collections.api_deprecated import core as my_package
 
 issues = validate_mapping_compatibility(my_package)
 print(f"Found {len(issues)} wrappers with POSITIONAL_ONLY mapping incompatibilities")
@@ -699,12 +699,12 @@ for info in issues:
 
 ```
 Found 6 wrappers with POSITIONAL_ONLY mapping incompatibilities
-  tests.collections.api_deprecated.DepPositionalOnly: incompatible keys = ['old_val']
-  tests.collections.api_deprecated.DepPositionalOnlyDerived: incompatible keys = ['old_val']
-  tests.collections.api_deprecated.DepPositionalOnlyImmutable: incompatible keys = ['old_val']
-  tests.collections.api_deprecated.DepPositionalOnlyMixed: incompatible keys = ['old_x']
-  tests.collections.api_deprecated.DepPositionalOnlyRequired: incompatible keys = ['old_val']
-  tests.collections.api_deprecated.PositionalOnlyProxyHolder.LegacyTarget: incompatible keys = ['old_val']
+  tests.collections.api_deprecated.core.DepPositionalOnly: incompatible keys = ['old_val']
+  tests.collections.api_deprecated.core.DepPositionalOnlyDerived: incompatible keys = ['old_val']
+  tests.collections.api_deprecated.core.DepPositionalOnlyImmutable: incompatible keys = ['old_val']
+  tests.collections.api_deprecated.core.DepPositionalOnlyMixed: incompatible keys = ['old_x']
+  tests.collections.api_deprecated.core.DepPositionalOnlyRequired: incompatible keys = ['old_val']
+  tests.collections.api_deprecated.core.PositionalOnlyProxyHolder.LegacyTarget: incompatible keys = ['old_val']
 ```
 
 </details>
@@ -1039,7 +1039,7 @@ The `match` parameter on `assert_no_warnings` accepts a substring — it filters
 **Compact style** — one row per symbol with a lifecycle status column:
 
 ```python
-from tests.collections import api_deprecated as my_package
+from tests.collections.api_deprecated import core as my_package
 from deprecate import generate_deprecation_table
 
 report = generate_deprecation_table(my_package, current_version="1.5", recursive=False)
@@ -1061,7 +1061,7 @@ report = generate_deprecation_table(my_package, current_version="1.5", recursive
 **Matrix style** — one column per version with `D` (deprecated) and `R` (remove) lifecycle markers:
 
 ```python
-from tests.collections import api_deprecated as my_package
+from tests.collections.api_deprecated import core as my_package
 from deprecate import generate_deprecation_table
 
 matrix = generate_deprecation_table(my_package, current_version="1.5", recursive=False, style="matrix")
