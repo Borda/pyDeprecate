@@ -29,8 +29,11 @@ from tests.collections.api_current import (
     WithInjected,
     _DelOnlyPropTarget,
     _Pep702ProxyTarget,
+    ask_once,
+    async_fetch_page,
     async_gen_target,
     async_non_cycle_double,
+    async_parse_rows,
     async_positional_only_target,
     async_running_total,
     async_suspending_double,
@@ -40,6 +43,7 @@ from tests.collections.api_current import (
     countdown_stream,
     del_only_prop_fdel,
     fib_recursive,
+    flush_pending_jobs,
     fn_kept_name_target,
     fn_remap_with_extra_body,
     fn_shared_default_target,
@@ -51,6 +55,7 @@ from tests.collections.api_current import (
     load_batches,
     non_cycle_double,
     open_cursor,
+    parse_rows,
     pep702_target,
     positional_only_target,
     positional_only_two_params_target,
@@ -67,6 +72,7 @@ from tests.collections.api_current import (
     walk_down,
 )
 from tests.collections.api_deprecated import (
+    _DEPRS_CASE_FATAL_ARGS,
     _DEPRS_CASE_OUTER_ARGS,
     _DEPRS_CASE_STD_ARGS,
     _DEPRS_CASE_STD_INF_ARGS,
@@ -565,13 +571,43 @@ def _walk_source(depth: int, recurse: Callable[[int, Any], Iterator[int]]) -> It
         yield depth
 
 
-def _squares_source(n: int) -> Iterator[int]:
+def _squares_source(n: int) -> Generator[int, None, None]:
     """Placeholder generator source for ``deprecated_squares``, whose target returns a list instead of a generator."""
     if False:  # pragma: no cover - unreachable; declares this as a generator
         yield n
 
 
-async def _countdown_source(start: int) -> AsyncIterator[int]:
+def _flush_jobs_source(queue: str) -> Iterator[str]:
+    """Placeholder generator source for ``deprecated_flush_jobs``, whose target returns before its first ``yield``."""
+    if False:  # pragma: no cover - unreachable; declares this as a generator
+        yield queue
+
+
+def _parse_rows_source(lines: list[str]) -> Iterator[int]:
+    """Placeholder generator source for ``deprecated_parse_rows``, whose target can raise before its first ``yield``."""
+    if False:  # pragma: no cover - unreachable; declares this as a generator
+        yield len(lines)
+
+
+async def _async_parse_rows_source(lines: list[str]) -> AsyncIterator[int]:
+    """Placeholder async generator source for ``deprecated_async_parse_rows``; the target forwards every call."""
+    if False:  # pragma: no cover - unreachable; declares this as an async generator
+        yield len(lines)
+
+
+async def _fetch_page_source(page: int) -> AsyncIterator[int]:
+    """Placeholder async generator source for ``deprecated_fetch_page``, whose target suspends before its first item."""
+    if False:  # pragma: no cover - unreachable; declares this as an async generator
+        yield page
+
+
+def _ask_once_source(question: str) -> Generator[str, Optional[str], None]:
+    """Placeholder generator source for ``deprecated_ask_once``, whose target returns on the next resumption."""
+    if False:  # pragma: no cover - unreachable; declares this as a generator
+        yield question
+
+
+async def _countdown_source(start: int) -> AsyncGenerator[int, None]:
     """Placeholder async generator source for ``deprecated_countdown``, whose target returns a plain async iterator."""
     if False:  # pragma: no cover - unreachable; declares this as an async generator
         yield start
@@ -625,6 +661,16 @@ deprecated_cursor = deprecated(target=open_cursor, **_DEPRS_CASE_STD_INF_ARGS)(_
 deprecated_walk = deprecated(target=walk_down, **_DEPRS_CASE_STD_INF_ARGS)(_walk_source)
 #: Generator source forwarded to ``squares_list``: the wrapper yields the items of the returned list.
 deprecated_squares = deprecated(target=squares_list, **_DEPRS_CASE_STD_INF_ARGS)(_squares_source)
+#: Generator source forwarded to ``flush_pending_jobs``, which returns a value before its first ``yield``.
+deprecated_flush_jobs = deprecated(target=flush_pending_jobs, **_DEPRS_CASE_STD_INF_ARGS)(_flush_jobs_source)
+#: Generator source forwarded to ``parse_rows``, whose first step raises ``ValueError`` on a malformed line.
+deprecated_parse_rows = deprecated(target=parse_rows, **_DEPRS_CASE_STD_INF_ARGS)(_parse_rows_source)
+#: Async twin of ``deprecated_parse_rows``, forwarded to ``async_parse_rows``.
+deprecated_async_parse_rows = deprecated(target=async_parse_rows, **_DEPRS_CASE_STD_INF_ARGS)(_async_parse_rows_source)
+#: Async generator source forwarded to ``async_fetch_page``, whose first step suspends under the cycle guard.
+deprecated_fetch_page = deprecated(target=async_fetch_page, **_DEPRS_CASE_STD_INF_ARGS)(_fetch_page_source)
+#: Generator source forwarded to ``ask_once``, which returns on a sent value or a thrown ``ValueError``.
+deprecated_ask_once = deprecated(target=ask_once, **_DEPRS_CASE_STD_INF_ARGS)(_ask_once_source)
 #: Async generator source forwarded to ``countdown_stream``: the wrapper iterates the plain async iterator it returns.
 deprecated_countdown = deprecated(target=countdown_stream, **_DEPRS_CASE_STD_INF_ARGS)(_countdown_source)
 #: Async generator source forwarded to ``sync_stopping_stream``, whose plain ``def`` steps end the iteration directly.
@@ -651,6 +697,58 @@ gen_stacked = deprecated(target=TargetMode.NOTIFY, num_warns=-1, **_DEPRS_CASE_O
 async_gen_stacked = deprecated(target=TargetMode.NOTIFY, num_warns=-1, **_DEPRS_CASE_OUTER_ARGS)(
     deprecated(target=async_gen_target, **_DEPRS_CASE_STD_INF_ARGS)(_async_gen_source_stacked)
 )
+#: ``as_exception=True`` over ``running_total``: the first step raises ``DeprecatedError`` before the target starts.
+deprecated_running_total_fatal = deprecated(target=running_total, **_DEPRS_CASE_FATAL_ARGS)(_running_total_source)
+
+
+def make_gen_skip_if_flag() -> tuple[Callable[..., Iterator[int]], dict[str, bool]]:
+    """Wrap a generator with a flag-driven ``skip_if`` callable so tests can flip it after creating the generator.
+
+    Returns the wrapper (forwarding to ``gen_target``) together with the mutable flag dict (``{"skip": True}``) its
+    ``skip_if`` lambda reads. When skipped, the placeholder source runs and yields nothing, so the items tell which
+    path the first step took.
+
+    """
+    flag = {"skip": True}
+    wrapper = deprecated(target=gen_target, skip_if=lambda: flag["skip"], **_DEPRS_CASE_STD_INF_ARGS)(
+        _gen_source_callable
+    )
+    return wrapper, flag
+
+
+class MultiplesReader:
+    """Reader whose generator and async generator methods were renamed; the old names forward to the new ones.
+
+    ``@deprecated`` accepts a method target only on the source's own class (cross-class method forwarding is rejected
+    at decoration, because ``self`` would carry the wrong type), so the replacement methods live on this class and
+    delegate to the shared ``gen_target`` / ``async_gen_target`` generators.
+
+    """
+
+    def __init__(self, base: int) -> None:
+        """Store the ``base`` whose multiples the generator methods yield."""
+        self.base = base
+
+    def iter_multiples(self) -> Iterator[int]:
+        """Replacement generator method: yield the multiples of ``base`` produced by ``gen_target``."""
+        yield from gen_target(self.base)
+
+    async def aiter_multiples(self) -> AsyncIterator[int]:
+        """Replacement async generator method: yield the multiples of ``base`` produced by ``async_gen_target``."""
+        async for item in async_gen_target(self.base):
+            yield item
+
+    @deprecated(target=iter_multiples, **_DEPRS_CASE_STD_INF_ARGS)
+    def read_multiples(self) -> Iterator[int]:
+        """Deprecated generator method forwarding to :meth:`iter_multiples`; the body never executes."""
+        if False:  # pragma: no cover - unreachable; declares this as a generator
+            yield self.base
+
+    @deprecated(target=aiter_multiples, **_DEPRS_CASE_STD_INF_ARGS)
+    async def aread_multiples(self) -> AsyncIterator[int]:
+        """Deprecated async generator method forwarding to :meth:`aiter_multiples`; the body never executes."""
+        if False:  # pragma: no cover - unreachable; declares this as an async generator
+            yield self.base
 
 
 # ========== deprecated pytest yield-fixture bodies ==========

@@ -710,6 +710,98 @@ def squares_list(n: int) -> list[int]:
     return [i * i for i in range(1, n + 1)]
 
 
+def flush_pending_jobs(queue: str) -> Generator[str, None, str]:
+    """Return a summary for ``queue`` without yielding a job: a generator replacement that ends on its first step.
+
+    Examples:
+        >>> next(flush_pending_jobs("emails"))
+        Traceback (most recent call last):
+        ...
+        StopIteration: emails: no pending jobs
+
+    """
+    if False:  # pragma: no cover - unreachable; declares this as a generator
+        yield queue
+    return f"{queue}: no pending jobs"
+
+
+def parse_rows(lines: list[str]) -> Iterator[int]:
+    """Yield each line as an integer, after checking every line before the first ``yield``.
+
+    A malformed line therefore fails the first step with ``ValueError``, before any row is handed out.
+
+    Examples:
+        >>> list(parse_rows(["1", "2"]))
+        [1, 2]
+        >>> next(parse_rows(["1", "x"]))
+        Traceback (most recent call last):
+        ...
+        ValueError: line 'x' is not an integer
+
+    """
+    for line in lines:
+        if not line.isdigit():
+            raise ValueError(f"line {line!r} is not an integer")
+    for line in lines:
+        yield int(line)
+
+
+async def async_parse_rows(lines: list[str]) -> AsyncIterator[int]:
+    """Async twin of :func:`parse_rows`: a malformed line fails the first step before any row is handed out.
+
+    Examples:
+        >>> import asyncio
+        >>>
+        >>> async def _collect() -> list[int]:
+        ...     return [row async for row in async_parse_rows(["3", "4"])]
+        >>> asyncio.run(_collect())
+        [3, 4]
+
+    """
+    for line in lines:
+        if not line.isdigit():
+            raise ValueError(f"line {line!r} is not an integer")
+    for line in lines:
+        yield int(line)
+
+
+async def async_fetch_page(page: int) -> AsyncIterator[int]:
+    """Yield the two record ids of ``page`` after one await, as a network fetch suspends before its first ``yield``.
+
+    Examples:
+        >>> import asyncio
+        >>>
+        >>> async def _collect() -> list[int]:
+        ...     return [record async for record in async_fetch_page(3)]
+        >>> asyncio.run(_collect())
+        [30, 31]
+
+    """
+    await asyncio.sleep(0)
+    for offset in range(2):
+        yield page * 10 + offset
+
+
+def ask_once(question: str) -> Generator[str, Optional[str], str]:
+    """Yield ``question`` once, then return the reply sent in, or ``"cancelled"`` when a ``ValueError`` is thrown in.
+
+    Examples:
+        >>> prompt = ask_once("Proceed?")
+        >>> next(prompt)
+        'Proceed?'
+        >>> prompt.send("yes")
+        Traceback (most recent call last):
+        ...
+        StopIteration: yes
+
+    """
+    try:
+        reply = yield question
+    except ValueError:
+        return "cancelled"
+    return reply or ""
+
+
 class SyncCallableObject:
     """Callable object with a plain synchronous ``__call__`` — a callable instance a scope may safely decorate."""
 

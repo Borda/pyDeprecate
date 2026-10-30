@@ -16,17 +16,24 @@ emitting a warning.
 
 """
 
+import asyncio
 import gc
 import inspect
+import os
 import weakref
+from collections.abc import AsyncIterator, Awaitable, Callable
+from contextlib import AbstractContextManager, nullcontext
+from operator import methodcaller
 
 import pytest
 
 from deprecate import DeprecatedError, as_exceptions, deprecated, find_deprecation_wrappers
 from tests._helpers import captured_warnings
 from tests.collections import api_deprecated_forwarding
+from tests.collections.api_current import walk_down
 from tests.collections.api_deprecated import decorated_sum_calls_inf, make_async_stacked_notify
 from tests.collections.api_deprecated_forwarding import (
+    MultiplesReader,
     async_args_remap,
     async_callable,
     async_gen_args_remap,
@@ -34,16 +41,22 @@ from tests.collections.api_deprecated_forwarding import (
     async_gen_notify,
     async_gen_stacked,
     async_notify,
+    deprecated_ask_once,
     deprecated_async_gen_to_coroutine,
+    deprecated_async_parse_rows,
     deprecated_async_positional_only_to_sync,
     deprecated_async_running_total,
     deprecated_async_squares,
     deprecated_async_var_positional_to_sync,
     deprecated_countdown,
     deprecated_cursor,
+    deprecated_fetch_page,
+    deprecated_flush_jobs,
     deprecated_generator_based_double,
     deprecated_load_batches,
+    deprecated_parse_rows,
     deprecated_running_total,
+    deprecated_running_total_fatal,
     deprecated_squares,
     deprecated_sync_stopping,
     deprecated_walk,
@@ -53,6 +66,7 @@ from tests.collections.api_deprecated_forwarding import (
     gen_notify_skipped,
     gen_notify_unlimited,
     gen_stacked,
+    make_gen_skip_if_flag,
 )
 
 #: Loads the ``pytester`` fixture, which drives a deprecated ``yield`` fixture through a real pytest run.
@@ -62,6 +76,11 @@ pytest_plugins = ["pytester"]
 def _deprecation_warnings(warned: list) -> list:
     """Return the deprecation warnings (``FutureWarning`` / ``DeprecationWarning``) among the captured ones."""
     return [w for w in warned if w.category in (FutureWarning, DeprecationWarning)]
+
+
+async def _drain(agen: AsyncIterator[int]) -> list[int]:
+    """Collect every item of ``agen``: one consumer coroutine for ``asyncio.gather`` to run as its own task."""
+    return [item async for item in agen]
 
 
 # Pair each wrapper with the argument it expects.  ``gen_args_remap`` is the only one with a
@@ -528,6 +547,37 @@ def test_generator_never_iterated_never_warns_nor_spends_the_budget() -> None:
     assert items == [1, 2, 3]
 
 
+@pytest.mark.parametrize(
+    ("action", "expectation"),
+    [
+        pytest.param(methodcaller("close"), nullcontext(), id="close"),
+        pytest.param(
+            methodcaller("throw", ValueError("abort before start")),
+            pytest.raises(ValueError, match="abort before start"),
+            id="throw",
+        ),
+    ],
+)
+def test_generator_closed_or_thrown_into_before_its_first_step_never_starts(
+    action: Callable[[object], object], expectation: AbstractContextManager[object]
+) -> None:
+    """``close()`` or ``throw()`` before the first step neither warns nor runs the target body.
+
+    A consumer creates a deprecated generator and cancels it before reading anything. As for any unstarted generator,
+    ``close()`` finishes silently and ``throw()`` re-raises the thrown exception at the caller. No deprecated code ran,
+    so no warning fires, the target's ``finally`` never logs, and the wrapper is finished afterwards.
+
+    """
+    log: list[str] = []
+    with captured_warnings() as warned:
+        gen = deprecated_running_total(1, log)
+        with expectation:
+            action(gen)
+    assert not _deprecation_warnings(warned)
+    assert log == []
+    assert inspect.getgeneratorstate(gen) == inspect.GEN_CLOSED
+
+
 def test_generator_forwards_send_throw_and_return_value() -> None:
     """``send``, ``throw`` and the return value pass through the wrapper to the target generator unchanged.
 
@@ -563,6 +613,63 @@ def test_generator_close_after_early_break_reaches_the_inner_generator() -> None
     assert log == ["closed"]
 
 
+def test_generator_throw_into_a_target_without_throw_reraises_at_the_caller() -> None:
+    """An exception thrown in while the first item is held re-raises at the caller when the target has no ``throw``.
+
+    A deprecated generator now forwards to a replacement that returns a plain list. A consumer reads the first item
+    and then throws an exception in to abort; a list iterator has no ``throw`` to handle it, so the exception must come
+    back out of the consumer's ``throw`` call, as ``yield from`` does, and the wrapper is finished afterwards.
+
+    """
+    with captured_warnings():
+        gen = deprecated_squares(3)
+        next(gen)
+        with pytest.raises(ValueError, match="abort the read"):
+            gen.throw(ValueError("abort the read"))
+    assert inspect.getgeneratorstate(gen) == inspect.GEN_CLOSED
+
+
+def test_generator_close_on_a_target_without_close_finishes_the_wrapper() -> None:
+    """Closing the wrapper while the first item is held succeeds when the target has no ``close``.
+
+    A consumer of a deprecated generator whose replacement returns a plain list reads one item and closes the
+    generator. A list iterator has nothing to close, so ``close()`` must still complete without error and leave the
+    wrapper closed, instead of failing on the missing method.
+
+    """
+    with captured_warnings():
+        gen = deprecated_squares(3)
+        next(gen)
+        gen.close()
+    assert inspect.getgeneratorstate(gen) == inspect.GEN_CLOSED
+
+
+@pytest.mark.parametrize(
+    ("resume", "expected_return"),
+    [
+        pytest.param(methodcaller("send", "yes"), "yes", id="send"),
+        pytest.param(methodcaller("throw", ValueError("abort")), "cancelled", id="throw"),
+    ],
+)
+def test_generator_ends_when_the_target_returns_on_a_held_item_resumption(
+    resume: Callable[[object], object], expected_return: str
+) -> None:
+    """A target that returns in reply to a sent value or a thrown exception ends the wrapper with its return value.
+
+    A deprecated prompt generator yields its question once and then finishes, returning the reply sent in or
+    ``"cancelled"`` when the caller throws ``ValueError`` in. The wrapper holds the first item and forwards that
+    resumption by hand, so the replacement's return must still end the wrapper with ``StopIteration`` whose ``value``
+    is the replacement's return value.
+
+    """
+    with captured_warnings():
+        gen = deprecated_ask_once("Proceed?")
+        next(gen)
+        with pytest.raises(StopIteration) as stop:
+            resume(gen)
+    assert stop.value.value == expected_return
+
+
 def test_two_suspended_generators_of_one_wrapper_raise_no_false_cycle() -> None:
     """Two live generators of one callable-target wrapper on one thread do not trip the target-chain cycle guard.
 
@@ -596,6 +703,33 @@ def test_generator_with_list_target_yields_the_items() -> None:
     assert len(_deprecation_warnings(warned)) == 1
 
 
+@pytest.mark.parametrize(
+    ("wrapper", "call_args", "expected_return"),
+    [
+        pytest.param(deprecated_squares, (0,), None, id="empty-list-target"),
+        pytest.param(deprecated_flush_jobs, ("emails",), "emails: no pending jobs", id="returns-without-yield"),
+    ],
+)
+def test_generator_ends_on_its_first_step_when_the_target_has_no_items(
+    wrapper: object, call_args: tuple, expected_return: object
+) -> None:
+    """A target with no items warns once on the first ``next()`` and ends the wrapper there with its return value.
+
+    The replacement of a deprecated generator may have nothing to hand out: it returns an empty list, or it is a
+    generator that returns a summary before its first ``yield``. The first step still runs the deprecation logic, so
+    it warns, and then the wrapper stops at once, carrying the replacement's return value as ``StopIteration.value``
+    (``None`` for a list). A ``skip_if`` call is not a case here: it delegates to the source with ``yield from`` and
+    never reaches this first-step end.
+
+    """
+    with captured_warnings() as warned:
+        gen = wrapper(*call_args)  # type: ignore[operator]
+        with pytest.raises(StopIteration) as stop:
+            next(gen)
+    assert stop.value.value == expected_return
+    assert len(_deprecation_warnings(warned)) == 1
+
+
 def test_generator_frees_the_first_item_once_the_consumer_moves_on() -> None:
     """The wrapper keeps no reference to its first item once the consumer has taken the second one.
 
@@ -626,6 +760,53 @@ def test_generator_recursing_through_its_deprecated_name_raises_cycle_error() ->
         list(deprecated_walk(2, deprecated_walk))
 
 
+@pytest.mark.parametrize(
+    ("wrapper", "failing_args", "error", "error_match", "healthy_args", "expected_items"),
+    [
+        pytest.param(
+            deprecated_parse_rows,
+            (["1", "x"],),
+            ValueError,
+            "is not an integer",
+            (["1", "2"],),
+            [1, 2],
+            id="target-raises-before-yield",
+        ),
+        pytest.param(
+            deprecated_walk,
+            (2, deprecated_walk),
+            RuntimeError,
+            "Circular deprecation cycle detected",
+            (2, walk_down),
+            [0, 1, 2],
+            id="cycle-error",
+        ),
+    ],
+)
+def test_generator_first_step_failure_releases_the_cycle_guard(
+    wrapper: object,
+    failing_args: tuple,
+    error: type[Exception],
+    error_match: str,
+    healthy_args: tuple,
+    expected_items: list[int],
+) -> None:
+    """A first step that raises releases the cycle guard, so the next call of the same wrapper works and warns.
+
+    The guard is held while the wrapper creates the inner generator and takes its first item. When that step fails,
+    because the replacement rejects its input or because the call recursed through the deprecated name, the guard
+    must still be released: a consumer that retries with good input on the same thread must get the items and the
+    one deprecation warning, not a spurious "Circular deprecation" error left over from the failed call.
+
+    """
+    with captured_warnings(), pytest.raises(error, match=error_match):
+        next(wrapper(*failing_args))  # type: ignore[operator]
+    with captured_warnings() as warned:
+        items = list(wrapper(*healthy_args))  # type: ignore[operator]
+    assert items == expected_items
+    assert len(_deprecation_warnings(warned)) == 1
+
+
 def test_generator_skip_if_runs_the_source_without_warning() -> None:
     """``skip_if=True`` on a generator wrapper runs the source generator unchanged and never warns.
 
@@ -639,6 +820,51 @@ def test_generator_skip_if_runs_the_source_without_warning() -> None:
     assert not _deprecation_warnings(warned)
 
 
+@pytest.mark.parametrize(
+    ("skip_at_creation", "skip_at_first_step", "expected_items", "expected_warns"),
+    [
+        pytest.param(True, False, [1, 2, 3], 1, id="skip-lifted-before-first-step"),
+        pytest.param(False, True, [], 0, id="skip-set-before-first-step"),
+    ],
+)
+def test_generator_skip_if_is_read_on_the_first_step(
+    skip_at_creation: bool, skip_at_first_step: bool, expected_items: list[int], expected_warns: int
+) -> None:
+    """A callable ``skip_if`` flipped between creating the generator and its first step: the first-step value decides.
+
+    A feature flag behind ``skip_if`` changes after the consumer created the deprecated generator but before it reads
+    anything. The wrapper evaluates ``skip_if`` on the first step, so lifting the skip makes it forward and warn, while
+    setting the skip runs the placeholder source, which yields nothing, without a warning.
+
+    """
+    wrapper, flag = make_gen_skip_if_flag()
+    flag["skip"] = skip_at_creation
+    with captured_warnings() as warned:
+        gen = wrapper(x=1)
+        flag["skip"] = skip_at_first_step
+        items = list(gen)
+    assert items == expected_items
+    assert len(_deprecation_warnings(warned)) == expected_warns
+
+
+def test_generator_method_warns_once_on_first_step_and_yields_the_target_values() -> None:
+    """A deprecated generator method forwards through ``self`` and warns once, on its first step.
+
+    A class renamed its generator method and keeps the old name forwarding to the new one. Calling the old method on an
+    instance only creates the generator; its first step warns once and the items come from the replacement method
+    bound to the same instance.
+
+    """
+    reader = MultiplesReader(base=2)
+    with captured_warnings() as warned:
+        gen = reader.read_multiples()
+        at_call = len(_deprecation_warnings(warned))
+        items = list(gen)
+    assert at_call == 0
+    assert len(_deprecation_warnings(warned)) == 1
+    assert items == [2, 4, 6]
+
+
 def test_stacked_generator_wrappers_warn_per_layer_on_first_step() -> None:
     """A NOTIFY layer over a callable-target generator wrapper warns once per layer, on the first step only.
 
@@ -650,8 +876,10 @@ def test_stacked_generator_wrappers_warn_per_layer_on_first_step() -> None:
         gen = gen_stacked(x=1)
         at_call = len(_deprecation_warnings(warned))
         items = list(gen)
+    dep_warns = _deprecation_warnings(warned)
     assert at_call == 0
-    assert len(_deprecation_warnings(warned)) == 2
+    assert len(dep_warns) == 2
+    assert {os.path.basename(w.filename) for w in dep_warns} == {"test_callable_kinds.py"}, "Both must blame the caller"
     assert items == [1, 2, 3]
 
 
@@ -668,6 +896,23 @@ def test_generator_as_exceptions_raises_on_first_step() -> None:
             next(gen)
     with pytest.raises(StopIteration):
         next(gen)
+
+
+def test_generator_with_as_exception_raises_on_first_step_without_running_the_target() -> None:
+    """A generator wrapper with ``as_exception=True`` raises on its first step, and the target body never runs.
+
+    A library marks an old generator API fatal. Creating the generator still succeeds, because the call runs no code;
+    the first ``next()`` raises ``DeprecatedError`` before the target starts, so the target's ``finally`` never logs,
+    and the generator is finished afterwards.
+
+    """
+    log: list[str] = []
+    gen = deprecated_running_total_fatal(1, log)
+    with pytest.raises(DeprecatedError):
+        next(gen)
+    gc.collect()
+    assert log == []
+    assert inspect.getgeneratorstate(gen) == inspect.GEN_CLOSED
 
 
 @pytest.mark.parametrize("name", ["deprecated_running_total", "deprecated_async_running_total"])
@@ -702,6 +947,74 @@ async def test_async_generator_forwards_asend_athrow_and_aclose() -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("action", "expectation"),
+    [
+        pytest.param(methodcaller("aclose"), nullcontext(), id="aclose"),
+        pytest.param(
+            methodcaller("athrow", ValueError("abort before start")),
+            pytest.raises(ValueError, match="abort before start"),
+            id="athrow",
+        ),
+    ],
+)
+async def test_async_generator_closed_or_thrown_into_before_its_first_step_never_starts(
+    action: Callable[[object], Awaitable[object]], expectation: AbstractContextManager[object]
+) -> None:
+    """``aclose()`` or ``athrow()`` before the first step neither warns nor runs the target body.
+
+    An async consumer creates a deprecated stream and cancels it before reading anything. As for any unstarted async
+    generator, ``aclose()`` finishes silently and ``athrow()`` re-raises the thrown exception at the caller. No
+    deprecated code ran, so no warning fires and the target's ``finally`` never logs.
+
+    """
+    log: list[str] = []
+    with captured_warnings() as warned:
+        agen = deprecated_async_running_total(1, log)
+        with expectation:
+            await action(agen)
+    assert not _deprecation_warnings(warned)
+    assert log == []
+
+
+@pytest.mark.asyncio
+async def test_async_generator_never_iterated_never_warns_nor_spends_the_budget() -> None:
+    """An async generator created and dropped without a step neither warns nor uses the ``num_warns=1`` budget.
+
+    Async twin of the sync case: a caller builds a deprecated async generator but drops it before any ``async for``
+    step, so nothing warns, and the single-warning budget is still available for the first one actually iterated.
+
+    """
+    with captured_warnings() as warned:
+        unused = async_gen_notify(x=1)
+        del unused
+        before_iteration = len(_deprecation_warnings(warned))
+        items = await _drain(async_gen_notify(x=1))
+    assert before_iteration == 0
+    assert len(_deprecation_warnings(warned)) == 1, "The first iterated async generator must still get the warning"
+    assert items == [1, 2, 3]
+
+
+@pytest.mark.asyncio
+async def test_async_generator_method_warns_once_on_first_step_and_yields_the_target_values() -> None:
+    """A deprecated async generator method forwards through ``self`` and warns once, on its first step.
+
+    Async twin of the generator method case: calling the old async generator method on an instance only creates the
+    async generator; its first ``async for`` step warns once and the items come from the replacement method bound to
+    the same instance.
+
+    """
+    reader = MultiplesReader(base=2)
+    with captured_warnings() as warned:
+        agen = reader.aread_multiples()
+        at_call = len(_deprecation_warnings(warned))
+        items = await _drain(agen)
+    assert at_call == 0
+    assert len(_deprecation_warnings(warned)) == 1
+    assert items == [2, 4, 6]
+
+
+@pytest.mark.asyncio
 async def test_async_generator_forwards_to_non_native_async_generator() -> None:
     """``asend``, ``athrow`` and ``aclose`` reach a target object that implements them without being an async generator.
 
@@ -720,6 +1033,41 @@ async def test_async_generator_forwards_to_non_native_async_generator() -> None:
 
 
 @pytest.mark.asyncio
+async def test_async_generator_athrow_into_a_target_without_athrow_reraises_at_the_caller() -> None:
+    """An exception thrown in while the first item is held re-raises at the caller when the target has no ``athrow``.
+
+    A deprecated stream now forwards to a replacement that returns a plain async iterator. A consumer awaits the
+    first item and then throws an exception in to abort; the iterator has no ``athrow`` to handle it, so the exception
+    must come back out of the consumer's ``athrow`` call and the wrapper is finished afterwards.
+
+    """
+    with captured_warnings():
+        agen = deprecated_countdown(3)
+        await agen.__anext__()
+        with pytest.raises(ValueError, match="abort the countdown"):
+            await agen.athrow(ValueError("abort the countdown"))
+    with pytest.raises(StopAsyncIteration):
+        await agen.__anext__()
+
+
+@pytest.mark.asyncio
+async def test_async_generator_aclose_on_a_target_without_aclose_finishes_the_wrapper() -> None:
+    """Closing the wrapper while the first item is held succeeds when the target has no ``aclose``.
+
+    A consumer of a deprecated stream whose replacement returns a plain async iterator awaits one item and closes the
+    stream. The iterator has nothing to close, so ``aclose()`` must still complete without error and leave the
+    wrapper finished, instead of failing on the missing method.
+
+    """
+    with captured_warnings():
+        agen = deprecated_countdown(3)
+        await agen.__anext__()
+        await agen.aclose()
+    with pytest.raises(StopAsyncIteration):
+        await agen.__anext__()
+
+
+@pytest.mark.asyncio
 async def test_async_generator_with_async_iterator_target_yields_its_items() -> None:
     """An async generator source forwarded to a target returning a plain async iterator streams that iterator's items.
 
@@ -731,6 +1079,22 @@ async def test_async_generator_with_async_iterator_target_yields_its_items() -> 
         items = [item async for item in deprecated_countdown(3)]
     assert inspect.isasyncgenfunction(deprecated_countdown)
     assert items == [3, 2, 1]
+    assert len(_deprecation_warnings(warned)) == 1
+
+
+@pytest.mark.asyncio
+async def test_async_generator_ends_on_its_first_step_when_the_target_has_no_items() -> None:
+    """An async target with no items warns once on the first step and ends the wrapper there.
+
+    The async twin of the sync case: the replacement of a deprecated stream returns an async iterator that is empty
+    from the start. The first step still runs the deprecation logic, so it warns, and then the wrapper ends with
+    ``StopAsyncIteration``. An async generator cannot return a value, so there is no return-without-yield case.
+
+    """
+    with captured_warnings() as warned:
+        agen = deprecated_countdown(0)
+        with pytest.raises(StopAsyncIteration):
+            await agen.__anext__()
     assert len(_deprecation_warnings(warned)) == 1
 
 
@@ -853,3 +1217,35 @@ async def test_two_suspended_async_generators_of_one_wrapper_raise_no_false_cycl
         await second.aclose()
     assert merged == [1, 10, 2, 11]
     assert first_log == second_log == ["closed"]
+
+
+@pytest.mark.asyncio
+async def test_async_generator_first_step_failure_releases_the_cycle_guard() -> None:
+    """A first async step that raises releases the cycle guard, so the next call of the same wrapper works and warns.
+
+    The async twin of the sync case: the replacement of a deprecated stream rejects a malformed input on its first
+    step, and the consumer retries in the same task with good input. The guard held across that failed step must be
+    released, so the retry gets its rows and the one deprecation warning instead of a "Circular deprecation" error.
+
+    """
+    with captured_warnings(), pytest.raises(ValueError, match="is not an integer"):
+        await deprecated_async_parse_rows(["1", "x"]).__anext__()
+    with captured_warnings() as warned:
+        rows = await _drain(deprecated_async_parse_rows(["1", "2"]))
+    assert rows == [1, 2]
+    assert len(_deprecation_warnings(warned)) == 1
+
+
+@pytest.mark.asyncio
+async def test_overlapping_async_generator_first_steps_raise_no_false_cycle() -> None:
+    """Two calls of one wrapper whose first steps suspend under the cycle guard overlap without a false cycle error.
+
+    A service fetches two pages of a deprecated paged stream concurrently with ``asyncio.gather``. Each first step
+    holds the guard while the replacement awaits the network before its first item, so both guarded steps are in
+    flight at once. They run in separate tasks, so neither may see the other as a re-entry of its own target chain.
+
+    """
+    with captured_warnings() as warned:
+        pages = await asyncio.gather(_drain(deprecated_fetch_page(1)), _drain(deprecated_fetch_page(2)))
+    assert pages == [[10, 11], [20, 21]]
+    assert len(_deprecation_warnings(warned)) == 2
