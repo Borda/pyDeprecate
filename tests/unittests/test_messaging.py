@@ -493,7 +493,7 @@ class TestRaiseWarnStacklevel:
         """
         calls: list[str] = []
 
-        def stream(msg: str, stacklevel: int = 1) -> None:
+        def _stream(msg: str, stacklevel: int = 1) -> None:
             calls.append(msg)
             raise TypeError("boom from inside the stream")
 
@@ -501,7 +501,7 @@ class TestRaiseWarnStacklevel:
             pass
 
         with pytest.raises(TypeError, match="boom from inside the stream"):
-            _raise_warn(stream, old, "%(source_name)s")
+            _raise_warn(_stream, old, "%(source_name)s")
         assert len(calls) == 1
 
     def test_varkw_stream_receives_stacklevel_exactly_once(self) -> None:
@@ -512,13 +512,13 @@ class TestRaiseWarnStacklevel:
         """
         calls: list[tuple[str, dict[str, object]]] = []
 
-        def stream(msg: str, **kwargs: object) -> None:
+        def _stream(msg: str, **kwargs: object) -> None:
             calls.append((msg, kwargs))
 
         def src() -> None:
             pass
 
-        _raise_warn(stream, src, "%(source_name)s")
+        _raise_warn(_stream, src, "%(source_name)s")
         assert len(calls) == 1
         assert "stacklevel" in calls[0][1]
 

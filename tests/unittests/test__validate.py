@@ -157,7 +157,7 @@ class TestCrossClassMethodGuard:
 
         """
 
-        def rewrite_to_alien_class(fn: Callable[..., Any]) -> Callable[..., Any]:
+        def _rewrite_to_alien_class(fn: Callable[..., Any]) -> Callable[..., Any]:
             """Test fixture: outer decorator that retags the wrapped function as living on ``AlienClass``."""
             fn.__qualname__ = "AlienClass.method"
             return fn
@@ -167,7 +167,7 @@ class TestCrossClassMethodGuard:
                 return x
 
             @deprecated(target=new_method, deprecated_in="1.0", remove_in="2.0")
-            @rewrite_to_alien_class
+            @_rewrite_to_alien_class
             def old_method(self, x: int) -> int:
                 return void(x)
 
@@ -185,7 +185,7 @@ class TestCrossClassMethodGuard:
 
         """
 
-        def rewrite_qualname(fn: Callable[..., Any]) -> Callable[..., Any]:
+        def _rewrite_qualname(fn: Callable[..., Any]) -> Callable[..., Any]:
             """Test fixture: an outer decorator that retags the wrapped function as living on ``OtherOwner``."""
             fn.__qualname__ = "OtherOwner.rewritten_method"
             return fn
@@ -198,7 +198,7 @@ class TestCrossClassMethodGuard:
 
             class RealOwner:
                 @deprecated(target=TargetOwner.target_method, deprecated_in="1.0", remove_in="2.0")
-                @rewrite_qualname
+                @_rewrite_qualname
                 def old_method(self, x: int) -> int:
                     return void(x)
 

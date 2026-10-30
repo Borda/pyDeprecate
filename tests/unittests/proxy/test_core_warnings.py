@@ -379,13 +379,13 @@ class TestProxyStreamStacklevelProbe:
         """
         calls: list[str] = []
 
-        def stream(msg: str, stacklevel: int = 1) -> None:
+        def _stream(msg: str, stacklevel: int = 1) -> None:
             calls.append(msg)
             raise TypeError("boom from inside the proxy stream")
 
         proxy = _DeprecatedProxy(
             obj=_P8Source,
-            spec=_ProxySpec(target=_P8Target, name="_P8Source", **_DEPRS_CASE_STD_ARGS, stream=stream),
+            spec=_ProxySpec(target=_P8Target, name="_P8Source", **_DEPRS_CASE_STD_ARGS, stream=_stream),
         )
         with pytest.raises(TypeError, match="boom from inside the proxy stream"):
             proxy._warn()
@@ -706,13 +706,13 @@ class TestWarnBudgetThreadSafety:
         n_threads = 16
         barrier = threading.Barrier(n_threads)
 
-        def worker(_ignored: int) -> None:
+        def _worker(_ignored: int) -> None:
             """Block until every thread has arrived, then use the deprecated proxy simultaneously."""
             barrier.wait()
             drive(proxy)
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=n_threads) as pool:
-            list(pool.map(worker, range(n_threads)))
+            list(pool.map(_worker, range(n_threads)))
         assert len(stream.calls) == 1
 
 

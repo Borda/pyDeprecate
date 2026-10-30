@@ -1020,24 +1020,24 @@ class TestNumWarns:
             emissions: list[int] = []
             emit_lock = threading.Lock()
 
-            def counting_stream(message: str, *args: object, **kwargs: object) -> None:
+            def _counting_stream(message: str, *args: object, **kwargs: object) -> None:
                 """Record one stream delivery while widening the budget race window."""
                 time.sleep(0.001)
                 with emit_lock:
                     emissions.append(1)
 
-            deprecated_module(mod_name, **_DEPRS_CASE_MOD_ARGS, num_warns=1, stream=counting_stream)
+            deprecated_module(mod_name, **_DEPRS_CASE_MOD_ARGS, num_warns=1, stream=_counting_stream)
             mod = sys.modules[mod_name]
             n_threads = 16
             barrier = threading.Barrier(n_threads)
 
-            def worker(_ignored: int) -> None:
+            def _worker(_ignored: int) -> None:
                 """Synchronize one public attribute access with the other test workers."""
                 barrier.wait()
                 getattr(mod, "a", None)
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=n_threads) as pool:
-                list(pool.map(worker, range(n_threads)))
+                list(pool.map(_worker, range(n_threads)))
             assert len(emissions) == 1
         finally:
             sys.setswitchinterval(previous_interval)
@@ -1357,12 +1357,12 @@ class TestRedirectCycle:
         for mod in modules:
             deprecated_module(mod.__name__, target=target, **_DEPRS_CASE_MOD_ARGS)
 
-        async def run_tasks() -> list[int]:
+        async def _run_tasks() -> list[int]:
             """Keep both simulated outer resolutions alive until both nested lookups finish."""
             ready = [asyncio.Event(), asyncio.Event()]
             resolved = [asyncio.Event(), asyncio.Event()]
 
-            async def resolve(index: int) -> int:
+            async def _resolve(index: int) -> int:
                 """Resolve the peer's module without inheriting its active guard entries."""
                 assert _redirect_guard.get() is None
                 own_key = (modules[index].__name__, "answer", threading.get_ident())
@@ -1383,10 +1383,10 @@ class TestRedirectCycle:
                 assert _redirect_guard.get() is None
                 return value
 
-            return list(await asyncio.gather(resolve(0), resolve(1)))
+            return list(await asyncio.gather(_resolve(0), _resolve(1)))
 
         with pytest.warns(FutureWarning) as caught:
-            assert asyncio.run(run_tasks()) == [42, 42]
+            assert asyncio.run(_run_tasks()) == [42, 42]
         assert len(caught) == 2
         assert _redirect_guard.get() is None
 

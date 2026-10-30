@@ -152,7 +152,7 @@ class TestClassDispatchInformationalWarning:
         source = type("ConcurrentService", (), {"__module__": __name__})
         barrier = threading.Barrier(8, timeout=10)
 
-        def decorate() -> object:
+        def _decorate() -> object:
             """Apply the existing collection wrapper after every worker reaches the barrier."""
             previous_trace = sys.gettrace()
             sys.settrace(_yield_dispatch_lines)
@@ -163,7 +163,7 @@ class TestClassDispatchInformationalWarning:
                 sys.settrace(previous_trace)
 
         with captured_warnings() as caught, concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
-            futures = [executor.submit(decorate) for _ in range(8)]
+            futures = [executor.submit(_decorate) for _ in range(8)]
             results = [future.result(timeout=10) for future in futures]
 
         assert len(results) == 8

@@ -1743,26 +1743,26 @@ class TestWarnQuotaThreadSafety:
         emissions: list[int] = []
         emit_lock = threading.Lock()
 
-        def counting_stream(message: str, *args: object, **kwargs: object) -> None:
+        def _counting_stream(message: str, *args: object, **kwargs: object) -> None:
             """Record every emission; the tiny sleep is a yield point that exposes the race when unsynchronised."""
             time.sleep(0.001)
             with emit_lock:
                 emissions.append(1)
 
-        @deprecated(target=double_value, deprecated_in="1.0", remove_in="2.0", num_warns=1, stream=counting_stream)
+        @deprecated(target=double_value, deprecated_in="1.0", remove_in="2.0", num_warns=1, stream=_counting_stream)
         def racy(x: int) -> int:
             return void(x)
 
         n_threads = 16
         barrier = threading.Barrier(n_threads)
 
-        def worker(_ignored: int) -> None:
+        def _worker(_ignored: int) -> None:
             """Block until every thread has arrived, then hit the deprecated wrapper simultaneously."""
             barrier.wait()
             racy(1)
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=n_threads) as pool:
-            list(pool.map(worker, range(n_threads)))
+            list(pool.map(_worker, range(n_threads)))
         assert len(emissions) == 1
 
 

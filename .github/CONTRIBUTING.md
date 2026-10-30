@@ -555,6 +555,10 @@ The integration suite also keeps characterization for positional and keyword for
 >         ...
 > ```
 
+> [!IMPORTANT]
+>
+> **Private test helpers.** Every helper function in a `test_*.py` module carries a leading underscore (`_build_target`, not `build_target`), module-level or nested inside a test (`_worker`, `_counting_stream`); only `test_*` functions and pytest fixtures stay public. A nested function that is the subject under test (a source, target or decorated callable whose name reaches the asserted output) keeps its name. A method on a fake class keeps the name of the interface it stands in for (`read_text`, `reconfigure`).
+
 **Asserting warnings.** Use `pytest.warns(Category, match=...)` when the test only needs at least one matching warning. When it checks an exact count, the order, the absence of warnings, or a record's `filename`/`lineno`, record with `captured_warnings()` from `tests/_helpers.py`. It is `warnings.catch_warnings(record=True)` plus `simplefilter("always")`, so neither the active filters nor the once-per-location registry hide a record. A warning the test triggers but does not check must not escape into the run's warnings summary: assert it with a second `pytest.warns` in the same `with`, or, when it is pure setup noise, add a narrow `@pytest.mark.filterwarnings("ignore:<message prefix>:<Category>")` to that test. `pytest.warns` re-emits unmatched warnings from the `warnings` module, so the `tests`-scoped ignores in `pyproject.toml` no longer apply to them.
 
 > [!NOTE]

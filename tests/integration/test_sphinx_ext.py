@@ -73,11 +73,11 @@ class TestImportObject:
 
         base = _DeprecatedProxyClassDocumenter.__bases__[0]
 
-        def fake_super_import(self_inner: Any, raiseerror: bool = False) -> bool:  # noqa: ANN401
+        def _fake_super_import(self_inner: Any, raiseerror: bool = False) -> bool:  # noqa: ANN401
             self_inner.object = proxy
             return True
 
-        with patch.object(base, "import_object", fake_super_import):
+        with patch.object(base, "import_object", _fake_super_import):
             result = doc.import_object()
 
         assert result is True
@@ -102,11 +102,11 @@ class TestImportObject:
 
         base = _DeprecatedProxyClassDocumenter.__bases__[0]
 
-        def fake_super_import(self_inner: Any, raiseerror: bool = False) -> bool:  # noqa: ANN401
+        def _fake_super_import(self_inner: Any, raiseerror: bool = False) -> bool:  # noqa: ANN401
             self_inner.object = Regular
             return True
 
-        with patch.object(base, "import_object", fake_super_import):
+        with patch.object(base, "import_object", _fake_super_import):
             result = doc.import_object()
 
         assert result is True
@@ -128,11 +128,11 @@ class TestImportObject:
 
         base = _DeprecatedProxyClassDocumenter.__bases__[0]
 
-        def fake_super_import(self_inner: Any, raiseerror: bool = False) -> bool:  # noqa: ANN401
+        def _fake_super_import(self_inner: Any, raiseerror: bool = False) -> bool:  # noqa: ANN401
             self_inner.object = proxy
             return False
 
-        with patch.object(base, "import_object", fake_super_import):
+        with patch.object(base, "import_object", _fake_super_import):
             result = doc.import_object()
 
         assert result is False
