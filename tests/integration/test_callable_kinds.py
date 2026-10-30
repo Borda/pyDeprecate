@@ -116,10 +116,10 @@ def test_generator_warning_fires_once_per_call(wrapper: object, call_kwargs: dic
 
 
 def test_generator_num_warns_unlimited_warns_every_call() -> None:
-    """num_warns=-1 wrapper emits exactly one warning per call; iteration emits none.
+    """num_warns=-1 wrapper emits exactly one warning per generator, on its first step; later steps emit none.
 
-    Verifies that each external call to a generator wrapper with ``num_warns=-1`` produces exactly
-    one deprecation warning at call time, and that exhausting the generator does not re-emit.
+    Verifies that each generator created from a wrapper with ``num_warns=-1`` produces exactly one deprecation
+    warning, on its first iteration step, and that later steps up to exhaustion do not re-emit.
 
     """
     with captured_warnings() as warned:

@@ -568,11 +568,12 @@ def _resume_generator(inner: Iterator[Any], item: Any) -> Generator[Any, Any, An
 def _generator_wrapper(ctx: _WrapperContext) -> Callable[..., Any]:
     """Build the generator wrapper of a generator function: the call path runs on the first ``next()``.
 
-    Calling the wrapper only creates the generator object, so the warning, the ``num_warns`` budget and an
-    :func:`~deprecate.as_exceptions` error all wait for the first step, and a generator that is never iterated never
-    warns. ``send``/``throw``/``close`` and the return value are forwarded; a target that returns any other iterable (a
-    list, an iterator) has its items yielded. A call that ``skip_if`` skips, or that needs no call plan, delegates to
-    the source with ``yield from`` and no cycle guard, as the function wrapper runs it.
+    Calling the wrapper only creates the generator object, so the warning, the ``num_warns`` budget, an
+    :func:`~deprecate.as_exceptions` error, the ``skip_if`` evaluation and argument binding and remapping (with their
+    arity and ``Failed mapping`` ``TypeError``) all wait for the first step, and a generator that is never iterated
+    never warns. ``send``/``throw``/``close`` and the return value are forwarded; a target that returns any other
+    iterable (a list, an iterator) has its items yielded. A call that ``skip_if`` skips, or that needs no call plan,
+    delegates to the source with ``yield from`` and no cycle guard, as the function wrapper runs it.
 
     """
 
@@ -785,9 +786,10 @@ def deprecated_callable(
     For **generator functions** (``def gen(): yield``) and **async generator functions** (``async def gen(): yield``),
     the wrapper is itself a generator (async generator) function, so :func:`inspect.isgeneratorfunction` /
     :func:`inspect.isasyncgenfunction` stay ``True`` and frameworks such as pytest's fixture runner treat it like the
-    original.  Calling it only creates the generator object: the deprecation warning, the ``num_warns`` budget and an
-    ``as_exception`` / :func:`~deprecate.as_exceptions` error come on the first ``next()`` / ``async for`` step, and a
-    generator that is never iterated never warns.  ``send``/``throw``/``close`` (``asend``/``athrow``/``aclose``) and
+    original.  Calling it only creates the generator object: the deprecation warning, the ``num_warns`` budget, an
+    ``as_exception`` / :func:`~deprecate.as_exceptions` error, the ``skip_if`` evaluation and argument binding and
+    remapping (with their ``TypeError``) come on the first ``next()`` / ``async for`` step, and a generator that is
+    never iterated never warns.  ``send``/``throw``/``close`` (``asend``/``athrow``/``aclose``) and
     the return value reach the inner generator; a sync generator's target returning another iterable has its items
     yielded, while an async generator's target must return an async iterable.  The wrapper kind follows the source,
     so a generator stub must itself contain ``yield``.  A generator-based coroutine (a :func:`types.coroutine`

@@ -215,7 +215,7 @@ True
 
 **A:** Your deprecated function passes an argument that the target function does not accept. You need to either drop the argument, rename it to match the target's signature, or use `TargetMode.ARGS_REMAP` for in-place remapping.
 
-The error fires at call time because pyDeprecate prepares the forwarded call from the deprecated source and validates those arguments against the target's signature. If one or more mapped names are still not accepted by the target, it raises `` TypeError: Failed mapping of `{source}`, arguments not accepted by target: [...] ``. When the target accepts `*args`, the message uses a slightly different variant, but it still indicates that the mapped arguments could not be accepted by the target.
+The error fires at call time (for a generator or async generator function, on the first `next()` or `async for` step instead, because calling its wrapper only creates the generator) because pyDeprecate prepares the forwarded call from the deprecated source and validates those arguments against the target's signature. If one or more mapped names are still not accepted by the target, it raises `` TypeError: Failed mapping of `{source}`, arguments not accepted by target: [...] ``. When the target accepts `*args`, the message uses a slightly different variant, but it still indicates that the mapped arguments could not be accepted by the target.
 
 Choose the fix that matches your situation:
 
