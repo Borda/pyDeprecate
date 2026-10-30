@@ -18,6 +18,7 @@ from tests.collections.api_current.core import (
     Palette,
     PaletteEnum,
     PaletteOld,
+    Pep702ProxyTarget,
     PositionalOnlyTarget,
     SelfDeprecatedModel,
     SelfOnlyPositionalOnlyTarget,
@@ -27,7 +28,6 @@ from tests.collections.api_current.core import (
     UncomparableDefault,
     WithInjected,
     _DelOnlyPropTarget,
-    _Pep702ProxyTarget,
     async_non_cycle_double,
     async_positional_only_target,
     async_suspending_double,
@@ -80,8 +80,8 @@ from tests.collections.api_deprecated.core import (
     _DEPRS_CASE_STD_INF_ARGS,
     _DEPRS_CASE_TGT_MODE_ARGS,
     _DEPRS_CASE_TGT_MODE_INF_ARGS,
-    _async_source_notify,
     _class_deprecation_notify_only_callable_target,
+    async_source_notify,
 )
 
 # ========== Proxy args_mapping behaviour fixtures ==========
@@ -365,8 +365,8 @@ def make_explicit_notify_no_versions_warns() -> Callable[[int], int]:
 # plain string ``__deprecated__`` and would otherwise crash ``validate_deprecation_wrapper``.
 # The public ``pep702_stacked`` re-export is a thunk function with no ``__deprecated__``
 # attribute, so the audit walker steps over it without probing.
-_pep702_inner = deprecated(target=pep702_target, deprecated_in="0.8", remove_in="1.0")(lambda x: x)
-_pep702_stacked = typing_extensions.deprecated("use `pep702_target`")(_pep702_inner)
+pep702_inner = deprecated(target=pep702_target, deprecated_in="0.8", remove_in="1.0")(lambda x: x)
+_pep702_stacked = typing_extensions.deprecated("use `pep702_target`")(pep702_inner)
 
 
 def pep702_stacked(x: int) -> int:
@@ -387,17 +387,17 @@ def pep702_stacked(x: int) -> int:
 #
 # PEP 702's outer wrapper assigns ``arg.__deprecated__ = msg`` on the proxy.  The
 # proxy's ``__setattr__`` stores that message on the proxy itself — never forwarding it
-# to ``_Pep702ProxyTarget`` — so the configuration survives and the wrapped class is
+# to ``Pep702ProxyTarget`` — so the configuration survives and the wrapped class is
 # not marked deprecated.
 #
 # This fixture is the B1b regression guard against re-introducing a clobber or leak path.
 # Both intermediate bindings are underscore-prefixed so audit walkers do not probe
 # the PEP 702-wrapped plain function as a pyDeprecate target.
-_pep702_proxy_inner = deprecated_class(deprecated_in="0.8", remove_in="1.0")(_Pep702ProxyTarget)
-_pep702_proxy_stacked = typing_extensions.deprecated("use `Pep702ProxyTarget`")(_pep702_proxy_inner)
+pep702_proxy_inner = deprecated_class(deprecated_in="0.8", remove_in="1.0")(Pep702ProxyTarget)
+_pep702_proxy_stacked = typing_extensions.deprecated("use `Pep702ProxyTarget`")(pep702_proxy_inner)
 
 
-def pep702_proxy_stacked() -> _Pep702ProxyTarget:
+def pep702_proxy_stacked() -> Pep702ProxyTarget:
     """Tiny re-export thunk for the PEP 702 + ``deprecated_class`` stacked proxy (B1b).
 
     Returns a fresh instance produced by invoking the stacked wrapper.  Defined as a function (not a module-level
@@ -414,7 +414,7 @@ def pep702_proxy_stacked() -> _Pep702ProxyTarget:
 # at call time) and full round-trip yield equivalence.
 
 
-def _gen_source_remap(old_x: int = 0, x: int = 0) -> Iterator[int]:
+def gen_source_remap(old_x: int = 0, x: int = 0) -> Iterator[int]:
     """Self-deprecation source for ``gen_args_remap``: accepts the legacy arg ``old_x`` (mapped to ``x``).
 
     Source body executes under :attr:`~deprecate.TargetMode.ARGS_REMAP` so the generator must be defined here, not
@@ -426,7 +426,7 @@ def _gen_source_remap(old_x: int = 0, x: int = 0) -> Iterator[int]:
         yield x * i
 
 
-def _gen_source_callable(x: int = 0) -> Iterator[int]:
+def gen_source_callable(x: int = 0) -> Iterator[int]:
     """Placeholder generator source for ``gen_callable``: body never executes under callable-target mode.
 
     Declared as a generator function (``yield`` in body) so :func:`inspect.isgeneratorfunction` returns ``True`` and the
@@ -443,10 +443,10 @@ def _gen_source_callable(x: int = 0) -> Iterator[int]:
 gen_notify = deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)(gen_target)
 #: ARGS_REMAP mode — self-deprecation; legacy arg ``old_x`` mapped to ``x`` before source body executes.
 gen_args_remap = deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old_x": "x"}, **_DEPRS_CASE_STD_ARGS)(
-    _gen_source_remap
+    gen_source_remap
 )
 #: Callable-target mode — call forwarded to ``gen_target``; source body never executes.
-gen_callable = deprecated(target=gen_target, **_DEPRS_CASE_STD_ARGS)(_gen_source_callable)
+gen_callable = deprecated(target=gen_target, **_DEPRS_CASE_STD_ARGS)(gen_source_callable)
 #: NOTIFY mode with ``num_warns=-1`` (warn on every call); used to test unlimited-warning behaviour.
 gen_notify_unlimited = deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_INF_ARGS)(gen_target)
 
@@ -459,7 +459,7 @@ gen_notify_unlimited = deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_IN
 # site rather than to ``deprecation.py``.
 
 
-async def _async_source_remap(old_x: int = 0, x: int = 0) -> int:
+async def async_source_remap(old_x: int = 0, x: int = 0) -> int:
     """Self-deprecation async source for ``async_args_remap``: accepts legacy arg ``old_x`` (mapped to ``x``).
 
     Body executes under :attr:`~deprecate.TargetMode.ARGS_REMAP` so it must be a real ``async def``; only the
@@ -469,7 +469,7 @@ async def _async_source_remap(old_x: int = 0, x: int = 0) -> int:
     return x * 2
 
 
-async def _async_source_callable(x: int = 0) -> int:
+async def async_source_callable(x: int = 0) -> int:
     """Placeholder async source for ``async_callable``: body never executes under callable-target mode.
 
     Declared as ``async def`` so :func:`inspect.iscoroutinefunction` returns ``True`` and the async wrapper engages.
@@ -481,13 +481,13 @@ async def _async_source_callable(x: int = 0) -> int:
 
 #: NOTIFY mode — source body runs unchanged (warning-only). Uses default ``num_warns=1``;
 #: warning fires once per call. Tests reset ``warned_calls`` between parametrize cases.
-async_notify = deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)(_async_source_notify)
+async_notify = deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)(async_source_notify)
 #: ARGS_REMAP mode — self-deprecation; legacy arg ``old_x`` mapped to ``x`` before source body executes.
 async_args_remap = deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old_x": "x"}, **_DEPRS_CASE_STD_ARGS)(
-    _async_source_remap
+    async_source_remap
 )
 #: Callable-target mode — call forwarded to ``async_target``; source body never executes.
-async_callable = deprecated(target=async_target, **_DEPRS_CASE_STD_ARGS)(_async_source_callable)
+async_callable = deprecated(target=async_target, **_DEPRS_CASE_STD_ARGS)(async_source_callable)
 
 
 # ========== async generator callable kind fixtures ==========
@@ -498,7 +498,7 @@ async_callable = deprecated(target=async_target, **_DEPRS_CASE_STD_ARGS)(_async_
 # (c) stacklevel points to the user's call site.
 
 
-async def _async_gen_source_notify(x: int) -> AsyncIterator[int]:
+async def async_gen_source_notify(x: int) -> AsyncIterator[int]:
     """NOTIFY-mode async generator source: body runs unchanged after warning fires.
 
     Yields the same multiples as :func:`async_gen_target` so the integration test can assert end-to-end
@@ -509,7 +509,7 @@ async def _async_gen_source_notify(x: int) -> AsyncIterator[int]:
         yield x * i
 
 
-async def _async_gen_source_remap(old_x: int = 0, x: int = 0) -> AsyncIterator[int]:
+async def async_gen_source_remap(old_x: int = 0, x: int = 0) -> AsyncIterator[int]:
     """Self-deprecation async generator source for ``async_gen_args_remap``.
 
     Accepts the legacy arg ``old_x`` (mapped to ``x`` before the body runs).  Body executes under
@@ -521,7 +521,7 @@ async def _async_gen_source_remap(old_x: int = 0, x: int = 0) -> AsyncIterator[i
         yield x * i
 
 
-async def _async_gen_source_callable(x: int = 0) -> AsyncIterator[int]:
+async def async_gen_source_callable(x: int = 0) -> AsyncIterator[int]:
     """Placeholder async generator source for ``async_gen_callable``: body never executes.
 
     Declared as ``async def`` containing ``yield`` so :func:`inspect.isasyncgenfunction` returns ``True``.
@@ -534,13 +534,13 @@ async def _async_gen_source_callable(x: int = 0) -> AsyncIterator[int]:
 
 #: NOTIFY mode — source body runs unchanged (warning-only).  Uses default ``num_warns=1``; warning fires once
 #: per call.  The conftest reset clears ``warned_calls`` before every test, so each parametrize case starts fresh.
-async_gen_notify = deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)(_async_gen_source_notify)
+async_gen_notify = deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)(async_gen_source_notify)
 #: ARGS_REMAP mode — self-deprecation; legacy arg ``old_x`` mapped to ``x`` before source body executes.
 async_gen_args_remap = deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old_x": "x"}, **_DEPRS_CASE_STD_ARGS)(
-    _async_gen_source_remap
+    async_gen_source_remap
 )
 #: Callable-target mode — call forwarded to ``async_gen_target``; source body never executes.
-async_gen_callable = deprecated(target=async_gen_target, **_DEPRS_CASE_STD_ARGS)(_async_gen_source_callable)
+async_gen_callable = deprecated(target=async_gen_target, **_DEPRS_CASE_STD_ARGS)(async_gen_source_callable)
 
 
 # ========== generator protocol fixtures ==========
@@ -549,141 +549,141 @@ async_gen_callable = deprecated(target=async_gen_target, **_DEPRS_CASE_STD_ARGS)
 # The protocol wrappers forward to callable targets, so they also run under the target-chain cycle guard.
 
 
-def _running_total_source(start: int, log: list[str]) -> Generator[int, Optional[int], None]:
+def running_total_source(start: int, log: list[str]) -> Generator[int, Optional[int], None]:
     """Placeholder generator source for ``deprecated_running_total``: body never executes under callable-target mode."""
     if False:  # pragma: no cover - unreachable; declares this as a generator
         yield start
 
 
-async def _async_running_total_source(start: int, log: list[str]) -> AsyncGenerator[int, Optional[int]]:
+async def async_running_total_source(start: int, log: list[str]) -> AsyncGenerator[int, Optional[int]]:
     """Placeholder async generator source for ``deprecated_async_running_total``; the target forwards every call."""
     if False:  # pragma: no cover - unreachable; declares this as an async generator
         yield start
 
 
-async def _cursor_source(log: list[Any]) -> AsyncGenerator[int, Optional[int]]:
+async def cursor_source(log: list[Any]) -> AsyncGenerator[int, Optional[int]]:
     """Placeholder async generator source for ``deprecated_cursor``; its target returns a non-native async generator."""
     if False:  # pragma: no cover - unreachable; declares this as an async generator
         yield len(log)
 
 
-def _walk_source(depth: int, recurse: Callable[[int, Any], Iterator[int]]) -> Iterator[int]:
+def walk_source(depth: int, recurse: Callable[[int, Any], Iterator[int]]) -> Iterator[int]:
     """Placeholder generator source for ``deprecated_walk``, whose target recurses through the ``recurse`` callable."""
     if False:  # pragma: no cover - unreachable; declares this as a generator
         yield depth
 
 
-def _squares_source(n: int) -> Generator[int, None, None]:
+def squares_source(n: int) -> Generator[int, None, None]:
     """Placeholder generator source for ``deprecated_squares``, whose target returns a list instead of a generator."""
     if False:  # pragma: no cover - unreachable; declares this as a generator
         yield n
 
 
-def _flush_jobs_source(queue: str) -> Iterator[str]:
+def flush_jobs_source(queue: str) -> Iterator[str]:
     """Placeholder generator source for ``deprecated_flush_jobs``, whose target returns before its first ``yield``."""
     if False:  # pragma: no cover - unreachable; declares this as a generator
         yield queue
 
 
-def _parse_rows_source(lines: list[str]) -> Iterator[int]:
+def parse_rows_source(lines: list[str]) -> Iterator[int]:
     """Placeholder generator source for ``deprecated_parse_rows``, whose target can raise before its first ``yield``."""
     if False:  # pragma: no cover - unreachable; declares this as a generator
         yield len(lines)
 
 
-async def _async_parse_rows_source(lines: list[str]) -> AsyncIterator[int]:
+async def async_parse_rows_source(lines: list[str]) -> AsyncIterator[int]:
     """Placeholder async generator source for ``deprecated_async_parse_rows``; the target forwards every call."""
     if False:  # pragma: no cover - unreachable; declares this as an async generator
         yield len(lines)
 
 
-async def _fetch_page_source(page: int) -> AsyncIterator[int]:
+async def fetch_page_source(page: int) -> AsyncIterator[int]:
     """Placeholder async generator source for ``deprecated_fetch_page``, whose target suspends before its first item."""
     if False:  # pragma: no cover - unreachable; declares this as an async generator
         yield page
 
 
-def _ask_once_source(question: str) -> Generator[str, Optional[str], None]:
+def ask_once_source(question: str) -> Generator[str, Optional[str], None]:
     """Placeholder generator source for ``deprecated_ask_once``, whose target returns on the next resumption."""
     if False:  # pragma: no cover - unreachable; declares this as a generator
         yield question
 
 
-async def _countdown_source(start: int) -> AsyncGenerator[int, None]:
+async def countdown_source(start: int) -> AsyncGenerator[int, None]:
     """Placeholder async generator source for ``deprecated_countdown``, whose target returns a plain async iterator."""
     if False:  # pragma: no cover - unreachable; declares this as an async generator
         yield start
 
 
-async def _sync_stopping_source(count: int) -> AsyncGenerator[int, None]:
+async def sync_stopping_source(count: int) -> AsyncGenerator[int, None]:
     """Placeholder async generator source for ``deprecated_sync_stopping``; its target ends iteration synchronously."""
     if False:  # pragma: no cover - unreachable; declares this as an async generator
         yield count
 
 
-def _batches_source(count: int) -> Iterator[DataBatch]:
+def batches_source(count: int) -> Iterator[DataBatch]:
     """Placeholder generator source for ``deprecated_load_batches``; the target forwards every call."""
     if False:  # pragma: no cover - unreachable; declares this as a generator
         yield DataBatch(count)
 
 
-async def _async_squares_source(n: int) -> AsyncGenerator[int, None]:
+async def async_squares_source(n: int) -> AsyncGenerator[int, None]:
     """Placeholder async generator source for ``deprecated_async_squares``, whose target returns a plain list."""
     if False:  # pragma: no cover - unreachable; declares this as an async generator
         yield n
 
 
-async def _async_gen_coroutine_source(x: int) -> AsyncGenerator[int, None]:
+async def async_gen_coroutine_source(x: int) -> AsyncGenerator[int, None]:
     """Placeholder async generator source for ``deprecated_async_gen_to_coroutine``; its target is a coroutine."""
     if False:  # pragma: no cover - unreachable; declares this as an async generator
         yield x
 
 
-def _gen_source_stacked(x: int = 0) -> Iterator[int]:
+def gen_source_stacked(x: int = 0) -> Iterator[int]:
     """Placeholder generator source for the inner layer of ``gen_stacked``; the target forwards every call."""
     if False:  # pragma: no cover - unreachable; declares this as a generator
         yield x
 
 
-async def _async_gen_source_stacked(x: int = 0) -> AsyncIterator[int]:
+async def async_gen_source_stacked(x: int = 0) -> AsyncIterator[int]:
     """Placeholder async generator source for the inner layer of ``async_gen_stacked``; the target forwards."""
     if False:  # pragma: no cover - unreachable; declares this as an async generator
         yield x
 
 
 #: Callable target ``running_total``: ``send``/``throw``/``close`` and the return value reach the target generator.
-deprecated_running_total = deprecated(target=running_total, **_DEPRS_CASE_STD_INF_ARGS)(_running_total_source)
+deprecated_running_total = deprecated(target=running_total, **_DEPRS_CASE_STD_INF_ARGS)(running_total_source)
 #: Callable target ``async_running_total``: ``asend``/``athrow``/``aclose`` reach the target async generator.
 deprecated_async_running_total = deprecated(target=async_running_total, **_DEPRS_CASE_STD_INF_ARGS)(
-    _async_running_total_source
+    async_running_total_source
 )
 #: Async generator source forwarded to ``open_cursor``: ``asend``/``athrow``/``aclose`` reach a non-native cursor.
-deprecated_cursor = deprecated(target=open_cursor, **_DEPRS_CASE_STD_INF_ARGS)(_cursor_source)
+deprecated_cursor = deprecated(target=open_cursor, **_DEPRS_CASE_STD_INF_ARGS)(cursor_source)
 #: Generator source forwarded to ``walk_down``; passing ``deprecated_walk`` as ``recurse`` recurses through it.
-deprecated_walk = deprecated(target=walk_down, **_DEPRS_CASE_STD_INF_ARGS)(_walk_source)
+deprecated_walk = deprecated(target=walk_down, **_DEPRS_CASE_STD_INF_ARGS)(walk_source)
 #: Generator source forwarded to ``squares_list``: the wrapper yields the items of the returned list.
-deprecated_squares = deprecated(target=squares_list, **_DEPRS_CASE_STD_INF_ARGS)(_squares_source)
+deprecated_squares = deprecated(target=squares_list, **_DEPRS_CASE_STD_INF_ARGS)(squares_source)
 #: Generator source forwarded to ``flush_pending_jobs``, which returns a value before its first ``yield``.
-deprecated_flush_jobs = deprecated(target=flush_pending_jobs, **_DEPRS_CASE_STD_INF_ARGS)(_flush_jobs_source)
+deprecated_flush_jobs = deprecated(target=flush_pending_jobs, **_DEPRS_CASE_STD_INF_ARGS)(flush_jobs_source)
 #: Generator source forwarded to ``parse_rows``, whose first step raises ``ValueError`` on a malformed line.
-deprecated_parse_rows = deprecated(target=parse_rows, **_DEPRS_CASE_STD_INF_ARGS)(_parse_rows_source)
+deprecated_parse_rows = deprecated(target=parse_rows, **_DEPRS_CASE_STD_INF_ARGS)(parse_rows_source)
 #: Async twin of ``deprecated_parse_rows``, forwarded to ``async_parse_rows``.
-deprecated_async_parse_rows = deprecated(target=async_parse_rows, **_DEPRS_CASE_STD_INF_ARGS)(_async_parse_rows_source)
+deprecated_async_parse_rows = deprecated(target=async_parse_rows, **_DEPRS_CASE_STD_INF_ARGS)(async_parse_rows_source)
 #: Async generator source forwarded to ``async_fetch_page``, whose first step suspends under the cycle guard.
-deprecated_fetch_page = deprecated(target=async_fetch_page, **_DEPRS_CASE_STD_INF_ARGS)(_fetch_page_source)
+deprecated_fetch_page = deprecated(target=async_fetch_page, **_DEPRS_CASE_STD_INF_ARGS)(fetch_page_source)
 #: Generator source forwarded to ``ask_once``, which returns on a sent value or a thrown ``ValueError``.
-deprecated_ask_once = deprecated(target=ask_once, **_DEPRS_CASE_STD_INF_ARGS)(_ask_once_source)
+deprecated_ask_once = deprecated(target=ask_once, **_DEPRS_CASE_STD_INF_ARGS)(ask_once_source)
 #: Async generator source forwarded to ``countdown_stream``: the wrapper iterates the plain async iterator it returns.
-deprecated_countdown = deprecated(target=countdown_stream, **_DEPRS_CASE_STD_INF_ARGS)(_countdown_source)
+deprecated_countdown = deprecated(target=countdown_stream, **_DEPRS_CASE_STD_INF_ARGS)(countdown_source)
 #: Async generator source forwarded to ``sync_stopping_stream``, whose plain ``def`` steps end the iteration directly.
-deprecated_sync_stopping = deprecated(target=sync_stopping_stream, **_DEPRS_CASE_STD_INF_ARGS)(_sync_stopping_source)
+deprecated_sync_stopping = deprecated(target=sync_stopping_stream, **_DEPRS_CASE_STD_INF_ARGS)(sync_stopping_source)
 #: Generator source forwarded to ``load_batches``: each batch must be freed once the consumer has moved past it.
-deprecated_load_batches = deprecated(target=load_batches, **_DEPRS_CASE_STD_INF_ARGS)(_batches_source)
+deprecated_load_batches = deprecated(target=load_batches, **_DEPRS_CASE_STD_INF_ARGS)(batches_source)
 #: Misconfigured: an async generator source forwarded to ``squares_list``, which returns a list, not an async iterable.
-deprecated_async_squares = deprecated(target=squares_list, **_DEPRS_CASE_STD_INF_ARGS)(_async_squares_source)
+deprecated_async_squares = deprecated(target=squares_list, **_DEPRS_CASE_STD_INF_ARGS)(async_squares_source)
 #: Misconfigured: an async generator source forwarded to the coroutine function ``async_target``.
 deprecated_async_gen_to_coroutine = deprecated(target=async_target, **_DEPRS_CASE_STD_INF_ARGS)(
-    _async_gen_coroutine_source
+    async_gen_coroutine_source
 )
 #: NOTIFY over a ``@types.coroutine`` generator: it keeps the plain wrapper, so the call warns and stays awaitable.
 deprecated_generator_based_double = deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_INF_ARGS)(
@@ -693,14 +693,14 @@ deprecated_generator_based_double = deprecated(target=TargetMode.NOTIFY, **_DEPR
 gen_notify_skipped = deprecated(target=TargetMode.NOTIFY, skip_if=True, **_DEPRS_CASE_STD_INF_ARGS)(gen_target)
 #: NOTIFY outer over a callable-target inner wrapper (a supported stack): both layers warn on the first step.
 gen_stacked = deprecated(target=TargetMode.NOTIFY, num_warns=-1, **_DEPRS_CASE_OUTER_ARGS)(
-    deprecated(target=gen_target, **_DEPRS_CASE_STD_INF_ARGS)(_gen_source_stacked)
+    deprecated(target=gen_target, **_DEPRS_CASE_STD_INF_ARGS)(gen_source_stacked)
 )
 #: Async twin of ``gen_stacked``.
 async_gen_stacked = deprecated(target=TargetMode.NOTIFY, num_warns=-1, **_DEPRS_CASE_OUTER_ARGS)(
-    deprecated(target=async_gen_target, **_DEPRS_CASE_STD_INF_ARGS)(_async_gen_source_stacked)
+    deprecated(target=async_gen_target, **_DEPRS_CASE_STD_INF_ARGS)(async_gen_source_stacked)
 )
 #: ``as_exception=True`` over ``running_total``: the first step raises ``DeprecatedError`` before the target starts.
-deprecated_running_total_fatal = deprecated(target=running_total, **_DEPRS_CASE_FATAL_ARGS)(_running_total_source)
+deprecated_running_total_fatal = deprecated(target=running_total, **_DEPRS_CASE_FATAL_ARGS)(running_total_source)
 
 
 def make_gen_skip_if_flag() -> tuple[Callable[..., Iterator[int]], dict[str, bool]]:
@@ -713,7 +713,7 @@ def make_gen_skip_if_flag() -> tuple[Callable[..., Iterator[int]], dict[str, boo
     """
     flag = {"skip": True}
     wrapper = deprecated(target=gen_target, skip_if=lambda: flag["skip"], **_DEPRS_CASE_STD_INF_ARGS)(
-        _gen_source_callable
+        gen_source_callable
     )
     return wrapper, flag
 

@@ -236,7 +236,7 @@ async def test_async_round_trip(wrapper: object, call_kwargs: dict) -> None:
 
 
 @pytest.mark.asyncio
-@pytest.mark.filterwarnings(r"ignore:'_async_source_notify' has duplicate @deprecated\(NOTIFY\) layers:UserWarning")
+@pytest.mark.filterwarnings(r"ignore:'async_source_notify' has duplicate @deprecated\(NOTIFY\) layers:UserWarning")
 async def test_async_stacked_both_warnings_fire() -> None:
     """Two stacked ``@deprecated`` wrappers on ``async def`` each emit a warning when awaited."""
     fn = make_async_stacked_notify()
@@ -260,7 +260,7 @@ async def test_async_warning_fires_on_await_not_on_call() -> None:
     pre_await_warnings = [w for w in warned_before if w.category in (FutureWarning, DeprecationWarning)]
     assert not pre_await_warnings, "Warning must not fire at call time — only fires on await"
 
-    with pytest.warns((FutureWarning, DeprecationWarning), match="`_async_source_notify` was deprecated"):
+    with pytest.warns((FutureWarning, DeprecationWarning), match="`async_source_notify` was deprecated"):
         result = await coro
     assert result == 2
 
@@ -370,7 +370,7 @@ async def test_async_gen_warning_stacklevel(wrapper: object, call_kwargs: dict) 
 async def test_async_args_remap_user_warning_emitted_when_both_old_and_new_provided() -> None:
     """Collision guard fires UserWarning when both old and new kwarg names are passed to an async ARGS_REMAP wrapper.
 
-    ``async_args_remap`` wraps ``_async_source_remap`` with ``args_mapping={"old_x": "x"}`` and source body
+    ``async_args_remap`` wraps ``async_source_remap`` with ``args_mapping={"old_x": "x"}`` and source body
     ``return x * 2``.  When called as ``await async_args_remap(old_x=5, x=6)`` the explicit ``x=6`` wins over the
     remapped ``old_x→x=5`` (new-name precedence), so the result is ``12``.  The collision guard must also emit a
     ``UserWarning`` naming the ignored argument, matching the behaviour of the ``@deprecated`` decorator path.
@@ -1179,7 +1179,7 @@ async def test_async_generator_with_sync_iterable_target_raises_curated_type_err
     """
     with captured_warnings():
         agen = deprecated_async_squares(3)
-        with pytest.raises(TypeError, match=r"Target `squares_list` of async generator `_async_squares_source`") as err:
+        with pytest.raises(TypeError, match=r"Target `squares_list` of async generator `async_squares_source`") as err:
             await agen.__anext__()
     assert "`list`, which is not an async iterable" in str(err.value)
 
@@ -1194,7 +1194,7 @@ async def test_async_generator_with_coroutine_target_raises_matching_advice() ->
     """
     with captured_warnings():
         agen = deprecated_async_gen_to_coroutine(3)
-        with pytest.raises(TypeError, match=r"cannot replace async generator `_async_gen_coroutine_source`") as err:
+        with pytest.raises(TypeError, match=r"cannot replace async generator `async_gen_coroutine_source`") as err:
             await agen.__anext__()
     assert "Declare" not in str(err.value)
 

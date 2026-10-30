@@ -294,7 +294,7 @@ def pep702_target(x: int) -> int:
     return x * 2
 
 
-class _Pep702ProxyTarget:
+class Pep702ProxyTarget:
     """Target class for PEP 702 stacking on ``deprecated_class`` proxy (B1b).
 
     Provides a stable ``value()`` method so the stacking test can confirm that

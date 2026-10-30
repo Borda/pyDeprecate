@@ -752,7 +752,7 @@ def make_async_stacked_notify() -> Callable:
         2
 
     """
-    inner = deprecated(TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)(_async_source_notify)
+    inner = deprecated(TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)(async_source_notify)
     return deprecated(TargetMode.NOTIFY, **_DEPRS_CASE_OUTER_ARGS)(inner)
 
 
@@ -1299,7 +1299,7 @@ ast_breadcrumb_source_dict = {"threshold": 0.5}
 depr_ast_breadcrumb_dict = deprecated_instance(ast_breadcrumb_source_dict, **_DEPRS_CASE_STD_INF_ARGS, stream=None)
 
 
-class _AstFunctionalColorEnum(Enum):
+class AstFunctionalColorEnum(Enum):
     """Source enum wrapped through the functional form of `deprecated_class` rather than by decoration."""
 
     RED = 1
@@ -1313,7 +1313,7 @@ class _AstFunctionalColorEnum(Enum):
 # could carry `target`, so type checkers cannot pick an overload and fall back to `Any` (also pinned there).
 DeprecatedColorEnumFunctional = deprecated_class(
     target=ColorEnum, deprecated_in="1.0", remove_in="2.0", num_warns=-1, stream=None
-)(_AstFunctionalColorEnum)
+)(AstFunctionalColorEnum)
 
 # same functional form with no class `target` — the proxy still forwards, and the alias is typed `type[Palette]`,
 # so `isinstance`/`issubclass` checks against it type-check
@@ -1421,7 +1421,7 @@ def depr_func_targeting_proxy(value: int) -> Any:  # noqa: ANN401
 # Shared async source used by the stacking factory above and sibling callable-kind fixtures.
 
 
-async def _async_source_notify(x: int) -> int:
+async def async_source_notify(x: int) -> int:
     """NOTIFY-mode async source: body runs unchanged after warning fires.
 
     Doubles its input so the integration test can assert end-to-end equivalence without referencing the target.
@@ -1676,40 +1676,40 @@ def loc_forward(x: int) -> int:
     return void(x)
 
 
-def _loc_stack_lifecycle_source(x: int = 0, old_x: int = 0) -> int:
+def loc_stack_lifecycle_source(x: int = 0, old_x: int = 0) -> int:
     """Body of the supported ARGS_REMAP-over-NOTIFY lifecycle stack."""
     return x
 
 
 #: Inner NOTIFY layer of the supported lifecycle stack (bound to a module name so its budget is reset per test).
-loc_stack_notify_inner = deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)(_loc_stack_lifecycle_source)
+loc_stack_notify_inner = deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)(loc_stack_lifecycle_source)
 #: Supported stack: the outer layer renames ``old_x``, the inner layer deprecates the whole function.
 loc_stack_remap_over_notify = deprecated(
     target=TargetMode.ARGS_REMAP, args_mapping={"old_x": "x"}, **_DEPRS_CASE_STD_ARGS
 )(loc_stack_notify_inner)
 
 
-def _loc_stack_forward_source(x: int) -> int:
+def loc_stack_forward_source(x: int) -> int:
     """Body of the supported NOTIFY-over-callable stack; never runs because the inner layer forwards."""
     return void(x)
 
 
 #: Inner forwarding layer of the supported NOTIFY-over-callable stack.
-loc_stack_callable_inner = deprecated(target=double_value, **_DEPRS_CASE_STD_ARGS)(_loc_stack_forward_source)
+loc_stack_callable_inner = deprecated(target=double_value, **_DEPRS_CASE_STD_ARGS)(loc_stack_forward_source)
 #: Supported stack: the outer NOTIFY layer (``v1.5``) announces removal, the inner layer (``v1.0``) forwards.
 loc_stack_notify_over_callable = deprecated(target=TargetMode.NOTIFY, deprecated_in="1.5", remove_in="2.0")(
     loc_stack_callable_inner
 )
 
 
-def _loc_stack_rename_chain_source(a: int = 0, b: int = 0, c: int = 0) -> int:
+def loc_stack_rename_chain_source(a: int = 0, b: int = 0, c: int = 0) -> int:
     """Body of the supported two-step rename stack (``a`` -> ``b`` first, ``b`` -> ``c`` later)."""
     return c
 
 
 #: Inner ARGS_REMAP layer of the two-step rename stack (``b`` -> ``c``).
 loc_stack_remap_inner = deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"b": "c"}, **_DEPRS_CASE_STD_ARGS)(
-    _loc_stack_rename_chain_source
+    loc_stack_rename_chain_source
 )
 #: Supported stack: outer layer renames ``a`` -> ``b``; a caller passing ``b`` and ``c`` collides in the inner layer.
 loc_stack_remap_over_remap = deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"a": "b"}, **_DEPRS_CASE_STD_ARGS)(

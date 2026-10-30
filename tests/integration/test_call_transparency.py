@@ -35,19 +35,19 @@ from tests.collections.api_deprecated.regressions import (
 
 # Results and warnings the two supported stacks produced before stacked layers passed the caller's shape through.
 _NOTIFY_OVER_CALLABLE_WARNINGS = [
-    "FutureWarning: The `_loc_stack_forward_source` was deprecated since v1.5. It will be removed in v2.0.",
-    "FutureWarning: The `_loc_stack_forward_source` was deprecated since v1.0 in favor of"
+    "FutureWarning: The `loc_stack_forward_source` was deprecated since v1.5. It will be removed in v2.0.",
+    "FutureWarning: The `loc_stack_forward_source` was deprecated since v1.0 in favor of"
     " `tests.collections.api_current.core.double_value`. It will be removed in v2.0.",
 ]
 _LIFECYCLE_NOTIFY_WARNING = (
-    "FutureWarning: The `_loc_stack_lifecycle_source` was deprecated since v1.0. It will be removed in v2.0."
+    "FutureWarning: The `loc_stack_lifecycle_source` was deprecated since v1.0. It will be removed in v2.0."
 )
 _VAR_POSITIONAL_RENAME_WARNING = (
     "FutureWarning: The `shape_remap_var_positional_with_extra` uses deprecated arguments: `old` -> `new`."
     " They were deprecated since v1.0 and will be removed in v2.0."
 )
 _LIFECYCLE_RENAME_WARNING = (
-    "FutureWarning: The `_loc_stack_lifecycle_source` uses deprecated arguments: `old_x` -> `x`."
+    "FutureWarning: The `loc_stack_lifecycle_source` uses deprecated arguments: `old_x` -> `x`."
     " They were deprecated since v1.0 and will be removed in v2.0."
 )
 
