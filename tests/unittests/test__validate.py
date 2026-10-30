@@ -11,6 +11,7 @@ from deprecate import TargetMode, assert_no_warnings, deprecated, void
 from deprecate._types import get_deprecation_config
 from deprecate._validate import (
     _STACKING_MESSAGES,
+    _check_classmethod_source,
     _find_class_body_qualname,
     _normalize_target,
     _reject_bare_decorator,
@@ -239,6 +240,98 @@ class TestNormalizeTargetInvalidInputs:
             result = fn(4)
 
         assert result == 5
+
+
+def _make_target(cls: type, value: int = 0) -> None:
+    """Classmethod target function with a conventional ``cls`` receiver."""
+
+
+def _make_target_posonly_kls(kls: type, /, value: int = 0) -> None:
+    """Classmethod target function whose ``kls`` receiver is positional-only."""
+
+
+def _make_target_varargs(*args: object) -> None:
+    """Classmethod target function with no positional parameter, so no receiver name to read."""
+
+
+def _source_varargs_first(*args: object, value: int = 0) -> None:
+    """Source whose signature opens with ``*args``."""
+
+
+def _source_keyword_only(*, value: int = 0) -> None:
+    """Source with keyword-only parameters only."""
+
+
+def _source_posonly_klass(klass: type, /, value: int = 0) -> None:
+    """Source whose ``klass`` receiver is positional-only."""
+
+
+def _source_klass_with_cls(klass: type, cls: object = None) -> None:
+    """Source with a ``klass`` receiver and a later ``cls`` option."""
+
+
+def _source_klass_with_kls(klass: type, kls: object = None) -> None:
+    """Source with a ``klass`` receiver and a later ``kls`` option."""
+
+
+class TestClassmethodSourceGuard:
+    """Decoration guard for a source forwarding to a ``classmethod`` descriptor target, on its signature edge cases.
+
+    The guard reads each side's receiver as its first positional parameter, whatever its kind or name, so these cases
+    pin the branches behind that rule: sources with no positional parameter at all, positional-only receivers on
+    either side, and a target with no positional parameter, which has no receiver to clash with.
+    """
+
+    @pytest.mark.parametrize(
+        "source",
+        [
+            pytest.param(_source_varargs_first, id="var-positional-first"),
+            pytest.param(_source_keyword_only, id="keyword-only"),
+        ],
+    )
+    def test_source_without_positional_parameter_raises(self, source: Callable) -> None:
+        """A ``*args``-first or keyword-only source has no slot for the class and is rejected.
+
+        A maintainer points a deprecated helper written with ``*args`` or with keyword-only parameters at a
+        classmethod replacement.  Neither form can ever receive the class as a leading positional argument, so the
+        guard raises at decoration time and names the missing leading parameter.
+
+        """
+        with pytest.raises(TypeError, match="no leading positional parameter was found"):
+            _check_classmethod_source(source, _make_target)
+
+    @pytest.mark.parametrize(
+        ("source", "target", "options"),
+        [
+            pytest.param(_source_posonly_klass, _make_target, {}, id="positional-only-source-receiver"),
+            pytest.param(_source_klass_with_cls, _make_target_varargs, {}, id="var-positional-target-no-clash"),
+            pytest.param(
+                _source_posonly_klass,
+                _make_target_varargs,
+                {"args_extra": {"cls": 1}},
+                id="var-positional-target-extra",
+            ),
+        ],
+    )
+    def test_accepts_receiver_edge_signatures(self, source: Callable, target: Callable, options: dict) -> None:
+        """A positional-only source receiver, or a target with no receiver to clash with, decorates cleanly.
+
+        A positional-only ``klass`` still counts as the source's leading positional parameter.  A target written
+        ``*args`` only exposes no receiver name, so neither a later ``cls`` option on the source nor an ``args_extra``
+        key ``cls`` can collide with one, and the guard leaves both alone.
+
+        """
+        _check_classmethod_source(source, target, **options)
+
+    def test_positional_only_target_receiver_is_read(self) -> None:
+        """A positional-only target receiver is still the name a later source parameter must not reuse.
+
+        The replacement declares its receiver ``kls`` as positional-only.  The guard reads it as the receiver all the
+        same, so a source with a ``klass`` receiver and a later ``kls`` option is rejected for the clash.
+
+        """
+        with pytest.raises(TypeError, match="later parameter `kls` shares the target's receiver name"):
+            _check_classmethod_source(_source_klass_with_kls, _make_target_posonly_kls)
 
 
 class TestStackedCallableTargetGuard:
