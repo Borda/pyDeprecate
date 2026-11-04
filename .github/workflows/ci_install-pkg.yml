@@ -24,7 +24,13 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ["3.9", "3.14"]
+        python-version: ["3.11", "3.14"]
+        # py3.9/3.10 stay on the image before `-latest`: actions/python-versions ships no Ubuntu 26.04 build of 3.9 and no
+        # Windows or arm64 macOS installer newer than 3.9.13 / 3.10.11
+        include:
+          - { os: ubuntu-22.04, python-version: "3.9" }
+          - { os: macos-15, python-version: "3.9" }
+          - { os: windows-2022, python-version: "3.9" }
       fail-fast: false
     uses: ./.github/workflows/_create-pkg.yml
     with:
@@ -37,7 +43,13 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ["3.9", "3.14"]
+        python-version: ["3.11", "3.14"]
+        # py3.9/3.10 stay on the image before `-latest`: actions/python-versions ships no Ubuntu 26.04 build of 3.9 and no
+        # Windows or arm64 macOS installer newer than 3.9.13 / 3.10.11
+        include:
+          - { os: ubuntu-22.04, python-version: "3.9" }
+          - { os: macos-15, python-version: "3.9" }
+          - { os: windows-2022, python-version: "3.9" }
       fail-fast: false
     runs-on: ${{ matrix.os }}
     steps:
