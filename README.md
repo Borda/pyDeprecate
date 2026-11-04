@@ -1570,7 +1570,7 @@ print(add_v1(2, 3))
 
 Deprecations are only as good as the hygiene around them. The `deprecate.audit` module provides utilities for verifying that deprecated wrappers are correctly configured, that removal deadlines are actually enforced, that every deprecation was scheduled the way your release policy promises, and that chains of deprecated-to-deprecated calls don't silently pile up. These tools are designed to run in CI pipelines and test suites, catching problems before they reach users.
 
-![Deprecation lifecycle: add the decorator, callers migrate, pre-commit, CI and pytest flag the expired wrapper, delete it](docs/assets/images/pydeprecate-lifecycle.svg)
+![Deprecation lifecycle cycle: old API in blue, new API and decorator in yellow, callers migrate, pre-commit, CI and pytest flag the expired wrapper, delete it and repeat](docs/assets/images/pydeprecate-lifecycle.svg)
 
 > [!NOTE]
 >

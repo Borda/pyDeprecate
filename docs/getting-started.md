@@ -159,7 +159,7 @@ ______________________________________________________________________
 
 ## Enforce and automate
 
-![Deprecation lifecycle: add the decorator, callers migrate, pre-commit, CI and pytest flag the expired wrapper, delete it](assets/images/pydeprecate-lifecycle.svg)
+![Deprecation lifecycle cycle: old API in blue, new API and decorator in yellow, callers migrate, pre-commit, CI and pytest flag the expired wrapper, delete it and repeat](assets/images/pydeprecate-lifecycle.svg)
 
 - **Fatal deprecations** — `as_exception=True` (or `deprecate.as_exceptions()` / `DEPRECATE_AS_EXCEPTIONS=1`) raises `DeprecatedError` instead of warning, so a test run can refuse deprecated calls. See [Fatal deprecations](guide/functions.md#fatal-deprecations).
 - **CLI** — `pydeprecate check`, `expiry`, `policy`, `chains` and `all` audit a package from the shell with CI-friendly exit codes. See the [CLI Reference](guide/cli.md).

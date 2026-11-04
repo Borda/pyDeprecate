@@ -334,7 +334,7 @@ def test_deprecated_wrappers_are_valid():
 
 ## Enforcing Removal Deadlines
 
-![Deprecation lifecycle: add the decorator, callers migrate, pre-commit, CI and pytest flag the expired wrapper, delete it](../assets/images/pydeprecate-lifecycle.svg)
+![Deprecation lifecycle cycle: old API in blue, new API and decorator in yellow, callers migrate, pre-commit, CI and pytest flag the expired wrapper, delete it and repeat](../assets/images/pydeprecate-lifecycle.svg)
 
 When you set `remove_in`, you are committing to delete that code when the version ships. Without automation, it is easy to forget — leaving zombie code that lingers past its deadline. `validate_deprecation_expiry()` scans a module or package and returns a list of error messages for every deprecated callable whose `remove_in` version has passed. An empty list means everything is clean.
 
