@@ -13,6 +13,8 @@ This page covers all deprecation patterns for Python functions and methods: forw
 
 ## Simple function forwarding
 
+![Rename a function: write the new API, decorate the old one with target, then a call to the old name warns and forwards](../assets/images/pydeprecate-case-function.svg)
+
 !!! danger "Body is dead code when `target=<callable>`"
 
     When `target` is set to a callable, pyDeprecate intercepts every call **before** the function body runs — the body is dead code under normal forwarding. **Exception**: if you also use `skip_if` and it evaluates `True` at call time, the source body executes as a fallback. In that case keep a working body; otherwise `skip_if=True` calls silently return `None`.
@@ -212,6 +214,8 @@ print(depr_accuracy([1, 0, 1, 2], [0, 1, 1, 2], 1.23))
 
 ## Notice-only deprecation
 
+![Warn only: decorate with TargetMode.NOTIFY, then a call warns and the original body still runs](../assets/images/pydeprecate-case-notify.svg)
+
 !!! warning "The function body still executes with `TargetMode.NOTIFY` — keep a working implementation"
 
     Unlike `target=<callable>` (where the body is **dead code** under normal forwarding, but still executes as a fallback when `skip_if=True` at call time), `TargetMode.NOTIFY` runs the original function body after emitting the deprecation notice. You **must** keep a working implementation in the function body. An empty body (`pass`) will cause the function to return `None` instead of the intended value (the deprecation warning still fires).
@@ -245,6 +249,8 @@ print(my_sum(1, 2))
 </details>
 
 ## Rename arguments within one function
+
+![Rename an argument: rename the parameter, decorate with ARGS_REMAP, then a call with the old name warns and the value is remapped](../assets/images/pydeprecate-case-argument.svg)
 
 Use `TargetMode.ARGS_REMAP` to rename or drop an argument within the same function. The decorator remaps the old argument name to the new one before the body runs, so your implementation only needs the new name. This is the right pattern when refactoring a signature without moving the function. Pass `target=TargetMode.ARGS_REMAP` explicitly alongside `args_mapping` — the recommended, self-documenting form. (On `@deprecated`, omitting `target` also works: a bare `args_mapping` auto-resolves via the `TargetMode.AUTO` default; the strict `deprecated_callable()` form always requires the explicit `target`.)
 

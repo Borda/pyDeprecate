@@ -100,7 +100,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-06-15",
-  "dateModified": "2026-10-30"
+  "dateModified": "2026-11-04"
 }
 </script>
 
@@ -1960,6 +1960,7 @@
 
 <p>Prefer <code>@deprecated_class()</code> directly for classes, Enums, and dataclasses — same result, no dispatch notice, and it is required to reach class-only options such as <code>attrs_mapping</code>. The rest of this page uses that explicit form.</p>
 <h2 id="class-deprecation">Class deprecation<a class="headerlink" href="#class-deprecation" title="Permanent link">🔗</a></h2>
+<p><img alt="Replace a class: write the new class, decorate the old one with deprecated_class, then instantiating the old name warns and returns the new class" src="../assets/images/pydeprecate-case-class.svg" /></p>
 <p>Two common patterns here. First, renaming a method within a class: apply <code>@deprecated(target=execute)</code> on the old method name and calls forward to the new method. Second, deprecating an entire class by decorating <code>__init__</code> to emit a notice at instantiation time and optionally forward construction to a successor class.</p>
 <p>Method rename within a class:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span><span class="p">,</span> <span class="n">void</span>
@@ -2989,7 +2990,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 30, 2026 19:35:40 UTC">2026-10-30</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 4, 2026 17:17:29 UTC">2026-11-04</span>
   </span>
 
     

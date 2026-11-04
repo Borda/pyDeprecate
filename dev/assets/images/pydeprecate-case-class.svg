@@ -1,0 +1,169 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 490" width="960" height="490" role="img" aria-labelledby="t d">
+  <title id="t">pyDeprecate: replace a class</title>
+  <desc id="d">Code builds up in four steps: the original OldClient, the NewClient, the @deprecated_class decorator on OldClient with target=NewClient, then OldClient() warns and returns a NewClient instance.</desc>
+  <style>
+    text { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .box { fill: #263246; stroke: #3A4A60; stroke-width: 1.5; }
+    .dim { fill: #9FB0C6; }
+    .g1 { animation: g1 16s linear infinite; opacity: 0; }
+    @keyframes g1 { 0%, 23% { opacity: 1 } 24.5%, 100% { opacity: 0 } }
+    .cap1 { animation: cap1 16s linear infinite; opacity: 0; }
+    @keyframes cap1 { 0%, 24% { opacity: 1 } 25.5%, 100% { opacity: 0 } }
+    .g2 { animation: g2 16s linear infinite; opacity: 0; }
+    @keyframes g2 { 0%, 25% { opacity: 0 } 26.5%, 48% { opacity: 1 } 49.5%, 100% { opacity: 0 } }
+    .cap2 { animation: cap2 16s linear infinite; opacity: 0; }
+    @keyframes cap2 { 0%, 25% { opacity: 0 } 26.5%, 49% { opacity: 1 } 50.5%, 100% { opacity: 0 } }
+    .g3 { animation: g3 16s linear infinite; opacity: 0; }
+    @keyframes g3 { 0%, 50% { opacity: 0 } 51.5%, 73% { opacity: 1 } 74.5%, 100% { opacity: 0 } }
+    .cap3 { animation: cap3 16s linear infinite; opacity: 0; }
+    @keyframes cap3 { 0%, 50% { opacity: 0 } 51.5%, 74% { opacity: 1 } 75.5%, 100% { opacity: 0 } }
+    .g4 { animation: g4 16s linear infinite; opacity: 0; }
+    @keyframes g4 { 0%, 75% { opacity: 0 } 76.5%, 98% { opacity: 1 } 99.5%, 100% { opacity: 0 } }
+    .cap4 { animation: cap4 16s linear infinite; opacity: 0; }
+    @keyframes cap4 { 0%, 75% { opacity: 0 } 76.5%, 97% { opacity: 1 } 98.5%, 100% { opacity: 0 } }
+    .k0 { animation: k0 16s linear infinite; opacity: 0; }
+    @keyframes k0 { 0%, 25.0% { opacity: 0 } 26.5%, 97% { opacity: 1 } 98.5%, 100% { opacity: 0 } }
+    .k1 { animation: k1 16s linear infinite; opacity: 0; }
+    @keyframes k1 { 0%, 25.9% { opacity: 0 } 27.4%, 97% { opacity: 1 } 98.5%, 100% { opacity: 0 } }
+    .k3 { animation: k3 16s linear infinite; opacity: 0; }
+    @keyframes k3 { 0%, 50.0% { opacity: 0 } 51.5%, 97% { opacity: 1 } 98.5%, 100% { opacity: 0 } }
+    .k4 { animation: k4 16s linear infinite; opacity: 0; }
+    @keyframes k4 { 0%, 50.9% { opacity: 0 } 52.4%, 97% { opacity: 1 } 98.5%, 100% { opacity: 0 } }
+    .k5 { animation: k5 16s linear infinite; opacity: 0; }
+    @keyframes k5 { 0%, 51.8% { opacity: 0 } 53.3%, 97% { opacity: 1 } 98.5%, 100% { opacity: 0 } }
+    .k6 { animation: k6 16s linear infinite; opacity: 0; }
+    @keyframes k6 { 0%, 52.7% { opacity: 0 } 54.2%, 97% { opacity: 1 } 98.5%, 100% { opacity: 0 } }
+    .k7 { animation: k7 16s linear infinite; opacity: 0; }
+    @keyframes k7 { 0%, 53.6% { opacity: 0 } 55.1%, 97% { opacity: 1 } 98.5%, 100% { opacity: 0 } }
+    .k8 { animation: k8 16s linear infinite; opacity: 0; }
+    @keyframes k8 { 0%, 97% { opacity: 1 } 98.5%, 100% { opacity: 0 } }
+    .k9 { animation: k9 16s linear infinite; opacity: 0; }
+    @keyframes k9 { 0%, 97% { opacity: 1 } 98.5%, 100% { opacity: 0 } }
+    .ph1 { animation: ph1 16s linear infinite; opacity: 0; }
+    @keyframes ph1 { 0%, 76% { opacity: 0 } 77.5%, 80% { opacity: 1 } 81.5%, 100% { opacity: 0 } }
+    .ph2 { animation: ph2 16s linear infinite; opacity: 0; }
+    @keyframes ph2 { 0%, 80% { opacity: 0 } 81.5%, 84% { opacity: 1 } 85.5%, 100% { opacity: 0 } }
+    .ph3 { animation: ph3 16s linear infinite; opacity: 0; }
+    @keyframes ph3 { 0%, 84% { opacity: 0 } 85.5%, 96% { opacity: 1 } 97.5%, 100% { opacity: 0 } }
+    .legend { animation: legend 16s linear infinite; opacity: 0; }
+    @keyframes legend { 0%, 76% { opacity: 0 } 77.5%, 97% { opacity: 1 } 98.5%, 100% { opacity: 0 } }
+    .flash { animation: flash 16s linear infinite; opacity: 0; }
+    @keyframes flash { 0%, 80% { opacity: 0 } 81.5%, 90% { opacity: 1 } 91.5%, 100% { opacity: 0 } }
+    .cflash { animation: cflash 16s linear infinite; opacity: 0; }
+    @keyframes cflash { 0%, 93% { opacity: 0 } 94.5%, 97% { opacity: 1 } 98.5%, 100% { opacity: 0 } }
+    .chip { animation: chip 16s linear infinite; opacity: 0; }
+    @keyframes chip { 0%, 80% { opacity: 0 } 81.5%, 97% { opacity: 1 } 98.5%, 100% { opacity: 0 } }
+    .res { animation: res 16s linear infinite; opacity: 0; }
+    @keyframes res { 0%, 88% { opacity: 0 } 89.5%, 97% { opacity: 1 } 98.5%, 100% { opacity: 0 } }
+    .pk1 { animation: p1 16s linear infinite; }
+    .pk2 { animation: p2 16s linear infinite; }
+    .pk3 { animation: p3 16s linear infinite; }
+    .pk { opacity: 0; }
+    .nodes { animation: nodes 16s linear infinite; opacity: .3; }
+    @keyframes p1 { 0%, 75.5% { transform: translateY(0); opacity: 0 } 76% { opacity: 1 } 80% { transform: translateY(22px); opacity: 1 } 80.5%, 100% { transform: translateY(22px); opacity: 0 } }
+    @keyframes p2 { 0%, 83.5% { transform: translateY(0); opacity: 0 } 84% { opacity: 1 } 88% { transform: translateY(22px); opacity: 1 } 88.5%, 100% { transform: translateY(22px); opacity: 0 } }
+    @keyframes p3 { 0%, 89% { transform: translateY(0); opacity: 0 } 89.5% { opacity: 1 } 93% { transform: translateY(22px); opacity: 1 } 93.5%, 100% { transform: translateY(22px); opacity: 0 } }
+    @keyframes nodes { 0%, 74% { opacity: .3 } 77%, 97% { opacity: 1 } 99%, 100% { opacity: .3 } }
+    @media (prefers-reduced-motion: reduce) {
+      * { animation: none !important; }
+      .ln { opacity: 1 !important; } .ln.gone { opacity: 0 !important; }
+      .nodes, .chip, .res { opacity: 1 !important; }
+      .g1, .g2, .g3, .g4, .hl, .flash, .cflash, .pk, .cap, .ex, .legend { opacity: 0 !important; }
+      .cap4 { opacity: 1 !important; }
+    }
+  </style>
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#6B7F99"/>
+    </marker>
+  </defs>
+  <rect width="960" height="490" rx="18" fill="#1B2330"/>
+  <text x="40" y="44" font-size="22" font-weight="700" fill="#F7F9FC">Replace a class</text>
+  <text x="920" y="44" font-size="13" text-anchor="end" fill="#EAA238">OldClient → NewClient</text>
+  <rect x="40" y="80" width="215" height="30" rx="15" fill="#1F2938" stroke="#2E3B50" stroke-width="1.5"/>
+  <rect class="g1" x="40" y="80" width="215" height="30" rx="15" fill="#3A2B10" stroke="#EAA238" stroke-width="2"/>
+  <text x="147.5" y="100" font-size="13" font-weight="600" text-anchor="middle" fill="#F7F9FC">① Original code</text>
+  <rect x="265" y="80" width="215" height="30" rx="15" fill="#1F2938" stroke="#2E3B50" stroke-width="1.5"/>
+  <rect class="g2" x="265" y="80" width="215" height="30" rx="15" fill="#3A2B10" stroke="#EAA238" stroke-width="2"/>
+  <text x="372.5" y="100" font-size="13" font-weight="600" text-anchor="middle" fill="#F7F9FC">② Create new API</text>
+  <rect x="490" y="80" width="215" height="30" rx="15" fill="#1F2938" stroke="#2E3B50" stroke-width="1.5"/>
+  <rect class="g3" x="490" y="80" width="215" height="30" rx="15" fill="#3A2B10" stroke="#EAA238" stroke-width="2"/>
+  <text x="597.5" y="100" font-size="13" font-weight="600" text-anchor="middle" fill="#F7F9FC">③ Add @deprecated</text>
+  <rect x="715" y="80" width="215" height="30" rx="15" fill="#1F2938" stroke="#2E3B50" stroke-width="1.5"/>
+  <rect class="g4" x="715" y="80" width="215" height="30" rx="15" fill="#3A2B10" stroke="#EAA238" stroke-width="2"/>
+  <text x="822.5" y="100" font-size="13" font-weight="600" text-anchor="middle" fill="#F7F9FC">④ Call the old API</text>
+  <rect x="40" y="124" width="500" height="280" rx="14" fill="#141B26" stroke="#2E3B50" stroke-width="1.5"/>
+  <circle cx="62" cy="140" r="4.5" fill="#E8735A"/>
+  <circle cx="78" cy="140" r="4.5" fill="#EAA238"/>
+  <circle cx="94" cy="140" r="4.5" fill="#6FCF97"/>
+  <text x="520" y="144" font-size="11" text-anchor="end" class="dim mono">client.py</text>
+  <rect class="hl g1" x="48" y="338" width="484" height="44" rx="6" fill="#EAA238" fill-opacity=".14"/>
+  <rect class="hl g2" x="48" y="162" width="484" height="44" rx="6" fill="#EAA238" fill-opacity=".14"/>
+  <rect class="hl g3" x="48" y="228" width="484" height="110" rx="6" fill="#EAA238" fill-opacity=".14"/>
+  <text class="ln mono k0" xml:space="preserve" x="64" y="178" font-size="13" fill="#E6EDF7" textLength="124.8" lengthAdjust="spacing"><tspan fill="#C792EA">class</tspan> NewClient:</text>
+  <text class="ln mono k1" xml:space="preserve" x="64" y="200" font-size="13" fill="#E6EDF7" textLength="62.4" lengthAdjust="spacing">    <tspan fill="#C792EA">pass</tspan></text>
+  <text class="ln mono k3" xml:space="preserve" x="64" y="244" font-size="13" fill="#E6EDF7" textLength="140.4" lengthAdjust="spacing"><tspan fill="#EAA238">@deprecated_class</tspan>(</text>
+  <text class="ln mono k4" xml:space="preserve" x="64" y="266" font-size="13" fill="#E6EDF7" textLength="163.8" lengthAdjust="spacing">    target=NewClient,</text>
+  <text class="ln mono k5" xml:space="preserve" x="64" y="288" font-size="13" fill="#E6EDF7" textLength="187.2" lengthAdjust="spacing">    deprecated_in=<tspan fill="#A5D6A7">"1.2"</tspan>,</text>
+  <text class="ln mono k6" xml:space="preserve" x="64" y="310" font-size="13" fill="#E6EDF7" textLength="156.0" lengthAdjust="spacing">    remove_in=<tspan fill="#A5D6A7">"2.0"</tspan>,</text>
+  <text class="ln mono k7" xml:space="preserve" x="64" y="332" font-size="13" fill="#E6EDF7" textLength="7.8" lengthAdjust="spacing">)</text>
+  <text class="ln mono k8" xml:space="preserve" x="64" y="354" font-size="13" fill="#E6EDF7" textLength="124.8" lengthAdjust="spacing"><tspan fill="#C792EA">class</tspan> OldClient:</text>
+  <text class="ln mono k9" xml:space="preserve" x="64" y="376" font-size="13" fill="#E6EDF7" textLength="62.4" lengthAdjust="spacing">    <tspan fill="#C792EA">pass</tspan></text>
+  <g class="ex ph1">
+    <rect x="48" y="228" width="484" height="22" rx="6" fill="#7FB6E3" fill-opacity=".2"/>
+    <text x="52" y="243" font-size="10" fill="#7FB6E3">▶</text>
+    <rect x="92.2" y="252" width="130.8" height="19" rx="4" fill="#6FCF97" fill-opacity=".14" stroke="#6FCF97" stroke-width="1.8"/>
+  </g>
+  <g class="ex ph2">
+    <rect x="92.2" y="274" width="154.2" height="19" rx="4" fill="#6FCF97" fill-opacity=".14" stroke="#6FCF97" stroke-width="1.8"/>
+    <rect x="92.2" y="296" width="123.0" height="19" rx="4" fill="#6FCF97" fill-opacity=".14" stroke="#6FCF97" stroke-width="1.8"/>
+  </g>
+  <g class="ex ph3">
+    <rect x="48" y="162" width="484" height="22" rx="6" fill="#7FB6E3" fill-opacity=".2"/>
+    <text x="52" y="177" font-size="10" fill="#7FB6E3">▶</text>
+    <rect x="48" y="184" width="484" height="22" rx="6" fill="#7FB6E3" fill-opacity=".2"/>
+    <text x="52" y="199" font-size="10" fill="#7FB6E3">▶</text>
+    <rect x="48" y="338" width="484" height="22" rx="6" fill="#141B26" fill-opacity=".72"/>
+    <text x="524" y="354" font-size="10" text-anchor="end" fill="#9FB0C6">replaced by proxy</text>
+  </g>
+  <text class="legend" x="520" y="396" font-size="10" text-anchor="end" fill="#9FB0C6" xml:space="preserve"><tspan fill="#7FB6E3">▶</tspan> running    <tspan fill="#6FCF97">▢</tspan> argument used</text>
+  <rect x="560" y="124" width="360" height="280" rx="14" fill="#1F2938" stroke="#2E3B50" stroke-width="1.5"/>
+  <text x="580" y="147" font-size="11" letter-spacing="2" class="dim">AT RUNTIME</text>
+  <g class="nodes">
+    <rect x="600" y="160" width="170" height="40" rx="9" class="box"/>
+    <rect x="600" y="222" width="170" height="40" rx="9" class="box" stroke="#EAA238"/>
+    <rect x="600" y="284" width="170" height="40" rx="9" class="box"/>
+    <rect x="600" y="346" width="170" height="40" rx="9" class="box" stroke="#6FCF97" stroke-dasharray="5 4"/>
+    <text class="mono" x="685" y="178" font-size="12" text-anchor="middle" fill="#F7F9FC">OldClient()</text>
+    <text x="685" y="192" font-size="10" text-anchor="middle" class="dim">program calls it</text>
+    <text class="mono" x="685" y="239" font-size="11.5" font-weight="700" text-anchor="middle" fill="#EAA238">@deprecated_class</text>
+    <text class="mono dim" x="685" y="253" font-size="10" text-anchor="middle">proxy · target=NewClient</text>
+    <text class="mono" x="685" y="301" font-size="12" text-anchor="middle" fill="#F7F9FC">NewClient()</text>
+    <text x="685" y="315" font-size="10" text-anchor="middle" class="dim">new API</text>
+    <text class="mono" x="685" y="363" font-size="12" text-anchor="middle" fill="#9BE3B5">x = NewClient obj</text>
+    <text x="685" y="377" font-size="10" text-anchor="middle" class="dim">program continues</text>
+    <line x1="685" y1="202" x2="685" y2="220" stroke="#6B7F99" stroke-width="2" marker-end="url(#ah)"/>
+    <line x1="685" y1="264" x2="685" y2="282" stroke="#6B7F99" stroke-width="2" marker-end="url(#ah)"/>
+    <line x1="685" y1="326" x2="685" y2="344" stroke="#6FCF97" stroke-width="2" marker-end="url(#ah)"/>
+  </g>
+  <rect class="g3 wglow" x="594" y="216" width="182" height="52" rx="13" fill="none" stroke="#EAA238" stroke-width="3"/>
+  <rect class="flash" x="594" y="216" width="182" height="52" rx="13" fill="none" stroke="#EAA238" stroke-width="3"/>
+  <rect class="cflash" x="594" y="340" width="182" height="52" rx="13" fill="none" stroke="#6FCF97" stroke-width="3"/>
+  <g class="chip">
+    <rect x="782" y="212" width="130" height="70" rx="9" fill="#3A2B10" stroke="#EAA238"/>
+    <text x="792" y="230" font-size="10.5" font-weight="700" fill="#EAA238">⚠ FutureWarning</text>
+    <text class="mono" x="792" y="246" font-size="9.5" fill="#F5D9A6">OldClient deprecated</text>
+    <text class="mono" x="792" y="260" font-size="9.5" fill="#F5D9A6">v1.2, use NewClient</text>
+    <text class="mono" x="792" y="274" font-size="9.5" fill="#F5D9A6">removed in v2.0</text>
+  </g>
+  <text class="res mono" x="782" y="309" font-size="12" fill="#6FCF97">→ NewClient obj</text>
+  <circle class="pk pk1" cx="685" cy="202" r="6" fill="#E8735A"/>
+  <circle class="pk pk2" cx="685" cy="264" r="6" fill="#7FB6E3"/>
+  <circle class="pk pk3" cx="685" cy="326" r="6" fill="#6FCF97"/>
+  <rect x="40" y="420" width="880" height="48" rx="12" fill="#1F2938" stroke="#2E3B50" stroke-width="1.5"/>
+  <text class="cap cap1" x="480" y="450" font-size="14" text-anchor="middle" fill="#F7F9FC">Start: OldClient is used across the code base.</text>
+  <text class="cap cap2" x="480" y="450" font-size="14" text-anchor="middle" fill="#F7F9FC">Create the new API: NewClient takes over.</text>
+  <text class="cap cap3" x="480" y="450" font-size="14" text-anchor="middle" fill="#F7F9FC">Decorate OldClient with deprecated_class(target=NewClient).</text>
+  <text class="cap cap4" x="480" y="450" font-size="14" text-anchor="middle" fill="#F7F9FC">Call OldClient(): it warns, hands back a real NewClient, and the program continues.</text>
+</svg>

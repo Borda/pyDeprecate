@@ -1,0 +1,175 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 648" width="960" height="648" role="img" aria-labelledby="t d">
+  <title id="t">pyDeprecate call flow</title>
+  <desc id="d">Four schemes, shown side by side. In each, an old API call hits the deprecated wrapper, which emits a FutureWarning and forwards to the new API; the result is handed back and the program continues. Cases: rename a function, rename an argument, replace a class, warn only. Three core principles are listed below.</desc>
+  <style>
+    text { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .box { fill: #263246; stroke: #3A4A60; stroke-width: 1.5; }
+    .dim { fill: #9FB0C6; }
+    .pk1 { animation: p1 5s linear infinite; opacity: 0; }
+    .pk2 { animation: p2 5s linear infinite; opacity: 0; }
+    .pk3 { animation: p3 5s linear infinite; opacity: 0; }
+    .flash { animation: flash 5s ease-out infinite; opacity: 0; }
+    .cflash { animation: cflash 5s ease-out infinite; opacity: 0; }
+    .warn { animation: warn 5s ease-out infinite; opacity: 0; }
+    .l1 * { animation-delay: 1.25s; }
+    .l2 * { animation-delay: 2.5s; }
+    .l3 * { animation-delay: 3.75s; }
+    @keyframes p1 { 0%, 4% { transform: translateX(0); opacity: 0 } 5% { opacity: 1 } 26% { transform: translateX(54px); opacity: 1 } 27%, 100% { transform: translateX(54px); opacity: 0 } }
+    @keyframes p2 { 0%, 42% { transform: translateX(0); opacity: 0 } 43% { opacity: 1 } 62% { transform: translateX(54px); opacity: 1 } 63%, 100% { transform: translateX(54px); opacity: 0 } }
+    @keyframes p3 { 0%, 66% { transform: translateX(0); opacity: 0 } 67% { opacity: 1 } 76% { transform: translateX(54px); opacity: 1 } 77%, 100% { transform: translateX(54px); opacity: 0 } }
+    @keyframes cflash { 0%, 72% { opacity: 0 } 77% { opacity: 1 } 92%, 100% { opacity: 0 } }
+    @keyframes flash { 0%, 26% { opacity: 0 } 30% { opacity: 1 } 44%, 100% { opacity: 0 } }
+    @keyframes warn { 0%, 28% { opacity: 0 } 36%, 80% { opacity: 1 } 90%, 100% { opacity: 0 } }
+    @media (prefers-reduced-motion: reduce) {
+      * { animation: none !important; }
+      .warn { opacity: 1 !important; }
+      .pk1, .pk2, .pk3, .flash, .cflash { opacity: 0 !important; }
+    }
+  </style>
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#6B7F99"/>
+    </marker>
+  </defs>
+
+  <rect width="960" height="648" rx="18" fill="#1B2330"/>
+  <text x="40" y="44" font-size="24" font-weight="700" fill="#F7F9FC">pyDeprecate</text>
+  <text x="200" y="44" font-size="15" fill="#EAA238">old calls keep working, callers get a clear path forward</text>
+  <text x="920" y="44" font-size="11" text-anchor="end" class="dim">
+    <tspan fill="#E8735A">●</tspan> old call  <tspan fill="#7FB6E3">●</tspan> forwarded  <tspan fill="#6FCF97">●</tspan> result</text>
+
+  <g class="lane l0">
+    <rect x="40" y="70" width="880" height="104" rx="12" fill="#1F2938" stroke="#2E3B50"/>
+    <text x="58" y="94" font-size="13" font-weight="700" fill="#F7F9FC">① Rename a function</text>
+    <g class="warn">
+      <rect x="250" y="78" width="460" height="22" rx="11" fill="#3A2B10" stroke="#EAA238"/>
+      <text x="266" y="93" font-size="11" fill="#EAA238">⚠</text>
+      <text class="mono" x="284" y="93" font-size="11" fill="#F5D9A6">FutureWarning: old_func deprecated v1.2, use new_func</text>
+    </g>
+    <rect class="box" x="56" y="106" width="160" height="44" rx="9"/>
+    <rect class="box" x="270" y="106" width="160" height="44" rx="9" stroke="#EAA238"/>
+    <rect class="box" x="484" y="106" width="160" height="44" rx="9"/>
+    <rect class="box" x="698" y="106" width="206" height="44" rx="9" stroke="#6FCF97" stroke-dasharray="5 4"/>
+    <rect class="flash" x="264" y="100" width="172" height="56" rx="14" fill="none" stroke="#EAA238" stroke-width="3"/>
+    <rect class="cflash" x="692" y="100" width="218" height="56" rx="14" fill="none" stroke="#6FCF97" stroke-width="3"/>
+    <line x1="218" y1="128" x2="268" y2="128" stroke="#6B7F99" stroke-width="2" marker-end="url(#ah)"/>
+    <line x1="432" y1="128" x2="482" y2="128" stroke="#6B7F99" stroke-width="2" marker-end="url(#ah)"/>
+    <line x1="646" y1="128" x2="696" y2="128" stroke="#6FCF97" stroke-width="2" marker-end="url(#ah)"/>
+    <text class="mono" x="136" y="126" font-size="13" text-anchor="middle" fill="#F7F9FC">old_func(3)</text>
+    <text x="136" y="141" font-size="10" text-anchor="middle" class="dim">program calls it</text>
+    <text class="mono" x="350" y="126" font-size="13" text-anchor="middle" fill="#F7F9FC">target=new_func</text>
+    <text class="mono dim" x="350" y="141" font-size="10" text-anchor="middle">warn · forward</text>
+    <text class="mono" x="564" y="126" font-size="13" text-anchor="middle" fill="#F7F9FC">new_func(3)</text>
+    <text x="564" y="141" font-size="10" text-anchor="middle" class="dim">returns 4</text>
+    <text class="mono" x="801" y="126" font-size="13" text-anchor="middle" fill="#9BE3B5">x = 4</text>
+    <text x="801" y="141" font-size="10" text-anchor="middle" class="dim">program continues</text>
+    <circle class="pk1" cx="216" cy="128" r="6" fill="#E8735A"/>
+    <circle class="pk2" cx="430" cy="128" r="6" fill="#7FB6E3"/>
+    <circle class="pk3" cx="644" cy="128" r="6" fill="#6FCF97"/>
+  </g>
+  <g class="lane l1">
+    <rect x="40" y="186" width="880" height="104" rx="12" fill="#1F2938" stroke="#2E3B50"/>
+    <text x="58" y="210" font-size="13" font-weight="700" fill="#F7F9FC">② Rename an argument</text>
+    <g class="warn">
+      <rect x="250" y="194" width="460" height="22" rx="11" fill="#3A2B10" stroke="#EAA238"/>
+      <text x="266" y="209" font-size="11" fill="#EAA238">⚠</text>
+      <text class="mono" x="284" y="209" font-size="11" fill="#F5D9A6">FutureWarning: old_arg → new_arg, removed in v2.0</text>
+    </g>
+    <rect class="box" x="56" y="222" width="160" height="44" rx="9"/>
+    <rect class="box" x="270" y="222" width="160" height="44" rx="9" stroke="#EAA238"/>
+    <rect class="box" x="484" y="222" width="160" height="44" rx="9"/>
+    <rect class="box" x="698" y="222" width="206" height="44" rx="9" stroke="#6FCF97" stroke-dasharray="5 4"/>
+    <rect class="flash" x="264" y="216" width="172" height="56" rx="14" fill="none" stroke="#EAA238" stroke-width="3"/>
+    <rect class="cflash" x="692" y="216" width="218" height="56" rx="14" fill="none" stroke="#6FCF97" stroke-width="3"/>
+    <line x1="218" y1="244" x2="268" y2="244" stroke="#6B7F99" stroke-width="2" marker-end="url(#ah)"/>
+    <line x1="432" y1="244" x2="482" y2="244" stroke="#6B7F99" stroke-width="2" marker-end="url(#ah)"/>
+    <line x1="646" y1="244" x2="696" y2="244" stroke="#6FCF97" stroke-width="2" marker-end="url(#ah)"/>
+    <text class="mono" x="136" y="242" font-size="13" text-anchor="middle" fill="#F7F9FC">api(old_arg=2.0)</text>
+    <text x="136" y="257" font-size="10" text-anchor="middle" class="dim">program calls it</text>
+    <text class="mono" x="350" y="242" font-size="13" text-anchor="middle" fill="#F7F9FC">ARGS_REMAP</text>
+    <text class="mono dim" x="350" y="257" font-size="10" text-anchor="middle">old_arg → new_arg</text>
+    <text class="mono" x="564" y="242" font-size="13" text-anchor="middle" fill="#F7F9FC">api(new_arg=2.0)</text>
+    <text x="564" y="257" font-size="10" text-anchor="middle" class="dim">same function</text>
+    <text class="mono" x="801" y="242" font-size="13" text-anchor="middle" fill="#9BE3B5">x = 2.0</text>
+    <text x="801" y="257" font-size="10" text-anchor="middle" class="dim">program continues</text>
+    <circle class="pk1" cx="216" cy="244" r="6" fill="#E8735A"/>
+    <circle class="pk2" cx="430" cy="244" r="6" fill="#7FB6E3"/>
+    <circle class="pk3" cx="644" cy="244" r="6" fill="#6FCF97"/>
+  </g>
+  <g class="lane l2">
+    <rect x="40" y="302" width="880" height="104" rx="12" fill="#1F2938" stroke="#2E3B50"/>
+    <text x="58" y="326" font-size="13" font-weight="700" fill="#F7F9FC">③ Replace a class</text>
+    <g class="warn">
+      <rect x="250" y="310" width="460" height="22" rx="11" fill="#3A2B10" stroke="#EAA238"/>
+      <text x="266" y="325" font-size="11" fill="#EAA238">⚠</text>
+      <text class="mono" x="284" y="325" font-size="11" fill="#F5D9A6">FutureWarning: OldClient deprecated v1.2, use NewClient</text>
+    </g>
+    <rect class="box" x="56" y="338" width="160" height="44" rx="9"/>
+    <rect class="box" x="270" y="338" width="160" height="44" rx="9" stroke="#EAA238"/>
+    <rect class="box" x="484" y="338" width="160" height="44" rx="9"/>
+    <rect class="box" x="698" y="338" width="206" height="44" rx="9" stroke="#6FCF97" stroke-dasharray="5 4"/>
+    <rect class="flash" x="264" y="332" width="172" height="56" rx="14" fill="none" stroke="#EAA238" stroke-width="3"/>
+    <rect class="cflash" x="692" y="332" width="218" height="56" rx="14" fill="none" stroke="#6FCF97" stroke-width="3"/>
+    <line x1="218" y1="360" x2="268" y2="360" stroke="#6B7F99" stroke-width="2" marker-end="url(#ah)"/>
+    <line x1="432" y1="360" x2="482" y2="360" stroke="#6B7F99" stroke-width="2" marker-end="url(#ah)"/>
+    <line x1="646" y1="360" x2="696" y2="360" stroke="#6FCF97" stroke-width="2" marker-end="url(#ah)"/>
+    <text class="mono" x="136" y="358" font-size="13" text-anchor="middle" fill="#F7F9FC">OldClient()</text>
+    <text x="136" y="373" font-size="10" text-anchor="middle" class="dim">program calls it</text>
+    <text class="mono" x="350" y="358" font-size="13" text-anchor="middle" fill="#F7F9FC">deprecated_class</text>
+    <text class="mono dim" x="350" y="373" font-size="10" text-anchor="middle">proxy · isinstance ok</text>
+    <text class="mono" x="564" y="358" font-size="13" text-anchor="middle" fill="#F7F9FC">NewClient()</text>
+    <text x="564" y="373" font-size="10" text-anchor="middle" class="dim">real instance</text>
+    <text class="mono" x="801" y="358" font-size="13" text-anchor="middle" fill="#9BE3B5">x = NewClient obj</text>
+    <text x="801" y="373" font-size="10" text-anchor="middle" class="dim">program continues</text>
+    <circle class="pk1" cx="216" cy="360" r="6" fill="#E8735A"/>
+    <circle class="pk2" cx="430" cy="360" r="6" fill="#7FB6E3"/>
+    <circle class="pk3" cx="644" cy="360" r="6" fill="#6FCF97"/>
+  </g>
+  <g class="lane l3">
+    <rect x="40" y="418" width="880" height="104" rx="12" fill="#1F2938" stroke="#2E3B50"/>
+    <text x="58" y="442" font-size="13" font-weight="700" fill="#F7F9FC">④ Warn only</text>
+    <g class="warn">
+      <rect x="250" y="426" width="460" height="22" rx="11" fill="#3A2B10" stroke="#EAA238"/>
+      <text x="266" y="441" font-size="11" fill="#EAA238">⚠</text>
+      <text class="mono" x="284" y="441" font-size="11" fill="#F5D9A6">FutureWarning: legacy_hook deprecated, removed in v2.0</text>
+    </g>
+    <rect class="box" x="56" y="454" width="160" height="44" rx="9"/>
+    <rect class="box" x="270" y="454" width="160" height="44" rx="9" stroke="#EAA238"/>
+    <rect class="box" x="484" y="454" width="160" height="44" rx="9"/>
+    <rect class="box" x="698" y="454" width="206" height="44" rx="9" stroke="#6FCF97" stroke-dasharray="5 4"/>
+    <rect class="flash" x="264" y="448" width="172" height="56" rx="14" fill="none" stroke="#EAA238" stroke-width="3"/>
+    <rect class="cflash" x="692" y="448" width="218" height="56" rx="14" fill="none" stroke="#6FCF97" stroke-width="3"/>
+    <line x1="218" y1="476" x2="268" y2="476" stroke="#6B7F99" stroke-width="2" marker-end="url(#ah)"/>
+    <line x1="432" y1="476" x2="482" y2="476" stroke="#6B7F99" stroke-width="2" marker-end="url(#ah)"/>
+    <line x1="646" y1="476" x2="696" y2="476" stroke="#6FCF97" stroke-width="2" marker-end="url(#ah)"/>
+    <text class="mono" x="136" y="474" font-size="13" text-anchor="middle" fill="#F7F9FC">legacy_hook()</text>
+    <text x="136" y="489" font-size="10" text-anchor="middle" class="dim">program calls it</text>
+    <text class="mono" x="350" y="474" font-size="13" text-anchor="middle" fill="#F7F9FC">TargetMode.NOTIFY</text>
+    <text class="mono dim" x="350" y="489" font-size="10" text-anchor="middle">no redirect</text>
+    <text class="mono" x="564" y="474" font-size="13" text-anchor="middle" fill="#F7F9FC">legacy_hook()</text>
+    <text x="564" y="489" font-size="10" text-anchor="middle" class="dim">body runs unchanged</text>
+    <text class="mono" x="801" y="474" font-size="13" text-anchor="middle" fill="#9BE3B5">next statement</text>
+    <text x="801" y="489" font-size="10" text-anchor="middle" class="dim">program continues</text>
+    <circle class="pk1" cx="216" cy="476" r="6" fill="#E8735A"/>
+    <circle class="pk2" cx="430" cy="476" r="6" fill="#7FB6E3"/>
+    <circle class="pk3" cx="644" cy="476" r="6" fill="#6FCF97"/>
+  </g>
+
+  <text x="40" y="540" font-size="11" letter-spacing="2" class="dim">CORE PRINCIPLES</text>
+
+  <rect x="40" y="548" width="280" height="76" rx="12" fill="#232E3F" stroke="#7FB6E3" stroke-opacity=".6" stroke-width="2"/>
+  <text x="58" y="574" font-size="15" font-weight="700" fill="#7FB6E3">Simplicity</text>
+  <text x="58" y="596" font-size="12" class="dim">One decorator, no config files,</text>
+  <text x="58" y="612" font-size="12" class="dim">zero runtime dependencies.</text>
+
+  <rect x="340" y="548" width="280" height="76" rx="12" fill="#232E3F" stroke="#B794F6" stroke-opacity=".6" stroke-width="2"/>
+  <text x="358" y="574" font-size="15" font-weight="700" fill="#B794F6">Robustness</text>
+  <text x="358" y="596" font-size="12" class="dim">Audit finds expired, chained or</text>
+  <text x="358" y="612" font-size="12" class="dim">misconfigured wrappers.</text>
+
+  <rect x="640" y="548" width="280" height="76" rx="12" fill="#232E3F" stroke="#6FCF97" stroke-opacity=".6" stroke-width="2"/>
+  <text x="658" y="574" font-size="15" font-weight="700" fill="#6FCF97">Flexibility</text>
+  <text x="658" y="596" font-size="12" class="dim">Functions, methods, async, classes,</text>
+  <text x="658" y="612" font-size="12" class="dim">enums, constants, whole modules.</text>
+</svg>

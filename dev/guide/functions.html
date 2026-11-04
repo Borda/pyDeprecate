@@ -100,7 +100,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-06-15",
-  "dateModified": "2026-10-30"
+  "dateModified": "2026-11-04"
 }
 </script>
 
@@ -1836,6 +1836,7 @@
 <p><code>@deprecated</code> is the friendly front door: applied to a function, method, or other callable/descriptor it behaves exactly as documented on this page. Applied to a class instead, it dispatches to <a href="classes.html"><code>deprecated_class</code></a> (with a one-time informational notice) rather than raising an error. If you want a strict, callable-only form that rejects a class up front at decoration time — for example at a call site meant to enforce "only functions here" — use <code>deprecated_callable()</code>: it shares every parameter with <code>@deprecated</code> and raises <code>TypeError</code> immediately when applied to a class.</p>
 </div>
 <h2 id="simple-function-forwarding">Simple function forwarding<a class="headerlink" href="#simple-function-forwarding" title="Permanent link">🔗</a></h2>
+<p><img alt="Rename a function: write the new API, decorate the old one with target, then a call to the old name warns and forwards" src="../assets/images/pydeprecate-case-function.svg" /></p>
 <div class="admonition danger">
 <p class="admonition-title">Body is dead code when <code>target=&lt;callable&gt;</code></p>
 <p>When <code>target</code> is set to a callable, pyDeprecate intercepts every call <strong>before</strong> the function body runs — the body is dead code under normal forwarding. <strong>Exception</strong>: if you also use <code>skip_if</code> and it evaluates <code>True</code> at call time, the source body executes as a fallback. In that case keep a working body; otherwise <code>skip_if=True</code> calls silently return <code>None</code>.</p>
@@ -2008,6 +2009,7 @@
 <p>Clean up the call site by removing the deprecated argument name.</p>
 </div>
 <h2 id="notice-only-deprecation">Notice-only deprecation<a class="headerlink" href="#notice-only-deprecation" title="Permanent link">🔗</a></h2>
+<p><img alt="Warn only: decorate with TargetMode.NOTIFY, then a call warns and the original body still runs" src="../assets/images/pydeprecate-case-notify.svg" /></p>
 <div class="admonition warning">
 <p class="admonition-title">The function body still executes with <code>TargetMode.NOTIFY</code> — keep a working implementation</p>
 <p>Unlike <code>target=&lt;callable&gt;</code> (where the body is <strong>dead code</strong> under normal forwarding, but still executes as a fallback when <code>skip_if=True</code> at call time), <code>TargetMode.NOTIFY</code> runs the original function body after emitting the deprecation notice. You <strong>must</strong> keep a working implementation in the function body. An empty body (<code>pass</code>) will cause the function to return <code>None</code> instead of the intended value (the deprecation warning still fires).</p>
@@ -2036,6 +2038,7 @@
 </details>
 
 <h2 id="rename-arguments-within-one-function">Rename arguments within one function<a class="headerlink" href="#rename-arguments-within-one-function" title="Permanent link">🔗</a></h2>
+<p><img alt="Rename an argument: rename the parameter, decorate with ARGS_REMAP, then a call with the old name warns and the value is remapped" src="../assets/images/pydeprecate-case-argument.svg" /></p>
 <p>Use <code>TargetMode.ARGS_REMAP</code> to rename or drop an argument within the same function. The decorator remaps the old argument name to the new one before the body runs, so your implementation only needs the new name. This is the right pattern when refactoring a signature without moving the function. Pass <code>target=TargetMode.ARGS_REMAP</code> explicitly alongside <code>args_mapping</code> — the recommended, self-documenting form. (On <code>@deprecated</code>, omitting <code>target</code> also works: a bare <code>args_mapping</code> auto-resolves via the <code>TargetMode.AUTO</code> default; the strict <code>deprecated_callable()</code> form always requires the explicit <code>target</code>.)</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">TargetMode</span><span class="p">,</span> <span class="n">deprecated</span>
 <a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>
@@ -2589,7 +2592,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 30, 2026 13:56:01 UTC">2026-10-30</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 4, 2026 17:17:29 UTC">2026-11-04</span>
   </span>
 
     
