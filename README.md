@@ -66,9 +66,9 @@ ______________________________________________________________________
 
 ## 📖 Overview
 
-![pyDeprecate — navigate API transitions smoothly without the chaos or crashes](docs/assets/images/path-illustration.webp)
-
 The common case is moving functionality across modules, packages, or public API names without breaking callers immediately. You keep the old entry point temporarily, show users what changed, and forward them to the replacement until the old name can be removed.
+
+![Deprecation lifecycle cycle: old API in blue, new API and decorator in yellow, callers migrate, pre-commit, CI and pytest flag the expired wrapper, delete it and repeat](docs/assets/images/pydeprecate-lifecycle.svg)
 
 pyDeprecate also avoids warning spam: each deprecated function or class warns once by default, and you can route messages through Python warnings, logging, or any custom stream.
 
@@ -209,6 +209,8 @@ On the development line, `with deprecate.as_exceptions():` makes pyDeprecate dep
 ## 🗺 API at a Glance
 
 Not sure which API to reach for? Start here.
+
+![pyDeprecate call flow: an old call hits the @deprecated wrapper, which warns and forwards to the new API](docs/assets/images/pydeprecate-flow.svg)
 
 **Pick the right decorator:**
 
@@ -2327,6 +2329,8 @@ print(predict_batch(1))
 </details>
 
 <br>
+
+![pyDeprecate — navigate API transitions smoothly without the chaos or crashes](docs/assets/images/path-illustration.webp)
 
 ## 🔧 Troubleshooting
 

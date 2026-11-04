@@ -18,6 +18,7 @@ jobs:
     uses: ./.github/workflows/_create-pkg.yml
     with:
       python-version: "3.10"
+      os: ubuntu-22.04 # the image before `-latest`, same pin as the py3.10 test jobs
       artifact-name: pypi-packages-${{ github.sha }}
 
   publish:

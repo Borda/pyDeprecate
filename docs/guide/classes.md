@@ -46,6 +46,8 @@ Prefer `@deprecated_class()` directly for classes, Enums, and dataclasses — sa
 
 ## Class deprecation
 
+![Replace a class: write the new class, decorate the old one with deprecated_class, then instantiating the old name warns and returns the new class](../assets/images/pydeprecate-case-class.svg)
+
 Two common patterns here. First, renaming a method within a class: apply `@deprecated(target=execute)` on the old method name and calls forward to the new method. Second, deprecating an entire class by decorating `__init__` to emit a notice at instantiation time and optionally forward construction to a successor class.
 
 Method rename within a class:
