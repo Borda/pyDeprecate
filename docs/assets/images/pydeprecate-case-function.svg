@@ -130,8 +130,8 @@
     <rect x="48" y="184" width="484" height="22" rx="6" fill="#7FB6E3" fill-opacity=".2"/>
     <text x="52" y="199" font-size="10" fill="#7FB6E3">▶</text>
     <rect x="146.8" y="186" width="45.0" height="19" rx="4" fill="#6FCF97" fill-opacity=".14" stroke="#6FCF97" stroke-width="1.8"/>
-    <line x1="64" y1="372" x2="274.6" y2="372" stroke="#E8735A" stroke-width="1.8"/>
-    <text x="524" y="376" font-size="10" text-anchor="end" fill="#E8735A">never runs</text>
+    <rect x="48" y="360" width="484" height="22" rx="6" fill="#141B26" fill-opacity=".72"/>
+    <text x="524" y="376" font-size="10" text-anchor="end" fill="#9FB0C6">never runs</text>
   </g>
   <text class="legend" x="520" y="396" font-size="10" text-anchor="end" fill="#9FB0C6" xml:space="preserve"><tspan fill="#7FB6E3">▶</tspan> running    <tspan fill="#6FCF97">▢</tspan> argument used</text>
   <rect x="560" y="124" width="360" height="280" rx="14" fill="#1F2938" stroke="#2E3B50" stroke-width="1.5"/>

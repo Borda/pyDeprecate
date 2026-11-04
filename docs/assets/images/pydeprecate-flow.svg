@@ -163,8 +163,8 @@
   <text x="58" y="596" font-size="12" class="dim">One decorator, no config files,</text>
   <text x="58" y="612" font-size="12" class="dim">zero runtime dependencies.</text>
 
-  <rect x="340" y="548" width="280" height="76" rx="12" fill="#232E3F" stroke="#E8735A" stroke-opacity=".6" stroke-width="2"/>
-  <text x="358" y="574" font-size="15" font-weight="700" fill="#E8735A">Robustness</text>
+  <rect x="340" y="548" width="280" height="76" rx="12" fill="#232E3F" stroke="#B794F6" stroke-opacity=".6" stroke-width="2"/>
+  <text x="358" y="574" font-size="15" font-weight="700" fill="#B794F6">Robustness</text>
   <text x="358" y="596" font-size="12" class="dim">Audit finds expired, chained or</text>
   <text x="358" y="612" font-size="12" class="dim">misconfigured wrappers.</text>
 
