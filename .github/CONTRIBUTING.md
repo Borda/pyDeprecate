@@ -387,7 +387,7 @@ pyDeprecate/
 │   ├── demo-mkdocs/, demo-sphinx/  # Rendered docs-integration demos
 │   ├── assets/
 │   │   ├── brand/              # Curated brand subset (logos, icons, PNG touch icon, banners, social card) used by the site and README; full kit lives in the wiki
-│   │   └── images/             # README and docs screenshots and path illustration
+│   │   └── images/             # README and docs screenshots, path illustration, animated flow, lifecycle and per-case SVG diagrams
 │   └── guide/                  # Topic pages: functions, classes, properties, async, modules, audit, cli, ...
 │       ├── migration.md        # Source-version upgrade paths assembled from compatibility deltas
 │       ├── agent-recipes.md     # Coding-agent recipes and local plugin installation

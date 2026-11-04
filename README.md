@@ -72,6 +72,8 @@ The common case is moving functionality across modules, packages, or public API 
 
 pyDeprecate also avoids warning spam: each deprecated function or class warns once by default, and you can route messages through Python warnings, logging, or any custom stream.
 
+![pyDeprecate call flow: an old call hits the @deprecated wrapper, which warns and forwards to the new API](docs/assets/images/pydeprecate-flow.svg)
+
 ```bash
 pip install pyDeprecate
 ```
@@ -1567,6 +1569,8 @@ print(add_v1(2, 3))
 ## 🔍 Audit
 
 Deprecations are only as good as the hygiene around them. The `deprecate.audit` module provides utilities for verifying that deprecated wrappers are correctly configured, that removal deadlines are actually enforced, that every deprecation was scheduled the way your release policy promises, and that chains of deprecated-to-deprecated calls don't silently pile up. These tools are designed to run in CI pipelines and test suites, catching problems before they reach users.
+
+![Deprecation lifecycle: add the decorator, callers migrate, pre-commit, CI and pytest flag the expired wrapper, delete it](docs/assets/images/pydeprecate-lifecycle.svg)
 
 > [!NOTE]
 >

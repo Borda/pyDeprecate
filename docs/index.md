@@ -47,6 +47,8 @@ print(addition(1, 2))
 
 Calling `addition(1, 2)` now emits a `FutureWarning` and transparently forwards to `compute_sum`.
 
+![pyDeprecate call flow: an old call hits the @deprecated wrapper, which warns and forwards to the new API](assets/images/pydeprecate-flow.svg)
+
 ## Features
 
 - **Automatic call forwarding** — the decorator routes every call to the replacement, including positional and keyword arguments. No manual `*args/**kwargs` plumbing.
