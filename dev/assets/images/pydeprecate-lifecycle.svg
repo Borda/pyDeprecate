@@ -43,10 +43,10 @@
     .a18 { animation: a18 18s linear infinite; opacity: 0; }
     @keyframes a18 { 0%, 84% { opacity: 0 } 85.5%, 90.5% { opacity: 1 } 92.0%, 100% { opacity: 0 } }
     .a19 { animation: a19 18s linear infinite; opacity: 0; }
-    @keyframes a19 { 0%, 49% { opacity: 1 } 50.5%, 100% { opacity: 0 } }
+    @keyframes a19 { 0%, 58% { opacity: 1 } 59.5%, 100% { opacity: 0 } }
     @media (prefers-reduced-motion: reduce) { .a19 { opacity: 1 !important; } }
     .a20 { animation: a20 18s linear infinite; opacity: 0; }
-    @keyframes a20 { 0%, 50.5% { opacity: 0 } 52.0%, 97% { opacity: 1 } 98.5%, 100% { opacity: 0 } }
+    @keyframes a20 { 0%, 58% { opacity: 0 } 59.5%, 97% { opacity: 1 } 98.5%, 100% { opacity: 0 } }
     .a21 { animation: a21 18s linear infinite; opacity: 0; }
     @keyframes a21 { 0%, 90.5% { opacity: 1 } 92.0%, 100% { opacity: 0 } }
     @media (prefers-reduced-motion: reduce) { .a21 { opacity: 1 !important; } }
@@ -57,7 +57,7 @@
     @keyframes a23 { 0%, 34% { opacity: 0 } 35.5%, 82.5% { opacity: 1 } 84.0%, 100% { opacity: 0 } }
     @media (prefers-reduced-motion: reduce) { .a23 { opacity: 1 !important; } }
     .a24 { animation: a24 18s linear infinite; opacity: 0; }
-    @keyframes a24 { 0%, 51% { opacity: 0 } 52.5%, 66% { opacity: 1 } 67.5%, 100% { opacity: 0 } }
+    @keyframes a24 { 0%, 36% { opacity: 0 } 37.5%, 58% { opacity: 1 } 59.5%, 100% { opacity: 0 } }
     .a25 { animation: a25 18s linear infinite; opacity: 0; }
     @keyframes a25 { 0%, 68.0% { opacity: 0 } 69.5%, 82.5% { opacity: 1 } 84.0%, 100% { opacity: 0 } }
     .a26 { animation: a26 18s linear infinite; opacity: 0; }
@@ -70,7 +70,7 @@
     @keyframes a29 { 0%, 86% { opacity: 0 } 87.5%, 97% { opacity: 1 } 98.5%, 100% { opacity: 0 } }
     .a30 { animation: a30 18s linear infinite; opacity: 0; }
     @keyframes a30 { 0%, 84% { opacity: 0 } 85.5%, 97% { opacity: 1 } 98.5%, 100% { opacity: 0 } }
-    @media (prefers-reduced-motion: reduce) { .a30 { opacity: 1 !important; } }
+    @media (prefers-reduced-motion: reduce) { .a2 { opacity: 1 !important; } }
     @media (prefers-reduced-motion: reduce) {
       * { animation: none !important; }
       .ln { opacity: 1 !important; }
@@ -108,7 +108,7 @@
   <circle cx="62" cy="154" r="4.5" fill="#E8735A"/>
   <circle cx="78" cy="154" r="4.5" fill="#EAA238"/>
   <circle cx="94" cy="154" r="4.5" fill="#6FCF97"/>
-  <text class="mono" x="520" y="158" font-size="11" text-anchor="end" fill="#9FB0C6">legacy.py</text>
+  <text class="mono" x="520" y="158" font-size="11" text-anchor="end" fill="#9FB0C6">api.py</text>
   <rect class="a0" x="48" y="352" width="484" height="44" rx="6" fill="#2E6893" fill-opacity=".4"/>
   <rect class="a1" x="48" y="176" width="484" height="44" rx="6" fill="#EAA238" fill-opacity=".14"/>
   <rect class="a2" x="48" y="242" width="484" height="110" rx="6" fill="#EAA238" fill-opacity=".14"/>
@@ -140,15 +140,15 @@
   <g class="a22"><rect x="772" y="250" width="130" height="46" rx="9" fill="#263246" stroke="#EAA238" stroke-width="2"/><text class="mono" x="837.0" y="271" font-size="12" text-anchor="middle" fill="#F2B95A">new_func</text><text x="837.0" y="287" font-size="10" text-anchor="middle" fill="#9FB0C6">new API</text></g>
   <g class="a16"><rect x="772" y="250" width="130" height="46" rx="9" fill="#263246" stroke="#7FB6E3" stroke-width="2"/><text class="mono" x="837.0" y="271" font-size="12" text-anchor="middle" fill="#8DBFE8">new_func</text><text x="837.0" y="287" font-size="10" text-anchor="middle" fill="#9FB0C6">current API</text></g>
   <rect class="a18" x="576" y="248" width="134" height="50" rx="10" fill="#1F2938" fill-opacity=".72"/>
-  <defs><marker id="ab" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#7FB6E3"/></marker><marker id="ag" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#EAA238"/></marker></defs>
+  <defs><marker id="ag" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#EAA238"/></marker></defs>
   <line class="a19" x1="712" y1="216" x2="647.0" y2="246" stroke="#7FB6E3" stroke-width="2.4" stroke-dasharray="1 6" stroke-linecap="round"/>
   <line class="a20" x1="768" y1="216" x2="833.0" y2="246" stroke="#EAA238" stroke-width="2.4" stroke-dasharray="1 6" stroke-linecap="round"/>
   <g class="a23"><line x1="710" y1="273.0" x2="769" y2="273.0" stroke="#EAA238" stroke-width="2.5" marker-end="url(#ag)"/><text x="740.0" y="265.0" font-size="10" text-anchor="middle" fill="#F2B95A">forward</text></g>
   <g class="a24"><rect x="610" y="316" width="260" height="46" rx="9" fill="#3A2B10" stroke="#EAA238"/><text x="624" y="334" font-size="10.5" font-weight="700" fill="#EAA238">⚠ FutureWarning</text><text class="mono" x="624" y="351" font-size="10" fill="#F5D9A6">old_func deprecated v1.2, use new_func</text></g>
-  <g class="a25"><rect x="580" y="310" width="320" height="22" rx="7" fill="#263246" stroke="#7FB6E3" stroke-width="1.5"/><text x="592" y="325" font-size="11" font-weight="700" fill="#7FB6E3">pre-commit</text><text class="mono" x="672" y="325" font-size="10" fill="#F7F9FC">pydeprecate-expiry</text></g>
-  <g class="a26"><rect x="580" y="336" width="320" height="22" rx="7" fill="#263246" stroke="#7FB6E3" stroke-width="1.5"/><text x="592" y="351" font-size="11" font-weight="700" fill="#7FB6E3">CI</text><text class="mono" x="672" y="351" font-size="10" fill="#F7F9FC">Borda/pyDeprecate@v0.15.0</text></g>
-  <g class="a27"><rect x="580" y="362" width="320" height="22" rx="7" fill="#263246" stroke="#7FB6E3" stroke-width="1.5"/><text x="592" y="377" font-size="11" font-weight="700" fill="#7FB6E3">pytest</text><text class="mono" x="672" y="377" font-size="10" fill="#F7F9FC">validate_deprecation_expiry()</text></g>
-  <g class="a28"><rect x="580" y="388" width="320" height="22" rx="7" fill="#3B1D1A" stroke="#E8735A"/><text class="mono" x="740" y="403" font-size="10" text-anchor="middle" fill="#F2A394">✗ old_func past remove_in=2.0</text></g>
+  <g class="a25"><rect x="580" y="304" width="320" height="22" rx="7" fill="#263246" stroke="#7FB6E3" stroke-width="1.5"/><text x="592" y="319" font-size="11" font-weight="700" fill="#7FB6E3">pre-commit</text><text class="mono" x="672" y="319" font-size="10" fill="#F7F9FC">pydeprecate-expiry</text></g>
+  <g class="a26"><rect x="580" y="328" width="320" height="22" rx="7" fill="#263246" stroke="#7FB6E3" stroke-width="1.5"/><text x="592" y="343" font-size="11" font-weight="700" fill="#7FB6E3">CI</text><text class="mono" x="672" y="343" font-size="10" fill="#F7F9FC">Borda/pyDeprecate@v0.15.0</text></g>
+  <g class="a27"><rect x="580" y="352" width="320" height="22" rx="7" fill="#263246" stroke="#7FB6E3" stroke-width="1.5"/><text x="592" y="367" font-size="11" font-weight="700" fill="#7FB6E3">pytest</text><text class="mono" x="672" y="367" font-size="10" fill="#F7F9FC">validate_deprecation_expiry(mypkg)</text></g>
+  <g class="a28"><rect x="580" y="376" width="320" height="22" rx="7" fill="#3B1D1A" stroke="#E8735A"/><text class="mono" x="740" y="391" font-size="10" text-anchor="middle" fill="#F2A394">✗ old_func reached remove_in=2.0</text></g>
   <g class="a29"><text x="740" y="350" font-size="34" text-anchor="middle" fill="#EAA238">↻</text><text x="740" y="372" font-size="11" text-anchor="middle" fill="#F7F9FC">new_func is now the current API</text><text x="740" y="388" font-size="11" text-anchor="middle" fill="#9FB0C6">the next deprecation starts the cycle again</text></g>
   <text x="900" y="408" font-size="10" text-anchor="end" fill="#9FB0C6" xml:space="preserve">··· calls    <tspan fill="#EAA238">━▶</tspan> forwards to</text>
   <rect x="40" y="434" width="880" height="48" rx="12" fill="#1F2938" stroke="#2E3B50" stroke-width="1.5"/>
@@ -156,6 +156,6 @@
   <text class="a1" x="480" y="464" font-size="14" text-anchor="middle" fill="#F7F9FC">v1.2: write the new API next to it.</text>
   <text class="a2" x="480" y="464" font-size="14" text-anchor="middle" fill="#F7F9FC">v1.2: decorate old_func so it warns and forwards to new_func.</text>
   <text class="a3" x="480" y="464" font-size="14" text-anchor="middle" fill="#F7F9FC">v1.2 → v1.9: callers see the warning and move to new_func.</text>
-  <text class="a4" x="480" y="464" font-size="14" text-anchor="middle" fill="#F7F9FC">v2.0: pre-commit, CI and pytest flag old_func as past remove_in.</text>
+  <text class="a4" x="480" y="464" font-size="14" text-anchor="middle" fill="#F7F9FC">v2.0: pre-commit, CI and pytest flag old_func: remove_in=2.0 is reached.</text>
   <text class="a30" x="480" y="464" font-size="14" text-anchor="middle" fill="#F7F9FC">Delete old_func and its decorator: new_func is the current API, and the cycle repeats.</text>
 </svg>
