@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../assets/brand/favicon.svg">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
     
     
       
@@ -100,7 +100,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-04-21",
-  "dateModified": "2026-11-04"
+  "dateModified": "2026-11-09"
 }
 </script>
 
@@ -2663,7 +2663,7 @@
 <a id="__codelineno-32-14" name="__codelineno-32-14" href="#__codelineno-32-14"></a><span class="c1"># status — standalone deprecation status table only (no checks, not a pass/fail gate)</span>
 <a id="__codelineno-32-15" name="__codelineno-32-15" href="#__codelineno-32-15"></a>pydeprecate<span class="w"> </span>status<span class="w"> </span>src/your_package
 <a id="__codelineno-32-16" name="__codelineno-32-16" href="#__codelineno-32-16"></a>
-<a id="__codelineno-32-17" name="__codelineno-32-17" href="#__codelineno-32-17"></a><span class="c1"># Advisory-only: always exit 0, report issues without blocking</span>
+<a id="__codelineno-32-17" name="__codelineno-32-17" href="#__codelineno-32-17"></a><span class="c1"># Advisory-only: findings exit 0 instead of 1; usage (2) and scan/internal (3) errors still fail</span>
 <a id="__codelineno-32-18" name="__codelineno-32-18" href="#__codelineno-32-18"></a>pydeprecate<span class="w"> </span>check<span class="w"> </span>src/your_package<span class="w"> </span>--exit-zero
 </code></pre></div>
 <p><strong>Exit codes</strong> (see <a href="cli.html#exit-codes">CLI Reference — Exit codes</a> for per-subcommand details):</p>
@@ -2687,8 +2687,13 @@
 <td><code>2</code></td>
 <td>A malformed setting: <code>--exclude</code>, or for <code>policy</code> a rule value, from a flag or from <code>[tool.pydeprecate]</code></td>
 </tr>
+<tr>
+<td><code>3</code></td>
+<td>The audit did not run: the scanned package cannot be imported, or an internal CLI error</td>
+</tr>
 </tbody>
 </table>
+<p><code>--exit-zero</code> turns exit <code>1</code> into <code>0</code> and never masks <code>2</code> or <code>3</code>.</p>
 <h2 id="github-action">GitHub Action<a class="headerlink" href="#github-action" title="Permanent link">🔗</a></h2>
 <p>pyDeprecate ships a composite GitHub Action (available from <code>v0.15.0</code>) that runs the CLI as a single workflow step. Like the local pre-commit hook, it runs in the job's own Python. The scan imports your package from the checkout, so the package itself needs no install, but every module's runtime dependencies must be importable: set up Python and install them first (the simplest way is installing the project), then add the action:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a><span class="c1"># .github/workflows/deprecations.yml</span>
@@ -3146,7 +3151,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 4, 2026 17:17:29 UTC">2026-11-04</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 9, 2026 09:25:06 UTC">2026-11-09</span>
   </span>
 
     
@@ -3212,7 +3217,7 @@
       <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": [], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "stable", "provider": "mike"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.c21346df.min.js"></script>
+      <script src="../assets/javascripts/bundle.a5f9d56c.min.js"></script>
       
     
   </body>

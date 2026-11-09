@@ -798,7 +798,7 @@ pydeprecate policy src/your_package
 # status — standalone deprecation status table only (no checks, not a pass/fail gate)
 pydeprecate status src/your_package
 
-# Advisory-only: always exit 0, report issues without blocking
+# Advisory-only: findings exit 0 instead of 1; usage (2) and scan/internal (3) errors still fail
 pydeprecate check src/your_package --exit-zero
 ```
 
@@ -809,6 +809,9 @@ pydeprecate check src/your_package --exit-zero
 | `0`       | No hard errors (or `--exit-zero` was set)                                                                |
 | `1`       | Hard error found: invalid arg mappings, chains, expired wrappers, or policy violations under `policy`    |
 | `2`       | A malformed setting: `--exclude`, or for `policy` a rule value, from a flag or from `[tool.pydeprecate]` |
+| `3`       | The audit did not run: the scanned package cannot be imported, or an internal CLI error                  |
+
+`--exit-zero` turns exit `1` into `0` and never masks `2` or `3`.
 
 ## GitHub Action
 

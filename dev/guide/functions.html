@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../assets/brand/favicon.svg">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
     
     
       
@@ -100,7 +100,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-06-15",
-  "dateModified": "2026-11-04"
+  "dateModified": "2026-11-09"
 }
 </script>
 
@@ -2280,7 +2280,7 @@
 <tr>
 <th>Outer (top)</th>
 <th>Inner (bottom)</th>
-<th>Status</th>
+<th style="text-align: center;">Status</th>
 <th>Notes</th>
 </tr>
 </thead>
@@ -2288,59 +2288,60 @@
 <tr>
 <td><code>ARGS_REMAP</code></td>
 <td><code>ARGS_REMAP</code></td>
-<td>✓ Supported</td>
+<td style="text-align: center;">✅</td>
 <td>Multi-step argument renames across versions</td>
 </tr>
 <tr>
 <td><code>ARGS_REMAP</code></td>
 <td><code>NOTIFY</code></td>
-<td>✓ Supported</td>
+<td style="text-align: center;">✅</td>
 <td>Lifecycle: rename args first, then deprecate the whole function</td>
 </tr>
 <tr>
 <td><code>NOTIFY</code></td>
 <td><code>callable</code></td>
-<td>✓ Supported</td>
+<td style="text-align: center;">✅</td>
 <td>Outer NOTIFY warns callers the function is going away; inner callable handles forwarding. Prefer <code>@deprecated(target=&lt;callable&gt;)</code> directly — same effect, simpler.</td>
 </tr>
 <tr>
 <td><code>callable</code></td>
 <td><code>callable</code></td>
-<td>✗ <code>UserWarning</code> at decoration time</td>
+<td style="text-align: center;">❌</td>
 <td>Use a single <code>@deprecated(target=&lt;callable&gt;)</code> instead</td>
 </tr>
 <tr>
 <td><code>callable</code></td>
 <td><code>ARGS_REMAP</code></td>
-<td>✗ <code>UserWarning</code> at decoration time</td>
+<td style="text-align: center;">❌</td>
 <td>Collapse to <code>@deprecated(target=fn, args_mapping={...})</code></td>
 </tr>
 <tr>
 <td><code>callable</code></td>
 <td><code>NOTIFY</code></td>
-<td>✗ <code>UserWarning</code> at decoration time</td>
+<td style="text-align: center;">❌</td>
 <td>Collapse to a single <code>@deprecated(target=&lt;callable&gt;)</code></td>
 </tr>
 <tr>
 <td><code>ARGS_REMAP</code></td>
 <td><code>callable</code></td>
-<td>✗ <code>UserWarning</code> at decoration time</td>
+<td style="text-align: center;">❌</td>
 <td>Update the inner decorator to include both <code>target=</code> and <code>args_mapping=</code></td>
 </tr>
 <tr>
 <td><code>NOTIFY</code></td>
 <td><code>NOTIFY</code></td>
-<td>✗ <code>UserWarning</code> at decoration time</td>
+<td style="text-align: center;">❌</td>
 <td>Update the existing decorator's versions instead of adding a second one</td>
 </tr>
 <tr>
 <td><code>NOTIFY</code></td>
 <td><code>ARGS_REMAP</code></td>
-<td>✗ <code>UserWarning</code> at decoration time</td>
+<td style="text-align: center;">❌</td>
 <td>Wrong order — swap: <code>ARGS_REMAP</code> on top, <code>NOTIFY</code> below</td>
 </tr>
 </tbody>
 </table>
+<p>✅ = supported <br /> ❌ = unsupported — emits <code>UserWarning</code> at decoration time</p>
 <h3 id="n-level-stacking">N-level stacking<a class="headerlink" href="#n-level-stacking" title="Permanent link">🔗</a></h3>
 <p>Any sequence of supported adjacent pairs stacks transitively. The guard inspects only one hop at a time — as long as each adjacent pair is a supported combination, the full stack is accepted silently.</p>
 <p><strong>Example — three-level lifecycle migration:</strong></p>
@@ -2592,7 +2593,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 4, 2026 17:17:29 UTC">2026-11-04</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 9, 2026 09:25:06 UTC">2026-11-09</span>
   </span>
 
     
@@ -2658,7 +2659,7 @@
       <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": [], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "stable", "provider": "mike"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.c21346df.min.js"></script>
+      <script src="../assets/javascripts/bundle.a5f9d56c.min.js"></script>
       
     
   </body>

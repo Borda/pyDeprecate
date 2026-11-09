@@ -8,13 +8,15 @@ Python has several ways to signal deprecation. The right choice depends on wheth
 
 ## Quick comparison
 
-| Tool                             | Best for                               | Runtime forwarding | Generator / async | Argument rename | Argument deprecation | Class/object alias |        Testing helpers | CI audit | Static checker signal |
-| -------------------------------- | -------------------------------------- | -----------------: | ----------------: | --------------: | -------------------: | -----------------: | ---------------------: | -------: | --------------------: |
-| `warnings.warn`                  | One-off internal warnings              |                 No |                No |              No |                   No |                 No |                     No |       No |                    No |
-| `warnings.deprecated`            | Python 3.13+ static-checker visibility |                 No |                No |              No |                   No |                 No |                     No |       No |                   Yes |
-| `deprecation`                    | Simple decorator warnings              |                 No |                No |              No |                   No |                 No | `@fail_if_not_removed` |       No |                    No |
-| `Deprecated`                     | Simple decorator warnings              |                 No |                No |              No |                   No |                 No |                     No |       No |                    No |
-| **pyDeprecate** *(this library)* | Full API migration compatibility       |                Yes |               Yes |             Yes |                  Yes |                Yes |                    Yes |      Yes |          Via stacking |
+| Tool                             | Best for                               | Runtime forwarding | Generator / async | Argument rename | Argument deprecation | Class/object alias |    Testing helpers     | CI audit | Static checker signal |
+| -------------------------------- | -------------------------------------- | :----------------: | :---------------: | :-------------: | :------------------: | :----------------: | :--------------------: | :------: | :-------------------: |
+| `warnings.warn`                  | One-off internal warnings              |         ❌         |        ❌         |       ❌        |          ❌          |         ❌         |           ❌           |    ❌    |          ❌           |
+| `warnings.deprecated`            | Python 3.13+ static-checker visibility |         ❌         |        ❌         |       ❌        |          ❌          |         ❌         |           ❌           |    ❌    |          ✅           |
+| `deprecation`                    | Simple decorator warnings              |         ❌         |        ❌         |       ❌        |          ❌          |         ❌         | `@fail_if_not_removed` |    ❌    |          ❌           |
+| `Deprecated`                     | Simple decorator warnings              |         ❌         |        ❌         |       ❌        |          ❌          |         ❌         |           ❌           |    ❌    |          ❌           |
+| **pyDeprecate** *(this library)* | Full API migration compatibility       |         ✅         |        ✅         |       ✅        |          ✅          |         ✅         |           ✅           |    ✅    |          ✍️           |
+
+✅ = supported <br /> ❌ = not supported <br /> ✍️ = possible but requires manual work — for pyDeprecate, stack `@warnings.deprecated` above `@deprecated`
 
 ## Use `warnings.warn` when
 
