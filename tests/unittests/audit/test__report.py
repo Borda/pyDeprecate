@@ -133,6 +133,13 @@ def _matrix_header(rows: list[DeprecationWrapperInfo]) -> list[str]:
     return [cell.strip() for cell in table.splitlines()[0].strip("|").split("|")][3:]
 
 
+def _matrix_cells(rows: list[DeprecationWrapperInfo]) -> list[list[str]]:
+    """Render *rows* as a matrix table and return, per body row, the marker cells under the version columns."""
+    table = _render_deprecation_table(rows, None, None, TableStyle.MATRIX)
+    body = [line for line in table.splitlines() if line.startswith("| `pkg.")]
+    return [[cell.strip() for cell in line.strip("|").split("|")][3:] for line in body]
+
+
 class TestMatrixVersionColumns:
     """Matrix-style tables give one column per release, however each wrapper spells its version."""
 
@@ -162,7 +169,12 @@ class TestMatrixVersionColumns:
 
         Release equality such as ``1.0`` == ``1.0.0`` needs PEP 440 parsing; when ``packaging`` is missing the table
         still renders, the ``v``-prefixed spelling shares the column its header already showed, and ``1.0.0`` keeps a
-        column of its own.
+        column of its own; each row must carry its ``D`` marker under the column of its own spelling.
         """
         monkeypatch.setattr("deprecate.audit._report._safe_parse_version", lambda version: None)
         assert _matrix_header(_MATRIX_ROWS_ONE_RELEASE) == ["v1.0", "v1.0.0", "v2.0"]
+        assert _matrix_cells(_MATRIX_ROWS_ONE_RELEASE) == [
+            ["", "D", "R"],  # padded: ``1.0.0`` keeps a column of its own
+            ["D", "", "R"],  # plain: ``1.0`` is the spelling that heads the shared column
+            ["D", "", "R"],  # prefixed: ``v1.0`` joins the ``1.0`` column
+        ]

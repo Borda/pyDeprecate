@@ -21,11 +21,13 @@ from deprecate.audit import (
 )
 from deprecate.audit._lifecycle import (
     _check_expiry_for_callables,
+    _expiry_findings,
     _get_deprecation_status,
     _get_package_version,
     _normalize_version_string,
     _parse_version,
 )
+from tests.collections.misconfigured import make_malformed_remove_in_wrapper
 
 _PACKAGING_AVAILABLE = importlib.util.find_spec("packaging") is not None
 _requires_packaging = pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging library")
@@ -316,6 +318,38 @@ class TestBatchExpiryUnparsableVersion:
         ):
             expired = _check_expiry_for_callables([info], "2.0")
         assert expired == []
+
+    @_requires_packaging
+    def test_on_unparsable_called_once_per_skipped_wrapper_after_its_warning(self) -> None:
+        """The ``on_unparsable`` callback fires once per unparsable ``remove_in``, in scan order, after its warning.
+
+        The CLI hands in a callback that records a gap on a channel the audited package cannot silence, so it must
+        see exactly the wrappers that were skipped: never a wrapper with a parsable ``remove_in`` (expired or not) or
+        with no ``remove_in`` at all. Each call follows the warning of that same wrapper, so the gap lands after the
+        warning on the output and the second skip is reported after the first.
+        """
+        broken_real = validate_deprecation_wrapper(make_malformed_remove_in_wrapper())
+        broken_info = DeprecationWrapperInfo(
+            function="pkg.broken",
+            deprecated_info=DeprecationConfig(deprecated_in="1.0", remove_in="not.a.version!!"),
+        )
+        results = [
+            DeprecationWrapperInfo(function="pkg.due", deprecated_info=DeprecationConfig(remove_in="1.0")),
+            broken_real,
+            DeprecationWrapperInfo(function="pkg.open_ended", deprecated_info=DeprecationConfig(deprecated_in="1.0")),
+            DeprecationWrapperInfo(function="pkg.later", deprecated_info=DeprecationConfig(remove_in="9.0")),
+            broken_info,
+        ]
+        calls: list[tuple[str, int]] = []
+
+        with pytest.warns(UserWarning, match="unparsable") as warned:
+            expired = _expiry_findings(
+                results, "2.0", on_unparsable=lambda info: calls.append((info.function, len(warned)))
+            )
+
+        # each callback ran right after its own warning: one warning seen at the first call, two at the second
+        assert calls == [(broken_real.function, 1), ("pkg.broken", 2)]
+        assert [finding.symbol for finding in expired] == ["pkg.due"]  # the skips are not findings
 
 
 # ---------------------------------------------------------------------------

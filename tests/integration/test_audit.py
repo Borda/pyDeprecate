@@ -900,8 +900,10 @@ class TestSingleWrapperExpiry:
     """Expiry of one wrapper through the batch check on a single ``validate_deprecation_wrapper`` result.
 
     Every wrapper kind (``@deprecated``, ``deprecated_class``, ``deprecated_instance``) is compared against its own
-    ``remove_in`` the same way. Error paths of the batch check (no ``remove_in``, a malformed ``remove_in``, a malformed
-    current version) are covered in ``tests/unittests/audit/test__lifecycle.py``, and a non-wrapper is rejected by
+    ``remove_in`` the same way. Error paths of the batch check for a missing or malformed ``remove_in`` are covered in
+    ``tests/unittests/audit/test__lifecycle.py``, a malformed current version through the public
+    ``validate_deprecation_expiry`` (``test_invalid_current_version_raises`` and
+    ``test_invalid_current_version_raises_before_scan`` in this module), and a non-wrapper is rejected by
     ``validate_deprecation_wrapper`` itself (``test_no_deprecated_attr``).
     """
 
@@ -1046,6 +1048,17 @@ class TestCheckModuleDeprecationExpiry:
         monkeypatch.syspath_prepend(str(tmp_path))
         with pytest.raises(RuntimeError, match="aud broken init"):
             validate_deprecation_expiry("aud_broken_init_pkg", None, recursive=False)
+
+    def test_auto_detect_missing_module_raises_module_not_found(self) -> None:
+        """Auto-detection on a module path that cannot be imported raises ``ModuleNotFoundError`` naming it.
+
+        A maintainer mistypes the package in ``validate_deprecation_expiry("my_pkgg", None)``. The module is imported
+        before its version is looked up, so the error names the missing module instead of a vague "could not
+        determine version"; it stays an ``ImportError`` subclass, so callers catching ``ImportError`` keep working.
+        """
+        with pytest.raises(ModuleNotFoundError) as excinfo:
+            validate_deprecation_expiry("aud_no_such_package_xyz", None, recursive=False)
+        assert excinfo.value.name == "aud_no_such_package_xyz"
 
     def test_auto_detect_requires_module_name(self) -> None:
         """Auto-detection raises ValueError when the module object has no __name__."""
