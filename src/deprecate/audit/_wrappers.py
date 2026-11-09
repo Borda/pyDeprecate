@@ -14,10 +14,7 @@ import warnings
 from dataclasses import dataclass, field, is_dataclass
 from enum import Enum
 from functools import wraps
-from typing import TYPE_CHECKING, Any, Callable, Optional, Union
-
-if TYPE_CHECKING:
-    pass
+from typing import Any, Callable, Optional, Union
 
 from deprecate._frames import _caller_stacklevel
 from deprecate._types import DeprecationConfig, TargetMode, _has_deprecation_meta, get_deprecation_config

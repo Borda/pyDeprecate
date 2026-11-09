@@ -16,10 +16,7 @@ from contextlib import contextmanager, suppress
 from contextvars import ContextVar
 from dataclasses import replace
 from functools import cached_property
-from typing import TYPE_CHECKING, Any, Optional, Union
-
-if TYPE_CHECKING:
-    pass
+from typing import Any, Optional, Union
 
 from deprecate._frames import _caller_stacklevel
 from deprecate._properties import _DeprecatedProperty
