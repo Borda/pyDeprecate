@@ -2,7 +2,9 @@
 
 import dataclasses
 import importlib.util
+import types
 import warnings
+from typing import Optional
 
 import pytest
 
@@ -19,7 +21,7 @@ from deprecate.audit import (
     DeprecationWrapperInfo,
     validate_deprecation_wrapper,
 )
-from deprecate.audit._wrappers import _classify_member_api_type
+from deprecate.audit._wrappers import _classify_member_api_type, _classify_wrapper_api_type
 from deprecate.proxy import _DeprecatedProxy, _ProxySpec
 from tests.collections.api_current.core import ColorEnum
 from tests.collections.chains import caller_via_notify_layer
@@ -395,6 +397,83 @@ class TestClassifyMemberApiType:
 
 class _AudTargetCls:
     """Plain class used both as the wrapped object and target of a self-referential proxy (fixture)."""
+
+
+@dataclasses.dataclass
+class _AudPlainRecord:
+    """Plain dataclass fed to the api-type classifier (fixture)."""
+
+    value: int = 0
+
+
+def _aud_plain_function() -> None:
+    """Plain function fed to the api-type classifier (fixture)."""
+
+
+def _aud_proxy(obj: object) -> _DeprecatedProxy:
+    """Wrap *obj* in a bare deprecation proxy for the api-type classifier."""
+    return _DeprecatedProxy(obj=obj, spec=_ProxySpec(name="aud_proxy", deprecated_in="1.0", remove_in="2.0"))
+
+
+_AUD_MAPPED_INFO = DeprecationWrapperInfo(deprecated_info=DeprecationConfig(args_mapping={"old": "new"}))
+_AUD_PLAIN_INFO = DeprecationWrapperInfo()
+
+
+class TestClassifyWrapperApiTypeCharacterization:
+    """Characterization of every branch of ``_classify_wrapper_api_type`` before it is restructured."""
+
+    @pytest.mark.parametrize(
+        ("wrapped_obj", "info", "member_name", "descriptor_kind", "expected"),
+        [
+            pytest.param(None, _AUD_PLAIN_INFO, "__init__", None, "class constructor", id="init"),
+            pytest.param(None, _AUD_MAPPED_INFO, "__init__", None, "class constructor args", id="init-args"),
+            pytest.param(None, _AUD_PLAIN_INFO, "__init__", "classmethod", "class constructor", id="init-wins"),
+            pytest.param(None, _AUD_PLAIN_INFO, "build", "classmethod", "classmethod", id="classmethod"),
+            pytest.param(None, _AUD_MAPPED_INFO, "build", "classmethod", "classmethod args", id="classmethod-args"),
+            pytest.param(None, _AUD_PLAIN_INFO, "util", "staticmethod", "staticmethod", id="staticmethod"),
+            pytest.param(None, _AUD_MAPPED_INFO, "util", "staticmethod", "staticmethod args", id="staticmethod-args"),
+            pytest.param(None, _AUD_PLAIN_INFO, "run", None, "class method", id="method"),
+            pytest.param(None, _AUD_MAPPED_INFO, "run", "property", "class method args", id="method-args"),
+            pytest.param(types.ModuleType("aud_mod"), _AUD_PLAIN_INFO, None, None, "module", id="module"),
+            pytest.param(_aud_proxy(_AudTargetCls), _AUD_PLAIN_INFO, None, None, "class", id="proxy-class"),
+            pytest.param(_aud_proxy(_AudTargetCls), _AUD_MAPPED_INFO, None, None, "class", id="proxy-class-args"),
+            pytest.param(
+                _aud_proxy(_aud_proxy(_AudTargetCls)), _AUD_PLAIN_INFO, None, None, "class", id="proxy-nested-class"
+            ),
+            pytest.param(_aud_proxy(_AudPlainRecord), _AUD_PLAIN_INFO, None, None, "dataclass", id="proxy-dataclass"),
+            pytest.param(
+                _aud_proxy(_AudPlainRecord),
+                _AUD_MAPPED_INFO,
+                None,
+                None,
+                "dataclass attributes",
+                id="proxy-dataclass-args",
+            ),
+            pytest.param(_aud_proxy({"key": 1}), _AUD_PLAIN_INFO, None, None, "data", id="proxy-data"),
+            pytest.param(_AudTargetCls, _AUD_PLAIN_INFO, None, None, "class", id="class"),
+            pytest.param(_AudPlainRecord, _AUD_PLAIN_INFO, None, None, "dataclass", id="dataclass"),
+            pytest.param(_AudPlainRecord, _AUD_MAPPED_INFO, None, None, "dataclass attributes", id="dataclass-args"),
+            pytest.param(_aud_plain_function, _AUD_PLAIN_INFO, None, None, "callable", id="callable"),
+            pytest.param(_aud_plain_function, _AUD_MAPPED_INFO, None, None, "args", id="callable-args"),
+        ],
+    )
+    def test_label_per_shape(
+        self,
+        wrapped_obj: object,
+        info: DeprecationWrapperInfo,
+        member_name: Optional[str],
+        descriptor_kind: Optional[str],
+        expected: str,
+    ) -> None:
+        """Every wrapper shape gets the report label it has today, as a plain string.
+
+        The report's API Type column, the policy remedy text and the expiry subject noun all key on this label, so the
+        restructuring of the classifier into lookup tables must keep each shape's label and keep handing a plain ``str``
+        to callers that format it. A class-member label always wins over the wrapped object's own shape.
+        """
+        label = _classify_wrapper_api_type(wrapped_obj, info, member_name=member_name, descriptor_kind=descriptor_kind)
+        assert label == expected
+        assert format(label) == expected
 
 
 class _AudAttrsMappingTarget:
