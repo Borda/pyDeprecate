@@ -147,8 +147,6 @@ def generate_deprecation_table(
     include_members: bool = True,
     *,
     exclude: Optional[Sequence[str]] = None,
-    _wrappers: Optional[list["DeprecationWrapperInfo"]] = None,
-    _version_explicit: bool = True,
 ) -> str:
     """Generate a markdown table summarizing deprecated wrappers.
 
@@ -171,11 +169,6 @@ def generate_deprecation_table(
         exclude: Glob patterns over full dotted module names to leave out of the scan, as in
             :func:`~deprecate.audit.find_deprecation_wrappers` (e.g. ``["my_package.tests"]``); ``None`` excludes
             nothing.
-        _version_explicit: Whether ``current_version`` was typed by the caller rather than auto-detected
-            on its behalf. A caller that resolves the version itself (the CLI's single-scan path) passes
-            ``False`` so an unparsable one degrades to an unparsed version string — the same fallback this
-            function applies to a version it auto-detects — instead of raising. Underscore prefix marks it
-            internal; it is not part of the public signature.
 
     Returns:
         Markdown string containing a formatted table. When a version is
@@ -203,17 +196,35 @@ def generate_deprecation_table(
             f"Invalid style {style!r}. Expected one of: {', '.join(s.value for s in TableStyle)}."
         ) from err
 
-    resolved_version, parsed_version = _resolve_table_version(
-        module, current_version=current_version, version_explicit=_version_explicit
-    )
-    if _wrappers is None:
-        _wrappers = find_deprecation_wrappers(
-            module, recursive=recursive, include_members=include_members, exclude=exclude
-        )
-    wrappers = sorted(
-        _wrappers,
-        key=_report_row_sort_key,
-    )
+    resolved_version, parsed_version = _resolve_table_version(module, current_version=current_version)
+    wrappers = find_deprecation_wrappers(module, recursive=recursive, include_members=include_members, exclude=exclude)
+    return _render_deprecation_table(wrappers, resolved_version, parsed_version, style)
+
+
+def _render_deprecation_table(
+    wrappers: Sequence[DeprecationWrapperInfo],
+    resolved_version: Optional[str],
+    parsed_version: Optional["Version"],
+    style: TableStyle,
+) -> str:
+    """Render the markdown deprecation table of already-scanned wrappers.
+
+    The rendering half of :func:`generate_deprecation_table`, which the CLI calls on the wrappers of its own scan
+    with a version it resolved through :func:`_resolve_table_version`.
+
+    Args:
+        wrappers: Scanned wrappers, in any order; rows are sorted by module and symbol family.
+        resolved_version: Version string named in the leading ``<!-- Current version: X -->`` comment, or ``None``
+            to leave the comment out.
+        parsed_version: *resolved_version* parsed, for the compact style's status column; ``None`` when it is
+            unresolved, unparsable or ``packaging`` is missing.
+        style: Table layout.
+
+    Returns:
+        The markdown table, as documented on :func:`generate_deprecation_table`.
+
+    """
+    wrappers = sorted(wrappers, key=_report_row_sort_key)
 
     if style == TableStyle.COMPACT:
         rows = [

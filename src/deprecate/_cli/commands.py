@@ -28,11 +28,11 @@ from deprecate.audit import (
     DeprecationWrapperInfo,
     PolicyRule,
     TableStyle,
-    generate_deprecation_table,
 )
 from deprecate.audit._findings import _Finding, _Rule, _wrapper_findings
 from deprecate.audit._lifecycle import _expiry_findings
 from deprecate.audit._policy import _build_policy_spec, _policy_findings
+from deprecate.audit._report import _render_deprecation_table, _resolve_table_version
 from deprecate.audit._wrappers import _format_subject
 
 if TYPE_CHECKING:
@@ -656,13 +656,10 @@ def _status_table(
     """
     # Never resolve the importable module name eagerly: a plain directory without ``__init__.py`` has none, and
     # status still renders its table. ``_safe_module_name`` falls back to the raw path, used only as table metadata.
-    markdown = generate_deprecation_table(
-        _safe_module_name(path),
-        current_version=version,
-        style=style,
-        _wrappers=wrappers,
-        _version_explicit=version_explicit,
+    resolved_version, parsed_version = _resolve_table_version(
+        _safe_module_name(path), current_version=version, version_explicit=version_explicit
     )
+    markdown = _render_deprecation_table(wrappers, resolved_version, parsed_version, style)
     _record_table(markdown)
     _print(markdown)
     return markdown
