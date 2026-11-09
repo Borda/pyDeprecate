@@ -42,7 +42,7 @@ ok
 
 </details>
 
-Prefer `@deprecated_class()` directly for classes, Enums, and dataclasses — same result, no dispatch notice, and it is required to reach class-only options such as `attrs_mapping`. The rest of this page uses that explicit form.
+Prefer `@deprecated_class()` directly for classes, Enums, and dataclasses — same result, no dispatch notice, and it is required to reach proxy-only options such as `attrs_mapping`. The rest of this page uses that explicit form.
 
 ## Class deprecation
 
@@ -252,7 +252,7 @@ teal
 
 </details>
 
-On a callable object, `args_mapping` renames keyword arguments: the call warns only when an old name is used, and a value renamed onto a positional-only parameter of the replacement is passed positionally. On an object that is never called, `args_mapping` and `args_extra` cannot apply and emit a `UserWarning` (`TypeError` in v1.0).
+On a callable object, `args_mapping` renames keyword arguments, and a value renamed onto a positional-only parameter is passed positionally. Without a `target`, the call warns only when an old name is used; with a callable `target`, every call warns, because calling the old name is itself the deprecated use. On an object that is never called, `args_mapping` and `args_extra` cannot apply and emit a `UserWarning` (`TypeError` in v1.0).
 
 ## Enums and dataclasses
 
@@ -647,7 +647,7 @@ Three misconfiguration combinations are caught at decoration time and emit a `Us
 
 > Explicit configuration is never silently rewritten: auto-resolve fills in only an *omitted* `target`. If you need a blanket per-access warning *and* selective attribute renaming at the same time, stack two `deprecated_class()` layers — see [Nested proxy wrappers](#nested-proxy-wrappers) below.
 
-`TargetMode.ATTRS_REMAP` is a **proxy-only** mode, and `@deprecated(target=TargetMode.ATTRS_REMAP)` raises `TypeError` at decoration time for **every** source — function, method, property, **or class**. The front door does not expose `attrs_mapping` (it is class-only), so the mode could never redirect anything there; the error points to `deprecated_class(attrs_mapping=...)` as the correct API.
+`TargetMode.ATTRS_REMAP` is a **proxy-only** mode, and `@deprecated(target=TargetMode.ATTRS_REMAP)` raises `TypeError` at decoration time for **every** source — function, method, property, **or class**. The front door does not expose `attrs_mapping` (it belongs to the proxy factories), so the mode could never redirect anything there; the error points to `deprecated_class(attrs_mapping=...)` as the correct API (`deprecated_instance(obj, attrs_mapping=...)` for an object).
 
 ### Callable target with attribute redirection
 

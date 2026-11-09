@@ -1249,3 +1249,29 @@ class TestClassDocstringInjection:
         assert NewCls.__doc__ in depr_documented_class.__doc__
         assert ".. deprecated:: 1.0" in depr_documented_class.__doc__
         assert ".. deprecated::" not in NewCls.__doc__
+
+
+class _ArrayLike:
+    """Replacement whose ``==`` raises, as a numpy array or a pandas frame does when compared with a scalar."""
+
+    def __eq__(self, other: object) -> bool:
+        """Raise like an array whose truth value is ambiguous."""
+        raise ValueError("The truth value of an array with more than one element is ambiguous.")
+
+    __hash__ = object.__hash__
+
+
+class TestProxyTargetIdentityChecks:
+    """The proxy never compares a replacement object with ``==`` when deciding its own mode."""
+
+    def test_mro_entries_does_not_compare_replacement(self) -> None:
+        """Resolving the alias as a base warns and returns the replacement without calling its ``__eq__``.
+
+        Mode checks must use identity: a replacement such as an array or a data frame raises from ``==``, which would
+        turn the base-class resolution of a ``class`` statement into a ``ValueError``.
+        """
+        replacement = _ArrayLike()
+        alias = deprecated_instance({}, target=replacement, deprecated_in="1.0", remove_in="2.0")
+        with pytest.warns(FutureWarning, match="was deprecated since v1.0"):
+            entries = alias.__mro_entries__(())
+        assert entries[0] is replacement

@@ -269,7 +269,8 @@ def _validate_proxy_mode(
             :func:`~deprecate.proxy.deprecated_instance` passes its own name.
         active_callable: Whether the object the proxy serves (the replacement when one is set) can be called.
             ``args_mapping`` and ``args_extra`` act only on calls, so on an object that is never called they are
-            flagged — outside :attr:`~deprecate._types.TargetMode.ATTRS_REMAP`, which flags them on its own.
+            flagged — outside :attr:`~deprecate._types.TargetMode.ATTRS_REMAP` and
+            :attr:`~deprecate._types.TargetMode.NOTIFY`, which flag them on their own.
 
     Returns:
         ``True`` if any misconfiguration was detected, ``False`` otherwise.
@@ -347,7 +348,7 @@ def _validate_proxy_mode(
             f"This will be `TypeError` in `{_MAJOR_BREAK_VERSION}`."
         )
     call_options = [name for name, value in (("args_mapping", args_mapping), ("args_extra", args_extra)) if value]
-    if call_options and not active_callable and mode is not TargetMode.ATTRS_REMAP:
+    if call_options and not active_callable and mode is not TargetMode.ATTRS_REMAP and mode is not TargetMode.NOTIFY:
         messages.append(
             f"`{factory}` on `{source_name}` sets {' and '.join(f'`{name}`' for name in call_options)}, but the object"
             " it serves is not callable, so call-time options never apply. Remove them, or pass a callable `target`."

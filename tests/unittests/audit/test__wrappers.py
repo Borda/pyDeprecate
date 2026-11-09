@@ -116,7 +116,7 @@ class TestValidateDeprecationWrapperWithProxy:
 
         """
         proxy = _DeprecatedProxy(
-            obj={},
+            obj=ColorEnum,
             spec=_ProxySpec(
                 name="warn_only_mapped",
                 deprecated_in="1.0",

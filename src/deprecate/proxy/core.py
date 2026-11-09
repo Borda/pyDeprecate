@@ -1312,7 +1312,9 @@ class _DeprecatedProxy:
         :meth:`__call__` and :meth:`__getattr__`).
 
         """
-        if self._dep.target not in (TargetMode.ATTRS_REMAP, TargetMode.ARGS_REMAP):
+        # Identity, not ``in``: a replacement object may define an ``__eq__`` that raises (an array, a data frame).
+        target = self._dep.target
+        if target is not TargetMode.ATTRS_REMAP and target is not TargetMode.ARGS_REMAP:
             self._warn()
         return (_DeprecatedProxy._get_static_attr_owner(self),)
 

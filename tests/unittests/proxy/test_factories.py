@@ -391,7 +391,11 @@ class TestDeprecatedInstanceTarget:
         assert (isinstance(proxy, list), isinstance(proxy, tuple)) == (True, False)
 
     def test_callable_target_named_in_warning(self) -> None:
-        """Calling an old function alias warns naming the replacement function and forwards to it."""
+        """Calling an old function alias warns naming the replacement function and forwards to it.
+
+        A function replaced by another keeps working under its old name; the warning must point callers at the
+        replacement's import path, as ``@deprecated(target=...)`` does.
+        """
         proxy = deprecated_instance(resize_source, name="resize", target=positional_only_target, **_DEPRS_CASE_STD_ARGS)
         with pytest.warns(
             FutureWarning, match=r"in favor of `tests\.collections\.api_current\.core\.positional_only_target`"
@@ -400,7 +404,11 @@ class TestDeprecatedInstanceTarget:
         assert result == 5
 
     def test_message_template_names_non_callable_replacement(self) -> None:
-        """A custom template names a non-callable replacement, which the built-in no-target text cannot."""
+        """A custom template names a non-callable replacement, which the built-in no-target text cannot.
+
+        A data replacement has no import path the warning could print, so the author spells it out; the template must
+        reach callers verbatim.
+        """
         proxy = deprecated_instance(
             {"timeout": 10},
             name="OLD_SETTINGS",
@@ -412,14 +420,22 @@ class TestDeprecatedInstanceTarget:
             _ = proxy["timeout"]
 
     def test_skip_if_serves_wrapped_object(self) -> None:
-        """While ``skip_if`` is active the old object is served, with no warning and no forwarding."""
+        """While ``skip_if`` is active the old object is served, with no warning and no forwarding.
+
+        ``skip_if`` switches the whole deprecation off, for example on an older dependency version, so callers must
+        see exactly the pre-deprecation object rather than the replacement.
+        """
         proxy = deprecated_instance({"timeout": 10}, target={"timeout": 30}, skip_if=True, **_DEPRS_CASE_STD_ARGS)
         with captured_warnings() as caught:
             value = proxy["timeout"]
         assert (value, caught) == (10, [])
 
     def test_read_only_blocks_writes_to_replacement(self) -> None:
-        """``read_only=True`` rejects a mutator call and leaves the replacement unchanged."""
+        """``read_only=True`` rejects a mutator call and leaves the replacement unchanged.
+
+        Writes through the old name land on the replacement, which other callers share; ``read_only`` must keep the
+        deprecated alias from mutating it.
+        """
         replacement = {"timeout": 30}
         proxy = deprecated_instance(
             {"timeout": 10}, target=replacement, read_only=True, **_DEPRS_CASE_STD_ARGS, stream=None
@@ -459,6 +475,58 @@ class TestDeprecatedInstanceTarget:
         with pytest.warns(UserWarning, match="is not callable"):
             proxy = deprecated_instance({"timeout": 10}, name="OLD_SETTINGS", **config, **_DEPRS_CASE_STD_ARGS)
         assert proxy.__deprecation_config__.misconfigured is True
+
+    def test_notify_with_args_mapping_on_data_object_warns_once(self) -> None:
+        """An explicit ``NOTIFY`` with an ``args_mapping`` on a data object reports one problem, not two.
+
+        The mapping is already flagged as ignored by ``NOTIFY``; repeating it as "not callable" would double the noise
+        for one mistake.
+        """
+        with captured_warnings() as caught:
+            deprecated_instance(
+                {"k": 1}, name="cfg", target=TargetMode.NOTIFY, args_mapping={"old": "new"}, **_DEPRS_CASE_STD_ARGS
+            )
+        assert [type(warn.message) for warn in caught] == [UserWarning]
+
+    def test_attrs_mapping_resolves_against_replacement(self) -> None:
+        """With a replacement, a renamed attribute reads the replacement's value under the new name.
+
+        The old settings object no longer has ``colour``; validation and the redirect must use the replacement the
+        proxy serves, not the wrapped object.
+        """
+        proxy = deprecated_instance(
+            object(), name="theme", target=ThemeSettings(), attrs_mapping={"color": "colour"}, **_DEPRS_CASE_STD_ARGS
+        )
+        with pytest.warns(FutureWarning, match=r"in favor of `theme\.colour`"):
+            value = proxy.color
+        assert value == "teal"
+
+    def test_attrs_mapping_missing_on_replacement_raises(self) -> None:
+        """A redirect to a name the replacement lacks raises ``ValueError`` when the proxy is built."""
+        with pytest.raises(ValueError, match="redirect targets not found"):
+            deprecated_instance(
+                ThemeSettings(), target={"k": 1}, attrs_mapping={"color": "colour"}, **_DEPRS_CASE_STD_ARGS
+            )
+
+    def test_as_exception_raises_before_serving_replacement(self) -> None:
+        """``as_exception=True`` refuses a read through the old name instead of serving the replacement.
+
+        The final release before removal turns the deprecation into an error; a read must raise ``DeprecatedError``
+        rather than quietly return the replacement's value.
+        """
+        proxy = deprecated_instance({"k": 1}, target={"k": 2}, as_exception=True, **_DEPRS_CASE_STD_ARGS)
+        with pytest.raises(DeprecatedError, match="was deprecated since v1.0"):
+            _ = proxy["k"]
+
+    def test_class_source_with_args_mapping_is_not_flagged_uncallable(self) -> None:
+        """``deprecated_class`` with an ``args_mapping`` keeps its old behaviour: no "not callable" warning.
+
+        The check for call options on an object that is never called must stay silent on the class path, where the
+        wrapped class is always callable.
+        """
+        with captured_warnings() as caught:
+            proxy = deprecated_class(args_mapping={"time_limit": "timeout"}, **_DEPRS_CASE_STD_ARGS)(ThemeSettings)
+        assert (caught, proxy.__deprecation_config__.misconfigured) == ([], False)
 
     @pytest.mark.parametrize(
         ("source", "config", "match"),

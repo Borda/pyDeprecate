@@ -435,7 +435,12 @@ def _has_migration_guidance(info: DeprecationWrapperInfo) -> bool:
     has_message = bool(config.message_template)
     if target is TargetMode.NOTIFY:
         return has_message
-    if target in (TargetMode.ARGS_REMAP, TargetMode.ATTRS_REMAP):
+    # Identity, not ``in``: a replacement object may define an ``__eq__`` that raises (an array, a data frame).
+    if target is TargetMode.ARGS_REMAP and config.misconfigured:
+        # Flagged at creation, e.g. an ``args_mapping`` on a data object that is never called: the renames may never
+        # apply, so only an attribute mapping or a hand-written message counts.
+        return bool(config.attrs_mapping) or has_message
+    if target is TargetMode.ARGS_REMAP or target is TargetMode.ATTRS_REMAP:
         return has_mapping
     if target is not None and not callable(target):
         # A ``deprecated_instance`` replacement that is plain data: the warning cannot name it, and the object is never

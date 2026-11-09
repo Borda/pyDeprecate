@@ -8,8 +8,8 @@ keeps resolving natively.
 The specialized decorators live in their target modules: :func:`~deprecate.routine.deprecated_callable`
 (functions/methods), :func:`~deprecate.proxy.deprecated_class` / :func:`~deprecate.proxy.deprecated_instance`
 (classes/objects), and :func:`~deprecate.module.deprecated_module` (modules).  The front door exposes only the arguments
-common to both dispatch shapes; the class-only ``attrs_mapping`` lives on :func:`~deprecate.proxy.deprecated_class`
-alone.
+common to both dispatch shapes; the proxy-only ``attrs_mapping`` lives on :func:`~deprecate.proxy.deprecated_class` and
+:func:`~deprecate.proxy.deprecated_instance`.
 
 Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 
@@ -191,8 +191,9 @@ def deprecated(
     prefer ``@deprecated_class()`` directly for classes.
 
     ``deprecated()`` deliberately exposes only the arguments **common** to both shapes.  The one
-    shape-specific option, ``attrs_mapping`` (selective attribute deprecation, class-only), lives on
-    :func:`~deprecate.proxy.deprecated_class` — reach for it directly when you need the full class scope.
+    shape-specific option, ``attrs_mapping`` (selective attribute deprecation, proxy-only), lives on
+    :func:`~deprecate.proxy.deprecated_class` (and :func:`~deprecate.proxy.deprecated_instance` for objects) — reach
+    for it directly when you need the full class scope.
 
     Args:
         target: How to handle the deprecation. Defaults to :attr:`~deprecate.TargetMode.AUTO`, a decoration-time

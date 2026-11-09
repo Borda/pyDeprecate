@@ -213,7 +213,11 @@ class TestInstanceTarget:
         assert value == 5
 
     def test_deepcopy_keeps_replacement(self) -> None:
-        """A deep copy of the alias serves a copy of the replacement's values."""
+        """A deep copy of the alias serves a copy of the replacement's values.
+
+        Code that snapshots configuration with ``copy.deepcopy`` must keep reading the replacement through the copied
+        alias, with the deprecation warning still attached.
+        """
         clone = copy.deepcopy(depr_retry_settings)
         with pytest.warns(FutureWarning, match="depr_retry_settings"):
             value = clone["retries"]

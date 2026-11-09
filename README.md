@@ -353,7 +353,7 @@ In particular the target values (cases):
 
 > [!NOTE]
 >
-> `@deprecated` is primarily for functions and methods. Applied to a class it also works — it dispatches to `@deprecated_class()` (a permanent, supported path) and emits a one-time informational `UserWarning` (only this notice is removed, in v1.0; suppressed by `stream=None`) — but prefer `@deprecated_class()` directly for classes, Enums, and dataclasses (see [Deprecating Enums and dataclasses](#deprecating-enums-and-dataclasses)): same result, no notice, and it exposes class-only options such as `attrs_mapping`. If you want a strict callable-only form that refuses a class up front instead, use `@deprecated_callable()` — it shares every parameter with `@deprecated` and raises `TypeError` at decoration time when applied to a class.
+> `@deprecated` is primarily for functions and methods. Applied to a class it also works — it dispatches to `@deprecated_class()` (a permanent, supported path) and emits a one-time informational `UserWarning` (only this notice is removed, in v1.0; suppressed by `stream=None`) — but prefer `@deprecated_class()` directly for classes, Enums, and dataclasses (see [Deprecating Enums and dataclasses](#deprecating-enums-and-dataclasses)): same result, no notice, and it exposes proxy-only options such as `attrs_mapping`. If you want a strict callable-only form that refuses a class up front instead, use `@deprecated_callable()` — it shares every parameter with `@deprecated` and raises `TypeError` at decoration time when applied to a class.
 
 ### ➡ Simple function forwarding
 
@@ -2219,7 +2219,7 @@ def enforce_no_deprecation_chains():
 
 ### Detecting Positional-Only Incompatible Mappings
 
-The `check` subcommand surfaces `deprecated_class` proxies whose `args_mapping` remaps a deprecated kwarg to a `POSITIONAL_ONLY` constructor parameter. The proxy forwards those remapped values positionally to the constructor, so the mapping works even for required positional-only parameters, frozen dataclasses, and classes with `__post_init__` logic — the finding is an advisory visibility signal, not a failure.
+The `check` subcommand surfaces `deprecated_class` and `deprecated_instance` proxies whose `args_mapping` remaps a deprecated kwarg to a `POSITIONAL_ONLY` parameter (of a constructor, a function or a callable object). The proxy forwards those remapped values positionally to the constructor, so the mapping works even for required positional-only parameters, frozen dataclasses, and classes with `__post_init__` logic — the finding is an advisory visibility signal, not a failure.
 
 ```bash
 pydeprecate check my_package

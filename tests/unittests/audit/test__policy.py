@@ -202,6 +202,16 @@ class TestSatisfiesGraceWindow:
             _satisfies_grace_window(_parse_version(deprecated_in), _parse_version(remove_in), window)
 
 
+class _EqualityRaises:
+    """Data object whose ``==`` raises, as a numpy array or a pandas frame does when compared with a scalar."""
+
+    def __eq__(self, other: object) -> bool:
+        """Raise like an array whose truth value is ambiguous."""
+        raise ValueError("The truth value of an array with more than one element is ambiguous.")
+
+    __hash__ = object.__hash__
+
+
 class TestHasMigrationGuidance:
     """Detection of whether a wrapper tells callers what to migrate to."""
 
@@ -283,6 +293,22 @@ class TestHasMigrationGuidance:
                 False,
                 id="non-callable-replacement-is-never-called-so-args-mapping-is-inert",
             ),
+            pytest.param(
+                DeprecationConfig(target=TargetMode.ARGS_REMAP, args_mapping={"old": "new"}, misconfigured=True),
+                False,
+                id="inert-args-mapping-on-uncalled-object",
+            ),
+            pytest.param(
+                DeprecationConfig(
+                    target=TargetMode.ARGS_REMAP,
+                    args_mapping={"old": "new"},
+                    misconfigured=True,
+                    message_template="use `NEW_SETTINGS` instead",
+                ),
+                True,
+                id="inert-args-mapping-with-custom-message",
+            ),
+            pytest.param(DeprecationConfig(target=_EqualityRaises()), False, id="replacement-with-raising-equality"),
         ],
     )
     def test_guidance_sources(self, config: DeprecationConfig, expected: bool) -> None:
@@ -294,7 +320,9 @@ class TestHasMigrationGuidance:
         ``TargetMode.NOTIFY`` is discarded at decoration time, so both leave callers the same dead end. A
         ``deprecated_instance`` replacement that is plain data is served silently under the old name, but the warning
         never names it, so on its own it is still a dead end; an ``args_mapping`` beside it is inert because a data
-        object is never called.
+        object is never called. An ``args_mapping`` on a data object without a replacement resolves to
+        ``ARGS_REMAP`` and is flagged misconfigured, so it counts no more. A replacement whose ``==`` raises (an
+        array) must be classified without ever comparing it.
         """
         info = DeprecationWrapperInfo(module="pkg", function="old_api", deprecated_info=config)
         assert _has_migration_guidance(info) is expected
