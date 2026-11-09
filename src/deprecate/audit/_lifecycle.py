@@ -370,6 +370,8 @@ def validate_deprecation_expiry(
         # package whose own import fails would be reported as having no version instead of with its real error.
         if isinstance(module, str):
             module = importlib.import_module(module)
+        # Only a non-``str`` module object lacking a usable ``__name__`` gets here: an empty path string already
+        # raised ``ValueError: Empty module name`` from the import above.
         if not module_name:
             raise ValueError(
                 "Cannot auto-detect version: module object has no __name__ attribute. "

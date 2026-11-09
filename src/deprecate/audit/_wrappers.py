@@ -160,7 +160,7 @@ class DeprecationWrapperInfo:
         """Derive ``empty_deprecated_in`` from ``deprecated_info`` and keep ``api_type`` a plain string."""
         object.__setattr__(self, "empty_deprecated_in", not self.deprecated_info.deprecated_in)
         # The classifiers hand over an ``_ApiType`` member; the public field stays a plain ``str`` so ``str()`` and
-        # f-strings render the label, not the member name (a ``str`` mixin enum formats as ``_ApiType.X`` on 3.12+).
+        # f-strings render the label, not the member name (a ``str`` mixin enum formats as ``_ApiType.X`` on 3.11+).
         if isinstance(self.api_type, _ApiType):
             object.__setattr__(self, "api_type", self.api_type.value)
 
