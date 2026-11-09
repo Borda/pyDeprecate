@@ -130,12 +130,14 @@ def _matrix_columns(wrappers: Sequence[DeprecationWrapperInfo]) -> tuple[list[st
     text. A merged column is headed by its shortest spelling, so the header does not depend on row order.
 
     """
+    # many wrappers share the same few releases: parse each distinct raw string once, not once per occurrence
+    raw_versions = {
+        raw for info in wrappers for raw in (info.deprecated_info.deprecated_in, info.deprecated_info.remove_in) if raw
+    }
     spellings: dict[Union[Version, str], set[str]] = {}
-    for info in wrappers:
-        for raw in (info.deprecated_info.deprecated_in, info.deprecated_info.remove_in):
-            if raw:
-                parsed = _safe_parse_version(raw)
-                spellings.setdefault(parsed if parsed is not None else _format_version(raw), set()).add(raw)
+    for raw in raw_versions:
+        parsed = _safe_parse_version(raw)
+        spellings.setdefault(parsed if parsed is not None else _format_version(raw), set()).add(raw)
     # the first item tells parsed releases from unparsed text, so a Version is never compared with a str
     keys = sorted(spellings, key=lambda key: (isinstance(key, str), key))
     headers = [_format_version(min(spellings[key], key=lambda raw: (len(raw), raw))) for key in keys]
