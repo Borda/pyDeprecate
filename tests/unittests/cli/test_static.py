@@ -228,6 +228,9 @@ class TestFactoryNames:
             pytest.param("import deprecate", "deprecate.deprecated", id="module"),
             pytest.param("import deprecate as d", "d.deprecated", id="module-alias"),
             pytest.param("import deprecate.proxy", "deprecate.proxy.deprecated_class", id="submodule"),
+            pytest.param(
+                "import deprecate\nimport deprecate.proxy", "deprecate.deprecated", id="package-imported-twice"
+            ),
             pytest.param("from deprecate import proxy", "proxy.deprecated_class", id="from-submodule"),
         ],
     )

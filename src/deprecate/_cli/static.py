@@ -174,7 +174,7 @@ class _Aliases:
             else:
                 self.ambiguous[name] = kind
         for name, module in bound.modules.items():
-            if settled and len(scope.get(name, [])) == 1:
+            if settled and (len(scope.get(name, [])) == 1 or _binds_package_only(scope.get(name, []), name)):
                 self.modules[name] = module
             else:
                 self.ambiguous[name] = None
@@ -205,6 +205,25 @@ class _Aliases:
         if not isinstance(node, ast.Attribute) or self.kind(node.value) is not _Factory.TARGET_MODE:
             return None
         return TargetMode.__members__.get(node.attr)
+
+
+def _binds_package_only(events: Sequence["_Event"], name: str) -> bool:
+    r"""Tell whether every binding of *name* is a plain ``import deprecate[.sub]``, which all bind the same package.
+
+    Examples:
+        >>> tree = ast.parse("import deprecate\nimport deprecate.proxy")
+        >>> _binds_package_only(_scope_events(tree.body)["deprecate"], "deprecate")
+        True
+        >>> tree = ast.parse("import deprecate\ndeprecate = None")
+        >>> _binds_package_only(_scope_events(tree.body)["deprecate"], "deprecate")
+        False
+
+    """
+    return name == "deprecate" and all(
+        isinstance(event.value, ast.Import)
+        and all(alias.asname is None for alias in event.value.names if alias.name.split(".")[0] == name)
+        for event in events
+    )
 
 
 def _module_level_nodes(tree: ast.Module) -> set[int]:
@@ -295,7 +314,7 @@ def _import_events(node: Union[ast.Import, ast.ImportFrom], events: dict[str, li
     """Record what an import binds: ``import a.b`` binds ``a``; ``from x import a as b`` binds ``b``."""
     for alias in node.names:
         if isinstance(node, ast.Import):
-            events[alias.asname or alias.name.split(".")[0]].append(_Event("import"))
+            events[alias.asname or alias.name.split(".")[0]].append(_Event("import", node))
         elif alias.name != "*":
             events[alias.asname or alias.name].append(_Event("import", node))
 
