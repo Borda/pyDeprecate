@@ -221,7 +221,41 @@ class TestInstanceTarget:
         clone = copy.deepcopy(depr_retry_settings)
         with pytest.warns(FutureWarning, match="depr_retry_settings"):
             value = clone["retries"]
-        assert value == 5
+        clone["timeout"] = 99
+        assert (value, retry_settings["timeout"]) == (5, 30)
+
+    @pytest.mark.parametrize(
+        "duplicate",
+        [
+            pytest.param(copy.copy, id="copy"),
+            pytest.param(copy.deepcopy, id="deepcopy"),
+            pytest.param(lambda obj: pickle.loads(pickle.dumps(obj)), id="pickle"),  # noqa: S301 - payload from test
+        ],
+    )
+    @pytest.mark.parametrize(
+        ("alias", "call_kwargs", "expected"),
+        [
+            pytest.param(depr_resize, {"size_px": 4, "margin": 1}, 5, id="function-target"),
+            pytest.param(depr_scaler, {"quantity": 3}, 6, id="callable-instance"),
+        ],
+    )
+    def test_duplicate_of_callable_alias_keeps_renamed_keyword(
+        self,
+        duplicate: Callable[[Any], Any],
+        alias: Callable[..., int],
+        call_kwargs: dict[str, int],
+        expected: int,
+    ) -> None:
+        """A copied or pickled callable alias still forwards a call by the old keyword to its positional-only target.
+
+        Callable aliases are snapshotted or sent to worker processes like any settings alias. The duplicate must
+        still translate the renamed keyword and place the value positionally, with the deprecation warning attached.
+
+        """
+        duplicated = duplicate(alias)
+        with pytest.warns(FutureWarning, match="uses deprecated arguments"):
+            result = duplicated(**call_kwargs)
+        assert result == expected
 
     def test_shallow_copy_writes_stay_out_of_replacement(self) -> None:
         """Writing through a shallow copy of the alias never changes the shared replacement object.

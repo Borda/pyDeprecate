@@ -33,6 +33,7 @@ from tests.collections.api_deprecated.core import (
     DeprecatedPaletteFunctionalFallback,
     WarnOnlyColorEnum,
     depr_ast_breadcrumb_dict,
+    depr_retry_settings,
     resize_source,
 )
 from tests.unittests.proxy._helpers import _ast_class_proxy
@@ -463,6 +464,10 @@ class TestDeprecatedInstanceTarget:
             pytest.param({"args_mapping": {"old_key": "new_key"}}, id="args-mapping"),
             pytest.param({"args_extra": {"verbose": True}}, id="args-extra"),
             pytest.param({"target": {"timeout": 30}, "args_mapping": {"old_key": "new_key"}}, id="target-args-mapping"),
+            pytest.param(
+                {"target": depr_retry_settings, "args_mapping": {"old_key": "new_key"}},
+                id="deprecated-data-proxy-target",
+            ),
         ],
     )
     def test_call_options_on_non_callable_object_flagged(self, config: dict[str, Any]) -> None:
@@ -502,7 +507,12 @@ class TestDeprecatedInstanceTarget:
         assert value == "teal"
 
     def test_attrs_mapping_missing_on_replacement_raises(self) -> None:
-        """A redirect to a name the replacement lacks raises ``ValueError`` when the proxy is built."""
+        """A redirect to a name the replacement lacks raises ``ValueError`` when the proxy is built.
+
+        A settings object renamed ``color`` to ``colour`` but the alias was pointed at a replacement that never gained
+        the new attribute. Failing at import time tells the maintainer immediately; otherwise every caller reading
+        the old name would hit an ``AttributeError`` at runtime, long after the mistake was made.
+        """
         with pytest.raises(ValueError, match="redirect targets not found"):
             deprecated_instance(
                 ThemeSettings(), target={"k": 1}, attrs_mapping={"color": "colour"}, **_DEPRS_CASE_STD_ARGS
@@ -533,24 +543,82 @@ class TestDeprecatedInstanceTarget:
         [
             pytest.param(
                 ThemeSettings(),
-                {"attrs_mapping": {"color": "colour"}},
+                {"target": TargetMode.NOTIFY, "attrs_mapping": {"color": "colour"}},
                 r"^`deprecated_instance\(target=TargetMode\.NOTIFY\)` on `theme` ignores `attrs_mapping`",
                 id="notify-attrs-mapping",
             ),
             pytest.param(
                 resize_source,
-                {"args_mapping": {"size_px": "x"}},
+                {"target": TargetMode.NOTIFY, "args_mapping": {"size_px": "x"}},
                 r"^`deprecated_instance\(target=TargetMode\.NOTIFY\)` on `theme` ignores `args_mapping`",
                 id="notify-args-mapping",
+            ),
+            pytest.param(
+                resize_source,
+                {"target": TargetMode.NOTIFY, "args_extra": {"margin": 1}},
+                r"^`deprecated_instance\(target=TargetMode\.NOTIFY\)` on `theme` ignores `args_extra`",
+                id="notify-args-extra",
+            ),
+            pytest.param(
+                resize_source,
+                {"target": TargetMode.ARGS_REMAP},
+                r"^`deprecated_instance\(target=TargetMode\.ARGS_REMAP\)` on `theme` requires `args_mapping`",
+                id="args-remap-without-mapping",
+            ),
+            pytest.param(
+                resize_source,
+                {
+                    "target": TargetMode.ARGS_REMAP,
+                    "args_mapping": {"size_px": "x"},
+                    "attrs_mapping": {"__name__": "__qualname__"},
+                },
+                r"^`deprecated_instance` on `theme` has both `args_mapping` and `attrs_mapping`",
+                id="args-remap-with-both-mappings",
+            ),
+            pytest.param(
+                ThemeSettings(),
+                {"target": TargetMode.ATTRS_REMAP},
+                r"^`deprecated_instance\(target=TargetMode\.ATTRS_REMAP\)` on `theme` requires `attrs_mapping`",
+                id="attrs-remap-without-mapping",
+            ),
+            pytest.param(
+                ThemeSettings(),
+                {"target": TargetMode.ATTRS_REMAP, "attrs_mapping": {"color": "colour"}, "args_mapping": {"a": "b"}},
+                r"^`deprecated_instance\(target=TargetMode\.ATTRS_REMAP\)` on `theme` ignores `args_mapping`",
+                id="attrs-remap-with-args-mapping",
+            ),
+            pytest.param(
+                ThemeSettings(),
+                {"target": TargetMode.ATTRS_REMAP, "attrs_mapping": {"color": "colour"}, "args_extra": {"a": 1}},
+                r"^`deprecated_instance\(target=TargetMode\.ATTRS_REMAP\)` on `theme` ignores `args_extra`",
+                id="attrs-remap-with-args-extra",
+            ),
+            pytest.param(
+                {"timeout": 10},
+                {"args_mapping": {"old_key": "new_key"}},
+                r"^`deprecated_instance` on `theme` sets `args_mapping`, but the object it serves is not callable",
+                id="not-callable-with-call-options",
+            ),
+            pytest.param(
+                ThemeSettings(),
+                {"attrs_mapping": {}},
+                r"^`deprecated_instance` on `theme` received `attrs_mapping=\{\}`",
+                id="empty-attrs-mapping",
             ),
         ],
     )
     def test_misconfiguration_warning_names_instance_factory(
         self, source: object, config: dict[str, Any], match: str
     ) -> None:
-        """Misconfiguration warnings name ``deprecated_instance``, the factory the author actually called."""
+        """Misconfiguration warnings name ``deprecated_instance``, the factory the author actually called.
+
+        A maintainer who mixes up the call options of ``deprecated_instance`` (a rename mapping paired with a
+        warning-only target, an attribute remap without its mapping, call options on a settings dict) reads the
+        warning at import time. It must name the function they wrote, not ``deprecated_class``, or the fix hint
+        points at an API they never used.
+        """
         with pytest.warns(UserWarning, match=match):
-            deprecated_instance(source, name="theme", target=TargetMode.NOTIFY, **config, **_DEPRS_CASE_STD_ARGS)
+            deprecated_instance(source, name="theme", **config, **_DEPRS_CASE_STD_ARGS)
 
 
 if TYPE_CHECKING:
