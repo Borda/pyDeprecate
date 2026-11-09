@@ -341,7 +341,7 @@ class TestAttrsMappingValidation:
         class _Config:
             new_attr = 1
 
-        expected = r"redirect targets not found on the active class: \[\"'old_attr' -> 'gone'\"\]"
+        expected = r"redirect targets not found on the active object: \[\"'old_attr' -> 'gone'\"\]"
         with pytest.raises(ValueError, match=expected):
             deprecated_class(attrs_mapping={"old_attr": "gone", "other": "new_attr"}, **_DEPRS_CASE_STD_ARGS)(_Config)
 

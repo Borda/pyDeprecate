@@ -313,14 +313,7 @@ def deprecated_class(
 
     """
     message_template = _resolve_message_template_alias(message_template, template_mgs)
-    # ``TargetMode.AUTO`` is the ``@deprecated`` front-door default only — the strict form requires an
-    # explicit choice (or the omitted default) so the decoration site documents its own intent.
-    if target is TargetMode.AUTO:
-        raise TypeError(
-            "`TargetMode.AUTO` is only valid on the `@deprecated` front door, which infers the mode from "
-            "the configuration. With `deprecated_class` omit `target` (a mapping auto-resolves the mode), "
-            "or pass an explicit mode / replacement class."
-        )
+    _reject_auto_target(target, "deprecated_class", "class")
 
     def decorator(cls: _ClassOrProxy) -> "_DeprecatedProxy":
         # When cls is a _DeprecatedProxy (stacking case), cls.__name__ triggers __getattr__
@@ -470,6 +463,13 @@ def deprecated_instance(
         ``__signature__`` is *obj*'s signature — or ``None`` when *obj* has none to introspect (a plain ``dict``,
         any C-level type). Reading either emits no warning.
 
+    Raises:
+        TypeError: If *target* is ``TargetMode.AUTO``, a ``bool`` or a module, or if both ``template_mgs`` and
+            ``message_template`` are supplied.
+        ValueError: If ``message_template`` names an unknown placeholder or uses a malformed conversion specifier, or
+            if ``attrs_mapping`` contains a redirect cycle, a redirect value missing from the active object, or a
+            warn-only (``None``) key found on neither *target* nor *obj*.
+
     Note:
         **Operator warnings**: arithmetic operators (``+``, ``-``, ``*``, ``**``, ``//``, ``%``, ``<<``,
         ``>>``, ``&``, ``|``, ``^``) and their reflected forms emit a deprecation warning and consume the
@@ -524,6 +524,35 @@ def deprecated_instance(
     )
 
 
+def _reject_auto_target(target: Any, factory: str, noun: str) -> None:  # noqa: ANN401
+    """Raise ``TypeError`` when a proxy factory receives ``TargetMode.AUTO``.
+
+    ``TargetMode.AUTO`` is the ``@deprecated`` front-door default only — the strict proxy factories require an explicit
+    choice (or the omitted default) so the decoration site documents its own intent. The strict callable factory keeps
+    its own message, whose guidance is specific to callables.
+
+    Args:
+        target: The ``target`` the factory received.
+        factory: Name of the factory the message cites (``"deprecated_class"`` or ``"deprecated_instance"``).
+        noun: What a replacement is for that factory (``"class"`` or ``"object"``).
+
+    Examples:
+        >>> _reject_auto_target(None, "deprecated_class", "class") is None
+        True
+        >>> _reject_auto_target(TargetMode.AUTO, "deprecated_instance", "object")
+        Traceback (most recent call last):
+            ...
+        TypeError: `TargetMode.AUTO` is only valid on the `@deprecated` front door, ...
+
+    """
+    if target is TargetMode.AUTO:
+        raise TypeError(
+            "`TargetMode.AUTO` is only valid on the `@deprecated` front door, which infers the mode from "
+            f"the configuration. With `{factory}` omit `target` (a mapping auto-resolves the mode), "
+            f"or pass an explicit mode / replacement {noun}."
+        )
+
+
 def _reject_instance_target(target: Any) -> None:  # noqa: ANN401
     """Raise ``TypeError`` for a ``deprecated_instance`` *target* that cannot name a replacement object.
 
@@ -542,12 +571,7 @@ def _reject_instance_target(target: Any) -> None:  # noqa: ANN401
         TypeError: `deprecated_instance(target=True)` is not supported: ...
 
     """
-    if target is TargetMode.AUTO:
-        raise TypeError(
-            "`TargetMode.AUTO` is only valid on the `@deprecated` front door, which infers the mode from "
-            "the configuration. With `deprecated_instance` omit `target` (a mapping auto-resolves the mode), "
-            "or pass an explicit mode / replacement object."
-        )
+    _reject_auto_target(target, "deprecated_instance", "object")
     if isinstance(target, bool):
         raise TypeError(
             f"`deprecated_instance(target={target})` is not supported: a `bool` is neither a replacement object nor a"

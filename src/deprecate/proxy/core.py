@@ -22,7 +22,12 @@ from typing import TYPE_CHECKING, Any, Callable, Optional, SupportsIndex, Union,
 from deprecate._dispatch import _split_positional_only_kwargs
 from deprecate._fatal import DeprecatedError, _resolve_as_exception
 from deprecate._types import DeprecationConfig, DeprecationProxy, TargetMode, _CallFacts, _ProxyConfig
-from deprecate._validate import _resolve_legacy_proxy_target, _validate_callable_mode, _validate_proxy_mode
+from deprecate._validate import (
+    _inert_call_options,
+    _resolve_legacy_proxy_target,
+    _validate_callable_mode,
+    _validate_proxy_mode,
+)
 from deprecate.docstring.inject import normalize_docstring_style
 from deprecate.messaging import (
     TEMPLATE_WARNING_ARGUMENTS,
@@ -75,6 +80,39 @@ def _is_dunder(name: str) -> bool:
 
 #: Default of :meth:`_DeprecatedProxy.__new__`'s *obj*: copy and pickle reconstruction allocate without a source.
 _NO_SOURCE: Any = object()
+
+
+def _read_call_facts(obj: Any) -> _SigFacts:  # noqa: ANN401
+    """Return the signature facts of the object a proxy calls, or empty facts when its signature cannot be read.
+
+    The facts only refine how a remapped call is forwarded — the positional-only split and the decoration-time
+    compatibility warning — so an unreadable signature degrades to "no split" instead of failing decoration.
+
+    Every ``Exception`` is caught, not just the ``TypeError``/``ValueError`` that
+    :func:`~deprecate.utils._signature_facts` treats as an unreadable signature: a ``__signature__`` descriptor that
+    raises — mocks, lazily built extension wrappers, some model metaclasses — has its exception forwarded verbatim by
+    :func:`inspect.signature`, and a deep ``__wrapped__``/metaclass chain can surface a ``RecursionError``.  The same
+    rule as :meth:`_DeprecatedProxy._set_ast_breadcrumbs` applies: no introspection failure may take down decoration.
+    ``BaseException`` (``KeyboardInterrupt``, ``SystemExit``) still propagates.  The helper is private to this module
+    on purpose: the ``@deprecated`` dispatcher and the validators keep the narrower rule of ``_signature_facts``.
+
+    Args:
+        obj: The class or callable the proxy forwards calls to.
+
+    Returns:
+        The signature facts of *obj*, or an empty :class:`~deprecate.utils._SigFacts` when reading them fails.
+
+    Example:
+        >>> sorted(_read_call_facts(lambda a, /, b=0: None).positional_only)
+        ['a']
+        >>> _read_call_facts(iter) == _SigFacts()
+        True
+
+    """
+    try:
+        return _signature_facts(obj)
+    except Exception:
+        return _SigFacts()
 
 
 @dataclass(frozen=True)
@@ -344,11 +382,19 @@ class _DeprecatedProxy:
         )
         # Call signature of the active object, read once — always a class's constructor; a function's or callable
         # object's own parameters only when an ``args_mapping`` needs them, so wrapping a plain callable never reads
-        # (or trips over) its signature. Both the kwargs-compatibility guard and the POSITIONAL_ONLY split data below
-        # derive from it.
+        # its signature. Both the kwargs-compatibility guard and the POSITIONAL_ONLY split data below derive from it.
+        # A signature that cannot be read — a builtin such as ``iter``, or a ``__signature__`` that raises anything at
+        # all — leaves the facts empty instead of failing decoration (``_read_call_facts``), so mapped values travel by
+        # keyword; that is deliberately not warned about, because builtins such as ``max`` hide their signature yet
+        # accept the renamed keyword (documented in docs/limitations.md).
         _active_callable = callable(_dc_check)
         _read_facts = isinstance(_dc_check, type) or (_active_callable and bool(args_mapping))
-        _ctor_facts = _signature_facts(_dc_check, empty_on_error=True) if _read_facts else _SigFacts()
+        _ctor_facts = _read_call_facts(_dc_check) if _read_facts else _SigFacts()
+        # Call options on an object that is never called, recorded apart from the aggregate ``misconfigured`` flag so
+        # audit can tell them from a live ``args_mapping`` next to an unrelated misconfiguration.
+        _call_options_inert = bool(
+            _inert_call_options(target, args_mapping, spec.args_extra, active_callable=_active_callable)
+        )
         # Kwargs-compatibility guard: detect args_mapping keys that remap to POSITIONAL_ONLY params.
         _incompatible = _detect_proxy_positional_only(_dc_check, spec.name, args_mapping, _ctor_facts.positional_only)
         # Constructor POSITIONAL_ONLY split data: the call path forwards remapped values
@@ -415,6 +461,7 @@ class _DeprecatedProxy:
             attrs_mapping=attrs_mapping,
             args_mapping_auto_expanded=tuple(_auto_expanded),
             args_mapping_positional_only=_incompatible,
+            call_options_inert=_call_options_inert,
             target_positional_only=_ctor_positional_only,
             target_positional_only_order=_ctor_positional_only_order,
         )
@@ -1138,20 +1185,27 @@ class _DeprecatedProxy:
         return (own["__deprecated__"],) if "__deprecated__" in own else ()
 
     def __copy__(self) -> "_DeprecatedProxy":
-        """Return a new proxy wrapping a shallow copy of the wrapped object (and of a replacement data object).
+        """Return a new proxy wrapping a shallow copy of the wrapped object (and of a replacement object).
 
         Deprecation metadata (frozen, immutable) is shared; the mutable warn-budget counters are snapshotted into an
-        independent config so the copy warns independently from the original.  A ``deprecated_instance`` replacement
-        that is plain data (not a class, a callable or a :class:`~deprecate._types.TargetMode`) is shallow-copied too:
-        reads and writes go to it, so sharing it would let writes through the copy change the original replacement.
+        independent config so the copy warns independently from the original.  A ``target`` replacement that is not a
+        class or a :class:`~deprecate._types.TargetMode` is shallow-copied too, callable objects included: reads, writes
+        and calls go to it, so sharing it would let writes through the copy change the original replacement, as
+        :meth:`__deepcopy__` already avoids.  :func:`copy.copy` returns a function unchanged, so a function replacement
+        stays shared; a replacement that is itself a deprecation proxy is copied like any other proxy, so from then on
+        it keeps its own warning counters, snapshotted at copy time.  A replacement that cannot be copied (a module, a
+        generator, a :class:`threading.Lock`) is shared with the original instead, so copying the proxy never fails
+        because of its replacement.
 
         """
         cfg = self._cfg
         dep = self._dep
         new_cfg = replace(cfg, obj=copy.copy(cfg.obj), state=copy.copy(cfg.state))
         target = dep.target
-        if target is not None and not isinstance(target, (type, TargetMode)) and not callable(target):
-            dep = replace(dep, target=copy.copy(target))
+        if target is not None and not isinstance(target, (type, TargetMode)):
+            # ``copy.copy`` reports an uncopyable object as ``TypeError`` ("cannot pickle ...") or ``copy.Error``.
+            with contextlib.suppress(TypeError, copy.Error):
+                dep = replace(dep, target=copy.copy(target))
         doc = object.__getattribute__(self, "__dict__").get("__doc__")
         return _reconstruct_proxy(new_cfg, dep, doc, self._pep702_marker_state())
 
@@ -1651,6 +1705,43 @@ def _proxy_call_global(
     return proxy._get_active()(*args, **proxy._merge_args_extra(kwargs))
 
 
+#: Stand-in value for a positional-only parameter that the caller's positional arguments already bind; see
+#: :func:`_remap_call_kwargs`.  Compared by identity only, so no caller value can be mistaken for it.
+_BOUND_POSITIONALLY: Any = object()
+
+
+def _remap_call_kwargs(
+    proxy: _DeprecatedProxy,
+    dep: DeprecationConfig,
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+) -> dict[str, Any]:
+    """Rename the caller's deprecated keywords, letting a positional argument win over a renamed keyword.
+
+    The caller's positional arguments fill the leading positional-only parameters of the called object.  Each such
+    parameter the caller did not also pass by keyword enters the rename under its own name, holding a placeholder,
+    the way ``@deprecated`` turns positional arguments into keywords before it renames.  A deprecated keyword renamed
+    onto one of them therefore collides exactly as it does there: the positional value wins, the old keyword is
+    dropped, and one ``UserWarning`` names it.  The placeholders are removed afterwards, so the positional values keep
+    travelling positionally.  A keyword the caller passed under a bound name itself is left in place, so a genuine
+    duplicate still raises Python's own ``TypeError``.
+
+    Only positional-only parameters are reconciled: the proxy records the declaration order of the called object just
+    when it has some, so a rename onto a positionally bound positional-or-keyword parameter still raises Python's
+    "multiple values" ``TypeError``.
+
+    """
+    cfg = proxy._cfg
+    facts = cfg.facts
+    bound = {
+        name: _BOUND_POSITIONALLY
+        for name in facts.target_positional_only_order[: len(args)]
+        if name in facts.target_positional_only and name not in kwargs
+    }
+    remapped = _remap_kwargs(dep.args_mapping or {}, {**kwargs, **bound}, name=dep.name, stream=cfg.stream)
+    return {key: value for key, value in remapped.items() if value is not _BOUND_POSITIONALLY}
+
+
 def _proxy_call_args_remap(
     proxy: _DeprecatedProxy,
     dep: DeprecationConfig,
@@ -1658,12 +1749,21 @@ def _proxy_call_args_remap(
     args: tuple[Any, ...],
     kwargs: dict[str, Any],
 ) -> Any:  # noqa: ANN401
-    """Handle ``TargetMode.ARGS_REMAP`` branch of ``__call__``: warn per deprecated kwarg, remap, call obj."""
+    """Handle ``TargetMode.ARGS_REMAP`` branch of ``__call__``: warn per deprecated kwarg, remap, call obj.
+
+    A call that passes no deprecated keyword and has no ``args_extra`` to inject is forwarded exactly as made, like the
+    verbatim pass-through of ``@deprecated`` (``deprecate._dispatch._is_verbatim_call``): nothing is renamed, so a
+    keyword the caller passed under the name of a positional-only parameter stays a keyword (``def f(x=1, /, **kwargs)``
+    called as ``alias(x=99)`` gets ``x`` in ``kwargs``, as the direct call does).
+
+    """
     mapping = dep.args_mapping or {}
     for old_key in mapping:
         if old_key in kwargs:
             proxy._warn(arg_name=old_key)
-    mapped_kwargs = _remap_kwargs(mapping, kwargs, name=dep.name, stream=cfg.stream)
+    if not cfg.args_extra and mapping.keys().isdisjoint(kwargs):
+        return cfg.obj(*args, **kwargs)
+    mapped_kwargs = _remap_call_kwargs(proxy, dep, args, kwargs)
     mapped_kwargs = proxy._merge_args_extra(mapped_kwargs)
     return _proxy_call_with_positional_split(cfg.obj, cfg.facts, args, mapped_kwargs)
 
@@ -1682,7 +1782,7 @@ def _proxy_call_callable_with_mapping(
             proxy._warn(arg_name=old_key)
     if not any(old_key in kwargs for old_key in mapping):
         proxy._warn()
-    mapped_kwargs = _remap_kwargs(mapping, kwargs, name=dep.name, stream=proxy._cfg.stream)
+    mapped_kwargs = _remap_call_kwargs(proxy, dep, args, kwargs)
     mapped_kwargs = proxy._merge_args_extra(mapped_kwargs)
     return _proxy_call_with_positional_split(target_fn, proxy._cfg.facts, args, mapped_kwargs)
 

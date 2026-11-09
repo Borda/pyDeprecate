@@ -44,6 +44,24 @@ from tests.collections.api_deprecated.regressions import (
 from tests.unittests.proxy._helpers import _future_warning_count
 
 
+def _positional_default_echo(x: int = 1, /, **kwargs: object) -> tuple[int, dict[str, object]]:
+    """Return the positional-only ``x`` and the extra keywords, showing which slot a caller's keyword reached."""
+    return x, kwargs
+
+
+def _positional_pair(a: int = 0, b: int = 0, /) -> tuple[int, int]:
+    """Return both positional-only parameters, showing which value reached ``a``."""
+    return a, b
+
+
+class _PositionalDefaultRecord(tuple):
+    """Tuple of the positional-only ``x`` and the extra keywords its constructor received."""
+
+    def __new__(cls, x: int = 1, /, **kwargs: object) -> "_PositionalDefaultRecord":
+        """Record ``x`` and the extra keywords as a ``(x, kwargs)`` pair."""
+        return super().__new__(cls, (x, kwargs))
+
+
 class TestProxyCallGlobal:
     """Direct coverage of globally warned call forwarding."""
 
@@ -229,6 +247,73 @@ class TestArgsMapping:
         """
         with pytest.warns(FutureWarning), pytest.warns(UserWarning, match=r"`old_key`.*is ignored"):
             ProxyArgsRemapForArgWarnMessage(old_key=5, new_key=6)  # type: ignore[call-arg]
+
+
+class TestArgsRemapUntouchedCall:
+    """An ``args_mapping`` proxy forwards a call that uses no deprecated keyword exactly as the caller made it."""
+
+    @pytest.mark.parametrize(
+        "build_alias",
+        [
+            pytest.param(
+                lambda: deprecated_instance(
+                    _positional_default_echo, args_mapping={"old_flag": "flag"}, **_DEPRS_CASE_STD_ARGS
+                ),
+                id="function",
+            ),
+            pytest.param(
+                lambda: deprecated_class(args_mapping={"old_flag": "flag"}, **_DEPRS_CASE_STD_ARGS)(
+                    _PositionalDefaultRecord
+                ),
+                id="class",
+            ),
+        ],
+    )
+    def test_keyword_named_like_positional_only_param_stays_keyword(
+        self, build_alias: Callable[[], Callable[..., Any]]
+    ) -> None:
+        """A keyword the mapping never touches reaches ``**kwargs``, not the positional-only slot of the same name.
+
+        The wrapped callable takes a positional-only ``x`` with a default plus ``**kwargs``, and only ``old_flag`` is
+        renamed. Calling it directly as ``f(x=99)`` puts ``x`` into ``kwargs`` and leaves the default ``1`` in place;
+        the deprecated alias must give the same result and stay silent, as ``@deprecated`` does for a call that uses
+        no deprecated argument, instead of moving the caller's ``x`` into the positional slot.
+
+        """
+        alias = build_alias()
+        with captured_warnings() as caught:
+            result = alias(x=99)
+        assert (tuple(result), caught) == ((1, {"x": 99}), [])
+
+
+class TestArgsMappingPositionalDuplicate:
+    """A positional argument wins over a deprecated keyword renamed onto the same positional-only parameter."""
+
+    @pytest.mark.parametrize(
+        "mapping_config",
+        [
+            pytest.param({}, id="wrapped-callable"),
+            pytest.param({"target": _positional_pair}, id="callable-target"),
+        ],
+    )
+    def test_positional_value_wins_with_collision_warning(self, mapping_config: dict[str, Any]) -> None:
+        """``alias(9, old_a=1)`` returns ``(9, 0)`` and names ``old_a`` as ignored, as ``@deprecated`` does.
+
+        The called function takes ``a`` positional-only, and ``old_a`` was renamed to ``a``. A caller passing ``a``
+        positionally and the old keyword as well supplies the value twice; forwarding the renamed keyword would make
+        Python reject ``a`` as a positional-only argument passed by keyword. The decorator resolves the same call by
+        keeping the positional value and warning that the old keyword is ignored, and the proxy must do the same,
+        whether it calls the wrapped function or a callable replacement.
+
+        """
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            alias = deprecated_instance(
+                _positional_pair, args_mapping={"old_a": "a"}, **mapping_config, **_DEPRS_CASE_STD_ARGS
+            )
+        with pytest.warns(FutureWarning), pytest.warns(UserWarning, match=r"`old_a` \(deprecated\) and `a`.*ignored"):
+            result = alias(9, old_a=1)
+        assert result == (9, 0)
 
 
 class TestArgsExtra:

@@ -234,6 +234,43 @@ def _validate_callable_mode(
     return bool(messages)
 
 
+def _inert_call_options(
+    mode: "Union[TargetMode, Callable[..., Any], None]",
+    args_mapping: Optional[Mapping[str, Optional[str]]],
+    args_extra: Optional[dict[str, Any]],
+    *,
+    active_callable: bool,
+) -> list[str]:
+    """Name the call-time options a proxy sets on an object it serves but that can never be called.
+
+    ``args_mapping`` and ``args_extra`` act only on calls, so on an object that is not callable they never apply.
+    :attr:`~deprecate._types.TargetMode.ATTRS_REMAP` and :attr:`~deprecate._types.TargetMode.NOTIFY` ignore both
+    options whatever the object is and are flagged on their own, so they never count here.  The proxy records a
+    non-empty result as :attr:`~deprecate._types.DeprecationConfig.call_options_inert`.
+
+    Args:
+        mode: Resolved target (:class:`~deprecate._types.TargetMode` member, replacement object, or ``None``).
+        args_mapping: The configured ``args_mapping``, or ``None``.
+        args_extra: The configured ``args_extra``, or ``None``.
+        active_callable: Whether the object the proxy serves (the replacement when one is set) can be called.
+
+    Returns:
+        The names of the options that can never apply, in ``args_mapping``, ``args_extra`` order; empty when none.
+
+    Examples:
+        >>> _inert_call_options(TargetMode.ARGS_REMAP, {"old": "new"}, {"bias": 1}, active_callable=False)
+        ['args_mapping', 'args_extra']
+        >>> _inert_call_options(TargetMode.ARGS_REMAP, {"old": "new"}, None, active_callable=True)
+        []
+        >>> _inert_call_options(TargetMode.NOTIFY, {"old": "new"}, None, active_callable=False)
+        []
+
+    """
+    if active_callable or mode is TargetMode.ATTRS_REMAP or mode is TargetMode.NOTIFY:
+        return []
+    return [name for name, value in (("args_mapping", args_mapping), ("args_extra", args_extra)) if value]
+
+
 def _validate_proxy_mode(
     mode: "Union[TargetMode, Callable[..., Any], None]",
     source_name: str,
@@ -347,8 +384,8 @@ def _validate_proxy_mode(
             "Use `target=<class>` to forward calls with extra arguments. "
             f"This will be `TypeError` in `{_MAJOR_BREAK_VERSION}`."
         )
-    call_options = [name for name, value in (("args_mapping", args_mapping), ("args_extra", args_extra)) if value]
-    if call_options and not active_callable and mode is not TargetMode.ATTRS_REMAP and mode is not TargetMode.NOTIFY:
+    call_options = _inert_call_options(mode, args_mapping, args_extra, active_callable=active_callable)
+    if call_options:
         messages.append(
             f"`{factory}` on `{source_name}` sets {' and '.join(f'`{name}`' for name in call_options)}, but the object"
             " it serves is not callable, so call-time options never apply. Remove them, or pass a callable `target`."

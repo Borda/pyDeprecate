@@ -83,8 +83,9 @@ class DeprecationConfig:
             (``True``/``False``) are normalised at decoration time and never stored verbatim.
         args_extra: Optional kwargs injected into forwarded calls; stored for audit visibility.
         misconfigured: ``True`` when the configuration contradicts itself at decoration time: the invalid raw
-            target sentinel ``False``, or :attr:`~deprecate._types.TargetMode.NOTIFY` with an ``args_mapping``,
-            ``args_extra`` or ``attrs_mapping`` it ignores.  Audit tools surface this via
+            target sentinel ``False``, :attr:`~deprecate._types.TargetMode.NOTIFY` with an ``args_mapping``,
+            ``args_extra`` or ``attrs_mapping`` it ignores, or call-time options on an object that is never called
+            (see :attr:`call_options_inert`).  Audit tools surface this via
             :attr:`~deprecate.audit.DeprecationWrapperInfo.misconfigured_target`.
         docstring_style: Docstring notice output style when ``update_docstring=True``.
         message_template: Optional custom warning-message template (``%``-style placeholders) that overrides the
@@ -119,6 +120,12 @@ class DeprecationConfig:
             by the proxy call path (see :attr:`target_positional_only`).  Empty tuple when all
             remapped targets are kwarg-accessible.  Populated at decoration time; surfaced by
             :func:`~deprecate.audit.validate_mapping_compatibility`.
+        call_options_inert: ``True`` when a proxy sets ``args_mapping`` or ``args_extra`` although the object it
+            serves (the replacement when one is set) is not callable, so the call-time options can never apply.
+            Always set together with :attr:`misconfigured`, but kept apart from it so audit tools can tell an inert
+            ``args_mapping`` from one that still renames arguments next to an unrelated misconfiguration (an empty
+            ``attrs_mapping``, the legacy ``target=False``).  Populated at decoration time by the proxy factories;
+            ``False`` everywhere else.
         target_positional_only: Names of POSITIONAL_ONLY parameters on the forwarding target callable
             used with :func:`~deprecate.deprecated`, including ``self`` and ``cls`` when they are
             declared positional-only.  Non-empty when a ``@deprecated(target=fn)`` call found ``fn``
@@ -189,6 +196,7 @@ class DeprecationConfig:
     as_exception: Optional[bool] = None
     args_mapping_auto_expanded: tuple[str, ...] = field(default_factory=tuple)
     args_mapping_positional_only: tuple[str, ...] = field(default_factory=tuple)
+    call_options_inert: bool = False
     target_positional_only: frozenset[str] = field(default_factory=frozenset)
     target_positional_only_order: tuple[str, ...] = field(default_factory=tuple, repr=False)
     source_positional_only: frozenset[str] = field(default_factory=frozenset)

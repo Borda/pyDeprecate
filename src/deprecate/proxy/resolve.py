@@ -131,9 +131,9 @@ def _validate_attrs_redirect_targets(
     ]
     if missing_targets:
         raise ValueError(
-            f"`attrs_mapping` redirect targets not found on the active class: {missing_targets}."
-            " Each non-None value must be an existing attribute name on the target class when `target` is"
-            " provided, or on the wrapped class otherwise."
+            f"`attrs_mapping` redirect targets not found on the active object: {missing_targets}."
+            " Each non-None value must be an existing attribute name on the active object (the `target`"
+            " replacement when given, otherwise the wrapped object)."
         )
 
 

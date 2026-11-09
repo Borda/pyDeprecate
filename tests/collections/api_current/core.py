@@ -1532,3 +1532,13 @@ class PositionalOnlyScaler:
     def __call__(self, amount: int, /, factor: int = 2) -> int:
         """Return *amount* multiplied by *factor*."""
         return amount * factor
+
+
+class RaisingEqualityData:
+    """Data object whose ``==`` raises, as a numpy array or a pandas frame does when compared with a scalar."""
+
+    def __eq__(self, other: object) -> bool:
+        """Raise like an array whose truth value is ambiguous."""
+        raise ValueError("The truth value of an array with more than one element is ambiguous.")
+
+    __hash__ = object.__hash__

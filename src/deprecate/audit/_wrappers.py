@@ -71,7 +71,9 @@ class DeprecationWrapperInfo:
             (:attr:`~deprecate.audit.ChainType.TARGET` or :attr:`~deprecate.audit.ChainType.STACKED`).
         misconfigured_target: True when the wrapper has an invalid target configuration:
             ``target=False``, :attr:`~deprecate._types.TargetMode.NOTIFY` with ``args_mapping``, ``args_extra``
-            or ``attrs_mapping``, or :attr:`~deprecate._types.TargetMode.ARGS_REMAP` with empty ``args_mapping``.
+            or ``attrs_mapping``, :attr:`~deprecate._types.TargetMode.ARGS_REMAP` with empty ``args_mapping``, or
+            ``args_mapping``/``args_extra`` on a served object that is not callable
+            (:attr:`~deprecate._types.DeprecationConfig.call_options_inert`).
         empty_deprecated_in: True when ``deprecated_in`` is empty. Missing ``remove_in`` alone is a valid use case
             (many libraries deprecate without a scheduled removal date), so only the absence of ``deprecated_in``
             is treated as a misconfiguration signal. CI pipelines can filter on this field to surface wrappers
@@ -252,7 +254,10 @@ def _detect_chain_type(
     target_config = get_deprecation_config(target) if callable(target) or isinstance(target, _DeprecatedProxy) else None
     if target_config is not None:
         wrp_depr_tgt = target_config.target
-        chain_type = ChainType.STACKED if wrp_depr_tgt is TargetMode.ARGS_REMAP else ChainType.TARGET
+        # Stacking composes call-time renames, so it needs a target that is called: a data object whose own config
+        # reads ``ARGS_REMAP`` holds an inert ``args_mapping`` and only forwards access, a plain ``TARGET`` link.
+        is_stacked = wrp_depr_tgt is TargetMode.ARGS_REMAP and callable(target)
+        chain_type = ChainType.STACKED if is_stacked else ChainType.TARGET
     elif _is_args_remap:
         wrapped = getattr(func, "__wrapped__", None)
         # ``target`` is always a ``TargetMode`` (or callable/None) after normalization — the legacy
