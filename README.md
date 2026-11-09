@@ -1726,7 +1726,7 @@ If you want docs-friendly summaries, `generate_deprecation_table()` renders the 
 It supports two styles via `style=`:
 
 - `compact` (default): `Original API | API Type | New API | Deprecated | Remove | Current Status`
-- `matrix`: `Original API | API Type | New API | <all versions ...>` with lifecycle markers:
+- `matrix`: `Original API | API Type | New API | <all versions ...>` with one column per release (`1.0`, `v1.0` and `1.0.0` share a column) and lifecycle markers:
   - `D` = deprecated in this version
   - `R` = remove in this version
 - rows are ordered by module and symbol family (class/function), so related `args` variants stay grouped together
@@ -1755,7 +1755,7 @@ report = generate_deprecation_table(my_package, current_version="1.5", recursive
 >
 > | Original API                                | API Type     | New API                         | Deprecated | Remove | Current Status           |
 > | :------------------------------------------ | :----------- | :------------------------------ | :--------: | :----: | :----------------------- |
-> | `my_package.depr_func_same_version`         | callable     | `—`                             |    v2.0    |  v3.0  | 🕒 Scheduled Deprecation |
+> | `my_package.depr_func_same_version`         | callable     | `—`                             |    v2.0    |  v2.0  | 🕒 Scheduled Deprecation |
 > | `my_package.ServiceCls.old_redirect_method` | class method | `my_package.ServiceCls.compute` |    v1.0    |  v2.0  | 📢 Deprecation Active    |
 > | `my_package.depr_pow_args`                  | callable     | `my_package.base_pow_args`      |    v1.0    |  v1.3  | 💥 Past Removal Date     |
 > | `my_package.depr_func_no_remove_in`         | callable     | `—`                             |    v1.0    |   —    | ℹ️ No Removal Target     |

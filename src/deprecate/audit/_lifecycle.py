@@ -272,8 +272,8 @@ def _expiry_findings(
             remove_ver = _parse_version(remove_in)
         except ValueError:
             # An unparsable ``remove_in`` (e.g. a typo) would make the wrapper permanently un-expirable and the
-            # batch gate would never flag it. Warn per skip so the misconfiguration is visible rather than silent
-            # — the single-callable path raises; here a warning keeps the batch scan going for the rest.
+            # batch gate would never flag it. Warn per skip so the misconfiguration is visible rather than silent,
+            # while the batch scan keeps going for the rest.
             warnings.warn(
                 f"{_format_subject(info)} has an unparsable `remove_in` version `{remove_in}`; "
                 "its expiry cannot be checked until the version string is fixed.",
@@ -353,11 +353,13 @@ def validate_deprecation_expiry(
     """
     # Auto-detect version if not provided
     if current_version is None:
+        # The package name comes from the path the caller passed, never from the imported object, which may replace
+        # itself in ``sys.modules`` or carry another package's ``__name__``.
+        module_name = module if isinstance(module, str) else getattr(module, "__name__", None)
         # Import a module path before looking up its version: the version resolver swallows import failures, so a
         # package whose own import fails would be reported as having no version instead of with its real error.
         if isinstance(module, str):
             module = importlib.import_module(module)
-        module_name = getattr(module, "__name__", None)
         if not module_name:
             raise ValueError(
                 "Cannot auto-detect version: module object has no __name__ attribute. "

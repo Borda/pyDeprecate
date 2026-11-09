@@ -1059,11 +1059,11 @@ report = generate_deprecation_table(my_package, current_version="1.5", recursive
 > | `my_package.ServiceCls.old_class_method`    | classmethod       | `—`                                   |    v1.0    |  v2.0  | 📢 Deprecation Active    |
 > | `my_package.ServiceCls.old_redirect_method` | class method      | `my_package.ServiceCls.compute`       |    v1.0    |  v2.0  | 📢 Deprecation Active    |
 > | `my_package.depr_func_no_remove_in`         | callable          | `—`                                   |    v1.0    |   —    | ℹ️ No Removal Target     |
-> | `my_package.depr_func_same_version`         | callable          | `—`                                   |    v2.0    |  v3.0  | 🕒 Scheduled Deprecation |
+> | `my_package.depr_func_same_version`         | callable          | `—`                                   |    v2.0    |  v2.0  | 🕒 Scheduled Deprecation |
 > | `my_package.depr_pow_args`                  | callable          | `my_package.base_pow_args`            |    v1.0    |  v1.3  | 💥 Past Removal Date     |
 > | `my_package.decorated_sum`                  | callable          | `my_package.base_sum_kwargs`          |    v0.1    |  v0.5  | 💥 Past Removal Date     |
 
-**Matrix style** — one column per version with `D` (deprecated) and `R` (remove) lifecycle markers:
+**Matrix style** — one column per release with `D` (deprecated) and `R` (remove) lifecycle markers:
 
 ```python
 from tests.collections.api_deprecated import core as my_package

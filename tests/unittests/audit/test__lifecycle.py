@@ -311,7 +311,9 @@ class TestBatchExpiryUnparsableVersion:
             function="pkg.broken",
             deprecated_info=DeprecationConfig(deprecated_in="1.0", remove_in="not.a.version!!"),
         )
-        with pytest.warns(UserWarning, match="unparsable"):
+        with pytest.warns(
+            UserWarning, match=r"`pkg\.broken` has an unparsable `remove_in` version `not\.a\.version!!`"
+        ):
             expired = _check_expiry_for_callables([info], "2.0")
         assert expired == []
 
