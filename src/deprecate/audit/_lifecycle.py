@@ -11,10 +11,9 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 import enum
 import importlib
 import re
-import types
 import warnings
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any, Callable, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 if TYPE_CHECKING:
     from packaging.version import Version
@@ -23,7 +22,7 @@ from deprecate._frames import _caller_stacklevel
 from deprecate.audit._findings import _Check, _Finding, _make_finding, _Rule
 from deprecate.audit._scan import find_deprecation_wrappers
 from deprecate.audit._version import _resolve_package_version
-from deprecate.audit._wrappers import DeprecationWrapperInfo, _format_subject, validate_deprecation_wrapper
+from deprecate.audit._wrappers import DeprecationWrapperInfo, _format_subject
 
 
 class DeprecationStatus(str, enum.Enum):
@@ -194,60 +193,6 @@ def _parse_version(version_string: str) -> "Version":
             f"Failed to parse version '{version_string}'. Expected PEP 440 format "
             f"(e.g., '1.2.3', '2.0', '1.5.0a1'). Error: {err}"
         ) from err
-
-
-def _check_deprecated_wrapper_expiry(func: Union[Callable, types.ModuleType], current_version: str) -> None:
-    """Check if a deprecated wrapper has passed its scheduled removal version.
-
-    This is an internal helper function used by :func:`~deprecate.audit.validate_deprecation_expiry`.
-    It verifies that deprecated code is actually removed when it reaches its scheduled removal deadline.
-
-    The function validates that the wrapper is properly decorated, extracts the removal version from its metadata,
-    and compares it against the current version using semantic versioning. If the current version is greater than or
-    equal to the scheduled removal version, it raises an AssertionError indicating the code must be deleted.
-
-    Args:
-        func: The deprecated callable to check. Must have a ``__deprecation_config__`` attribute set by the
-            ``@deprecated`` decorator.
-        current_version: The current version of the package (e.g., "2.0.0"). Should follow PEP 440 versioning
-            conventions.
-
-    Raises:
-        ValueError: If the wrapper has missing or invalid ``__deprecation_config__`` metadata (expected
-            :class:`~deprecate._types.DeprecationConfig`).
-        ValueError: If the ``remove_in`` field is missing from the deprecation metadata.
-        AssertionError: If the current version is greater than or equal to the scheduled removal version, indicating
-            the code should have been removed.
-
-    """
-    # First validate that the wrapper has proper deprecation metadata
-    info = validate_deprecation_wrapper(func)
-
-    # Extract the remove_in version from the metadata
-    remove_in = info.deprecated_info.remove_in
-    if not remove_in:
-        raise ValueError(
-            f"{_format_subject(info)} does not have a 'remove_in' version specified in its deprecation metadata."
-        )
-
-    # Parse both versions for proper semantic version comparison
-    # Let ImportError propagate with its helpful install message
-    try:
-        current_ver = _parse_version(current_version)
-    except ValueError as err:
-        raise ValueError(f"Invalid current_version '{current_version}': {err}") from err
-
-    try:
-        remove_ver = _parse_version(remove_in)
-    except ValueError as err:
-        raise ValueError(f"Invalid remove_in '{remove_in}' for {_format_subject(info)}: {err}") from err
-
-    # Check if the current version has reached or passed the removal deadline
-    if current_ver >= remove_ver:
-        raise AssertionError(
-            f"{_format_subject(info)} was scheduled for removal in version {remove_in} "
-            f"but still exists in version {current_version}. Please delete this deprecated code."
-        )
 
 
 def _get_package_version(package_name: str) -> str:

@@ -33,7 +33,6 @@ from deprecate import (
     validate_deprecation_wrapper,
 )
 from deprecate._types import DeprecationConfig
-from deprecate.audit._lifecycle import _check_deprecated_wrapper_expiry
 from deprecate.audit._wrappers import _format_report_symbol
 from deprecate.module import _STREAM_DEFAULT, _redirect_guard, _RedirectResolution, deprecated_module
 from tests._helpers import captured_warnings
@@ -418,16 +417,6 @@ class TestModuleReportLabel:
             f"Module `{self._MODULE_LABEL}` was scheduled for removal in version 2.0"
             " but still exists in version 2.0. Please delete this deprecated code."
         ]
-
-    def test_single_expiry_message_names_module(self) -> None:
-        """``_check_deprecated_wrapper_expiry`` raises an ``AssertionError`` naming the module, not ``(module)``.
-
-        The single-wrapper expiry path shares the same subject formatter as the batch path; passing the
-        deprecated module directly at its removal version must raise with ``Module `<name>``` so the
-        malformed ``Callable `(module)``` label can never reach the error a maintainer reads.
-        """
-        with pytest.raises(AssertionError, match=r"Module `tests\.collections\.modules\.old_math`"):
-            _check_deprecated_wrapper_expiry(old_math, "2.0")
 
 
 class TestReloadSurvival:
