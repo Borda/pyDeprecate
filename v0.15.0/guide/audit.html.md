@@ -1,0 +1,1096 @@
+---
+id: audit
+description: "Use pyDeprecate's audit tools in CI/CD: validate decorator configuration, enforce removal deadlines by version, lint deprecations against a governance policy, detect deprecation chains, test deprecation behaviour, and integrate with pre-commit hooks."
+---
+
+# Audit Tools
+
+Four things go wrong with deprecations in practice: a `remove_in` deadline passes and nobody deletes the code (zombie code); a deprecated wrapper targets another deprecated function, so callers get two notices instead of one (a chain); an `args_mapping` key has a typo and silently does nothing (a misconfiguration); or the deprecation was scheduled badly from the start — removed one patch after it was announced, or announced without ever naming a replacement (a policy violation). `validate_deprecation_expiry()`, `validate_deprecation_chains()`, `find_deprecation_wrappers()`, and `validate_deprecation_policy()` catch each of these in CI before they reach users.
+
+!!! note "Renamed in v0.6"
+
+    `find_deprecated_callables` is now `find_deprecation_wrappers`, `validate_deprecated_callable` is now `validate_deprecation_wrapper`, and `DeprecatedCallableInfo` is now `DeprecationWrapperInfo`. The old names remain exported for backwards compatibility but will be removed in v1.0.
+
+!!! warning "Breaking change in v0.8: `__deprecated__.target` type changed"
+
+    In v0.8, `DeprecationConfig.target` now always stores a `TargetMode` enum member or a `Callable` — never a raw boolean sentinel. Code inspecting this attribute must be updated:
+
+    The direct metadata reads below apply only through v0.12; v0.13 code must use `get_deprecation_config(func)` as shown in the next section.
+
+    | Before v0.8                           | v0.8-v0.12                                            |
+    | ------------------------------------- | ----------------------------------------------------- |
+    | `func.__deprecated__.target is None`  | `func.__deprecated__.target is TargetMode.NOTIFY`     |
+    | `func.__deprecated__.target is True`  | `func.__deprecated__.target is TargetMode.ARGS_REMAP` |
+    | `func.__deprecated__.target is False` | `func.__deprecated__.misconfigured`                   |
+
+!!! warning "Breaking change in v0.13: `__deprecated__` is now a plain message string"
+
+    Since v0.13, `__deprecated__` holds a PEP 702-conformant message string, not the `DeprecationConfig` object — this lets PEP-702-aware tooling (IDE hover, `pyright`, `mypy`) read it correctly. The config object moved to `__deprecation_config__`; read it via the public `get_deprecation_config(obj)` helper rather than either attribute directly:
+
+    | Before v0.13                                         | v0.13+                                       |
+    | ---------------------------------------------------- | -------------------------------------------- |
+    | `func.__deprecated__.target`                         | `get_deprecation_config(func).target`        |
+    | `func.__deprecated__.deprecated_in`                  | `get_deprecation_config(func).deprecated_in` |
+    | `isinstance(func.__deprecated__, DeprecationConfig)` | `get_deprecation_config(func) is not None`   |
+
+    Every wrapper kind is affected — functions, methods, class proxies, instance proxies, and modules. See the [v0.12-to-v0.13 migration guide](migration.md) for the full list.
+
+## Validating Wrapper Configuration
+
+Use these utilities to verify that a deprecated wrapper is correctly configured: that `args_mapping` keys exist in the function signature, that the mapping has a real effect, and that the target does not point back to the same function. `validate_deprecation_wrapper()` inspects a single function; `find_deprecation_wrappers()` scans an entire package.
+
+`DeprecationWrapperInfo` is the dataclass returned by both. Its fields:
+
+- `module` — module name where the function is defined (empty for direct validation)
+- `function` — function name
+- `deprecated_info` — the `__deprecation_config__` attribute as a `DeprecationConfig` dataclass from the decorator
+- `invalid_args` — list of `args_mapping` keys that do not exist in the function signature
+- `empty_args_mapping` — `True` if `args_mapping` is `None` or empty
+- `identity_args_mapping` — list of args where key equals value (e.g. `{"arg": "arg"}` — no effect)
+- `self_reference` — `True` if target points to the same function
+- `no_effect` — `True` if the wrapper has zero impact (self-reference, empty mapping, or all-identity)
+- `misconfigured_target` — `True` when the wrapper's target contradicts its configuration: `NOTIFY` with an `args_mapping`, `args_extra` or `attrs_mapping`, `ARGS_REMAP` with an empty `args_mapping`, or the invalid `target=False`. This is not identical to `DeprecationConfig.misconfigured`: for example, a legacy `target=True` wrapper skips the callable-mode validation, so its `DeprecationConfig.misconfigured` stays `False` while an `ARGS_REMAP` wrapper with an empty mapping is still flagged here. In CI, read this audit field rather than `DeprecationConfig.misconfigured`
+- `all_identity` — `True` if every entry in `args_mapping` maps a key to itself
+- `chain_type` — chain classification used when reporting deprecation chains, such as `TARGET` or `STACKED`
+- `empty_deprecated_in` — `True` when `deprecated_in` is absent or empty; useful in CI to surface wrappers with no version annotation
+- `api_type` — inferred API kind for report generation (e.g. `callable`, `args`, `class`, `dataclass attributes`, `class method`); excluded from `repr()` to keep snapshot tests stable
+- `pep702_message` — `None` for every pyDeprecate wrapper; on a row that `find_deprecation_wrappers(..., include_pep702=True)` reports for a symbol deprecated only with `warnings.deprecated`, the decorator's message (a string, possibly empty) — such rows have no versions, so `empty_deprecated_in` is `True` (see [PEP 702-only deprecations](#pep-702-only-deprecations)); excluded from `repr()`
+
+!!! note "`DeprecationConfig` cache fields leave in v1.0"
+
+    `deprecated_info` is a `DeprecationConfig` whose audit metadata fields (`deprecated_in`, `remove_in`, `name`, `target`, `args_mapping`, `args_extra`, `misconfigured`, `docstring_style`, `message_template`, `attrs_mapping`, `as_exception`, `args_mapping_auto_expanded`, `args_mapping_positional_only`) are stable. Eight further fields are internal call-time caches that the wrapper reads on every call instead of inspecting signatures again: `target_positional_only`, `target_positional_only_order`, `source_positional_only`, `source_positional_only_order`, `source_var_positional_prefix`, `target_all_param_names`, `target_accepts_var_positional` and `target_accepts_var_keyword`. They will be removed from `DeprecationConfig` in v1.0, so do not read them in audit or CI code.
+
+### Validating a single function
+
+`validate_deprecation_wrapper()` extracts the configuration from the function's `__deprecation_config__` attribute and returns a `DeprecationWrapperInfo` dataclass. Use it in development or in a targeted pytest assertion to confirm a specific wrapper is sound before shipping.
+
+```python
+from deprecate import TargetMode, validate_deprecation_wrapper, deprecated, DeprecationWrapperInfo
+
+
+# Define your deprecated function
+@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old_arg": "new_arg"}, deprecated_in="1.0")
+def my_func(old_arg: int = 0, new_arg: int = 0) -> int:
+    return new_arg
+
+
+# Validate the configuration - automatically extracts `args_mapping` and target from the decorator
+result = validate_deprecation_wrapper(my_func)
+
+
+# DeprecationWrapperInfo(
+#   function='my_func',
+#   invalid_args=[],
+#   empty_args_mapping=False,
+#   identity_args_mapping=[],
+#   self_reference=False,
+#   no_effect=False
+# )
+
+
+# Example: Function with invalid args_mapping
+@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"nonexistent": "new_arg"}, deprecated_in="1.0")
+def bad_func(real_arg: int = 0) -> int:
+    return real_arg
+
+
+result = validate_deprecation_wrapper(bad_func)
+# result.invalid_args == ['nonexistent']
+print(result)
+
+
+# Example: Function with empty mapping (no effect)
+@deprecated(target=TargetMode.ARGS_REMAP, args_mapping={}, deprecated_in="1.0")
+def empty_func(arg: int = 0) -> int:
+    return arg
+
+
+result = validate_deprecation_wrapper(empty_func)
+# result.empty_args_mapping == True, result.no_effect == True
+print(result)
+
+# Quick check if wrapper has any effect
+if result.no_effect:
+    print("Warning: This wrapper configuration has zero impact!")
+```
+
+<details>
+  <summary>Output: <code>"Warning: This wrapper configuration has zero impact!"</code></summary>
+
+```
+DeprecationWrapperInfo(module='', function='bad_func', deprecated_info=DeprecationConfig(deprecated_in='1.0', remove_in='', name='bad_func', target=<TargetMode.ARGS_REMAP: 'args_remap'>, args_mapping={'nonexistent': 'new_arg'}, args_extra=None, misconfigured=False, docstring_style='rst', message_template=None, attrs_mapping=None, as_exception=None, args_mapping_auto_expanded=(), args_mapping_positional_only=(), target_positional_only=frozenset(), source_positional_only=frozenset(), source_var_positional_prefix=0), invalid_args=['nonexistent'], empty_args_mapping=False, identity_args_mapping=[], self_reference=False, no_effect=False, misconfigured_target=False, all_identity=False, chain_type=None, empty_deprecated_in=False, args_mapping_auto_expanded=[], args_mapping_positional_only=[], inner_order_property=False)
+DeprecationWrapperInfo(module='', function='empty_func', deprecated_info=DeprecationConfig(deprecated_in='1.0', remove_in='', name='empty_func', target=<TargetMode.ARGS_REMAP: 'args_remap'>, args_mapping={}, args_extra=None, misconfigured=True, docstring_style='rst', message_template=None, attrs_mapping=None, as_exception=None, args_mapping_auto_expanded=(), args_mapping_positional_only=(), target_positional_only=frozenset(), source_positional_only=frozenset(), source_var_positional_prefix=0), invalid_args=[], empty_args_mapping=True, identity_args_mapping=[], self_reference=False, no_effect=True, misconfigured_target=True, all_identity=False, chain_type=None, empty_deprecated_in=False, args_mapping_auto_expanded=[], args_mapping_positional_only=[], inner_order_property=False)
+Warning: This wrapper configuration has zero impact!
+```
+
+</details>
+
+### Scanning a package for deprecated wrappers
+
+`find_deprecation_wrappers()` walks an entire package or module and returns a list of `DeprecationWrapperInfo` entries, one per deprecated callable discovered. Pass either a module object or a dotted module path string. This is the foundation for all package-wide CI checks.
+
+Every scanning function — `find_deprecation_wrappers()`, `validate_deprecation_expiry()`, `validate_deprecation_policy()`, `validate_deprecation_chains()`, `validate_mapping_compatibility()`, `generate_deprecation_table()` — accepts a keyword-only `exclude` list of glob patterns over full dotted module names (`exclude=["my_package.tests", "*._legacy*"]`). The scan itself never imports a matching package nor descends into it (another module in the package may still import it — its wrappers are filtered either way), and no wrapper reported under a matching module is returned — the way to keep test fixtures or a frozen legacy tree out of every audit. The CLI takes the same list from `--exclude` or from `exclude` under `[tool.pydeprecate]` in `pyproject.toml` ([details](cli.md#project-configuration-in-pyprojecttoml)).
+
+The same six functions also accept `include_members` (default `True`): deprecated class members — methods, constructors, properties and other descriptors, and `deprecated_class` proxies bound as class attributes — are scanned unless you pass `include_members=False`, which keeps the check on module-level wrappers. Every CLI subcommand takes the matching `--no-include-members` flag.
+
+Recursive scans import every submodule, so module-level side effects run. A submodule that fails to import — for any exception, not just `ImportError`, and also when its module-level code calls `sys.exit()` — is skipped with a `UserWarning` of the form `audit: skipped <module>: <exception>` and the scan continues, so one broken submodule cannot abort the whole CI gate. The CLI also prints a `pydeprecate gap: module not audited: <module>: <exception>` line on stderr for each skipped submodule, even when your package silences warnings.
+
+```python
+from deprecate import find_deprecation_wrappers
+
+# For testing purposes, we use the test module; normally you would import your own package
+from tests.collections.api_deprecated import core as my_package
+
+# Scan an entire package for deprecated wrappers
+results = find_deprecation_wrappers(my_package)
+
+# Or scan using a string module path
+results = find_deprecation_wrappers("tests.collections.api_deprecated.core")
+
+# Filter to only ineffective wrappers
+ineffective = [r for r in results if r.no_effect]
+print(f"Found {len(ineffective)} deprecated wrappers with zero impact!")
+
+# Check some results - each item is a DeprecationWrapperInfo dataclass
+for r in results[:5]:
+    print(f"{r.module}.{r.function}: no_effect={r.no_effect}")
+    if r.no_effect:
+        print(f"  Warning: This wrapper has zero impact!")
+        print(f"  invalid_args: {r.invalid_args}, identity_args_mapping: {r.identity_args_mapping}")
+```
+
+<details>
+  <summary>Output: <code>f"Found {len(ineffective)} deprecated wrappers with zero impact!"</code></summary>
+
+```
+Found 0 deprecated wrappers with zero impact!
+tests.collections.api_deprecated.core.ChainedProxyColorEnum: no_effect=False
+tests.collections.api_deprecated.core.CrossGuardModuleLevel.old_method: no_effect=False
+tests.collections.api_deprecated.core.CrossGuardOldClass.__init__: no_effect=False
+tests.collections.api_deprecated.core.CrossGuardSameClass.old_method: no_effect=False
+tests.collections.api_deprecated.core.DecoratedDataClass: no_effect=False
+```
+
+</details>
+
+### Scanning a misconfigured collection
+
+`tests.collections.misconfigured` intentionally mixes invalid args, empty mappings, identity mappings, self-references, and target-mode misconfigurations. Use it as a regression fixture to see the audit buckets in one place.
+
+```python
+from deprecate import find_deprecation_wrappers
+
+# For testing purposes, we use the misconfigured test module; normally you would import your own package
+from tests.collections import misconfigured as my_package
+
+results = find_deprecation_wrappers(my_package, recursive=False)
+
+invalid_args = [r for r in results if r.invalid_args]
+empty_mappings = [r for r in results if r.empty_args_mapping]
+identity_mappings = [r for r in results if r.identity_args_mapping]
+self_refs = [r for r in results if r.self_reference]
+misconfigured_targets = [r for r in results if r.misconfigured_target]
+no_effect = [r for r in results if r.no_effect]
+
+print("=== Misconfiguration Report ===")
+print(f"Wrappers scanned: {len(results)}")
+print(f"Invalid arguments: {len(invalid_args)}")
+print(f"Empty mappings: {len(empty_mappings)}")
+print(f"Identity mappings: {len(identity_mappings)}")
+print(f"Self-references: {len(self_refs)}")
+print(f"Misconfigured targets: {len(misconfigured_targets)}")
+print(f"No effect: {len(no_effect)}")
+```
+
+<details>
+  <summary>Output: <code>f"No effect: {len(no_effect)}"</code></summary>
+
+```
+=== Misconfiguration Report ===
+Wrappers scanned: 14
+Invalid arguments: 3
+Empty mappings: 7
+Identity mappings: 3
+Self-references: 1
+Misconfigured targets: 6
+No effect: 6
+```
+
+</details>
+
+Group results by issue type for structured reports — separate hard errors (invalid argument names) from advisory notes (identity mappings):
+
+```python
+from deprecate import find_deprecation_wrappers
+
+# For testing purposes, we use the test module; normally you would import your own package
+from tests.collections.api_deprecated import core as my_package
+
+results = find_deprecation_wrappers(my_package)
+
+# Group by issue type (using dataclass attribute access)
+wrong_args = [r for r in results if r.invalid_args]
+identity_mappings = [r for r in results if r.identity_args_mapping]
+self_refs = [r for r in results if r.self_reference]
+
+print(f"=== Deprecation Validation Report ===")
+print(f"Wrong arguments: {len(wrong_args)}")
+print(f"Identity mappings: {len(identity_mappings)}")
+print(f"Self-references: {len(self_refs)}")
+```
+
+<details>
+  <summary>Output: <code>f"Self-references: {len(self_refs)}"</code></summary>
+
+```
+=== Deprecation Validation Report ===
+Wrong arguments: 0
+Identity mappings: 0
+Self-references: 0
+```
+
+</details>
+
+### PEP 702-only deprecations
+
+A symbol deprecated with `warnings.deprecated` / `typing_extensions.deprecated` alone carries no pyDeprecate metadata, so the default scan skips it — that keeps `check`, `expiry`, and `policy` results unchanged for projects that mix both decorators. Pass `include_pep702=True` to list those symbols too. Each appears as a row whose `api_type` names its shape exactly as for any other row (`callable`, `class`, `class method`, `staticmethod`, ...) and whose `pep702_message` holds the decorator's message — a string, possibly empty, where every pyDeprecate row has `None` — so `row.pep702_message is not None` picks these rows out. Their `deprecated_info` holds no versions, because PEP 702 records none, so `empty_deprecated_in` is always `True`: before feeding an opt-in scan to your own `empty_deprecated_in`, expiry, or report filters, drop the rows where `row.pep702_message is not None`. A pyDeprecate wrapper with a PEP 702 decorator stacked on top — the [static-checker pattern](functions.md#static-type-checkers-pep-702) — stays a regular row with its full schedule.
+
+```python
+from deprecate import find_deprecation_wrappers
+from tests.collections import pep702
+
+rows = find_deprecation_wrappers(pep702, include_pep702=True)
+for row in rows:
+    if row.pep702_message is not None:
+        print(f"{row.function} [{row.api_type}]: {row.pep702_message or '<empty message>'}")
+```
+
+<details>
+  <summary>Output: <code>row.function, row.api_type, row.pep702_message</code></summary>
+
+```
+Pep702CallableClass [class]: Use `pep702_target` instead.
+Pep702DefaultCategoryClass [class]: Use `Pep702StaticTarget` instead.
+Pep702ExplicitHooks [class]: Use `Pep702StaticTarget` instead.
+Pep702ExplicitHooks.__init_subclass__ [classmethod]: Do not subclass; use `Pep702StaticTarget`.
+Pep702ExplicitHooks.__new__ [staticmethod]: Build through `Pep702StaticTarget` instead.
+Pep702ForeignMember.local_old [class method]: Use `pep702_target` instead.
+Pep702MixedMembers.old_pep702 [class method]: Use `pep702_target` instead.
+Pep702OnlyClass [class]: Use `Pep702StaticTarget` instead.
+Pep702OnlyMembers._old_method [class method]: Use the public method instead.
+Pep702OnlyMembers._old_value [class method]: Use the public value instead.
+Pep702OnlyMembers.old_method [class method]: Use `pep702_target` instead.
+Pep702OnlyMembers.old_static [staticmethod]: Use `pep702_target` instead.
+Pep702OnlyMembers.old_total [class method]: Compute the total from `value` instead.
+Pep702OnlyMembers.old_value [class method]: Read `value` instead.
+pep702_empty_message [callable]: <empty message>
+pep702_only_function [callable]: Use `pep702_target` instead.
+```
+
+</details>
+
+A subclass of a PEP 702-deprecated class is not listed, nor is an instance of one (a ready-made callable object): each reaches `__deprecated__` only through the class and is not itself deprecated. For the same reason a class lists only the PEP 702 markers it defines itself — methods inherited from a library base (a pydantic `BaseModel`, say) belong to that library and are not repeated under every subclass. A class decorated with the default warning category is one row, not three: the decorator also installs `__new__` and `__init_subclass__` on it with the same message, and the class row already covers them. A symbol imported from another top-level package — `from pydantic.deprecated.tools import parse_obj_as`, say — is the dependency's deprecation, so the scan leaves it out even with `recursive=False`; a symbol whose `__module__` is unknown stays listed under the module that exposes it. A class bound under a second name (`ShortName = LongName`) lists its own PEP 702 members once, under the binding named like the class (`LongName`, even when the alias sorts first; the first name scanned when no binding has the class's own name); the pyDeprecate rows of such a class are unchanged and still appear under each name.
+
+The scan sees only runtime objects, so a PEP 702 decorator on an individual `@overload` is invisible to it: overload stubs are replaced by the implementation and never become module or class members. Static checkers still flag calls that match that overload.
+
+The `pydeprecate` CLI intentionally has no `--include-pep702` flag: its gates evaluate pyDeprecate schedule metadata (`deprecated_in`, `remove_in`, a replacement) that PEP 702 rows lack, so list those symbols with the Python API instead.
+
+### CLI usage
+
+All audit functions are also available from the command line via six subcommands (`check`, `expiry`, `policy`, `chains`, `all`, `status`). See the [CLI Reference](cli.md) for the full guide including flags and exit codes; the CI workflow is in [Enforcing the policy in CI](#enforcing-the-policy-in-ci).
+
+### pytest integration
+
+Add a test that fails the suite when any deprecated wrapper has an invalid configuration. Wrong argument names are hard errors; identity mappings are worth a warning.
+
+```python
+import warnings
+
+import pytest
+from deprecate import find_deprecation_wrappers
+
+# For testing purposes, we use the test module; normally you would import your own package
+from tests.collections.api_deprecated import core as my_package
+
+
+def test_deprecated_wrappers_are_valid():
+    """Validate all deprecated wrappers have proper configuration."""
+    results = find_deprecation_wrappers(my_package)
+
+    # Collect issues — wrong arg names are errors, identity mappings are worth a warning
+    wrong_args = [r for r in results if r.invalid_args]
+    identity_mappings = [r for r in results if r.identity_args_mapping]
+
+    # Raise errors for wrong arguments (critical issues)
+    if wrong_args:
+        for r in wrong_args:
+            print(f"ERROR: {r.module}.{r.function} has invalid args: {r.invalid_args}")
+        pytest.fail(f"Found {len(wrong_args)} deprecated wrappers with invalid arguments")
+
+    # Warn for identity mappings (less severe)
+    for r in identity_mappings:
+        warnings.warn(f"{r.function} has identity mapping", UserWarning)
+```
+
+## Enforcing Removal Deadlines
+
+![Deprecation lifecycle cycle: old API in blue, new API and decorator in yellow, callers migrate, pre-commit, CI and pytest flag the expired wrapper, delete it and repeat](../assets/images/pydeprecate-lifecycle.svg)
+
+When you set `remove_in`, you are committing to delete that code when the version ships. Without automation, it is easy to forget — leaving zombie code that lingers past its deadline. `validate_deprecation_expiry()` scans a module or package and returns a list of error messages for every deprecated callable whose `remove_in` version has passed. An empty list means everything is clean.
+
+The `audit` install extra is required because this utility depends on `packaging` for PEP 440 version comparison:
+
+```bash
+pip install 'pyDeprecate[audit]'
+```
+
+Scan a package and control recursion depth:
+
+```python
+from deprecate import validate_deprecation_expiry
+
+# For testing purposes, we use the test module; normally you would import your own package
+from tests.collections.api_deprecated import core as my_package
+
+# Scan your package for expired deprecations - using early-version that won't have expirations
+expired = validate_deprecation_expiry(my_package, "0.2")
+print(f"Found {len(expired)} expired")  # Returns a list of error messages (empty list = no expired)
+
+# Example with expired deprecations found (using later-version)
+expired = validate_deprecation_expiry(my_package, "0.5")
+print(f"Found {len(expired)} expired")
+
+# Auto-detect version from package metadata (mocked for demo)
+from unittest.mock import patch
+
+with patch("importlib.metadata.version", return_value="0.3"):
+    expired = validate_deprecation_expiry(my_package)  # Automatically detects version
+    print(f"Found {len(expired)} expired")
+
+# Control recursion
+expired = validate_deprecation_expiry(my_package, "0.1", recursive=False)  # Only scan top-level module
+print(f"Found {len(expired)} expired")
+```
+
+<details>
+  <summary>Output: <code>f"Found {len(expired)} expired"</code></summary>
+
+```
+Found 14 expired
+Found 31 expired
+Found 17 expired
+Found 0 expired
+```
+
+</details>
+
+Good to know:
+
+- Class members decorated with `@deprecated` (e.g. an `__init__` wrapped by `deprecated_class` delegation) are included by default (`include_members=True`) — pass `include_members=False` to restrict the scan to module-level callables.
+- Callables without `remove_in` are skipped — notice-only deprecations are allowed.
+- Invalid version formats in `remove_in` are skipped with a `UserWarning` naming the callable and the unparsable version (the CLI prints a `remove_in not PEP 440` gap line instead), so the expiry of that callable is not checked.
+- PEP 440 versioning is used for comparison (e.g. `"2.0.0" > "1.9.5"`).
+- Pre-release versions are handled correctly (e.g. `"1.5.0a1" < "1.5.0"`).
+
+### pytest integration for expiry enforcement
+
+Wire expiry checks into your test suite so zombie code is caught before any tests run. The session-scoped autouse fixture pattern below prevents the suite from starting at all if expired deprecations are present.
+
+```python
+import pytest
+from deprecate import validate_deprecation_expiry
+
+# For testing purposes, we use the test module; normally you would import your own package
+from tests.collections.api_deprecated import core as my_package
+
+
+def test_no_zombie_deprecations():
+    """Ensure all deprecated code is removed when it reaches its deadline."""
+    # Use your package's actual version - for this example we use a test version
+    current_version = "0.5"  # Replace with: from mypackage import __version__
+
+    expired = validate_deprecation_expiry(my_package, current_version)
+
+    if expired:
+        error_msg = "Found deprecated code past its removal deadline:\n"
+        for msg in expired:
+            error_msg += f"  - {msg}\n"
+        pytest.fail(error_msg)
+
+
+# Alternative: Use a fixture to run on every test session
+# For testing purposes, we use the test module; normally you would import your own package
+@pytest.fixture(scope="session", autouse=True)
+def enforce_deprecation_deadlines():
+    """Automatically check for zombie code before running any tests."""
+    from tests.collections.api_deprecated import core as my_package
+
+    current_version = "0.5"  # Replace with: from mypackage import __version__
+    expired = validate_deprecation_expiry(my_package, current_version)
+    if expired:
+        raise AssertionError(
+            f"Cannot run tests: {len(expired)} deprecated callables past removal deadline. "
+            f"Remove these functions first: {expired}"
+        )
+```
+
+## Enforcing a Deprecation Policy
+
+`validate_deprecation_expiry()` asks *"was this removed on time?"*. `validate_deprecation_policy()` asks the earlier question: *"was this scheduled responsibly in the first place?"* — a removal deadline that leaves callers too short an upgrade window or lands off a release boundary, or a warning that never names a replacement. Each of those is cheap to fix at review time and expensive to fix once downstream projects have pinned against it.
+
+Like the expiry gate, the policy gate compares PEP 440 versions and therefore needs the `audit` extra:
+
+```bash
+pip install 'pyDeprecate[audit]'
+```
+
+Quickest setup — two steps, copy-paste. Declare the policy once in `pyproject.toml`:
+
+```toml
+[tool.pydeprecate.policy]
+min-grace = "1.0"
+message-required = true
+```
+
+then run the gate (locally or in CI — see [Enforcing the policy in CI](#enforcing-the-policy-in-ci)):
+
+```bash
+pydeprecate policy src/mypackage
+```
+
+`min-grace` is a version-shaped delta: `"1.0"` allows removals only at the next major, `"0.3"` (the built-in default) is three minors, `"0.0.2"` two patches; `false` switches the rule off. Every run resolves each rule as flag → this table → built-in default and prints a `Policy:` header naming the source ([details](cli.md#project-configuration-in-pyprojecttoml)). The Python function below takes the rules as arguments and never reads the file.
+
+### The two rules
+
+| Rule slug          | What it checks                                                                     | Default                 | Disable with             |
+| ------------------ | ---------------------------------------------------------------------------------- | ----------------------- | ------------------------ |
+| `min-grace`        | `remove_in` is one clean version bump beyond `deprecated_in`, at least this far    | `min_grace="0.3"`       | `min_grace=None`         |
+| `message-required` | The wrapper provides migration guidance (a target, a mapping, or a custom message) | `message_required=True` | `message_required=False` |
+
+Every violation message is prefixed with its rule slug in square brackets — `[min-grace]`, `[message-required]` — so a CI log can be grouped or filtered per rule without re-parsing the prose.
+
+Rule details worth knowing before you tune the defaults:
+
+- **`min_grace`** is a version-shaped delta **string** with two or three components and at most one non-zero — `"1.0"` one major, `"0.3"` three minors, `"0.0.2"` two patches. Always pass a string: a float such as `0.10` drops its trailing zero and reads as one minor. A bare `"1"` is rejected as ambiguous (one *what*?), and so is `"1.2"` or any other mixed spelling — `ValueError`, raised before the scan starts. An all-zero spelling (`"0.0"`) is a valid **zero-count window**: the distance check is effectively off, but a clean bump of that unit or coarser is still required, so `1.2` → `1.2.1` still violates a zero-minor window. Internally every spelling is parsed into `deprecate.audit.GraceWindow(count, unit)` — one unit, one count — which the scan alone consults; a `GraceWindow` instance (`from deprecate import GraceWindow, VersionBump`) or a one-key unit table (`{"major": 1}`) is accepted as well. The removal must be one **clean bump** of a single component with everything below it reset — `1.2` → `1.5` or `2.0`, never `2.3` or `1.3.1` — because a mixed bump lands on no release boundary a project promises removals on. A coarser bump always clears a finer window: deprecated in `1.2`, removed in `2.0` satisfies `"0.3"` even though the minor number went *down*; a finer bump (a patch against a minor-counted window) never does.
+- **A `0.x` project** needs no special setting: a bump to `1.0` is a major step and clears any window, while removals inside the `0.x` line are counted in minors as usual. `min_grace="1.0"` is the strict "removals only at a major" policy.
+- **`message_required`** counts a forwarding `target`, an `args_mapping`, an `attrs_mapping`, or a custom `message_template` as guidance. An *empty* `args_mapping`/`attrs_mapping` (`{}`) does **not** count — it carries no actual rename, so the rule treats it the same as no mapping at all. A deprecated *module* satisfies the rule with a **custom** `message_template` — the auto-rendered text `deprecated_module()` stores there by default does not count, since every module would otherwise pass trivially; a module relying only on `target`/`attrs_mapping` still needs one of those to be non-empty. A `deprecated_instance()` proxy built with no `target` and no `args_mapping`/`attrs_mapping` likewise needs a custom `message_template` to satisfy the default policy.
+
+### Scanning a package
+
+```python
+from deprecate import validate_deprecation_policy
+
+# For testing purposes, we use the test module; normally you would import your own package
+from tests.collections import policy as my_package
+
+# Full default policy: a three-minor grace window on a clean release boundary, guidance required
+violations = validate_deprecation_policy(my_package, recursive=False)
+print(f"Found {len(violations)} violations")
+
+# Every message is prefixed with the slug of the rule it broke
+for msg in sorted(violations):
+    print(msg.split("]")[0] + "]")
+
+# Opt out of the grace-window rule, keep the guidance rule
+violations = validate_deprecation_policy(my_package, recursive=False, min_grace=None)
+print(f"Found {len(violations)} violations")
+```
+
+<details>
+  <summary>Output: <code>f"Found {len(violations)} violations"</code></summary>
+
+```
+Found 6 violations
+[message-required]
+[message-required]
+[message-required]
+[min-grace]
+[min-grace]
+[min-grace]
+Found 3 violations
+```
+
+</details>
+
+Good to know:
+
+- Wrappers missing `deprecated_in` or `remove_in` are **not** violations — the grace-window rule simply skips them, because a deprecation without a scheduled removal is a valid and common choice.
+- An unparsable version string emits a `UserWarning` naming the wrapper and the offending field, then the scan continues for the rest — one typo never aborts the gate.
+- The return value is a list of message strings, not structured records. Each message starts with the `[slug]` of the rule it broke (`[min-grace]`, `[message-required]`), and that slug is the stable rule identifier: filter, group or suppress on it rather than on the wording after it, which may change. `validate_deprecation_expiry()` also returns plain message strings, without a slug. For structured per-wrapper data use the `DeprecationWrapperInfo` rows of `find_deprecation_wrappers()`; the CLI's `--report-json` file holds the rendered deprecation table and the run's gaps (see the [CLI Reference](cli.md)), not the violation messages.
+- `recursive`, `include_members` and `exclude` behave exactly as in `find_deprecation_wrappers()`.
+- The CLI exposes the same gate as `pydeprecate policy` — see the [CLI Reference](cli.md) for flags and exit codes, and [Enforcing the policy in CI](#enforcing-the-policy-in-ci) below for the workflow. The CLI can also read the rules from a `[tool.pydeprecate.policy]` table in `pyproject.toml` ([details](cli.md#project-configuration-in-pyprojecttoml)); this function takes a module (object or importable name), never a filesystem path, and does not read that file — pass `min_grace` and `message_required` explicitly.
+
+### Enforcing the policy in CI
+
+The policy defaults encode *a* convention, not *the* convention. Write the numbers your project actually releases on into `[tool.pydeprecate.policy]` (above) and run the CLI as its own CI step — the table is the single source of truth, the step is the gate, and there is no test code to maintain. In any CI system, after installing your project and `pyDeprecate[audit,cli]`, run these two commands — the same pair pyDeprecate runs on itself:
+
+```bash
+# audit everything; policy violations are advisory here
+pydeprecate all src/mypackage
+# reads [tool.pydeprecate.policy] from pyproject.toml; exits 1 on a violation
+pydeprecate policy src/mypackage
+```
+
+`pydeprecate all` prints policy violations as a `[WARNING]` without failing, so the dedicated `policy` step is the one that blocks the merge. A one-off override never needs a config edit — `pydeprecate policy src/mypackage --min-grace=0.3` beats the table for that run only.
+
+On GitHub Actions, use the ready-made step instead: the [GitHub Action](#github-action) below runs the same two gates.
+
+## Detecting Deprecation Chains
+
+A deprecated wrapper whose `target` is itself another deprecated function creates a chain: callers get two deprecation notices instead of one, and the intermediate hop adds no value. `validate_deprecation_chains()` scans a module or package for exactly this pattern using purely metadata-based detection — no source-code inspection required.
+
+Two chain types are reported:
+
+- `ChainType.TARGET` — the target is a deprecated callable that forwards to another function. Fix by pointing directly to the final (non-deprecated) implementation.
+- `ChainType.STACKED` — mappings chain through multiple hops and must be composed. This covers callable argument chains, stacked `@deprecated(TargetMode.ARGS_REMAP, args_mapping=...)` decorators, and `deprecated_class(attrs_mapping=...)` entries where one deprecated attribute key maps to a value that is itself another key in the same mapping (a multi-hop rename chain such as `{"a": "b", "b": "c"}`).
+
+The example below shows both bad patterns and the correct direct form:
+
+```python
+from deprecate import TargetMode, deprecated, validate_deprecation_wrapper, void
+
+
+def new_power(base: float, exponent: float = 2) -> float:
+    return base**exponent
+
+
+# deprecated forwarder — targets new_power directly
+@deprecated(target=new_power, deprecated_in="1.0", remove_in="2.0")
+def power_v2(base: float, exponent: float = 2) -> float:
+    void(base, exponent)
+
+
+# self-deprecation — renames old arg "exp" -> "exponent" within the same function
+@deprecated(TargetMode.ARGS_REMAP, deprecated_in="1.0", remove_in="2.0", args_mapping={"exp": "exponent"})
+def legacy_power(base: float, exp: float = 2, exponent: float = 2) -> float:
+    return base**exponent
+
+
+# BAD: targets power_v2 (another deprecated forwarder) — ChainType.TARGET
+# SOLUTION: point directly to new_power
+@deprecated(target=power_v2, deprecated_in="1.5", remove_in="2.5")
+def caller_target_chain(base: float, exponent: float = 2) -> float:  # ❌
+    return void(base, exponent)
+
+
+# BAD: targets legacy_power (target=TargetMode.ARGS_REMAP with arg renaming) — ChainType.STACKED
+# Mappings chain: "power" -> "exp" -> "exponent" — must be composed.
+# SOLUTION: target=new_power, args_mapping={"power": "exponent"}
+@deprecated(target=legacy_power, deprecated_in="1.5", remove_in="2.5", args_mapping={"power": "exp"})
+def caller_stacked_chain(base: float, power: float = 2) -> float:  # ❌
+    return void(base, power)
+
+
+# GOOD: targets final implementation directly with composed mapping
+@deprecated(target=new_power, deprecated_in="1.5", remove_in="2.5", args_mapping={"power": "exponent"})
+def caller_direct(base: float, power: float = 2) -> float:  # ✅
+    return void(base, power)
+
+
+for func in (caller_target_chain, caller_stacked_chain, caller_direct):
+    info = validate_deprecation_wrapper(func)
+    print(f"{func.__name__}: {info.chain_type}")
+```
+
+<details>
+  <summary>Output: <code>f"{func.__name__}: {info.chain_type}"</code></summary>
+
+```
+caller_target_chain: ChainType.TARGET
+caller_stacked_chain: ChainType.STACKED
+caller_direct: None
+```
+
+</details>
+
+### pytest integration for chain detection
+
+Add a test that fails whenever a deprecated function in your package targets another deprecated function. The session-scoped autouse fixture variant prevents the entire suite from running until chains are resolved.
+
+```python
+import pytest
+from deprecate import validate_deprecation_chains
+
+# normally you would import your own package
+from tests.collections import chains as my_package
+
+
+def test_no_deprecation_chains():
+    """Ensure no deprecated function targets another deprecated function."""
+    issues = validate_deprecation_chains(my_package)
+
+    if issues:
+        lines = [
+            f"  - {i.function}: target '{getattr(i.deprecated_info.target, '__name__', repr(i.deprecated_info.target))}' is deprecated"
+            for i in issues
+        ]
+        pytest.fail("Found deprecation chains:\n" + "\n".join(lines))
+
+
+# Alternative: session-scoped auto-use fixture
+@pytest.fixture(scope="session", autouse=True)
+def enforce_no_deprecation_chains():
+    from tests.collections import chains as my_package
+
+    issues = validate_deprecation_chains(my_package)
+    if issues:
+        raise AssertionError(f"Found {len(issues)} deprecation chain(s). Fix before running tests.")
+```
+
+Use `recursive=False` to restrict scanning to the top-level module only, which can speed up large codebases when you know submodules are clean.
+
+## Detecting Mapping Incompatibilities
+
+`deprecated_class(args_mapping=...)` remaps deprecated argument names to their replacements before forwarding the call to the target constructor. When the replacement name is `POSITIONAL_ONLY` (i.e. declared with a `/` in the constructor signature), Python rejects it as a keyword argument — so the proxy detects this at decoration time, emits a `UserWarning`, and forwards the remapped values *positionally* to the constructor at call time. Construction goes through the regular constructor, so required positional-only parameters, frozen dataclasses, and classes whose `__post_init__` derives state from those values all work correctly.
+
+`validate_mapping_compatibility()` surfaces every wrapper whose `args_mapping_positional_only` field is non-empty so you can review these configurations deliberately — the finding is a visibility signal, not a failure.
+
+### The problem: POSITIONAL_ONLY remap target
+
+A class whose constructor uses the `/` positional-only separator:
+
+```python
+from deprecate import deprecated_class
+
+
+class Point:
+    def __init__(self, x: float = 0.0, y: float = 0.0, /) -> None:  # POSITIONAL_ONLY with defaults
+        self.x = x
+        self.y = y
+
+
+OldPoint = deprecated_class(  # warns: UserWarning — px, py target POSITIONAL_ONLY params
+    deprecated_in="2.0",
+    remove_in="3.0",
+    args_mapping={"px": "x", "py": "y"},
+)(Point)
+
+# Proxy forwards the remapped values positionally: Point(1.0, 2.0)
+p = OldPoint(px=1.0, py=2.0)  # warns: FutureWarning
+print(p.x, p.y)
+```
+
+<details>
+  <summary>Output: <code>p.x, p.y</code></summary>
+
+```
+1.0 2.0
+```
+
+</details>
+
+Positional forwarding works whether or not the positional-only params have defaults — required parameters, immutable classes without a permissive `__setattr__`, and constructors with derived state all construct correctly. The decoration-time `UserWarning` is most likely to surface through the dataclass auto-expand path: when `attrs_mapping` on a dataclass wrapper auto-generates `args_mapping` entries and one of the target field names happens to map to a positional-only constructor param.
+
+### Scanning for incompatible wrappers
+
+```python
+from deprecate import validate_mapping_compatibility
+
+# For testing purposes, we use the test module; normally you would import your own package
+from tests.collections.api_deprecated import core as my_package
+
+issues = validate_mapping_compatibility(my_package)
+print(f"Found {len(issues)} wrappers with POSITIONAL_ONLY mapping incompatibilities")
+
+for info in issues:
+    print(f"  {info.module}.{info.function}: incompatible keys = {list(info.args_mapping_positional_only)}")
+```
+
+<details>
+  <summary>Output: <code>f"Found {len(issues)} wrappers with POSITIONAL_ONLY mapping incompatibilities"</code></summary>
+
+```
+Found 6 wrappers with POSITIONAL_ONLY mapping incompatibilities
+  tests.collections.api_deprecated.core.DepPositionalOnly: incompatible keys = ['old_val']
+  tests.collections.api_deprecated.core.DepPositionalOnlyDerived: incompatible keys = ['old_val']
+  tests.collections.api_deprecated.core.DepPositionalOnlyImmutable: incompatible keys = ['old_val']
+  tests.collections.api_deprecated.core.DepPositionalOnlyMixed: incompatible keys = ['old_x']
+  tests.collections.api_deprecated.core.DepPositionalOnlyRequired: incompatible keys = ['old_val']
+  tests.collections.api_deprecated.core.PositionalOnlyProxyHolder.LegacyTarget: incompatible keys = ['old_val']
+```
+
+</details>
+
+The function accepts the same `module`, `recursive` and `include_members` arguments as `find_deprecation_wrappers()` — pass an imported module object or a dotted string path; set `recursive=False` to restrict scanning to the top-level module, or `include_members=False` to skip proxies bound as class attributes (such as `PositionalOnlyProxyHolder.LegacyTarget` above).
+
+Unlike `validate_deprecation_expiry` or `validate_deprecation_chains`, a positional-only mapping is not a defect — the wrapper forwards the remapped values positionally and works correctly. Prefer `pydeprecate check` for advisory CI reporting; positional-only mapping findings are advisory warnings (exit `0`) — only hard config errors such as invalid argument mappings cause exit `1`. See the [CLI Reference](cli.md) for flags and exit codes.
+
+## Pre-commit Integration
+
+A [pre-commit](https://pre-commit.com/) hook gives a fast local signal before you push, without running the test suite or waiting for CI. The scan imports your package to read its wrappers, so the hook has to run where your package and its runtime dependencies are importable — which decides which of the two recipes below fits.
+
+**Recommended — a local hook in your development environment.** It runs the `pydeprecate` CLI you installed with `pip install 'pyDeprecate[audit,cli]'`, in the same environment your tests use, so every submodule imports exactly as it does at runtime:
+
+```yaml
+# .pre-commit-config.yaml
+repos:
+  - repo: local
+    hooks:
+      - id: pydeprecate
+        name: pydeprecate
+        entry: pydeprecate check # add the package path if it is not under src/
+        language: system # spelled `unsupported` since pre-commit 4.4; `system` still works
+        pass_filenames: false # the CLI scans packages, not individual files
+        types: [python] # runs only when a Python file is staged
+        require_serial: true
+
+ci:
+  skip: [pydeprecate] # pre-commit.ci has no project environment to import from
+```
+
+**Remote hook — packages that import without third-party dependencies.** pyDeprecate ships a hook manifest, so you can reference the repository directly (available from `v0.15.0`):
+
+```yaml
+# .pre-commit-config.yaml
+repos:
+  - repo: https://github.com/Borda/pyDeprecate
+    rev: v0.15.0 # the first tag shipping the hook
+    hooks:
+      - id: pydeprecate-check # finds the package under src/; add `args: [mypkg]` for any other location
+```
+
+pre-commit installs this hook into its own isolated environment, which holds pyDeprecate and the CLI dependencies but none of your package's runtime dependencies. Add them with `additional_dependencies` — and because that list *replaces* the hook's own, start it with the hook's own `"pyDeprecate[cli,audit]"` entry (pyDeprecate's `cli` and `audit` extras, which pip resolves to the hook's own checkout), then append yours. Without it the `pydeprecate` entry point lacks its CLI dependencies, and Python 3.9–3.10 cannot read `[tool.pydeprecate]` from `pyproject.toml`:
+
+```yaml
+# .pre-commit-config.yaml
+repos:
+  - repo: https://github.com/Borda/pyDeprecate
+    rev: v0.15.0
+    hooks:
+      - id: pydeprecate-check
+        additional_dependencies: ["pyDeprecate[cli,audit]", numpy, requests] # the hook's own entry first, then your package's runtime dependencies
+```
+
+!!! warning "A missing dependency can pass silently"
+
+    A submodule that fails to import is skipped with a `UserWarning: audit: skipped <module>` and the scan carries on (see [Troubleshooting](../troubleshooting.md)). pre-commit hides the output of a hook that passes, so a missing dependency in the isolated environment leaves those modules unaudited with no visible failure. Prefer the local hook whenever your package has runtime dependencies, and pin `rev` to the pyDeprecate release your project depends on.
+
+The isolated environment separates dependencies, not trust: like the local hook, it imports your package and runs its import-time code with your user's permissions. When the hook runs on checkouts you do not trust, such as pull requests from forks in CI, run it without secrets or privileged credentials.
+
+Run it on demand using the configured hook ID: `pydeprecate` for the local recipe or `pydeprecate-check` for either remote recipe. The commands below use the local ID:
+
+```bash
+# Get a clear signal before pushing (runs when a Python file is staged):
+pre-commit run pydeprecate
+
+# Or check regardless of what is staged:
+pre-commit run pydeprecate --all-files
+```
+
+The hook ignores the staged file names and scans the whole package each time: pyDeprecate resolves wrappers through importable modules, never single files. With no path in `args`, the hook audits the single package under `src/`, or else the single package at the repository root, so src-layout and single-package repositories need no `args`. A root holding two or more top-level packages (for example `mypkg/` and `tests/`) fails with a non-zero exit and `contains multiple packages (mypkg, tests)` rather than passing on an empty scan, so such repositories must name the package in `args`, e.g. `args: [mypkg]`. Each subcommand has its own hook id, with the subcommand already in the hook's `entry`: `pydeprecate-check`, `pydeprecate-policy`, `pydeprecate-expiry`, `pydeprecate-chains` and `pydeprecate-all`, plus `pydeprecate` as an alias of `pydeprecate-check`. Pass flags and the path through `args`, in any order — `args: [--exit-zero]` reports without blocking while you clear a backlog. Every subcommand reads `[tool.pydeprecate]`, and `expiry` and `all` also read the version from `pyproject.toml`, so to re-run the hook when only `pyproject.toml` changes, override both filters on the hook: `types: [file]` together with `files: '(\.py|(^|/)pyproject\.toml)$'`. The manifest's `types: [python]` would otherwise stay in force, and pre-commit needs a file to match every filter, so a `pyproject.toml`-only commit would skip the hook.
+
+The CLI provides six subcommands. Use `check` for wrapper config validation, `policy` to gate on your project's deprecation-governance rules, `all` to run every check in a single pass (and append a deprecation table), or `status` to generate a standalone markdown deprecation table without running any checks. See the [CLI Reference](cli.md) for full flag and exit-code documentation.
+
+```bash
+# Install CLI + audit extras (audit needed for expiry checks)
+pip install 'pyDeprecate[audit,cli]'
+
+# check — exits 1 on invalid arg mappings, misconfigured targets or inner-order properties
+pydeprecate check src/your_package
+
+# all — exits 1 on any check error, chains, or expired wrappers; appends deprecation table
+# policy violations are printed here but never change this exit code
+pydeprecate all src/your_package
+
+# policy — exits 1 if any deprecation breaks a governance rule (gate on it separately from `all`)
+pydeprecate policy src/your_package
+
+# status — standalone deprecation status table only (no checks, not a pass/fail gate)
+pydeprecate status src/your_package
+
+# Advisory-only: findings exit 0 instead of 1; usage (2) and scan/internal (3) errors still fail
+pydeprecate check src/your_package --exit-zero
+```
+
+**Exit codes** (see [CLI Reference — Exit codes](cli.md#exit-codes) for per-subcommand details):
+
+| Exit code | Meaning                                                                                                  |
+| --------- | -------------------------------------------------------------------------------------------------------- |
+| `0`       | No hard errors (or `--exit-zero` was set)                                                                |
+| `1`       | Hard error found: invalid arg mappings, chains, expired wrappers, or policy violations under `policy`    |
+| `2`       | A malformed setting: `--exclude`, or for `policy` a rule value, from a flag or from `[tool.pydeprecate]` |
+| `3`       | The audit did not run: the scanned package cannot be imported, or an internal CLI error                  |
+
+`--exit-zero` turns exit `1` into `0` and never masks `2` or `3`.
+
+## GitHub Action
+
+pyDeprecate ships a composite GitHub Action (available from `v0.15.0`) that runs the CLI as a single workflow step. Like the local pre-commit hook, it runs in the job's own Python. The scan imports your package from the checkout, so the package itself needs no install, but every module's runtime dependencies must be importable: set up Python and install them first (the simplest way is installing the project), then add the action:
+
+```yaml
+# .github/workflows/deprecations.yml
+name: Deprecations
+on: [push, pull_request]
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+      - run: pip install -e . # pulls in the runtime dependencies the scanned modules import
+
+      - name: Audit deprecations (policy advisory here)
+        uses: Borda/pyDeprecate@v0.15.0 # pin a release tag or a commit SHA
+        with:
+          path: src/mypackage
+          summary: true # add a deprecation status table to the job summary
+
+      - name: Enforce the deprecation policy
+        uses: Borda/pyDeprecate@v0.15.0
+        with:
+          subcommand: policy
+          path: src/mypackage
+          install: false # already installed by the previous step
+```
+
+| Input        | Default | Meaning                                                                                                                                                                                                                                                                                                                              |
+| ------------ | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `subcommand` | `all`   | One of `check`, `expiry`, `policy`, `chains`, `all`, `status`; any other value fails the step with exit code `2`.                                                                                                                                                                                                                    |
+| `path`       | empty   | Package directory or importable module name, relative to the workspace. Empty lets the CLI pick the single package under `src/`, else the single package at the repository root. A value starting with `-` fails the step with exit code `2`; write such a directory as `./-name` and pass CLI options through `args`.               |
+| `args`       | empty   | Extra CLI flags, split with shell-style quoting, e.g. `--exclude='mypackage.tests,*._legacy*' --version 2.0`. Backslashes are escape characters, so quote Windows paths or use `/`.                                                                                                                                                  |
+| `exit-zero`  | `false` | Report findings without failing the step (`--exit-zero`); not valid with `status`.                                                                                                                                                                                                                                                   |
+| `install`    | `true`  | Install `pyDeprecate[cli,audit]` from the action's own ref into the job's Python.                                                                                                                                                                                                                                                    |
+| `summary`    | `false` | Append the markdown deprecation status table of the gate's own scan to the job summary, read from the report the CLI writes with `--report-json`, so it covers exactly what the gate scanned however `path` and `args` name the package. Summary failures only warn and preserve the gate result. No summary on CLI exit `2` or `3`. |
+
+The step finishes with the CLI's own exit code (see the table above; `3` gets an error annotation naming a scan or internal error), with three exceptions of its own: a `path` starting with `-` exits `2`, a failed `pip install` (`install: true`) returns pip's exit code, and a CLI process that cannot be started returns `1`. A failing run adds an error annotation to the pull request's checks. The CLI has no "fail on warning" mode: advisory findings such as identity mappings never fail the step, and `exit-zero: true` turns hard errors into reports while you clear a backlog.
+
+**The `uses:` ref pins the pyDeprecate version.** With the default `install: true` the action installs pyDeprecate from the same commit as the action itself, so `@v0.15.0` audits with 0.15.0. That install replaces whatever pyDeprecate version your job already had, for every later step too, and the action warns when it does. Pin the action to the release your project depends on, or install `pyDeprecate[audit,cli]` yourself and set `install: false`. Set `install: false` as well where `pip` is unavailable, such as a uv-managed virtual environment.
+
+!!! warning "A green run can still have gaps"
+
+    A submodule that fails to import is skipped with a `UserWarning: audit: skipped <module>`, and `expiry` (also inside `all`) skips removal deadlines when it cannot detect your package version. The step still passes in both cases, but the action reads the gaps the CLI records in its `--report-json` report (recorded even when your package silences warnings) and raises a warning annotation for each kind of gap, so check the annotations whenever you change how the job installs your package. Pass `args: --version 2.0` when your version is not detectable from the installed package or `pyproject.toml`.
+
+The action imports your package and runs its import-time code, exactly like the CLI. Do not run it under `pull_request_target` on a checkout of the pull request's head, where untrusted code would run with the base repository's secrets and write token. Workflow commands printed during the scan are ignored, but only while the CLI process runs: output from descendant processes that keep running after the CLI exits is not fenced by `stop-commands`. This is not a sandbox either: import-time code runs with the job's environment and can still write to the files behind `GITHUB_ENV`, `GITHUB_PATH` and `GITHUB_OUTPUT`.
+
+## Testing Deprecated Code
+
+pyDeprecate ships `assert_no_warnings`, a context manager that fails if a specified warning category is raised inside the block. Use it alongside `pytest.warns` to write precise tests that verify both the presence and absence of deprecation notices.
+
+`num_warns` (default `1`) controls how many times the deprecation message fires per function lifetime. The first test below verifies the message appears; the third verifies it stops on subsequent calls, which is the default behaviour.
+
+```python
+from deprecate import deprecated, assert_no_warnings, void
+import pytest
+
+
+# NEW API — doubles the input value
+def score_predictions(x: int) -> int:
+    return x * 2
+
+
+# DEPRECATED API — `score` replaced by `score_predictions`
+@deprecated(target=score_predictions, deprecated_in="1.0", remove_in="2.0")
+def score(x: int) -> int:
+    pass
+
+
+# DEPRECATED API — `score_v2` replaced by `score_predictions`
+@deprecated(target=score_predictions, deprecated_in="1.0", remove_in="2.0")
+def score_v2(x: int) -> int:
+    return void(x)
+
+
+def test_deprecated_function_shows_warning():
+    """Verify the deprecation warning is shown."""
+    with pytest.warns(FutureWarning, match="score.*deprecated"):
+        result = score(42)
+    assert result == 84
+
+
+def test_new_function_no_warning():
+    """Verify new function doesn't trigger warnings."""
+    with assert_no_warnings(FutureWarning):
+        result = score_predictions(42)
+    assert result == 84
+
+
+def test_no_warning_after_first_call():
+    """By default, warnings are shown only once per function."""
+    # First call shows warning
+    with pytest.warns(FutureWarning):
+        score_v2(1)
+
+    # Subsequent calls don't show warning (by default num_warns=1)
+    with assert_no_warnings(FutureWarning):
+        score_v2(2)
+
+
+# call the tests for CI demonstration/validation
+test_deprecated_function_shows_warning()
+test_new_function_no_warning()
+test_no_warning_after_first_call()
+```
+
+When a deprecation must be impossible to miss, set `num_warns=-1` to fire on every call. Use `num_warns=N` for exactly N times — useful for integration tests that need to verify the emit count precisely.
+
+```python
+# Minimal replacement implementation used in examples
+def score_predictions(x: int) -> int:
+    return x * 2
+
+
+# ---------------------------
+
+from deprecate import deprecated
+
+
+# Show warning every time (useful for critical deprecations)
+@deprecated(target=score_predictions, deprecated_in="1.0", remove_in="2.0", num_warns=-1)
+def predict(x: int) -> int:
+    pass
+
+
+# Show warning N times total
+@deprecated(target=score_predictions, deprecated_in="1.0", remove_in="2.0", num_warns=5)
+def predict_batch(x: int) -> int:
+    pass
+
+
+print(predict_batch(1))
+```
+
+<details>
+  <summary>Output: <code>predict_batch(1)</code></summary>
+
+```
+2
+```
+
+</details>
+
+### Suppressing warnings in test fixtures
+
+When you call deprecated functions in test setup code (fixtures, factory helpers, shared utilities), the first call still emits its `FutureWarning` (default `num_warns=1`; subsequent calls are silent). To keep pytest output clean while still exercising the call-forwarding path, suppress the specific message once — at the test-session level — via pytest's `filterwarnings` configuration in `pyproject.toml`:
+
+```toml
+[tool.pytest.ini_options]
+filterwarnings = [
+    'ignore:The `create_session` was deprecated:FutureWarning',
+]
+```
+
+or the equivalent runtime filter in `conftest.py`:
+
+```python
+# phmdoctest:skip — pytest conftest.py configuration snippet, not a runnable example
+import warnings
+
+warnings.filterwarnings("ignore", message="The `create_session` was deprecated", category=FutureWarning)
+```
+
+Scope the filter to the specific deprecation message rather than ignoring the whole `FutureWarning` category, so unrelated deprecations from your dependencies still surface.
+
+```python
+from deprecate import deprecated, assert_no_warnings, void
+
+
+# NEW API — creates a session dict with host and timeout
+def new_create_session(host: str, timeout: int = 30) -> dict:
+    return {"host": host, "timeout": timeout}
+
+
+# DEPRECATED API — `create_session` replaced by `new_create_session`
+@deprecated(target=new_create_session, deprecated_in="1.0", remove_in="2.0")
+def create_session(host: str, timeout: int = 30) -> dict:
+    return void(host, timeout)
+
+
+def make_test_session(host: str = "localhost") -> dict:
+    """Test fixture helper — calls deprecated API."""
+    return create_session(host, timeout=5)  # warns: FutureWarning
+
+
+# The first call emits one FutureWarning (suppressed in pytest by the filter above):
+session = make_test_session()
+print(session)
+
+# Meanwhile, assert_no_warnings verifies NEW code is clean:
+with assert_no_warnings(FutureWarning):
+    clean_session = new_create_session("prod.example.com")
+print(clean_session)
+```
+
+<details>
+  <summary>Output: <code>new_create_session("prod.example.com")</code></summary>
+
+```
+{'host': 'localhost', 'timeout': 5}
+{'host': 'prod.example.com', 'timeout': 30}
+```
+
+</details>
+
+### Choosing the right testing tool
+
+| Tool                                                       | Use when...                                                 | Behaviour                                              |
+| ---------------------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------ |
+| `pytest.warns(FutureWarning)`                              | Testing that a deprecated function DOES warn on first call  | Fails if no matching warning is raised                 |
+| `assert_no_warnings(FutureWarning)`                        | Testing that new code or subsequent calls do NOT warn       | Fails if a matching warning IS raised                  |
+| `assert_no_warnings(FutureWarning, match="pattern")`       | Testing that a specific warning message is absent           | Only fails if a warning matching the pattern is raised |
+| `filterwarnings` config (`pyproject.toml` / `conftest.py`) | Calling deprecated code in fixtures/setup without assertion | Silently suppresses matching warnings; never fails     |
+
+The `match` parameter on `assert_no_warnings` accepts a substring — it filters captured warnings by message content, so you can assert absence of a specific deprecation while allowing unrelated warnings through.
+
+## Generating Deprecation Tables
+
+`generate_deprecation_table()` renders discovered wrapper metadata as a Markdown table suitable for embedding in your project documentation. It supports two `style=` options:
+
+- `"compact"` (default) — one row per symbol with a **Current Status** column (`📢 Deprecation Active`, `💥 Past Removal Date`, `ℹ️ No Removal Target`, etc.)
+- `"matrix"` — one column per version with `D` (deprecated) and `R` (remove) markers
+
+**Compact style** — one row per symbol with a lifecycle status column:
+
+```python
+from tests.collections.api_deprecated import core as my_package
+from deprecate import generate_deprecation_table
+
+report = generate_deprecation_table(my_package, current_version="1.5", recursive=False)
+```
+
+> **Current version: 1.5**
+>
+> | Original API                                | API Type          | New API                               | Deprecated | Remove | Current Status           |
+> | :------------------------------------------ | :---------------- | :------------------------------------ | :--------: | :----: | :----------------------- |
+> | `my_package.CrossGuardOldClass.__init__`    | class constructor | `my_package.CrossGuardClassTargetNew` |    v1.0    |  v2.0  | 📢 Deprecation Active    |
+> | `my_package.DecoratedDataClass`             | dataclass         | `my_package.NewDataClass`             |    v0.5    |  v1.0  | 💥 Past Removal Date     |
+> | `my_package.ServiceCls.old_class_method`    | classmethod       | `—`                                   |    v1.0    |  v2.0  | 📢 Deprecation Active    |
+> | `my_package.ServiceCls.old_redirect_method` | class method      | `my_package.ServiceCls.compute`       |    v1.0    |  v2.0  | 📢 Deprecation Active    |
+> | `my_package.depr_func_no_remove_in`         | callable          | `—`                                   |    v1.0    |   —    | ℹ️ No Removal Target     |
+> | `my_package.depr_func_same_version`         | callable          | `—`                                   |    v2.0    |  v3.0  | 🕒 Scheduled Deprecation |
+> | `my_package.depr_pow_args`                  | callable          | `my_package.base_pow_args`            |    v1.0    |  v1.3  | 💥 Past Removal Date     |
+> | `my_package.decorated_sum`                  | callable          | `my_package.base_sum_kwargs`          |    v0.1    |  v0.5  | 💥 Past Removal Date     |
+
+**Matrix style** — one column per version with `D` (deprecated) and `R` (remove) lifecycle markers:
+
+```python
+from tests.collections.api_deprecated import core as my_package
+from deprecate import generate_deprecation_table
+
+matrix = generate_deprecation_table(my_package, current_version="1.5", recursive=False, style="matrix")
+```
+
+> **Current version: 1.5**
+>
+> | Original API                                | API Type          | New API                               | v0.1 | v0.5 | v1.0 | v1.3 | v2.0 |
+> | :------------------------------------------ | :---------------- | :------------------------------------ | :--: | :--: | :--: | :--: | :--: |
+> | `my_package.CrossGuardOldClass.__init__`    | class constructor | `my_package.CrossGuardClassTargetNew` |      |      |  D   |      |  R   |
+> | `my_package.DecoratedDataClass`             | dataclass         | `my_package.NewDataClass`             |      |  D   |      |      |      |
+> | `my_package.ServiceCls.old_redirect_method` | class method      | `my_package.ServiceCls.compute`       |      |      |  D   |      |  R   |
+> | `my_package.depr_func_no_remove_in`         | callable          | `—`                                   |      |      |  D   |      |      |
+> | `my_package.depr_pow_args`                  | callable          | `my_package.base_pow_args`            |      |      |  D   |  R   |      |
+> | `my_package.decorated_sum`                  | callable          | `my_package.base_sum_kwargs`          |  D   |      |      |      |      |
+
+The table derives all data from `__deprecation_config__` decorator metadata so it stays in sync with the code automatically. Install the `audit` extra (`pip install pyDeprecate[audit]`) to enable lifecycle status evaluation.
+
+## See also
+
+- [Use Cases](use-cases.md) — deprecation patterns and scenarios that audit tools validate against
+- [Getting Started](../getting-started.md) — decorator API reference for `deprecated_in` and `remove_in` parameters
+- [Troubleshooting](../troubleshooting.md) — common decorator configuration errors and how to fix them
+
+______________________________________________________________________
+
+Next: [Troubleshooting](../troubleshooting.md) — common errors and how to fix them.
