@@ -5,7 +5,7 @@ import sys
 from collections.abc import Callable, Iterator
 from contextlib import AbstractContextManager
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 
@@ -476,7 +476,7 @@ class TestCmdExpiry:
     def test_version_passed_through(self, mock_check: MagicMock, mock_scan: MagicMock) -> None:
         """An explicit version is the one the scanned wrappers are compared against."""
         cmd_expiry(path="some_module", version="3.0")
-        mock_check.assert_called_once_with([], "3.0")
+        mock_check.assert_called_once_with([], "3.0", on_unparsable=ANY)
 
     @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
     @patch("deprecate._cli.commands._expiry_findings", return_value=[])
@@ -536,8 +536,9 @@ class TestCmdExpiry:
     def test_unparsable_remove_in_keeps_expired_exit_code(self) -> None:
         """An unparsable ``remove_in`` on one wrapper does not hide a genuinely expired wrapper beside it.
 
-        The gap is advisory and is recorded after the expiry check ran, so a package that mixes a mistyped deadline
-        with an overdue one still fails the gate for the overdue wrapper, exactly as it did before the gap existed.
+        The gap is advisory and is recorded as the expiry check skips the wrapper, so a package that mixes a mistyped
+        deadline with an overdue one still fails the gate for the overdue wrapper, exactly as it did before the gap
+        existed.
         """
         typo = DeprecationWrapperInfo(
             module="mod",

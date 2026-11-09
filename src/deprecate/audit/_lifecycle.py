@@ -12,7 +12,7 @@ import enum
 import importlib
 import re
 import warnings
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any, Optional, Union
 
 if TYPE_CHECKING:
@@ -241,10 +241,21 @@ def _check_expiry_for_callables(results: list[DeprecationWrapperInfo], current_v
     return [finding.message for finding in _expiry_findings(results, current_version)]
 
 
-def _expiry_findings(results: list[DeprecationWrapperInfo], current_version: str) -> list[_Finding]:
+def _expiry_findings(
+    results: list[DeprecationWrapperInfo],
+    current_version: str,
+    *,
+    on_unparsable: Optional[Callable[[DeprecationWrapperInfo], None]] = None,
+) -> list[_Finding]:
     """Return one ``expired`` finding per wrapper whose ``remove_in`` is at or before *current_version*.
 
     A wrapper with an unparsable ``remove_in`` is skipped with a warning, so one typo never aborts the batch.
+
+    Args:
+        results: Pre-scanned wrapper info list.
+        current_version: Current package version string for comparison (PEP 440).
+        on_unparsable: Called with each wrapper skipped for an unparsable ``remove_in``, after its warning, so a
+            caller can record the skip on a channel the audited package cannot silence (the CLI records a gap).
 
     Raises:
         ImportError: If the ``packaging`` library is not installed.
@@ -268,6 +279,8 @@ def _expiry_findings(results: list[DeprecationWrapperInfo], current_version: str
                 "its expiry cannot be checked until the version string is fixed.",
                 stacklevel=_caller_stacklevel(),
             )
+            if on_unparsable is not None:
+                on_unparsable(info)
             continue
         if current_ver >= remove_ver:
             message = (
