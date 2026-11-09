@@ -1,5 +1,18 @@
 # Changelog
 
+## [UnReleased] - 2026-MM-DD
+
+### Added
+
+- **`deprecated_instance` accepts keyword-only `target`, `args_mapping` and `attrs_mapping`.** The old name can now serve a replacement object, rename keyword arguments when the object is called, and deprecate selected attributes, as `deprecated_class` does. ([#263](https://github.com/Borda/pyDeprecate/pull/263))
+
+### Changed
+
+- **`args_mapping` / `args_extra` on a non-callable object emit `UserWarning` and mark the config misconfigured.** The mapping is inert at runtime and audit reports the proxy with `misconfigured=True`. ([#263](https://github.com/Borda/pyDeprecate/pull/263))
+- **Misconfiguration warnings name the factory.** The message says whether `deprecated_instance` or `deprecated_class` was called. ([#263](https://github.com/Borda/pyDeprecate/pull/263))
+- **`copy.copy` of a proxy shallow-copies a plain data replacement.** Top-level writes through the copy no longer reach the shared replacement; nested mutable values stay shared. ([#263](https://github.com/Borda/pyDeprecate/pull/263))
+- **Audit treats a deprecated proxy target as a `TARGET` chain and reports data targets by type.** ([#263](https://github.com/Borda/pyDeprecate/pull/263))
+
 ## [0.15.0] — 2026-11-09 — Scoped fatal deprecations, a dependency-free CLI, & CI integrations
 
 ### Added

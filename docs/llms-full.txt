@@ -146,11 +146,15 @@ NEW_VALUE = object()
 # name= sets the display name in the warning; without it the type name of the wrapped object is used
 OLD_VALUE = deprecated_instance(NEW_VALUE, name="OLD_VALUE", deprecated_in="1.0", remove_in="2.0")
 
+# NEW/FUTURE API — the settings that replaced `OLD_SETTINGS`
+NEW_SETTINGS = {"timeout": 30}
+
+# DEPRECATED API — `OLD_SETTINGS` replaced by `NEW_SETTINGS`
 # the old name keeps its own object but serves the replacement's values (since 0.16)
 OLD_SETTINGS = deprecated_instance(
     {"timeout": 10},
     name="OLD_SETTINGS",
-    target={"timeout": 30},
+    target=NEW_SETTINGS,
     message_template="`%(source_name)s` is deprecated; use `NEW_SETTINGS` instead.",
     deprecated_in="1.0",
     remove_in="2.0",

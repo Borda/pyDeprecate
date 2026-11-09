@@ -316,7 +316,7 @@ def deprecated(
         # every warning measures its own location (``_caller_stacklevel``).
         if inspect.isclass(source):
             # ``ATTRS_REMAP`` needs ``attrs_mapping`` to have any effect, but the front door does not expose
-            # that class-only knob (it raises ``TypeError`` as an unexpected kwarg). The mode is therefore
+            # that proxy-only knob (it raises ``TypeError`` as an unexpected kwarg). The mode is therefore
             # unreachable here for any source — reject it loudly instead of building a no-op proxy. The
             # callable path already rejects it via the proxy-only guard in ``deprecated_callable``.
             if target is TargetMode.ATTRS_REMAP:
