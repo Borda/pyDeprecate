@@ -317,8 +317,8 @@ class _DeprecatedProxy:
         Every construction path (:func:`~deprecate.proxy.deprecated_instance`,
         :func:`~deprecate.proxy.deprecated_class`, direct ``_DeprecatedProxy(obj=..., spec=...)``) passes through here,
         so no proxy can claim a protocol its wrapped object lacks. Called without a source — ``cls.__new__(cls)`` in
-        :meth:`__deepcopy__` and :func:`_reconstruct_proxy` — it allocates *cls* itself, which those paths have already
-        selected.
+        :meth:`__deepcopy__` and :func:`_reconstruct_proxy` — it allocates *cls* itself, which those paths have
+        already selected.
 
         The protocol set is decided once, here, from the types as they are at construction: a dunder the wrapped type
         gains afterwards (a monkeypatched ``__call__``, a magic method set on a ``Mock`` after wrapping) is not served
@@ -1194,8 +1194,8 @@ class _DeprecatedProxy:
         :meth:`__deepcopy__` already avoids.  :func:`copy.copy` returns a function unchanged, so a function replacement
         stays shared; a replacement that is itself a deprecation proxy is copied like any other proxy, so from then on
         it keeps its own warning counters, snapshotted at copy time.  A replacement that cannot be copied (a module, a
-        generator, a :class:`threading.Lock`) is shared with the original instead, so copying the proxy never fails
-        because of its replacement.
+        generator, a :class:`threading.Lock`, or an object whose own ``__copy__`` raises) is shared with the original
+        instead, so copying the proxy never fails because of its replacement.
 
         """
         cfg = self._cfg
@@ -1203,8 +1203,9 @@ class _DeprecatedProxy:
         new_cfg = replace(cfg, obj=copy.copy(cfg.obj), state=copy.copy(cfg.state))
         target = dep.target
         if target is not None and not isinstance(target, (type, TargetMode)):
-            # ``copy.copy`` reports an uncopyable object as ``TypeError`` ("cannot pickle ...") or ``copy.Error``.
-            with contextlib.suppress(TypeError, copy.Error):
+            # ``copy.copy`` reports an uncopyable object as ``TypeError`` ("cannot pickle ...") or ``copy.Error``, and
+            # an object's own ``__copy__`` may raise anything, so any error falls back to sharing the replacement.
+            with contextlib.suppress(Exception):
                 dep = replace(dep, target=copy.copy(target))
         doc = object.__getattribute__(self, "__dict__").get("__doc__")
         return _reconstruct_proxy(new_cfg, dep, doc, self._pep702_marker_state())
@@ -1301,8 +1302,8 @@ class _DeprecatedProxy:
         a concrete type is reached. Defensive cycle guard breaks the loop on the unlikely case of a circular stack so
         this dunder never blocks.
 
-        Raises ``TypeError`` (mirroring the builtin) when the active object is an instance rather than a type — using an
-        *instance* proxy as the second argument to ``isinstance`` is a misuse. Returns ``False`` only on a circular
+        Raises ``TypeError`` (mirroring the builtin) when the active object is an instance rather than a type — using
+        an *instance* proxy as the second argument to ``isinstance`` is a misuse. Returns ``False`` only on a circular
         proxy stack.
 
         """

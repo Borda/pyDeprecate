@@ -286,6 +286,27 @@ class TestArgsRemapUntouchedCall:
         assert (tuple(result), caught) == ((1, {"x": 99}), [])
 
 
+class TestCallableTargetPositionalOnlyBridge:
+    """A callable-target ``args_mapping`` proxy bridges old keyword calls onto positional-only replacement params."""
+
+    def test_keyword_reaches_positional_only_slot(self) -> None:
+        """``alias(a=5)`` returns ``(5, 0)`` although the replacement takes ``a`` positional-only.
+
+        The old callable accepted ``a`` by keyword and its replacement declares ``a`` positional-only, so calling the
+        replacement directly as ``f(a=5)`` raises ``TypeError``. The alias exists to keep old call sites working: it
+        forwards the keyword into the positional slot, the same bridge ``@deprecated(target=...)`` applies to a call
+        that uses no deprecated argument, and still warns that the old callable is deprecated.
+
+        """
+        with pytest.warns(UserWarning, match=r"remaps \['old_a'\] to POSITIONAL_ONLY"):
+            alias = deprecated_instance(
+                _positional_default_echo, target=_positional_pair, args_mapping={"old_a": "a"}, **_DEPRS_CASE_STD_ARGS
+            )
+        with pytest.warns(FutureWarning):
+            result = alias(a=5)
+        assert result == (5, 0)
+
+
 class TestArgsMappingPositionalDuplicate:
     """A positional argument wins over a deprecated keyword renamed onto the same positional-only parameter."""
 

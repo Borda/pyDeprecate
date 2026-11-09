@@ -880,6 +880,14 @@ class _CallCounter:
         return self.calls
 
 
+class _CopyRefusingSettings:
+    """Replacement object whose own ``__copy__`` refuses with an error other than ``TypeError``."""
+
+    def __copy__(self) -> "_CopyRefusingSettings":
+        """Refuse the copy the way a resource-holding object guarding its handle might."""
+        raise RuntimeError("settings hold a live handle and cannot be copied")
+
+
 class TestProxyCopyPickle:
     """``copy.copy`` / ``copy.deepcopy`` / pickle round-trips reconstruct the proxy.
 
@@ -945,14 +953,19 @@ class TestProxyCopyPickle:
                 lambda: deprecated_instance({}, target=threading.Lock(), **_DEPRS_CASE_STD_ARGS, stream=None),
                 id="lock-target",
             ),
+            pytest.param(
+                lambda: deprecated_instance({}, target=_CopyRefusingSettings(), **_DEPRS_CASE_STD_ARGS, stream=None),
+                id="copy-raising-target",
+            ),
         ],
     )
     def test_copy_shares_uncopyable_replacement(self, build_alias: Callable[[], Any]) -> None:
         """A shallow copy of an alias whose replacement cannot be copied shares that replacement instead of failing.
 
-        Modules, generators and locks refuse ``copy.copy``. Snapshotting a namespace or a settings holder that contains
-        such an alias with ``copy.copy`` must still give a working proxy, so the copy falls back to serving the same
-        replacement object as the original.
+        Modules, generators and locks refuse ``copy.copy``, and an object may refuse in its own ``__copy__`` with any
+        error, such as a ``RuntimeError`` guarding a live handle. Snapshotting a namespace or a settings holder that
+        contains such an alias with ``copy.copy`` must still give a working proxy, so the copy falls back to serving
+        the same replacement object as the original.
 
         """
         proxy = build_alias()

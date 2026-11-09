@@ -120,12 +120,6 @@ class DeprecationConfig:
             by the proxy call path (see :attr:`target_positional_only`).  Empty tuple when all
             remapped targets are kwarg-accessible.  Populated at decoration time; surfaced by
             :func:`~deprecate.audit.validate_mapping_compatibility`.
-        call_options_inert: ``True`` when a proxy sets ``args_mapping`` or ``args_extra`` although the object it
-            serves (the replacement when one is set) is not callable, so the call-time options can never apply.
-            Always set together with :attr:`misconfigured`, but kept apart from it so audit tools can tell an inert
-            ``args_mapping`` from one that still renames arguments next to an unrelated misconfiguration (an empty
-            ``attrs_mapping``, the legacy ``target=False``).  Populated at decoration time by the proxy factories;
-            ``False`` everywhere else.
         target_positional_only: Names of POSITIONAL_ONLY parameters on the forwarding target callable
             used with :func:`~deprecate.deprecated`, including ``self`` and ``cls`` when they are
             declared positional-only.  Non-empty when a ``@deprecated(target=fn)`` call found ``fn``
@@ -174,6 +168,13 @@ class DeprecationConfig:
         target_accepts_var_keyword: ``True`` when the forwarding target declares ``**kwargs``.  Pre-computed
             decoration-time replacement for the per-call ``inspect.getfullargspec`` probe.  Internal cache —
             excluded from ``repr`` and equality.  Internal; removed from ``DeprecationConfig`` in v1.0.
+        call_options_inert: ``True`` when a proxy sets ``args_mapping`` or ``args_extra`` although the object it
+            serves (the replacement when one is set) is not callable, so the call-time options can never apply.
+            Always set together with :attr:`misconfigured`, but kept apart from it so audit tools can tell an inert
+            ``args_mapping`` from one that still renames arguments next to an unrelated misconfiguration (an empty
+            ``attrs_mapping``, the legacy ``target=False``).  Populated at decoration time by the proxy factories;
+            ``False`` everywhere else.  Declared last so adding it left the positional order of earlier fields as
+            released.
 
     Note:
         ``@dataclass(frozen=True)`` blocks attribute *rebinding* on the config object itself, but the
@@ -196,7 +197,6 @@ class DeprecationConfig:
     as_exception: Optional[bool] = None
     args_mapping_auto_expanded: tuple[str, ...] = field(default_factory=tuple)
     args_mapping_positional_only: tuple[str, ...] = field(default_factory=tuple)
-    call_options_inert: bool = False
     target_positional_only: frozenset[str] = field(default_factory=frozenset)
     target_positional_only_order: tuple[str, ...] = field(default_factory=tuple, repr=False)
     source_positional_only: frozenset[str] = field(default_factory=frozenset)
@@ -205,6 +205,8 @@ class DeprecationConfig:
     target_all_param_names: Optional[frozenset[str]] = field(default=None, repr=False, compare=False)
     target_accepts_var_positional: bool = field(default=False, repr=False, compare=False)
     target_accepts_var_keyword: bool = field(default=False, repr=False, compare=False)
+    # Appended last so the positional order of every earlier field stays as released.
+    call_options_inert: bool = False
 
     @property
     def template_mgs(self) -> Optional[str]:
