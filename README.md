@@ -1726,9 +1726,10 @@ If you want docs-friendly summaries, `generate_deprecation_table()` renders the 
 It supports two styles via `style=`:
 
 - `compact` (default): `Original API | API Type | New API | Deprecated | Remove | Current Status`
-- `matrix`: `Original API | API Type | New API | <all versions ...>` with one column per release (`1.0`, `v1.0` and `1.0.0` share a column) and lifecycle markers:
+- `matrix`: `Original API | API Type | New API | <all versions ...>` with one column per release (`1.0`, `v1.0` and `1.0.0` share a column with the `audit` extra installed; without `packaging` only spellings that differ by the `v` prefix merge) and lifecycle markers:
   - `D` = deprecated in this version
   - `R` = remove in this version
+  - `D/R` = deprecated and removed in the same version
 - rows are ordered by module and symbol family (class/function), so related `args` variants stay grouped together
 
 The **Current Status** column uses these labels:

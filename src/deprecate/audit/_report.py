@@ -186,7 +186,10 @@ def generate_deprecation_table(
         style: Table format — ``"compact"`` or ``"matrix"``.
             - ``"compact"``: ``Original API | API Type | New API | Deprecated | Remove | Current Status``
             - ``"matrix"``: ``Original API | API Type | New API | <all versions...>``, with markers
-              ``D`` (deprecated) and ``R`` (remove) in version columns.
+              ``D`` (deprecated) and ``R`` (remove) in version columns; ``D/R`` marks a release that is both
+              deprecated and removed. There is one column per release: spellings such as ``1.0``, ``v1.0`` and
+              ``1.0.0`` merge into one column when ``packaging`` is installed, and without it only the ``v``
+              prefix is ignored.
         include_members: If True (default), include deprecated class members (methods, constructors).
         exclude: Glob patterns over full dotted module names to leave out of the scan, as in
             :func:`~deprecate.audit.find_deprecation_wrappers` (e.g. ``["my_package.tests"]``); ``None`` excludes

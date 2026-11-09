@@ -330,6 +330,16 @@ def validate_deprecation_expiry(
         List of error messages for callables that have expired (past their removal deadline).
         Empty list if all deprecated callables are still within their deprecation period.
 
+    Raises:
+        ImportError: If ``packaging`` is not installed, or if ``current_version`` is ``None`` and no version can be
+            resolved for the package. A string module path that cannot be imported raises ``ModuleNotFoundError``
+            (an ``ImportError`` subclass).
+        ValueError: If ``current_version`` is not a valid PEP 440 version, if ``module`` is an empty string, or if
+            ``current_version`` is ``None`` and ``module`` is an object without a ``__name__``.
+        Exception: Any other error raised by the import-time code of a string module path (for example a
+            ``RuntimeError``) propagates unchanged, with or without ``current_version``. With ``current_version=None``
+            the import runs before the version lookup, so this error is reported instead of a missing version.
+
     Example:
         >>> # Check a specific module with version before any deadlines
         >>> from deprecate import validate_deprecation_expiry

@@ -124,7 +124,7 @@ pydeprecate status tests --version 1.2
     pydeprecate status path/to/your/package --version 2.0.0 --output DEPRECATIONS.md
     ```
 
-    `--style compact` (default) renders one row per symbol with a status column; `--style matrix` renders one column per release with `D`/`R` lifecycle markers. `--output FILE` writes the table to a file in addition to printing it to stdout.
+    `--style compact` (default) renders one row per symbol with a status column; `--style matrix` renders one column per release with `D`, `R` and `D/R` (deprecated and removed in the same release) lifecycle markers (spellings of one release such as `1.0`, `v1.0` and `1.0.0` share a column with the `audit` extra installed; without `packaging` only spellings that differ by the `v` prefix merge). `--output FILE` writes the table to a file in addition to printing it to stdout.
 
 ## Flags
 
