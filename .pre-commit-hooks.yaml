@@ -7,6 +7,9 @@
 # which otherwise fails loudly: `args: [mypkg]`.
 # The scan imports the scanned package, so this isolated hook environment only works for packages whose imports
 # resolve without their own runtime dependencies; see the "Pre-commit Integration" section of docs/guide/audit.md.
+# The `-static` hooks read the source with `ast` instead and import nothing from the package, so they work for any
+# package; they cover `expiry` and `policy` only, and a wrapper they cannot read from source alone is printed as a
+# `not statically resolvable` gap without failing the hook. `args: [--static]` on the base hook does the same.
 # Settings repeated on every hook:
 # - `pass_filenames: false`, `types: [python]`, `require_serial: true`: the CLI scans importable
 #   packages/directories, never individual files, so run once on the whole project when any Python file changes
@@ -40,6 +43,28 @@
   name: pydeprecate expiry
   description: Flag `@deprecated` wrappers that have passed their scheduled removal version.
   entry: pydeprecate expiry
+  language: python
+  args: []
+  pass_filenames: false
+  types: [python]
+  require_serial: true
+  additional_dependencies: ["pyDeprecate[cli,audit]"]
+
+- id: pydeprecate-policy-static
+  name: pydeprecate policy (static)
+  description: Check `@deprecated` wrappers against the policy rules, reading the source without importing the package.
+  entry: pydeprecate policy --static
+  language: python
+  args: []
+  pass_filenames: false
+  types: [python]
+  require_serial: true
+  additional_dependencies: ["pyDeprecate[cli,audit]"]
+
+- id: pydeprecate-expiry-static
+  name: pydeprecate expiry (static)
+  description: Flag `@deprecated` wrappers past their removal version, reading the source without importing the package.
+  entry: pydeprecate expiry --static
   language: python
   args: []
   pass_filenames: false

@@ -141,8 +141,10 @@ class TestCliCommand:
         ("name", "expected"),
         [
             pytest.param("check", {"exit_zero", "include_members", "recursive"}, id="check"),
-            pytest.param("expiry", {"exit_zero", "include_members", "recursive"}, id="expiry"),
-            pytest.param("policy", {"exit_zero", "include_members", "message_required", "recursive"}, id="policy"),
+            pytest.param("expiry", {"exit_zero", "include_members", "recursive", "static"}, id="expiry"),
+            pytest.param(
+                "policy", {"exit_zero", "include_members", "message_required", "recursive", "static"}, id="policy"
+            ),
             pytest.param("chains", {"exit_zero", "include_members", "recursive"}, id="chains"),
             pytest.param("all", {"exit_zero", "include_members", "recursive"}, id="all"),
             pytest.param("status", {"include_members", "recursive"}, id="status"),

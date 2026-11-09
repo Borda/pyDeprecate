@@ -23,6 +23,7 @@ from unittest import mock
 import pytest
 import yaml
 
+from deprecate._cli import argv as cli_argv
 from deprecate._cli import commands as cli_commands
 from deprecate._cli import report as cli_report
 
@@ -1482,3 +1483,18 @@ class TestActionMetadata:
         hooks = yaml.safe_load(_HOOKS_YAML.read_text(encoding="utf-8"))
         hook_requirements = {dep for hook in hooks for dep in hook["additional_dependencies"]}
         assert hook_requirements == {f"pyDeprecate[{','.join(action_runner.INSTALL_EXTRAS)}]"}
+
+    @pytest.mark.parametrize(
+        "hook", [pytest.param(hook, id=hook["id"]) for hook in yaml.safe_load(_HOOKS_YAML.read_text(encoding="utf-8"))]
+    )
+    def test_precommit_hook_entry_is_a_cli_command(self, hook: dict[str, Any]) -> None:
+        """Every hook's ``entry`` is a command line the CLI accepts, naming the subcommand the hook id promises.
+
+        A hook whose entry the parser rejected (a flag on a subcommand that lacks it, such as ``--static`` on
+        ``check``) would fail every pre-commit run of every project that enabled it, with a usage error.
+        """
+        program, subcommand, *flags = shlex.split(hook["entry"])
+        parsed = cli_argv._parse_cli_args([subcommand, *flags])
+        assert parsed is not None
+        assert (program, parsed[0].function.__name__) == ("pydeprecate", f"cmd_{subcommand}")
+        assert hook["id"].removeprefix("pydeprecate-").split("-")[0] in (subcommand, "pydeprecate")

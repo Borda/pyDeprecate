@@ -2175,8 +2175,15 @@ Two fixes:
 
 - Run a local hook (`repo: local`, `language: system`, `entry: pydeprecate check`) so the scan uses your development environment — the recommended setup for any package with runtime dependencies.
 - Keep the remote hook and list your dependencies in `additional_dependencies`. The list replaces the hook's own, so start it with the hook's `"pyDeprecate[cli,audit]"` entry (pyDeprecate's `cli` and `audit` extras, which pip resolves to the hook's own checkout) and then append yours — without the `audit` extra, `packaging` is missing, so `expiry` and the `min-grace` policy rule are skipped with a warning instead of failing, and without `tomli` on Python 3.9–3.10 `[tool.pydeprecate]` settings are ignored.
+- For removal deadlines and policy rules only, use the import-free `pydeprecate-expiry-static` and `pydeprecate-policy-static` hooks, which need none of your dependencies (from `v0.16.0`).
 
 Both recipes are in the [audit guide](guide/audit.md#pre-commit-integration).
+
+______________________________________________________________________
+
+## Can pydeprecate audit a package whose dependencies are not installed?
+
+Yes, for removal deadlines and policy rules: `pydeprecate expiry --static` and `pydeprecate policy --static` (from `v0.16.0`; the `pydeprecate-expiry-static` and `pydeprecate-policy-static` pre-commit hooks) read your source with `ast` and import nothing from your package, so its dependencies, and even its own import-time code, never run. Every wrapper whose `deprecated_in`, `remove_in`, `target` and `message_template` the source spells as literals (or as module-level names bound once to literals, or a splatted module-level dict literal) is checked exactly as an import-mode run would check it. Anything the source alone does not settle is printed as a `pydeprecate gap: not statically resolvable: <file>:<line>: <reason>` line and does not change the exit code, so read those lines and spell the settings literally where you want them gated. `check`, `chains`, `all` and `status` need the imported wrappers and have no static mode. See [Static mode](guide/cli.md#static-mode).
 
 ______________________________________________________________________
 

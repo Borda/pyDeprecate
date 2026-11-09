@@ -14,6 +14,7 @@ from typing import Optional
 from deprecate._cli._pkg import _safe_module_name, _select_child_package
 from deprecate._cli.config import _Config, _ConfigFlag, _resolve_exclude, _source_label
 from deprecate._cli.report import _GapKind, _print, _print_gap, _record_scan, _ScanRecord
+from deprecate._cli.static import _locate_static, _read_static
 from deprecate.audit import DeprecationWrapperInfo, find_deprecation_wrappers
 from deprecate.audit._scan import _is_excluded
 from deprecate.audit._version import _is_package_dir, _managed_sys_path, _resolve_package_version
@@ -258,6 +259,7 @@ def _scan_for_command(
     version_explicit: bool = False,
     resolve_version: bool = False,
     record: bool = True,
+    static: bool = False,
 ) -> Optional[_ScanRecord]:
     """Run the scan prologue shared by every subcommand and return what it scanned.
 
@@ -278,6 +280,8 @@ def _scan_for_command(
         resolve_version: Auto-detect a missing *version* — for the subcommands that compare against one.
         record: Keep the scan for ``--report-json``. ``all`` and ``status`` turn it off: they record the table they
             render instead, so a table that failed to render is not rebuilt from the scan for the report.
+        static: Read the source with ``ast`` instead of importing it (``--static``): nothing from the scanned package is
+            imported or executed, the version included (:func:`_static_scan`).
 
     Returns:
         The recorded scan, or ``None`` after printing a usage error (the caller exits 2).
@@ -295,16 +299,46 @@ def _scan_for_command(
         # `./typo` or `.pkg` is no path and no module name; importing it would fail as a relative import
         _print(f"No such path or importable module: {path!r}", stderr=True)
         return None
+    run = _static_scan if static else _import_scan
+    return run(
+        path,
+        package_dir,
+        recursive=recursive,
+        include_members=include_members,
+        exclude=resolved_exclude,
+        version=version,
+        version_explicit=version_explicit,
+        resolve_version=resolve_version,
+        record=record,
+    )
+
+
+def _import_scan(
+    path: str,
+    package_dir: Optional[Path],
+    *,
+    recursive: bool,
+    include_members: bool,
+    exclude: tuple[list[str], str],
+    version: Optional[str],
+    version_explicit: bool,
+    resolve_version: bool,
+    record: bool,
+) -> Optional[_ScanRecord]:
+    """Run the importing half of :func:`_scan_for_command`: version, header, scan, imported location, record.
+
+    Returns:
+        The recorded scan, or ``None`` after printing a usage error (the caller exits 2).
+
+    """
     if version is None and resolve_version:
         # Dynamic project versions and the __version__ fallback import code before the wrapper scan does.
         with _hidden_argv(), _root_exit_as_scan_error(path):
             version = _resolve_package_version(_safe_module_name(path), path=path)
-    _print_scan_header(path, version, user_provided=version_explicit, exclude=resolved_exclude)
+    _print_scan_header(path, version, user_provided=version_explicit, exclude=exclude)
     with _managed_sys_path(path), _hidden_argv(), _root_exit_as_scan_error(path):
         try:
-            wrappers = _scan_path(
-                path, recursive=recursive, include_members=include_members, exclude=resolved_exclude[0]
-            )
+            wrappers = _scan_path(path, recursive=recursive, include_members=include_members, exclude=exclude[0])
         except Exception as err:
             if _names_missing_module(err, path):
                 # a typo in the argument, not a package that failed to import
@@ -324,6 +358,45 @@ def _scan_for_command(
             " the scan audited that copy.",
         )
     scan = _ScanRecord(path, wrappers, version)
+    if record:
+        _record_scan(scan)
+    return scan
+
+
+def _static_scan(
+    path: str,
+    package_dir: Optional[Path],
+    *,
+    recursive: bool,
+    include_members: bool,
+    exclude: tuple[list[str], str],
+    version: Optional[str],
+    version_explicit: bool,
+    resolve_version: bool,
+    record: bool,
+) -> Optional[_ScanRecord]:
+    """Run the ``--static`` half of :func:`_scan_for_command`: locate, version and read the source, importing nothing.
+
+    A module name is located without running it, and only a top-level one (a dotted name would import its parents);
+    the version comes from ``pyproject.toml``, installed metadata or the source's ``__version__``, never from an import.
+
+    Returns:
+        The recorded scan, or ``None`` after printing a usage error (the caller exits 2).
+
+    """
+    located = _locate_static(path, package_dir)
+    if isinstance(located, str):
+        _print(located, stderr=True)
+        return None
+    if version is None and resolve_version:
+        existing = path if Path(path).exists() else None
+        version = _resolve_package_version(
+            _safe_module_name(path), path=existing, allow_import=False, import_root=located.import_root
+        )
+    _print_scan_header(path, version, user_provided=version_explicit, exclude=exclude)
+    _print("Mode: static (source read with ast; nothing imported)")
+    wrappers = _read_static(located, recursive=recursive, include_members=include_members, exclude=exclude[0])
+    scan = _ScanRecord(path, wrappers, version, static=True, import_root=located.import_root)
     if record:
         _record_scan(scan)
     return scan

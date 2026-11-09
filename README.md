@@ -1840,7 +1840,7 @@ pre-commit run pydeprecate              # when a Python file is staged
 pre-commit run pydeprecate --all-files  # regardless of what is staged
 ```
 
-Packages that import without third-party dependencies can use the shipped hook instead (`repo: https://github.com/Borda/pyDeprecate`, `id: pydeprecate-check`, from `v0.15.0`; one hook id per subcommand); see the [pre-commit section of the audit guide](https://borda.github.io/pyDeprecate/stable/guide/audit#pre-commit-integration) for both recipes and the isolated-environment caveat.
+Packages that import without third-party dependencies can use the shipped hook instead (`repo: https://github.com/Borda/pyDeprecate`, `id: pydeprecate-check`, from `v0.15.0`; one hook id per subcommand). For any other package, the `pydeprecate-expiry-static` and `pydeprecate-policy-static` hooks (from `v0.16.0`) read the source with `ast` and import nothing, so they need none of its dependencies; a wrapper they cannot read from the source alone is reported as a gap. See the [pre-commit section of the audit guide](https://borda.github.io/pyDeprecate/stable/guide/audit#pre-commit-integration) for the recipes and the isolated-environment caveat.
 
 **GitHub Action** — run the same checks as one CI step (from `v0.15.0`). The step runs in the job's own Python and imports your package from the checkout, so install its runtime dependencies first:
 

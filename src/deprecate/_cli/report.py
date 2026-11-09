@@ -46,6 +46,8 @@ class _GapKind(str, Enum):
     NESTED_FILES = "nested files not audited"
     #: The scanned package's import name was already taken by a copy from another directory, so that copy was audited.
     OTHER_COPY = "other copy audited"
+    #: ``--static`` could not read a wrapper, or one of the settings a rule needs, from the source alone.
+    STATIC_UNRESOLVED = "not statically resolvable"
 
 
 #: Gap kind -> one-sentence remedy, the same for every occurrence.
@@ -62,6 +64,7 @@ _GAP_HINTS: dict[_GapKind, str] = {
         "run the scan in an environment where the package is not already imported from elsewhere, such as the"
         " checkout's own virtual environment"
     ),
+    _GapKind.STATIC_UNRESOLVED: "run without `--static` for a full audit, or use literal version strings",
 }
 
 
@@ -72,6 +75,10 @@ class _ScanRecord:
     path: str
     wrappers: list[DeprecationWrapperInfo]
     version: Optional[str] = None
+    #: Read from source with ``ast`` (``--static``) rather than imported; the report table must not import it either.
+    static: bool = False
+    #: Directory holding the top-level package of a static scan, where its version is read from source.
+    import_root: Optional[Path] = None
 
 
 @dataclass
@@ -348,10 +355,18 @@ def _render_recorded_table(record: _RunRecord) -> Optional[str]:
         return record.table
     scan = record.scan
     module_name = _safe_module_name(scan.path)
-    version = scan.version if scan.version is not None else _resolve_package_version(module_name, path=scan.path)
+    if scan.version is not None:
+        version: Optional[str] = scan.version
+    else:
+        version = _resolve_package_version(
+            module_name, path=scan.path, allow_import=not scan.static, import_root=scan.import_root
+        )
+    # A static scan never imports the package: with no version found, no module name is passed either, or the table
+    # would auto-detect the version itself and import the package to read its `__version__`.
+    table_module = "" if scan.static and version is None else module_name
     try:
         return generate_deprecation_table(
-            module_name, current_version=version, _wrappers=scan.wrappers, _version_explicit=False
+            table_module, current_version=version, _wrappers=scan.wrappers, _version_explicit=False
         )
     except Exception as exc:  # a display artifact: it never fails the run, as in `cmd_all`
         _print(f"Could not render the deprecation table for the JSON report: {exc}", stderr=True)
@@ -368,6 +383,8 @@ def _write_report(path: str, record: _RunRecord) -> None:
     """
     report = {
         "schema": _REPORT_SCHEMA,
+        # how the gate read the package: "static" for a `--static` source read, else "import"
+        "mode": "static" if record.scan is not None and record.scan.static else "import",
         "table": _render_recorded_table(record),
         "gaps": [{"kind": kind.value, "detail": detail, "hint": _GAP_HINTS[kind]} for kind, detail in record.gaps],
     }

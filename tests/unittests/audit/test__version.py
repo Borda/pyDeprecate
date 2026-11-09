@@ -357,3 +357,100 @@ class TestMetadataLookupFailures:
         fakes = [_FakeDistribution(listed, metadata) for listed, metadata in dists]
         with patch("deprecate.audit._version.importlib.metadata.distributions", return_value=fakes):
             assert _distribution_from_top_level("demo") == expected
+
+
+# ---------------------------------------------------------------------------
+# _resolve_package_version(allow_import=False) — the ``--static`` chain
+# ---------------------------------------------------------------------------
+
+#: An ``__init__`` tail that records any attempt to run it before failing, so a test proves it was never imported.
+_SENTINEL_TAIL = "from pathlib import Path\nPath(__file__).with_name('IMPORTED').write_text('x')\nraise RuntimeError\n"
+_DYNAMIC_PROJECT = '[project]\nname = "srcpkg"\ndynamic = ["version"]\n'
+
+
+class TestResolveWithoutImport:
+    """``allow_import=False`` reads a version from source and metadata only; the package's code never runs."""
+
+    @pytest.mark.parametrize(
+        ("init_head", "extra", "pyproject", "expected"),
+        [
+            pytest.param("", {}, '[project]\nname = "srcpkg"\nversion = "4.2"\n', "4.2", id="static-pyproject"),
+            pytest.param(
+                "",
+                {"about.py": "__version__ = '3.1'\n"},
+                _DYNAMIC_PROJECT + '[tool.setuptools.dynamic]\nversion = { attr = "srcpkg.about.__version__" }\n',
+                "3.1",
+                id="setuptools-attr",
+            ),
+            pytest.param(
+                "from srcpkg._meta import *\n",
+                {"_meta.py": "__all__ = ['__version__']\n__version__ = '2.7'\n"},
+                _DYNAMIC_PROJECT,
+                "2.7",
+                id="dynamic-star-reexport",
+            ),
+            pytest.param(
+                "from ._version import version as __version__\n",
+                {"_version.py": "version = '1.9'\n"},
+                None,
+                "1.9",
+                id="aliased-reexport",
+            ),
+            pytest.param(
+                "from ._meta import *\n", {"_meta.py": "__version__ = '0.1'\n"}, None, None, id="star-skips-private"
+            ),
+            pytest.param("", {}, None, None, id="nothing-to-read"),
+            pytest.param(
+                "__version__ = '0.0.0'\ntry:\n    from ._version import __version__\nexcept ImportError:\n    pass\n",
+                {"_version.py": "__version__ = '3.0'\n"},
+                None,
+                None,
+                id="try-rebind-is-unresolved",
+            ),
+            pytest.param(
+                "__version__ = '1.0'\nimport sys\nif sys.platform:\n    __version__ = '3.0'\n",
+                {},
+                None,
+                None,
+                id="conditional-rebind-is-unresolved",
+            ),
+            pytest.param(
+                "__version__ = '1.0'\ndef _bump():\n    global __version__\n    __version__ = '3.0'\n",
+                {},
+                None,
+                None,
+                id="global-rebind-is-unresolved",
+            ),
+            pytest.param(
+                "try:\n    import json\nexcept ImportError:\n    pass\n__version__ = '1.5'\n",
+                {},
+                None,
+                "1.5",
+                id="unrelated-compound-keeps-version",
+            ),
+        ],
+    )
+    def test_reads_version_from_source(
+        self,
+        tmp_path: Path,
+        init_head: str,
+        extra: dict[str, str],
+        pyproject: Optional[str],
+        expected: Optional[str],
+    ) -> None:
+        """Each layout yields its version without the package being imported, or ``None`` when none is spelled.
+
+        A static scan runs where the package's dependencies are missing, so importing it for ``__version__`` would
+        fail or run arbitrary code; the source, ``pyproject.toml`` and installed metadata are all it may read. A star
+        import binds ``__version__`` only through a literal ``__all__``, as at runtime. A rebinding whose outcome
+        depends on runtime (inside ``try`` or ``if``, or through a function's ``global``) leaves the version unresolved
+        rather than keeping the placeholder literal before it, which would silently pass every expiry check.
+
+        """
+        pkg = write_pkg(tmp_path, "srcpkg", init_head + _SENTINEL_TAIL)
+        for name, source in extra.items():
+            (pkg / name).write_text(source)
+        if pyproject is not None:
+            (tmp_path / "pyproject.toml").write_text(pyproject)
+        version = _resolve_package_version("srcpkg", path=str(pkg), allow_import=False, import_root=tmp_path)
+        assert (version, (pkg / "IMPORTED").exists()) == (expected, False)
