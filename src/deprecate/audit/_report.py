@@ -121,6 +121,28 @@ def _report_row_sort_key(info: DeprecationWrapperInfo) -> tuple[str, str, str, b
     return (info.module or "", top_level, function, api_type.endswith(" args"), api_type)
 
 
+def _matrix_columns(wrappers: Sequence[DeprecationWrapperInfo]) -> tuple[list[str], dict[str, int]]:
+    """Return the matrix version headers and the column of every raw version string, one column per release.
+
+    Spellings of one release (``1.0``, ``v1.0``, ``1.0.0``) share a column: versions are keyed by their parsed
+    ``Version``, or by their ``v``-prefixed text when they do not parse (or ``packaging`` is missing, in which case only
+    spellings that differ by the ``v`` prefix merge). Parsed releases come first in release order, then the rest by
+    text. A merged column is headed by its shortest spelling, so the header does not depend on row order.
+
+    """
+    spellings: dict[Union[Version, str], set[str]] = {}
+    for info in wrappers:
+        for raw in (info.deprecated_info.deprecated_in, info.deprecated_info.remove_in):
+            if raw:
+                parsed = _safe_parse_version(raw)
+                spellings.setdefault(parsed if parsed is not None else _format_version(raw), set()).add(raw)
+    # the first item tells parsed releases from unparsed text, so a Version is never compared with a str
+    keys = sorted(spellings, key=lambda key: (isinstance(key, str), key))
+    headers = [_format_version(min(spellings[key], key=lambda raw: (len(raw), raw))) for key in keys]
+    col_idx = {raw: idx for idx, key in enumerate(keys) for raw in spellings[key]}
+    return headers, col_idx
+
+
 def _format_matrix_row(info: DeprecationWrapperInfo, col_idx: dict[str, int], n_versions: int) -> str:
     """Format one matrix-style table row for a deprecated wrapper."""
     markers: list[str] = [" "] * n_versions
@@ -243,24 +265,10 @@ def _render_deprecation_table(
                 f"{_get_deprecation_status(info, parsed_version).value} |"
             )
     else:
-        version_map: dict[str, Optional[Version]] = {}
-        for info in wrappers:
-            for version in (info.deprecated_info.deprecated_in, info.deprecated_info.remove_in):
-                if version and version not in version_map:
-                    version_map[version] = _safe_parse_version(version)
-
-        sorted_versions = sorted(
-            version_map,
-            key=lambda version: (
-                version_map[version] is None,
-                version_map[version] if version_map[version] is not None else version,
-            ),
-        )
-        version_headers = [_format_version(version) for version in sorted_versions]
+        version_headers, col_idx = _matrix_columns(wrappers)
         header_row = "| Original API | API Type | New API | " + " | ".join(version_headers) + " |"
         divider_row = "| :--- | :--- | :--- | " + " | ".join(":---:" for _ in version_headers) + " |"
-        col_idx = {v: i for i, v in enumerate(sorted_versions)}
-        n_versions = len(sorted_versions)
+        n_versions = len(version_headers)
         rows = [header_row, divider_row]
 
         for info in wrappers:

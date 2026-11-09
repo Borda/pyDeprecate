@@ -1039,7 +1039,7 @@ The `match` parameter on `assert_no_warnings` accepts a substring — it filters
 `generate_deprecation_table()` renders discovered wrapper metadata as a Markdown table suitable for embedding in your project documentation. It supports two `style=` options:
 
 - `"compact"` (default) — one row per symbol with a **Current Status** column (`📢 Deprecation Active`, `💥 Past Removal Date`, `ℹ️ No Removal Target`, etc.)
-- `"matrix"` — one column per version with `D` (deprecated) and `R` (remove) markers
+- `"matrix"` — one column per release with `D` (deprecated) and `R` (remove) markers; spellings of one release such as `1.0`, `v1.0` and `1.0.0` share a column under its shortest spelling (with the `audit` extra installed; without `packaging` only the `v` prefix is ignored)
 
 **Compact style** — one row per symbol with a lifecycle status column:
 
@@ -1077,11 +1077,11 @@ matrix = generate_deprecation_table(my_package, current_version="1.5", recursive
 > | Original API                                | API Type          | New API                               | v0.1 | v0.5 | v1.0 | v1.3 | v2.0 |
 > | :------------------------------------------ | :---------------- | :------------------------------------ | :--: | :--: | :--: | :--: | :--: |
 > | `my_package.CrossGuardOldClass.__init__`    | class constructor | `my_package.CrossGuardClassTargetNew` |      |      |  D   |      |  R   |
-> | `my_package.DecoratedDataClass`             | dataclass         | `my_package.NewDataClass`             |      |  D   |      |      |      |
+> | `my_package.DecoratedDataClass`             | dataclass         | `my_package.NewDataClass`             |      |  D   |  R   |      |      |
 > | `my_package.ServiceCls.old_redirect_method` | class method      | `my_package.ServiceCls.compute`       |      |      |  D   |      |  R   |
 > | `my_package.depr_func_no_remove_in`         | callable          | `—`                                   |      |      |  D   |      |      |
 > | `my_package.depr_pow_args`                  | callable          | `my_package.base_pow_args`            |      |      |  D   |  R   |      |
-> | `my_package.decorated_sum`                  | callable          | `my_package.base_sum_kwargs`          |  D   |      |      |      |      |
+> | `my_package.decorated_sum`                  | callable          | `my_package.base_sum_kwargs`          |  D   |  R   |      |      |      |
 
 The table derives all data from `__deprecation_config__` decorator metadata so it stays in sync with the code automatically. Install the `audit` extra (`pip install pyDeprecate[audit]`) to enable lifecycle status evaluation.
 
