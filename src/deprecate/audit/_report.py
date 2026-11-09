@@ -83,7 +83,9 @@ def _format_report_target(target: Any) -> str:  # noqa: ANN401
         return config.name if config is not None else type(target).__name__
     if callable(target):
         return _format_callable_target(target)
-    return str(target)
+    # A plain data replacement (``deprecated_instance(target=...)``): its type, never its contents, which may span
+    # lines, contain ``|`` and carry configuration values.
+    return type(target).__name__
 
 
 def _format_callable_target(target: Callable[..., Any]) -> str:

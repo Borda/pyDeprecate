@@ -5,7 +5,7 @@ import inspect
 import pickle
 import warnings
 from collections.abc import Callable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
@@ -24,7 +24,7 @@ from deprecate.messaging import (
 from deprecate.proxy import deprecated_class, deprecated_instance
 from deprecate.proxy.core import _DeprecatedProxy
 from tests._helpers import captured_warnings
-from tests.collections.api_current.core import ColorEnum, NewDataClass, Palette
+from tests.collections.api_current.core import ColorEnum, NewDataClass, Palette, ThemeSettings, positional_only_target
 from tests.collections.api_deprecated.core import (
     _DEPRS_CASE_STD_ARGS,
     DeprecatedColorDataClass,
@@ -33,6 +33,7 @@ from tests.collections.api_deprecated.core import (
     DeprecatedPaletteFunctionalFallback,
     WarnOnlyColorEnum,
     depr_ast_breadcrumb_dict,
+    resize_source,
 )
 from tests.unittests.proxy._helpers import _ast_class_proxy
 
@@ -336,6 +337,152 @@ class TestDeprecatedInstance:
         with captured_warnings() as caught:
             _ = proxy["k"]
         assert not caught
+
+
+class TestDeprecatedInstanceTarget:
+    """deprecated_instance(target=...) serves a replacement object while the old name still warns."""
+
+    def test_reads_served_by_target_and_warn_once(self) -> None:
+        """Item and method reads go to the replacement object; the first one warns with the old name.
+
+        A module renames its settings constant: ``OLD_SETTINGS`` must keep working for callers, but every read must
+        return the new values, so code still on the old name already sees the replacement during the deprecation
+        window. The default warn budget (``num_warns=1``) spans the source and target accesses alike.
+
+        """
+        new_settings = {"timeout": 30, "retries": 5}
+        proxy = deprecated_instance(
+            {"timeout": 10}, name="OLD_SETTINGS", target=new_settings, deprecated_in="1.0", remove_in="2.0"
+        )
+        with captured_warnings() as caught:
+            values = (proxy["timeout"], proxy.get("retries"))
+        assert values == (30, 5)
+        assert [str(warn.message) for warn in caught] == [
+            "The `OLD_SETTINGS` was deprecated since v1.0. It will be removed in v2.0."
+        ]
+
+    @pytest.mark.parametrize(
+        ("target", "match"),
+        [
+            pytest.param(TargetMode.AUTO, "only valid on the `@deprecated` front door", id="auto"),
+            pytest.param(True, r"`deprecated_instance\(target=True\)` is not supported", id="true"),
+            pytest.param(False, r"`deprecated_instance\(target=False\)` is not supported", id="false"),
+            pytest.param(warnings, r"redirect a module with `deprecated_module\(target=\.\.\.\)`", id="module"),
+        ],
+    )
+    def test_rejects_target_that_names_no_replacement(self, target: object, match: str) -> None:
+        """``TargetMode.AUTO``, a ``bool`` and a module raise ``TypeError`` before any proxy is built.
+
+        ``AUTO`` belongs to the ``@deprecated`` front door; ``True``/``False`` would be read as legacy sentinels and
+        silently drop a ``bool`` replacement; a module replacement belongs to ``deprecated_module``.
+
+        """
+        with pytest.raises(TypeError, match=match):
+            deprecated_instance({"k": 1}, target=target, **_DEPRS_CASE_STD_ARGS)
+
+    def test_isinstance_follows_replacement_type(self) -> None:
+        """A replacement of another type changes ``isinstance`` as soon as the deprecation ships.
+
+        A tuple constant replaced by a list: the old name now reports the list's type, so callers that type-check the
+        old name see the change during the deprecation window, not only at removal.
+
+        """
+        proxy = deprecated_instance((1, 2), target=[3, 4], **_DEPRS_CASE_STD_ARGS, stream=None)
+        assert (isinstance(proxy, list), isinstance(proxy, tuple)) == (True, False)
+
+    def test_callable_target_named_in_warning(self) -> None:
+        """Calling an old function alias warns naming the replacement function and forwards to it."""
+        proxy = deprecated_instance(resize_source, name="resize", target=positional_only_target, **_DEPRS_CASE_STD_ARGS)
+        with pytest.warns(
+            FutureWarning, match=r"in favor of `tests\.collections\.api_current\.core\.positional_only_target`"
+        ):
+            result = proxy(4, 1)
+        assert result == 5
+
+    def test_message_template_names_non_callable_replacement(self) -> None:
+        """A custom template names a non-callable replacement, which the built-in no-target text cannot."""
+        proxy = deprecated_instance(
+            {"timeout": 10},
+            name="OLD_SETTINGS",
+            target={"timeout": 30},
+            message_template="`%(source_name)s` is deprecated; use `NEW_SETTINGS`.",
+            **_DEPRS_CASE_STD_ARGS,
+        )
+        with pytest.warns(FutureWarning, match=r"^`OLD_SETTINGS` is deprecated; use `NEW_SETTINGS`\.$"):
+            _ = proxy["timeout"]
+
+    def test_skip_if_serves_wrapped_object(self) -> None:
+        """While ``skip_if`` is active the old object is served, with no warning and no forwarding."""
+        proxy = deprecated_instance({"timeout": 10}, target={"timeout": 30}, skip_if=True, **_DEPRS_CASE_STD_ARGS)
+        with captured_warnings() as caught:
+            value = proxy["timeout"]
+        assert (value, caught) == (10, [])
+
+    def test_read_only_blocks_writes_to_replacement(self) -> None:
+        """``read_only=True`` rejects a mutator call and leaves the replacement unchanged."""
+        replacement = {"timeout": 30}
+        proxy = deprecated_instance(
+            {"timeout": 10}, target=replacement, read_only=True, **_DEPRS_CASE_STD_ARGS, stream=None
+        )
+        with pytest.raises(AttributeError, match="read-only"):
+            proxy.update(timeout=1)
+        assert replacement == {"timeout": 30}
+
+    def test_positional_only_remap_warns_at_creation(self) -> None:
+        """Remapping onto a positional-only parameter of a function target is reported when the proxy is built.
+
+        The call still works (the value is forwarded positionally); the ``UserWarning`` and the audit field tell the
+        author that callers using the new keyword directly cannot pass it by name.
+
+        """
+        with pytest.warns(UserWarning, match=r"remaps \['size_px'\] to POSITIONAL_ONLY"):
+            proxy = deprecated_instance(
+                resize_source, target=positional_only_target, args_mapping={"size_px": "x"}, **_DEPRS_CASE_STD_ARGS
+            )
+        assert proxy.__deprecation_config__.args_mapping_positional_only == ("size_px",)
+
+    @pytest.mark.parametrize(
+        "config",
+        [
+            pytest.param({"args_mapping": {"old_key": "new_key"}}, id="args-mapping"),
+            pytest.param({"args_extra": {"verbose": True}}, id="args-extra"),
+            pytest.param({"target": {"timeout": 30}, "args_mapping": {"old_key": "new_key"}}, id="target-args-mapping"),
+        ],
+    )
+    def test_call_options_on_non_callable_object_flagged(self, config: dict[str, Any]) -> None:
+        """Call-time options on an object that is never called warn at creation and mark the config misconfigured.
+
+        A settings dict is never called, so an ``args_mapping`` or ``args_extra`` on it can never apply; without the
+        warning the author believes the rename is handled while callers only see a generic notice.
+
+        """
+        with pytest.warns(UserWarning, match="is not callable"):
+            proxy = deprecated_instance({"timeout": 10}, name="OLD_SETTINGS", **config, **_DEPRS_CASE_STD_ARGS)
+        assert proxy.__deprecation_config__.misconfigured is True
+
+    @pytest.mark.parametrize(
+        ("source", "config", "match"),
+        [
+            pytest.param(
+                ThemeSettings(),
+                {"attrs_mapping": {"color": "colour"}},
+                r"^`deprecated_instance\(target=TargetMode\.NOTIFY\)` on `theme` ignores `attrs_mapping`",
+                id="notify-attrs-mapping",
+            ),
+            pytest.param(
+                resize_source,
+                {"args_mapping": {"size_px": "x"}},
+                r"^`deprecated_instance\(target=TargetMode\.NOTIFY\)` on `theme` ignores `args_mapping`",
+                id="notify-args-mapping",
+            ),
+        ],
+    )
+    def test_misconfiguration_warning_names_instance_factory(
+        self, source: object, config: dict[str, Any], match: str
+    ) -> None:
+        """Misconfiguration warnings name ``deprecated_instance``, the factory the author actually called."""
+        with pytest.warns(UserWarning, match=match):
+            deprecated_instance(source, name="theme", target=TargetMode.NOTIFY, **config, **_DEPRS_CASE_STD_ARGS)
 
 
 if TYPE_CHECKING:

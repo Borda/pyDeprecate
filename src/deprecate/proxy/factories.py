@@ -383,6 +383,9 @@ def deprecated_instance(
     obj: Any,  # noqa: ANN401
     *,
     name: str = "",
+    target: Any = None,  # noqa: ANN401
+    args_mapping: Optional[dict[str, Optional[str]]] = None,
+    attrs_mapping: Optional[dict[str, Optional[str]]] = None,
     deprecated_in: str = "",
     remove_in: str = "",
     num_warns: int = 1,
@@ -405,6 +408,26 @@ def deprecated_instance(
         obj: The object to deprecate (dict, list, custom object, …).
         name: Display name for *obj* used in the warning message. When omitted, the type name of *obj* is used
             (e.g. ``"dict"``).
+        target: Optional replacement object.  When set, attribute, item, operator and call access is served by
+            *target* instead of *obj*, and the old name still warns — callers keep the old name working while
+            already reading the new values.  ``isinstance``, hashing and the supported protocols follow *target*
+            too, so pass an object of the same type as *obj* (or a subclass) unless the change of type is intended;
+            writes through the proxy also land on *target*.  A callable *target* is named in the warning; any other
+            object keeps the no-target text, so pass a ``message_template`` that names the replacement.  A
+            :class:`~deprecate._types.TargetMode` member selects a mode instead, as for
+            :func:`deprecated_class`.  ``TargetMode.AUTO``, ``True``/``False`` and a module raise
+            :class:`TypeError` (redirect a module with :func:`~deprecate.module.deprecated_module`).
+        args_mapping: Optional dict remapping keyword argument names when the proxy is called — for a callable
+            *obj* or *target*.  Keys are old argument names; values are new names, or ``None`` to drop the argument.
+            Without a *target* the mode auto-resolves to :attr:`~deprecate._types.TargetMode.ARGS_REMAP`: the call
+            warns only when an old argument name is used.  On an object that is not callable the mapping can never
+            apply, so it emits a :class:`UserWarning` (:class:`TypeError` in ``v1.0``).
+        attrs_mapping: Optional dict mapping deprecated attribute names to the names callers should use (or
+            ``None`` to warn without renaming).  Only the listed names warn; every other attribute is forwarded
+            silently.  Redirect values must exist on *target* when it is given, otherwise on *obj*; a missing name
+            raises :class:`ValueError` at creation.  The mapping covers attributes, not the keys of a mapping
+            object.  Without a *target* the mode auto-resolves to :attr:`~deprecate._types.TargetMode.ATTRS_REMAP`.
+            See :func:`deprecated_class` for redirect chains and cycles.
         deprecated_in: Version string when *obj* was deprecated.
         remove_in: Version string when *obj* will be removed.
         num_warns: Maximum number of warnings to emit. ``1`` (default) warns once; ``-1`` warns on every access.
@@ -470,6 +493,7 @@ def deprecated_instance(
 
     """
     message_template = _resolve_message_template_alias(message_template, template_mgs)
+    _reject_instance_target(target)
     resolved_name = name or type(obj).__name__
     if stream is not None and not deprecated_in and not message_template:
         warnings.warn(
@@ -483,6 +507,9 @@ def deprecated_instance(
         obj=obj,
         spec=_ProxySpec(
             name=resolved_name,
+            target=target,
+            args_mapping=args_mapping,
+            attrs_mapping=attrs_mapping,
             deprecated_in=deprecated_in,
             remove_in=remove_in,
             num_warns=num_warns,
@@ -492,8 +519,46 @@ def deprecated_instance(
             as_exception=as_exception,
             read_only=read_only,
             args_extra=args_extra,
+            factory="deprecated_instance",
         ),
     )
+
+
+def _reject_instance_target(target: Any) -> None:  # noqa: ANN401
+    """Raise ``TypeError`` for a ``deprecated_instance`` *target* that cannot name a replacement object.
+
+    ``TargetMode.AUTO`` is the ``@deprecated`` front-door default only. ``True`` and ``False`` are the legacy
+    ``deprecated_class`` sentinels; on a parameter that never accepted them, reading a ``bool`` as a sentinel would
+    silently drop a ``bool`` replacement, so it is rejected instead. A module replacement belongs to
+    :func:`~deprecate.module.deprecated_module`: a proxy forwarding to a module reports itself as one, which hides it
+    from the audit scans.
+
+    Examples:
+        >>> _reject_instance_target({"retries": 3}) is None
+        True
+        >>> _reject_instance_target(True)
+        Traceback (most recent call last):
+            ...
+        TypeError: `deprecated_instance(target=True)` is not supported: ...
+
+    """
+    if target is TargetMode.AUTO:
+        raise TypeError(
+            "`TargetMode.AUTO` is only valid on the `@deprecated` front door, which infers the mode from "
+            "the configuration. With `deprecated_instance` omit `target` (a mapping auto-resolves the mode), "
+            "or pass an explicit mode / replacement object."
+        )
+    if isinstance(target, bool):
+        raise TypeError(
+            f"`deprecated_instance(target={target})` is not supported: a `bool` is neither a replacement object nor a"
+            " `TargetMode`. Omit `target` to keep serving the wrapped object, or to replace a `bool` constant wrap"
+            " the new value itself: `deprecated_instance(NEW_VALUE, name='OLD_NAME', ...)`."
+        )
+    if isinstance(target, types.ModuleType):
+        raise TypeError(
+            f"`deprecated_instance(target=<module {target.__name__!r}>)` is not supported: redirect a module with"
+            " `deprecated_module(target=...)` instead."
+        )
 
 
 # Preserve the original public identity for introspection and pickling by reference.

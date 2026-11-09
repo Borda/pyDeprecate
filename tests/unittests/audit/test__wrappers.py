@@ -10,6 +10,7 @@ from deprecate import (
     DeprecatedError,
     as_exceptions,
     deprecated,
+    deprecated_instance,
     find_deprecation_wrappers,
     validate_deprecation_expiry,
 )
@@ -185,6 +186,20 @@ class TestValidateDeprecationWrapperWithProxy:
         though the inner link forwards nowhere further.
         """
         result = validate_deprecation_wrapper(caller_via_notify_layer)
+        assert result.chain_type is ChainType.TARGET
+
+    def test_instance_target_that_is_deprecated_is_target_chain(self) -> None:
+        """An instance alias whose replacement is itself a deprecated data object is a forwarding TARGET chain.
+
+        ``OLD_SETTINGS`` was pointed at ``MID_SETTINGS``, which a later release deprecated in turn. A settings dict is
+        not callable, yet callers of the old name now hop through a second deprecated object, so the audit must
+        report the chain and tell the author to point straight at the final replacement.
+        """
+        mid = deprecated_instance({"timeout": 30}, name="MID_SETTINGS", deprecated_in="1.5", remove_in="3.0")
+        old = deprecated_instance(
+            {"timeout": 10}, name="OLD_SETTINGS", target=mid, deprecated_in="1.0", remove_in="2.0"
+        )
+        result = validate_deprecation_wrapper(old)
         assert result.chain_type is ChainType.TARGET
 
 

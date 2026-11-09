@@ -30,8 +30,9 @@ class ChainType(Enum):
     """Type of deprecation chain detected by :func:`~deprecate.audit.validate_deprecation_chains`.
 
     Attributes:
-        TARGET: The ``target`` argument is itself a callable decorated with :func:`~deprecate.deprecated`
-            (a forwarding chain). Fix by pointing directly to the final non-deprecated target.
+        TARGET: The ``target`` argument is itself deprecated — a callable decorated with :func:`~deprecate.deprecated`
+            or a deprecated proxy, including a :func:`~deprecate.proxy.deprecated_instance` data object (a forwarding
+            chain). Fix by pointing directly to the final non-deprecated target.
         STACKED: Arg mappings chain and must be composed/collapsed. Two sub-cases:
             (a) Callable ``target`` is itself ``@deprecated(True, args_mapping=...)`` — the
             caller's mapping feeds into the target's self-renaming, so both hops must be
@@ -247,7 +248,8 @@ def _detect_chain_type(
 ) -> Optional[ChainType]:
     """Return the chain type when target or attrs_mapping forms a deprecation chain, else None."""
     chain_type: Optional[ChainType] = None
-    target_config = get_deprecation_config(target) if callable(target) else None
+    # A deprecated ``deprecated_instance`` data object is a chain link too, although it is not callable.
+    target_config = get_deprecation_config(target) if callable(target) or isinstance(target, _DeprecatedProxy) else None
     if target_config is not None:
         wrp_depr_tgt = target_config.target
         chain_type = ChainType.STACKED if wrp_depr_tgt is TargetMode.ARGS_REMAP else ChainType.TARGET

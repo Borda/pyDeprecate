@@ -1508,3 +1508,27 @@ class InPlaceAliasSource:
         return type(other) is type(self) and vars(other) == vars(self)
 
     __hash__ = None  # type: ignore[assignment]
+
+
+# ========== Replacement objects served through ``deprecated_instance(target=...)`` ==========
+
+#: Current retry settings; the deprecated alias ``depr_retry_settings`` serves these values.
+retry_settings = {"timeout": 30, "retries": 5}
+
+
+class ThemeSettings:
+    """Display settings whose ``color`` attribute was renamed to ``colour``; ``brightness`` is set per instance."""
+
+    colour = "teal"
+
+    def __init__(self) -> None:
+        """Set the per-instance brightness, which exists only in the instance ``__dict__``."""
+        self.brightness = 7
+
+
+class PositionalOnlyScaler:
+    """Callable object whose ``__call__`` takes the amount positional-only, so a renamed keyword cannot reach it."""
+
+    def __call__(self, amount: int, /, factor: int = 2) -> int:
+        """Return *amount* multiplied by *factor*."""
+        return amount * factor

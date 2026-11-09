@@ -109,6 +109,8 @@ class _ProxySpec:
             instead of *obj*.
         args_mapping: Optional dict remapping keyword argument names when the proxy is called.  Keys are old argument
             names; values are new names, or ``None`` to drop the argument entirely.
+        factory: Name of the public factory that built the spec, cited by misconfiguration warnings.  ``None``
+            keeps the ``deprecated_class`` / ``@deprecated`` wording.
 
     """
 
@@ -126,6 +128,7 @@ class _ProxySpec:
     as_exception: Optional[bool] = None
     read_only: bool = False
     docstring_style: str = "auto"
+    factory: Optional[str] = None
     _misconfigured_override: bool = False
 
 
@@ -339,9 +342,13 @@ class _DeprecatedProxy:
         target, args_mapping, _auto_expanded, _explicit_notify_attrs = _resolve_proxy_target(
             obj, target, args_mapping, attrs_mapping, _dc_check
         )
-        # Constructor signature of the active class, read once (a non-class active object has no constructor to
-        # inspect); both the kwargs-compatibility guard and the POSITIONAL_ONLY split data below derive from it.
-        _ctor_facts = _signature_facts(_dc_check, empty_on_error=True) if isinstance(_dc_check, type) else _SigFacts()
+        # Call signature of the active object, read once — always a class's constructor; a function's or callable
+        # object's own parameters only when an ``args_mapping`` needs them, so wrapping a plain callable never reads
+        # (or trips over) its signature. Both the kwargs-compatibility guard and the POSITIONAL_ONLY split data below
+        # derive from it.
+        _active_callable = callable(_dc_check)
+        _read_facts = isinstance(_dc_check, type) or (_active_callable and bool(args_mapping))
+        _ctor_facts = _signature_facts(_dc_check, empty_on_error=True) if _read_facts else _SigFacts()
         # Kwargs-compatibility guard: detect args_mapping keys that remap to POSITIONAL_ONLY params.
         _incompatible = _detect_proxy_positional_only(_dc_check, spec.name, args_mapping, _ctor_facts.positional_only)
         # Constructor POSITIONAL_ONLY split data: the call path forwards remapped values
@@ -353,17 +360,24 @@ class _DeprecatedProxy:
         # Validate misconfig (NOTIFY+mapping, ARGS_REMAP+no-args_mapping, NOTIFY+args_extra). The
         # validator returns True when any signal fired so we extend ``misconfigured`` accordingly —
         # ``DeprecationConfig.misconfigured`` becomes a single source of truth for all signals.
+        # Warnings name the factory the author called; without one the class path keeps its historical wording.
         if isinstance(target, TargetMode):
             misconfigured |= _validate_callable_mode(
-                target, spec.name, args_mapping=args_mapping, args_extra=spec.args_extra
+                target,
+                spec.name,
+                args_mapping=args_mapping,
+                args_extra=spec.args_extra,
+                factory=spec.factory or "@deprecated",
             )
-        # Proxy-specific validation: attrs_mapping combinations not covered by _validate().
+        # Proxy-specific validation: attrs_mapping combinations and call-time options on an object that is never called.
         misconfigured |= _validate_proxy_mode(
             target,
             spec.name,
             attrs_mapping=attrs_mapping,
             args_mapping=args_mapping,
             args_extra=spec.args_extra,
+            active_callable=_active_callable,
+            factory=spec.factory or "deprecated_class",
         )
         # Private mutable runtime state — warn counter, stream, read-only flag, wrapped object, extras to merge
         # after args_mapping at call time, optional custom warning template.
@@ -1124,16 +1138,22 @@ class _DeprecatedProxy:
         return (own["__deprecated__"],) if "__deprecated__" in own else ()
 
     def __copy__(self) -> "_DeprecatedProxy":
-        """Return a new proxy wrapping a shallow copy of the wrapped object.
+        """Return a new proxy wrapping a shallow copy of the wrapped object (and of a replacement data object).
 
         Deprecation metadata (frozen, immutable) is shared; the mutable warn-budget counters are snapshotted into an
-        independent config so the copy warns independently from the original.
+        independent config so the copy warns independently from the original.  A ``deprecated_instance`` replacement
+        that is plain data (not a class, a callable or a :class:`~deprecate._types.TargetMode`) is shallow-copied too:
+        reads and writes go to it, so sharing it would let writes through the copy change the original replacement.
 
         """
         cfg = self._cfg
+        dep = self._dep
         new_cfg = replace(cfg, obj=copy.copy(cfg.obj), state=copy.copy(cfg.state))
+        target = dep.target
+        if target is not None and not isinstance(target, (type, TargetMode)) and not callable(target):
+            dep = replace(dep, target=copy.copy(target))
         doc = object.__getattribute__(self, "__dict__").get("__doc__")
-        return _reconstruct_proxy(new_cfg, self._dep, doc, self._pep702_marker_state())
+        return _reconstruct_proxy(new_cfg, dep, doc, self._pep702_marker_state())
 
     def __deepcopy__(self, memo: dict[int, Any]) -> "_DeprecatedProxy":
         """Return a new proxy deep-copying the wrapped object (and any instance target).
@@ -1171,8 +1191,9 @@ class _DeprecatedProxy:
             by the standard pickle protocol.  Use a module-level callable (e.g. ``warnings.warn``)
             or ``None`` when you intend to pickle the proxy.
 
-            For :func:`~deprecate.proxy.deprecated_instance` proxies the wrapped object is serialised
-            directly and pickle works reliably.  For :func:`~deprecate.proxy.deprecated_class` proxies
+            For :func:`~deprecate.proxy.deprecated_instance` proxies the wrapped object, and any replacement
+            ``target``, is serialised directly, so pickle works whenever both are picklable.  For
+            :func:`~deprecate.proxy.deprecated_class` proxies
             the wrapped class is serialised by reference; if the module-level name was replaced by the
             proxy (the typical usage), pickle cannot resolve the reference and raises
             :class:`~pickle.PicklingError`.  This applies to the class alias itself only: instances of

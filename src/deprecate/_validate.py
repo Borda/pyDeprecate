@@ -171,6 +171,7 @@ def _validate_callable_mode(
     args_extra: Optional[dict[str, Any]] = None,
     *,
     emit: bool = True,
+    factory: str = "@deprecated",
 ) -> bool:
     """Validate :class:`~deprecate._types.TargetMode` against supplied configuration and emit misconfig warnings.
 
@@ -190,6 +191,8 @@ def _validate_callable_mode(
         emit: Whether to warn about each misconfiguration found.  Pass ``False`` to only report it through the
             return value.  The warning points at the first frame outside the ``deprecate`` package — the
             decorator application site.  Defaults to ``True``.
+        factory: How the warning names the API that was configured.  Defaults to ``"@deprecated"``;
+            :func:`~deprecate.proxy.deprecated_instance` passes its own name.
 
     Returns:
         ``True`` if any misconfiguration was detected, ``False`` if the configuration is valid.
@@ -208,20 +211,20 @@ def _validate_callable_mode(
     messages = []
     if mode is TargetMode.ARGS_REMAP and not args_mapping:
         messages.append(
-            f"`@deprecated(target=TargetMode.ARGS_REMAP)` on `{source_name}` requires "
+            f"`{factory}(target=TargetMode.ARGS_REMAP)` on `{source_name}` requires "
             "`args_mapping` to specify which arguments are being renamed. Without it the "
             f"decorator has zero effect. This will be `TypeError` in `{_MAJOR_BREAK_VERSION}`."
         )
     if mode is TargetMode.NOTIFY and args_mapping:
         messages.append(
-            f"`@deprecated(target=TargetMode.NOTIFY)` on `{source_name}` ignores "
+            f"`{factory}(target=TargetMode.NOTIFY)` on `{source_name}` ignores "
             "`args_mapping`. Omit `target` to auto-resolve to `TargetMode.ARGS_REMAP`, pass "
             "`TargetMode.ARGS_REMAP` explicitly, or pass a callable target to forward the call. "
             f"This will be `TypeError` in `{_MAJOR_BREAK_VERSION}`."
         )
     if mode is TargetMode.NOTIFY and args_extra:
         messages.append(
-            f"`@deprecated(target=TargetMode.NOTIFY)` on `{source_name}` ignores "
+            f"`{factory}(target=TargetMode.NOTIFY)` on `{source_name}` ignores "
             "`args_extra`. Use a callable target to forward with extra arguments. "
             f"This will be `TypeError` in `{_MAJOR_BREAK_VERSION}`."
         )
@@ -239,8 +242,10 @@ def _validate_proxy_mode(
     args_extra: Optional[dict[str, Any]] = None,
     *,
     emit: bool = True,
+    factory: str = "deprecated_class",
+    active_callable: bool = True,
 ) -> bool:
-    """Validate proxy-specific configuration: ``attrs_mapping`` combinations.
+    """Validate proxy-specific configuration: ``attrs_mapping`` combinations and call options that can never apply.
 
     Catches misconfiguration pairs involving ``attrs_mapping`` that the existing
     :func:`~deprecate._validate._validate_callable_mode` does not cover (it handles only ``args_mapping`` /
@@ -260,6 +265,11 @@ def _validate_proxy_mode(
             does not honour call-time kwarg injection.
         emit: Whether to warn about each misconfiguration found.  Pass ``False`` to only report it through the
             return value.  Defaults to ``True``.
+        factory: Name of the factory the warning cites.  Defaults to ``"deprecated_class"``;
+            :func:`~deprecate.proxy.deprecated_instance` passes its own name.
+        active_callable: Whether the object the proxy serves (the replacement when one is set) can be called.
+            ``args_mapping`` and ``args_extra`` act only on calls, so on an object that is never called they are
+            flagged — outside :attr:`~deprecate._types.TargetMode.ATTRS_REMAP`, which flags them on its own.
 
     Returns:
         ``True`` if any misconfiguration was detected, ``False`` otherwise.
@@ -290,6 +300,11 @@ def _validate_proxy_mode(
         ...     attrs_mapping={"a": "b"}, args_extra={"bias": 1}, emit=False,
         ... )
         True
+        >>> _validate_proxy_mode(
+        ...     TargetMode.ARGS_REMAP, "settings", args_mapping={"old": "new"},
+        ...     factory="deprecated_instance", active_callable=False, emit=False,
+        ... )
+        True
 
     """
     messages = []
@@ -298,13 +313,13 @@ def _validate_proxy_mode(
     # mapping is ignored at runtime instead.
     if mode is TargetMode.NOTIFY and attrs_mapping:
         messages.append(
-            f"`deprecated_class(target=TargetMode.NOTIFY)` on `{source_name}` ignores "
+            f"`{factory}(target=TargetMode.NOTIFY)` on `{source_name}` ignores "
             "`attrs_mapping`. Omit `target` to auto-resolve to `TargetMode.ATTRS_REMAP`, or pass "
             f"`TargetMode.ATTRS_REMAP` explicitly. This will be `TypeError` in `{_MAJOR_BREAK_VERSION}`."
         )
     if mode is TargetMode.ARGS_REMAP and args_mapping and attrs_mapping:
         messages.append(
-            f"`deprecated_class` on `{source_name}` has both `args_mapping` and `attrs_mapping` "
+            f"`{factory}` on `{source_name}` has both `args_mapping` and `attrs_mapping` "
             "configured with `target=TargetMode.ARGS_REMAP`. `ARGS_REMAP` governs call-time argument "
             "renames only; `attrs_mapping` is inactive in this mode. "
             "`DeprecationConfig.target` no longer reflects that `attrs_mapping` is also active. "
@@ -313,27 +328,34 @@ def _validate_proxy_mode(
         )
     if mode is TargetMode.ATTRS_REMAP and not attrs_mapping:
         messages.append(
-            f"`deprecated_class(target=TargetMode.ATTRS_REMAP)` on `{source_name}` requires "
+            f"`{factory}(target=TargetMode.ATTRS_REMAP)` on `{source_name}` requires "
             "`attrs_mapping` to specify which attribute names are deprecated. Without it the "
             f"proxy has zero selective effect. This will be `TypeError` in `{_MAJOR_BREAK_VERSION}`."
         )
     if mode is TargetMode.ATTRS_REMAP and args_mapping:
         messages.append(
-            f"`deprecated_class(target=TargetMode.ATTRS_REMAP)` on `{source_name}` ignores `args_mapping`. "
+            f"`{factory}(target=TargetMode.ATTRS_REMAP)` on `{source_name}` ignores `args_mapping`. "
             "`ATTRS_REMAP` only governs attribute access; argument renames on `__call__` are not applied. "
             "Use `target=<class>` (with both mappings) or `TargetMode.ARGS_REMAP` (with `args_mapping` only). "
             f"This will be `TypeError` in `{_MAJOR_BREAK_VERSION}`."
         )
     if mode is TargetMode.ATTRS_REMAP and args_extra:
         messages.append(
-            f"`deprecated_class(target=TargetMode.ATTRS_REMAP)` on `{source_name}` ignores `args_extra`. "
+            f"`{factory}(target=TargetMode.ATTRS_REMAP)` on `{source_name}` ignores `args_extra`. "
             "`ATTRS_REMAP` only governs attribute access; call-time kwarg injection is not applied. "
             "Use `target=<class>` to forward calls with extra arguments. "
             f"This will be `TypeError` in `{_MAJOR_BREAK_VERSION}`."
         )
+    call_options = [name for name, value in (("args_mapping", args_mapping), ("args_extra", args_extra)) if value]
+    if call_options and not active_callable and mode is not TargetMode.ATTRS_REMAP:
+        messages.append(
+            f"`{factory}` on `{source_name}` sets {' and '.join(f'`{name}`' for name in call_options)}, but the object"
+            " it serves is not callable, so call-time options never apply. Remove them, or pass a callable `target`."
+            f" This will be `TypeError` in `{_MAJOR_BREAK_VERSION}`."
+        )
     if attrs_mapping is not None and len(attrs_mapping) == 0:
         messages.append(
-            f"`deprecated_class` on `{source_name}` received `attrs_mapping={{}}` (empty dict). "
+            f"`{factory}` on `{source_name}` received `attrs_mapping={{}}` (empty dict). "
             "An empty mapping has no effect — remove it or add deprecated attribute names. "
             f"This will be `TypeError` in `{_MAJOR_BREAK_VERSION}`."
         )

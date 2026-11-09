@@ -41,12 +41,13 @@ class PolicyRule(str, enum.Enum):
             -> ``2.0`` satisfies ``"0.3"``), a mixed bump never passes (``1.2`` -> ``2.3`` is neither a major nor
             a minor step), and a ``remove_in`` at or before ``deprecated_in`` always fails. Versions spanning a
             PEP 440 epoch, or that do not parse, are skipped with a :class:`UserWarning`.
-        MESSAGE_REQUIRED: the wrapper must name what to migrate *to* -- a ``target``, a non-empty
+        MESSAGE_REQUIRED: the wrapper must name what to migrate *to* -- a callable or module ``target``, a non-empty
             ``args_mapping``/``attrs_mapping``, or a non-empty custom ``message_template``; ``message_required=False``
-            disables. An explicit :attr:`~deprecate.TargetMode.NOTIFY` counts only the template; a deprecated module
-            counts its replacement module, its ``attrs_mapping``, or a template other than the built-in notice
-            :func:`~deprecate.module.deprecated_module` renders when given none. The one rule that runs without
-            ``packaging``.
+            disables. An explicit :attr:`~deprecate.TargetMode.NOTIFY` counts only the template; a data replacement
+            passed as ``deprecated_instance(target=...)`` counts only with an ``attrs_mapping`` or the template; a
+            deprecated module counts its replacement module, its ``attrs_mapping``, or a template other than the
+            built-in notice :func:`~deprecate.module.deprecated_module` renders when given none. The one rule that
+            runs without ``packaging``.
 
     Examples:
         >>> PolicyRule.MIN_GRACE.value
@@ -394,6 +395,9 @@ def _has_migration_guidance(info: DeprecationWrapperInfo) -> bool:
 
     Guidance is any of: a forwarding target (callable or replacement module), an ``args_mapping`` or
     ``attrs_mapping`` naming the replacement names, or a custom ``message_template`` spelling the migration out.
+    A replacement that is plain data (a :func:`~deprecate.proxy.deprecated_instance` ``target`` that is not
+    callable) is served under the old name, but the built-in warning cannot name it and the object is never called,
+    so next to it only an ``attrs_mapping`` or a custom ``message_template`` counts.
 
     The template has to be non-empty to count. ``message_template=""`` is not a message: every emitter renders
     ``config.message_template or TEMPLATE_WARNING_*`` (see :mod:`~deprecate.messaging`), so an empty string is
@@ -433,6 +437,10 @@ def _has_migration_guidance(info: DeprecationWrapperInfo) -> bool:
         return has_message
     if target in (TargetMode.ARGS_REMAP, TargetMode.ATTRS_REMAP):
         return has_mapping
+    if target is not None and not callable(target):
+        # A ``deprecated_instance`` replacement that is plain data: the warning cannot name it, and the object is never
+        # called, so only an attribute mapping or a hand-written message tells callers where to go.
+        return bool(config.attrs_mapping) or has_message
     if target is not None:
         return True
     return has_mapping or has_message
@@ -466,12 +474,13 @@ def _module_has_migration_guidance(config: DeprecationConfig) -> bool:
     return bool(config.message_template) and config.message_template != built_in
 
 
-#: ``message-required`` remedy per ``api_type`` — each names only the arguments that wrapper's factory accepts.
-#: :func:`~deprecate.proxy.deprecated_instance` takes a ``message_template`` and nothing else that names a
-#: replacement; :func:`~deprecate.module.deprecated_module` takes a ``target`` module, an ``attrs_mapping`` and a
+#: ``message-required`` remedy per ``api_type`` — each names only the arguments that guide callers for that wrapper.
+#: A :func:`~deprecate.proxy.deprecated_instance` data object is never called, so its ``args_mapping`` never applies,
+#: and the warning names a replacement ``target`` only when it is callable;
+#: :func:`~deprecate.module.deprecated_module` takes a ``target`` module, an ``attrs_mapping`` and a
 #: ``message_template``; every other wrapper comes from a factory that also accepts an ``args_mapping``.
 _MESSAGE_REQUIRED_REMEDIES = {
-    "data": "configure a custom `message_template`",
+    "data": "configure a custom `message_template`, an `attrs_mapping`, or a callable `target`",
     "module": "configure a `target`, an `attrs_mapping`, or a custom `message_template`",
 }
 _MESSAGE_REQUIRED_DEFAULT_REMEDY = (
@@ -484,7 +493,7 @@ def _message_required_remedy(api_type: str) -> str:
 
     Examples:
         >>> _message_required_remedy("data")
-        'configure a custom `message_template`'
+        'configure a custom `message_template`, an `attrs_mapping`, or a callable `target`'
         >>> _message_required_remedy("callable")
         'configure a `target`, an `args_mapping`/`attrs_mapping`, or a custom `message_template`'
 

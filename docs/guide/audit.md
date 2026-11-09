@@ -473,7 +473,7 @@ Rule details worth knowing before you tune the defaults:
 
 - **`min_grace`** is a version-shaped delta **string** with two or three components and at most one non-zero — `"1.0"` one major, `"0.3"` three minors, `"0.0.2"` two patches. Always pass a string: a float such as `0.10` drops its trailing zero and reads as one minor. A bare `"1"` is rejected as ambiguous (one *what*?), and so is `"1.2"` or any other mixed spelling — `ValueError`, raised before the scan starts. An all-zero spelling (`"0.0"`) is a valid **zero-count window**: the distance check is effectively off, but a clean bump of that unit or coarser is still required, so `1.2` → `1.2.1` still violates a zero-minor window. Internally every spelling is parsed into `deprecate.audit.GraceWindow(count, unit)` — one unit, one count — which the scan alone consults; a `GraceWindow` instance (`from deprecate import GraceWindow, VersionBump`) or a one-key unit table (`{"major": 1}`) is accepted as well. The removal must be one **clean bump** of a single component with everything below it reset — `1.2` → `1.5` or `2.0`, never `2.3` or `1.3.1` — because a mixed bump lands on no release boundary a project promises removals on. A coarser bump always clears a finer window: deprecated in `1.2`, removed in `2.0` satisfies `"0.3"` even though the minor number went *down*; a finer bump (a patch against a minor-counted window) never does.
 - **A `0.x` project** needs no special setting: a bump to `1.0` is a major step and clears any window, while removals inside the `0.x` line are counted in minors as usual. `min_grace="1.0"` is the strict "removals only at a major" policy.
-- **`message_required`** counts a forwarding `target`, an `args_mapping`, an `attrs_mapping`, or a custom `message_template` as guidance. An *empty* `args_mapping`/`attrs_mapping` (`{}`) does **not** count — it carries no actual rename, so the rule treats it the same as no mapping at all. A deprecated *module* satisfies the rule with a **custom** `message_template` — the auto-rendered text `deprecated_module()` stores there by default does not count, since every module would otherwise pass trivially; a module relying only on `target`/`attrs_mapping` still needs one of those to be non-empty. A `deprecated_instance()` proxy built with no `target` and no `args_mapping`/`attrs_mapping` likewise needs a custom `message_template` to satisfy the default policy.
+- **`message_required`** counts a callable or module `target`, an `args_mapping`, an `attrs_mapping`, or a custom `message_template` as guidance. An *empty* `args_mapping`/`attrs_mapping` (`{}`) does **not** count — it carries no actual rename, so the rule treats it the same as no mapping at all. A deprecated *module* satisfies the rule with a **custom** `message_template` — the auto-rendered text `deprecated_module()` stores there by default does not count, since every module would otherwise pass trivially; a module relying only on `target`/`attrs_mapping` still needs one of those to be non-empty. A `deprecated_instance()` proxy over a data object (a dict, a settings instance) needs a custom `message_template` or an `attrs_mapping` to satisfy the default policy: the object is never called, so its `args_mapping` never applies, and a replacement passed as `target=` is served under the old name but not named in the built-in warning.
 
 ### Scanning a package
 
@@ -500,14 +500,15 @@ print(f"Found {len(violations)} violations")
   <summary>Output: <code>f"Found {len(violations)} violations"</code></summary>
 
 ```
-Found 6 violations
+Found 7 violations
+[message-required]
 [message-required]
 [message-required]
 [message-required]
 [min-grace]
 [min-grace]
 [min-grace]
-Found 3 violations
+Found 4 violations
 ```
 
 </details>
@@ -541,7 +542,7 @@ A deprecated wrapper whose `target` is itself another deprecated function create
 
 Two chain types are reported:
 
-- `ChainType.TARGET` — the target is a deprecated callable that forwards to another function. Fix by pointing directly to the final (non-deprecated) implementation.
+- `ChainType.TARGET` — the target is itself deprecated: a deprecated callable that forwards to another function, or a deprecated object passed as `deprecated_instance(target=...)`. Fix by pointing directly to the final (non-deprecated) replacement.
 - `ChainType.STACKED` — mappings chain through multiple hops and must be composed. This covers callable argument chains, stacked `@deprecated(TargetMode.ARGS_REMAP, args_mapping=...)` decorators, and `deprecated_class(attrs_mapping=...)` entries where one deprecated attribute key maps to a value that is itself another key in the same mapping (a multi-hop rename chain such as `{"a": "b", "b": "c"}`).
 
 The example below shows both bad patterns and the correct direct form:
@@ -700,13 +701,15 @@ for info in issues:
   <summary>Output: <code>f"Found {len(issues)} wrappers with POSITIONAL_ONLY mapping incompatibilities"</code></summary>
 
 ```
-Found 6 wrappers with POSITIONAL_ONLY mapping incompatibilities
+Found 8 wrappers with POSITIONAL_ONLY mapping incompatibilities
   tests.collections.api_deprecated.core.DepPositionalOnly: incompatible keys = ['old_val']
   tests.collections.api_deprecated.core.DepPositionalOnlyDerived: incompatible keys = ['old_val']
   tests.collections.api_deprecated.core.DepPositionalOnlyImmutable: incompatible keys = ['old_val']
   tests.collections.api_deprecated.core.DepPositionalOnlyMixed: incompatible keys = ['old_x']
   tests.collections.api_deprecated.core.DepPositionalOnlyRequired: incompatible keys = ['old_val']
   tests.collections.api_deprecated.core.PositionalOnlyProxyHolder.LegacyTarget: incompatible keys = ['old_val']
+  tests.collections.api_deprecated.core.depr_resize: incompatible keys = ['size_px']
+  tests.collections.api_deprecated.core.depr_scaler: incompatible keys = ['quantity']
 ```
 
 </details>

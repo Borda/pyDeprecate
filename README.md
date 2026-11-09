@@ -248,7 +248,7 @@ Not sure which API to reach for? Start here.
 
 > [!TIP]
 >
-> All three decorators share every parameter above. The only differences: `deprecated_class()` adds the class-only `attrs_mapping` (attribute-name remapping — `TypeError` on the other two), and a **class source** is dispatched to `deprecated_class` by `@deprecated` but rejected with `TypeError` by `deprecated_callable()`. `TargetMode.AUTO` is front-door-only: `deprecated_callable()` defaults `target` to `TargetMode.NOTIFY`, `deprecated_class()` leaves it unset, and both raise `TypeError` when handed `TargetMode.AUTO` explicitly. `deprecated_instance()` shares `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_extra`, `message_template`, `skip_if`, and `as_exception`; it requires `obj` and adds `name` (display name) and `read_only`.
+> All three decorators share every parameter above. The only differences: `deprecated_class()` adds `attrs_mapping` (attribute-name remapping — `TypeError` on the other two), and a **class source** is dispatched to `deprecated_class` by `@deprecated` but rejected with `TypeError` by `deprecated_callable()`. `TargetMode.AUTO` is front-door-only: `deprecated_callable()` defaults `target` to `TargetMode.NOTIFY`, `deprecated_class()` leaves it unset, and both raise `TypeError` when handed `TargetMode.AUTO` explicitly. `deprecated_instance()` shares `target`, `args_mapping`, `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_extra`, `message_template`, `skip_if`, and `as_exception`, and takes `attrs_mapping` like `deprecated_class()`; it requires `obj` and adds `name` (display name) and `read_only`.
 
 </details>
 
@@ -984,7 +984,7 @@ efg
 
 Use `deprecated_instance` to wrap module-level objects such as dicts, lists, constants, or custom objects with transparent deprecation warnings. Attribute, item, call, and common data-use operations forward to the wrapped object, while `isinstance` checks and structural introspection stay silent so type guards keep working.
 
-The `name` parameter is optional; when omitted it defaults to the wrapped object's type name. Use `read_only=True` for shared constants or config objects that callers should not mutate through the deprecated alias. For operator, copy, pickle, and introspection edge cases, see [Classes → Constants and instances](https://borda.github.io/pyDeprecate/stable/guide/classes.html#constants-and-instances) and [Troubleshooting](https://borda.github.io/pyDeprecate/stable/troubleshooting.html#do-arithmetic-and-operator-protocol-methods-emit-deprecation-notices-on-deprecated_instance-proxies).
+The `name` parameter is optional; when omitted it defaults to the wrapped object's type name. Use `read_only=True` for shared constants or config objects that callers should not mutate through the deprecated alias. Pass `target=` when the old name should already serve a replacement object: reads, item access, operators, and calls go to the replacement while the old name still warns. `attrs_mapping={"old": "new"}` deprecates only the listed attribute spellings, and `args_mapping` renames keyword arguments when the object is called. The built-in warning names only a callable replacement, so give a data replacement a `message_template` that names it. For operator, copy, pickle, and introspection edge cases, see [Classes → Constants and instances](https://borda.github.io/pyDeprecate/stable/guide/classes.html#constants-and-instances) and [Troubleshooting](https://borda.github.io/pyDeprecate/stable/troubleshooting.html#do-arithmetic-and-operator-protocol-methods-emit-deprecation-notices-on-deprecated_instance-proxies).
 
 ```python
 from deprecate import deprecated_instance
@@ -2077,7 +2077,7 @@ Policy: min-grace=0.3 (flag)  message-required=True (flag)
 │ …                                                                            │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 
-6 policy violation(s) found.
+7 policy violation(s) found.
 ```
 
 The same check is available in Python as `validate_deprecation_policy(my_package, min_grace="1.0", message_required=True)` — it returns the violation strings and never reads `pyproject.toml`; see the [audit guide](https://borda.github.io/pyDeprecate/stable/guide/audit#enforcing-a-deprecation-policy).
@@ -2342,7 +2342,7 @@ Known limitations and non-goals (async corner cases, proxy behaviour, scoped swi
 
 **Not a problem** — since v0.12, `@deprecated` on a class is first-class supported and permanent: it dispatches to `@deprecated_class()` and produces an identical `_DeprecatedProxy`. The `UserWarning` is a one-time informational notice, fired at most once per class (keyed by module + qualified name — same-named classes in different modules each warn) per process, telling you that the dispatch happened. Only this notice — not the dispatch support — is removed entirely, in v1.0. The notice cache is thread-safe and retains at most 4096 class keys in insertion order; an evicted class may receive the notice again.
 
-**To quiet it:** apply `@deprecated_class()` directly (same result, no notice, and required to reach class-only options such as `attrs_mapping`), or pass `stream=None`.
+**To quiet it:** apply `@deprecated_class()` directly (same result, no notice, and required to reach proxy-only options such as `attrs_mapping`), or pass `stream=None`.
 
 <details>
 <summary>Solution</summary>

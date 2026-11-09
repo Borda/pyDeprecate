@@ -103,3 +103,16 @@ class TestFormatReportCallableTarget:
         source whenever the callable has one.
         """
         assert _format_report_target(target) == expected
+
+
+class TestFormatReportDataTarget:
+    """_format_report_target names a plain data replacement by its type, never by its contents."""
+
+    def test_data_target_named_by_type(self) -> None:
+        """A replacement settings object renders as its type name, on one line, with no values.
+
+        ``deprecated_instance(OLD, target=NEW)`` stores the replacement object itself. Rendering its ``str()`` would
+        split a Markdown table row on a newline or a ``|`` and copy configuration values (paths, tokens) into CI
+        logs and PR comments.
+        """
+        assert _format_report_target({"token": "line1\nline2 | cell"}) == "dict"

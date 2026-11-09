@@ -34,7 +34,7 @@ Apply the policy when filling the contract:
 
 - `deprecated_in`: the release the user names, or the project's next release derived from its current version (`deprecate.__version__` is pyDeprecate's own, not the consumer's — read the consumer's version module or distribution metadata); never a version that already shipped.
 - `remove_in`: `deprecated_in` advanced by the `min-grace` window as one clean bump of a single component with everything below reset — `1.2` + `"0.3"` gives `1.5`, `1.2` + `"1.0"` gives `2.0`, `1.2.4` + `"0.0.2"` gives `1.2.6`. A coarser bump also satisfies a finer window (`1.2` → `2.0` clears `"0.3"`), so prefer the coarser level when the project's documented cadence removes only there; never propose a mixed bump such as `1.2` → `2.3` or `1.2` → `1.3.1`. With `min-grace = false` the window imposes nothing — still ask for `remove_in` instead of inventing one.
-- `message-required = true`: every new wrapper must carry a forwarding `target`, a non-empty `args_mapping`/`attrs_mapping`, or a custom `message_template`; a warn-only `TargetMode.NOTIFY` wrapper therefore needs `message_template` naming the replacement or the reason.
+- `message-required = true`: every new wrapper must carry a callable or module `target`, a non-empty `args_mapping`/`attrs_mapping`, or a custom `message_template`; a warn-only `TargetMode.NOTIFY` wrapper, and a `deprecated_instance` whose `target` is a data object (since 0.16), therefore need `message_template` naming the replacement or the reason.
 
 Present the derived versions with the rule and source behind each before the first edit; the user confirms or overrides them. After editing, run `pydeprecate policy <path>` (requires `pyDeprecate[audit,cli]`, since 0.13) or `validate_deprecation_policy(module, min_grace="0.3", message_required=True)` (since 0.13) with the table's values — the function never reads `pyproject.toml` — and expect zero violations. On a release older than 0.13 report that the policy was applied by hand and could not be machine-checked.
 
@@ -46,7 +46,7 @@ Present the derived versions with the rule and source behind each before the fir
 | Warn without forwarding | `@deprecated(target=TargetMode.NOTIFY, ...)` | Keep working implementation |
 | Rename/drop arguments on a surviving API | `TargetMode.ARGS_REMAP`, `args_mapping={"old": "new"}` or `{"old": None}` | Keep new implementation |
 | Class rename | `deprecated_class(target=Replacement, ...)` | Preserve constructor compatibility |
-| Object alias | `deprecated_instance(...)` | Inspect proxy behavior needed by callers |
+| Object alias | `deprecated_instance(...)`; `deprecated_instance(old_obj, target=new_obj, ...)` to serve the replacement under the old name (since 0.16; on older releases wrap the replacement itself: `deprecated_instance(new_obj, name="OLD_NAME", ...)`) | Inspect proxy behavior needed by callers; type checks and writes follow the replacement |
 | Attribute-only migration | `deprecated_class(target=TargetMode.ATTRS_REMAP, attrs_mapping=..., ...)` | Preserve unaffected class behavior |
 | Final release before removal | add `as_exception=True` (since 0.14) to the existing wrapper | Body unreachable — the call raises |
 

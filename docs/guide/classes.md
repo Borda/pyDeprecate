@@ -154,7 +154,7 @@ Writes never warn: item writes and deletes (`DEFAULTS["lr"] = 0.01`, `del DEFAUL
 
 A `deprecated_instance` of a plain function can stand in for a method in a class body (`class Model: scale = deprecated_instance(legacy_scale, ...)`). Read through an instance, the proxy binds like the function it wraps: `Model().scale(2)` calls `legacy_scale(model, 2)` and warns on the call, against one `num_warns` budget shared by every instance. `Model().scale` is a bound method whose `__func__` is the proxy, so `inspect.signature` drops `self`; read through the class, `Model.scale` is the proxy itself, so `Model.scale(model, 2)` works too. Wrap the proxy in `staticmethod(...)` when class access should keep the function unbound. Proxies over data, classes, and non-function descriptors (`property`, `classmethod`, `staticmethod` objects) are returned as stored, never bound. Only a proxy over a function (or a `@deprecated` wrapper) is a descriptor, so `inspect.isroutine(proxy)` is `True` for it and stays `False` for proxies over data and classes.
 
-Deprecated proxies survive `copy.copy()` and `copy.deepcopy()` round-trips — the result is a proxy again, so the deprecation warning travels with the copied object and each copy keeps its own warning counter snapshotted from the original. `deprecated_instance` proxies wrapping plain objects (dicts, lists, custom objects) are also fully picklable. Note: a `deprecated_class` alias itself raises `PicklingError` in the common pattern where the decorated class name is replaced by the proxy — pickle cannot find the original class by reference. Use `copy.deepcopy` for class alias proxies instead of `pickle`. Instances of a class deprecated in place, exception and `OrderedDict` subclasses included, pickle and load as instances of the original class without a warning, unless the class defines its own `__reduce_ex__` (Enum members, for example).
+Deprecated proxies survive `copy.copy()` and `copy.deepcopy()` round-trips — the result is a proxy again, so the deprecation warning travels with the copied object and each copy keeps its own warning counter snapshotted from the original. A shallow copy of a proxy serving a replacement data object (see [Serving a replacement object](#serving-a-replacement-object)) copies that object too, so writes through the copy never reach the shared replacement. `deprecated_instance` proxies wrapping plain objects (dicts, lists, custom objects) are also fully picklable. Note: a `deprecated_class` alias itself raises `PicklingError` in the common pattern where the decorated class name is replaced by the proxy — pickle cannot find the original class by reference. Use `copy.deepcopy` for class alias proxies instead of `pickle`. Instances of a class deprecated in place, exception and `OrderedDict` subclasses included, pickle and load as instances of the original class without a warning, unless the class defines its own `__reduce_ex__` (Enum members, for example).
 
 ```python
 from deprecate import deprecated_instance
@@ -187,6 +187,72 @@ print(DEFAULTS["lr"])  # 0.001
 ```
 
 </details>
+
+### Serving a replacement object
+
+When the old name should already return the new values, pass the replacement as `target=`. Attribute, item, operator, and call access go to the replacement; the old name keeps warning until it is removed. Use `name=` so the warning names the alias callers actually use. The built-in warning names a callable replacement only, so give a data replacement (a dict, a settings object) a `message_template` that names it.
+
+```python
+from deprecate import deprecated_instance
+
+# NEW/FUTURE API — the retry settings that replaced `RETRY_DEFAULTS`
+RETRY_POLICY = {"timeout": 30, "retries": 5}
+
+# DEPRECATED API — the old name now serves the new settings and still warns
+RETRY_DEFAULTS = deprecated_instance(
+    {"timeout": 10, "retries": 3},
+    name="RETRY_DEFAULTS",
+    target=RETRY_POLICY,
+    deprecated_in="1.3",
+    remove_in="2.0",
+    message_template="`%(source_name)s` is deprecated since v%(deprecated_in)s; use `RETRY_POLICY` instead.",
+)
+
+print(RETRY_DEFAULTS["timeout"])  # warns: FutureWarning
+```
+
+<details>
+  <summary>Output: <code>RETRY_DEFAULTS["timeout"]</code></summary>
+
+```
+30
+```
+
+</details>
+
+Everything callers do with the old name follows the replacement: `isinstance`, hashing, and the protocols the proxy serves come from it, and writes through the old name land on it. Keep the replacement the same type as the old object (or a subclass) unless the change of type is intended — a tuple constant replaced by a list stops being hashable as soon as the deprecation ships. `target=True`, `target=False`, `TargetMode.AUTO`, and a module raise `TypeError`; redirect a module with [`deprecated_module`](modules.md).
+
+`attrs_mapping` deprecates only the listed attribute spellings of an object, the same way it does on a class proxy. Every other attribute stays silent. The mapping covers attributes, not the keys of a mapping object:
+
+```python
+from deprecate import deprecated_instance
+
+
+# NEW/FUTURE API — the display settings spell the attribute `colour`
+class DisplaySettings:
+    colour = "teal"
+
+
+# DEPRECATED API — the `color` spelling still works but warns
+THEME = deprecated_instance(
+    DisplaySettings(), name="THEME", attrs_mapping={"color": "colour"}, deprecated_in="1.3", remove_in="2.0"
+)
+
+print(THEME.color)  # warns: FutureWarning
+print(THEME.colour)
+```
+
+<details>
+  <summary>Output: <code>THEME.color</code>, <code>THEME.colour</code></summary>
+
+```
+teal
+teal
+```
+
+</details>
+
+On a callable object, `args_mapping` renames keyword arguments: the call warns only when an old name is used, and a value renamed onto a positional-only parameter of the replacement is passed positionally. On an object that is never called, `args_mapping` and `args_extra` cannot apply and emit a `UserWarning` (`TypeError` in v1.0).
 
 ## Enums and dataclasses
 

@@ -145,7 +145,19 @@ from deprecate import deprecated_instance
 NEW_VALUE = object()
 # name= sets the display name in the warning; without it the type name of the wrapped object is used
 OLD_VALUE = deprecated_instance(NEW_VALUE, name="OLD_VALUE", deprecated_in="1.0", remove_in="2.0")
+
+# the old name keeps its own object but serves the replacement's values (since 0.16)
+OLD_SETTINGS = deprecated_instance(
+    {"timeout": 10},
+    name="OLD_SETTINGS",
+    target={"timeout": 30},
+    message_template="`%(source_name)s` is deprecated; use `NEW_SETTINGS` instead.",
+    deprecated_in="1.0",
+    remove_in="2.0",
+)
 ```
+
+With `target=`, `isinstance`, hashing and protocols follow the replacement and writes land on it. A data replacement is not named by the built-in warning, so pass `message_template`. `attrs_mapping` works on objects as on classes (attributes only, not dict keys); `args_mapping` renames keyword arguments of a callable object. `target=True`/`False`, `TargetMode.AUTO` and modules raise `TypeError`.
 
 The proxy forwards arithmetic, unary, and conversion operators to the wrapped object and warns on data-use operations (arithmetic, conversions, context entry, iteration). Ordering comparisons, `format()`, and context exit are silent. In-place operators (`+= `, `-=`, etc.) return the active object's result, not a re-wrapped proxy — `old_val += 1` rebinds to a plain `int`. One edge case: `"prefix" + proxy_str` fails if the left-hand type raises `TypeError` directly rather than returning `NotImplemented` (e.g. `str.__add__`); use proxy on the left side or wrap in a container.
 

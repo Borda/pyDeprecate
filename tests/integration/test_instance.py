@@ -1,5 +1,7 @@
 """Integration tests for deprecated_instance."""
 
+import copy
+import pickle
 from collections.abc import Callable
 from typing import Any
 
@@ -7,8 +9,16 @@ import pytest
 
 from deprecate import deprecated_instance
 from tests._helpers import captured_warnings
+from tests.collections.api_current.core import retry_settings
 from tests.collections.api_current.forwarding import ManagedResource
-from tests.collections.api_deprecated.core import depr_config_dict, depr_config_dict_read_only
+from tests.collections.api_deprecated.core import (
+    depr_config_dict,
+    depr_config_dict_read_only,
+    depr_resize,
+    depr_retry_settings,
+    depr_scaler,
+    depr_theme_settings,
+)
 
 
 class TestInstanceProxy:
@@ -140,3 +150,83 @@ class TestTemplateMgsAliasOnDeprecatedInstanceEntryPoint:
                 message_template="Canonical notice.",
                 template_mgs="Legacy notice.",
             )
+
+
+class TestInstanceTarget:
+    """deprecated_instance(target=..., args_mapping=..., attrs_mapping=...) on module-level aliases."""
+
+    def test_old_name_serves_replacement_values(self) -> None:
+        """Reads through the old settings name return the replacement's values and warn under the old name.
+
+        A package replaced its ``timeout``/``retries`` settings dict; callers still importing the old name must get the
+        new values during the deprecation window, with a warning that names the alias they used.
+
+        """
+        with pytest.warns(FutureWarning, match=r"^The `depr_retry_settings` was deprecated since v1\.0\."):
+            values = (depr_retry_settings["timeout"], depr_retry_settings["retries"])
+        assert values == (30, 5)
+
+    def test_renamed_attribute_warns_and_redirects(self) -> None:
+        """Only the old attribute spelling warns; it reads the renamed attribute's value.
+
+        A settings object renamed ``color`` to ``colour``. Code reading the old spelling gets the current value plus a
+        warning naming the new spelling, while the new spelling and unrelated attributes stay silent.
+
+        """
+        with pytest.warns(FutureWarning, match=r"in favor of `depr_theme_settings\.colour`"):
+            old = depr_theme_settings.color
+        with captured_warnings() as caught:
+            current = (depr_theme_settings.colour, depr_theme_settings.brightness)
+        assert (old, current, caught) == ("teal", ("teal", 7), [])
+
+    @pytest.mark.parametrize(
+        ("alias", "call_kwargs", "expected"),
+        [
+            pytest.param(depr_resize, {"size_px": 4, "margin": 1}, 5, id="function-target"),
+            pytest.param(depr_scaler, {"quantity": 3}, 6, id="callable-instance"),
+        ],
+    )
+    def test_renamed_keyword_reaches_positional_only_parameter(
+        self, alias: Callable[..., int], call_kwargs: dict[str, int], expected: int
+    ) -> None:
+        """A call by the old keyword is forwarded positionally when the new parameter is positional-only.
+
+        The replacement declares its first parameter positional-only (``def f(x, /)``), so forwarding the renamed
+        keyword as ``x=...`` would raise ``TypeError`` for a caller that worked before the deprecation. The proxy must
+        place the value positionally, as the ``@deprecated`` decorator does.
+
+        """
+        with pytest.warns(FutureWarning, match="uses deprecated arguments"):
+            result = alias(**call_kwargs)
+        assert result == expected
+
+    def test_pickle_round_trip_keeps_replacement(self) -> None:
+        """A pickled alias still serves the replacement's values after loading.
+
+        Settings aliases travel through multiprocessing and caches; the restored proxy must forward to the same
+        replacement values, not fall back to the old payload.
+
+        """
+        restored = pickle.loads(pickle.dumps(depr_retry_settings))  # noqa: S301 - payload produced in this test
+        with pytest.warns(FutureWarning, match="depr_retry_settings"):
+            value = restored["retries"]
+        assert value == 5
+
+    def test_deepcopy_keeps_replacement(self) -> None:
+        """A deep copy of the alias serves a copy of the replacement's values."""
+        clone = copy.deepcopy(depr_retry_settings)
+        with pytest.warns(FutureWarning, match="depr_retry_settings"):
+            value = clone["retries"]
+        assert value == 5
+
+    def test_shallow_copy_writes_stay_out_of_replacement(self) -> None:
+        """Writing through a shallow copy of the alias never changes the shared replacement object.
+
+        ``copy.copy`` of any other proxy gives an independent object. Because reads and writes go to the replacement,
+        the copy must hold its own copy of it — otherwise a caller mutating "their" copy edits the module-level
+        replacement that every other caller reads.
+
+        """
+        clone = copy.copy(depr_retry_settings)
+        clone["timeout"] = 99
+        assert retry_settings["timeout"] == 30

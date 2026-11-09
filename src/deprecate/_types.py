@@ -7,7 +7,6 @@ catch schema mismatches at analysis time rather than silently returning ``None``
 
 import copy
 import threading
-import types
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from enum import Enum
@@ -78,9 +77,10 @@ class DeprecationConfig:
         name: Display the name of the deprecated source (function or class name).
         target: Normalised target — ``None`` (default), :attr:`~deprecate._types.TargetMode.NOTIFY`,
             :attr:`~deprecate._types.TargetMode.ARGS_REMAP`, :attr:`~deprecate._types.TargetMode.ATTRS_REMAP`,
-            a callable, or a :class:`types.ModuleType` (stored by :func:`~deprecate.module.deprecated_module`
-            when a redirect module is provided). Legacy sentinels (``True``/``False``) are normalised at
-            decoration time and never stored verbatim.
+            a callable, a :class:`types.ModuleType` (stored by :func:`~deprecate.module.deprecated_module`
+            when a redirect module is provided), or any replacement object passed as
+            ``deprecated_instance(target=...)`` (a settings dict, a config instance). Legacy sentinels
+            (``True``/``False``) are normalised at decoration time and never stored verbatim.
         args_extra: Optional kwargs injected into forwarded calls; stored for audit visibility.
         misconfigured: ``True`` when the configuration contradicts itself at decoration time: the invalid raw
             target sentinel ``False``, or :attr:`~deprecate._types.TargetMode.NOTIFY` with an ``args_mapping``,
@@ -178,7 +178,8 @@ class DeprecationConfig:
     deprecated_in: str = ""
     remove_in: str = ""
     name: str = ""
-    target: Optional[Union[Callable[..., Any], "TargetMode", types.ModuleType]] = None
+    # ``Any``: besides a callable, a ``TargetMode`` or a module, ``deprecated_instance`` stores any replacement object.
+    target: Any = None
     args_mapping: Optional[dict[str, Optional[str]]] = None
     args_extra: Optional[dict[str, Any]] = None
     misconfigured: bool = False

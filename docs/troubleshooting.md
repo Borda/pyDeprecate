@@ -2110,8 +2110,8 @@ print(f"Found {len(violations)} violations")
 <details><summary>Output: <code>f"Found {len(violations)} violations"</code></summary>
 
 ```
-Found 5 violations
-Found 3 violations
+Found 6 violations
+Found 4 violations
 ```
 
 </details>

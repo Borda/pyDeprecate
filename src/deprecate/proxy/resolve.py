@@ -12,6 +12,7 @@ from typing import Any, Optional
 
 from deprecate._frames import _caller_stacklevel
 from deprecate._types import TargetMode, get_deprecation_config
+from deprecate.messaging import _callable_display_name
 from deprecate.utils import _is_dataclass_target
 
 __all__: list[str] = []
@@ -252,31 +253,39 @@ def _detect_proxy_positional_only(
     args_mapping: Optional[dict[str, Optional[str]]],
     ctor_positional_only: frozenset[str],
 ) -> tuple[str, ...]:
-    """Detect ``args_mapping`` keys that remap to POSITIONAL_ONLY constructor parameters.
+    """Detect ``args_mapping`` keys that remap to POSITIONAL_ONLY parameters of the object the proxy calls.
 
     When ``deprecated_class(args_mapping={"old": "new"}, ...)`` targets a class whose constructor declares ``new`` as
     positional-only (``def __init__(self, new, /): ...``), a call with ``old=value`` cannot be forwarded as
-    ``new=value``.  Emits a ``UserWarning`` at decoration time and returns the incompatible old-key names so they can
-    be recorded in :class:`~deprecate._types.DeprecationConfig` for audit surfacing.  A ``None`` mapping value (drop)
-    is never incompatible.  Returns an empty tuple when no incompatibilities are found.
+    ``new=value``; the same holds for a function or callable object served by
+    ``deprecated_instance(args_mapping=...)``.  Emits a ``UserWarning`` at decoration time and returns the
+    incompatible old-key names so they can be recorded in :class:`~deprecate._types.DeprecationConfig` for audit
+    surfacing.  A ``None`` mapping value (drop) is never incompatible.  Returns an empty tuple when no
+    incompatibilities are found.
 
     Args:
-        dc_check: The resolved active object; only a class is checked.
+        dc_check: The resolved active object; a class (its constructor) or any other callable is checked.
         name: Display name of the deprecated object, used in the warning message.
         args_mapping: The ``args_mapping`` being validated.
-        ctor_positional_only: POSITIONAL_ONLY parameter names of the constructor of ``dc_check``.
+        ctor_positional_only: POSITIONAL_ONLY parameter names of ``dc_check``'s call signature (a class's
+            constructor).
 
     """
-    if not (args_mapping and isinstance(dc_check, type)):
+    if not (args_mapping and callable(dc_check)):
         return ()
     incompatible = tuple(old_key for old_key, new_key in args_mapping.items() if new_key in ctor_positional_only)
     if incompatible:
+        if isinstance(dc_check, type):
+            owner = f"constructor parameter(s) of `{dc_check.__name__}`"
+            advice = (
+                "to the constructor — consider removing `/` from the target signature or using `attrs_mapping` instead."
+            )
+        else:
+            owner = f"parameter(s) of `{_callable_display_name(dc_check)[0]}`"
+            advice = "— consider removing `/` from the target signature."
         warnings.warn(
-            f"`args_mapping` on `{name}` remaps {list(incompatible)!r} to POSITIONAL_ONLY "
-            f"constructor parameter(s) of `{dc_check.__name__}`. "
-            "Calls using those deprecated names will pass the remapped values positionally "
-            "to the constructor — consider removing `/` from the target signature or using "
-            "`attrs_mapping` instead.",
+            f"`args_mapping` on `{name}` remaps {list(incompatible)!r} to POSITIONAL_ONLY {owner}. "
+            f"Calls using those deprecated names will pass the remapped values positionally {advice}",
             UserWarning,
             stacklevel=_caller_stacklevel(),
         )
