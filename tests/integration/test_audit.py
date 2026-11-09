@@ -38,7 +38,7 @@ from deprecate.audit import (
     validate_mapping_compatibility,
 )
 from deprecate.audit._lifecycle import _check_deprecated_wrapper_expiry, _get_package_version, _parse_version
-from tests._helpers import captured_warnings
+from tests._helpers import captured_warnings, write_pkg
 from tests.collections.api_current.core import plain_function_target
 
 # Check if packaging is available for version comparison tests
@@ -1037,6 +1037,19 @@ class TestCheckModuleDeprecationExpiry:
         """Auto-detection raises ImportError when the package has no version metadata."""
         with pytest.raises(ImportError, match="Could not determine version"):
             validate_deprecation_expiry("tests.collections.api_deprecated.core", None, recursive=False)
+
+    def test_auto_detect_surfaces_package_import_error(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Auto-detection lets the scanned package's own import error through instead of a version error.
+
+        A maintainer runs the expiry gate without a version on a package that is not installed and whose
+        ``__init__`` raises. The version resolver would import it, swallow the failure and report "Could not
+        determine version", sending the maintainer to fix version metadata instead of the real error; the package is
+        imported before the version is looked up, so its own exception reaches the caller unchanged.
+        """
+        write_pkg(tmp_path, "aud_broken_init_pkg", "raise RuntimeError('aud broken init')\n")
+        monkeypatch.syspath_prepend(str(tmp_path))
+        with pytest.raises(RuntimeError, match="aud broken init"):
+            validate_deprecation_expiry("aud_broken_init_pkg", None, recursive=False)
 
     def test_auto_detect_requires_module_name(self) -> None:
         """Auto-detection raises ValueError when the module object has no __name__."""

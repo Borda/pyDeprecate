@@ -8,7 +8,6 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 """
 
 import enum
-import importlib
 import types
 import warnings
 from collections.abc import Mapping, Sequence
@@ -637,8 +636,6 @@ def validate_deprecation_policy(
 
     """
     spec = _build_policy_spec(min_grace, message_required)
-    if isinstance(module, str):
-        module = importlib.import_module(module)
     return _check_policy_for_callables(
         find_deprecation_wrappers(module, recursive=recursive, include_members=include_members, exclude=exclude), spec
     )

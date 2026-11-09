@@ -393,11 +393,13 @@ def validate_deprecation_expiry(
         - Can be integrated into test suites or pre-commit hooks
 
     """
-    # Determine module name for auto-version detection
-    module_name = module if isinstance(module, str) else getattr(module, "__name__", None)
-
     # Auto-detect version if not provided
     if current_version is None:
+        # Import a module path before looking up its version: the version resolver swallows import failures, so a
+        # package whose own import fails would be reported as having no version instead of with its real error.
+        if isinstance(module, str):
+            module = importlib.import_module(module)
+        module_name = getattr(module, "__name__", None)
         if not module_name:
             raise ValueError(
                 "Cannot auto-detect version: module object has no __name__ attribute. "
@@ -412,10 +414,6 @@ def validate_deprecation_expiry(
         _parse_version(current_version)
     except ValueError as err:
         raise ValueError(f"Invalid current_version '{current_version}': {err}") from err
-
-    # Handle string module path
-    if isinstance(module, str):
-        module = importlib.import_module(module)
 
     return _check_expiry_for_callables(
         find_deprecation_wrappers(module, recursive=recursive, include_members=include_members, exclude=exclude),
