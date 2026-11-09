@@ -22,7 +22,7 @@ from deprecate.audit._lifecycle import (
     _safe_parse_version,
 )
 from deprecate.audit._scan import find_deprecation_wrappers
-from deprecate.audit._wrappers import DeprecationWrapperInfo, _format_report_symbol
+from deprecate.audit._wrappers import DeprecationWrapperInfo, _ApiType, _format_report_symbol
 from deprecate.messaging import _callable_display_name
 from deprecate.proxy import _DeprecatedProxy
 from deprecate.utils import _partial_chain
@@ -110,7 +110,7 @@ def _format_report_api_type(info: DeprecationWrapperInfo) -> str:
     """Return api_type with backward-compatible fallback."""
     if info.api_type:
         return info.api_type
-    return "args" if info.deprecated_info.args_mapping else "callable"
+    return (_ApiType.ARGS if info.deprecated_info.args_mapping else _ApiType.CALLABLE).value
 
 
 def _report_row_sort_key(info: DeprecationWrapperInfo) -> tuple[str, str, str, bool, str]:

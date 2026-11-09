@@ -42,6 +42,30 @@ class ChainType(Enum):
     STACKED = "stacked"
 
 
+class _ApiType(str, Enum):
+    """Closed set of :attr:`DeprecationWrapperInfo.api_type` labels, one per deprecated API shape.
+
+    Internal: classifiers and comparisons use the members, while the public field holds the plain string value.
+
+    """
+
+    CALLABLE = "callable"
+    ARGS = "args"
+    CLASS = "class"
+    DATACLASS = "dataclass"
+    DATACLASS_ATTRIBUTES = "dataclass attributes"
+    DATA = "data"
+    MODULE = "module"
+    CLASS_CONSTRUCTOR = "class constructor"
+    CLASS_CONSTRUCTOR_ARGS = "class constructor args"
+    CLASS_METHOD = "class method"
+    CLASS_METHOD_ARGS = "class method args"
+    CLASSMETHOD = "classmethod"
+    CLASSMETHOD_ARGS = "classmethod args"
+    STATICMETHOD = "staticmethod"
+    STATICMETHOD_ARGS = "staticmethod args"
+
+
 @dataclass(frozen=True)
 class DeprecationWrapperInfo:
     """Information about a deprecated wrapper and its validation results.
@@ -74,10 +98,10 @@ class DeprecationWrapperInfo:
             that lack the introductory version metadata without crashing callers.
         api_type: Inferred deprecated API type for report generation.
             Possible values: ``callable``, ``args``, ``class``, ``dataclass``, ``dataclass attributes``,
-            ``data``, ``class constructor``, ``class constructor args``, ``class method``, ``class method args``,
-            ``classmethod``, ``classmethod args``, ``staticmethod``, ``staticmethod args``. A row for an object
-            deprecated only with ``warnings.deprecated``/``typing_extensions.deprecated`` gets the same shape
-            classification; ``pep702_message`` marks it.
+            ``data``, ``module``, ``class constructor``, ``class constructor args``, ``class method``,
+            ``class method args``, ``classmethod``, ``classmethod args``, ``staticmethod``, ``staticmethod args``.
+            A row for an object deprecated only with ``warnings.deprecated``/``typing_extensions.deprecated`` gets the
+            same shape classification; ``pep702_message`` marks it.
         args_mapping_auto_expanded: ``args_mapping`` keys that were automatically copied from ``attrs_mapping``
             by the dataclass dual-surface expansion at decoration time.  Empty list when no auto-expansion
             occurred.  Read from :attr:`~deprecate._types.DeprecationConfig.args_mapping_auto_expanded`.
@@ -133,8 +157,12 @@ class DeprecationWrapperInfo:
     pep702_message: Optional[str] = field(repr=False, default=None)
 
     def __post_init__(self) -> None:
-        """Derive ``empty_deprecated_in`` from ``deprecated_info`` to keep them in sync."""
+        """Derive ``empty_deprecated_in`` from ``deprecated_info`` and keep ``api_type`` a plain string."""
         object.__setattr__(self, "empty_deprecated_in", not self.deprecated_info.deprecated_in)
+        # The classifiers hand over an ``_ApiType`` member; the public field stays a plain ``str`` so ``str()`` and
+        # f-strings render the label, not the member name (a ``str`` mixin enum formats as ``_ApiType.X`` on 3.12+).
+        if isinstance(self.api_type, _ApiType):
+            object.__setattr__(self, "api_type", self.api_type.value)
 
     # Wrapped with pyDeprecate's own decorator (outer order) so the expiry audit of this package lists both
     # aliases and flags them once v1.0 is the current version; `num_warns=-1` keeps a warning on every read.
@@ -322,7 +350,7 @@ def _scan_module_meta(mod: Any) -> DeprecationWrapperInfo:  # noqa: ANN401
         misconfigured_target=False,
         all_identity=False,
         chain_type=None,
-        api_type="module",
+        api_type=_ApiType.MODULE,
         args_mapping_auto_expanded=[],
         args_mapping_positional_only=[],
     )
@@ -480,7 +508,7 @@ def _format_report_symbol(info: DeprecationWrapperInfo) -> str:
 
 
 #: Subject noun per ``api_type`` for wrappers that are not callables; every other kind reads as *Callable*.
-_SUBJECT_NOUNS = {"module": "Module", "data": "Instance"}
+_SUBJECT_NOUNS: dict[str, str] = {_ApiType.MODULE: "Module", _ApiType.DATA: "Instance"}
 
 
 def _subject_noun(info: DeprecationWrapperInfo) -> str:
@@ -509,26 +537,26 @@ def _format_subject(info: DeprecationWrapperInfo) -> str:
 
 #: Class-member ``api_type`` labels per member kind, as ``(plain, with args_mapping)``; a constructor is keyed by
 #: ``"__init__"``, any other member by its descriptor kind, and an unlisted kind is a plain method.
-_MEMBER_API_TYPES: dict[Optional[str], tuple[str, str]] = {
-    "__init__": ("class constructor", "class constructor args"),
-    "classmethod": ("classmethod", "classmethod args"),
-    "staticmethod": ("staticmethod", "staticmethod args"),
+_MEMBER_API_TYPES: dict[Optional[str], tuple[_ApiType, _ApiType]] = {
+    "__init__": (_ApiType.CLASS_CONSTRUCTOR, _ApiType.CLASS_CONSTRUCTOR_ARGS),
+    "classmethod": (_ApiType.CLASSMETHOD, _ApiType.CLASSMETHOD_ARGS),
+    "staticmethod": (_ApiType.STATICMETHOD, _ApiType.STATICMETHOD_ARGS),
 }
-_METHOD_API_TYPES = ("class method", "class method args")
+_METHOD_API_TYPES = (_ApiType.CLASS_METHOD, _ApiType.CLASS_METHOD_ARGS)
 
 
-def _classify_member_api_type(member_name: str, descriptor_kind: Optional[str], has_mapping: bool) -> str:
+def _classify_member_api_type(member_name: str, descriptor_kind: Optional[str], has_mapping: bool) -> _ApiType:
     """Classify the API type for a deprecated class member (method, constructor, descriptor)."""
     member_kind = "__init__" if member_name == "__init__" else descriptor_kind
     plain, mapped = _MEMBER_API_TYPES.get(member_kind, _METHOD_API_TYPES)
     return mapped if has_mapping else plain
 
 
-def _classify_class_api_type(cls: type, has_mapping: bool) -> str:
+def _classify_class_api_type(cls: type, has_mapping: bool) -> _ApiType:
     """Classify a deprecated class: a dataclass (its attributes when remapped) or any other class."""
     if is_dataclass(cls):
-        return "dataclass attributes" if has_mapping else "dataclass"
-    return "class"
+        return _ApiType.DATACLASS_ATTRIBUTES if has_mapping else _ApiType.DATACLASS
+    return _ApiType.CLASS
 
 
 def _classify_wrapper_api_type(
@@ -537,7 +565,7 @@ def _classify_wrapper_api_type(
     *,
     member_name: Optional[str] = None,
     descriptor_kind: Optional[str] = None,
-) -> str:
+) -> _ApiType:
     """Classify wrapper kind for markdown report rows."""
     has_mapping = bool(info.deprecated_info.args_mapping)
 
@@ -545,15 +573,15 @@ def _classify_wrapper_api_type(
         return _classify_member_api_type(member_name, descriptor_kind, has_mapping)
 
     if inspect.ismodule(wrapped_obj):
-        return "module"
+        return _ApiType.MODULE
 
     if isinstance(wrapped_obj, _DeprecatedProxy):
         while isinstance(wrapped_obj, _DeprecatedProxy):
             wrapped_obj = wrapped_obj.wrapped
         # a proxy around a class reads as that class; around anything else it is a deprecated data instance
-        return _classify_class_api_type(wrapped_obj, has_mapping) if inspect.isclass(wrapped_obj) else "data"
+        return _classify_class_api_type(wrapped_obj, has_mapping) if inspect.isclass(wrapped_obj) else _ApiType.DATA
 
     if inspect.isclass(wrapped_obj):
         return _classify_class_api_type(wrapped_obj, has_mapping)
 
-    return "args" if has_mapping else "callable"
+    return _ApiType.ARGS if has_mapping else _ApiType.CALLABLE

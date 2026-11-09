@@ -8,6 +8,8 @@ from typing import Optional
 
 import pytest
 
+import tests.collections.api_deprecated.core as core_wrappers
+import tests.collections.modules.old_math as old_math
 from deprecate import (
     DeprecatedError,
     as_exceptions,
@@ -21,7 +23,7 @@ from deprecate.audit import (
     DeprecationWrapperInfo,
     validate_deprecation_wrapper,
 )
-from deprecate.audit._wrappers import _classify_member_api_type, _classify_wrapper_api_type
+from deprecate.audit._wrappers import _ApiType, _classify_member_api_type, _classify_wrapper_api_type
 from deprecate.proxy import _DeprecatedProxy, _ProxySpec
 from tests.collections.api_current.core import ColorEnum
 from tests.collections.chains import caller_via_notify_layer
@@ -473,7 +475,39 @@ class TestClassifyWrapperApiTypeCharacterization:
         """
         label = _classify_wrapper_api_type(wrapped_obj, info, member_name=member_name, descriptor_kind=descriptor_kind)
         assert label == expected
-        assert format(label) == expected
+
+
+class TestApiTypeField:
+    """``DeprecationWrapperInfo.api_type`` stays a plain ``str`` whatever the classifier hands over."""
+
+    def test_member_stored_as_plain_string(self) -> None:
+        """An ``_ApiType`` member passed to the field is stored as its plain string value.
+
+        Callers format ``api_type`` into report text, JSON and their own messages; on Python 3.12+ a ``str`` mixin
+        enum member formats as ``_ApiType.MODULE``, so the field must hold the label itself to render the same on
+        every supported Python.
+        """
+        info = DeprecationWrapperInfo(api_type=_ApiType.MODULE)
+        assert type(info.api_type) is str
+        assert f"{info.api_type}" == "module"
+
+    @pytest.mark.parametrize(
+        "module",
+        [
+            pytest.param(core_wrappers, id="callables-classes-members"),
+            pytest.param(old_math, id="deprecated-module"),
+        ],
+    )
+    def test_scanned_rows_hold_plain_strings(self, module: types.ModuleType) -> None:
+        """Every row a scan reports carries a plain ``str`` ``api_type``, not an enum member.
+
+        The scan stores the classifier's label through ``dataclasses.replace`` and the module-row builder; a
+        package mixing callables, classes, class members, instances and a deprecated module must still hand plain
+        strings to every consumer of the public field.
+        """
+        rows = find_deprecation_wrappers(module, recursive=False)
+        assert rows
+        assert {type(row.api_type) for row in rows} == {str}
 
 
 class _AudAttrsMappingTarget:

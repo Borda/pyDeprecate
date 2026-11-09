@@ -22,7 +22,7 @@ from deprecate._types import DeprecationConfig, TargetMode
 from deprecate.audit._findings import _Check, _Finding, _make_finding, _Rule
 from deprecate.audit._lifecycle import _parse_version
 from deprecate.audit._scan import find_deprecation_wrappers
-from deprecate.audit._wrappers import DeprecationWrapperInfo, _format_subject
+from deprecate.audit._wrappers import DeprecationWrapperInfo, _ApiType, _format_subject
 from deprecate.module import _build_module_warn_msg
 
 
@@ -423,7 +423,7 @@ def _has_migration_guidance(info: DeprecationWrapperInfo) -> bool:
 
     """
     config = info.deprecated_info
-    if info.api_type == "module":
+    if info.api_type == _ApiType.MODULE:
         return _module_has_migration_guidance(config)
     target = config.target
     has_mapping = bool(config.args_mapping or config.attrs_mapping)
@@ -469,9 +469,9 @@ def _module_has_migration_guidance(config: DeprecationConfig) -> bool:
 #: :func:`~deprecate.proxy.deprecated_instance` takes a ``message_template`` and nothing else that names a
 #: replacement; :func:`~deprecate.module.deprecated_module` takes a ``target`` module, an ``attrs_mapping`` and a
 #: ``message_template``; every other wrapper comes from a factory that also accepts an ``args_mapping``.
-_MESSAGE_REQUIRED_REMEDIES = {
-    "data": "configure a custom `message_template`",
-    "module": "configure a `target`, an `attrs_mapping`, or a custom `message_template`",
+_MESSAGE_REQUIRED_REMEDIES: dict[str, str] = {
+    _ApiType.DATA: "configure a custom `message_template`",
+    _ApiType.MODULE: "configure a `target`, an `attrs_mapping`, or a custom `message_template`",
 }
 _MESSAGE_REQUIRED_DEFAULT_REMEDY = (
     "configure a `target`, an `args_mapping`/`attrs_mapping`, or a custom `message_template`"
