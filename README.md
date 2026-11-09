@@ -671,17 +671,19 @@ print(compute_power(2, scale=3))  # → 1 warning  (function deprecated only)
 
 </details>
 
-| Outer (top)  | Inner (bottom) | Status                             | Notes                                                                   |
-| ------------ | -------------- | ---------------------------------- | ----------------------------------------------------------------------- |
-| `ARGS_REMAP` | `ARGS_REMAP`   | ✓ Supported                        | Multi-step argument renames across versions                             |
-| `ARGS_REMAP` | `NOTIFY`       | ✓ Supported                        | Lifecycle: rename args first, then deprecate the whole function         |
-| `NOTIFY`     | `callable`     | ✓ Supported                        | Outer NOTIFY warns callers; inner callable handles forwarding           |
-| `callable`   | `callable`     | ✗ `UserWarning` at decoration time | Use a single `@deprecated(target=<callable>)` instead                   |
-| `callable`   | `ARGS_REMAP`   | ✗ `UserWarning` at decoration time | Collapse to `@deprecated(target=fn, args_mapping={...})`                |
-| `callable`   | `NOTIFY`       | ✗ `UserWarning` at decoration time | Collapse to a single `@deprecated(target=<callable>)`                   |
-| `ARGS_REMAP` | `callable`     | ✗ `UserWarning` at decoration time | Update the inner decorator to include `target=` and `args_mapping=`     |
-| `NOTIFY`     | `NOTIFY`       | ✗ `UserWarning` at decoration time | Update the existing decorator's versions instead of adding a second one |
-| `NOTIFY`     | `ARGS_REMAP`   | ✗ `UserWarning` at decoration time | Wrong order — swap: `ARGS_REMAP` on top, `NOTIFY` below                 |
+| Outer (top)  | Inner (bottom) | Status | Notes                                                                   |
+| ------------ | -------------- | :----: | ----------------------------------------------------------------------- |
+| `ARGS_REMAP` | `ARGS_REMAP`   |   ✅   | Multi-step argument renames across versions                             |
+| `ARGS_REMAP` | `NOTIFY`       |   ✅   | Lifecycle: rename args first, then deprecate the whole function         |
+| `NOTIFY`     | `callable`     |   ✅   | Outer NOTIFY warns callers; inner callable handles forwarding           |
+| `callable`   | `callable`     |   ❌   | Use a single `@deprecated(target=<callable>)` instead                   |
+| `callable`   | `ARGS_REMAP`   |   ❌   | Collapse to `@deprecated(target=fn, args_mapping={...})`                |
+| `callable`   | `NOTIFY`       |   ❌   | Collapse to a single `@deprecated(target=<callable>)`                   |
+| `ARGS_REMAP` | `callable`     |   ❌   | Update the inner decorator to include `target=` and `args_mapping=`     |
+| `NOTIFY`     | `NOTIFY`       |   ❌   | Update the existing decorator's versions instead of adding a second one |
+| `NOTIFY`     | `ARGS_REMAP`   |   ❌   | Wrong order — swap: `ARGS_REMAP` on top, `NOTIFY` below                 |
+
+✅ = supported <br> ❌ = unsupported — emits `UserWarning` at decoration time
 
 ### ⚙ Conditional skip
 

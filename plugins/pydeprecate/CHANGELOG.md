@@ -2,6 +2,12 @@
 
 All notable changes to the `pydeprecate` coding-agent plugin (the `sunset` and `prune` skills) are listed here. The plugin `version` follows its own cadence, independent of the `pyDeprecate` package version; `compatible_package_version` is the package support window the skills are verified against.
 
+## [0.5.3] - Unreleased
+
+### Changed
+
+- `compatible_package_version` raised from `>=0.11` to `>=0.12` for the pyDeprecate 0.15 release; the `message_template` since-note is dropped, and the `as_exception` and static-checker notes now name 0.12-0.13 as the releases without an equivalent.
+
 ## [0.5.1] - Unreleased
 
 ### Fixed

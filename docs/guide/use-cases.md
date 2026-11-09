@@ -27,7 +27,7 @@ Deprecating `@property` and `@cached_property` descriptors: decorator order rule
 
 ### [Async](async.md)
 
-Deprecating `async def` functions and async generator functions: all three TargetModes, warning timing differences (await-time vs call-time), coroutine introspection behaviour, and concurrency caveats.
+Deprecating `async def` functions and async generator functions: all three TargetModes, warning timing (coroutines warn when awaited, async generators on the first iteration), coroutine introspection behaviour, and concurrency caveats.
 
 ### [Advanced](advanced.md)
 
