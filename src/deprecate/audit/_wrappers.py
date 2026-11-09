@@ -507,15 +507,28 @@ def _format_subject(info: DeprecationWrapperInfo) -> str:
     return f"{_subject_noun(info)} `{_format_report_symbol(info)}`"
 
 
+#: Class-member ``api_type`` labels per member kind, as ``(plain, with args_mapping)``; a constructor is keyed by
+#: ``"__init__"``, any other member by its descriptor kind, and an unlisted kind is a plain method.
+_MEMBER_API_TYPES: dict[Optional[str], tuple[str, str]] = {
+    "__init__": ("class constructor", "class constructor args"),
+    "classmethod": ("classmethod", "classmethod args"),
+    "staticmethod": ("staticmethod", "staticmethod args"),
+}
+_METHOD_API_TYPES = ("class method", "class method args")
+
+
 def _classify_member_api_type(member_name: str, descriptor_kind: Optional[str], has_mapping: bool) -> str:
     """Classify the API type for a deprecated class member (method, constructor, descriptor)."""
-    if member_name == "__init__":
-        return "class constructor args" if has_mapping else "class constructor"
-    if descriptor_kind == "classmethod":
-        return "classmethod args" if has_mapping else "classmethod"
-    if descriptor_kind == "staticmethod":
-        return "staticmethod args" if has_mapping else "staticmethod"
-    return "class method args" if has_mapping else "class method"
+    member_kind = "__init__" if member_name == "__init__" else descriptor_kind
+    plain, mapped = _MEMBER_API_TYPES.get(member_kind, _METHOD_API_TYPES)
+    return mapped if has_mapping else plain
+
+
+def _classify_class_api_type(cls: type, has_mapping: bool) -> str:
+    """Classify a deprecated class: a dataclass (its attributes when remapped) or any other class."""
+    if is_dataclass(cls):
+        return "dataclass attributes" if has_mapping else "dataclass"
+    return "class"
 
 
 def _classify_wrapper_api_type(
@@ -537,18 +550,10 @@ def _classify_wrapper_api_type(
     if isinstance(wrapped_obj, _DeprecatedProxy):
         while isinstance(wrapped_obj, _DeprecatedProxy):
             wrapped_obj = wrapped_obj.wrapped
-        if inspect.isclass(wrapped_obj):
-            if is_dataclass(wrapped_obj):
-                return "dataclass attributes" if has_mapping else "dataclass"
-            return "class"
-        return "data"
+        # a proxy around a class reads as that class; around anything else it is a deprecated data instance
+        return _classify_class_api_type(wrapped_obj, has_mapping) if inspect.isclass(wrapped_obj) else "data"
 
     if inspect.isclass(wrapped_obj):
-        if is_dataclass(wrapped_obj):
-            return "dataclass attributes" if has_mapping else "dataclass"
-        return "class"
+        return _classify_class_api_type(wrapped_obj, has_mapping)
 
-    if has_mapping:
-        return "args"
-
-    return "callable"
+    return "args" if has_mapping else "callable"

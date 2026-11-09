@@ -417,22 +417,20 @@ def _get_deprecation_status(info: DeprecationWrapperInfo, current_version: Optio
     remove_version = _safe_parse_version(remove_in)
     if remove_version is None:
         return DeprecationStatus.INVALID_REMOVAL_TARGET
+    return _removal_status(current_version, remove_version)
 
+
+def _removal_status(current_version: "Version", remove_version: "Version") -> DeprecationStatus:
+    """Classify a release against a parsed removal version: past it, about to reach it, or still before it."""
     if current_version >= remove_version:
         return DeprecationStatus.PAST_REMOVAL_DATE
-
     # Pre-release of the same base release as remove_in gets an elevated status:
     # dev/alpha/beta → REMOVAL_IMMINENT; rc → REMOVE_BEFORE_RELEASE.
-    # base_version strips pre/post/dev/local markers so "1.8" == "1.8.0" compare equal.
-    if current_version.is_prerelease:
-        try:
-            _VersionType = type(current_version)  # noqa: N806
-            same_base = _VersionType(current_version.base_version) == _VersionType(remove_version.base_version)
-        except Exception:
-            same_base = False
-        if same_base:
-            if current_version.pre is not None and current_version.pre[0] == "rc":
-                return DeprecationStatus.REMOVE_BEFORE_RELEASE
-            return DeprecationStatus.REMOVAL_IMMINENT
-
-    return DeprecationStatus.ACTIVE_WARNING
+    # base_version strips pre/post/dev/local markers and always re-parses, so "1.8" == "1.8.0" compare equal.
+    version_type = type(current_version)
+    same_base = version_type(current_version.base_version) == version_type(remove_version.base_version)
+    if not (current_version.is_prerelease and same_base):
+        return DeprecationStatus.ACTIVE_WARNING
+    if current_version.pre is not None and current_version.pre[0] == "rc":
+        return DeprecationStatus.REMOVE_BEFORE_RELEASE
+    return DeprecationStatus.REMOVAL_IMMINENT
