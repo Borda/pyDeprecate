@@ -2018,3 +2018,54 @@ class TestAllGate:
         result = cmd_all(path=[str(pkg_a), str(pkg_b)], version="1.0", gate=["policy"])
         assert result == 1
         assert [call.args[0] for call in mock_find.call_args_list] == ["pkg_a", "pkg_b"]
+
+
+def _write_baseline(path: Path, ids: list[str]) -> Path:
+    """Write a schema-2 baseline report accepting the finding *ids*."""
+    path.write_text(json.dumps({"schema": 2, "findings": [{"id": item} for item in ids]}), encoding="utf-8")
+    return path
+
+
+@pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
+class TestStaleBaselineScope:
+    """A baseline id reads as stale only for a rule the run evaluated in a module the run audited."""
+
+    @pytest.mark.parametrize(
+        ("extra_id", "stale"),
+        [
+            pytest.param("expired:pkg_a:removed_fn", 1, id="gone-from-audited-module"),
+            pytest.param("expired:pkg_a.broken:gone_fn", 0, id="module-failed-to-import"),
+            pytest.param("expired:other_pkg:old_fn", 0, id="package-not-scanned"),
+        ],
+    )
+    def test_only_audited_modules_count(
+        self, extra_id: str, stale: int, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """An id of a module that failed to import, or of a package the run did not scan, is not stale.
+
+        A monorepo shares one baseline across per-package runs, and a module missing a runtime dependency is not
+        audited; telling the user to regenerate would drop accepted ids that the next full run fails on again.
+
+        """
+        pkg = _project(tmp_path / "a", "pkg_a", body=_REMOVED_IN_TWO, broken=True)
+        baseline = _write_baseline(tmp_path / "baseline.json", ["expired:pkg_a:old_fn", extra_id])
+        with _record_run() as run:
+            result = cmd_expiry(path=str(pkg), version="3.0", baseline=str(baseline))
+        assert result == 0
+        assert run.baseline_unmatched == stale
+        assert ("no longer match a finding" in capsys.readouterr().err) is bool(stale)
+
+    def test_skipped_check_of_one_path_keeps_its_ids(self, tmp_path: Path) -> None:
+        """Ids of a path whose expiry check was skipped stay expected-free, although another path ran the check.
+
+        ``pkg_a`` has no resolvable version, so its expiry check is skipped; ``pkg_b`` at 3.0 runs it. The shared
+        baseline's ``pkg_a`` id must not be counted as stale through ``pkg_b``'s copy of the same baseline.
+
+        """
+        pkg_a = _project(tmp_path / "a", "pkg_a", body=_REMOVED_IN_TWO)
+        pkg_b = _project(tmp_path / "b", "pkg_b", pyproject='[project]\nversion = "3.0"\n', body=_REMOVED_IN_TWO)
+        baseline = _write_baseline(tmp_path / "baseline.json", ["expired:pkg_a:old_fn", "expired:pkg_b:old_fn"])
+        with _record_run() as run:
+            result = cmd_expiry(path=[str(pkg_a), str(pkg_b)], baseline=str(baseline))
+        assert result == 0
+        assert run.baseline_unmatched == 0

@@ -8,6 +8,7 @@ Suppressed findings are never printed, counted or gated on; the report lists the
 """
 
 import json
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from fnmatch import fnmatchcase
 from pathlib import Path
@@ -131,15 +132,17 @@ class _Suppressor:
     def match(self, finding: _Finding) -> Optional[tuple[str, str]]:
         """Return how *finding* is suppressed — ``(kind, entry)`` — or ``None`` when it stays active.
 
-        Ignore entries are checked first, so a finding both entries match counts as ignored.
+        Ignore entries are checked first, so a finding both entries match counts as ignored; its baseline id still
+        counts as matched, so it is never reported as stale.
 
         """
+        if finding.id in self.baseline:
+            self.used_ids.add(finding.id)
         for entry in self.ignore:
             if entry.matches(finding):
                 self.used_entries.add(entry.text)
                 return _IGNORE, entry.text
         if finding.id in self.baseline:
-            self.used_ids.add(finding.id)
             return _BASELINE, finding.id
         return None
 
@@ -147,10 +150,28 @@ class _Suppressor:
         """Return how many ignore entries matched no finding of the run."""
         return len({entry.text for entry in self.ignore} - self.used_entries)
 
-    def unmatched_baseline(self, evaluated_rules: set[str]) -> int:
-        """Return how many baseline ids of a rule the run evaluated matched no finding — the stale entries."""
-        return len(self.evaluated_baseline(evaluated_rules) - self.used_ids)
+    def unmatched_baseline(self, evaluated_rules: set[str], audited: Optional[Callable[[str], bool]] = None) -> int:
+        """Return how many baseline ids the run expected to match matched no finding — the stale entries."""
+        return len(self.evaluated_baseline(evaluated_rules, audited) - self.used_ids)
 
-    def evaluated_baseline(self, evaluated_rules: set[str]) -> set[str]:
-        """Return the baseline ids of a rule the run evaluated: the ones a finding was expected to match."""
-        return {item for item in self.baseline if item.split(":", 1)[0] in evaluated_rules}
+    def evaluated_baseline(
+        self, evaluated_rules: set[str], audited: Optional[Callable[[str], bool]] = None
+    ) -> set[str]:
+        """Return the baseline ids a finding was expected to match: of a rule the run evaluated, in a module it audited.
+
+        An id (``rule:module:symbol``) of a module the run did not audit — outside the scanned package, excluded, or
+        one that failed to import — is not expected, so a baseline shared by several packages or a module that could
+        not be imported never reads as stale. Without *audited* every module counts as audited.
+
+        Examples:
+            >>> suppressor = _Suppressor(baseline=frozenset({"expired:pkg.a:f", "expired:other:g", "chain:pkg.a:h"}))
+            >>> sorted(suppressor.evaluated_baseline({"expired"}, lambda module: module.startswith("pkg")))
+            ['expired:pkg.a:f']
+
+        """
+        expected = set()
+        for item in self.baseline:
+            rule, _, rest = item.partition(":")
+            if rule in evaluated_rules and (audited is None or audited(rest.split(":", 1)[0])):
+                expected.add(item)
+        return expected

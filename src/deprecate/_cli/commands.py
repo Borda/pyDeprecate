@@ -9,6 +9,7 @@ check's findings of all paths in one section and decides one exit code over all 
 from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, NamedTuple, Optional, Union
 
@@ -61,6 +62,7 @@ from deprecate.audit._findings import _Check, _Finding, _Rule, _wrapper_findings
 from deprecate.audit._lifecycle import _expiry_findings
 from deprecate.audit._policy import _build_policy_spec, _policy_findings
 from deprecate.audit._report import _render_deprecation_table, _resolve_table_version
+from deprecate.audit._scan import _is_excluded
 from deprecate.audit._wrappers import _format_subject
 
 if TYPE_CHECKING:
@@ -241,11 +243,31 @@ class _PathPlan:
     gates: frozenset[str] = frozenset()
     #: The resolved policy rules and the ``Policy:`` header line naming their sources.
     policy: Optional[tuple["_PolicySpec", str]] = None
+    #: The resolved module-exclusion patterns of this path.
+    exclude: tuple[str, ...] = ()
+    #: Whether the scan descends into submodules.
+    recursive: bool = True
 
     @property
     def path(self) -> str:
         """The path as the user passed it."""
         return self.target.path
+
+    def audits(self, module: str, *, not_audited: frozenset[str] = frozenset()) -> bool:
+        """Tell whether this path's scan audited *module*: inside its scope, not excluded, and imported.
+
+        *not_audited* holds the modules the scan reported as not audited (an import failure), with their submodules.
+
+        """
+        if any(module == name or module.startswith(f"{name}.") for name in not_audited):
+            return False
+        if _is_excluded(module, self.exclude):
+            return False
+        root = self.target.module
+        if root is None:  # a plain directory scans its top-level files, each by its bare name
+            location = self.target.location
+            return location is not None and "." not in module and (location / f"{module}.py").is_file()
+        return module == root or (self.recursive and module.startswith(f"{root}."))
 
 
 def _plan_path(target: _ScanTarget, options: _RunOptions) -> Optional[_PathPlan]:
@@ -261,7 +283,8 @@ def _plan_path(target: _ScanTarget, options: _RunOptions) -> Optional[_PathPlan]
     # `status` reads the file only for `exclude`, as it always did; a typed `--exclude` leaves it unread
     reads_file = options.gating or options.exclude is _FROM_PYPROJECT
     config = _load_pydeprecate_config(path) if reads_file else ({}, None)
-    if config is None or _resolve_exclude(path, options.exclude, config) is None:
+    exclude = None if config is None else _resolve_exclude(path, options.exclude, config)
+    if config is None or exclude is None:
         return None
     if not options.gating:
         return _PathPlan(target, config)
@@ -275,7 +298,7 @@ def _plan_path(target: _ScanTarget, options: _RunOptions) -> Optional[_PathPlan]
         policy = _resolve_policy_spec(path, options.policy_flags, config)
     if gates is None or (options.policy_flags is not None and policy is None):
         return None
-    return _PathPlan(target, config, strict, suppressor, gates, policy)
+    return _PathPlan(target, config, strict, suppressor, gates, policy, tuple(exclude[0]), options.recursive)
 
 
 def _plan_paths(paths: Sequence[str], options: _RunOptions) -> Optional[list[_PathPlan]]:
@@ -401,9 +424,10 @@ def _report_suppression(record: _RunRecord, plans: list[_PathPlan], subcommand: 
     """Say how many findings the ignore lists and baselines suppressed, and count the entries that matched none.
 
     A baseline id counts as stale only for a rule this subcommand evaluates and whose check actually ran on the path
-    whose baseline holds it, and only when no path matched it; it is reported once on stderr and never fails the run.
-    Unused ignore entries — matched on no path — are only counted for the report: an entry for a check that did not run
-    is legitimately unused.
+    whose baseline holds it, in a module that path's scan audited (inside the scanned package, not excluded, imported),
+    and only when no path matched it; it is reported once on stderr and never fails the run. Unused ignore entries —
+    matched on no path — are only counted for the report: an entry for a check that did not run is legitimately
+    unused.
 
     """
     kinds = Counter({item.finding.id: item.kind for item in record.suppressed}.values())
@@ -421,9 +445,14 @@ def _report_suppression(record: _RunRecord, plans: list[_PathPlan], subcommand: 
             continue
         own_gaps = [gap for gap in record.gaps if gap.path == plan.path or gap.path not in planned]
         skipped = {rule for gap in own_gaps for rule in _SKIPPED_RULES.get(gap.kind, ())}
+        not_audited = frozenset(
+            gap.detail.split(":", 1)[0] for gap in own_gaps if gap.kind is _GapKind.MODULE_NOT_AUDITED
+        )
         entries |= {entry.text for entry in plan.suppressor.ignore}
         used_entries |= plan.suppressor.used_entries
-        expected_ids |= plan.suppressor.evaluated_baseline(evaluated - skipped)
+        expected_ids |= plan.suppressor.evaluated_baseline(
+            evaluated - skipped, partial(plan.audits, not_audited=not_audited)
+        )
         used_ids |= plan.suppressor.used_ids
     record.ignore_unmatched = len(entries - used_entries)
     record.baseline_unmatched = len(expected_ids - used_ids)

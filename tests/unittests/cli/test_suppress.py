@@ -103,6 +103,17 @@ class TestSuppressorMatch:
         suppressor = _Suppressor(ignore=_parse_ignore(["pkg.mod:old_fn"], "test"), baseline=frozenset({finding.id}))
         assert suppressor.match(finding) == ("ignore", "pkg.mod:old_fn")
 
+    def test_ignored_baseline_id_is_not_stale(self) -> None:
+        """A baseline id whose finding an ignore entry suppressed still counts as matched, never as stale.
+
+        A team that ignores a finding it also baselined must not be told to regenerate a baseline that is still right.
+
+        """
+        finding = _finding(_Rule.EXPIRED)
+        suppressor = _Suppressor(ignore=_parse_ignore(["pkg.mod:old_fn"], "test"), baseline=frozenset({finding.id}))
+        suppressor.match(finding)
+        assert suppressor.unmatched_baseline({"expired"}) == 0
+
     @pytest.mark.parametrize(
         ("symbol", "expected"),
         [
