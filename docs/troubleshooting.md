@@ -2297,6 +2297,14 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
+## Why does the GitHub Action say the report is not of layout version 1?
+
+**Q:** The pyDeprecate GitHub Action warns `the pyDeprecate report is not of layout version 1; ignoring it` and adds no gap annotations or job summary, although the CLI ran.
+
+**A:** The action's runner is older than the CLI it ran: an action pinned to 0.15 or older reads only layout version 1, while pyDeprecate 0.16 and newer writes version 2 (`"schema": 2`, which adds per-finding records). This happens with `install: false` when the job installs a newer pyDeprecate than the action ref. The step's exit code is still the CLI's, so the gate result is right; only the annotations and the summary are skipped. Pin the action to the same release your job installs (`uses: Borda/pyDeprecate@v0.16.0`), or keep the default `install: true` so the action installs the CLI from its own ref. A 0.16 action reads both layout versions, so an older CLI kept with `install: false` still works with it.
+
+______________________________________________________________________
+
 ## Why did the GitHub Action skip my job summary?
 
 **Q:** The action ran with `summary: true`, but the job summary is absent or warns that the gate wrote no pyDeprecate report, or that no pyDeprecate report is available, or another runner warning about the summary.

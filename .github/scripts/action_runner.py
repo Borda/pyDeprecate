@@ -49,8 +49,11 @@ INPUT_DEFAULTS = {
 }
 #: Name of the report file inside the runner's private temporary directory.
 REPORT_FILENAME = "report.json"
-#: Layout version of the CLI's ``--report-json`` file that this runner reads.
-REPORT_SCHEMA = 1
+#: Layout version of the CLI's ``--report-json`` file that the CLI of this ref writes.
+REPORT_SCHEMA = 2
+#: Layout versions this runner reads: schema 2 only adds keys, so an older CLI kept with ``install: false`` still
+#: writes a usable schema-1 report.
+REPORT_SCHEMAS = (1, 2)
 #: Most gap details quoted in one warning annotation; the CLI log above it lists every one.
 GAP_DETAILS_SHOWN = 3
 
@@ -374,8 +377,9 @@ def read_report(report_file: Path) -> dict[str, Any] | None:
     except (OSError, ValueError) as err:
         annotate("warning", f"could not read the pyDeprecate report: {err}")
         return None
-    if not isinstance(report, dict) or report.get("schema") != REPORT_SCHEMA:
-        annotate("warning", f"the pyDeprecate report is not of layout version {REPORT_SCHEMA}; ignoring it")
+    if not isinstance(report, dict) or report.get("schema") not in REPORT_SCHEMAS:
+        versions = " or ".join(str(schema) for schema in REPORT_SCHEMAS)
+        annotate("warning", f"the pyDeprecate report is not of layout version {versions}; ignoring it")
         return None
     return report
 

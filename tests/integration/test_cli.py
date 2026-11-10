@@ -8,11 +8,14 @@ import sys
 from pathlib import Path
 from typing import Optional
 
+import jsonschema
 import pytest
 
 from tests._helpers import write_pkg
 
 _SRC_DIR = str(Path(__file__).resolve().parent.parent.parent / "src")
+#: The JSON Schema the docs ship for the ``--report-json`` file of layout version 2.
+_REPORT_SCHEMA_FILE = Path(__file__).resolve().parent.parent.parent / "docs" / "schemas" / "report-2.schema.json"
 _PACKAGING_AVAILABLE = importlib.util.find_spec("packaging") is not None
 _MYPKG_INIT = """\
 from deprecate import deprecated
@@ -1410,6 +1413,98 @@ class TestCliAttachedBoolLiterals:
         assert "expects True or False" in result.stderr
 
 
+# Package with two wrappers past their removal at 2.0, both defined in its `__init__`.
+_MYPKG_INIT_TWO_EXPIRED = """\
+from deprecate import deprecated
+
+
+def new_fn(x: int) -> int:
+    return x
+
+
+@deprecated(target=new_fn, deprecated_in="1.0", remove_in="1.5")
+def old_fn(x: int) -> int:
+    pass
+
+
+@deprecated(target=new_fn, deprecated_in="1.0", remove_in="1.8")
+def mid_fn(x: int) -> int:
+    pass
+"""
+
+
+@pytest.mark.subprocess
+@pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="expiry needs the packaging library")
+class TestCliReportSchemaTwo:
+    """The ``--report-json`` file of layout version 2: per-finding records, the gate outcome, and the shipped schema."""
+
+    def test_expired_findings_are_recorded_with_stable_ids(self, tmp_path: Path) -> None:
+        """Each expired wrapper is one finding whose id, message and location match what the console printed.
+
+        A CI tool turns the report into annotations and a baseline. It needs one record per finding with an id that
+        survives message rewording, the exact console text, and the file and line of the wrapper.
+
+        """
+        pkg = _make_pkg(tmp_path, content=_MYPKG_INIT_TWO_EXPIRED)
+        report = tmp_path / "report.json"
+        result = _run_cli("expiry", str(pkg), "--version=2.0", f"--report-json={report}", cwd=tmp_path)
+        data = json.loads(report.read_text(encoding="utf-8"))
+        findings = data["findings"]
+        assert result.returncode == 1, result.stderr
+        assert [finding["id"] for finding in findings] == ["expired:mypkg:mid_fn", "expired:mypkg:old_fn"]
+        assert all(f"\t- {finding['message']}" in result.stdout for finding in findings)
+        assert {finding["location"]["file"] for finding in findings} == {"mypkg/__init__.py"}
+        assert {finding["level"] for finding in findings} == {"error"}
+        assert data["gate"] == {"failed": True, "reasons": ["findings"]}
+        assert data["exit_code"] == 1
+        assert data["summary"]["errors"] == 2
+
+    @pytest.mark.parametrize(
+        ("subcommand", "args", "exit_code"),
+        [
+            pytest.param("check", (), 0, id="check"),
+            pytest.param("expiry", ("--version=2.0",), 1, id="expiry"),
+            pytest.param("policy", (), 0, id="policy"),
+            pytest.param("chains", (), 0, id="chains"),
+            pytest.param("all", ("--version=2.0",), 1, id="all"),
+            pytest.param("status", ("--version=2.0",), 0, id="status"),
+        ],
+    )
+    def test_report_validates_against_shipped_schema(
+        self, tmp_path: Path, subcommand: str, args: tuple[str, ...], exit_code: int
+    ) -> None:
+        """Every subcommand writes a report the shipped JSON Schema accepts, naming the command, path and version.
+
+        Consumers validate the file against ``docs/schemas/report-2.schema.json`` before trusting it; a writer that
+        drifted from the documented layout would be rejected by every such consumer.
+
+        """
+        pkg = _make_pkg(tmp_path, content=_MYPKG_INIT_TWO_EXPIRED)
+        report = tmp_path / "report.json"
+        result = _run_cli(subcommand, str(pkg), *args, f"--report-json={report}", cwd=tmp_path)
+        data = json.loads(report.read_text(encoding="utf-8"))
+        jsonschema.validate(data, json.loads(_REPORT_SCHEMA_FILE.read_text(encoding="utf-8")))
+        assert result.returncode == exit_code, result.stderr
+        assert (data["command"], data["paths"], data["exit_code"]) == (subcommand, [str(pkg)], exit_code)
+        assert data["versions"][0]["package"] == "mypkg"
+
+    def test_strict_gap_is_the_gate_reason(self, tmp_path: Path) -> None:
+        """A strict run that fails only on a gap records ``gaps`` as the reason, and the gap carries its path.
+
+        CI tooling tells a failing audit from an incomplete one by ``gate.reasons``, without a separate exit code.
+
+        """
+        pkg = _make_pkg(tmp_path)
+        (pkg / "broken.py").write_text("raise RuntimeError('boom')\n")
+        report = tmp_path / "report.json"
+        result = _run_cli("check", str(pkg), "--strict", f"--report-json={report}", cwd=tmp_path)
+        data = json.loads(report.read_text(encoding="utf-8"))
+        assert result.returncode == 1, result.stderr
+        assert data["gate"] == {"failed": True, "reasons": ["gaps"]}
+        assert data["options"]["strict"] is True
+        assert [gap["path"] for gap in data["gaps"]] == [str(pkg)]
+
+
 @pytest.mark.subprocess
 class TestCliReportJson:
     """``--report-json PATH`` writes one machine-readable record of the run: the status table and every gap."""
@@ -1439,7 +1534,7 @@ class TestCliReportJson:
         result = _run_cli(subcommand, str(pkg), *args, f"--report-json={report}", cwd=tmp_path)
         data = json.loads(report.read_text(encoding="utf-8"))
         assert result.returncode == exit_code, result.stderr
-        assert data["schema"] == 1
+        assert data["schema"] == 2
         assert "old_fn" in data["table"]
 
     def test_failing_gate_still_writes_report(self, tmp_path: Path) -> None:

@@ -526,7 +526,7 @@ class TestCmdExpiry:
         with _record_run() as record, pytest.warns(UserWarning, match="unparsable `remove_in`"):
             result = _expiry_wrappers([typo], "2.0")
 
-        ((kind, detail),) = record.gaps
+        ((kind, detail, _path),) = record.gaps
         assert result == 0
         assert kind == _GapKind.REMOVE_IN_INVALID
         assert "typo_fn" in detail
@@ -554,7 +554,7 @@ class TestCmdExpiry:
             result = _expiry_wrappers([typo, overdue], "2.0")
 
         assert result == 1
-        assert [kind for kind, _ in record.gaps] == [_GapKind.REMOVE_IN_INVALID]
+        assert [gap.kind for gap in record.gaps] == [_GapKind.REMOVE_IN_INVALID]
 
     def test_valid_remove_in_records_no_gap(self) -> None:
         """Wrappers with a parsable or absent ``remove_in`` leave the gap list empty.
@@ -594,7 +594,7 @@ class TestCmdExpiry:
             result = _expiry_wrappers([typo], "not-a-version")
 
         assert result == 0
-        assert [kind for kind, _ in record.gaps] == [_GapKind.VERSION_INVALID]
+        assert [gap.kind for gap in record.gaps] == [_GapKind.VERSION_INVALID]
 
     def test_pre_scanned_wrappers_version_none_skips(self, capsys: pytest.CaptureFixture[str]) -> None:
         """_wrappers provided but version=None → warns on stderr and returns 0."""

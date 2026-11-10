@@ -138,7 +138,7 @@ pydeprecate status tests --version 1.2
 | `--exclude`            | `pyproject.toml` |    ✓    |    ✓     |    ✓     |    ✓     |   ✓   |    ✓     | Glob patterns over full dotted module names to leave out of the scan; the scan itself never imports a matching package nor descends into it. One pattern, or comma-separated. | Default is the `exclude` list of `[tool.pydeprecate]` (see below), else nothing. Quote the value — an unquoted `*` is expanded by the shell first. Malformed → exit `2`. |
 | `--style`              | `compact`        |         |          |          |          |       |    ✓     | Table rendering style — `compact` (default) or `matrix`.                                                                                                                      |                                                                                                                                                                          |
 | `--output FILE`        | stdout only      |         |          |          |          |   ✓   |    ✓     | Also save the markdown table to a file. Table is always printed to stdout regardless.                                                                                         | For `all`, a failure to write the file is reported but never changes the exit code.                                                                                      |
-| `--report-json FILE`   | off              |    ✓    |    ✓     |    ✓     |    ✓     |   ✓   |    ✓     | Write the run's machine-readable record for CI tooling: the deprecation table of this run's scan and every gap (see below).                                                   | Written on exit `0` or `1` only; a write failure is reported on stderr and never changes the exit code.                                                                  |
+| `--report-json FILE`   | off              |    ✓    |    ✓     |    ✓     |    ✓     |   ✓   |    ✓     | Write the run's machine-readable record for CI tooling: the deprecation table of this run's scan, every gap and every finding (see below).                                    | Written on exit `0` or `1` only; a write failure is reported on stderr and never changes the exit code.                                                                  |
 
 A bare `pydeprecate policy src/mypackage` therefore runs a recursive scan, exits `1` on violations, and applies both default-on rules below (`--min-grace=0.3`, `--message-required=True`) — unless the project's `pyproject.toml` says otherwise (see [Project configuration in `pyproject.toml`](#project-configuration-in-pyprojecttoml)).
 
@@ -146,23 +146,56 @@ Flags and the path may come in any order: `pydeprecate check --exit-zero src/myp
 
 A run can pass without auditing everything. Each such gap is reported as one unwrapped stderr line starting with `pydeprecate gap: <kind>:` — `module not audited` (one line per submodule that failed to import, printed whatever warnings filters the audited package installs, plus one `<package>.*` line when a recursive walk stopped early and left the remaining submodules unaudited), `version not resolved`, `version not PEP 440`, `remove_in not PEP 440` (a wrapper's own `remove_in` is not a valid PEP 440 version, so that one removal deadline was skipped; one line per wrapper, exit code unchanged), `packaging missing`, `nested files not audited` or `other copy audited` (the scanned package's import name was already taken by a copy from another directory — the CLI's own `deprecate`, or an editable install of another checkout — so that copy was audited; run the scan in the checkout's own environment) — so they stay visible in a CI log.
 
-For tooling, `--report-json FILE` records the same run as JSON — every subcommand takes it:
+For tooling, `--report-json FILE` records the same run as JSON — every subcommand takes it. Since 0.16 the file has layout version (`schema`) 2, with one record per finding:
 
 ```json
 {
-  "schema": 1,
+  "schema": 2,
+  "tool": { "name": "pyDeprecate", "version": "0.16.0" },
+  "command": "expiry",
+  "mode": "import",
+  "paths": ["src/mypackage"],
+  "versions": [{ "path": "src/mypackage", "package": "mypackage", "value": "2.0", "source": "user-provided" }],
+  "options": { "strict": false, "exit_zero": false, "gates": ["expiry"], "recursive": true, "exclude": [] },
+  "gate": { "failed": true, "reasons": ["findings"] },
+  "exit_code": 1,
   "table": "| API | ... |",
   "gaps": [
     {
       "kind": "module not audited",
       "detail": "mypackage.extra: ImportError(...)",
-      "hint": "install the scanned package's runtime dependencies in the environment that runs the scan"
+      "hint": "install the scanned package's runtime dependencies in the environment that runs the scan",
+      "path": "src/mypackage"
     }
-  ]
+  ],
+  "findings": [
+    {
+      "id": "expired:mypackage:old_fn",
+      "rule": "expired",
+      "check": "expiry",
+      "level": "error",
+      "message": "Callable `mypackage.old_fn` was scheduled for removal in version 1.5 but still exists in version 2.0. ...",
+      "details": [],
+      "subject": { "module": "mypackage", "symbol": "old_fn", "api_type": "callable", "label": "Callable `mypackage.old_fn`" },
+      "deprecated_in": "1.0",
+      "remove_in": "1.5",
+      "location": { "file": "src/mypackage/__init__.py", "line": 8 },
+      "path": "src/mypackage"
+    }
+  ],
+  "suppressed": [],
+  "summary": { "findings": 1, "errors": 1, "warnings": 0, "notes": 0, "gaps": 1, "suppressed": 0, "baseline_unmatched": 0, "ignore_unmatched": 0 }
 }
 ```
 
-`table` is the markdown deprecation table of the scan that ran (`null` when it could not be rendered), and each gap carries one of the kinds above, its detail and a remedy. The file is written only when the run exits `0` or `1`: a usage error (exit `2`) scanned nothing and a crash writes no file, so a consumer never publishes stale results. The [GitHub Action](audit.md#github-action) builds its gap annotations and job summary from this file.
+- `table` is the markdown deprecation table of the scan that ran (`null` when it could not be rendered), and each gap carries one of the kinds above, its detail, a remedy and the scan path it came from.
+- `findings` lists every finding the subcommand evaluates, once per id at its level in this run (`error` fails the gate, `warning` is reported only), sorted by level and then id. `message` is the text the console printed. `location` is where the wrapper is defined: a POSIX path relative to the working directory when the file is under it, else absolute, with the line of its first decorator (`line` is `null` for a deprecated module, and `location` is `null` for a `deprecated_instance` data object).
+- `id` is `<rule>:<module>:<symbol>` (a deprecated module has an empty symbol: `expired:mypackage.oldmod:`). It holds no version, line, message or path, so it survives moved code, a version bump and reworded messages, and changes only when the symbol, its module or the rule is renamed. Scanning a subpackage instead of its package with `--no-recursive` can report a re-export under another module.
+- `gate` says whether the gate failed before `--exit-zero` and why (`findings`, and `gaps` under `--strict`); `exit_code` is the process exit code.
+- The rule slugs are `invalid-args`, `misconfigured-target`, `inner-order-property`, `identity-mapping`, `no-effect`, `positional-only-mapping`, `chain`, `expired`, `min-grace` and `message-required`.
+- The layout is described by the JSON Schema [`docs/schemas/report-2.schema.json`](../schemas/report-2.schema.json). `schema` is bumped only when a key is removed or renamed, or its meaning or type changes; adding a key does not bump it, so readers must ignore keys they do not know. Every schema-1 key (`schema`, `table`, `gaps[].kind`/`detail`/`hint`) keeps its type and meaning, so a reader that accepts `schema` 1 or 2 reads both.
+
+The file is written only when the run exits `0` or `1`: a usage error (exit `2`) scanned nothing and a crash writes no file, so a consumer never publishes stale results. The [GitHub Action](audit.md#github-action) builds its gap annotations and job summary from this file.
 
 There is intentionally no `--include-pep702` flag: every subcommand evaluates pyDeprecate schedule metadata (`deprecated_in`, `remove_in`, a replacement) that symbols deprecated only with `warnings.deprecated` lack. List those with the Python API — `find_deprecation_wrappers(..., include_pep702=True)`, see [PEP 702-only deprecations](audit.md#pep-702-only-deprecations).
 

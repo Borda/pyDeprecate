@@ -8,10 +8,12 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from enum import Enum
-from pathlib import Path
-from typing import Optional
+from pathlib import Path, PurePath
+from typing import Any, NamedTuple, Optional
 
+from deprecate import __about__
 from deprecate._cli._pkg import _safe_module_name
+from deprecate._cli.findings import _LEVEL_RANK, _GateReason, _Level, _level
 from deprecate.audit import DeprecationWrapperInfo, TableStyle
 from deprecate.audit._findings import _Finding, _misconfiguration
 from deprecate.audit._report import _render_deprecation_table, _resolve_table_version
@@ -66,6 +68,14 @@ _GAP_HINTS: dict[_GapKind, str] = {
 }
 
 
+class _Gap(NamedTuple):
+    """One part of the audit that did not run, and the scan path that raised it (``None`` outside any scan)."""
+
+    kind: _GapKind
+    detail: str
+    path: Optional[str] = None
+
+
 @dataclass
 class _ScanRecord:
     """The scan a gate subcommand ran, kept so the ``--report-json`` table shows exactly what it gated on."""
@@ -76,14 +86,40 @@ class _ScanRecord:
 
 
 @dataclass
+class _ScannedPath:
+    """One scan root of the run, with the package it names and the version it was audited at."""
+
+    path: str
+    package: str
+    version: Optional[str] = None
+    #: ``user-provided``, ``auto-detected``, or ``None`` when no version was resolved.
+    version_source: Optional[str] = None
+
+
+@dataclass
 class _RunRecord:
     """What one CLI run did: its gaps and findings, and its rendered table or its scan for ``--report-json``."""
 
-    gaps: list[tuple[_GapKind, str]] = field(default_factory=list)
+    gaps: list[_Gap] = field(default_factory=list)
     table: Optional[str] = None
     scan: Optional[_ScanRecord] = None
     #: Every finding the run's checks derived; ``all`` computes its exit code from those of its sub-checks.
     findings: list[_Finding] = field(default_factory=list)
+    #: The scan path each entry of :attr:`findings` came from, index for index.
+    finding_paths: list[Optional[str]] = field(default_factory=list)
+    #: The subcommand ``cli()`` ran (``None`` for a direct ``cmd_*`` call).
+    command: Optional[str] = None
+    #: Whether ``cli()`` will write a ``--report-json`` file, so the scan records the version even for checks
+    #: that do not compare against one.
+    wants_report: bool = False
+    #: The scan root being audited right now; gaps and findings recorded meanwhile carry it.
+    current_path: Optional[str] = None
+    scanned: list[_ScannedPath] = field(default_factory=list)
+    #: Effective options of the run, as the report lists them: ``strict``, ``exit_zero``, ``gates``, ``recursive``,
+    #: ``exclude``.
+    options: dict[str, Any] = field(default_factory=dict)
+    #: Why the gate failed before ``--exit-zero`` (empty when it passed or the subcommand is no gate).
+    gate_reasons: list[_GateReason] = field(default_factory=list)
 
 
 #: The record of the current CLI run while :func:`_record_run` is active.
@@ -138,10 +174,27 @@ def _record_scan(scan: _ScanRecord) -> None:
 
 
 def _record_findings(findings: list[_Finding]) -> None:
-    """Keep the findings a check derived, for the exit code of ``all`` that ran it."""
+    """Keep the findings a check derived, each with the scan path it came from, for the exit code and the report."""
     record = _RUN_RECORD.get()
     if record is not None:
         record.findings.extend(findings)
+        record.finding_paths.extend([record.current_path] * len(findings))
+
+
+def _record_scanned_path(path: str, version: Optional[str], *, user_provided: bool) -> None:
+    """Keep one scan root of the run and the version it was audited at, for the report's ``paths`` and ``versions``."""
+    record = _RUN_RECORD.get()
+    if record is None:
+        return
+    source = None if version is None else ("user-provided" if user_provided else "auto-detected")
+    record.scanned.append(_ScannedPath(path, _safe_module_name(path), version, source))
+
+
+def _record_options(**options: Any) -> None:  # noqa: ANN401
+    """Merge resolved options into the run's ``options``, as the report lists them."""
+    record = _RUN_RECORD.get()
+    if record is not None:
+        record.options.update(options)
 
 
 def _record_table(markdown: str) -> None:
@@ -162,7 +215,7 @@ def _print_gap(kind: _GapKind, detail: str) -> None:
     print(f"pydeprecate gap: {kind.value}: {detail}", file=sys.stderr, flush=True)
     record = _RUN_RECORD.get()
     if record is not None:
-        record.gaps.append((kind, detail))
+        record.gaps.append(_Gap(kind, detail, record.current_path))
 
 
 def _print_skipped_modules(skipped: dict[str, str]) -> None:
@@ -334,8 +387,13 @@ class _Reporter:
 # --report-json: the machine-readable record of one run
 # ---------------------------------------------------------------------------
 
-#: Version of the ``--report-json`` layout; bumped whenever a field changes meaning or goes away.
-_REPORT_SCHEMA = 1
+#: Version of the ``--report-json`` layout. Bumped only when a key is removed or renamed, or its meaning or type
+#: changes; adding a key does not bump it, and readers ignore keys they do not know. Schema 2 added per-finding records
+#: and the run's gate outcome; every schema-1 key (``schema``, ``table``, ``gaps[].kind/detail/hint``) keeps its type
+#: and meaning.
+_REPORT_SCHEMA = 2
+#: Default of each option the report lists, for a run that never resolved it (``status``, a usage error).
+_DEFAULT_OPTIONS: dict[str, Any] = {"strict": False, "exit_zero": False, "gates": [], "recursive": True, "exclude": []}
 
 
 def _render_recorded_table(record: _RunRecord) -> Optional[str]:
@@ -360,19 +418,106 @@ def _render_recorded_table(record: _RunRecord) -> Optional[str]:
         return None
 
 
-def _write_report(path: str, record: _RunRecord) -> None:
+def _report_location(finding: _Finding) -> Optional[dict[str, Any]]:
+    """Return where *finding*'s wrapper is defined: a POSIX path relative to the working directory when under it."""
+    if finding.source_file is None:
+        return None
+    source = Path(finding.source_file)
+    try:
+        file_name = source.relative_to(Path.cwd()).as_posix()
+    except ValueError:
+        file_name = PurePath(source).as_posix()
+    return {"file": file_name, "line": finding.source_line}
+
+
+def _report_finding(finding: _Finding, level: _Level, path: Optional[str]) -> dict[str, Any]:
+    """Return the report record of one finding at the level it has in this run."""
+    return {
+        "id": finding.id,
+        "rule": finding.rule.value,
+        "check": finding.check.value,
+        "level": level.value,
+        "message": finding.message,
+        "details": list(finding.details),
+        "subject": {
+            "module": finding.module,
+            "symbol": finding.symbol,
+            "api_type": finding.api_type,
+            "label": finding.label,
+        },
+        "deprecated_in": finding.deprecated_in,
+        "remove_in": finding.remove_in,
+        "location": _report_location(finding),
+        "path": path,
+    }
+
+
+def _report_findings(record: _RunRecord) -> list[dict[str, Any]]:
+    """Return the run's findings, one per id at its highest level in the subcommand, sorted by ``(level, id)``.
+
+    ``all`` derives a ``chain`` finding in its ``check`` pass and again in its ``chains`` pass; the two are one record,
+    at the higher level. Findings the subcommand does not evaluate are left out.
+
+    """
+    best: dict[str, tuple[_Level, _Finding, Optional[str]]] = {}
+    for finding, path in zip(record.findings, record.finding_paths):
+        level = _level(finding.rule, record.command or "")
+        if level is None:
+            continue
+        kept = best.get(finding.id)
+        if kept is None or _LEVEL_RANK[level] < _LEVEL_RANK[kept[0]]:
+            best[finding.id] = (level, finding, path)
+    ordered = sorted(best.values(), key=lambda item: (_LEVEL_RANK[item[0]], item[1].id))
+    return [_report_finding(finding, level, path) for level, finding, path in ordered]
+
+
+def _build_report(record: _RunRecord, exit_code: int) -> dict[str, Any]:
+    """Return the ``--report-json`` document of the run (layout :data:`_REPORT_SCHEMA`)."""
+    findings = _report_findings(record)
+    levels = [finding["level"] for finding in findings]
+    return {
+        "schema": _REPORT_SCHEMA,
+        "tool": {"name": "pyDeprecate", "version": __about__.__version__},
+        "command": record.command,
+        "mode": "import",
+        "paths": [scanned.path for scanned in record.scanned],
+        "versions": [
+            {"path": item.path, "package": item.package, "value": item.version, "source": item.version_source}
+            for item in record.scanned
+        ],
+        "options": {**_DEFAULT_OPTIONS, **record.options},
+        "gate": {"failed": bool(record.gate_reasons), "reasons": [reason.value for reason in record.gate_reasons]},
+        "exit_code": exit_code,
+        "table": _render_recorded_table(record),
+        "gaps": [
+            {"kind": gap.kind.value, "detail": gap.detail, "hint": _GAP_HINTS[gap.kind], "path": gap.path}
+            for gap in record.gaps
+        ],
+        "findings": findings,
+        "suppressed": [],
+        "summary": {
+            "findings": len(findings),
+            "errors": levels.count(_Level.ERROR.value),
+            "warnings": levels.count(_Level.WARNING.value),
+            "notes": levels.count(_Level.NOTE.value),
+            "gaps": len(record.gaps),
+            "suppressed": 0,
+            "baseline_unmatched": 0,
+            "ignore_unmatched": 0,
+        },
+    }
+
+
+def _write_report(path: str, record: _RunRecord, exit_code: int = 0) -> None:
     """Write the run's ``--report-json`` file; a failure only prints an advisory and never changes the exit code.
 
     Args:
         path: File to write; missing parent directories are created.
-        record: Gaps, table and scan collected while the subcommand ran.
+        record: Gaps, findings, table and scan collected while the subcommand ran.
+        exit_code: The process exit code of the run, 0 or 1 (the report is never written for 2 or 3).
 
     """
-    report = {
-        "schema": _REPORT_SCHEMA,
-        "table": _render_recorded_table(record),
-        "gaps": [{"kind": kind.value, "detail": detail, "hint": _GAP_HINTS[kind]} for kind, detail in record.gaps],
-    }
+    report = _build_report(record, exit_code)
     out_path = Path(path)
     try:
         out_path.parent.mkdir(parents=True, exist_ok=True)

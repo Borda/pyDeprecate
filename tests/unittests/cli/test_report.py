@@ -7,9 +7,10 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from deprecate._cli.commands import cmd_check, cmd_expiry
-from deprecate._cli.report import _GapKind, _print, _Reporter, _RunRecord, _ScanRecord, _write_report
+from deprecate._cli.report import _Gap, _GapKind, _print, _Reporter, _RunRecord, _ScanRecord, _write_report
 from deprecate._types import DeprecationConfig
 from deprecate.audit import ChainType, DeprecationWrapperInfo
+from deprecate.audit._findings import _Check, _Finding, _make_finding, _Rule
 from tests.unittests.cli._helpers import _EXPIRED_FINDING, _EXPIRED_MSG
 
 # ---------------------------------------------------------------------------
@@ -174,7 +175,7 @@ class TestWriteReport:
         the CLI can record must come out of the file with usable text.
         """
         report_file = tmp_path / "report.json"
-        _write_report(str(report_file), _RunRecord(gaps=[(kind, "some detail")], table="| a |"))
+        _write_report(str(report_file), _RunRecord(gaps=[_Gap(kind, "some detail")], table="| a |"))
         gaps = json.loads(report_file.read_text(encoding="utf-8"))["gaps"]
         assert [(gap["kind"], gap["detail"]) for gap in gaps] == [(kind.value, "some detail")]
         assert gaps[0]["hint"].strip()
@@ -189,7 +190,7 @@ class TestWriteReport:
         """
         report_file = tmp_path / "report.json"
         record = _RunRecord(
-            gaps=[(_GapKind.PACKAGING_MISSING, "no packaging")],
+            gaps=[_Gap(_GapKind.PACKAGING_MISSING, "no packaging")],
             scan=_ScanRecord(path="some_module", wrappers=[], version="1.0"),
         )
         with patch("deprecate._cli.report._render_deprecation_table", side_effect=RuntimeError("boom")):
@@ -233,3 +234,87 @@ class TestPlainOutput:
         assert cmd_check(path=str(tmp_path)) == 0
         captured = capsys.readouterr()
         assert "Skipping nested Python files" in captured.err
+
+
+def _record_of(command: str, *findings: _Finding) -> _RunRecord:
+    """Build the run record of *command* holding *findings*, each from the scan path ``pkg``."""
+    return _RunRecord(command=command, findings=list(findings), finding_paths=["pkg"] * len(findings))
+
+
+def _located(function: str, source_file: str, rule: _Rule, check: _Check) -> _Finding:
+    """Build a finding of *rule* for a wrapper named *function* defined at line 7 of *source_file*."""
+    info = DeprecationWrapperInfo(module="pkg", function=function, source_file=source_file, source_line=7)
+    return _make_finding(info, rule, check, f"{function} message")
+
+
+class TestReportFindings:
+    """The ``findings`` array of the schema-2 report: levels per subcommand, order, de-duplication and locations."""
+
+    def test_sorted_by_level_then_id(self, tmp_path: Path) -> None:
+        """Errors come before warnings, and findings of one level are ordered by id.
+
+        A consumer that diffs two reports, or shows the first few findings, needs the same order for the same run.
+
+        """
+        source = str(tmp_path / "pkg.py")
+        record = _record_of(
+            "check",
+            _located("b_fn", source, _Rule.NO_EFFECT, _Check.CHECK),
+            _located("z_fn", source, _Rule.INVALID_ARGS, _Check.CHECK),
+            _located("a_fn", source, _Rule.INVALID_ARGS, _Check.CHECK),
+        )
+        report_file = tmp_path / "report.json"
+        _write_report(str(report_file), record, 1)
+        findings = json.loads(report_file.read_text(encoding="utf-8"))["findings"]
+        assert [(finding["level"], finding["id"]) for finding in findings] == [
+            ("error", "invalid-args:pkg:a_fn"),
+            ("error", "invalid-args:pkg:z_fn"),
+            ("warning", "no-effect:pkg:b_fn"),
+        ]
+
+    def test_chain_seen_twice_by_all_is_one_error(self, tmp_path: Path) -> None:
+        """``all`` derives a chain in its ``check`` pass and its ``chains`` pass; the report holds it once, as an error.
+
+        Two records for one problem would double every count a dashboard shows and make ids non-unique.
+
+        """
+        source = str(tmp_path / "pkg.py")
+        chain = _located("old_fn", source, _Rule.CHAIN, _Check.CHAINS)
+        report_file = tmp_path / "report.json"
+        _write_report(str(report_file), _record_of("all", chain, chain), 1)
+        findings = json.loads(report_file.read_text(encoding="utf-8"))["findings"]
+        assert [(finding["id"], finding["level"]) for finding in findings] == [("chain:pkg:old_fn", "error")]
+
+    def test_location_relative_under_working_directory(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A wrapper under the working directory is located by a POSIX path relative to it; others stay absolute.
+
+        Code scanning and annotations resolve paths from the repository root, which is where CI runs the CLI.
+
+        """
+        inside = tmp_path / "src" / "pkg.py"
+        outside = tmp_path.parent / "elsewhere.py"
+        monkeypatch.chdir(tmp_path)
+        record = _record_of(
+            "check",
+            _located("a_fn", str(inside), _Rule.INVALID_ARGS, _Check.CHECK),
+            _located("b_fn", str(outside), _Rule.INVALID_ARGS, _Check.CHECK),
+        )
+        report_file = tmp_path / "report.json"
+        _write_report(str(report_file), record, 1)
+        findings = json.loads(report_file.read_text(encoding="utf-8"))["findings"]
+        assert [finding["location"] for finding in findings] == [
+            {"file": "src/pkg.py", "line": 7},
+            {"file": outside.as_posix(), "line": 7},
+        ]
+
+    def test_finding_not_evaluated_by_the_subcommand_is_left_out(self, tmp_path: Path) -> None:
+        """A finding the subcommand does not evaluate never reaches the report.
+
+        ``status`` gates on nothing, so even a recorded finding has no level there and would misrepresent the run.
+
+        """
+        source = str(tmp_path / "pkg.py")
+        record = _record_of("status", _located("a_fn", source, _Rule.EXPIRED, _Check.EXPIRY))
+        report_file = tmp_path / "report.json"
+        _write_report(str(report_file), record, 0)
+        assert json.loads(report_file.read_text(encoding="utf-8"))["findings"] == []

@@ -15,13 +15,14 @@ from deprecate._cli.config import (
     _resolve_strict,
     _validate_user_version,
 )
-from deprecate._cli.findings import _exit_code
+from deprecate._cli.findings import _exit_code, _gate_reasons
 from deprecate._cli.report import (
     _ensure_run_record,
     _GapKind,
     _print,
     _print_gap,
     _record_findings,
+    _record_options,
     _record_table,
     _Reporter,
     _RunRecord,
@@ -159,6 +160,16 @@ def _policy_violations_without_packaging(
     return _policy_findings(wrappers, _build_policy_spec(None, True))
 
 
+#: The checks whose error findings fail each gate subcommand, as the report's ``options.gates`` lists them.
+_GATES: dict[str, list[str]] = {
+    "check": ["check"],
+    "expiry": ["expiry"],
+    "policy": ["policy"],
+    "chains": ["chains"],
+    "all": ["check", "expiry", "chains"],
+}
+
+
 class _GateStart(NamedTuple):
     """Where a gate subcommand's own findings and gaps begin in the run record, and whether the run is strict."""
 
@@ -184,6 +195,7 @@ def _start_gate(
     strict_on = _resolve_strict(strict, exit_zero, config)
     if strict_on is None:
         return None
+    _record_options(strict=strict_on, exit_zero=exit_zero)
     return _GateStart(record, len(record.findings), len(record.gaps), strict_on), config
 
 
@@ -197,6 +209,8 @@ def _finish_gate(start: _GateStart, subcommand: str, *, exit_zero: bool) -> int:
     if start.strict and gaps:
         _print(f"Strict mode: {gaps} gap(s) fail this run.", stderr=True)
     findings = start.record.findings[start.findings :]
+    start.record.gate_reasons = _gate_reasons(findings, subcommand, strict=start.strict, gaps=gaps)
+    _record_options(gates=_GATES[subcommand])
     return _exit_code(findings, subcommand, exit_zero=exit_zero, strict=start.strict, gaps=gaps)
 
 

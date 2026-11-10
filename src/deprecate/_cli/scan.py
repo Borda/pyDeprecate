@@ -13,7 +13,17 @@ from typing import Optional
 
 from deprecate._cli._pkg import _safe_module_name, _select_child_package
 from deprecate._cli.config import _Config, _ConfigFlag, _resolve_exclude, _source_label
-from deprecate._cli.report import _GapKind, _print, _print_gap, _print_skipped_modules, _record_scan, _ScanRecord
+from deprecate._cli.report import (
+    _RUN_RECORD,
+    _GapKind,
+    _print,
+    _print_gap,
+    _print_skipped_modules,
+    _record_options,
+    _record_scan,
+    _record_scanned_path,
+    _ScanRecord,
+)
 from deprecate.audit import DeprecationWrapperInfo, find_deprecation_wrappers
 from deprecate.audit._scan import _collect_skipped_modules, _is_excluded
 from deprecate.audit._version import _is_package_dir, _managed_sys_path, _resolve_package_version
@@ -256,21 +266,28 @@ def _import_and_scan(
     version: Optional[str],
     version_explicit: bool,
     resolve_version: bool,
-) -> Optional[tuple[list[DeprecationWrapperInfo], Optional[str]]]:
+    record_version: bool = False,
+) -> Optional[tuple[list[DeprecationWrapperInfo], Optional[str], Optional[str]]]:
     """Run the importing half of :func:`_scan_for_command`: version auto-detection, the header and the scan.
 
+    With *record_version* and no *resolve_version*, the version is still auto-detected — for the report only, never
+    printed in the header — so every subcommand's report names the version its scan ran at.
+
     Returns:
-        The wrappers and the (possibly auto-detected) version, or ``None`` after printing that *path* names no
-        importable module (the caller exits 2).
+        The wrappers, the version the subcommand compares against (``None`` unless given or *resolve_version*) and the
+        version to record, or ``None`` after printing that *path* names no importable module (the caller exits 2).
 
     Raises:
         _ScanError: When the scanned package itself cannot be imported, or its module-level code exits.
 
     """
-    if version is None and resolve_version:
+    recorded = version
+    if version is None and (resolve_version or record_version):
         # Dynamic project versions and the __version__ fallback import code before the wrapper scan does.
         with _hidden_argv(), _root_exit_as_scan_error(path):
-            version = _resolve_package_version(_safe_module_name(path), path=path)
+            recorded = _resolve_package_version(_safe_module_name(path), path=path)
+        if resolve_version:
+            version = recorded
     _print_scan_header(path, version, user_provided=version_explicit, exclude=exclude)
     with _managed_sys_path(path), _hidden_argv(), _root_exit_as_scan_error(path):
         try:
@@ -282,7 +299,7 @@ def _import_and_scan(
                 return None
             # submodule failures are gaps inside the scan; only the package itself failing to import reaches here
             raise _ScanError(f"could not import {path!r}: {type(err).__name__}: {err}") from err
-    return wrappers, version
+    return wrappers, version, recorded
 
 
 def _scan_for_command(
@@ -333,6 +350,10 @@ def _scan_for_command(
         # `./typo` or `.pkg` is no path and no module name; importing it would fail as a relative import
         _print(f"No such path or importable module: {path!r}", stderr=True)
         return None
+    run_record = _RUN_RECORD.get()
+    if run_record is not None:
+        run_record.current_path = path
+    _record_options(recursive=recursive, exclude=resolved_exclude[0])
     # Every submodule the version detection or the scan skips is recorded as a gap of this scan right after it, also
     # when the scan then fails, so a strict verdict computed at the subcommand's return already counts it.
     with _collect_skipped_modules() as skipped_modules:
@@ -345,13 +366,15 @@ def _scan_for_command(
                 version=version,
                 version_explicit=version_explicit,
                 resolve_version=resolve_version,
+                record_version=run_record is not None and run_record.wants_report,
             )
         finally:
             # Unlike the `audit: skipped` warning, these lines survive the audited package's own warnings filters.
             _print_skipped_modules(skipped_modules)
     if scanned is None:
         return None
-    wrappers, version = scanned
+    wrappers, version, recorded_version = scanned
+    _record_scanned_path(path, recorded_version, user_provided=version_explicit)
     location = _imported_location(path, package_dir)
     if location is not None:
         _print(f"Imported from: {location}")
@@ -363,7 +386,7 @@ def _scan_for_command(
             f"`{package_dir.name}` was imported from {loaded_from}, not from {package_dir};"
             " the scan audited that copy.",
         )
-    scan = _ScanRecord(path, wrappers, version)
+    scan = _ScanRecord(path, wrappers, recorded_version)
     if record:
         _record_scan(scan)
     return scan

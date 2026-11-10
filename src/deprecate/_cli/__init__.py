@@ -79,6 +79,8 @@ def cli() -> None:
         # write the report, or the nested run's report would pass for the outer scan's
         report_path = None
     with _record_run() as run_record:
+        run_record.command = command.function.__name__.replace("cmd_", "", 1)
+        run_record.wants_report = report_path is not None
         try:
             exit_code = command.function(**kwargs)
         except _ScanError as exc:
@@ -91,5 +93,5 @@ def cli() -> None:
             exit_code = _CRASH_EXIT
     # never written for a usage error (exit 2): nothing was scanned
     if report_path is not None and exit_code in (0, 1):
-        _write_report(report_path, run_record)
+        _write_report(report_path, run_record, exit_code)
     sys.exit(exit_code)

@@ -14,10 +14,23 @@ from deprecate.audit._findings import _Finding, _Rule
 
 
 class _Level(str, enum.Enum):
-    """How a finding counts in one subcommand."""
+    """How a finding counts in one subcommand; the values are the levels the report and SARIF output use."""
 
     ERROR = "error"
     WARNING = "warning"
+    #: Reported for information only; no rule has this level today, the report schema already admits it.
+    NOTE = "note"
+
+
+#: Report order of the levels, most severe first.
+_LEVEL_RANK: dict[_Level, int] = {_Level.ERROR: 0, _Level.WARNING: 1, _Level.NOTE: 2}
+
+
+class _GateReason(str, enum.Enum):
+    """Why a gate failed, as the report lists it."""
+
+    FINDINGS = "findings"
+    GAPS = "gaps"
 
 
 _E, _W = _Level.ERROR, _Level.WARNING
@@ -64,6 +77,24 @@ def _gate_levels(findings: Iterable[_Finding], subcommand: str) -> dict[str, _Le
     return levels
 
 
+def _gate_reasons(
+    findings: Iterable[_Finding], subcommand: str, *, strict: bool = False, gaps: int = 0
+) -> list[_GateReason]:
+    """Return why a run of *subcommand* fails its gate, before ``--exit-zero``: empty when it passes.
+
+    Examples:
+        >>> _gate_reasons([], "check", strict=True, gaps=1)
+        [<_GateReason.GAPS: 'gaps'>]
+
+    """
+    reasons = []
+    if _E in _gate_levels(findings, subcommand).values():
+        reasons.append(_GateReason.FINDINGS)
+    if strict and gaps > 0:
+        reasons.append(_GateReason.GAPS)
+    return reasons
+
+
 def _exit_code(
     findings: Iterable[_Finding], subcommand: str, *, exit_zero: bool = False, strict: bool = False, gaps: int = 0
 ) -> int:
@@ -79,5 +110,5 @@ def _exit_code(
         (0, 1, 0)
 
     """
-    failed = _E in _gate_levels(findings, subcommand).values() or (strict and gaps > 0)
+    failed = bool(_gate_reasons(findings, subcommand, strict=strict, gaps=gaps))
     return 1 if failed and not exit_zero else 0

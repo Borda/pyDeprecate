@@ -1,0 +1,194 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "pyDeprecate --report-json, layout version 2",
+  "description": "The machine-readable record of one pydeprecate CLI run. Readers must ignore keys they do not know: adding a key never bumps `schema`.",
+  "type": "object",
+  "required": [
+    "schema",
+    "tool",
+    "command",
+    "mode",
+    "paths",
+    "versions",
+    "options",
+    "gate",
+    "exit_code",
+    "table",
+    "gaps",
+    "findings",
+    "suppressed",
+    "summary"
+  ],
+  "properties": {
+    "schema": { "const": 2 },
+    "tool": {
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "const": "pyDeprecate" },
+        "version": { "type": "string" }
+      }
+    },
+    "command": { "enum": ["check", "expiry", "policy", "chains", "all", "status"] },
+    "mode": { "enum": ["import", "static"] },
+    "paths": { "type": "array", "items": { "type": "string" } },
+    "versions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "package", "value", "source"],
+        "properties": {
+          "path": { "type": "string" },
+          "package": { "type": "string" },
+          "value": { "type": ["string", "null"] },
+          "source": { "enum": ["user-provided", "auto-detected", null] }
+        }
+      }
+    },
+    "options": {
+      "type": "object",
+      "required": ["strict", "exit_zero", "gates", "recursive", "exclude"],
+      "properties": {
+        "strict": { "type": "boolean" },
+        "exit_zero": { "type": "boolean" },
+        "gates": { "type": "array", "items": { "enum": ["check", "expiry", "policy", "chains"] } },
+        "recursive": { "type": "boolean" },
+        "exclude": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "gate": {
+      "type": "object",
+      "required": ["failed", "reasons"],
+      "properties": {
+        "failed": { "type": "boolean" },
+        "reasons": { "type": "array", "items": { "enum": ["findings", "gaps"] } }
+      }
+    },
+    "exit_code": { "enum": [0, 1] },
+    "table": { "type": ["string", "null"] },
+    "gaps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["kind", "detail", "hint", "path"],
+        "properties": {
+          "kind": { "type": "string" },
+          "detail": { "type": "string" },
+          "hint": { "type": "string" },
+          "path": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "findings": { "type": "array", "items": { "$ref": "#/$defs/finding" } },
+    "suppressed": {
+      "type": "array",
+      "items": {
+        "allOf": [
+          { "$ref": "#/$defs/finding" },
+          {
+            "type": "object",
+            "required": ["suppressed_by"],
+            "properties": {
+              "suppressed_by": {
+                "type": "object",
+                "required": ["kind", "entry"],
+                "properties": {
+                  "kind": { "enum": ["ignore", "baseline"] },
+                  "entry": { "type": "string" }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "findings",
+        "errors",
+        "warnings",
+        "notes",
+        "gaps",
+        "suppressed",
+        "baseline_unmatched",
+        "ignore_unmatched"
+      ],
+      "properties": {
+        "findings": { "type": "integer", "minimum": 0 },
+        "errors": { "type": "integer", "minimum": 0 },
+        "warnings": { "type": "integer", "minimum": 0 },
+        "notes": { "type": "integer", "minimum": 0 },
+        "gaps": { "type": "integer", "minimum": 0 },
+        "suppressed": { "type": "integer", "minimum": 0 },
+        "baseline_unmatched": { "type": "integer", "minimum": 0 },
+        "ignore_unmatched": { "type": "integer", "minimum": 0 }
+      }
+    }
+  },
+  "$defs": {
+    "finding": {
+      "type": "object",
+      "required": [
+        "id",
+        "rule",
+        "check",
+        "level",
+        "message",
+        "details",
+        "subject",
+        "deprecated_in",
+        "remove_in",
+        "location",
+        "path"
+      ],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z-]+:[^:]*:[^:]*$" },
+        "rule": {
+          "enum": [
+            "invalid-args",
+            "misconfigured-target",
+            "inner-order-property",
+            "identity-mapping",
+            "no-effect",
+            "positional-only-mapping",
+            "chain",
+            "expired",
+            "min-grace",
+            "message-required"
+          ]
+        },
+        "check": { "enum": ["check", "expiry", "policy", "chains"] },
+        "level": { "enum": ["error", "warning", "note"] },
+        "message": { "type": "string" },
+        "details": { "type": "array", "items": { "type": "string" } },
+        "subject": {
+          "type": "object",
+          "required": ["module", "symbol", "api_type", "label"],
+          "properties": {
+            "module": { "type": "string" },
+            "symbol": { "type": "string" },
+            "api_type": { "type": "string" },
+            "label": { "type": "string" }
+          }
+        },
+        "deprecated_in": { "type": ["string", "null"] },
+        "remove_in": { "type": ["string", "null"] },
+        "location": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "required": ["file", "line"],
+              "properties": {
+                "file": { "type": "string" },
+                "line": { "type": ["integer", "null"], "minimum": 1 }
+              }
+            }
+          ]
+        },
+        "path": { "type": ["string", "null"] }
+      }
+    }
+  }
+}

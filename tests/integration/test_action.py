@@ -773,6 +773,19 @@ class TestActionSummary:
         assert "::warning title=pyDeprecate::the gate wrote no pyDeprecate report" in out
         assert "::error" not in out
 
+    @pytest.mark.parametrize("schema", [1, 2])
+    def test_reads_every_supported_layout_version(self, tmp_path: Path, schema: int) -> None:
+        """A schema-1 report (an older CLI kept with ``install: false``) and a schema-2 report are both read.
+
+        Schema 2 only adds keys, so the gaps and the table of an older CLI's report stay usable and its annotations
+        keep working until the job upgrades pyDeprecate.
+        """
+        report_file = tmp_path / "report.json"
+        report_file.write_text(json.dumps({"schema": schema, "gaps": [], "table": "| a |"}), encoding="utf-8")
+        report = action_runner.read_report(report_file)
+        assert report is not None
+        assert report["table"] == "| a |"
+
     @pytest.mark.parametrize(
         ("content", "warning"),
         [
@@ -780,17 +793,17 @@ class TestActionSummary:
             pytest.param(b"\xff\xfe\x00", "could not read the pyDeprecate report: ", id="not-utf8"),
             pytest.param(
                 json.dumps({"schema": action_runner.REPORT_SCHEMA + 1, "gaps": [], "table": "t"}).encode(),
-                f"the pyDeprecate report is not of layout version {action_runner.REPORT_SCHEMA}; ignoring it",
+                "the pyDeprecate report is not of layout version 1 or 2; ignoring it",
                 id="other-layout-version",
             ),
             pytest.param(
                 json.dumps({"gaps": [], "table": "t"}).encode(),
-                f"the pyDeprecate report is not of layout version {action_runner.REPORT_SCHEMA}; ignoring it",
+                "the pyDeprecate report is not of layout version 1 or 2; ignoring it",
                 id="no-layout-version",
             ),
             pytest.param(
                 b"[]",
-                f"the pyDeprecate report is not of layout version {action_runner.REPORT_SCHEMA}; ignoring it",
+                "the pyDeprecate report is not of layout version 1 or 2; ignoring it",
                 id="not-an-object",
             ),
         ],
