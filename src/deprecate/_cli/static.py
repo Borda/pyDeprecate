@@ -555,9 +555,12 @@ class _ModuleFacts:
     bindings: dict[str, _Value]
     module_wrapper: Optional[_Wrapper]
     gaps: list[str]
-    star_sources: list[str]
+    #: Each in-tree ``from X import *`` as ``(X, statement position)``, in statement order.
+    star_sources: list[tuple[str, int]]
     #: Names bound to a configured factory, for importers that apply it as a decorator.
     configured: dict[str, tuple["_Factory", "_Settings"]] = field(default_factory=dict)
+    #: The statement position of each name's last module-level binding, so a star import binds in statement order.
+    positions: dict[str, int] = field(default_factory=dict)
 
 
 class _Parsed(NamedTuple):
@@ -634,6 +637,116 @@ def _display(path: Path) -> str:
 _Lookup = Union[tuple[_Factory, _Settings], str, None]
 
 
+class _ModuleScope(NamedTuple):
+    """Every binding of a module's top-level names, and what the source leaves unsettled about them."""
+
+    events: dict[str, list[_Event]]
+    #: Whether the module writes its globals under a computed key, so no module-level name is settled.
+    unsettled: bool
+    #: Whether a star import may bind names the reader cannot list (pyDeprecate's own star imports aside).
+    foreign_star: bool
+
+
+def _module_scope(parsed: _Parsed) -> _ModuleScope:
+    """Return the bindings of *parsed*'s module-level names, rebinding through ``global`` or ``globals()`` included."""
+    events = _scope_events(parsed.tree.body)
+    for node in ast.walk(parsed.tree):  # a function's ``global name`` may rebind it at runtime
+        for name in node.names if isinstance(node, ast.Global) else ():
+            events.setdefault(name, []).append(_Event("other"))
+    rebinds = _globals_rebinds(parsed.tree)
+    for name in rebinds or ():  # as may ``globals()["NAME"] = ...``
+        events.setdefault(name, []).append(_Event("other"))
+    foreign_star = any(
+        isinstance(node, ast.ImportFrom)
+        and any(alias.name == "*" for alias in node.names)
+        and _absolute_import(parsed.name, parsed.is_package, node) not in _DEPRECATE_MODULES
+        for node in parsed.tree.body
+    )
+    return _ModuleScope(events, rebinds is None, foreign_star)
+
+
+class _TargetReader:
+    """Classify a ``target`` expression from how one module binds the names it uses.
+
+    The module of a factory call reads its own ``target`` with one; for a ``target`` imported from another module of the
+    scanned tree, the reader builds one for that module, so an imported name is judged by the same rules as a local one.
+
+    """
+
+    def __init__(
+        self,
+        parsed: _Parsed,
+        aliases: _Aliases,
+        scope: _ModuleScope,
+        in_tree: Callable[[str], bool],
+        imported: Callable[[str, str], Optional[_Read]],
+    ) -> None:
+        self.parsed = parsed
+        self.aliases = aliases
+        self.scope = scope
+        self.in_tree = in_tree
+        #: Classifies what an in-tree module binds a name to; ``None`` when that module's source cannot be read.
+        self.imported = imported
+
+    def classify(self, node: ast.expr, shadow: Mapping[str, list], depth: int) -> _Read:
+        """Classify a ``target`` expression as ``("const", value)`` or ``("replacement", text, kind)``."""
+        if isinstance(node, ast.Constant) and (node.value is None or isinstance(node.value, bool)):
+            return _Read(("const", node.value))
+        member = self.aliases.target_mode(node)
+        if member is not None:
+            return _Read(("const", member))
+        if isinstance(node, (ast.Lambda, ast.Attribute)):
+            return _Read(("replacement", ast.unparse(node), "def" if isinstance(node, ast.Lambda) else "other"))
+        if isinstance(node, ast.Name):
+            return self._classify_name(node, shadow, depth)
+        return _Read(("expr", ast.unparse(node)), f"`target` is `{ast.unparse(node)}`, not a literal or a name")
+
+    def _classify_name(self, node: ast.Name, shadow: Mapping[str, list], depth: int) -> _Read:
+        """Classify a ``target`` given by name, from how the class body or the module binds it."""
+        events = shadow if node.id in shadow else self.scope.events
+        bindings = events.get(node.id, [])
+        if not bindings and self.scope.foreign_star and events is self.scope.events:
+            return _Read(("expr", node.id), f"`target` is `{node.id}`, which a star import may bind")
+        if not bindings:  # a builtin, or a name the module never binds: a replacement callable at runtime
+            return _Read(("replacement", node.id, "other"))
+        event = _single(events, node.id)
+        if event is None:
+            return _Read(("expr", node.id), f"`target` is `{node.id}`, which is bound more than once")
+        if event.kind in ("def", "class"):
+            return _Read(("replacement", node.id, event.kind))
+        if event.kind == "import":
+            return self._imported(node, event)
+        settled = events is not self.scope.events or not self.scope.unsettled
+        if event.kind == "assign" and depth == 0 and isinstance(event.value, ast.expr) and settled:
+            read = self.classify(event.value, {}, depth + 1)
+            if read.reason is None:
+                return read if read.value[0] == "const" else _Read(("replacement", node.id, read.value[2]))
+        return _Read(("expr", node.id), f"`target` is `{node.id}`, which is not bound to a literal or a definition")
+
+    def _imported(self, node: ast.Name, event: _Event) -> _Read:
+        """Classify a ``target`` imported by name: as the in-tree module it comes from binds it, else a replacement.
+
+        A constant kept in another module of the tree (``REPL = None``, ``MODE = TargetMode.NOTIFY``) is read there, so
+        it names no replacement, as at runtime. A name imported from outside the tree is not read and stays a
+        replacement callable, a blind spot the CLI guide lists.
+
+        """
+        replacement = _Read(("replacement", node.id, "other"))
+        if not isinstance(event.value, ast.ImportFrom):  # ``import pkg`` binds a module
+            return replacement
+        origin = _absolute_import(self.parsed.name, self.parsed.is_package, event.value)
+        if not self.in_tree(origin) or origin == self.parsed.name:
+            return replacement
+        source = next((alias.name for alias in event.value.names if (alias.asname or alias.name) == node.id), node.id)
+        read = self.imported(origin, source)
+        if read is None:  # the module's source cannot be read, which is its own ``module not audited`` gap
+            return replacement
+        if read.reason is not None:
+            reason = f"`target` is `{node.id}`, imported from `{origin}`, which does not settle its value"
+            return _Read(("expr", node.id), reason)
+        return read if read.value[0] == "const" else _Read(("replacement", node.id, read.value[2]))
+
+
 class _ModuleAnalyzer:
     """Read one module's top-level statements into :class:`_ModuleFacts`, recognizing every wrapper shape."""
 
@@ -644,30 +757,23 @@ class _ModuleAnalyzer:
         in_tree: Callable[[str], bool],
         name_kind: Callable[[str, str], tuple[str, bool]],
         imported_configured: Callable[[str, str], _Lookup],
+        imported_target: Callable[[str, str], Optional[_Read]],
     ) -> None:
         self.parsed = parsed
         self.aliases = aliases
         self.in_tree = in_tree
         self.imported_kind = name_kind
         self.imported_configured = imported_configured
-        self.scope = _scope_events(parsed.tree.body)
-        for node in ast.walk(parsed.tree):  # a function's ``global name`` may rebind it at runtime
-            for name in node.names if isinstance(node, ast.Global) else ():
-                self.scope.setdefault(name, []).append(_Event("other"))
-        rebinds = _globals_rebinds(parsed.tree)
-        for name in rebinds or ():  # as may ``globals()["NAME"] = ...``
-            self.scope.setdefault(name, []).append(_Event("other"))
+        module_scope = _module_scope(parsed)
+        self.scope = module_scope.events
         #: Whether the module writes its globals under a computed key, so no module-level name is settled.
-        self.globals_unsettled = rebinds is None
+        self.globals_unsettled = module_scope.unsettled
         #: Names read other than by a copy or a factory keyword (``bump(KW)``), so a dict they hold is not settled.
         self.escaped = _escaped_names(parsed.tree, lambda func: aliases.kind(func) not in (None, _Factory.TARGET_MODE))
         #: Whether a star import may bind names the reader cannot list (pyDeprecate's own star imports aside).
-        self.foreign_star = any(
-            isinstance(node, ast.ImportFrom)
-            and any(alias.name == "*" for alias in node.names)
-            and _absolute_import(parsed.name, parsed.is_package, node) not in _DEPRECATE_MODULES
-            for node in parsed.tree.body
-        )
+        self.foreign_star = module_scope.foreign_star
+        #: Reads a ``target`` from how this module binds the names it uses, following in-tree imports.
+        self.targets = _TargetReader(parsed, aliases, module_scope, in_tree, imported_target)
         self.consumed: set[int] = set()
         self.bindings: dict[str, _Value] = {}
         #: Names bound to a configured factory call (``_dep = deprecated(...)``), later applied as ``@_dep``.
@@ -678,24 +784,30 @@ class _ModuleAnalyzer:
         #: Names whose import cycle is already a gap, so each is reported once rather than at every use.
         self.unfollowed: set[str] = set()
         self.module_wrapper: Optional[_Wrapper] = None
-        self.star_sources: list[str] = []
+        self.star_sources: list[tuple[str, int]] = []
+        #: The position of the statement being read, counted over block bodies too, so bindings can be ordered.
+        self.position = 0
+        self.positions: dict[str, int] = {}
         self.where = _display(parsed.path)
 
     def run(self) -> _ModuleFacts:
         """Walk the module body in order, so the last binding of a name wins as at runtime."""
         for stmt in self.parsed.tree.body:
             self._statement(stmt)
+        unrecognized = self._unrecognized()
         return _ModuleFacts(
-            self.bindings, self.module_wrapper, self._unrecognized(), self.star_sources, dict(self.configured)
+            self.bindings, self.module_wrapper, unrecognized, self.star_sources, dict(self.configured), self.positions
         )
 
     def _set(self, name: str, value: _Value) -> None:
         """Bind a module-level name, dropping any configured factory it held before."""
         self.bindings[name] = value
+        self.positions[name] = self.position
         self.configured.pop(name, None)
 
     def _statement(self, stmt: ast.stmt) -> None:
         """Record what one module-level statement binds."""
+        self.position += 1
         if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
             self._set(stmt.name, self._decorated_def(stmt, attr=None, shadow={}))
         elif isinstance(stmt, ast.ClassDef):
@@ -861,7 +973,7 @@ class _ModuleAnalyzer:
         for alias in stmt.names:
             if alias.name == "*":
                 if in_tree:
-                    self.star_sources.append(origin)
+                    self.star_sources.append((origin, self.position))
                 continue
             local = alias.asname or alias.name
             if origin == self.parsed.name:
@@ -1172,42 +1284,7 @@ class _ModuleAnalyzer:
             node = self._setting(args, "target")
         except LookupError as err:
             return _Read(None, str(err))
-        return _Read(("default",)) if node is None else self._classify_target(node, shadow, depth=0)
-
-    def _classify_target(self, node: ast.expr, shadow: Mapping[str, list], depth: int) -> _Read:
-        """Classify a ``target`` expression as ``("const", value)`` or ``("replacement", text, kind)``."""
-        if isinstance(node, ast.Constant) and (node.value is None or isinstance(node.value, bool)):
-            return _Read(("const", node.value))
-        member = self.aliases.target_mode(node)
-        if member is not None:
-            return _Read(("const", member))
-        if isinstance(node, (ast.Lambda, ast.Attribute)):
-            return _Read(("replacement", ast.unparse(node), "def" if isinstance(node, ast.Lambda) else "other"))
-        if isinstance(node, ast.Name):
-            return self._classify_target_name(node, shadow, depth)
-        return _Read(("expr", ast.unparse(node)), f"`target` is `{ast.unparse(node)}`, not a literal or a name")
-
-    def _classify_target_name(self, node: ast.Name, shadow: Mapping[str, list], depth: int) -> _Read:
-        """Classify a ``target`` given by name, from how the class body or the module binds it."""
-        events = shadow if node.id in shadow else self.scope
-        bindings = events.get(node.id, [])
-        if not bindings and self.foreign_star and events is self.scope:
-            return _Read(("expr", node.id), f"`target` is `{node.id}`, which a star import may bind")
-        if not bindings:  # a builtin, or a name the module never binds: a replacement callable at runtime
-            return _Read(("replacement", node.id, "other"))
-        event = _single(events, node.id)
-        if event is None:
-            return _Read(("expr", node.id), f"`target` is `{node.id}`, which is bound more than once")
-        if event.kind in ("def", "class"):
-            return _Read(("replacement", node.id, event.kind))
-        if event.kind == "import":
-            return _Read(("replacement", node.id, "other"))
-        settled = events is not self.scope or not self.globals_unsettled
-        if event.kind == "assign" and depth == 0 and isinstance(event.value, ast.expr) and settled:
-            read = self._classify_target(event.value, {}, depth + 1)
-            if read.reason is None:
-                return read if read.value[0] == "const" else _Read(("replacement", node.id, read.value[2]))
-        return _Read(("expr", node.id), f"`target` is `{node.id}`, which is not bound to a literal or a definition")
+        return _Read(("default",)) if node is None else self.targets.classify(node, shadow, depth=0)
 
     def _read_settings(self, args: _CallArgs, call: ast.Call, shadow: Mapping[str, list]) -> _Settings:
         """Read every setting the checks use from one factory call, in the scope it is spelled in."""
@@ -1561,6 +1638,7 @@ class _Reader:
         self._facts: dict[str, Optional[_ModuleFacts]] = {}
         self._tables: dict[str, Optional[_ModuleFacts]] = {}
         self._aliases: dict[str, _Aliases] = {}
+        self._scopes: dict[str, _ModuleScope] = {}
         self._in_progress: set[str] = set()
 
     def in_tree(self, module: str) -> bool:
@@ -1644,7 +1722,10 @@ class _Reader:
         name_kind = (lambda _module, _name: ("other", False)) if isolated else self.name_kind
         configured = (lambda _module, _name: None) if isolated else self.configured
         try:
-            return _ModuleAnalyzer(parsed, self.aliases(parsed), self.in_tree, name_kind, configured).run()
+            # a ``target`` read follows imports through syntax and aliases only, never another module's analysis, so
+            # the isolated table may follow them as well
+            aliases = self.aliases(parsed)
+            return _ModuleAnalyzer(parsed, aliases, self.in_tree, name_kind, configured, self.imported_target).run()
         except (RecursionError, MemoryError) as err:
             self._errors.setdefault(parsed.name, f"its source is nested too deeply to analyze: {err!r}")
             self._report(parsed.name)
@@ -1670,8 +1751,13 @@ class _Reader:
         return self._facts[module]
 
     def _expand_stars(self, module: str, facts: _ModuleFacts) -> None:
-        """Bind the names each in-tree ``from X import *`` of *module* copies, as listed by ``X.__all__``."""
-        for origin in facts.star_sources:
+        """Bind the names each in-tree ``from X import *`` of *module* copies, as listed by ``X.__all__``.
+
+        Bindings follow statement order, as at runtime: a star import replaces what an earlier statement bound, a later
+        star import replaces it in turn, and a binding after the star import keeps its own value.
+
+        """
+        for origin, position in facts.star_sources:
             star = self.facts(origin) if origin not in self._in_progress else None
             parsed = self.parse(origin)
             exports = _literal_all(parsed.tree) if parsed is not None else None
@@ -1681,30 +1767,40 @@ class _Reader:
                 continue
             for name in star.bindings if star is not None else ():
                 listed = name in exports if exports is not None else _is_public(name)
-                if listed and name not in facts.bindings:
+                if listed and facts.positions.get(name, -1) < position:
                     facts.bindings[name] = _ImportRef(origin, name)
+                    facts.positions[name] = position
 
     def configured(self, module: str, name: str, seen: frozenset[tuple[str, str]] = frozenset()) -> _Lookup:
-        """Return the configured factory an in-tree module binds *name* to, following its re-exports to the end."""
+        """Return the configured factory an in-tree module binds *name* to, following its re-exports to the end.
+
+        A star import after the module's own binding of *name* replaces it, the latest one first, as at runtime.
+
+        """
         if (module, name) in seen:
             return _CYCLE
         seen |= {(module, name)}
         table = self.table(module)
         if table is None:
             return None
+        local = table.positions.get(name, -1)
+        for origin, position in reversed(table.star_sources):
+            if position < local or not self._star_lists(origin, name):
+                continue
+            found = self.configured(origin, name, seen)
+            star = self.table(origin)
+            if found is not None or (star is not None and name in star.bindings):
+                return found  # this star import binds the name, to a configured factory or to something else
         if name in table.configured:
             return table.configured[name]
         value = table.bindings.get(name)
-        if isinstance(value, _ImportRef):
-            return self.configured(value.module, value.name, seen)
-        for origin in table.star_sources if name not in table.bindings else ():
-            parsed = self.parse(origin)
-            exports = _literal_all(parsed.tree) if parsed is not None else None
-            if exports is None and _is_public(name) or isinstance(exports, set) and name in exports:
-                found = self.configured(origin, name, seen)
-                if found is not None:
-                    return found
-        return None
+        return self.configured(value.module, value.name, seen) if isinstance(value, _ImportRef) else None
+
+    def _star_lists(self, origin: str, name: str) -> bool:
+        """Tell whether ``from origin import *`` may copy *name*: listed by a literal ``__all__``, else public."""
+        parsed = self.parse(origin)
+        exports = _literal_all(parsed.tree) if parsed is not None else None
+        return (exports is None and _is_public(name)) or (isinstance(exports, set) and name in exports)
 
     def name_kind(self, module: str, name: str, seen: frozenset[tuple[str, str]] = frozenset()) -> tuple[str, bool]:
         """Return ``def``, ``class`` or ``other`` for what *module* binds *name* to, and whether it is a dataclass.
@@ -1729,6 +1825,29 @@ class _Reader:
             if self.in_tree(origin) and origin != module:
                 return self.name_kind(origin, source, seen | {(module, name)})
         return "other", False
+
+    def imported_target(
+        self, module: str, name: str, seen: frozenset[tuple[str, str]] = frozenset()
+    ) -> Optional[_Read]:
+        """Classify what an in-tree module binds *name* to as a ``target``; ``None`` when its source is unread.
+
+        Only the module's syntax and pyDeprecate aliases are read, never another module's analysis, so a module being
+        analyzed (its isolated table included) may ask. In-tree re-exports are followed; a re-export cycle is a gap.
+
+        """
+        if (module, name) in seen:
+            return _Read(("expr", name), f"`target` is `{name}`, which {_CYCLE}")
+        parsed = self.parse(module)
+        if parsed is None:
+            return None
+        try:
+            if module not in self._scopes:
+                self._scopes[module] = _module_scope(parsed)
+            imported = functools.partial(self.imported_target, seen=seen | {(module, name)})
+            targets = _TargetReader(parsed, self.aliases(parsed), self._scopes[module], self.in_tree, imported)
+            return targets.classify(ast.Name(id=name, ctx=ast.Load()), {}, depth=0)
+        except (RecursionError, MemoryError):  # a value nested too deeply to unparse settles nothing
+            return _Read(("expr", name), f"`target` is `{name}`, whose source is nested too deeply to analyze")
 
     def resolve(self, value: _Value) -> tuple[_Value, bool]:
         """Follow in-tree import references to the wrapper or class they name; also tell whether they form a cycle."""

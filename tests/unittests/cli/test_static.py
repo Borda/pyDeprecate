@@ -35,6 +35,11 @@ _PKG = "staticprobe"
 _NAMESPACE = "staticnamespaceprobe"
 #: The policy with only ``message-required`` on, so a target case is judged on guidance alone.
 _GUIDANCE_ONLY = _build_policy_spec(None, True)
+#: A module deprecating ``old`` with the ``target`` it imports from the package's ``consts`` module.
+_IMPORTED_TARGET_USE = (
+    "from deprecate import deprecated\nfrom .consts import REPL\n\n"
+    "@deprecated(target=REPL, deprecated_in='1.0', remove_in='2.0')\ndef old(x):\n    return x\n"
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -384,6 +389,60 @@ class TestTargetSemantics:
             imported = [f.id for f in _policy_findings(find_deprecation_wrappers(_PKG), _GUIDANCE_ONLY)]
         static = [f.id for f in _static_policy_findings(_read_package(pkg), _GUIDANCE_ONLY)]
         assert static == imported
+
+    @pytest.mark.parametrize(
+        "files",
+        [
+            pytest.param({"consts.py": "REPL = None\n", "m.py": _IMPORTED_TARGET_USE}, id="constant-none"),
+            pytest.param(
+                {
+                    "consts.py": "from deprecate import TargetMode\n\nREPL = TargetMode.NOTIFY\n",
+                    "m.py": _IMPORTED_TARGET_USE,
+                },
+                id="target-mode-member",
+            ),
+            pytest.param(
+                {"consts.py": "def REPL(x):\n    return x\n", "m.py": _IMPORTED_TARGET_USE}, id="function-replacement"
+            ),
+            pytest.param(
+                {"consts.py": "def new(x):\n    return x\n\nREPL = new\n", "m.py": _IMPORTED_TARGET_USE},
+                id="alias-of-a-function",
+            ),
+            pytest.param(
+                {
+                    "base.py": "REPL = None\n",
+                    "consts.py": "from .base import REPL\n",
+                    "m.py": _IMPORTED_TARGET_USE,
+                },
+                id="constant-re-exported-through-a-module",
+            ),
+            pytest.param(
+                {
+                    "consts.py": "REPL = None\n",
+                    "m.py": "from deprecate import deprecated\nfrom .consts import REPL\n\nclass Old:\n"
+                    "    @deprecated(target=REPL, deprecated_in='1.0', remove_in='2.0')\n    def run(self, x):\n"
+                    "        return x\n",
+                },
+                id="constant-on-a-class-member",
+            ),
+        ],
+    )
+    def test_imported_target_matches_import_scan(
+        self, probe_package: Callable[..., Path], files: dict[str, str]
+    ) -> None:
+        """A ``target`` imported from another module of the package is judged by what that module binds it to.
+
+        A project keeps its sentinel values in a constants module and passes one as ``target=``: ``None`` or
+        ``TargetMode.NOTIFY`` names no replacement, so ``message-required`` must report the wrapper as the import scan
+        does, while an imported function or an alias of one is still a replacement and passes. Reading every imported
+        name as a replacement let the first two pass unseen.
+
+        """
+        pkg = probe_package({"__init__.py": "", **files})
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            imported = [f.id for f in _policy_findings(find_deprecation_wrappers(_PKG), _GUIDANCE_ONLY)]
+        assert [f.id for f in _static_policy_findings(_read_package(pkg), _GUIDANCE_ONLY)] == imported
 
     def test_unsettled_target_skips_only_guidance(self, tmp_path: Path) -> None:
         """A target the source does not settle leaves the wrapper out of ``message-required`` but not ``min-grace``.
@@ -1239,6 +1298,15 @@ class TestNoSilentMiss:
                 "`target` is `'json'`, not a literal or a name",
                 id="module-target-given-as-an-expression",
             ),
+            pytest.param(
+                {
+                    "consts.py": "import os\n\nREPL = os.environ.get('REPL')\n",
+                    "m.py": f"{_DEP}from .consts import REPL\n\n@deprecated(target=REPL, deprecated_in='1.0',"
+                    " remove_in='2.0')\ndef old():\n    pass\n",
+                },
+                f"m.py:4: `target` is `REPL`, imported from `{_PKG}.consts`, which does not settle its value",
+                id="imported-target-computed-at-runtime",
+            ),
         ],
     )
     def test_unsettled_shape_is_a_gap(
@@ -1359,6 +1427,49 @@ class TestNoSilentMiss:
                 id="star-import-honours-all",
             ),
             pytest.param(
+                {
+                    "__init__.py": "def old():\n    pass\n\nfrom .core import *\n",
+                    "core.py": f"{_DEP}@{_EXPIRED}\ndef old():\n    pass\n",
+                },
+                False,
+                id="star-import-after-a-local-binding-wins",
+            ),
+            pytest.param(
+                {
+                    "__init__.py": "from .core import *\n\ndef old():\n    pass\n",
+                    "core.py": f"{_DEP}@{_EXPIRED}\ndef old():\n    pass\n",
+                },
+                False,
+                id="local-binding-after-a-star-import-wins",
+            ),
+            pytest.param(
+                {
+                    "__init__.py": "from .a import *\nfrom .b import *\n",
+                    "a.py": f"{_DEP}@{_EXPIRED}\ndef old():\n    pass\n",
+                    "b.py": "def old():\n    pass\n",
+                },
+                False,
+                id="later-star-import-of-a-plain-name-wins",
+            ),
+            pytest.param(
+                {
+                    "__init__.py": "from .b import *\nfrom .a import *\n",
+                    "a.py": f"{_DEP}@{_EXPIRED}\ndef old():\n    pass\n",
+                    "b.py": "def old():\n    pass\n",
+                },
+                False,
+                id="later-star-import-of-a-wrapper-wins",
+            ),
+            pytest.param(
+                {
+                    "cfg.py": f"{_DEP}dep = {_EXPIRED}\n",
+                    "x.py": "def dep(f):\n    return f\n\nfrom .cfg import *\n",
+                    "m.py": "from .x import dep\n\n@dep\ndef old():\n    pass\n",
+                },
+                True,
+                id="configured-decorator-star-imported-over-a-local-binding",
+            ),
+            pytest.param(
                 {"m.py": f"import abc\n{_DEP}\nclass K(abc.ABC):\n    @{_EXPIRED}\n    def old(self):\n        pass\n"},
                 True,
                 id="standard-library-base",
@@ -1383,9 +1494,10 @@ class TestNoSilentMiss:
 
         Covers an import cycle between modules, a factory re-exported through two modules, a module holding a long
         ``1 + 1 + ...`` chain that the reader handles without a gap, a plain member that shadows an inherited deprecated
-        one, a star import filtered by ``__all__``, and a standard-library base class, which carries no deprecated
-        member and so needs no gap. A module the reader cannot walk at all is a gap, not a parity case; see
-        ``test_module_too_deep_to_read_is_a_gap``.
+        one, a star import filtered by ``__all__``, star imports bound in statement order (a later star import, or a
+        local binding after one, wins, also for a configured decorator), and a standard-library base class, which
+        carries no deprecated member and so needs no gap. A module the reader cannot walk at all is a gap, not a parity
+        case; see ``test_module_too_deep_to_read_is_a_gap``.
 
         """
         pkg = probe_package({"__init__.py": "", **files})
