@@ -330,6 +330,7 @@ message-required = true
 | Constant/object alias | `deprecated_instance(obj, ...)` |
 | Deprecate entire module | `deprecated_module(deprecated_in=..., remove_in=...)` — `module_name` optional; auto-detected from caller `__name__`; Mode 2 (with `target=new_module`) for redirect |
 | Also flag it in IDEs / mypy / pyright | stack `@warnings.deprecated("Use `new_func` instead.", category=None)` directly above `@deprecated(...)` — string-literal message; see Agent Notes: PEP 702 stacking |
+| Locate a wrapper's definition (file, line) | `info.source_file`, `info.source_line` (since `0.16`) — absolute path and first-decorator line; `None` for `deprecated_instance` rows, a module row has no line |
 | List symbols deprecated with PEP 702 alone | `find_deprecation_wrappers(pkg, include_pep702=True)` — those rows have `pep702_message is not None` (shape `api_type`, no versions) |
 | Make a deprecation fatal (refuse the call) | `as_exception=True` on any entry point, or `DEPRECATE_AS_EXCEPTIONS=1` / `deprecate.AS_EXCEPTIONS = True` process-wide, or `with deprecate.as_exceptions():` for one block (restores the previous setting; `as_exceptions(False)` exempts a block; local to the current thread and asyncio task, never modifies `deprecate.AS_EXCEPTIONS`; as a decorator only for plain synchronous functions) |
 | CI expiry check | `validate_deprecation_expiry(...)` or `pydeprecate all src/` |

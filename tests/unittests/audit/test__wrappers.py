@@ -4,12 +4,14 @@ import dataclasses
 import importlib.util
 import types
 import warnings
-from typing import Optional
+from pathlib import Path
+from typing import Any, Optional
 
 import pytest
 
 import tests.collections.api_deprecated.core as core_wrappers
 import tests.collections.modules.old_math as old_math
+import tests.collections.policy as policy_wrappers
 from deprecate import (
     DeprecatedError,
     as_exceptions,
@@ -23,7 +25,12 @@ from deprecate.audit import (
     DeprecationWrapperInfo,
     validate_deprecation_wrapper,
 )
-from deprecate.audit._wrappers import _ApiType, _classify_member_api_type, _classify_wrapper_api_type
+from deprecate.audit._wrappers import (
+    _ApiType,
+    _classify_member_api_type,
+    _classify_wrapper_api_type,
+    _source_location,
+)
 from deprecate.proxy import _DeprecatedProxy, _ProxySpec
 from tests.collections.api_current.core import ColorEnum
 from tests.collections.chains import caller_via_notify_layer
@@ -190,6 +197,99 @@ class TestValidateDeprecationWrapperWithProxy:
         """
         result = validate_deprecation_wrapper(caller_via_notify_layer)
         assert result.chain_type is ChainType.TARGET
+
+
+def _defining_line(info: DeprecationWrapperInfo) -> str:
+    """Return the stripped source line ``info.source_file``:``info.source_line`` points at."""
+    assert info.source_file is not None
+    assert info.source_line is not None
+    return Path(info.source_file).read_text(encoding="utf-8").splitlines()[info.source_line - 1].strip()
+
+
+class TestSourceLocation:
+    """``source_file``/``source_line`` place each deprecated wrapper kind in its source; nothing else changes."""
+
+    @pytest.mark.parametrize(
+        ("wrapper", "file_name", "line_start"),
+        [
+            pytest.param(core_wrappers.decorated_sum, "core.py", "@_deprecation_sum", id="function"),
+            pytest.param(core_wrappers.DeprecatedEnum, "core.py", "@deprecated_class(", id="class-proxy"),
+            pytest.param(
+                core_wrappers.InnerOrderDeprecatedPropCls.__dict__["value"].fget,
+                "core.py",
+                "@property",
+                id="inner-order-property",
+            ),
+        ],
+    )
+    def test_points_at_first_decorator(self, wrapper: Any, file_name: str, line_start: str) -> None:  # noqa: ANN401
+        """The location is the defining file and the line of the definition's first decorator.
+
+        A CI annotation or SARIF result built from the location must land on the line a reviewer recognises as the
+        deprecation, for a function, a ``deprecated_class`` proxy and a property whose getter carries the wrapper.
+
+        """
+        info = validate_deprecation_wrapper(wrapper)
+        assert info.source_file is not None
+        assert Path(info.source_file).name == file_name
+        assert Path(info.source_file).is_absolute()
+        assert _defining_line(info).startswith(line_start)
+
+    def test_module_has_file_without_line(self) -> None:
+        """A deprecated module is located by its file only; it has no single defining line.
+
+        ``deprecated_module`` marks the whole module, so annotating its first line would point at unrelated code.
+
+        """
+        info = validate_deprecation_wrapper(old_math)
+        assert info.source_file is not None
+        assert Path(info.source_file).name == "old_math.py"
+        assert info.source_line is None
+
+    def test_instance_has_no_location(self) -> None:
+        """A ``deprecated_instance`` wraps a data object, which has no defining source of its own.
+
+        The proxy's wrapped value is a plain instance created at runtime; guessing its class's file would point at
+        the wrong definition, so both fields stay ``None``.
+
+        """
+        info = validate_deprecation_wrapper(policy_wrappers.warns_without_template_instance)
+        assert (info.source_file, info.source_line) == (None, None)
+
+    def test_string_compiled_code_has_no_location(self) -> None:
+        """Code compiled from a string has no file to point at, so ``<string>`` never becomes a path.
+
+        Generated or ``exec``-built functions report ``co_filename == "<string>"``; a path made from it would be a
+        file that does not exist.
+
+        """
+        namespace: dict[str, Any] = {}
+        exec(compile("def generated():\n    pass\n", "<string>", "exec"), namespace)  # noqa: S102
+        assert _source_location(namespace["generated"]) == (None, None)
+
+    def test_location_takes_no_part_in_equality(self) -> None:
+        """Two results that differ only in location compare equal and print the same ``repr``.
+
+        Existing callers compare ``DeprecationWrapperInfo`` values in tests and pipelines; adding the location must
+        not make equal configurations unequal.
+
+        """
+        info = validate_deprecation_wrapper(core_wrappers.decorated_sum)
+        moved = dataclasses.replace(info, source_file="/elsewhere.py", source_line=1)
+        assert moved == info
+        assert repr(moved) == repr(info)
+
+    def test_pep702_row_is_located(self) -> None:
+        """A PEP 702-only row is located like a pyDeprecate wrapper of the same shape.
+
+        ``include_pep702=True`` lists symbols deprecated with ``warnings.deprecated`` alone; they are annotated in CI
+        the same way, so they need the same location.
+
+        """
+        rows = find_deprecation_wrappers("tests.collections.pep702", include_pep702=True, recursive=False)
+        pep702_rows = [row for row in rows if row.pep702_message is not None]
+        assert pep702_rows
+        assert {Path(row.source_file or "").name for row in pep702_rows} == {"pep702.py"}
 
 
 class TestDeprecationWrapperInfoEmptyVersions:

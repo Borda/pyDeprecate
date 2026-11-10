@@ -25,6 +25,7 @@ from deprecate.audit._wrappers import (
     DeprecationWrapperInfo,
     _classify_wrapper_api_type,
     _scan_module_meta,
+    _source_location,
     validate_deprecation_wrapper,
 )
 from deprecate.proxy import _DeprecatedProxy
@@ -152,11 +153,14 @@ def _pep702_row(
     ``None`` on every pyDeprecate row.
 
     """
+    source_file, source_line = _source_location(obj)
     info = DeprecationWrapperInfo(
         module=module_name,
         function=qualified_name,
         deprecated_info=DeprecationConfig(name=qualified_name.rsplit(".", 1)[-1]),
         pep702_message=message,
+        source_file=source_file,
+        source_line=source_line,
     )
     api_type = _classify_wrapper_api_type(obj, info, member_name=member_name, descriptor_kind=_descriptor_kind(obj))
     return replace(info, api_type=api_type)

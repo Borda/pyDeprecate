@@ -55,6 +55,7 @@ Use these utilities to verify that a deprecated wrapper is correctly configured:
 - `empty_deprecated_in` — `True` when `deprecated_in` is absent or empty; useful in CI to surface wrappers with no version annotation
 - `api_type` — inferred API kind for report generation (e.g. `callable`, `args`, `class`, `dataclass attributes`, `class method`); excluded from `repr()` to keep snapshot tests stable
 - `pep702_message` — `None` for every pyDeprecate wrapper; on a row that `find_deprecation_wrappers(..., include_pep702=True)` reports for a symbol deprecated only with `warnings.deprecated`, the decorator's message (a string, possibly empty) — such rows have no versions, so `empty_deprecated_in` is `True` (see [PEP 702-only deprecations](#pep-702-only-deprecations)); excluded from `repr()`
+- `source_file`, `source_line` — since 0.16, where the deprecated object is defined: the absolute file and the line of its first decorator (a class's `class` line or its decorator, a function's `@` line). `None` for a `deprecated_instance` data object and for code compiled from a string; a deprecated module has its file but no line. Neither field takes part in equality or `repr()`, so existing comparisons are unchanged
 
 !!! note "`DeprecationConfig` cache fields leave in v1.0"
 
