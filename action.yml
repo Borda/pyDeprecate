@@ -23,9 +23,10 @@ inputs:
     default: all
   path:
     description: >-
-      Package directory or importable module name to scan, relative to the workspace. Empty lets the CLI find the
-      single package under `src/`, else the single package at the repository root. A value starting with `-` fails
-      the step with exit code `2`; write such a directory as `./-name`.
+      Package directory or importable module name to scan, relative to the workspace; several paths, one per line,
+      are scanned in one run with one exit code (empty lines are dropped; needs pyDeprecate 0.16 or newer). Empty lets
+      the CLI find the single package under `src/`, else the single package at the repository root. A path starting
+      with `-` fails the step with exit code `2`; write such a directory as `./-name`.
     required: false
     default: ""
   args:

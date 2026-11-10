@@ -149,4 +149,8 @@ class _Suppressor:
 
     def unmatched_baseline(self, evaluated_rules: set[str]) -> int:
         """Return how many baseline ids of a rule the run evaluated matched no finding — the stale entries."""
-        return sum(1 for item in self.baseline - self.used_ids if item.split(":", 1)[0] in evaluated_rules)
+        return len(self.evaluated_baseline(evaluated_rules) - self.used_ids)
+
+    def evaluated_baseline(self, evaluated_rules: set[str]) -> set[str]:
+        """Return the baseline ids of a rule the run evaluated: the ones a finding was expected to match."""
+        return {item for item in self.baseline if item.split(":", 1)[0] in evaluated_rules}

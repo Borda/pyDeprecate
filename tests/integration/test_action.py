@@ -331,7 +331,9 @@ class TestActionInputs:
         ("name", "raw", "field", "expected"),
         [
             pytest.param("subcommand", " check ", "subcommand", "check", id="subcommand-stripped"),
-            pytest.param("path", " src/pkg ", "path", "src/pkg", id="path-stripped"),
+            pytest.param("path", " src/pkg ", "paths", ("src/pkg",), id="path-stripped"),
+            pytest.param("path", "src/pkg_a\n\n  src/pkg_b  \n", "paths", ("src/pkg_a", "src/pkg_b"), id="path-lines"),
+            pytest.param("path", "", "paths", (), id="path-empty"),
             pytest.param("args", "--version 2.0", "args", ("--version", "2.0"), id="args-split"),
             pytest.param("args", '--exclude="a b,c"', "args", ("--exclude=a b,c",), id="args-double-quotes"),
             pytest.param("args", "--exclude=a\\ b", "args", ("--exclude=a b",), id="args-backslash-escape"),
@@ -414,6 +416,27 @@ class TestActionInputs:
         message = f"input `args` must not contain {token!r}: "
         with pytest.raises(ValueError, match=re.escape(message)):
             action_runner.read_inputs({"PYDEPRECATE_ACTION_ARGS": f"--version 2.0 {token}"})
+
+    @pytest.mark.parametrize("path", ["src/pkg\n--help", "src/pkg\n  -h", "--exit-zero\nsrc/pkg"])
+    def test_rejects_option_like_path_line(self, path: str) -> None:
+        """Every line of a multi-line ``path`` input is checked: one starting with ``-`` is refused, wherever it sits.
+
+        A workflow builds the list from event data; a single line such as ``--help`` among real paths would still make
+        the CLI print its help and exit 0, so the input error names the offending line.
+        """
+        with pytest.raises(ValueError, match="input `path` must not start with `-`"):
+            action_runner.read_inputs({"PYDEPRECATE_ACTION_PATH": path})
+
+    def test_path_lines_become_positionals(self) -> None:
+        """Each line of the ``path`` input becomes one path argument of the CLI, ahead of ``args``.
+
+        A monorepo audits several packages in one step; the CLI scans every path it is given and reports one exit code.
+        """
+        inputs = action_runner.read_inputs(
+            {"PYDEPRECATE_ACTION_PATH": "src/pkg_a\nsrc/pkg_b", "PYDEPRECATE_ACTION_ARGS": "--gate=policy"}
+        )
+        argv = action_runner.build_cli_argv(inputs, "python")
+        assert argv[3:] == ["all", "src/pkg_a", "src/pkg_b", "--gate=policy"]
 
     @pytest.mark.subprocess
     @pytest.mark.parametrize("path", ["--help", "-h", "--exit-zero", "--version", "  -h  "])
@@ -1584,7 +1607,7 @@ class TestActionMetadata:
         assert set(distinct) == set(action_runner.INPUT_DEFAULTS)
         assert action_runner.read_inputs(delivered) == action_runner.ActionInputs(
             subcommand="check",
-            path="pkg/path",
+            paths=("pkg/path",),
             args=("--flag", "value"),
             exit_zero=exit_zero,
             fail_on_gap=fail_on_gap,

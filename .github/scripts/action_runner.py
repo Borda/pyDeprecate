@@ -7,7 +7,8 @@ interpolated into script text), and the script:
 1. validates the inputs, failing with exit code ``2`` and an ``::error`` annotation on a bad value,
 2. optionally installs ``pyDeprecate[cli,audit]`` from that same checkout into the job's current Python, so the
    ``uses:`` ref pins the version — the same binding the pre-commit hook manifest uses,
-3. runs ``python -m deprecate <subcommand> [path] [args...] --report-json=<file>`` and returns its exit code unchanged,
+3. runs ``python -m deprecate <subcommand> [path...] [args...] --report-json=<file>`` and returns its exit code
+   unchanged (the ``path`` input holds one path per line),
 4. raises one annotation per finding (capped) and one warning annotation per kind of gap the CLI recorded in that
    report, and optionally appends the report's deprecation table — the table of the very scan that gated — to the job
    summary,
@@ -129,7 +130,8 @@ class ActionInputs:
     """Validated action inputs, parsed once from the environment."""
 
     subcommand: str
-    path: str
+    #: The ``path`` input, one path per non-empty line; empty lets the CLI find the package itself.
+    paths: tuple[str, ...]
     args: tuple[str, ...]
     exit_zero: bool
     fail_on_gap: bool
@@ -196,6 +198,25 @@ def _reserved_args_reason(arg: str) -> str | None:
     return None
 
 
+def read_paths(env: dict[str, str]) -> tuple[str, ...]:
+    """Read the ``path`` input as one path per non-empty line, each stripped of surrounding whitespace.
+
+    Raises:
+        ValueError: A path starts with ``-``.
+
+    """
+    paths = tuple(line.strip() for line in _input(env, "path").splitlines() if line.strip())
+    for path in paths:
+        if path.startswith("-"):
+            # the CLI would parse it as an option (`--help` prints help and exits 0, scanning nothing), and a `--`
+            # separator does not help: the options the action appends after it would be read as further paths
+            raise ValueError(
+                f"input `path` must not start with `-`, got {path!r}; pass CLI options through `args`, and write a"
+                " directory whose name starts with `-` as `./-name`"
+            )
+    return paths
+
+
 def read_inputs(env: dict[str, str]) -> ActionInputs:
     """Read and validate every action input from ``env``.
 
@@ -215,17 +236,9 @@ def read_inputs(env: dict[str, str]) -> ActionInputs:
         reason = _reserved_args_reason(arg)
         if reason is not None:
             raise ValueError(f"input `args` must not contain {arg!r}: {reason}")
-    path = _input(env, "path")
-    if path.startswith("-"):
-        # the CLI would parse it as an option (`--help` prints help and exits 0, scanning nothing), and a `--`
-        # separator does not help: the options the action appends after it would be read as further paths
-        raise ValueError(
-            f"input `path` must not start with `-`, got {path!r}; pass CLI options through `args`, and write a"
-            " directory whose name starts with `-` as `./-name`"
-        )
     inputs = ActionInputs(
         subcommand=subcommand,
-        path=path,
+        paths=read_paths(env),
         args=args,
         exit_zero=_parse_bool("exit-zero", _input(env, "exit-zero")),
         fail_on_gap=_parse_bool("fail-on-gap", _input(env, "fail-on-gap")),
@@ -258,9 +271,7 @@ def build_cli_argv(
     receives ``--exit-zero`` and the report option as written here.
 
     """
-    argv = [python, "-m", "deprecate", inputs.subcommand]
-    if inputs.path:
-        argv.append(inputs.path)
+    argv = [python, "-m", "deprecate", inputs.subcommand, *inputs.paths]
     argv.extend(inputs.args)
     if inputs.fail_on_gap:
         argv.append("--strict")

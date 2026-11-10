@@ -1,5 +1,6 @@
 """Unit tests for :mod:`deprecate._cli.commands`: the subcommands (all external calls fully mocked)."""
 
+import importlib.util
 import inspect
 import json
 import sys
@@ -1799,3 +1800,221 @@ class TestStrictMode:
         assert "and `--exit-zero` contradict each other" in captured.err
         assert remedy in captured.err
         assert "Scanning:" not in captured.out
+
+
+# ---------------------------------------------------------------------------
+# Several paths in one run, and `all --gate`
+# ---------------------------------------------------------------------------
+
+_PACKAGING_AVAILABLE = importlib.util.find_spec("packaging") is not None
+# One wrapper scheduled for removal in 2.0, so whether it is expired depends on the version of its own package.
+_REMOVED_IN_TWO = """\
+from deprecate import deprecated
+
+
+def new_fn(x: int) -> int:
+    return x
+
+
+@deprecated(target=new_fn, deprecated_in="1.0", remove_in="2.0")
+def old_fn(x: int) -> int:
+    pass
+"""
+
+
+def _project(root: Path, name: str, *, pyproject: str = "", body: str = "", broken: bool = False) -> Path:
+    """Create a project directory *root* holding package *name*, optionally a ``pyproject.toml`` and a broken module."""
+    root.mkdir(parents=True)
+    pkg = write_pkg(root, name, body)
+    if broken:
+        (pkg / "broken.py").write_text(_BROKEN_SUBMODULE)
+    if pyproject:
+        (root / "pyproject.toml").write_text(pyproject)
+    return pkg
+
+
+class TestMultiPath:
+    """Several paths in one run: one preflight before any import, one scan each, one exit code over all of them."""
+
+    @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
+    def test_each_path_expires_against_its_own_version(self, tmp_path: Path) -> None:
+        """Two packages of a monorepo released at different versions are each checked against their own version.
+
+        ``pkg_a`` is at 1.0 and ``pkg_b`` at 3.0, and both carry a wrapper scheduled for removal in 2.0. Only the one in
+        ``pkg_b`` is overdue; a run that took the first package's version for both would miss it.
+
+        """
+        pkg_a = _project(tmp_path / "a", "pkg_a", pyproject='[project]\nversion = "1.0"\n', body=_REMOVED_IN_TWO)
+        pkg_b = _project(tmp_path / "b", "pkg_b", pyproject='[project]\nversion = "3.0"\n', body=_REMOVED_IN_TWO)
+        with _record_run() as run:
+            result = cmd_expiry(path=[str(pkg_a), str(pkg_b)])
+        assert result == 1
+        assert [(finding.id, path) for finding, path in zip(run.findings, run.finding_paths)] == [
+            ("expired:pkg_b:old_fn", str(pkg_b))
+        ]
+        assert [(item.package, item.version) for item in run.scanned] == [("pkg_a", "1.0"), ("pkg_b", "3.0")]
+
+    @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
+    def test_malformed_config_of_second_path_stops_before_first_scan(
+        self, mock_find: MagicMock, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A broken ``pyproject.toml`` of the second path exits 2 before the first path is imported.
+
+        Scanning the first package and then failing on the second would leave a half-audited run that a CI log could
+        mistake for a pass; every path's configuration is read before the first import.
+
+        """
+        pkg_a = _project(tmp_path / "a", "pkg_a")
+        pkg_b = _project(tmp_path / "b", "pkg_b", pyproject="[tool.pydeprecate\nexclude = oops\n")
+        result = cmd_check(path=[str(pkg_a), str(pkg_b)])
+        captured = capsys.readouterr()
+        assert result == 2
+        assert "Cannot read" in captured.err
+        assert "Scanning:" not in captured.out
+        mock_find.assert_not_called()
+
+    @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
+    def test_same_import_name_from_two_places_exits_two(
+        self, mock_find: MagicMock, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Two checkouts of ``mypkg`` cannot share one run: the second scan would get the first copy.
+
+        Both directories import as ``mypkg``, and ``sys.modules`` keeps the first one imported, so the second scan would
+        audit the wrong files while reporting them under the second path.
+
+        """
+        first = _project(tmp_path / "x", "mypkg")
+        second = _project(tmp_path / "y", "mypkg")
+        result = cmd_check(path=[str(first), str(second)])
+        assert result == 2
+        assert f"{first} and {second} both import as mypkg; scan them in separate runs" in capsys.readouterr().err
+        mock_find.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "second",
+        [pytest.param("{pkg}", id="same-path"), pytest.param("{pkg}/sub", id="own-subpackage")],
+    )
+    @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
+    def test_covered_path_is_scanned_once(
+        self, mock_find: MagicMock, second: str, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A path given twice, or a package together with its own subpackage, is scanned once with one note.
+
+        A pre-commit ``args`` list and the hook's own default can name the same package twice; the recursive scan of a
+        package already covers its subpackages, so a second scan would only duplicate every finding.
+
+        """
+        pkg = _project(tmp_path / "a", "mypkg")
+        write_pkg(pkg, "sub", "")
+        result = cmd_check(path=[str(pkg), second.format(pkg=pkg)])
+        captured = capsys.readouterr()
+        assert result == 0
+        assert mock_find.call_count == 1
+        assert captured.out.count("Scanning:") == 1
+        assert captured.err.count("scanning it once") == 1
+
+    @pytest.mark.parametrize(
+        ("broken", "expected"),
+        [pytest.param("a", 1, id="gap-of-strict-path-fails"), pytest.param("b", 0, id="gap-of-other-path-passes")],
+    )
+    @pytest.mark.filterwarnings("ignore:audit. skipped pkg_.\\.broken:UserWarning")
+    def test_strict_mode_applies_per_path(
+        self, broken: str, expected: int, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """``strict = true`` in one package's ``pyproject.toml`` fails the run on that package's gaps only.
+
+        In a monorepo one team may have opted into strict audits while another has not. An unimportable module of the
+        strict package fails the run; the same gap in the other package is reported and leaves the exit code alone.
+
+        """
+        pkg_a = _project(tmp_path / "a", "pkg_a", pyproject="[tool.pydeprecate]\nstrict = true\n", broken=broken == "a")
+        pkg_b = _project(tmp_path / "b", "pkg_b", broken=broken == "b")
+        result = cmd_check(path=[str(pkg_a), str(pkg_b)])
+        err = capsys.readouterr().err
+        assert result == expected
+        assert "pydeprecate gap: module not audited:" in err
+
+
+class TestAllGate:
+    """``all --gate``: the listed checks gate ``all`` exactly as their own subcommand does."""
+
+    @pytest.mark.parametrize(
+        ("gate", "expected", "header", "trailer"),
+        [
+            pytest.param(_FROM_PYPROJECT, 0, "[WARNING] Found deprecation policy violations:", True, id="advisory"),
+            pytest.param(["policy"], 1, "[ERROR] Found deprecation policy violations:", False, id="gated"),
+            pytest.param(["check,policy"], 1, "[ERROR] Found deprecation policy violations:", False, id="with-default"),
+        ],
+    )
+    @patch("deprecate._cli.commands._status_table", return_value="")
+    @patch("deprecate._cli.commands._expiry_findings", return_value=[])
+    def test_policy_gate_turns_violations_into_errors(
+        self,
+        mock_expiry: MagicMock,
+        mock_status: MagicMock,
+        gate: object,
+        expected: int,
+        header: str,
+        trailer: bool,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """With ``policy`` gated, ``all`` fails on a policy violation and prints it as an error without the trailer.
+
+        One ``pydeprecate all --gate=policy`` step replaces an ``all`` step plus a ``policy`` step, scanning once; the
+        output must then stop calling the violation advisory.
+
+        """
+        with _scanned([_POLICY_VIOLATION]), _record_run() as run:
+            result = cmd_all(path="some_module", version="1.0", gate=gate)  # type: ignore[arg-type]
+        out = capsys.readouterr().out
+        assert result == expected
+        assert header in out
+        assert ("(advisory here" in out) is trailer
+        assert ("policy" in run.options["gates"]) is not trailer
+
+    @pytest.mark.parametrize(
+        ("gate", "pyproject", "message"),
+        [
+            pytest.param(["bogus"], "", "Invalid `gate` value `bogus` from `--gate`", id="unknown-flag-value"),
+            pytest.param(
+                _FROM_PYPROJECT, "[tool.pydeprecate]\ngate = true\n", "Invalid `gate` value `True`", id="type"
+            ),
+            pytest.param(_FROM_PYPROJECT, '[tool.pydeprecate]\ngate = ["lint"]\n', "`lint`", id="unknown-in-file"),
+        ],
+    )
+    @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
+    def test_malformed_gate_exits_two(
+        self,
+        mock_find: MagicMock,
+        gate: object,
+        pyproject: str,
+        message: str,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """An unknown check or a non-list ``gate`` value is a usage error before anything is scanned.
+
+        An unknown name such as ``lint``, or a misspelt ``policy``, would otherwise gate on nothing new while the author
+        believes the policy is enforced.
+
+        """
+        pkg = _project(tmp_path / "a", "mypkg", pyproject=pyproject)
+        result = cmd_all(path=str(pkg), version="1.0", gate=gate)  # type: ignore[arg-type]
+        assert result == 2
+        assert message in capsys.readouterr().err
+        mock_find.assert_not_called()
+
+    @patch("deprecate._cli.commands._status_table", return_value="")
+    @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[_POLICY_VIOLATION])
+    def test_one_scan_per_path(self, mock_find: MagicMock, mock_status: MagicMock, tmp_path: Path) -> None:
+        """``all --gate=policy`` over two packages imports each once and gates on both from those scans.
+
+        The gate replaces a separate ``policy`` run, so the policy check must reuse the scan the other checks used
+        instead of importing every package a second time.
+
+        """
+        pkg_a = _project(tmp_path / "a", "pkg_a")
+        pkg_b = _project(tmp_path / "b", "pkg_b")
+        result = cmd_all(path=[str(pkg_a), str(pkg_b)], version="1.0", gate=["policy"])
+        assert result == 1
+        assert [call.args[0] for call in mock_find.call_args_list] == ["pkg_a", "pkg_b"]

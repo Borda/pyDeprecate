@@ -39,7 +39,7 @@ def cli() -> None:
     """CLI entry point for pydeprecate.
 
     Parses the command line with :func:`~deprecate._cli.argv._parse_cli_args` and runs the subcommand; its integer
-    return value becomes the process exit code. A usage error (unknown option, malformed value, a second path) exits 2
+    return value becomes the process exit code. A usage error (unknown option, malformed value, a bad path) exits 2
     before anything is scanned, and ``--help`` exits 0. Acts as the single top-level exception handler: a scanned
     package that cannot be imported exits 3 with ``pydeprecate: scan error: ...``, and any other exception from a
     subcommand exits 3 with ``pydeprecate: internal error: <type>: <message>`` and where to report it (the type prefix
@@ -56,10 +56,11 @@ def cli() -> None:
 
     Flags may appear before, between or after the positionals (``check --exit-zero src/pkg`` scans ``src/pkg``), in
     either spelling (``--exit-zero``, ``--exit_zero``). A boolean flag takes ``true``/``false``/``1``/``0`` attached
-    (``--exit-zero=false``) or as the next argument, and is negated with ``--no-<flag>`` or ``--no<flag>``. Only the
-    path and, for ``expiry``, ``all`` and ``status``, the version are positional; a further positional exits 2. Direct
-    calls to the ``cmd_*`` functions keep their signatures, including the internal ``_*`` parameters, which are never
-    command-line options.
+    (``--exit-zero=false``) or as the next argument, and is negated with ``--no-<flag>`` or ``--no<flag>``. Every
+    positional is a path, and several paths are audited in one run with one exit code; with exactly two positionals,
+    ``expiry``, ``all`` and ``status`` still read a second one that names no path and parses as a version as the
+    deprecated positional version. Direct calls to the ``cmd_*`` functions keep their signatures, including the internal
+    ``_*`` parameters, which are never command-line options.
 
     Every subcommand also takes ``--report-json PATH``: once the subcommand ran with exit code 0 or 1, the run's
     machine-readable record is written there — the deprecation table of the very scan that gated and every gap, each

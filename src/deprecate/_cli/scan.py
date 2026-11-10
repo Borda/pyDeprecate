@@ -1,15 +1,18 @@
 """Path scanning for the CLI: resolve a package, plain directory or module name into deprecation wrappers.
 
-:func:`_scan_for_command` is the one scan prologue every subcommand runs, so a path is accepted, refused, imported and
-reported the same way whichever gate scans it.
+:func:`_preflight_targets` checks every path of a run before anything is imported, and :func:`_scan_for_command` is the
+one scan prologue every subcommand runs per path, so a path is accepted, refused, imported and reported the same way
+whichever gate scans it.
 
 """
 
+import importlib.util
 import sys
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
+from importlib.machinery import ModuleSpec
 from pathlib import Path
-from typing import Optional
+from typing import NamedTuple, Optional
 
 from deprecate._cli._pkg import _safe_module_name, _select_child_package
 from deprecate._cli.config import _Config, _ConfigFlag, _resolve_exclude, _source_label
@@ -60,6 +63,154 @@ def _is_module_name(path: str) -> bool:
 
     """
     return all(part.isidentifier() for part in path.split("."))
+
+
+def _top_level_spec(name: str) -> Optional[ModuleSpec]:
+    """Return the import spec of the top-level package of the dotted *name*, without importing anything.
+
+    Only the first segment is looked up: :func:`importlib.util.find_spec` of a dotted name imports its parent packages,
+    which would run the scanned package's code before the preflight of a run finished.
+
+    """
+    top = name.split(".")[0]
+    if not top.isidentifier():
+        return None
+    try:
+        return importlib.util.find_spec(top)
+    except (ImportError, ValueError):  # a broken finder, or a half-initialised module in `sys.modules`
+        return None
+
+
+def _top_level_findable(name: str) -> bool:
+    """Tell whether the top-level package of the dotted *name* can be imported, without importing it.
+
+    Examples:
+        >>> _top_level_findable("json.decoder"), _top_level_findable("no_such_module_xyz"), _top_level_findable("2.0")
+        (True, False, False)
+
+    """
+    return _top_level_spec(name) is not None
+
+
+def _spec_location(spec: Optional[ModuleSpec]) -> Optional[Path]:
+    """Return where an import spec loads from: a package's first directory, a module's file, ``None`` for a built-in."""
+    if spec is None:
+        return None
+    if spec.submodule_search_locations:
+        return Path(next(iter(spec.submodule_search_locations))).resolve()
+    if spec.origin and spec.has_location:
+        return Path(spec.origin).resolve()
+    return None
+
+
+class _ScanTarget(NamedTuple):
+    """One path of a run after the preflight: what it imports as and where that name resolves."""
+
+    path: str
+    #: The top-level name the scan binds in ``sys.modules``; ``None`` for a plain directory.
+    import_name: Optional[str]
+    #: The dotted module the scan starts from; ``None`` for a plain directory.
+    module: Optional[str]
+    #: The package directory, the module file or the plain directory; ``None`` for a built-in module.
+    location: Optional[Path]
+
+
+def _check_target(path: str) -> Optional[_ScanTarget]:
+    """Check one path of a run before anything is imported and describe what its scan would import.
+
+    Returns:
+        The target, or ``None`` after printing a usage error (the caller exits 2): a file path, a directory holding
+        several packages, or a name that is neither an existing path nor a findable module.
+
+    """
+    try:
+        package_dir = _target_package_dir(path)
+    except ValueError as err:
+        _print(str(err), stderr=True)
+        return None
+    if package_dir is not None:
+        return _ScanTarget(path, package_dir.name, package_dir.name, package_dir)
+    if Path(path).exists():
+        return _ScanTarget(path, None, None, Path(path).resolve())
+    if not _is_module_name(path) or not _top_level_findable(path):
+        # `./typo` or `.pkg` is no path and no module name; importing it would fail as a relative import
+        _print(f"No such path or importable module: {path!r}", stderr=True)
+        return None
+    top = path.split(".")[0]
+    return _ScanTarget(path, top, path, _spec_location(_top_level_spec(top)))
+
+
+def _covers(scan: _ScanTarget, other: _ScanTarget, *, recursive: bool) -> bool:
+    """Tell whether the scan of *scan* already audits everything the scan of *other* would.
+
+    That holds for the same target spelled twice, and with *recursive* for a subpackage of *scan*'s package: by name
+    (``pkg`` covers ``pkg.sub``) or by directory (the package directory ``src/pkg`` covers ``src/pkg/sub``).
+
+    """
+    if (scan.module, scan.location) == (other.module, other.location):
+        return True
+    if not recursive or scan.module is None or other.module is None:
+        return False
+    if scan.import_name == other.import_name and scan.location == other.location:
+        return other.module.startswith(f"{scan.module}.")
+    whole_package = scan.module == scan.import_name and scan.location is not None and scan.location.is_dir()
+    return whole_package and other.location is not None and scan.location in other.location.parents
+
+
+def _preflight_targets(paths: Sequence[str], *, recursive: bool) -> Optional[list[_ScanTarget]]:
+    """Check every path of a run before the first import, and drop the paths another path's scan already covers.
+
+    The same target given twice, or a package together with its own subpackage in a recursive scan, is scanned once,
+    with one stderr note per dropped path. Two paths whose scans bind the same top-level import name from different
+    places cannot share one process: ``sys.modules`` would hand the second scan the first copy.
+
+    Returns:
+        The targets to scan, in path order, or ``None`` after printing a usage error (the caller exits 2).
+
+    """
+    targets = []
+    for path in paths:
+        target = _check_target(path)
+        if target is None:
+            return None
+        targets.append(target)
+    kept = []
+    for index, target in enumerate(targets):
+        cover = _covering_target(targets, index, recursive=recursive)
+        if cover is None:
+            kept.append(target)
+        else:
+            _print(
+                f"pydeprecate: {target.path!r} is already audited by the scan of {cover.path!r}; scanning it once.",
+                stderr=True,
+            )
+    for index, target in enumerate(kept):
+        clash = next((other for other in kept[:index] if _same_name_elsewhere(other, target)), None)
+        if clash is not None:
+            _print(
+                f"{clash.path} and {target.path} both import as {target.import_name}; scan them in separate runs.",
+                stderr=True,
+            )
+            return None
+    return kept
+
+
+def _covering_target(targets: list[_ScanTarget], index: int, *, recursive: bool) -> Optional[_ScanTarget]:
+    """Return another target whose scan covers ``targets[index]``; of two that cover each other, the first one wins."""
+    target = targets[index]
+    for pos, other in enumerate(targets):
+        if pos == index or not _covers(other, target, recursive=recursive):
+            continue
+        if pos < index or not _covers(target, other, recursive=recursive):
+            return other
+    return None
+
+
+def _same_name_elsewhere(first: _ScanTarget, second: _ScanTarget) -> bool:
+    """Tell whether two targets bind the same top-level import name to different places."""
+    return (
+        second.import_name is not None and first.import_name == second.import_name and first.location != second.location
+    )
 
 
 @contextmanager
@@ -283,8 +434,9 @@ def _import_and_scan(
     """
     recorded = version
     if version is None and (resolve_version or record_version):
-        # Dynamic project versions and the __version__ fallback import code before the wrapper scan does.
-        with _hidden_argv(), _root_exit_as_scan_error(path):
+        # Dynamic project versions and the __version__ fallback import code before the wrapper scan does, so they run
+        # with the same import root as the scan: in a run over several paths, each package resolves its own version.
+        with _managed_sys_path(path), _hidden_argv(), _root_exit_as_scan_error(path):
             recorded = _resolve_package_version(_safe_module_name(path), path=path)
         if resolve_version:
             version = recorded

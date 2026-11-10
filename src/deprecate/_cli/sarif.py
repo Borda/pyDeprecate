@@ -1,8 +1,9 @@
 """SARIF 2.1.0 output for the CLI: the ``--report-sarif`` file that code-scanning tools read.
 
-The file holds one run built from the same run record as ``--report-json``: one result per active finding, one rule per
-check rule the subcommand evaluates, the gaps as tool notifications. Suppressed findings are left out; a finding whose
-wrapper has no source file is kept without a location and counted in ``run.properties.unlocated``.
+The file holds one run built from the same run record as ``--report-json``: one result per active finding of every
+scanned path (each naming its path), one rule per check rule the subcommand evaluates, the gaps as tool notifications.
+Suppressed findings are left out; a finding whose wrapper has no source file is kept without a location and counted in
+``run.properties.unlocated``.
 
 """
 
@@ -142,7 +143,9 @@ def _build_sarif(record: _RunRecord, exit_code: int, root: Optional[Path] = None
     """
     base = root if root is not None else Path.cwd()
     command = record.command or ""
-    rules = [rule for rule in _Rule if _level(rule, command) is not None]
+    # a rule's default level is its highest in the run: `--gate` raises a rule to an error for the paths it names
+    gates = frozenset().union(*record.gates_by_path.values())
+    rules = [rule for rule in _Rule if _level(rule, command, gates) is not None]
     rule_index = {rule.value: index for index, rule in enumerate(rules)}
     findings = _report_findings_with_sources(record)
     results = [_sarif_result(finding, source, rule_index[finding["rule"]], base) for finding, source in findings]
@@ -168,7 +171,7 @@ def _build_sarif(record: _RunRecord, exit_code: int, root: Optional[Path] = None
                                 "name": _rule_name(rule),
                                 "shortDescription": {"text": _RULE_TEXT[rule][0]},
                                 "fullDescription": {"text": _RULE_TEXT[rule][1]},
-                                "defaultConfiguration": {"level": _level(rule, command).value},  # type: ignore[union-attr]
+                                "defaultConfiguration": {"level": _level(rule, command, gates).value},  # type: ignore[union-attr]
                             }
                             for rule in rules
                         ],
