@@ -1514,8 +1514,8 @@ class TestCliReportJson:
     def test_records_skipped_submodule_gap(self, tmp_path: Path) -> None:
         """A submodule that fails to import is recorded as a ``module not audited`` gap naming the module.
 
-        These gaps are printed only after the subcommand returns, so the report must be written after them, or the
-        most common gap of all would be missing from it.
+        The scan records each skipped submodule as a gap right after it, so the report, written once the subcommand
+        returns, holds the most common gap of all.
 
         """
         pkg = _make_pkg(tmp_path)
@@ -1525,6 +1525,35 @@ class TestCliReportJson:
         gaps = json.loads(report.read_text(encoding="utf-8"))["gaps"]
         assert [gap["kind"] for gap in gaps] == ["module not audited"]
         assert gaps[0]["detail"].startswith("mypkg.broken: ")
+
+    def test_strict_gap_fails_the_run_and_its_report(self, tmp_path: Path) -> None:
+        """With ``--strict`` a skipped submodule exits 1, and the report is written with that gap.
+
+        A CI gate pinned to ``--strict`` runs in an environment missing one submodule's dependency. The process must
+        fail, say why on stderr, and still leave the report behind (exit 1 writes it), so the job can show the gap.
+
+        """
+        pkg = _make_pkg(tmp_path)
+        (pkg / "broken.py").write_text("raise RuntimeError('boom')\n")
+        report = tmp_path / "report.json"
+        result = _run_cli("check", str(pkg), "--strict", f"--report-json={report}", cwd=tmp_path)
+        gaps = json.loads(report.read_text(encoding="utf-8"))["gaps"]
+        assert result.returncode == 1, result.stdout + result.stderr
+        assert "Strict mode: 1 gap(s) fail this run." in result.stderr
+        assert [gap["kind"] for gap in gaps] == ["module not audited"]
+
+    def test_strict_with_exit_zero_exits_two_without_report(self, tmp_path: Path) -> None:
+        """``--strict --exit-zero`` is a usage error: exit 2, nothing scanned, no report written.
+
+        The two flags cancel each other out, so the run refuses to start rather than pick one silently.
+
+        """
+        pkg = _make_pkg(tmp_path)
+        report = tmp_path / "report.json"
+        result = _run_cli("check", str(pkg), "--strict", "--exit-zero", f"--report-json={report}", cwd=tmp_path)
+        assert result.returncode == 2
+        assert "contradict each other" in result.stderr
+        assert not report.exists()
 
     def test_clean_scan_records_no_gap(self, tmp_path: Path) -> None:
         """A fully audited package records an empty gap list, so consumers can tell "no gaps" from "unknown".

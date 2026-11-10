@@ -140,11 +140,13 @@ class TestCliCommand:
     @pytest.mark.parametrize(
         ("name", "expected"),
         [
-            pytest.param("check", {"exit_zero", "include_members", "recursive"}, id="check"),
-            pytest.param("expiry", {"exit_zero", "include_members", "recursive"}, id="expiry"),
-            pytest.param("policy", {"exit_zero", "include_members", "message_required", "recursive"}, id="policy"),
-            pytest.param("chains", {"exit_zero", "include_members", "recursive"}, id="chains"),
-            pytest.param("all", {"exit_zero", "include_members", "recursive"}, id="all"),
+            pytest.param("check", {"exit_zero", "include_members", "recursive", "strict"}, id="check"),
+            pytest.param("expiry", {"exit_zero", "include_members", "recursive", "strict"}, id="expiry"),
+            pytest.param(
+                "policy", {"exit_zero", "include_members", "message_required", "recursive", "strict"}, id="policy"
+            ),
+            pytest.param("chains", {"exit_zero", "include_members", "recursive", "strict"}, id="chains"),
+            pytest.param("all", {"exit_zero", "include_members", "recursive", "strict"}, id="all"),
             pytest.param("status", {"include_members", "recursive"}, id="status"),
         ],
     )

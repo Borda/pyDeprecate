@@ -105,6 +105,9 @@ _CONFIG_TABLE_NAME = "[tool.pydeprecate]"
 _POLICY_TABLE_NAME = "[tool.pydeprecate.policy]"
 _EXCLUDE_KEY = "exclude"
 _POLICY_KEY = "policy"
+_STRICT_KEY = "strict"
+#: The keys of ``[tool.pydeprecate]`` the CLI reads, in the order the advisories name them.
+_CONFIG_KEYS = (_EXCLUDE_KEY, _STRICT_KEY, _POLICY_KEY)
 
 
 def _warn_unknown_keys(table: dict[str, Any], known: Sequence[str], table_name: str, toml_path: Optional[str]) -> None:
@@ -133,17 +136,20 @@ def _load_pydeprecate_config(path: str) -> Optional[_Config]:
         path: The ``path`` argument of the subcommand.
 
     Returns:
-        The known keys of the table (``exclude`` and the known keys of ``policy``) and the ``pyproject.toml``
-        they came from, or ``({}, None)``; ``None`` after printing a usage error (the caller exits 2).
+        The known keys of the table (``exclude``, ``strict`` and the known keys of ``policy``) and the
+        ``pyproject.toml`` they came from, or ``({}, None)``; ``None`` after printing a usage error (the caller exits
+        2).
 
     """
     if not Path(path).exists():
         return {}, None
     if not (_is_package_available("tomllib") or _is_package_available("tomli")):
         if next(_iter_pyproject_paths(path), None) is not None:
+            keys = ", ".join(f"`{key}`" for key in _CONFIG_KEYS)
             _print(
                 f"A `pyproject.toml` is within reach of `{path}` but no TOML parser is installed, so any "
-                f"`{_CONFIG_TABLE_NAME}` section is ignored.\nInstall one with: `pip install 'pyDeprecate[audit]'`",
+                f"`{_CONFIG_TABLE_NAME}` section ({keys}) is ignored.\n"
+                "Install one with: `pip install 'pyDeprecate[audit]'`",
                 stderr=True,
             )
         return {}, None
@@ -152,10 +158,8 @@ def _load_pydeprecate_config(path: str) -> Optional[_Config]:
     except _ConfigReadError as err:
         _print(str(err), stderr=True)
         return None
-    _warn_unknown_keys(table, (_EXCLUDE_KEY, _POLICY_KEY), _CONFIG_TABLE_NAME, toml_path)
-    config: dict[str, Any] = {}
-    if _EXCLUDE_KEY in table:
-        config[_EXCLUDE_KEY] = table[_EXCLUDE_KEY]
+    _warn_unknown_keys(table, _CONFIG_KEYS, _CONFIG_TABLE_NAME, toml_path)
+    config: dict[str, Any] = {key: table[key] for key in (_EXCLUDE_KEY, _STRICT_KEY) if key in table}
     policy = table.get(_POLICY_KEY)
     if isinstance(policy, dict):
         _warn_unknown_keys(policy, list(_POLICY_DEFAULTS), _POLICY_TABLE_NAME, toml_path)
@@ -263,6 +267,45 @@ def _resolve_exclude(
         )
         return None
     return patterns, source
+
+
+def _resolve_strict(strict: _ConfigBool, exit_zero: bool, config: _Config) -> Optional[bool]:
+    """Resolve strict mode as flag > ``strict`` in ``[tool.pydeprecate]`` > off, printing any usage error.
+
+    Strict mode fails a run that recorded any gap, and ``--exit-zero`` passes every run, so the two together would make
+    one of them a silent no-op; a strict mode switched on in ``pyproject.toml`` is switched off per run with
+    ``--no-strict``.
+
+    Args:
+        strict: The ``--strict`` flag value, or :data:`_FROM_PYPROJECT` when it was not typed.
+        exit_zero: Whether ``--exit-zero`` was given.
+        config: The already-loaded ``[tool.pydeprecate]`` configuration.
+
+    Returns:
+        Whether the run is strict, or ``None`` after printing a usage error (the caller exits 2): a value from the file
+        that is not a boolean, or strict mode together with ``--exit-zero``.
+
+    """
+    value, source = _resolve_setting(strict, config[0], _STRICT_KEY, False, config)
+    if not isinstance(value, bool):
+        _print(
+            f"Invalid `{_STRICT_KEY}` value `{value}` from {_describe_source(_STRICT_KEY, _CONFIG_TABLE_NAME, source)};"
+            " expected `true` or `false`.",
+            stderr=True,
+        )
+        return None
+    if value and exit_zero:
+        if source == "flag":
+            remedy = "drop one of them"
+        else:
+            remedy = f"pass `--no-strict` to override `{_STRICT_KEY} = true` for this run"
+        _print(
+            f"Strict mode (from {_describe_source(_STRICT_KEY, _CONFIG_TABLE_NAME, source)}) and `--exit-zero` "
+            f"contradict each other: strict mode fails a run on its gaps, `--exit-zero` passes every run; {remedy}.",
+            stderr=True,
+        )
+        return None
+    return value
 
 
 def _resolve_policy_spec(

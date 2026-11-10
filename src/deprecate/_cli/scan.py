@@ -13,9 +13,9 @@ from typing import Optional
 
 from deprecate._cli._pkg import _safe_module_name, _select_child_package
 from deprecate._cli.config import _Config, _ConfigFlag, _resolve_exclude, _source_label
-from deprecate._cli.report import _GapKind, _print, _print_gap, _record_scan, _ScanRecord
+from deprecate._cli.report import _GapKind, _print, _print_gap, _print_skipped_modules, _record_scan, _ScanRecord
 from deprecate.audit import DeprecationWrapperInfo, find_deprecation_wrappers
-from deprecate.audit._scan import _is_excluded
+from deprecate.audit._scan import _collect_skipped_modules, _is_excluded
 from deprecate.audit._version import _is_package_dir, _managed_sys_path, _resolve_package_version
 
 
@@ -247,6 +247,44 @@ def _print_scan_header(
         _print(f"Exclude: {', '.join(exclude[0])} ({_source_label(exclude[1])})")
 
 
+def _import_and_scan(
+    path: str,
+    *,
+    recursive: bool,
+    include_members: bool,
+    exclude: tuple[list[str], str],
+    version: Optional[str],
+    version_explicit: bool,
+    resolve_version: bool,
+) -> Optional[tuple[list[DeprecationWrapperInfo], Optional[str]]]:
+    """Run the importing half of :func:`_scan_for_command`: version auto-detection, the header and the scan.
+
+    Returns:
+        The wrappers and the (possibly auto-detected) version, or ``None`` after printing that *path* names no
+        importable module (the caller exits 2).
+
+    Raises:
+        _ScanError: When the scanned package itself cannot be imported, or its module-level code exits.
+
+    """
+    if version is None and resolve_version:
+        # Dynamic project versions and the __version__ fallback import code before the wrapper scan does.
+        with _hidden_argv(), _root_exit_as_scan_error(path):
+            version = _resolve_package_version(_safe_module_name(path), path=path)
+    _print_scan_header(path, version, user_provided=version_explicit, exclude=exclude)
+    with _managed_sys_path(path), _hidden_argv(), _root_exit_as_scan_error(path):
+        try:
+            wrappers = _scan_path(path, recursive=recursive, include_members=include_members, exclude=exclude[0])
+        except Exception as err:
+            if _names_missing_module(err, path):
+                # a typo in the argument, not a package that failed to import
+                _print(f"No such path or importable module: {path!r}", stderr=True)
+                return None
+            # submodule failures are gaps inside the scan; only the package itself failing to import reaches here
+            raise _ScanError(f"could not import {path!r}: {type(err).__name__}: {err}") from err
+    return wrappers, version
+
+
 def _scan_for_command(
     path: str,
     *,
@@ -263,9 +301,9 @@ def _scan_for_command(
 
     In order: refuse a file path or an ambiguous multi-package directory, resolve ``exclude`` (flag >
     ``pyproject.toml``), auto-detect the version when asked with CLI arguments hidden from imported code, print the
-    header, scan with ``sys.path`` pointed at the import root and the CLI's arguments hidden, name the imported file
-    (a gap when that is another copy than the scanned directory), and record the scan for ``--report-json`` (unless
-    *record* is off).
+    header, scan with ``sys.path`` pointed at the import root and the CLI's arguments hidden, print one
+    ``module not audited`` gap per submodule the detection or the scan skipped, name the imported file (a gap when that
+    is another copy than the scanned directory), and record the scan for ``--report-json`` (unless *record* is off).
 
     Args:
         path: Package directory, plain directory, or importable module name, as the user passed it.
@@ -295,23 +333,25 @@ def _scan_for_command(
         # `./typo` or `.pkg` is no path and no module name; importing it would fail as a relative import
         _print(f"No such path or importable module: {path!r}", stderr=True)
         return None
-    if version is None and resolve_version:
-        # Dynamic project versions and the __version__ fallback import code before the wrapper scan does.
-        with _hidden_argv(), _root_exit_as_scan_error(path):
-            version = _resolve_package_version(_safe_module_name(path), path=path)
-    _print_scan_header(path, version, user_provided=version_explicit, exclude=resolved_exclude)
-    with _managed_sys_path(path), _hidden_argv(), _root_exit_as_scan_error(path):
+    # Every submodule the version detection or the scan skips is recorded as a gap of this scan right after it, also
+    # when the scan then fails, so a strict verdict computed at the subcommand's return already counts it.
+    with _collect_skipped_modules() as skipped_modules:
         try:
-            wrappers = _scan_path(
-                path, recursive=recursive, include_members=include_members, exclude=resolved_exclude[0]
+            scanned = _import_and_scan(
+                path,
+                recursive=recursive,
+                include_members=include_members,
+                exclude=resolved_exclude,
+                version=version,
+                version_explicit=version_explicit,
+                resolve_version=resolve_version,
             )
-        except Exception as err:
-            if _names_missing_module(err, path):
-                # a typo in the argument, not a package that failed to import
-                _print(f"No such path or importable module: {path!r}", stderr=True)
-                return None
-            # submodule failures are gaps inside the scan; only the package itself failing to import reaches here
-            raise _ScanError(f"could not import {path!r}: {type(err).__name__}: {err}") from err
+        finally:
+            # Unlike the `audit: skipped` warning, these lines survive the audited package's own warnings filters.
+            _print_skipped_modules(skipped_modules)
+    if scanned is None:
+        return None
+    wrappers, version = scanned
     location = _imported_location(path, package_dir)
     if location is not None:
         _print(f"Imported from: {location}")

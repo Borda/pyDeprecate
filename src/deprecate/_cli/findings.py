@@ -2,7 +2,7 @@
 
 A finding is an *error* where it fails the run, a *warning* where it is only reported, and not evaluated where the
 subcommand does not look at it. ``all`` gates on everything ``check``, ``expiry`` and ``chains`` gate on and reports
-policy violations as warnings.
+policy violations as warnings. In strict mode (``--strict``) a run that recorded any gap fails as well.
 
 """
 
@@ -64,12 +64,20 @@ def _gate_levels(findings: Iterable[_Finding], subcommand: str) -> dict[str, _Le
     return levels
 
 
-def _exit_code(findings: Iterable[_Finding], subcommand: str, *, exit_zero: bool = False) -> int:
-    """Return the exit code a run of *subcommand* gives for *findings*: 1 when any is an error, else 0.
+def _exit_code(
+    findings: Iterable[_Finding], subcommand: str, *, exit_zero: bool = False, strict: bool = False, gaps: int = 0
+) -> int:
+    """Return the exit code a run of *subcommand* gives for *findings*: 1 when the gate failed, else 0.
 
-    ``exit_zero`` downgrades 1 to 0. Usage errors (2) and scan or internal errors (3) never come from here: they are
-    decided before the scan or by the top-level handler of :func:`~deprecate._cli.cli`.
+    The gate fails when any finding is an error in *subcommand*, or, in strict mode, when the run recorded at least one
+    gap (a part of the audit that did not run). ``exit_zero`` downgrades 1 to 0; the CLI never lets it meet ``strict``.
+    Usage errors (2) and scan or internal errors (3) never come from here: they are decided before the scan or by the
+    top-level handler of :func:`~deprecate._cli.cli`.
+
+    Examples:
+        >>> _exit_code([], "check"), _exit_code([], "check", strict=True, gaps=2), _exit_code([], "check", gaps=2)
+        (0, 1, 0)
 
     """
-    failed = _E in _gate_levels(findings, subcommand).values()
+    failed = _E in _gate_levels(findings, subcommand).values() or (strict and gaps > 0)
     return 1 if failed and not exit_zero else 0

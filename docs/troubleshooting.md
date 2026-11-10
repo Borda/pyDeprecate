@@ -2289,6 +2289,14 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
+## How do I make the CI gate fail when part of the audit did not run?
+
+**Q:** `pydeprecate all src/mypackage` prints `pydeprecate gap: module not audited: …` or `pydeprecate gap: version not resolved: …` and still exits `0`. How do I make such a run fail?
+
+**A:** Pass `--strict` (since 0.16), or set `strict = true` under `[tool.pydeprecate]` in `pyproject.toml`; in the GitHub Action set `fail-on-gap: true`. A strict run exits `1` when it recorded any gap, even with no finding, and prints `Strict mode: N gap(s) fail this run.` after the gap lines. Without it a gap is advisory: the part of the audit it names did not run, but the exit code only reflects what did run. Fix the cause the gap's hint names (usually a missing runtime dependency of the scanned package, or a version to pass with `--version`), or exclude a module you never want audited with `--exclude`. `--strict` cannot be combined with `--exit-zero` (exit `2`); use `--no-strict` to switch off a strict mode set in `pyproject.toml` for an advisory step.
+
+______________________________________________________________________
+
 ## Why did the GitHub Action skip my job summary?
 
 **Q:** The action ran with `summary: true`, but the job summary is absent or warns that the gate wrote no pyDeprecate report, or that no pyDeprecate report is available, or another runner warning about the summary.

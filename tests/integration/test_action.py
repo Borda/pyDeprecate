@@ -257,6 +257,16 @@ class TestActionInputs:
                 "input `exit-zero` has no effect on `status`",
                 id="exit-zero-status",
             ),
+            pytest.param(
+                {"subcommand": "status", "fail_on_gap": "true"},
+                "input `fail-on-gap` has no effect on `status`",
+                id="fail-on-gap-status",
+            ),
+            pytest.param(
+                {"fail_on_gap": "true", "exit_zero": "true"},
+                "inputs `fail-on-gap` and `exit-zero` contradict each other",
+                id="fail-on-gap-exit-zero",
+            ),
             pytest.param({"args": "--exclude='unbalanced"}, "input `args` cannot be split", id="unbalanced-quote"),
             pytest.param({"args": "-- --exit-zero"}, "input `args` must not contain '--': ", id="args-separator"),
             pytest.param({"args": "--help"}, "input `args` must not contain '--help': ", id="args-help"),
@@ -312,6 +322,8 @@ class TestActionInputs:
             pytest.param("exit-zero", " true ", "exit_zero", True, id="exit-zero-padded"),
             pytest.param("exit-zero", "False", "exit_zero", False, id="exit-zero-mixed-false"),
             pytest.param("exit-zero", "0", "exit_zero", False, id="exit-zero-zero"),
+            pytest.param("fail-on-gap", "True", "fail_on_gap", True, id="fail-on-gap-mixed-true"),
+            pytest.param("fail-on-gap", "0", "fail_on_gap", False, id="fail-on-gap-zero"),
             pytest.param("install", "FALSE", "install", False, id="install-upper-false"),
             pytest.param("install", "1", "install", True, id="install-one"),
             pytest.param("summary", "True", "summary", True, id="summary-mixed-true"),
@@ -1211,6 +1223,22 @@ class TestActionOutputSafety:
         assert result.stdout.count("::warning") == 1
 
     @pytest.mark.subprocess
+    def test_fail_on_gap_fails_the_step(self, tmp_path: Path) -> None:
+        """``fail-on-gap: true`` turns the same unaudited module into a failed step that still annotates the gap.
+
+        A team that wants a complete audit or none sets ``fail-on-gap``; the runner passes ``--strict``, the CLI exits
+        1 and writes its report, so the step fails with its exit-code error and keeps the gap warning naming why.
+        """
+        scripts = tmp_path / "scripts"
+        scripts.mkdir()
+        (scripts / "broken_script.py").write_text('raise RuntimeError("needs a database")\n', encoding="utf-8")
+        env = _runner_env(tmp_path, subcommand="check", path="scripts", fail_on_gap="true")
+        result = _run_runner(env, cwd=tmp_path)
+        assert result.returncode == 1, result.stdout + result.stderr
+        assert "::error title=pyDeprecate::pydeprecate check exited 1" in result.stdout
+        assert "::warning title=pyDeprecate::module not audited (1): " in result.stdout
+
+    @pytest.mark.subprocess
     def test_warns_when_plain_directory_has_nested_files(self, tmp_path: Path) -> None:
         """A plain directory whose nested ``.py`` files are skipped passes with a warning annotation.
 
@@ -1418,18 +1446,24 @@ class TestActionMetadata:
         defaults = {name: str(spec.get("default", "")) for name, spec in _load_action()["inputs"].items()}
         assert defaults == action_runner.INPUT_DEFAULTS
 
-    def test_step_env_wires_every_input_to_the_runner(self) -> None:
+    @pytest.mark.parametrize(
+        ("exit_zero", "fail_on_gap"),
+        [pytest.param(True, False, id="exit-zero-set"), pytest.param(False, True, id="fail-on-gap-set")],
+    )
+    def test_step_env_wires_every_input_to_the_runner(self, exit_zero: bool, fail_on_gap: bool) -> None:
         """Each ``env`` entry of the action step delivers its input's value to the matching runner input.
 
-        The step env is built from ``action.yml`` itself: every variable receives the distinct, non-default value of
-        the input its expression names. If the runner read ``summary`` from the variable that carries ``install`` (or
-        any variable were missing or misnamed), the parsed inputs would differ from what the workflow author set.
+        The step env is built from ``action.yml`` itself: every variable receives a distinct value of the input its
+        expression names. If the runner read ``summary`` from the variable that carries ``install`` (or any variable
+        were missing or misnamed), the parsed inputs would differ from what the workflow author set. ``exit-zero`` and
+        ``fail-on-gap`` may not both be true, so each case sets one of them to its non-default value.
         """
         distinct = {
             "subcommand": "check",
             "path": "pkg/path",
             "args": "--flag value",
-            "exit-zero": "true",
+            "exit-zero": str(exit_zero).lower(),
+            "fail-on-gap": str(fail_on_gap).lower(),
             "install": "false",
             "summary": "true",
         }
@@ -1440,7 +1474,8 @@ class TestActionMetadata:
             subcommand="check",
             path="pkg/path",
             args=("--flag", "value"),
-            exit_zero=True,
+            exit_zero=exit_zero,
+            fail_on_gap=fail_on_gap,
             install=False,
             summary=True,
         )

@@ -22,7 +22,7 @@ from deprecate._cli.commands import (
     cmd_policy,
     cmd_status,
 )
-from deprecate._cli.config import _FROM_PYPROJECT, _POLICY_DEFAULTS, _ConfigFlag
+from deprecate._cli.config import _FROM_PYPROJECT, _POLICY_DEFAULTS, _ConfigBool, _ConfigFlag
 from deprecate._cli.report import _GapKind, _record_run, _ScanRecord
 from deprecate._cli.scan import _ScanError
 from deprecate._types import DeprecationConfig, TargetMode
@@ -1511,3 +1511,147 @@ class TestPolicyWithoutPackaging:
         assert "`min-grace`" in captured.err
         assert "pyDeprecate[audit]" in captured.err
         assert "No deprecation policy violations found." not in captured.out
+
+
+# A package whose only submodule fails to import: one `module not audited` gap per scan, no finding.
+_BROKEN_SUBMODULE = "raise RuntimeError('broken submodule')\n"
+# Per gate subcommand, the keyword arguments that pin its version, so a package of the test leaves exactly one gap.
+_GATE_COMMANDS = [
+    pytest.param(cmd_check, {}, id="check"),
+    pytest.param(cmd_expiry, {"version": "1.0"}, id="expiry"),
+    pytest.param(cmd_policy, {}, id="policy"),
+    pytest.param(cmd_chains, {}, id="chains"),
+    pytest.param(cmd_all, {"version": "1.0"}, id="all"),
+]
+
+
+def _pkg_with_broken_submodule(tmp_path: Path, pyproject: str = "") -> Path:
+    """Create ``mypkg`` whose ``broken`` submodule raises on import, with an optional ``pyproject.toml`` beside it."""
+    pkg = write_pkg(tmp_path, "mypkg", "")
+    (pkg / "broken.py").write_text(_BROKEN_SUBMODULE)
+    if pyproject:
+        (tmp_path / "pyproject.toml").write_text(pyproject)
+    return pkg
+
+
+@pytest.mark.filterwarnings("ignore:audit. skipped mypkg.broken:UserWarning")
+class TestStrictMode:
+    """``--strict`` fails a gate run that recorded any gap; ``pyproject.toml`` can switch it on."""
+
+    @pytest.mark.parametrize(("command", "kwargs"), _GATE_COMMANDS)
+    def test_gap_fails_strict_run(
+        self, command: Callable[..., int], kwargs: dict, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A submodule that cannot be imported fails a strict run with exit 1 and one ``Strict mode`` line.
+
+        The CI job's environment lacks a dependency of one submodule, so the scan skipped it and found nothing wrong
+        in the rest. The gate must not pass a partial audit in strict mode, also when the subcommand is called
+        directly rather than through ``cli()``: the skipped submodule is recorded as a gap of the scan itself.
+
+        """
+        pkg = _pkg_with_broken_submodule(tmp_path)
+        result = command(str(pkg), strict=True, **kwargs)
+        err = capsys.readouterr().err
+        assert result == 1
+        assert "pydeprecate gap: module not audited: mypkg.broken: RuntimeError(" in err
+        assert err.count("Strict mode: 1 gap(s) fail this run.") == 1
+
+    @pytest.mark.parametrize(("command", "kwargs"), _GATE_COMMANDS)
+    def test_gap_passes_without_strict(
+        self, command: Callable[..., int], kwargs: dict, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Without strict mode the same skipped submodule is reported as a gap and the run still passes.
+
+        Gaps stay advisory by default, so upgrading never turns an existing green gate red on its own.
+
+        """
+        pkg = _pkg_with_broken_submodule(tmp_path)
+        result = command(str(pkg), **kwargs)
+        err = capsys.readouterr().err
+        assert result == 0
+        assert "pydeprecate gap: module not audited: mypkg.broken" in err
+        assert "Strict mode" not in err
+
+    def test_pyproject_switches_strict_on(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        """``strict = true`` in ``[tool.pydeprecate]`` makes every run of the project strict without a flag.
+
+        A project declares its gate policy once in ``pyproject.toml``, so the pre-commit hook and the CI step both
+        fail on a partial audit without repeating ``--strict`` in each.
+
+        """
+        pkg = _pkg_with_broken_submodule(tmp_path, "[tool.pydeprecate]\nstrict = true\n")
+        result = cmd_check(str(pkg))
+        assert result == 1
+        assert "Strict mode: 1 gap(s) fail this run." in capsys.readouterr().err
+
+    def test_no_strict_overrides_pyproject(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        """``--no-strict`` switches off a strict mode that ``pyproject.toml`` switched on, for one run.
+
+        An advisory CI step in a project that declares ``strict = true`` reports its gaps without failing.
+
+        """
+        pkg = _pkg_with_broken_submodule(tmp_path, "[tool.pydeprecate]\nstrict = true\n")
+        result = cmd_check(str(pkg), strict=False)
+        assert result == 0
+        assert "Strict mode" not in capsys.readouterr().err
+
+    def test_clean_strict_run_passes(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        """A strict run that recorded no gap passes and prints no ``Strict mode`` line.
+
+        Strict mode adds a failure reason; it never fails a complete audit that found nothing.
+
+        """
+        pkg = write_pkg(tmp_path, "mypkg", "")
+        result = cmd_check(str(pkg), strict=True)
+        assert result == 0
+        assert "Strict mode" not in capsys.readouterr().err
+
+    def test_malformed_pyproject_value_exits_two_before_scanning(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A ``strict`` value that is not a boolean is a usage error naming the value and its file; nothing is scanned.
+
+        ``strict = "yes"`` reads as true to a person but configures nothing to a parser that wants a boolean; the run
+        must stop before importing the package rather than guess.
+
+        """
+        pkg = _pkg_with_broken_submodule(tmp_path, '[tool.pydeprecate]\nstrict = "yes"\n')
+        result = cmd_check(str(pkg))
+        captured = capsys.readouterr()
+        assert result == 2
+        assert "Invalid `strict` value `yes` from `[tool.pydeprecate]` in " in captured.err
+        assert "Scanning:" not in captured.out
+
+    @pytest.mark.parametrize(
+        ("pyproject", "strict", "remedy"),
+        [
+            pytest.param("", True, "drop one of them", id="flag"),
+            pytest.param(
+                "[tool.pydeprecate]\nstrict = true\n",
+                _FROM_PYPROJECT,
+                "pass `--no-strict` to override `strict = true` for this run",
+                id="pyproject",
+            ),
+        ],
+    )
+    def test_exit_zero_contradiction_exits_two(
+        self,
+        pyproject: str,
+        strict: _ConfigBool,
+        remedy: str,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Strict mode together with ``--exit-zero`` is a usage error that names where strict mode came from.
+
+        ``--exit-zero`` passes every run, so with strict mode one of the two would silently do nothing. When strict
+        mode comes from ``pyproject.toml`` the message points at ``--no-strict``, the per-run override.
+
+        """
+        pkg = _pkg_with_broken_submodule(tmp_path, pyproject)
+        result = cmd_check(str(pkg), exit_zero=True, strict=strict)
+        captured = capsys.readouterr()
+        assert result == 2
+        assert "and `--exit-zero` contradict each other" in captured.err
+        assert remedy in captured.err
+        assert "Scanning:" not in captured.out

@@ -114,7 +114,7 @@ def _cli_command(name: str) -> _CliCommand:
     Examples:
         >>> command = _cli_command("expiry")
         >>> command.positionals, sorted(command.bool_params)
-        (('path', 'version'), ['exit_zero', 'include_members', 'recursive'])
+        (('path', 'version'), ['exit_zero', 'include_members', 'recursive', 'strict'])
 
     """
     function = getattr(commands, f"cmd_{name}")
