@@ -803,6 +803,18 @@ def positional_only_target(x: int, /, y: int = 0) -> int:
     return x + y
 
 
+def positional_default_keywords(
+    x: int = 1, /, flag: Optional[int] = None, **kwargs: object
+) -> tuple[int, Optional[int], dict[str, object]]:
+    """Return the positional-only ``x``, ``flag`` and the extra keywords, showing which slot each keyword reached.
+
+    Calling it directly as ``positional_default_keywords(flag=1, x=99)`` keeps the default ``x=1`` and puts the
+    caller's ``x`` into ``kwargs``.  Wrapped by ``shape_remap_positional_default_keywords`` and
+    ``shape_forward_positional_default_keywords`` in :mod:`tests.collections.api_deprecated.regressions`.
+    """
+    return x, flag, kwargs
+
+
 class SourcePathTarget:
     """Plain class whose proxies render ``%(source_path)s`` in a custom ``message_template``.
 

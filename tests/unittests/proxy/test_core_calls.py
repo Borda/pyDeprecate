@@ -285,6 +285,39 @@ class TestArgsRemapUntouchedCall:
             result = alias(x=99)
         assert (tuple(result), caught) == ((1, {"x": 99}), [])
 
+    @pytest.mark.parametrize(
+        "build_alias",
+        [
+            pytest.param(
+                lambda: deprecated_instance(
+                    _positional_default_echo, args_mapping={"old_flag": "flag"}, **_DEPRS_CASE_STD_ARGS
+                ),
+                id="function",
+            ),
+            pytest.param(
+                lambda: deprecated_class(args_mapping={"old_flag": "flag"}, **_DEPRS_CASE_STD_ARGS)(
+                    _PositionalDefaultRecord
+                ),
+                id="class",
+            ),
+        ],
+    )
+    def test_renamed_call_keeps_positional_only_named_keyword_in_kwargs(
+        self, build_alias: Callable[[], Callable[..., Any]]
+    ) -> None:
+        """``alias(old_flag=1, x=99)`` gives ``(1, {"flag": 1, "x": 99})``, the result of the direct renamed call.
+
+        Here the caller does use the deprecated ``old_flag``, so the proxy rewrites the call to pass ``flag``. Calling
+        the wrapped callable directly as ``f(flag=1, x=99)`` keeps the default ``x=1`` and puts the caller's ``x`` into
+        ``kwargs``; the rename must not change that by moving ``x=99`` into the positional-only slot, as the shared
+        ``@deprecated`` dispatcher does not either.
+
+        """
+        alias = build_alias()
+        with pytest.warns(FutureWarning, match="`old_flag` -> `flag`"):
+            result = alias(old_flag=1, x=99)
+        assert tuple(result) == (1, {"flag": 1, "x": 99})
+
 
 class TestCallableTargetPositionalOnlyBridge:
     """A callable-target ``args_mapping`` proxy bridges old keyword calls onto positional-only replacement params."""

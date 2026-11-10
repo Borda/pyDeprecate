@@ -411,6 +411,60 @@ def _merge_source_defaults(
     }
 
 
+def _take_keyword_overflow(
+    overflow_names: frozenset[str],
+    mapping: Optional[Mapping[str, Optional[str]]],
+    kwargs: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Split off the caller's keywords that the source binds to its ``**kwargs`` instead of a positional-only slot.
+
+    Python never binds a keyword to a POSITIONAL_ONLY parameter: in ``def f(x=1, /, **kwargs)``, ``f(x=99)`` keeps the
+    default ``x`` and puts ``x=99`` into ``kwargs``.  The wrapper converts positionals to keywords internally and later
+    splits positional-only names back out, so a caller keyword under such a name would otherwise take the slot.  A
+    deprecated name (an ``args_mapping`` key) is never split off: the caller passed it to have it renamed.
+
+    Args:
+        overflow_names: :attr:`~deprecate._types._CallFacts.source_keyword_overflow` — the source's positional-only
+            names when it declares ``**kwargs``, otherwise empty.
+        mapping: The wrapper's ``args_mapping``.
+        kwargs: The caller's keyword arguments.
+
+    Returns:
+        Tuple of ``(kwargs, overflow)``: the keywords left for the rest of the plan, and the split-off keywords in
+        caller order.  ``kwargs`` is returned unchanged when nothing is split off.
+
+    Example:
+        >>> _take_keyword_overflow(frozenset({"x"}), {"old": "new"}, {"old": 1, "x": 99})
+        ({'old': 1}, {'x': 99})
+
+    """
+    names = overflow_names.intersection(kwargs).difference(mapping or ())
+    if not names:
+        return kwargs, {}
+    kept = {key: value for key, value in kwargs.items() if key not in names}
+    return kept, {key: value for key, value in kwargs.items() if key in names}
+
+
+def _merge_keyword_overflow(kw_args: dict[str, Any], overflow: Mapping[str, Any]) -> dict[str, Any]:
+    """Hand the split-off ``**kwargs`` keywords of :func:`_take_keyword_overflow` back to the final call as keywords.
+
+    Raises:
+        TypeError: When the final keywords already hold one of these names, as Python raises for a keyword passed
+            twice.
+
+    Example:
+        >>> _merge_keyword_overflow({"flag": 1}, {"x": 99})
+        {'flag': 1, 'x': 99}
+
+    """
+    if not overflow:
+        return kw_args
+    clash = sorted(overflow.keys() & kw_args.keys())
+    if clash:
+        raise TypeError(f"got multiple values for keyword argument '{clash[0]}'")
+    return {**kw_args, **overflow}
+
+
 def _split_positional_only_kwargs(
     param_order: tuple[str, ...],
     resolved_kwargs: dict[str, Any],
@@ -907,6 +961,7 @@ def _build_call_facts(
         source_var_positional_prefix=source_facts.var_positional_index or 0,
         source_positional_only=source_facts.positional_only,
         source_positional_only_order=source_facts.order if source_facts.positional_only else (),
+        source_keyword_overflow=source_facts.positional_only if source_facts.var_keyword else frozenset(),
         target_all_param_names=target_facts.names,
         target_accepts_var_positional=target_facts.var_positional,
         target_accepts_var_keyword=target_facts.var_keyword,
@@ -1167,7 +1222,11 @@ def _build_call_plan(ctx: _WrapperContext, args: tuple[Any, ...], kwargs: dict[s
     verbatim = _is_verbatim_call(ctx.target, ctx.cfg, args, kwargs, facts.source_positional_names)
     # *args sources need the unremapped tuple; remapping happens on kwargs only.
     original_kwargs = dict(kwargs)
+    keyword_overflow: dict[str, Any] = {}
     if not verbatim:
+        # Held out before positionals become keywords, so a keyword named like a positional-only parameter can never
+        # take that parameter's slot; it is handed back as a keyword when the call is made.
+        kwargs, keyword_overflow = _take_keyword_overflow(facts.source_keyword_overflow, ctx.cfg.args_mapping, kwargs)
         kwargs = _update_kwargs_with_args(args, kwargs, facts)
     if ctx.source_receiver is not None:
         # A classmethod descriptor target needs a class as the receiver; reject any other value before warning.
@@ -1186,6 +1245,7 @@ def _build_call_plan(ctx: _WrapperContext, args: tuple[Any, ...], kwargs: dict[s
         reason_argument=reason_argument,
         target_func=target_func,
         verbatim=verbatim,
+        keyword_overflow=keyword_overflow,
     )
 
 
@@ -1308,12 +1368,14 @@ def _resolve_source_call_shape(
         return list(args), plan.original_kwargs
     facts = ctx.facts
     if facts.source_has_var_positional:
+        # Built from the caller's own keywords, so the ``**kwargs``-bound keywords are already among them.
         return _var_positional_source_call(ctx, plan, args)
     if facts.source_positional_only:
-        return _split_positional_only_kwargs(
+        pos_args, kw_args = _split_positional_only_kwargs(
             facts.source_positional_only_order, plan.resolved_kwargs, facts.source_positional_only
         )
-    return [], plan.resolved_kwargs
+        return pos_args, _merge_keyword_overflow(kw_args, plan.keyword_overflow)
+    return [], _merge_keyword_overflow(plan.resolved_kwargs, plan.keyword_overflow)
 
 
 def _resolve_target_call_shape(
@@ -1336,12 +1398,13 @@ def _resolve_target_call_shape(
     surplus = args[facts.source_var_positional_prefix :] if facts.source_has_var_positional else ()
     if surplus:
         pos_args, kw_args = _reorder_kwargs_for_surplus(ctx, target_func, surplus, plan.resolved_kwargs)
-        return [*pos_args, *surplus], kw_args
+        return [*pos_args, *surplus], _merge_keyword_overflow(kw_args, plan.keyword_overflow)
     if facts.target_positional_only:
-        return _split_positional_only_kwargs(
+        pos_args, kw_args = _split_positional_only_kwargs(
             facts.target_positional_only_order, plan.resolved_kwargs, facts.target_positional_only
         )
-    return [], plan.resolved_kwargs
+        return pos_args, _merge_keyword_overflow(kw_args, plan.keyword_overflow)
+    return [], _merge_keyword_overflow(plan.resolved_kwargs, plan.keyword_overflow)
 
 
 async def _invoke_async(ctx: _WrapperContext, plan: _CallPlan, args: tuple[Any, ...]) -> Any:  # noqa: ANN401

@@ -35,6 +35,7 @@ from tests.collections.api_current.core import (
     partial_async_target,
     partial_new_cls_target,
     partial_target,
+    positional_default_keywords,
     positional_only_target,
     raw_signature_patched,
     state_echo,
@@ -731,6 +732,20 @@ shape_notify_raw_signature = deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_
 shape_notify_wraps_chain = deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)(wraps_chain_outer)
 #: NOTIFY over a source whose first parameter ``x`` is positional-only.
 shape_notify_positional_only = deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)(positional_only_target)
+
+
+#: ARGS_REMAP (``old_flag`` -> ``flag``) over a source taking a positional-only ``x`` plus ``**kwargs``.
+shape_remap_positional_default_keywords = deprecated(
+    target=TargetMode.ARGS_REMAP, args_mapping={"old_flag": "flag"}, **_DEPRS_CASE_STD_ARGS
+)(positional_default_keywords)
+
+
+@deprecated(target=positional_default_keywords, **_DEPRS_CASE_STD_ARGS, stream=None)
+def shape_forward_positional_default_keywords(
+    x: int = 1, /, flag: Optional[int] = None, **kwargs: object
+) -> tuple[int, Optional[int], dict[str, object]]:
+    """Source with the same signature as its forwarding target ``positional_default_keywords``."""
+    return void(x, flag, kwargs)
 
 
 @deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old": "new"}, **_DEPRS_CASE_STD_ARGS)

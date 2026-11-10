@@ -19,7 +19,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any, Callable, Optional, SupportsIndex, Union, cast
 
-from deprecate._dispatch import _split_positional_only_kwargs
+from deprecate._dispatch import _merge_keyword_overflow, _split_positional_only_kwargs, _take_keyword_overflow
 from deprecate._fatal import DeprecatedError, _resolve_as_exception
 from deprecate._types import DeprecationConfig, DeprecationProxy, TargetMode, _CallFacts, _ProxyConfig
 from deprecate._validate import (
@@ -317,8 +317,8 @@ class _DeprecatedProxy:
         Every construction path (:func:`~deprecate.proxy.deprecated_instance`,
         :func:`~deprecate.proxy.deprecated_class`, direct ``_DeprecatedProxy(obj=..., spec=...)``) passes through here,
         so no proxy can claim a protocol its wrapped object lacks. Called without a source — ``cls.__new__(cls)`` in
-        :meth:`__deepcopy__` and :func:`_reconstruct_proxy` — it allocates *cls* itself, which those paths have
-        already selected.
+        :meth:`__deepcopy__` and :func:`_reconstruct_proxy` — it allocates *cls* itself, which those paths have already
+        selected.
 
         The protocol set is decided once, here, from the types as they are at construction: a dunder the wrapped type
         gains afterwards (a monkeypatched ``__call__``, a magic method set on a ``Mock`` after wrapping) is not served
@@ -441,7 +441,10 @@ class _DeprecatedProxy:
             # Call-time home of the constructor POSITIONAL_ONLY split; the frozen config below mirrors the same two
             # values for audit (and for 0.14 pickles, which ``_reconstruct_proxy`` rebuilds the facts from).
             facts=_CallFacts(
-                target_positional_only=_ctor_positional_only, target_positional_only_order=_ctor_positional_only_order
+                target_positional_only=_ctor_positional_only,
+                target_positional_only_order=_ctor_positional_only_order,
+                # Read by the ARGS_REMAP call path only, where the called object is the one the caller addresses.
+                source_keyword_overflow=_ctor_positional_only if _ctor_facts.var_keyword else frozenset(),
             ),
         )
         object.__setattr__(self, "_DeprecatedProxy__config", cfg)
@@ -1302,8 +1305,8 @@ class _DeprecatedProxy:
         a concrete type is reached. Defensive cycle guard breaks the loop on the unlikely case of a circular stack so
         this dunder never blocks.
 
-        Raises ``TypeError`` (mirroring the builtin) when the active object is an instance rather than a type — using
-        an *instance* proxy as the second argument to ``isinstance`` is a misuse. Returns ``False`` only on a circular
+        Raises ``TypeError`` (mirroring the builtin) when the active object is an instance rather than a type — using an
+        *instance* proxy as the second argument to ``isinstance`` is a misuse. Returns ``False`` only on a circular
         proxy stack.
 
         """
@@ -1394,6 +1397,7 @@ def _proxy_call_with_positional_split(
     facts: _CallFacts,
     args: tuple[Any, ...],
     mapped_kwargs: dict[str, Any],
+    keyword_overflow: Optional[dict[str, Any]] = None,
 ) -> Any:  # noqa: ANN401
     """Invoke *ctor*, forwarding kwargs bound to POSITIONAL_ONLY constructor params positionally.
 
@@ -1403,13 +1407,17 @@ def _proxy_call_with_positional_split(
     instances, and constructor-derived state working — unlike the historical pop-and-``setattr`` fallback.  The split
     data comes from :attr:`~deprecate._types._ProxyConfig.facts`.
 
+    *keyword_overflow* holds caller keywords named like a positional-only parameter of a *ctor* that declares
+    ``**kwargs`` (see ``deprecate._dispatch._take_keyword_overflow``); they skip the split and reach *ctor* as keywords.
+
     """
+    overflow = keyword_overflow or {}
     if facts.target_positional_only:
         pos_args, kw_args = _split_positional_only_kwargs(
             facts.target_positional_only_order, mapped_kwargs, facts.target_positional_only, consumed=len(args)
         )
-        return ctor(*args, *pos_args, **kw_args)
-    return ctor(*args, **mapped_kwargs)
+        return ctor(*args, *pos_args, **_merge_keyword_overflow(kw_args, overflow))
+    return ctor(*args, **_merge_keyword_overflow(mapped_kwargs, overflow))
 
 
 def _restore_pep702_marker(
@@ -1764,9 +1772,12 @@ def _proxy_call_args_remap(
             proxy._warn(arg_name=old_key)
     if not cfg.args_extra and mapping.keys().isdisjoint(kwargs):
         return cfg.obj(*args, **kwargs)
+    # A rewritten call holds such keywords out of the split, as the ``@deprecated`` dispatcher does, so the called
+    # object still binds them to its ``**kwargs``.
+    kwargs, keyword_overflow = _take_keyword_overflow(cfg.facts.source_keyword_overflow, mapping, kwargs)
     mapped_kwargs = _remap_call_kwargs(proxy, dep, args, kwargs)
     mapped_kwargs = proxy._merge_args_extra(mapped_kwargs)
-    return _proxy_call_with_positional_split(cfg.obj, cfg.facts, args, mapped_kwargs)
+    return _proxy_call_with_positional_split(cfg.obj, cfg.facts, args, mapped_kwargs, keyword_overflow)
 
 
 def _proxy_call_callable_with_mapping(

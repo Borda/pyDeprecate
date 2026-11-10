@@ -13,6 +13,10 @@
 - **`copy.copy` of a proxy shallow-copies a plain data replacement.** Top-level writes through the copy no longer reach the shared replacement; nested mutable values stay shared. ([#263](https://github.com/Borda/pyDeprecate/pull/263))
 - **Audit treats a deprecated proxy target as a `TARGET` chain and reports data targets by type.** ([#263](https://github.com/Borda/pyDeprecate/pull/263))
 
+### Fixed
+
+- **A keyword named like a positional-only parameter stays a keyword when a call is rewritten.** For a callable declaring `**kwargs`, such as `def f(x=1, /, flag=None, **kwargs)`, a renamed or forwarded call like `f(old_flag=1, x=99)` now passes `x=99` into `kwargs` and keeps the default `x`, as the undecorated call does, instead of moving it into the positional slot. Applies to `@deprecated` and to `deprecated_class` / `deprecated_instance` proxies with `args_mapping`. ([#263](https://github.com/Borda/pyDeprecate/pull/263))
+
 ## [0.15.0] — 2026-11-09 — Scoped fatal deprecations, a dependency-free CLI, & CI integrations
 
 ### Added

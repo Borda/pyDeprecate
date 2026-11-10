@@ -471,6 +471,9 @@ class _CallFacts:
         source_positional_only: Names of the source's POSITIONAL_ONLY parameters.
         source_positional_only_order: Every source parameter name in declaration order when the source has
             POSITIONAL_ONLY parameters, otherwise empty.
+        source_keyword_overflow: The source's POSITIONAL_ONLY names when it also declares ``**kwargs``, otherwise
+            empty.  A caller keyword with one of these names binds to ``**kwargs``, never to the positional slot, so
+            a rewritten call hands it on as a keyword.
         target_all_param_names: Every parameter name of a callable target; ``None`` derives the names from the
             target on each forwarded call.
         target_accepts_var_positional: ``True`` when the target declares ``*args``.
@@ -498,6 +501,7 @@ class _CallFacts:
     source_var_positional_prefix: int = 0
     source_positional_only: frozenset[str] = frozenset()
     source_positional_only_order: tuple[str, ...] = ()
+    source_keyword_overflow: frozenset[str] = frozenset()
     target_all_param_names: Optional[frozenset[str]] = None
     target_accepts_var_positional: bool = False
     target_accepts_var_keyword: bool = False
@@ -626,6 +630,10 @@ class _CallPlan:
             injection, so the wrapper invokes ``source(*args, **original_kwargs)`` exactly as the caller made the
             call.  A ``functools.singledispatch`` source or one with a patched ``__signature__`` then keeps working.
             Decided by :func:`deprecate._dispatch._is_verbatim_call`; the warning and the budget are unaffected.
+        keyword_overflow: Caller keywords named like a POSITIONAL_ONLY source parameter of a source that declares
+            ``**kwargs`` (:attr:`_CallFacts.source_keyword_overflow`).  Held out of :attr:`resolved_kwargs` so the
+            positional split never moves them into that slot, and handed to the final call as keywords.  Empty on a
+            :attr:`verbatim` plan, which passes every keyword through as made.
 
     """
 
@@ -635,3 +643,4 @@ class _CallPlan:
     reason_argument: dict[str, Optional[str]] = field(default_factory=dict)
     target_func: Optional[Callable[..., Any]] = None
     verbatim: bool = False
+    keyword_overflow: dict[str, Any] = field(default_factory=dict)
