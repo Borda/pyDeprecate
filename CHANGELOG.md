@@ -1,5 +1,13 @@
 # Changelog
 
+## [UnReleased]
+
+### Added
+
+**CLI & CI**
+
+- **`--static` mode for `pydeprecate expiry` and `pydeprecate policy`, and the `pydeprecate-expiry-static` / `pydeprecate-policy-static` pre-commit hooks.** `--static` reads the package source with `ast` and imports nothing from it, so a package can be audited without its runtime dependencies installed. Settings spelled as literals, as module-level names bound once to literals, or as a splatted module-level dict literal are checked like an import-mode run; anything the source alone does not settle is printed as a `pydeprecate gap: not statically resolvable` line and does not change the exit code. The two `-static` hooks run the same checks from the shipped `.pre-commit-hooks.yaml`, and the `--report-json` record carries a new `mode` field, `"static"` or `"import"`. `check`, `chains`, `all` and `status` have no static mode and exit `2` with `--static`. ([#264](https://github.com/Borda/pyDeprecate/pull/264))
+
 ## [0.15.0] — 2026-11-09 — Scoped fatal deprecations, a dependency-free CLI, & CI integrations
 
 ### Added
