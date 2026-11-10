@@ -1488,6 +1488,33 @@ class TestCliReportSchemaTwo:
         assert (data["command"], data["paths"], data["exit_code"]) == (subcommand, [str(pkg)], exit_code)
         assert data["versions"][0]["package"] == "mypkg"
 
+    def test_baseline_round_trip(self, tmp_path: Path) -> None:
+        """A report taken as baseline passes the next run, and a newly expired wrapper still fails it.
+
+        A team adopts the gate on a codebase with a backlog: run 1 records it, run 2 passes against that baseline and
+        lists the accepted findings as suppressed, run 3 fails only on the wrapper added since.
+
+        """
+        pkg = _make_pkg(tmp_path, content=_MYPKG_INIT_TWO_EXPIRED)
+        baseline = tmp_path / "baseline.json"
+        report = tmp_path / "report.json"
+        first = _run_cli("expiry", str(pkg), "--version=2.0", f"--report-json={baseline}", cwd=tmp_path)
+        second = _run_cli(
+            "expiry", str(pkg), "--version=2.0", f"--baseline={baseline}", f"--report-json={report}", cwd=tmp_path
+        )
+        accepted = json.loads(report.read_text(encoding="utf-8"))
+        (pkg / "__init__.py").write_text(
+            _MYPKG_INIT_TWO_EXPIRED
+            + '\n\n@deprecated(target=new_fn, deprecated_in="1.0", remove_in="1.9")\ndef new_old_fn(x: int) -> int:\n'
+            "    pass\n"
+        )
+        third = _run_cli("expiry", str(pkg), "--version=2.0", f"--baseline={baseline}", cwd=tmp_path)
+        assert (first.returncode, second.returncode, third.returncode) == (1, 0, 1)
+        assert [item["suppressed_by"]["kind"] for item in accepted["suppressed"]] == ["baseline", "baseline"]
+        assert accepted["summary"]["suppressed"] == 2
+        assert "mypkg.new_old_fn" in third.stdout
+        assert "mypkg.old_fn" not in third.stdout
+
     def test_strict_gap_is_the_gate_reason(self, tmp_path: Path) -> None:
         """A strict run that fails only on a gap records ``gaps`` as the reason, and the gap carries its path.
 

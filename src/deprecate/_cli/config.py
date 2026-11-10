@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Optional, Union
 
 from deprecate._cli._pkg import _ConfigReadError, _read_pydeprecate_config
 from deprecate._cli.report import _is_package_available, _print
+from deprecate._cli.suppress import _load_baseline, _parse_ignore, _Suppressor
 from deprecate.audit import PolicyRule
 from deprecate.audit._lifecycle import _parse_version
 from deprecate.audit._policy import (
@@ -93,6 +94,10 @@ _ConfigFlag = Union[str, int, float, bool, None, Sequence[str], _FromPyproject]
 #: the wider :data:`_ConfigFlag` it marks the parameter as a boolean flag for the parser
 #: (:func:`deprecate._cli.argv._cli_command`).
 _ConfigBool = Union[bool, _FromPyproject]
+#: A list option that ``pyproject.toml`` may set: patterns from a repeatable, comma-separated flag (a list of strings),
+#: or :data:`_FROM_PYPROJECT` when omitted. Marks the parameter as an accumulating option for the parser
+#: (:func:`deprecate._cli.argv._add_subcommand`).
+_ConfigList = Union[Sequence[str], str, _FromPyproject]
 #: A loaded ``[tool.pydeprecate]`` table (known keys only) and the ``pyproject.toml`` it came from.
 _Config = tuple[dict[str, Any], Optional[str]]
 #: Built-in value per policy rule, used when neither a flag nor ``[tool.pydeprecate.policy]`` sets it — the same
@@ -106,8 +111,10 @@ _POLICY_TABLE_NAME = "[tool.pydeprecate.policy]"
 _EXCLUDE_KEY = "exclude"
 _POLICY_KEY = "policy"
 _STRICT_KEY = "strict"
+_IGNORE_KEY = "ignore"
+_BASELINE_KEY = "baseline"
 #: The keys of ``[tool.pydeprecate]`` the CLI reads, in the order the advisories name them.
-_CONFIG_KEYS = (_EXCLUDE_KEY, _STRICT_KEY, _POLICY_KEY)
+_CONFIG_KEYS = (_EXCLUDE_KEY, _STRICT_KEY, _IGNORE_KEY, _BASELINE_KEY, _POLICY_KEY)
 
 
 def _warn_unknown_keys(table: dict[str, Any], known: Sequence[str], table_name: str, toml_path: Optional[str]) -> None:
@@ -159,7 +166,7 @@ def _load_pydeprecate_config(path: str) -> Optional[_Config]:
         _print(str(err), stderr=True)
         return None
     _warn_unknown_keys(table, _CONFIG_KEYS, _CONFIG_TABLE_NAME, toml_path)
-    config: dict[str, Any] = {key: table[key] for key in (_EXCLUDE_KEY, _STRICT_KEY) if key in table}
+    config: dict[str, Any] = {key: table[key] for key in _CONFIG_KEYS if key in table and key != _POLICY_KEY}
     policy = table.get(_POLICY_KEY)
     if isinstance(policy, dict):
         _warn_unknown_keys(policy, list(_POLICY_DEFAULTS), _POLICY_TABLE_NAME, toml_path)
@@ -306,6 +313,62 @@ def _resolve_strict(strict: _ConfigBool, exit_zero: bool, config: _Config) -> Op
         )
         return None
     return value
+
+
+def _split_patterns(raw: Union[str, Sequence[str]]) -> list[str]:
+    """Split one comma-separated string, or each item of a list, into its non-empty stripped patterns.
+
+    Examples:
+        >>> _split_patterns(["a:b, c:d", ""]), _split_patterns("")
+        (['a:b', 'c:d'], [])
+
+    """
+    items = [raw] if isinstance(raw, str) else list(raw)
+    return [part.strip() for item in items for part in item.split(",") if part.strip()]
+
+
+def _resolve_suppressor(ignore: _ConfigList, baseline: _ConfigFlag, config: _Config) -> Optional[_Suppressor]:
+    """Resolve the ignore entries and the baseline as flag > ``pyproject.toml`` > none, printing any usage error.
+
+    A flag replaces the file's value; ``--ignore=`` and ``--baseline=`` switch the file's value off for one run. A
+    ``baseline`` path in ``pyproject.toml`` is relative to that file's directory.
+
+    Returns:
+        The run's suppressor, or ``None`` after printing a usage error (the caller exits 2): an ignore entry or list
+        that is malformed, a ``baseline`` value that is not a string, or a baseline file that is not a schema-2 report.
+
+    """
+    raw_ignore, ignore_source = _resolve_setting(ignore, config[0], _IGNORE_KEY, [], config)
+    if not isinstance(raw_ignore, (str, list, tuple)) or not all(isinstance(item, str) for item in raw_ignore):
+        _print(
+            f"Invalid `{_IGNORE_KEY}` value `{raw_ignore}` from "
+            f"{_describe_source(_IGNORE_KEY, _CONFIG_TABLE_NAME, ignore_source)}; expected a list of entries such as"
+            ' `["pkg.legacy:old_api"]`.',
+            stderr=True,
+        )
+        return None
+    raw_baseline, baseline_source = _resolve_setting(baseline, config[0], _BASELINE_KEY, None, config)
+    if raw_baseline is not None and not isinstance(raw_baseline, str):
+        _print(
+            f"Invalid `{_BASELINE_KEY}` value `{raw_baseline}` from "
+            f"{_describe_source(_BASELINE_KEY, _CONFIG_TABLE_NAME, baseline_source)}; expected a file path.",
+            stderr=True,
+        )
+        return None
+    try:
+        entries = _parse_ignore(
+            _split_patterns(raw_ignore), _describe_source(_IGNORE_KEY, _CONFIG_TABLE_NAME, ignore_source)
+        )
+        baseline_ids: frozenset[str] = frozenset()
+        if raw_baseline:
+            baseline_path = Path(raw_baseline)
+            if baseline_source not in ("flag", "built-in") and not baseline_path.is_absolute():
+                baseline_path = Path(baseline_source).parent / baseline_path
+            baseline_ids = _load_baseline(str(baseline_path))
+    except ValueError as err:
+        _print(str(err), stderr=True)
+        return None
+    return _Suppressor(ignore=entries, baseline=baseline_ids)
 
 
 def _resolve_policy_spec(

@@ -19,7 +19,7 @@ from deprecate._cli.argv import (
     _parse_cli_args,
     _parse_switchable,
 )
-from deprecate._cli.commands import cmd_all, cmd_check, cmd_expiry, cmd_policy
+from deprecate._cli.commands import cmd_all, cmd_chains, cmd_check, cmd_expiry, cmd_policy
 
 _CHECK_BOOL_PARAMS = frozenset({"exit_zero", "recursive"})
 
@@ -226,6 +226,19 @@ class TestParseCliArgs:
                 id="policy-rules",
             ),
             pytest.param(["all"], cmd_all, {}, id="nothing-typed"),
+            pytest.param(
+                ["expiry", "pkg", "--ignore", "a:b,c:d", "--ignore=e:f"],
+                cmd_expiry,
+                {"path": "pkg", "ignore": ["a:b,c:d", "e:f"]},
+                id="ignore-repeated",
+            ),
+            pytest.param(["check", "pkg", "--ignore="], cmd_check, {"path": "pkg", "ignore": [""]}, id="ignore-empty"),
+            pytest.param(
+                ["chains", "pkg", "--baseline", "b.json"],
+                cmd_chains,
+                {"path": "pkg", "baseline": "b.json"},
+                id="baseline",
+            ),
         ],
     )
     def test_binds_typed_options_only(

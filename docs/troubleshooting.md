@@ -2289,6 +2289,14 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
+## How do I accept one known expired wrapper without excluding its module?
+
+**Q:** `pydeprecate expiry` (or `all`) fails on a wrapper we deliberately keep one more release, and `--exclude` would hide every other wrapper of that module too.
+
+**A:** Accept that finding alone with `--ignore='expired:mypackage.module:old_fn'`, or list the entry under `ignore = [...]` in `[tool.pydeprecate]` (since 0.16). The entry is `rule:module:symbol` with `fnmatch` globs per part, or `module:symbol` to accept every rule of that symbol. To accept a whole backlog at once, write a report with `--report-json` and pass it to later runs with `--baseline`; only findings added since then fail. Suppressed findings no longer fail the gate, but every run prints how many were suppressed and the report lists them, so they stay visible until you fix them.
+
+______________________________________________________________________
+
 ## How do I make the CI gate fail when part of the audit did not run?
 
 **Q:** `pydeprecate all src/mypackage` prints `pydeprecate gap: module not audited: …` or `pydeprecate gap: version not resolved: …` and still exits `0`. How do I make such a run fail?

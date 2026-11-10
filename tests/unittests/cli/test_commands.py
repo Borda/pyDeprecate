@@ -1,6 +1,7 @@
 """Unit tests for :mod:`deprecate._cli.commands`: the subcommands (all external calls fully mocked)."""
 
 import inspect
+import json
 import sys
 from collections.abc import Callable, Iterator
 from contextlib import AbstractContextManager
@@ -1511,6 +1512,149 @@ class TestPolicyWithoutPackaging:
         assert "`min-grace`" in captured.err
         assert "pyDeprecate[audit]" in captured.err
         assert "No deprecation policy violations found." not in captured.out
+
+
+# Two wrappers past their removal at version 2.0, defined in the package's `__init__`.
+_TWO_EXPIRED_INIT = """\
+from deprecate import deprecated
+
+
+def new_fn(x: int) -> int:
+    return x
+
+
+@deprecated(target=new_fn, deprecated_in="1.0", remove_in="1.5")
+def old_fn(x: int) -> int:
+    pass
+
+
+@deprecated(target=new_fn, deprecated_in="1.0", remove_in="1.8")
+def mid_fn(x: int) -> int:
+    pass
+"""
+
+
+def _pkg_with_two_expired(tmp_path: Path, pyproject: str = "") -> Path:
+    """Create ``mypkg`` with two expired wrappers, with an optional ``pyproject.toml`` beside it."""
+    pkg = write_pkg(tmp_path, "mypkg", _TWO_EXPIRED_INIT)
+    if pyproject:
+        (tmp_path / "pyproject.toml").write_text(pyproject)
+    return pkg
+
+
+class TestSuppression:
+    """``--ignore`` and ``--baseline`` accept known findings: not printed, counted or gated on, but reported."""
+
+    def test_ignore_flag_suppresses_one_finding(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        """An ignored expired wrapper leaves the other one failing the gate and is counted as suppressed.
+
+        A team accepts one overdue removal while it lands the migration, without excluding the whole module.
+
+        """
+        pkg = _pkg_with_two_expired(tmp_path)
+        result = cmd_expiry(str(pkg), version="2.0", ignore=["expired:mypkg:mid_fn"])
+        out = capsys.readouterr().out
+        assert result == 1
+        assert "mypkg.old_fn" in out
+        assert "mypkg.mid_fn" not in out
+        assert "1 expired wrapper(s) found." in out
+        assert "1 finding(s) suppressed (ignore: 1, baseline: 0)." in out
+
+    def test_all_suppressed_passes(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        """With every finding accepted the gate passes and says nothing was found, plus the suppressed count.
+
+        Suppressed findings must never fail the run, or the escape hatch would not let the gate go green.
+
+        """
+        pkg = _pkg_with_two_expired(tmp_path, '[tool.pydeprecate]\nignore = ["mypkg:*"]\n')
+        result = cmd_expiry(str(pkg), version="2.0")
+        out = capsys.readouterr().out
+        assert result == 0
+        assert "No expired deprecated wrappers found." in out
+        assert "2 finding(s) suppressed (ignore: 2, baseline: 0)." in out
+
+    def test_empty_flag_switches_pyproject_list_off(self, tmp_path: Path) -> None:
+        """``--ignore=`` (an empty list) drops the ``pyproject.toml`` list for one run.
+
+        An audit step that must see every finding, accepted or not, overrides the project's list without editing it.
+
+        """
+        pkg = _pkg_with_two_expired(tmp_path, '[tool.pydeprecate]\nignore = ["mypkg:*"]\n')
+        assert cmd_expiry(str(pkg), version="2.0", ignore=[""]) == 1
+
+    def test_pyproject_baseline_is_relative_to_its_file(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A ``baseline`` path in ``pyproject.toml`` resolves next to that file, whatever the working directory.
+
+        CI may run the gate from another directory; the committed baseline must still be found.
+
+        """
+        baseline = {"schema": 2, "findings": [{"id": "expired:mypkg:old_fn"}, {"id": "expired:mypkg:mid_fn"}]}
+        (tmp_path / "ci").mkdir()
+        (tmp_path / "ci" / "baseline.json").write_text(json.dumps(baseline), encoding="utf-8")
+        pkg = _pkg_with_two_expired(tmp_path, '[tool.pydeprecate]\nbaseline = "ci/baseline.json"\n')
+        result = cmd_expiry(str(pkg), version="2.0")
+        assert result == 0
+        assert "2 finding(s) suppressed (ignore: 0, baseline: 2)." in capsys.readouterr().out
+
+    def test_stale_baseline_entry_is_reported(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        """A baseline id that no longer matches a finding gets one stderr advisory and never fails the run.
+
+        After a wrapper is removed its baseline entry is dead weight; the advisory says to regenerate the baseline.
+
+        """
+        baseline = tmp_path / "baseline.json"
+        ids = ["expired:mypkg:old_fn", "expired:mypkg:mid_fn", "expired:mypkg:removed_fn"]
+        baseline.write_text(json.dumps({"schema": 2, "findings": [{"id": item} for item in ids]}), encoding="utf-8")
+        pkg = _pkg_with_two_expired(tmp_path)
+        result = cmd_expiry(str(pkg), version="2.0", baseline=str(baseline))
+        assert result == 0
+        assert "1 baseline entry no longer match a finding; regenerate the baseline." in capsys.readouterr().err
+
+    @pytest.mark.parametrize(
+        ("pyproject", "kwargs", "message"),
+        [
+            pytest.param(
+                '[tool.pydeprecate]\nignore = ["mypkg"]\n',
+                {},
+                "Invalid ignore entry `mypkg` from `[tool.pydeprecate]` in ",
+                id="pyproject-entry-without-symbol",
+            ),
+            pytest.param(
+                "[tool.pydeprecate]\nignore = [1]\n", {}, "Invalid `ignore` value `[1]`", id="pyproject-not-strings"
+            ),
+            pytest.param(
+                "", {"ignore": ["nonsense"]}, "Invalid ignore entry `nonsense` from `--ignore`", id="flag-entry"
+            ),
+            pytest.param(
+                "[tool.pydeprecate]\nbaseline = 3\n", {}, "Invalid `baseline` value `3`", id="baseline-not-a-path"
+            ),
+            pytest.param(
+                "", {"baseline": "missing.json"}, "is not a pyDeprecate schema-2 report", id="baseline-missing"
+            ),
+        ],
+    )
+    def test_malformed_setting_exits_two_before_scanning(
+        self,
+        pyproject: str,
+        kwargs: dict,
+        message: str,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """A malformed ignore list or baseline is a usage error that stops the run before any import.
+
+        A suppression that silently failed to load would let the gate run with nothing accepted, or worse, with the
+        author believing a finding is accepted that is not.
+
+        """
+        pkg = _pkg_with_two_expired(tmp_path, pyproject)
+        result = cmd_expiry(str(pkg), version="2.0", **kwargs)
+        captured = capsys.readouterr()
+        assert result == 2
+        assert message in captured.err
+        assert "Scanning:" not in captured.out
 
 
 # A package whose only submodule fails to import: one `module not audited` gap per scan, no finding.

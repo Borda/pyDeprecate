@@ -1,21 +1,35 @@
 """Unit tests for :mod:`deprecate._cli.report`: the plain-text finding sections and the ``--report-json`` file."""
 
 import json
+from collections.abc import Callable
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from deprecate._cli.commands import cmd_check, cmd_expiry
+from deprecate._cli.commands import (
+    _chain_wrappers,
+    _check_wrappers,
+    _expiry_wrappers,
+    _policy_wrappers,
+    cmd_check,
+    cmd_expiry,
+)
 from deprecate._cli.report import _Gap, _GapKind, _print, _Reporter, _RunRecord, _ScanRecord, _write_report
-from deprecate._types import DeprecationConfig
+from deprecate._types import DeprecationConfig, TargetMode
 from deprecate.audit import ChainType, DeprecationWrapperInfo
-from deprecate.audit._findings import _Check, _Finding, _make_finding, _Rule
+from deprecate.audit._findings import _Check, _Finding, _make_finding, _Rule, _wrapper_findings
+from deprecate.audit._policy import _build_policy_spec
 from tests.unittests.cli._helpers import _EXPIRED_FINDING, _EXPIRED_MSG
 
 # ---------------------------------------------------------------------------
 # Chain and expiry reporters
 # ---------------------------------------------------------------------------
+
+
+def _findings_of(wrappers: list[DeprecationWrapperInfo]) -> list[_Finding]:
+    """Derive the configuration findings of *wrappers*, as ``check`` does before printing them."""
+    return [finding for info in wrappers for finding in _wrapper_findings(info)]
 
 
 class TestReportChains:
@@ -33,7 +47,7 @@ class TestReportChains:
     ) -> None:
         """The chain type label appears next to the wrapper it describes."""
         results = [DeprecationWrapperInfo(module="mod", function="fn", chain_type=chain_type)]
-        assert _Reporter.issues(results) is True
+        assert _Reporter.issues(_findings_of(results)) is True
         assert f"\t- mod.fn: {expected_label}" in capsys.readouterr().out
 
 
@@ -123,7 +137,7 @@ class TestReportIssues:
     )
     def test_flag(self, results: list, expected: bool) -> None:
         """_Reporter.issues returns whether it found anything to report."""
-        assert _Reporter.issues(results) is expected
+        assert _Reporter.issues(_findings_of(results)) is expected
 
     def test_partial_identity_with_self_reference(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Partial identity mappings are not reported as all-identity.
@@ -144,7 +158,7 @@ class TestReportIssues:
                 no_effect=True,
             )
         ]
-        assert _Reporter.issues(results) is True
+        assert _Reporter.issues(_findings_of(results)) is True
         captured = capsys.readouterr()
         assert "Self reference" in captured.out
         assert "All identity mappings" not in captured.out
@@ -157,7 +171,7 @@ class TestReportIssues:
 
         """
         results = [DeprecationWrapperInfo(module="mod", function="fn", invalid_args=["[x]"])]
-        assert _Reporter.issues(results) is True
+        assert _Reporter.issues(_findings_of(results)) is True
         out = capsys.readouterr().out
         assert "[ERROR] Found functions with invalid argument mappings:" in out
         assert "\t- mod.fn: [x]" in out
@@ -318,3 +332,183 @@ class TestReportFindings:
         report_file = tmp_path / "report.json"
         _write_report(str(report_file), record, 0)
         assert json.loads(report_file.read_text(encoding="utf-8"))["findings"] == []
+
+
+# One wrapper list with two rows in each of the seven configuration sections of the console report.
+_EVERY_SECTION = [
+    DeprecationWrapperInfo(module="pkg.a", function="bad_one", invalid_args=["x", "y"]),
+    DeprecationWrapperInfo(module="pkg.a", function="bad_two", invalid_args=["z"]),
+    DeprecationWrapperInfo(
+        module="pkg.b",
+        function="notify_map",
+        misconfigured_target=True,
+        deprecated_info=DeprecationConfig(target=TargetMode.NOTIFY, args_mapping={"a": "b"}),
+    ),
+    DeprecationWrapperInfo(
+        module="pkg.b",
+        function="remap_empty",
+        misconfigured_target=True,
+        deprecated_info=DeprecationConfig(target=TargetMode.ARGS_REMAP),
+    ),
+    DeprecationWrapperInfo(module="pkg.c", function="Cls.prop", inner_order_property=True),
+    DeprecationWrapperInfo(module="pkg.c", function="Cls.other", inner_order_property=True),
+    DeprecationWrapperInfo(module="pkg.d", function="same", identity_args_mapping=["a"]),
+    DeprecationWrapperInfo(module="pkg.d", function="same2", identity_args_mapping=["b", "c"]),
+    DeprecationWrapperInfo(
+        module="pkg.e", function="noop", no_effect=True, empty_args_mapping=True, self_reference=True
+    ),
+    DeprecationWrapperInfo(module="pkg.e", function="noop2", no_effect=True, all_identity=True),
+    DeprecationWrapperInfo(module="pkg.f", function="chain_t", chain_type=ChainType.TARGET),
+    DeprecationWrapperInfo(module="pkg.f", function="chain_s", chain_type=ChainType.STACKED),
+    DeprecationWrapperInfo(module="pkg.g", function="Pos", args_mapping_positional_only=["p"]),
+    DeprecationWrapperInfo(module="pkg.g", function="Pos2", args_mapping_positional_only=["q", "r"]),
+]
+# Two wrappers past their removal at version 2.0.
+_TWO_EXPIRED = [
+    DeprecationWrapperInfo(
+        module="pkg", function="gone", deprecated_info=DeprecationConfig(deprecated_in="1.0", remove_in="1.5")
+    ),
+    DeprecationWrapperInfo(
+        module="pkg", function="gone2", deprecated_info=DeprecationConfig(deprecated_in="1.0", remove_in="1.8")
+    ),
+]
+# Two warn-only wrappers that name no replacement, tripping ``message-required``.
+_TWO_SILENT = [
+    DeprecationWrapperInfo(
+        module="pkg", function="quiet", deprecated_info=DeprecationConfig(deprecated_in="1.0", target=TargetMode.NOTIFY)
+    ),
+    DeprecationWrapperInfo(
+        module="pkg",
+        function="quiet2",
+        deprecated_info=DeprecationConfig(deprecated_in="1.0", target=TargetMode.NOTIFY),
+    ),
+]
+_GOLDEN_CHECK = (
+    "\n"
+    "[ERROR] Found functions with invalid argument mappings:\n"
+    "\t- pkg.a.bad_one: x, y\n"
+    "\t- pkg.a.bad_two: z\n"
+    "\n"
+    "[ERROR] Found deprecated wrappers with a misconfigured target:\n"
+    "\t- pkg.b.notify_map: `TargetMode.NOTIFY` with `args_mapping`\n"
+    "\t- pkg.b.remap_empty: `TargetMode.ARGS_REMAP` with an empty `args_mapping`\n"
+    "\n"
+    "[ERROR] Found inner-order @property @deprecated wrappers (setter/deleter unprotected):\n"
+    "\t- pkg.c.Cls.prop: use @deprecated(...) above @property\n"
+    "\t- pkg.c.Cls.other: use @deprecated(...) above @property\n"
+    "\n"
+    "[WARNING] Found functions with identity argument mappings (arg -> arg):\n"
+    "\t- pkg.d.same: a\n"
+    "\t- pkg.d.same2: b, c\n"
+    "\n"
+    "[WARNING] Found deprecated wrappers with NO EFFECT (zero impact):\n"
+    "\t- pkg.e.noop: Empty mapping, Self reference\n"
+    "\t- pkg.e.noop2: All identity mappings\n"
+    "\n"
+    "[WARNING] Found deprecated wrappers forming deprecation chains:\n"
+    "\t- pkg.f.chain_t: target\n"
+    "\t- pkg.f.chain_s: stacked\n"
+    "\n"
+    "[WARNING] Found args_mapping entries targeting POSITIONAL_ONLY constructor parameters"
+    " (proxy falls back to setattr for these entries):\n"
+    "\t- pkg.g.Pos: p\n"
+    "\t- pkg.g.Pos2: q, r\n"
+    "\n"
+    "Issues were found in deprecated wrappers.\n"
+)
+_GOLDEN_CHAINS = (
+    "\n"
+    "[ERROR] Found deprecated wrappers forming deprecation chains:\n"
+    "\t- pkg.f.chain_t: target\n"
+    "\t- pkg.f.chain_s: stacked\n"
+    "\n"
+    "2 deprecation chain(s) found.\n"
+)
+_GOLDEN_EXPIRY = (
+    "\n"
+    "[ERROR] Found expired deprecated wrappers:\n"
+    "\t- Callable `pkg.gone` was scheduled for removal in version 1.5 but still exists in version"
+    " 2.0. Please delete this deprecated code.\n"
+    "\t- Callable `pkg.gone2` was scheduled for removal in version 1.8 but still exists in version"
+    " 2.0. Please delete this deprecated code.\n"
+    "\n"
+    "2 expired wrapper(s) found.\n"
+)
+_GOLDEN_POLICY = (
+    "Policy: x\n"
+    "\n"
+    "[ERROR] Found deprecation policy violations:\n"
+    "\t- [message-required] Callable `pkg.quiet` warns without naming a replacement; configure a"
+    " `target`, an `args_mapping`/`attrs_mapping`, or a custom `message_template` so callers learn"
+    " what to migrate to.\n"
+    "\t- [message-required] Callable `pkg.quiet2` warns without naming a replacement; configure a"
+    " `target`, an `args_mapping`/`attrs_mapping`, or a custom `message_template` so callers learn"
+    " what to migrate to.\n"
+    "\n"
+    "2 policy violation(s) found.\n"
+)
+_GOLDEN_POLICY_ADVISORY = (
+    "Policy: x\n"
+    "\n"
+    "[WARNING] Found deprecation policy violations:\n"
+    "\t- [message-required] Callable `pkg.quiet` warns without naming a replacement; configure a"
+    " `target`, an `args_mapping`/`attrs_mapping`, or a custom `message_template` so callers learn"
+    " what to migrate to.\n"
+    "\t- [message-required] Callable `pkg.quiet2` warns without naming a replacement; configure a"
+    " `target`, an `args_mapping`/`attrs_mapping`, or a custom `message_template` so callers learn"
+    " what to migrate to.\n"
+    "\n"
+    "2 policy violation(s) found.\n"
+    "(advisory here — run `pydeprecate policy` to gate on it)\n"
+)
+
+
+def _render_check() -> int:
+    """Render the ``check`` sections of :data:`_EVERY_SECTION`."""
+    return _check_wrappers(_EVERY_SECTION)
+
+
+def _render_chains() -> int:
+    """Render the ``chains`` section of :data:`_EVERY_SECTION`."""
+    return _chain_wrappers(_EVERY_SECTION)
+
+
+def _render_expiry() -> int:
+    """Render the expiry section of :data:`_TWO_EXPIRED` at version 2.0."""
+    return _expiry_wrappers(_TWO_EXPIRED, "2.0")
+
+
+def _render_policy() -> int:
+    """Render the gating policy section of :data:`_TWO_SILENT`."""
+    return _policy_wrappers(_TWO_SILENT, _build_policy_spec(None, True), "Policy: x")
+
+
+def _render_policy_advisory() -> int:
+    """Render the advisory policy section of :data:`_TWO_SILENT`, as ``all`` does."""
+    return _policy_wrappers(_TWO_SILENT, _build_policy_spec(None, True), "Policy: x", advisory=True)
+
+
+class TestConsoleGolden:
+    """The full console text of each check section, pinned byte for byte: order, headers, rows and count lines."""
+
+    @pytest.mark.parametrize(
+        ("render", "expected"),
+        [
+            pytest.param(_render_check, _GOLDEN_CHECK, id="check"),
+            pytest.param(_render_chains, _GOLDEN_CHAINS, id="chains"),
+            pytest.param(_render_expiry, _GOLDEN_EXPIRY, id="expiry"),
+            pytest.param(_render_policy, _GOLDEN_POLICY, id="policy"),
+            pytest.param(_render_policy_advisory, _GOLDEN_POLICY_ADVISORY, id="policy-advisory"),
+        ],
+    )
+    def test_stdout_is_unchanged(
+        self, render: Callable[[], int], expected: str, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Every section prints exactly the pinned text, so a refactor of the rendering cannot drift silently.
+
+        CI logs and scripts read these sections; their order, headers and row format are a user-visible contract that
+        the existing tests only checked by substring.
+
+        """
+        assert render() == 1
+        assert capsys.readouterr().out == expected

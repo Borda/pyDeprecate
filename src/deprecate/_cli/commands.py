@@ -1,5 +1,6 @@
 """Subcommand implementations for the CLI: ``check``, ``expiry``, ``policy``, ``chains``, ``all`` and ``status``."""
 
+from collections import Counter
 from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple, Optional
 
@@ -9,13 +10,15 @@ from deprecate._cli.config import (
     _Config,
     _ConfigBool,
     _ConfigFlag,
+    _ConfigList,
     _is_missing_packaging_import_error,
     _load_pydeprecate_config,
     _resolve_policy_spec,
     _resolve_strict,
+    _resolve_suppressor,
     _validate_user_version,
 )
-from deprecate._cli.findings import _exit_code, _gate_reasons
+from deprecate._cli.findings import _exit_code, _gate_reasons, _level
 from deprecate._cli.report import (
     _ensure_run_record,
     _GapKind,
@@ -180,13 +183,20 @@ class _GateStart(NamedTuple):
 
 
 def _start_gate(
-    record: _RunRecord, path: str, *, strict: _ConfigBool, exit_zero: bool
+    record: _RunRecord,
+    path: str,
+    *,
+    strict: _ConfigBool,
+    exit_zero: bool,
+    ignore: _ConfigList = _FROM_PYPROJECT,
+    baseline: _ConfigFlag = _FROM_PYPROJECT,
 ) -> Optional[tuple[_GateStart, _Config]]:
-    """Load ``[tool.pydeprecate]`` for *path* and resolve strict mode, before anything is imported.
+    """Load ``[tool.pydeprecate]`` for *path*, resolve strict mode and the accepted findings, before any import.
 
     Returns:
         The gate's start marks and the loaded configuration, or ``None`` after printing a usage error (the caller
-        exits 2): an unreadable ``pyproject.toml``, a malformed ``strict`` value, or strict mode with ``--exit-zero``.
+        exits 2): an unreadable ``pyproject.toml``, a malformed ``strict``, ``ignore`` or ``baseline`` value, strict
+        mode with ``--exit-zero``, or a baseline file that is not a schema-2 report.
 
     """
     config = _load_pydeprecate_config(path)
@@ -195,16 +205,57 @@ def _start_gate(
     strict_on = _resolve_strict(strict, exit_zero, config)
     if strict_on is None:
         return None
+    suppressor = _resolve_suppressor(ignore, baseline, config)
+    if suppressor is None:
+        return None
+    record.suppressor = suppressor
     _record_options(strict=strict_on, exit_zero=exit_zero)
     return _GateStart(record, len(record.findings), len(record.gaps), strict_on), config
+
+
+#: Gap kinds after which a check did not run, and the rules whose baseline ids it would have matched.
+_SKIPPED_RULES: dict[_GapKind, frozenset[str]] = {
+    _GapKind.VERSION_UNRESOLVED: frozenset({_Rule.EXPIRED.value}),
+    _GapKind.VERSION_INVALID: frozenset({_Rule.EXPIRED.value}),
+    _GapKind.PACKAGING_MISSING: frozenset({_Rule.EXPIRED.value, _Rule.MIN_GRACE.value}),
+}
+
+
+def _report_suppression(record: _RunRecord, subcommand: str) -> None:
+    """Say how many findings the ignore list and the baseline suppressed, and count the entries that matched none.
+
+    A baseline id counts as stale only for a rule this subcommand evaluates and whose check actually ran; it is reported
+    once on stderr and never fails the run. Unused ignore entries are only counted for the report: an entry for a check
+    that did not run is legitimately unused.
+
+    """
+    if record.suppressor is None:
+        return
+    kinds = Counter({item.finding.id: item.kind for item in record.suppressed}.values())
+    if kinds:
+        total = sum(kinds.values())
+        _print(f"\n{total} finding(s) suppressed (ignore: {kinds['ignore']}, baseline: {kinds['baseline']}).")
+    skipped = {rule for gap in record.gaps for rule in _SKIPPED_RULES.get(gap.kind, ())}
+    evaluated = {rule.value for rule in _Rule if _level(rule, subcommand) is not None} - skipped
+    record.ignore_unmatched = record.suppressor.unmatched_ignore()
+    record.baseline_unmatched = record.suppressor.unmatched_baseline(evaluated)
+    if record.baseline_unmatched:
+        entries = "entry" if record.baseline_unmatched == 1 else "entries"
+        _print(
+            f"pydeprecate: {record.baseline_unmatched} baseline {entries} no longer match a finding;"
+            " regenerate the baseline.",
+            stderr=True,
+        )
 
 
 def _finish_gate(start: _GateStart, subcommand: str, *, exit_zero: bool) -> int:
     """Return the exit code of a gate run from the findings and gaps it recorded since *start*.
 
-    In strict mode a run that recorded any gap fails, and says so on stderr after its gap lines.
+    Suppressed findings never count. In strict mode a run that recorded any gap fails, and says so on stderr after its
+    gap lines.
 
     """
+    _report_suppression(start.record, subcommand)
     gaps = len(start.record.gaps) - start.gaps
     if start.strict and gaps:
         _print(f"Strict mode: {gaps} gap(s) fail this run.", stderr=True)
@@ -226,6 +277,8 @@ def cmd_check(
     exclude: _ConfigFlag = _FROM_PYPROJECT,
     include_members: bool = True,
     strict: _ConfigBool = _FROM_PYPROJECT,
+    ignore: _ConfigList = _FROM_PYPROJECT,
+    baseline: _ConfigFlag = _FROM_PYPROJECT,
 ) -> int:
     """Scan Python code for misconfigured ``@deprecated`` wrappers and deprecation chains.
 
@@ -249,6 +302,12 @@ def cmd_check(
             module that could not be imported or a version that could not be resolved. Default: ``strict`` of
             ``[tool.pydeprecate]`` in the nearest ``pyproject.toml``, else off; ``--no-strict`` switches it off.
             Cannot be combined with ``exit_zero``.
+        ignore: Findings to accept without fixing them: entries ``module:symbol`` (every rule) or
+            ``rule:module:symbol`` (one rule, or ``*``), each part an ``fnmatch`` glob, comma-separated and repeatable
+            (``--ignore='pkg.legacy:old_api'``). Default: ``ignore`` of ``[tool.pydeprecate]``, else nothing;
+            ``--ignore=`` switches the file's list off. Suppressed findings are not printed, counted or gated on.
+        baseline: A ``--report-json`` file (layout 2 or later) whose findings are accepted by id. Default: ``baseline``
+            of ``[tool.pydeprecate]`` (relative to that ``pyproject.toml``), else none; ``--baseline=`` switches it off.
 
     Returns:
         0 on success or warnings only; 1 when an error is found (or, in strict mode, a gap) and ``exit_zero`` is False;
@@ -258,7 +317,7 @@ def cmd_check(
 
     """
     with _ensure_run_record() as record:
-        started = _start_gate(record, path, strict=strict, exit_zero=exit_zero)
+        started = _start_gate(record, path, strict=strict, exit_zero=exit_zero, ignore=ignore, baseline=baseline)
         if started is None:
             return 2
         start, config = started
@@ -281,13 +340,11 @@ def _check_wrappers(wrappers: list[DeprecationWrapperInfo], *, exit_zero: bool =
         _print("No deprecated callables found.")
         return 0
 
-    if _Reporter.issues(wrappers, error_on_chains=False):
+    findings = _record_findings([finding for info in wrappers for finding in _wrapper_findings(info)])
+    if _Reporter.issues(findings, error_on_chains=False):
         _print("\nIssues were found in deprecated wrappers.")
     else:
         _print("\nAll deprecated wrappers look correct!")
-
-    findings = [finding for info in wrappers for finding in _wrapper_findings(info)]
-    _record_findings(findings)
     return _exit_code(findings, "check", exit_zero=exit_zero)
 
 
@@ -299,6 +356,8 @@ def cmd_expiry(
     exclude: _ConfigFlag = _FROM_PYPROJECT,
     include_members: bool = True,
     strict: _ConfigBool = _FROM_PYPROJECT,
+    ignore: _ConfigList = _FROM_PYPROJECT,
+    baseline: _ConfigFlag = _FROM_PYPROJECT,
 ) -> int:
     """Check for deprecated wrappers that have passed their scheduled removal version.
 
@@ -322,6 +381,12 @@ def cmd_expiry(
             module that could not be imported or a version that could not be resolved. Default: ``strict`` of
             ``[tool.pydeprecate]`` in the nearest ``pyproject.toml``, else off; ``--no-strict`` switches it off.
             Cannot be combined with ``exit_zero``.
+        ignore: Findings to accept without fixing them: entries ``module:symbol`` (every rule) or
+            ``rule:module:symbol`` (one rule, or ``*``), each part an ``fnmatch`` glob, comma-separated and repeatable
+            (``--ignore='pkg.legacy:old_api'``). Default: ``ignore`` of ``[tool.pydeprecate]``, else nothing;
+            ``--ignore=`` switches the file's list off. Suppressed findings are not printed, counted or gated on.
+        baseline: A ``--report-json`` file (layout 2 or later) whose findings are accepted by id. Default: ``baseline``
+            of ``[tool.pydeprecate]`` (relative to that ``pyproject.toml``), else none; ``--baseline=`` switches it off.
 
     Returns:
         0 on success, when the ``packaging`` library is unavailable, when no version could be resolved (the gap is
@@ -337,7 +402,7 @@ def cmd_expiry(
     if err_code is not None:
         return err_code
     with _ensure_run_record() as record:
-        started = _start_gate(record, path, strict=strict, exit_zero=exit_zero)
+        started = _start_gate(record, path, strict=strict, exit_zero=exit_zero, ignore=ignore, baseline=baseline)
         if started is None:
             return 2
         start, config = started
@@ -365,10 +430,10 @@ def _expiry_wrappers(wrappers: list[DeprecationWrapperInfo], version: Optional[s
     one that is not PEP 440 is an advisory skip, not a usage error.
 
     """
-    expired = _do_expiry_prescanned(wrappers, version)
-    if expired is None:  # check could not run — advisory already printed to stderr
+    derived = _do_expiry_prescanned(wrappers, version)
+    if derived is None:  # check could not run — advisory already printed to stderr
         return 0
-    _record_findings(expired)
+    expired = _record_findings(derived)
     if not expired:
         _print("No expired deprecated wrappers found.")
         return 0
@@ -386,6 +451,8 @@ def cmd_policy(
     exclude: _ConfigFlag = _FROM_PYPROJECT,
     include_members: bool = True,
     strict: _ConfigBool = _FROM_PYPROJECT,
+    ignore: _ConfigList = _FROM_PYPROJECT,
+    baseline: _ConfigFlag = _FROM_PYPROJECT,
 ) -> int:
     """Check deprecated wrappers against deprecation-governance policy rules.
 
@@ -426,6 +493,12 @@ def cmd_policy(
             module that could not be imported or a version that could not be resolved. Default: ``strict`` of
             ``[tool.pydeprecate]`` in the nearest ``pyproject.toml``, else off; ``--no-strict`` switches it off.
             Cannot be combined with ``exit_zero``.
+        ignore: Findings to accept without fixing them: entries ``module:symbol`` (every rule) or
+            ``rule:module:symbol`` (one rule, or ``*``), each part an ``fnmatch`` glob, comma-separated and repeatable
+            (``--ignore='pkg.legacy:old_api'``). Default: ``ignore`` of ``[tool.pydeprecate]``, else nothing;
+            ``--ignore=`` switches the file's list off. Suppressed findings are not printed, counted or gated on.
+        baseline: A ``--report-json`` file (layout 2 or later) whose findings are accepted by id. Default: ``baseline``
+            of ``[tool.pydeprecate]`` (relative to that ``pyproject.toml``), else none; ``--baseline=`` switches it off.
 
     Returns:
         0 on success, or when ``min-grace`` is skipped because ``packaging`` is unavailable and ``message_required``
@@ -438,7 +511,7 @@ def cmd_policy(
 
     """
     with _ensure_run_record() as record:
-        started = _start_gate(record, path, strict=strict, exit_zero=exit_zero)
+        started = _start_gate(record, path, strict=strict, exit_zero=exit_zero, ignore=ignore, baseline=baseline)
         if started is None:
             return 2
         start, config = started
@@ -490,7 +563,7 @@ def _policy_wrappers(
         if fallback is None:
             return 0
         violations = fallback
-    _record_findings(violations)
+    violations = _record_findings(violations)
     if not violations:
         _print("No deprecation policy violations found.")
         return 0
@@ -508,6 +581,8 @@ def cmd_chains(
     exclude: _ConfigFlag = _FROM_PYPROJECT,
     include_members: bool = True,
     strict: _ConfigBool = _FROM_PYPROJECT,
+    ignore: _ConfigList = _FROM_PYPROJECT,
+    baseline: _ConfigFlag = _FROM_PYPROJECT,
 ) -> int:
     """Detect deprecated wrappers whose ``target`` is itself a deprecated callable (chains).
 
@@ -529,6 +604,12 @@ def cmd_chains(
             module that could not be imported or a version that could not be resolved. Default: ``strict`` of
             ``[tool.pydeprecate]`` in the nearest ``pyproject.toml``, else off; ``--no-strict`` switches it off.
             Cannot be combined with ``exit_zero``.
+        ignore: Findings to accept without fixing them: entries ``module:symbol`` (every rule) or
+            ``rule:module:symbol`` (one rule, or ``*``), each part an ``fnmatch`` glob, comma-separated and repeatable
+            (``--ignore='pkg.legacy:old_api'``). Default: ``ignore`` of ``[tool.pydeprecate]``, else nothing;
+            ``--ignore=`` switches the file's list off. Suppressed findings are not printed, counted or gated on.
+        baseline: A ``--report-json`` file (layout 2 or later) whose findings are accepted by id. Default: ``baseline``
+            of ``[tool.pydeprecate]`` (relative to that ``pyproject.toml``), else none; ``--baseline=`` switches it off.
 
     Returns:
         0 when no chains are found or ``exit_zero`` is True; 1 when chains are found (or, in strict mode, a gap is
@@ -538,7 +619,7 @@ def cmd_chains(
 
     """
     with _ensure_run_record() as record:
-        started = _start_gate(record, path, strict=strict, exit_zero=exit_zero)
+        started = _start_gate(record, path, strict=strict, exit_zero=exit_zero, ignore=ignore, baseline=baseline)
         if started is None:
             return 2
         start, config = started
@@ -558,15 +639,14 @@ def _chain_wrappers(wrappers: list[DeprecationWrapperInfo], *, exit_zero: bool =
     The evaluation half of :func:`cmd_chains`, which ``cmd_all`` runs on the wrappers of its single scan.
 
     """
-    chains = [r for r in wrappers if r.chain_type is not None]
-    findings = [finding for info in chains for finding in _wrapper_findings(info) if finding.rule is _Rule.CHAIN]
-    _record_findings(findings)
+    derived = [finding for info in wrappers for finding in _wrapper_findings(info) if finding.rule is _Rule.CHAIN]
+    chains = _record_findings(derived)
     if not chains:
         _print("No deprecation chains found.")
         return 0
     _Reporter.chains(chains, error=True)
     _print(f"\n{len(chains)} deprecation chain(s) found.")
-    return _exit_code(findings, "chains", exit_zero=exit_zero)
+    return _exit_code(chains, "chains", exit_zero=exit_zero)
 
 
 def cmd_all(
@@ -578,6 +658,8 @@ def cmd_all(
     output: Optional[str] = None,
     include_members: bool = True,
     strict: _ConfigBool = _FROM_PYPROJECT,
+    ignore: _ConfigList = _FROM_PYPROJECT,
+    baseline: _ConfigFlag = _FROM_PYPROJECT,
 ) -> int:
     """Run all four checks then append a deprecation table.
 
@@ -611,6 +693,12 @@ def cmd_all(
             module that could not be imported or a version that could not be resolved. Default: ``strict`` of
             ``[tool.pydeprecate]`` in the nearest ``pyproject.toml``, else off; ``--no-strict`` switches it off.
             Cannot be combined with ``exit_zero``.
+        ignore: Findings to accept without fixing them: entries ``module:symbol`` (every rule) or
+            ``rule:module:symbol`` (one rule, or ``*``), each part an ``fnmatch`` glob, comma-separated and repeatable
+            (``--ignore='pkg.legacy:old_api'``). Default: ``ignore`` of ``[tool.pydeprecate]``, else nothing;
+            ``--ignore=`` switches the file's list off. Suppressed findings are not printed, counted or gated on.
+        baseline: A ``--report-json`` file (layout 2 or later) whose findings are accepted by id. Default: ``baseline``
+            of ``[tool.pydeprecate]`` (relative to that ``pyproject.toml``), else none; ``--baseline=`` switches it off.
 
     Returns:
         0 when the check, expiry, and chain gates pass or ``exit_zero`` is True; 1 when any of them finds an error, or
@@ -628,7 +716,7 @@ def cmd_all(
     if err_code is not None:
         return err_code
     with _ensure_run_record() as run_record:
-        started = _start_gate(run_record, path, strict=strict, exit_zero=exit_zero)
+        started = _start_gate(run_record, path, strict=strict, exit_zero=exit_zero, ignore=ignore, baseline=baseline)
         if started is None:
             return 2
         start, config = started

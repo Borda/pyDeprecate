@@ -393,6 +393,8 @@ Good to know:
 - PEP 440 versioning is used for comparison (e.g. `"2.0.0" > "1.9.5"`).
 - Pre-release versions are handled correctly (e.g. `"1.5.0a1" < "1.5.0"`).
 
+To accept a removal that has to wait — a symbol a downstream release still needs — without excluding its whole module, use the CLI's ignore list or a baseline report; see [Accepting known findings](cli.md#accepting-known-findings). The Python API has no such filter: it returns every finding, and your code decides what to keep.
+
 ### pytest integration for expiry enforcement
 
 Wire expiry checks into your test suite so zombie code is caught before any tests run. The session-scoped autouse fixture pattern below prevents the suite from starting at all if expired deprecations are present.

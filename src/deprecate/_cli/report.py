@@ -14,8 +14,9 @@ from typing import Any, NamedTuple, Optional
 from deprecate import __about__
 from deprecate._cli._pkg import _safe_module_name
 from deprecate._cli.findings import _LEVEL_RANK, _GateReason, _Level, _level
+from deprecate._cli.suppress import _Suppressor
 from deprecate.audit import DeprecationWrapperInfo, TableStyle
-from deprecate.audit._findings import _Finding, _misconfiguration
+from deprecate.audit._findings import _Finding, _Rule
 from deprecate.audit._report import _render_deprecation_table, _resolve_table_version
 from deprecate.audit._version import _resolve_package_version
 
@@ -76,6 +77,17 @@ class _Gap(NamedTuple):
     path: Optional[str] = None
 
 
+class _SuppressedFinding(NamedTuple):
+    """A finding an ignore entry or the baseline suppressed, with its scan path and what suppressed it."""
+
+    finding: _Finding
+    path: Optional[str]
+    #: ``ignore`` or ``baseline``.
+    kind: str
+    #: The ignore entry, or the baseline id, that matched.
+    entry: str
+
+
 @dataclass
 class _ScanRecord:
     """The scan a gate subcommand ran, kept so the ``--report-json`` table shows exactly what it gated on."""
@@ -120,6 +132,13 @@ class _RunRecord:
     options: dict[str, Any] = field(default_factory=dict)
     #: Why the gate failed before ``--exit-zero`` (empty when it passed or the subcommand is no gate).
     gate_reasons: list[_GateReason] = field(default_factory=list)
+    #: The run's ignore entries and baseline; ``None`` suppresses nothing.
+    suppressor: Optional[_Suppressor] = None
+    #: Findings the suppressor removed; never printed, counted or gated on.
+    suppressed: list[_SuppressedFinding] = field(default_factory=list)
+    #: Ignore entries that matched no finding, and baseline ids of an evaluated rule that matched none.
+    ignore_unmatched: int = 0
+    baseline_unmatched: int = 0
 
 
 #: The record of the current CLI run while :func:`_record_run` is active.
@@ -173,12 +192,26 @@ def _record_scan(scan: _ScanRecord) -> None:
         record.scan = scan
 
 
-def _record_findings(findings: list[_Finding]) -> None:
-    """Keep the findings a check derived, each with the scan path it came from, for the exit code and the report."""
+def _record_findings(findings: list[_Finding]) -> list[_Finding]:
+    """Keep the findings a check derived, each with the scan path it came from, and return the ones to report.
+
+    Findings the run's ignore list or baseline names are set aside as suppressed instead; the returned findings, the
+    active ones, are what the check prints, counts and gates on.
+
+    """
     record = _RUN_RECORD.get()
-    if record is not None:
-        record.findings.extend(findings)
-        record.finding_paths.extend([record.current_path] * len(findings))
+    if record is None:
+        return findings
+    active = []
+    for finding in findings:
+        match = record.suppressor.match(finding) if record.suppressor is not None else None
+        if match is None:
+            active.append(finding)
+        else:
+            record.suppressed.append(_SuppressedFinding(finding, record.current_path, *match))
+    record.findings.extend(active)
+    record.finding_paths.extend([record.current_path] * len(active))
+    return active
 
 
 def _record_scanned_path(path: str, version: Optional[str], *, user_provided: bool) -> None:
@@ -240,76 +273,47 @@ def _print(msg: str, *, stderr: bool = False) -> None:
 # ---------------------------------------------------------------------------
 
 
+#: Header of each ``check`` section, in the order the console prints them; the chain header is built per call.
+_SECTION_HEADERS: dict[_Rule, str] = {
+    _Rule.INVALID_ARGS: "[ERROR] Found functions with invalid argument mappings:",
+    _Rule.MISCONFIGURED_TARGET: "[ERROR] Found deprecated wrappers with a misconfigured target:",
+    _Rule.INNER_ORDER_PROPERTY: (
+        "[ERROR] Found inner-order @property @deprecated wrappers (setter/deleter unprotected):"
+    ),
+    _Rule.IDENTITY_MAPPING: "[WARNING] Found functions with identity argument mappings (arg -> arg):",
+    _Rule.NO_EFFECT: "[WARNING] Found deprecated wrappers with NO EFFECT (zero impact):",
+    _Rule.CHAIN: "Found deprecated wrappers forming deprecation chains:",
+    _Rule.POSITIONAL_ONLY_MAPPING: (
+        "[WARNING] Found args_mapping entries targeting POSITIONAL_ONLY constructor parameters"
+        " (proxy falls back to setattr for these entries):"
+    ),
+}
+
+
+def _row_detail(finding: _Finding) -> str:
+    """Return the text after ``module.function:`` in a finding's console row."""
+    if finding.rule is _Rule.INNER_ORDER_PROPERTY:
+        return "use @deprecated(...) above @property"
+    if finding.rule in (_Rule.MISCONFIGURED_TARGET, _Rule.CHAIN):
+        return finding.details[0] if finding.details else ""
+    return ", ".join(finding.details)
+
+
 class _Reporter:
-    """Print each kind of finding as a section: a ``[ERROR]``/``[WARNING]`` header line, then one line per item."""
+    """Print each kind of finding as a section: a ``[ERROR]``/``[WARNING]`` header line, then one line per finding."""
 
     @staticmethod
-    def _render_table(plain_prefix: str, rows: list[tuple[str, str, str]]) -> None:
+    def _render_table(plain_prefix: str, findings: list[_Finding]) -> None:
         """Print a section of ``module.function: detail`` lines under its header line."""
         _print(f"\n{plain_prefix}")
-        for mod, fn, detail in rows:
-            _print(f"\t- {mod}.{fn}: {detail}")
+        for finding in findings:
+            _print(f"\t- {finding.module}.{finding.symbol}: {_row_detail(finding)}")
 
     @staticmethod
-    def invalid_args(items: list[DeprecationWrapperInfo]) -> None:
-        """Report wrappers with invalid ``args_mapping`` keys."""
-        _Reporter._render_table(
-            "[ERROR] Found functions with invalid argument mappings:",
-            [(r.module, r.function, ", ".join(r.invalid_args)) for r in items],
-        )
-
-    @staticmethod
-    def misconfigured_targets(items: list[DeprecationWrapperInfo]) -> None:
-        """Report wrappers whose ``target`` contradicts the rest of their configuration."""
-        _Reporter._render_table(
-            "[ERROR] Found deprecated wrappers with a misconfigured target:",
-            [(r.module, r.function, _misconfiguration(r)) for r in items],
-        )
-
-    @staticmethod
-    def inner_order_properties(items: list[DeprecationWrapperInfo]) -> None:
-        """Report inner-order ``@property @deprecated`` wrappers, whose setter and deleter never warn."""
-        _Reporter._render_table(
-            "[ERROR] Found inner-order @property @deprecated wrappers (setter/deleter unprotected):",
-            [(r.module, r.function, "use @deprecated(...) above @property") for r in items],
-        )
-
-    @staticmethod
-    def identity_args_mappings(items: list[DeprecationWrapperInfo]) -> None:
-        """Report wrappers whose ``args_mapping`` maps an argument to itself."""
-        _Reporter._render_table(
-            "[WARNING] Found functions with identity argument mappings (arg -> arg):",
-            [(r.module, r.function, ", ".join(r.identity_args_mapping)) for r in items],
-        )
-
-    @staticmethod
-    def no_effect(items: list[DeprecationWrapperInfo]) -> None:
-        """Report wrappers that have no observable effect on callers."""
-
-        def _reasons(r: DeprecationWrapperInfo) -> str:
-            """Format the no-effect reasons for a single wrapper as a comma-separated string."""
-            parts = []
-            if r.empty_args_mapping:
-                parts.append("Empty mapping")
-            if r.self_reference:
-                parts.append("Self reference")
-            if r.all_identity:
-                parts.append("All identity mappings")
-            return ", ".join(parts)
-
-        _Reporter._render_table(
-            "[WARNING] Found deprecated wrappers with NO EFFECT (zero impact):",
-            [(r.module, r.function, _reasons(r)) for r in items],
-        )
-
-    @staticmethod
-    def chains(items: list[DeprecationWrapperInfo], *, error: bool = False) -> None:
+    def chains(findings: list[_Finding], *, error: bool = False) -> None:
         """Report deprecated-to-deprecated forwarding chains; ``error=True`` reports them as ``[ERROR]``."""
         prefix = "[ERROR]" if error else "[WARNING]"
-        _Reporter._render_table(
-            f"{prefix} Found deprecated wrappers forming deprecation chains:",
-            [(r.module, r.function, r.chain_type.value if r.chain_type is not None else "") for r in items],
-        )
+        _Reporter._render_table(f"{prefix} {_SECTION_HEADERS[_Rule.CHAIN]}", findings)
 
     @staticmethod
     def _render_message_table(plain_prefix: str, messages: list[str]) -> None:
@@ -335,52 +339,24 @@ class _Reporter:
         _Reporter._render_message_table(f"{prefix} Found deprecation policy violations:", violations)
 
     @staticmethod
-    def positional_only_args(items: list[DeprecationWrapperInfo]) -> None:
-        """Report wrappers whose ``args_mapping`` remaps a kwarg to a POSITIONAL_ONLY constructor parameter."""
-        _Reporter._render_table(
-            "[WARNING] Found args_mapping entries targeting POSITIONAL_ONLY constructor parameters"
-            " (proxy falls back to setattr for these entries):",
-            [(r.module, r.function, ", ".join(r.args_mapping_positional_only)) for r in items],
-        )
+    def issues(findings: list[_Finding], *, error_on_chains: bool = False) -> bool:
+        """Print the configuration findings section by section, in a fixed order; return whether there were any.
 
-    @staticmethod
-    def issues(results: list[DeprecationWrapperInfo], *, error_on_chains: bool = False) -> bool:
-        """Print categorised diagnostics and return whether any issues were found."""
-        invalid_args = [r for r in results if r.invalid_args]
-        misconfigured = [r for r in results if r.misconfigured_target]
-        inner_order = [r for r in results if r.inner_order_property]
-        identity_args_mappings = [r for r in results if r.identity_args_mapping]
-        no_effect = [r for r in results if r.no_effect]
-        chains = [r for r in results if r.chain_type is not None]
-        positional_only = [r for r in results if r.args_mapping_positional_only]
+        Sections follow :data:`_SECTION_HEADERS`, not the order the findings were derived in; rows keep the order of
+        *findings*.
 
-        if not (
-            invalid_args
-            or misconfigured
-            or inner_order
-            or identity_args_mappings
-            or no_effect
-            or chains
-            or positional_only
-        ):
-            return False
-
-        if invalid_args:
-            _Reporter.invalid_args(invalid_args)
-        if misconfigured:
-            _Reporter.misconfigured_targets(misconfigured)
-        if inner_order:
-            _Reporter.inner_order_properties(inner_order)
-        if identity_args_mappings:
-            _Reporter.identity_args_mappings(identity_args_mappings)
-        if no_effect:
-            _Reporter.no_effect(no_effect)
-        if chains:
-            _Reporter.chains(chains, error=error_on_chains)
-        if positional_only:
-            _Reporter.positional_only_args(positional_only)
-
-        return True
+        """
+        printed = False
+        for rule in _SECTION_HEADERS:
+            rows = [finding for finding in findings if finding.rule is rule]
+            if not rows:
+                continue
+            printed = True
+            if rule is _Rule.CHAIN:
+                _Reporter.chains(rows, error=error_on_chains)
+            else:
+                _Reporter._render_table(_SECTION_HEADERS[rule], rows)
+        return printed
 
 
 # ---------------------------------------------------------------------------
@@ -452,6 +428,26 @@ def _report_finding(finding: _Finding, level: _Level, path: Optional[str]) -> di
     }
 
 
+def _report_suppressed(record: _RunRecord) -> list[dict[str, Any]]:
+    """Return the run's suppressed findings, one per id, each with what suppressed it, sorted like the findings."""
+    best: dict[str, tuple[_Level, _SuppressedFinding]] = {}
+    for item in record.suppressed:
+        level = _level(item.finding.rule, record.command or "")
+        if level is None:
+            continue
+        kept = best.get(item.finding.id)
+        if kept is None or _LEVEL_RANK[level] < _LEVEL_RANK[kept[0]]:
+            best[item.finding.id] = (level, item)
+    ordered = sorted(best.values(), key=lambda pair: (_LEVEL_RANK[pair[0]], pair[1].finding.id))
+    return [
+        {
+            **_report_finding(item.finding, level, item.path),
+            "suppressed_by": {"kind": item.kind, "entry": item.entry},
+        }
+        for level, item in ordered
+    ]
+
+
 def _report_findings(record: _RunRecord) -> list[dict[str, Any]]:
     """Return the run's findings, one per id at its highest level in the subcommand, sorted by ``(level, id)``.
 
@@ -474,6 +470,7 @@ def _report_findings(record: _RunRecord) -> list[dict[str, Any]]:
 def _build_report(record: _RunRecord, exit_code: int) -> dict[str, Any]:
     """Return the ``--report-json`` document of the run (layout :data:`_REPORT_SCHEMA`)."""
     findings = _report_findings(record)
+    suppressed = _report_suppressed(record)
     levels = [finding["level"] for finding in findings]
     return {
         "schema": _REPORT_SCHEMA,
@@ -494,16 +491,16 @@ def _build_report(record: _RunRecord, exit_code: int) -> dict[str, Any]:
             for gap in record.gaps
         ],
         "findings": findings,
-        "suppressed": [],
+        "suppressed": suppressed,
         "summary": {
             "findings": len(findings),
             "errors": levels.count(_Level.ERROR.value),
             "warnings": levels.count(_Level.WARNING.value),
             "notes": levels.count(_Level.NOTE.value),
             "gaps": len(record.gaps),
-            "suppressed": 0,
-            "baseline_unmatched": 0,
-            "ignore_unmatched": 0,
+            "suppressed": len(suppressed),
+            "baseline_unmatched": record.baseline_unmatched,
+            "ignore_unmatched": record.ignore_unmatched,
         },
     }
 
