@@ -9,7 +9,10 @@
 # resolve without their own runtime dependencies; see the "Pre-commit Integration" section of docs/guide/audit.md.
 # The `-static` hooks read the source with `ast` instead and import nothing from the package, so they work for any
 # package; they cover `expiry` and `policy` only, and a wrapper they cannot read from source alone is printed as a
-# `not statically resolvable` gap without failing the hook. `args: [--static]` on the base hook does the same.
+# `not statically resolvable` gap without failing the hook. pre-commit shows a passing hook's output only when the hook
+# is `verbose`, so the `-static` hooks set `verbose: true` to keep those gaps readable; `verbose: false` in the
+# consumer's config silences them. `args: [--static]` on the base hook does the same scan, but add `verbose: true`
+# (or run `pre-commit run --verbose`) to see its gaps.
 # Settings repeated on every hook:
 # - `pass_filenames: false`, `types: [python]`, `require_serial: true`: the CLI scans importable
 #   packages/directories, never individual files, so run once on the whole project when any Python file changes
@@ -59,6 +62,7 @@
   pass_filenames: false
   types: [python]
   require_serial: true
+  verbose: true
   additional_dependencies: ["pyDeprecate[cli,audit]"]
 
 - id: pydeprecate-expiry-static
@@ -70,6 +74,7 @@
   pass_filenames: false
   types: [python]
   require_serial: true
+  verbose: true
   additional_dependencies: ["pyDeprecate[cli,audit]"]
 
 - id: pydeprecate-chains

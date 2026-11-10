@@ -310,8 +310,11 @@ def _parse_cli_args(argv: Sequence[str]) -> Optional[tuple[_CliCommand, dict[str
     if "static" not in command.bool_params and any(
         arg.startswith("--") and arg[2:].partition("=")[0] in _STATIC_SPELLINGS for arg in normalized
     ):
-        # `check`, `chains`, `all` and `status` need the imported objects; refuse the flag rather than ignore it
-        subparser.error("--static supports `expiry` and `policy` only")
+        # `check`, `chains`, `all` and `status` need the imported objects; refuse the flag, in any spelling, rather
+        # than ignore it, and name both its spellings so `--no-static` is not read as an accepted no-op
+        subparser.error(
+            f"--static, --no-static and --nostatic are supported by `expiry` and `policy` only, not `{name}`"
+        )
     namespace, extras = subparser.parse_known_intermixed_args(normalized)
     kwargs = vars(namespace)
     for operand in operands:

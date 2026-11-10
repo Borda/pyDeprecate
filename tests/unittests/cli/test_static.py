@@ -1,12 +1,13 @@
 """Unit tests for :mod:`deprecate._cli.static`: reading deprecation wrappers from source for ``--static``."""
 
+import os
 import sys
 import textwrap
 import warnings
 from collections.abc import Iterator
 from importlib.machinery import EXTENSION_SUFFIXES
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 import pytest
 
@@ -30,6 +31,8 @@ from deprecate.proxy import deprecated_instance
 _ROOT = Path(__file__).resolve().parents[3]
 #: Name of the throwaway package each source-snippet test writes, imports for comparison and then forgets.
 _PKG = "staticprobe"
+#: Name of the namespace package (no ``__init__.py``) the discovery tests split across two import-path entries.
+_NAMESPACE = "staticnamespaceprobe"
 #: The policy with only ``message-required`` on, so a target case is judged on guidance alone.
 _GUIDANCE_ONLY = _build_policy_spec(None, True)
 
@@ -68,6 +71,26 @@ def _line_of(module: str, text: str) -> int:
 def _expiry_ids(wrappers: list[DeprecationWrapperInfo]) -> list[str]:
     """Return the ids of the ``expired`` findings the wrappers whose removal version resolved produce at ``99.0``."""
     return [f.id for f in _expiry_findings(_resolved(wrappers, ("remove_in",)), "99.0")]
+
+
+def _write_namespace_portion(root: Path, module: str) -> None:
+    """Write one directory of the :data:`_NAMESPACE` package under *root*, holding *module* with one expired wrapper."""
+    pkg_dir = root / _NAMESPACE
+    pkg_dir.mkdir(parents=True)
+    (pkg_dir / f"{module}.py").write_text(
+        "from deprecate import deprecated\n\n@deprecated(deprecated_in='1.0', remove_in='2.0')\ndef old():\n    pass\n"
+    )
+
+
+def _refusing(lister: Callable[..., Any], blocked: Path) -> Callable[..., Any]:
+    """Wrap a directory lister (``os.scandir``, ``os.listdir``) so it raises ``PermissionError`` for *blocked* only."""
+
+    def _list(path: Any, *args: Any) -> Any:  # noqa: ANN401
+        if Path(path) == blocked:
+            raise PermissionError(13, "Permission denied", str(path))
+        return lister(path, *args)
+
+    return _list
 
 
 def _rows(wrappers: list[DeprecationWrapperInfo]) -> list[str]:
@@ -556,6 +579,37 @@ class TestBindingIdentity:
         assert [(i.module, i.function, i.api_type) for i in static] == imported == [(f"{_PKG}.old", "", "module")]
         assert _static_policy_findings(static, _GUIDANCE_ONLY) == []
 
+    @pytest.mark.parametrize(
+        "target",
+        [
+            pytest.param("True", id="constant"),
+            pytest.param("helper", id="function"),
+            pytest.param("Helper", id="class"),
+            pytest.param("json", id="imported-module"),
+        ],
+    )
+    def test_module_target_guidance_matches_import_scan(self, probe_package: Callable[..., Path], target: str) -> None:
+        """A module wrapper's ``message-required`` verdict from source matches the import scan for each target kind.
+
+        A module, function or class passed as ``target`` is named in the warning ``deprecated_module`` renders, which
+        import mode counts as guidance; a constant such as ``True`` has no name and gives none. Reading every
+        non-``None`` target as a module let a module with no guidance pass the rule in static mode while import mode
+        reported it.
+
+        """
+        pkg = probe_package(
+            {
+                "__init__.py": "",
+                "old.py": "import json\nfrom deprecate import deprecated_module\n\ndef helper():\n    pass\n\n"
+                f"class Helper:\n    pass\n\ndeprecated_module(__name__, target={target}, deprecated_in='1.0',"
+                " remove_in='2.0')\n",
+            }
+        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            imported = [(f.id, f.message) for f in _policy_findings(find_deprecation_wrappers(_PKG), _GUIDANCE_ONLY)]
+        assert [(f.id, f.message) for f in _static_policy_findings(_read_package(pkg), _GUIDANCE_ONLY)] == imported
+
 
 # ---------------------------------------------------------------------------
 # Discovery: which files are read
@@ -594,6 +648,29 @@ class TestDiscovery:
         assert _rows(_read_package(pkg)) == [f"{_PKG}.good:old"]
         assert f"module not audited: {_PKG}.broken: could not read its source" in capsys.readouterr().err
 
+    @pytest.mark.parametrize(
+        ("lister", "blocked"),
+        [pytest.param("scandir", "", id="package-root"), pytest.param("listdir", "sub", id="subpackage")],
+    )
+    def test_unlistable_directory_is_a_gap(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+        lister: str,
+        blocked: str,
+    ) -> None:
+        """A package directory the walk cannot list prints a ``module not audited`` gap naming it.
+
+        A directory without read permission once looked like a package with no submodules, so every wrapper below it
+        passed the audit unseen; the gap names the directory and the error, while the rest of the tree is still read.
+
+        """
+        pkg = _write(tmp_path, {"__init__.py": "", "sub/__init__.py": "", "m.py": ""})
+        monkeypatch.setattr(os, lister, _refusing(getattr(os, lister), pkg / blocked))
+        _read_package(pkg)
+        assert f"module not audited: submodules of {pkg / blocked} not listed" in capsys.readouterr().err
+
     def test_module_without_source_is_a_gap(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         """A compiled extension module with no ``.py`` beside it is reported, since its wrappers cannot be read.
 
@@ -604,6 +681,51 @@ class TestDiscovery:
         (pkg / f"fast{EXTENSION_SUFFIXES[0]}").write_bytes(b"")  # the running interpreter's own extension suffix
         _read_package(pkg)
         assert f"module not audited: {_PKG}.fast: no Python source to read" in capsys.readouterr().err
+
+    @pytest.mark.parametrize(
+        ("files", "recursive", "exclude", "gap"),
+        [
+            pytest.param(
+                {"__init__.py": "from .broken import thing\n"},
+                False,
+                (),
+                f"{_PKG}.broken: could not read its source",
+                id="no-recursive",
+            ),
+            pytest.param(
+                {"__init__.py": "", "a.py": "from .broken import thing\n"},
+                True,
+                (f"{_PKG}.broken",),
+                f"{_PKG}.broken: could not read its source",
+                id="excluded-module-imported-by-a-walked-one",
+            ),
+            pytest.param(
+                {"__init__.py": "from .compiled import thing\n"},
+                False,
+                (),
+                f"{_PKG}.compiled: no Python source to read",
+                id="imported-module-without-python-source",
+            ),
+        ],
+    )
+    def test_module_reached_only_through_an_import_is_a_gap(
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+        files: dict[str, str],
+        recursive: bool,
+        exclude: tuple[str, ...],
+        gap: str,
+    ) -> None:
+        """A module the walk never reaches still reports why it was not audited when another module imports it.
+
+        Under ``--no-recursive`` or ``--exclude`` the broken module is read only to follow the importer's names; the
+        reason recorded there is the only signal that the importer's view is incomplete, so it must be printed.
+
+        """
+        pkg = _write(tmp_path, {**files, "broken.py": "def (:\n"})
+        _read_package(pkg, recursive=recursive, exclude=exclude)
+        assert f"module not audited: {gap}" in capsys.readouterr().err
 
     def test_plain_directory_reads_top_level_files(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         """A plain directory reads its top-level modules by file name and reports nested files as not audited.
@@ -621,6 +743,25 @@ class TestDiscovery:
         found = _read_static(source, recursive=True, include_members=True, exclude=[])
         assert _rows(found) == ["mod:old"]
         assert "nested files not audited" in capsys.readouterr().err
+
+    def test_namespace_package_reads_every_portion(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A namespace package split over two import-path entries is read from both, with no gap for its root.
+
+        The import scan walks every directory of ``__path__`` and has no root module to report; reading only the
+        first directory would drop the second one's wrappers silently, and a root gap would cry wolf.
+
+        """
+        _write_namespace_portion(tmp_path / "first", "alpha")
+        _write_namespace_portion(tmp_path / "second", "beta")
+        monkeypatch.syspath_prepend(str(tmp_path / "first"))
+        monkeypatch.syspath_prepend(str(tmp_path / "second"))
+        source = _locate_static(_NAMESPACE, None)
+        assert isinstance(source, _StaticSource)
+        found = _read_static(source, recursive=True, include_members=True, exclude=[])
+        assert sorted(_rows(found)) == [f"{_NAMESPACE}.alpha:old", f"{_NAMESPACE}.beta:old"]
+        assert "module not audited" not in capsys.readouterr().err
 
     @pytest.mark.parametrize(
         ("path", "message"),
@@ -823,6 +964,59 @@ class TestShapeParity:
             imported_findings,
         )
 
+    @pytest.mark.parametrize(
+        "files",
+        [
+            pytest.param(
+                {
+                    "__init__.py": "from dataclasses import dataclass as record\n"
+                    "from deprecate import deprecated_class\n\n"
+                    "@deprecated_class(deprecated_in='1.0', remove_in='2.0')\n@record\nclass Old:\n    x: int = 0\n"
+                },
+                id="aliased-decorator",
+            ),
+            pytest.param(
+                {
+                    "__init__.py": "import dataclasses as dc\nfrom deprecate import deprecated_class\n\n"
+                    "@deprecated_class(deprecated_in='1.0', remove_in='2.0')\n@dc.dataclass(frozen=True)\n"
+                    "class Old:\n    x: int = 0\n"
+                },
+                id="aliased-module",
+            ),
+            pytest.param(
+                {
+                    "__init__.py": "from deprecate import deprecated_class\n\ndef dataclass(cls):\n    return cls\n\n"
+                    "@deprecated_class(deprecated_in='1.0', remove_in='2.0')\n@dataclass\nclass Old:\n    x: int = 0\n"
+                },
+                id="local-function-named-dataclass",
+            ),
+            pytest.param(
+                {
+                    "__init__.py": "",
+                    "core.py": "from dataclasses import dataclass as record\n\n@record\nclass Impl:\n    x: int = 0\n",
+                    "api.py": "from deprecate import deprecated_class\nfrom .core import Impl\n\n"
+                    "Old = deprecated_class(deprecated_in='1.0', remove_in='2.0')(Impl)\n",
+                },
+                id="dataclass-defined-in-another-module",
+            ),
+        ],
+    )
+    def test_dataclass_label_matches_import_scan(
+        self, probe_package: Callable[..., Path], files: dict[str, str]
+    ) -> None:
+        """A proxied class is labelled ``dataclass`` exactly when the import scan's runtime check says it is one.
+
+        The decorator name alone misleads both ways: an alias of ``dataclasses.dataclass`` builds a dataclass under
+        another name, and a project's own function named ``dataclass`` builds none; the name is resolved through the
+        imports of the module that defines the class, which may not be the module that wraps it.
+
+        """
+        pkg = probe_package(files)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            imported = [(i.function, i.api_type) for i in find_deprecation_wrappers(_PKG)]
+        assert [(i.function, i.api_type) for i in _read_package(pkg)] == imported
+
     def test_unattributable_wrapper_is_a_gap(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         """A wrapper around an imported object the source cannot classify is reported rather than guessed.
 
@@ -906,6 +1100,47 @@ class TestNoSilentMiss:
             ),
             pytest.param(
                 {
+                    "m.py": f"{_DEP}KW = {{'deprecated_in': '1.0', 'remove_in': '9.0'}}\nALIAS = KW\n"
+                    "ALIAS['remove_in'] = '2.0'\n\n@deprecated(**KW)\ndef old():\n    pass\n"
+                },
+                "arguments come from `**KW`",
+                id="splat-of-a-dict-changed-through-an-alias",
+            ),
+            pytest.param(
+                {
+                    "m.py": f"{_DEP}def _bump(settings):\n    settings['remove_in'] = '2.0'\n\n"
+                    "KW = {'deprecated_in': '1.0', 'remove_in': '9.0'}\n_bump(KW)\n\n"
+                    "@deprecated(**KW)\ndef old():\n    pass\n"
+                },
+                "arguments come from `**KW`",
+                id="splat-of-a-dict-a-helper-call-changes",
+            ),
+            pytest.param(
+                {
+                    "m.py": f"{_DEP}REMOVE = '9.0'\nglobals()['REMOVE'] = '2.0'\n\n"
+                    "@deprecated(deprecated_in='1.0', remove_in=REMOVE)\ndef old():\n    pass\n"
+                },
+                "`remove_in` is `REMOVE`, not a literal",
+                id="version-rebound-through-globals",
+            ),
+            pytest.param(
+                {
+                    "m.py": f"import sys\n{_DEP}REMOVE = '9.0'\nsetattr(sys.modules[__name__], 'REMOVE', '2.0')\n\n"
+                    "@deprecated(deprecated_in='1.0', remove_in=REMOVE)\ndef old():\n    pass\n"
+                },
+                "`remove_in` is `REMOVE`, not a literal",
+                id="version-rebound-through-setattr-on-the-module",
+            ),
+            pytest.param(
+                {
+                    "m.py": f"{_DEP}REMOVE = '9.0'\nglobals().update(REMOVE='2.0')\n\n"
+                    "@deprecated(deprecated_in='1.0', remove_in=REMOVE)\ndef old():\n    pass\n"
+                },
+                "`remove_in` is `REMOVE`, not a literal",
+                id="version-in-a-module-that-updates-its-globals",
+            ),
+            pytest.param(
+                {
                     "__init__.py": "from .core import *\n",
                     "core.py": f"{_DEP}__all__ = ['old'] + []\n\n@{_EXPIRED}\ndef old():\n    pass\n",
                 },
@@ -921,13 +1156,88 @@ class TestNoSilentMiss:
                 id="factory-name-bound-twice",
             ),
             pytest.param(
+                {"a.py": "from .b import old\n", "b.py": "from .a import old\n"},
+                f"{_PKG}.a.old: is re-exported in an import cycle; not followed",
+                id="wrapper-re-exported-in-an-import-cycle",
+            ),
+            pytest.param(
+                {"a.py": "from .b import legacy\n\n@legacy\ndef old():\n    pass\n", "b.py": "from .a import legacy\n"},
+                "a.py:3: `legacy` is re-exported in an import cycle; not followed",
+                id="configured-decorator-re-exported-in-an-import-cycle",
+            ),
+            pytest.param(
+                {"m.py": f"from extcompat import deprecated\n\n@{_EXPIRED}\ndef old():\n    pass\n"},
+                "m.py:3: `deprecated` is called with `remove_in` but comes from a module static mode does not read",
+                id="factory-re-exported-by-a-module-outside-the-tree",
+            ),
+            pytest.param(
+                {"m.py": f"from extcompat import *\n\n@{_EXPIRED}\ndef old():\n    pass\n"},
+                "m.py:3: `deprecated` is called with `remove_in` but comes from a module static mode does not read",
+                id="factory-from-a-star-import-of-a-module-outside-the-tree",
+            ),
+            pytest.param(
+                {"m.py": f"{_DEP}def command(f):\n    return f\n\n@command\n@{_EXPIRED}\ndef old():\n    pass\n"},
+                "m.py:6: `@command` is applied over the deprecation wrapper and may replace it",
+                id="unknown-decorator-stacked-over-a-function-wrapper",
+            ),
+            pytest.param(
                 {
-                    "m0.py": f"{_DEP}@{_EXPIRED}\ndef old():\n    pass\n",
-                    **{f"m{n}.py": f"from .m{n - 1} import old\n" for n in range(1, 7)},
-                    "__init__.py": "from .m6 import old\n",
+                    "m.py": "from deprecate import deprecated_class\n\ndef register(c):\n    return c\n\n"
+                    "@register\n@deprecated_class(deprecated_in='1.0', remove_in='2.0')\nclass Old:\n    pass\n"
                 },
-                f"{_PKG}.old: re-exported through more than 5 modules; not followed",
-                id="re-export-chain-past-the-hop-limit",
+                "m.py:7: `@register` is applied over the deprecation wrapper and may replace it",
+                id="unknown-decorator-stacked-over-a-class-proxy",
+            ),
+            pytest.param(
+                {
+                    "m.py": f"{_DEP}KW = {{'deprecated_in': '1.0', 'remove_in': '9.0'}}\n\nclass Holder:\n"
+                    "    KW = {'deprecated_in': '1.0', 'remove_in': '2.0'}\n\n"
+                    "    @deprecated(**KW)\n    def old(self):\n        pass\n"
+                },
+                "arguments come from `**KW`",
+                id="splat-of-a-dict-the-class-body-shadows",
+            ),
+            pytest.param(
+                {
+                    "m.py": f"{_DEP}M = {{'a': 'b'}}\n\nclass Holder:\n    M = None\n\n"
+                    "    @deprecated(deprecated_in='1.0', remove_in='2.0', args_mapping=M)\n"
+                    "    def old(self, a=0):\n        pass\n"
+                },
+                "`args_mapping` is `M`, not a literal",
+                id="mapping-the-class-body-shadows",
+            ),
+            pytest.param(
+                {
+                    "m.py": f"import sys\n{_DEP}\n@{_EXPIRED}\ndef old():\n    pass\n\n"
+                    "if sys.version_info >= (3,):\n    def old():\n        pass\n"
+                },
+                "m.py:8: `old` may be rebound by this `if` statement",
+                id="wrapper-rebound-inside-if",
+            ),
+            pytest.param(
+                {
+                    "m.py": f"{_DEP}\nclass Holder:\n    deprecated = staticmethod(lambda **kw: lambda f: f)\n\n"
+                    f"    @{_EXPIRED}\n    def old(self):\n        pass\n"
+                },
+                "m.py:6: `deprecated` is rebound in the class body",
+                id="factory-name-the-class-body-rebinds",
+            ),
+            pytest.param(
+                {
+                    "m.py": "from deprecate import deprecated_instance\n\n"
+                    "class Holder:\n    deprecated_instance = dict\n"
+                    "    SETTINGS = deprecated_instance({}, deprecated_in='1.0', remove_in='2.0')\n"
+                },
+                "m.py:5: `deprecated_instance` is rebound in the class body",
+                id="instance-factory-name-the-class-body-rebinds",
+            ),
+            pytest.param(
+                {
+                    "m.py": "from deprecate import deprecated_module\n\n"
+                    "deprecated_module(__name__, target='json', deprecated_in='1.0', remove_in='2.0')\n"
+                },
+                "`target` is `'json'`, not a literal or a name",
+                id="module-target-given-as-an-expression",
             ),
         ],
     )
@@ -945,6 +1255,54 @@ class TestNoSilentMiss:
         wrappers = _read_package(_write(tmp_path, {"__init__.py": "", **files}))
         _report_unresolved(wrappers, ("remove_in", *_GUIDANCE_KEYWORDS))
         assert gap in capsys.readouterr().err
+
+    @pytest.mark.parametrize(
+        "files",
+        [
+            pytest.param(
+                {
+                    "m.py": "from functools import partial\n\n"
+                    "SETTINGS = dict(deprecated_in='1.0', remove_in='2.0')\nLATER = partial(print, remove_in='2.0')\n"
+                },
+                id="remove-in-passed-to-a-builtin-or-standard-library-callee",
+            ),
+            pytest.param(
+                {"__init__.py": "from . import sub\n", "sub.py": f"{_DEP}@{_EXPIRED}\ndef old():\n    pass\n"},
+                id="package-init-imports-its-own-submodule-relatively",
+            ),
+            pytest.param(
+                {"__init__.py": f"from {_PKG} import sub\n", "sub.py": f"{_DEP}@{_EXPIRED}\ndef old():\n    pass\n"},
+                id="package-init-imports-its-own-submodule-absolutely",
+            ),
+            pytest.param(
+                {
+                    "m.py": f"{_DEP}UNSET = None\n\n"
+                    "@deprecated(deprecated_in=None, remove_in=UNSET)\ndef old():\n    pass\n"
+                },
+                id="versions-given-as-none-inline-and-through-a-name",
+            ),
+            pytest.param(
+                {
+                    "m.py": f"{_DEP}KW = {{'deprecated_in': '1.0', 'remove_in': '2.0'}}\nM = {{'a': 'b'}}\n"
+                    "COPY = {**KW, 'remove_in': '3.0'}\nprint(**KW)\n\n"
+                    "@deprecated(args_mapping=M, **KW)\ndef old(a=0):\n    pass\n"
+                },
+                id="dict-only-copied-or-given-to-a-factory",
+            ),
+        ],
+    )
+    def test_settled_source_prints_no_gap(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str], files: dict[str, str]
+    ) -> None:
+        """Source the reader settles in full prints no ``not statically resolvable`` gap at all.
+
+        A gap the source does not warrant is noise that teaches users to skim past the channel: a builtin or
+        standard-library call that happens to take a ``remove_in`` keyword, for example, can never hold a factory.
+
+        """
+        wrappers = _read_package(_write(tmp_path, {"__init__.py": "", **files}))
+        _report_unresolved(wrappers, ("deprecated_in", "remove_in", *_GUIDANCE_KEYWORDS))
+        assert "not statically resolvable" not in capsys.readouterr().err
 
     @pytest.mark.parametrize(
         ("files", "recursive"),
@@ -966,6 +1324,15 @@ class TestNoSilentMiss:
                 },
                 True,
                 id="factory-re-exported-twice",
+            ),
+            pytest.param(
+                {
+                    "m0.py": f"{_DEP}@{_EXPIRED}\ndef old():\n    pass\n",
+                    **{f"m{n}.py": f"from .m{n - 1} import old\n" for n in range(1, 7)},
+                    "__init__.py": "from .m6 import old\n",
+                },
+                True,
+                id="wrapper-re-exported-through-a-long-chain",
             ),
             pytest.param(
                 {
@@ -996,6 +1363,17 @@ class TestNoSilentMiss:
                 True,
                 id="standard-library-base",
             ),
+            pytest.param(
+                {
+                    "m.py": f"import abc\nimport functools\nfrom functools import lru_cache\n{_DEP}\n"
+                    f"@functools.lru_cache(maxsize=None)\n@{_EXPIRED}\ndef cached():\n    pass\n\n"
+                    f"@lru_cache\n@{_EXPIRED}\ndef bare_cached():\n    pass\n\n"
+                    f"class K(abc.ABC):\n    @property\n    @{_EXPIRED}\n    def size(self):\n        return 1\n\n"
+                    f"    @classmethod\n    @abc.abstractmethod\n    @{_EXPIRED}\n    def make(cls):\n        pass\n"
+                },
+                True,
+                id="transparent-decorators-stacked-over-the-factory",
+            ),
         ],
     )
     def test_settled_shape_matches_import_scan(
@@ -1003,9 +1381,11 @@ class TestNoSilentMiss:
     ) -> None:
         """Shapes the source settles give exactly the import scan's ``expired`` findings: none missing, none extra.
 
-        Covers an import cycle between modules, a factory re-exported through two modules, a module too deeply nested
-        for a recursive tree walk, a plain member that shadows an inherited deprecated one, a star import filtered by
-        ``__all__``, and a standard-library base class, which carries no deprecated member and so needs no gap.
+        Covers an import cycle between modules, a factory re-exported through two modules, a module holding a long
+        ``1 + 1 + ...`` chain that the reader handles without a gap, a plain member that shadows an inherited deprecated
+        one, a star import filtered by ``__all__``, and a standard-library base class, which carries no deprecated
+        member and so needs no gap. A module the reader cannot walk at all is a gap, not a parity case; see
+        ``test_module_too_deep_to_read_is_a_gap``.
 
         """
         pkg = probe_package({"__init__.py": "", **files})
@@ -1013,3 +1393,37 @@ class TestNoSilentMiss:
             warnings.simplefilter("ignore")
             imported = [f.id for f in _expiry_findings(find_deprecation_wrappers(_PKG, recursive), "99.0")]
         assert _expiry_ids(_read_package(pkg, recursive=recursive)) == imported
+
+    @pytest.mark.parametrize(
+        ("source", "gap"),
+        [
+            pytest.param(
+                # twice the interpreter's recursion limit: parses, but the analyzer's tree walk cannot follow it
+                "x = a" + ".b" * (2 * sys.getrecursionlimit()) + "\n",
+                f"module not audited: {_PKG}.deep: its source is nested too deeply to analyze",
+                id="attribute-chain-too-deep-for-the-analyzer",
+            ),
+            pytest.param(
+                # past the tokenizer's 200-level bracket limit: the parser refuses it before any analysis
+                "x = " + "(" * 250 + "1" + ")" * 250 + "\n",
+                f"module not audited: {_PKG}.deep: could not read its source",
+                id="parentheses-too-deep-for-the-parser",
+            ),
+        ],
+    )
+    def test_module_too_deep_to_read_is_a_gap(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str], source: str, gap: str
+    ) -> None:
+        """A module too deeply nested to analyze is a ``module not audited`` gap while its sibling is still read.
+
+        A package ships one generated module with an enormous expression next to a module holding an expired
+        wrapper. Skipping the generated module silently would hide whatever it holds, so the gap is printed, and the
+        sibling wrapper must still be found. The analyzer-level case gives up on a tree it parsed; the parse-level
+        case never gets a tree.
+
+        """
+        pkg = _write(
+            tmp_path, {"__init__.py": "", "deep.py": source, "ok.py": f"{_DEP}@{_EXPIRED}\ndef old():\n    pass\n"}
+        )
+        assert _rows(_read_package(pkg)) == [f"{_PKG}.ok:old"]
+        assert gap in capsys.readouterr().err

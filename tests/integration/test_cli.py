@@ -1689,7 +1689,7 @@ class TestCliStatic:
         pkg = _make_pkg(tmp_path, name="heavypkg", content=_HEAVYPKG_INIT)
         result = _run_cli(subcommand, str(pkg), "--static", cwd=tmp_path)
         assert result.returncode == 2, result.stdout + result.stderr
-        assert "--static supports `expiry` and `policy` only" in result.stderr
+        assert f"are supported by `expiry` and `policy` only, not `{subcommand}`" in result.stderr
         assert not (pkg / "IMPORTED").exists()
 
     def test_report_records_static_mode_without_importing(self, tmp_path: Path) -> None:
@@ -1707,6 +1707,30 @@ class TestCliStatic:
         assert data["mode"] == "static"
         assert "`heavypkg.warn_only`" in data["table"]
         assert not (pkg / "IMPORTED").exists()
+
+    @pytest.mark.parametrize(
+        "flags",
+        [
+            pytest.param((), id="default-is-import"),
+            pytest.param(("--no-static",), id="no-static"),
+            pytest.param(("--nostatic",), id="nostatic"),
+            pytest.param(("--static=false",), id="static-equals-false"),
+            pytest.param(("--static", "false"), id="static-then-false"),
+        ],
+    )
+    def test_import_mode_when_static_is_off(self, tmp_path: Path, flags: tuple[str, ...]) -> None:
+        """Every way of leaving ``--static`` off audits by import and records ``"mode": "import"`` in the report.
+
+        A pipeline may disable the flag its hook enables for one run, or pass nothing at all; neither may print the
+        static banner or label the report as a static read, since the scan then did import the package.
+
+        """
+        pkg = _make_pkg(tmp_path)
+        report = tmp_path / "report.json"
+        result = _run_cli("expiry", str(pkg), "--version", "9.0", *flags, f"--report-json={report}", cwd=tmp_path)
+        assert result.returncode == 1, result.stdout + result.stderr
+        assert "Mode: static" not in result.stdout
+        assert json.loads(report.read_text(encoding="utf-8"))["mode"] == "import"
 
     def test_version_read_from_source(self, tmp_path: Path) -> None:
         """Without ``--version``, a static run reads the package's ``__version__`` from source instead of importing it.

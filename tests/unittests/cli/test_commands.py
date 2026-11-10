@@ -1,5 +1,6 @@
 """Unit tests for :mod:`deprecate._cli.commands`: the subcommands (all external calls fully mocked)."""
 
+import importlib.util
 import inspect
 import sys
 from collections.abc import Callable, Iterator
@@ -30,6 +31,10 @@ from deprecate.audit import ChainType, DeprecationWrapperInfo, PolicyRule, Table
 from deprecate.audit._policy import _build_policy_spec
 from tests._helpers import write_pkg
 from tests.unittests.cli._helpers import _EXPIRED_FINDING, _MESSAGE_REQUIRED_FINDING, _POLICY_VIOLATION
+
+_requires_packaging = pytest.mark.skipif(
+    importlib.util.find_spec("packaging") is None, reason="requires packaging (pip install 'pyDeprecate[audit]')"
+)
 
 
 def _scanned(wrappers: list[DeprecationWrapperInfo]) -> AbstractContextManager[MagicMock]:
@@ -1510,3 +1515,131 @@ class TestPolicyWithoutPackaging:
         assert "`min-grace`" in captured.err
         assert "pyDeprecate[audit]" in captured.err
         assert "No deprecation policy violations found." not in captured.out
+
+
+#: A package a ``--static`` read cannot fully settle: the first wrapper's ``remove_in`` is an f-string (``min-grace``
+#: and ``expiry`` cannot read it) and the second's ``target`` is a subscript (``message-required`` cannot read it).
+_UNSETTLED_PKG = """\
+from deprecate import deprecated
+
+_MAJOR = 2
+_REPLACEMENTS = {"new": print}
+
+
+@deprecated(deprecated_in="1.0", remove_in=f"{_MAJOR}.0")
+def formatted_removal(x: int) -> int:
+    return x
+
+
+@deprecated(target=_REPLACEMENTS["new"], deprecated_in="1.0", remove_in="2.0")
+def looked_up_target(x: int) -> int:
+    return x
+"""
+_REMOVAL_GAP = "`remove_in` is `f'{_MAJOR}.0'`, not a literal"
+_TARGET_GAP = "`target` is `_REPLACEMENTS['new']`, not a literal or a name"
+
+
+class TestStaticUnsettledGaps:
+    """A ``--static`` gap names a wrapper "not checked" only when the rule that needs its setting ran on the others."""
+
+    @pytest.mark.parametrize(
+        ("version_line", "gap_kind"),
+        [
+            pytest.param("", "version not resolved", id="version-unresolved"),
+            pytest.param("__version__ = 'next'\n", "version not PEP 440", id="version-invalid"),
+        ],
+    )
+    def test_expiry_prints_no_unsettled_gap_when_version_unusable(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str], version_line: str, gap_kind: str
+    ) -> None:
+        """``expiry --static`` without a usable version skips the whole check and names no wrapper "not checked".
+
+        The package's source holds no ``__version__``, or one that is not PEP 440, and no ``--version`` is given, so
+        no removal deadline is compared with anything. The one gap saying so is the truth; an extra line per
+        unsettled wrapper would imply that the other wrappers were checked.
+
+        """
+        pkg = write_pkg(tmp_path, "unsettledpkg", version_line + _UNSETTLED_PKG)
+
+        result = cmd_expiry(path=str(pkg), static=True)
+
+        captured = capsys.readouterr()
+        assert result == 0
+        assert f"pydeprecate gap: {gap_kind}: " in captured.err
+        assert "not statically resolvable" not in captured.err
+
+    def test_expiry_prints_no_unsettled_gap_without_packaging(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """``expiry --static`` without ``packaging`` skips the check and names no wrapper "not checked".
+
+        A base-install hook cannot compare versions at all. It is told so once, with the install hint, rather than
+        also being told that one wrapper was left out of a comparison that never happened.
+
+        """
+        pkg = write_pkg(tmp_path, "unsettledpkg", _UNSETTLED_PKG)
+        monkeypatch.setitem(sys.modules, "packaging.version", None)
+
+        result = cmd_expiry(path=str(pkg), version="3.0", static=True)
+
+        captured = capsys.readouterr()
+        assert result == 0
+        assert "pydeprecate gap: packaging missing: " in captured.err
+        assert "not statically resolvable" not in captured.err
+
+    @_requires_packaging
+    def test_expiry_names_the_wrapper_it_left_out(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        """``expiry --static`` that ran names the one wrapper whose ``remove_in`` the source did not settle.
+
+        With a version to compare against, the wrapper with a literal ``remove_in`` is judged (and is expired at
+        ``3.0``) and the f-string one is the single gap, so the report stays complete once the check has run.
+
+        """
+        pkg = write_pkg(tmp_path, "unsettledpkg", _UNSETTLED_PKG)
+
+        result = cmd_expiry(path=str(pkg), version="3.0", static=True)
+
+        captured = capsys.readouterr()
+        assert result == 1
+        assert captured.err.count("pydeprecate gap: not statically resolvable: ") == 1
+        assert f"{_REMOVAL_GAP} (" in captured.err
+        assert "formatted_removal` not checked" in captured.err
+
+    @_requires_packaging
+    def test_policy_names_the_wrappers_each_rule_left_out(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """``policy --static`` with both rules running names the wrapper each of them left out.
+
+        ``min-grace`` cannot read the f-string ``remove_in`` and ``message-required`` cannot read the subscripted
+        ``target``; each rule ran on the wrapper it could read, so each unsettled setting is reported once.
+
+        """
+        pkg = write_pkg(tmp_path, "unsettledpkg", _UNSETTLED_PKG)
+
+        cmd_policy(path=str(pkg), static=True)
+
+        captured = capsys.readouterr()
+        assert _REMOVAL_GAP in captured.err
+        assert _TARGET_GAP in captured.err
+
+    def test_policy_prints_no_grace_gap_without_packaging(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """``policy --static`` without ``packaging`` names no wrapper "not checked" for the skipped ``min-grace``.
+
+        The grace-window rule is skipped for every wrapper, so the one that also had an unreadable ``remove_in`` is not
+        special. ``message-required`` still runs, gates the exit code and names the wrapper whose ``target`` it could
+        not read — the gap of a rule that ran stays, the gap of a rule that did not is gone.
+
+        """
+        pkg = write_pkg(tmp_path, "unsettledpkg", _UNSETTLED_PKG)
+        monkeypatch.setitem(sys.modules, "packaging.version", None)
+
+        result = cmd_policy(path=str(pkg), static=True)
+
+        captured = capsys.readouterr()
+        assert result == 1
+        assert "pydeprecate gap: packaging missing: " in captured.err
+        assert _TARGET_GAP in captured.err
+        assert _REMOVAL_GAP not in captured.err

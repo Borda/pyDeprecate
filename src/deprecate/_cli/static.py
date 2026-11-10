@@ -6,7 +6,9 @@ be audited. Every wrapper the source builds with a pyDeprecate factory becomes a
 :class:`~deprecate.audit.DeprecationWrapperInfo`, named and ordered as the import scan names it, so the expiry and
 policy checks run unchanged and word their findings identically. Whatever the source alone cannot settle — a version
 held in a variable, settings splatted from an expression, a factory used outside a recognized shape — is reported as a
-``not statically resolvable`` gap, never skipped silently.
+``not statically resolvable`` gap, never skipped silently. A factory imported from a module outside the scanned tree is
+not read: its call is a gap only when it passes ``remove_in`` by keyword, so one spelled with positional settings, or a
+configured decorator imported from such a module, can pass unseen.
 
 The identity rules follow the import scan (:func:`deprecate.audit.find_deprecation_wrappers`): one row per public
 module-level binding, the alphabetically-first binding of a wrapper bound under several names, a non-proxy wrapper
@@ -42,7 +44,7 @@ from deprecate.audit import DeprecationWrapperInfo
 from deprecate.audit._findings import _Finding, _Rule
 from deprecate.audit._policy import _has_migration_guidance, _policy_findings, _PolicySpec
 from deprecate.audit._scan import _is_excluded
-from deprecate.audit._version import _absolute_import, _module_source_file
+from deprecate.audit._version import _absolute_import, _literal_all, _module_source_file
 from deprecate.audit._wrappers import _classify_member_api_type, _format_subject
 from deprecate.module import deprecated_module
 
@@ -50,12 +52,44 @@ from deprecate.module import deprecated_module
 _EXPIRY_KEYWORDS = ("remove_in",)
 _GRACE_KEYWORDS = ("deprecated_in", "remove_in")
 _GUIDANCE_KEYWORDS = ("target", "args_mapping", "attrs_mapping", "message_template")
-#: Re-export hops followed through in-tree modules (``from .core import old`` in ``__init__.py``); past it, a gap.
-_IMPORT_HOPS = 5
+#: Why a name re-exported through in-tree modules is not followed: the re-exports lead back to where they started.
+_CYCLE = "is re-exported in an import cycle; not followed"
 #: Base-class levels followed for inherited member rows; past it, a gap.
 _BASE_DEPTH = 8
 #: Methods that change a dict in place, so a dict a module calls them on is no literal the source settles.
 _DICT_MUTATORS = frozenset({"update", "setdefault", "pop", "popitem", "clear", "__setitem__", "__delitem__", "__ior__"})
+#: Decorators that keep the object they receive reachable as the import scan reads it, so one stacked over a factory
+#: is no gap; any other may replace the wrapper (a CLI ``@command`` turns it into a command object).
+_TRANSPARENT_DECORATORS = frozenset(
+    {
+        "property",
+        "classmethod",
+        "staticmethod",
+        "functools.lru_cache",
+        "functools.cache",
+        "functools.wraps",
+        "abc.abstractmethod",
+        "dataclasses.dataclass",
+        "typing.final",
+        "typing_extensions.final",
+        "typing.override",
+        "typing_extensions.override",
+        "typing_extensions.deprecated",
+        "warnings.deprecated",
+    }
+)
+#: Property accessors, ``@old.setter``, which rebuild a property around the getter rather than replace it.
+_ACCESSORS = frozenset({"getter", "setter", "deleter"})
+#: The property slot each accessor decorator fills, in the order the import scan reads a property's accessors.
+_ACCESSOR_SLOTS = {"getter": "fget", "setter": "fset", "deleter": "fdel"}
+#: The decorator that makes a class a dataclass, by the dotted name its import resolves to.
+_DATACLASS = "dataclasses.dataclass"
+#: The flag an ``if`` tests to hold code for type checkers only: that body never runs, so it binds nothing at runtime.
+_TYPE_CHECKING_FLAGS = frozenset({"typing.TYPE_CHECKING", "typing_extensions.TYPE_CHECKING"})
+#: Statements whose bodies may or may not run, so a name they rebind holds a value the source does not settle.
+_CONDITIONAL_STATEMENTS: tuple[type, ...] = tuple(
+    getattr(ast, name) for name in ("If", "For", "AsyncFor", "While", "Try", "TryStar", "Match") if hasattr(ast, name)
+)
 #: Modules outside the standard library whose classes carry no pyDeprecate members, so inheriting from them is no gap.
 _MEMBERLESS_MODULES = frozenset({"typing_extensions", "abc", "builtins"})
 
@@ -333,37 +367,78 @@ def _scope_events(body: Sequence[ast.stmt]) -> dict[str, list[_Event]]:
     return dict(events)
 
 
-def _mutated_names(tree: ast.Module) -> set[str]:
-    """Return the names the module changes in place anywhere: ``name[key] = ...``, ``name.update(...)`` and the like."""
+def _escaped_names(tree: ast.Module, is_factory: Callable[[ast.expr], bool]) -> set[str]:
+    r"""Return the names whose object the module hands to code that may change it, so a dict they hold is not settled.
+
+    A dict stays as its literal spells it only while every read of its name copies it — a ``**name`` splat into a call
+    or a dict display — or passes it by keyword to a pyDeprecate factory, which stores it unchanged. Any other read may
+    change it: ``name[key] = ...``, ``name.update(...)``, an alias (``other = name``, then ``other[key] = ...``) or a
+    helper call (``bump(name)``).
+
+    Examples:
+        >>> tree = ast.parse("KW = {}\nprint(**KW)\nCOPY = {**KW}\nM = {}\nALIAS = M")
+        >>> sorted(_escaped_names(tree, lambda func: False))
+        ['M', 'print']
+
+    """
+    copied: set[int] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            factory = is_factory(node.func)
+            copied.update(id(keyword.value) for keyword in node.keywords if keyword.arg is None or factory)
+        elif isinstance(node, ast.Dict):
+            copied.update(id(value) for key, value in zip(node.keys, node.values) if key is None)
+    return {
+        node.id
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load) and id(node) not in copied
+    }
+
+
+def _globals_rebinds(tree: ast.Module) -> Optional[set[str]]:
+    r"""Return the names the module rebinds through ``globals()``, ``vars()`` or ``setattr(sys.modules[...], ...)``.
+
+    ``None`` when such a write names no literal key (``globals().update(...)``, ``globals()[key] = ...``), so it may
+    rebind any name.
+
+    Examples:
+        >>> tree = ast.parse("import sys\nglobals()['A'] = 1\nsetattr(sys.modules[__name__], 'B', 2)")
+        >>> sorted(_globals_rebinds(tree))
+        ['A', 'B']
+        >>> _globals_rebinds(ast.parse("globals().update(a=1)")) is None
+        True
+
+    """
     found: set[str] = set()
     for node in ast.walk(tree):
-        if isinstance(node, (ast.Subscript, ast.Attribute)) and isinstance(node.ctx, (ast.Store, ast.Del)):
-            target = node.value
+        key: Optional[ast.expr] = None
+        if isinstance(node, ast.Subscript) and isinstance(node.ctx, (ast.Store, ast.Del)) and _is_namespace(node.value):
+            key = node.slice
+        elif isinstance(node, ast.Attribute) and isinstance(node.ctx, (ast.Store, ast.Del)):
+            if _is_namespace(node.value):
+                found.add(node.attr)  # ``sys.modules[__name__].NAME = ...``
+            continue
         elif isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr in _DICT_MUTATORS:
-            target = node.func.value
+            if _is_namespace(node.func.value):
+                return None
+            continue
+        elif isinstance(node, ast.Call) and _dotted(node.func) in ("setattr", "delattr") and len(node.args) >= 2:
+            if not _is_namespace(node.args[0]):
+                continue
+            key = node.args[1]
         else:
             continue
-        if isinstance(target, ast.Name):
-            found.add(target.id)
+        if not (isinstance(key, ast.Constant) and isinstance(key.value, str)):
+            return None
+        found.add(key.value)
     return found
 
 
-def _literal_all(tree: ast.Module) -> Union[set[str], None, str]:
-    """Return the names a module's ``__all__`` lists for a star import.
-
-    ``None`` when the module defines no ``__all__`` (a star import copies every public name), else why the list is not
-    readable from source.
-
-    """
-    events = _scope_events(tree.body).get("__all__", [])
-    if not events:
-        return None
-    value = events[0].value if len(events) == 1 else None
-    if isinstance(value, (ast.List, ast.Tuple)):
-        names = [elt.value for elt in value.elts if isinstance(elt, ast.Constant) and isinstance(elt.value, str)]
-        if len(names) == len(value.elts):
-            return set(names)
-    return "has an `__all__` that is not one literal list of names"
+def _is_namespace(node: ast.expr) -> bool:
+    """Tell whether *node* spells a module namespace: ``globals()``, ``vars()`` or ``sys.modules[...]``."""
+    if isinstance(node, ast.Call):
+        return _dotted(node.func) in ("globals", "vars") and not node.args and not node.keywords
+    return isinstance(node, ast.Subscript) and _dotted(node.value) == "sys.modules"
 
 
 @functools.cache
@@ -395,11 +470,18 @@ def _single(events: Mapping[str, list[_Event]], name: str) -> Optional[_Event]:
     return found[0] if len(found) == 1 else None
 
 
-def _is_dataclass(node: ast.ClassDef) -> bool:
-    """Tell whether a class definition carries ``@dataclass`` or ``@dataclasses.dataclass`` (called or not)."""
+def _is_dataclass(node: ast.ClassDef, qualify: Callable[[ast.expr], Optional[str]]) -> bool:
+    """Tell whether a class definition carries a ``dataclasses.dataclass`` decorator (called or not).
+
+    *qualify* resolves a decorator's name through the imports of the module that defines the class, so an alias (``from
+    dataclasses import dataclass as record``) counts, as does a ``dataclasses`` module of another distribution
+    (``pydantic.dataclasses.dataclass`` builds a runtime dataclass too), while a local function named ``dataclass`` does
+    not.
+
+    """
     for decorator in node.decorator_list:
-        target = decorator.func if isinstance(decorator, ast.Call) else decorator
-        if _dotted(target) in ("dataclass", "dataclasses.dataclass"):
+        name = qualify(decorator.func if isinstance(decorator, ast.Call) else decorator)
+        if name is not None and (name == _DATACLASS or name.endswith(f".{_DATACLASS}")):
             return True
     return False
 
@@ -491,6 +573,23 @@ class _Parsed(NamedTuple):
         return self.path.name == "__init__.py"
 
 
+def _qualified_name(parsed: _Parsed, scope: Mapping[str, list[_Event]], node: ast.expr) -> Optional[str]:
+    """Return the dotted name *node* spells in *parsed*, its root resolved through the one import that binds it."""
+    dotted = _dotted(node)
+    if dotted is None:
+        return None
+    root, dot, rest = dotted.partition(".")
+    event = _single(scope, root)
+    if event is not None and isinstance(event.value, ast.ImportFrom):
+        origin = _absolute_import(parsed.name, parsed.is_package, event.value)
+        source = next((alias.name for alias in event.value.names if (alias.asname or alias.name) == root), root)
+        return f"{origin}.{source}{dot}{rest}"
+    if event is not None and isinstance(event.value, ast.Import):  # ``import dataclasses as dc``
+        source = next((alias.name for alias in event.value.names if alias.asname == root), root)
+        return f"{source}{dot}{rest}"
+    return dotted
+
+
 class _CallArgs(NamedTuple):
     """The arguments of a factory call by parameter name, and an unresolved splat that may carry any of the others."""
 
@@ -543,7 +642,7 @@ class _ModuleAnalyzer:
         parsed: _Parsed,
         aliases: _Aliases,
         in_tree: Callable[[str], bool],
-        name_kind: Callable[[str, str], tuple[str, Optional[ast.AST]]],
+        name_kind: Callable[[str, str], tuple[str, bool]],
         imported_configured: Callable[[str, str], _Lookup],
     ) -> None:
         self.parsed = parsed
@@ -555,8 +654,13 @@ class _ModuleAnalyzer:
         for node in ast.walk(parsed.tree):  # a function's ``global name`` may rebind it at runtime
             for name in node.names if isinstance(node, ast.Global) else ():
                 self.scope.setdefault(name, []).append(_Event("other"))
-        #: Names changed in place somewhere (``KW["remove_in"] = ...``), so a dict they hold is no settled literal.
-        self.mutated = _mutated_names(parsed.tree)
+        rebinds = _globals_rebinds(parsed.tree)
+        for name in rebinds or ():  # as may ``globals()["NAME"] = ...``
+            self.scope.setdefault(name, []).append(_Event("other"))
+        #: Whether the module writes its globals under a computed key, so no module-level name is settled.
+        self.globals_unsettled = rebinds is None
+        #: Names read other than by a copy or a factory keyword (``bump(KW)``), so a dict they hold is not settled.
+        self.escaped = _escaped_names(parsed.tree, lambda func: aliases.kind(func) not in (None, _Factory.TARGET_MODE))
         #: Whether a star import may bind names the reader cannot list (pyDeprecate's own star imports aside).
         self.foreign_star = any(
             isinstance(node, ast.ImportFrom)
@@ -571,6 +675,8 @@ class _ModuleAnalyzer:
         #: Every name the module ever bound to a configured factory, whose unconsumed uses are gaps.
         self.ever_configured: set[str] = set()
         self.lookup_gaps: list[str] = []
+        #: Names whose import cycle is already a gap, so each is reported once rather than at every use.
+        self.unfollowed: set[str] = set()
         self.module_wrapper: Optional[_Wrapper] = None
         self.star_sources: list[str] = []
         self.where = _display(parsed.path)
@@ -600,16 +706,43 @@ class _ModuleAnalyzer:
             self._module_call(stmt.value)
         elif isinstance(stmt, ast.ImportFrom):
             self._import_from(stmt)
-        elif isinstance(stmt, (ast.With, ast.AsyncWith)):
+        elif isinstance(stmt, (ast.With, ast.AsyncWith, ast.If)):
+            self._block(stmt)
+        else:
+            self._rebind_opaque(stmt)
+
+    def _block(self, stmt: Union[ast.With, ast.AsyncWith, ast.If]) -> None:
+        """Read the part of a block that always runs as module-level code; any other ``if`` binds opaque values."""
+        if isinstance(stmt, ast.If):
+            if self._qualified(stmt.test) not in _TYPE_CHECKING_FLAGS:
+                self._rebind_opaque(stmt)
+                return
+            body = stmt.orelse  # an ``if TYPE_CHECKING:`` body is read by type checkers only; its ``else`` always runs
+        else:
             # a ``with`` body always runs (``with catch_warnings():`` around decorations is common), so it is read
             # as module-level code; its ``as`` targets bind opaque values
             for name in _scope_events([ast.Expr(item.optional_vars) for item in stmt.items if item.optional_vars]):
                 self._set(name, None)
-            for inner in stmt.body:
-                self._statement(inner)
-        else:
-            for name in _scope_events([stmt]):
-                self._set(name, None)
+            body = stmt.body
+        for inner in body:
+            self._statement(inner)
+
+    def _rebind_opaque(self, stmt: ast.stmt) -> None:
+        """Bind every name *stmt* assigns to an opaque value, reporting a wrapper a conditional statement may replace.
+
+        Whether an ``if``, ``try`` or loop body runs is not settled by the source, so a deprecated name it rebinds may
+        still hold its wrapper at runtime, or may not; the wrapper is left out of the checks and the line says so.
+
+        """
+        conditional = isinstance(stmt, _CONDITIONAL_STATEMENTS)
+        for name in _scope_events([stmt]):
+            if conditional and isinstance(self.bindings.get(name), (_Wrapper, _ClassInfo)):
+                keyword = type(stmt).__name__.lower()
+                self.lookup_gaps.append(
+                    f"{self.where}:{stmt.lineno}: `{name}` may be rebound by this `{keyword}` statement, so whether it"
+                    " still holds its deprecation wrapper is not settled; it is not audited"
+                )
+            self._set(name, None)
 
     def _assign(self, stmt: Union[ast.Assign, ast.AnnAssign]) -> None:
         """Bind each plain name target to the wrapper, class or import the value is (an alias shares the object)."""
@@ -640,7 +773,7 @@ class _ModuleAnalyzer:
         if kind not in (_Factory.DEPRECATED, _Factory.CALLABLE, _Factory.CLASS):
             return None
         self.consumed.add(id(value.func))
-        return kind, self._read_settings(self._bind(value, kind), value, {})
+        return kind, self._read_settings(self._bind(value, kind, {}), value, {})
 
     def _assigned_value(self, value: ast.expr) -> _Value:
         """Return what an assigned value binds: an alias shares the object; ``typing.cast(T, x)`` aliases ``x``."""
@@ -654,6 +787,8 @@ class _ModuleAnalyzer:
         self, node: ast.expr, kinds: tuple[_Factory, ...], shadow: Mapping[str, list]
     ) -> Optional[tuple[_Factory, _Settings]]:
         """Return the factory and settings of ``factory(...)``, or of a name bound to one here or in-tree."""
+        if self._shadowed_factory(node, shadow):
+            return None
         configured: _Lookup = None
         if isinstance(node, ast.Name) and node.id in self.configured:
             configured = self.configured[node.id]
@@ -661,8 +796,7 @@ class _ModuleAnalyzer:
             configured = self._imported_configured(node.id)
         if isinstance(configured, str):
             self.consumed.add(id(node))
-            name = node.id if isinstance(node, ast.Name) else ast.unparse(node)
-            self.lookup_gaps.append(f"{self.where}:{node.lineno}: `{name}` {configured}")
+            self._unfollowed(node, configured)
             return None
         if configured is not None:
             if configured[0] not in kinds:
@@ -675,7 +809,32 @@ class _ModuleAnalyzer:
         if kind not in kinds:
             return None
         self.consumed.add(id(node.func))
-        return kind, self._read_settings(self._bind(node, kind), node, shadow)
+        return kind, self._read_settings(self._bind(node, kind, shadow), node, shadow)
+
+    def _shadowed_factory(self, node: ast.expr, shadow: Mapping[str, list]) -> bool:
+        """Tell whether *node* names a factory through a name the class body rebinds, recording the gap when it does.
+
+        Which binding a class-body decorator or call sees depends on statement order, as for a setting
+        (:meth:`_string`), so the factory is left unread rather than taken from the module scope.
+
+        """
+        callee = node.func if isinstance(node, ast.Call) else node
+        root = callee
+        while isinstance(root, ast.Attribute):
+            root = root.value
+        if not (isinstance(root, ast.Name) and root.id in shadow):
+            return False
+        names_factory = self.aliases.kind(callee) not in (None, _Factory.TARGET_MODE) or (
+            isinstance(callee, ast.Name)
+            and (callee.id in self.configured or self._imported_configured(callee.id) is not None)
+        )
+        if names_factory:
+            self.consumed.add(id(callee))
+            self.lookup_gaps.append(
+                f"{self.where}:{node.lineno}: `{root.id}` is rebound in the class body, so the factory"
+                f" `{ast.unparse(callee)}` names there is not settled; its wrapper is not audited"
+            )
+        return names_factory
 
     def _imported_configured(self, name: str) -> _Lookup:
         """Return the configured factory a name imported from an in-tree module holds, or why it was not followed."""
@@ -705,13 +864,18 @@ class _ModuleAnalyzer:
                     self.star_sources.append(origin)
                 continue
             local = alias.asname or alias.name
+            if origin == self.parsed.name:
+                # ``from . import sub`` in a package's ``__init__`` takes the attribute already bound here, else the
+                # submodule; a reference back to this module would chase itself in a cycle
+                self._set(local, self.bindings.get(alias.name))
+                continue
             self._set(local, _ImportRef(origin, alias.name) if in_tree else None)
 
     def _module_call(self, call: ast.Call) -> None:
         """Recognize ``deprecated_module(...)`` deprecating this module; the first call wins, as at runtime."""
         if self.aliases.kind(call.func) is not _Factory.MODULE:
             return
-        args = self._bind(call, _Factory.MODULE)
+        args = self._bind(call, _Factory.MODULE, {})
         name = args.given.get("name")
         own = (
             name is None
@@ -730,12 +894,16 @@ class _ModuleAnalyzer:
     ) -> Optional[_Wrapper]:
         """Return the wrapper the outermost ``@deprecated``/``@deprecated_callable`` of a ``def`` builds, if any."""
         found: Optional[_Wrapper] = None
+        replaced = False
         descriptor = next(
             (name for d in node.decorator_list if (name := _dotted(d)) in ("classmethod", "staticmethod")), None
         )
-        for decorator in node.decorator_list:  # outermost first; its configuration is the one the scan reads
+        for index, decorator in enumerate(node.decorator_list):  # outermost first; the scan reads its configuration
             factory = self._factory_call(decorator, (_Factory.DEPRECATED, _Factory.CALLABLE), shadow)
-            if factory is None or found is not None:
+            if factory is None or found is not None or replaced:
+                continue
+            replaced = self._replaced_by_outer(node.decorator_list[:index], decorator)
+            if replaced:
                 continue
             kind, settings = factory
             route = _Route.CALLABLE if kind is _Factory.DEPRECATED else _Route.CALLABLE_STRICT
@@ -743,34 +911,65 @@ class _ModuleAnalyzer:
             found = self._finish(settings, route, api_type, proxy=False)
         return found
 
+    def _replaced_by_outer(self, outer: Sequence[ast.expr], factory: ast.expr) -> bool:
+        """Tell whether a decorator stacked over *factory* may replace its wrapper, recording the gap when it may.
+
+        The import scan sees only the object the outermost decorator returns; a decorator outside
+        :data:`_TRANSPARENT_DECORATORS` may return something that is no wrapper, so the wrapper is left out of the
+        checks rather than reported as a finding the import scan would not make.
+
+        """
+        for decorator in outer:
+            name = self._qualified(decorator.func if isinstance(decorator, ast.Call) else decorator)
+            accessor = name is not None and "." in name and name.rpartition(".")[2] in _ACCESSORS
+            if name in _TRANSPARENT_DECORATORS or accessor:
+                continue
+            self.lookup_gaps.append(
+                f"{self.where}:{factory.lineno}: `@{ast.unparse(decorator)}` is applied over the deprecation wrapper"
+                " and may replace it; the wrapper is not audited"
+            )
+            return True
+        return False
+
+    def _qualified(self, node: ast.expr) -> Optional[str]:
+        """Return the dotted name *node* spells, its root resolved through ``from module import name``."""
+        return _qualified_name(self.parsed, self.scope, node)
+
     def _class(
         self, node: ast.ClassDef, *, attr: Optional[str], shadow: Mapping[str, list]
-    ) -> Union[_Wrapper, _ClassInfo]:
+    ) -> Union[_Wrapper, _ClassInfo, None]:
         """Return the proxy a class decorator builds, else the class with its own member bindings."""
-        for decorator in node.decorator_list:
+        for index, decorator in enumerate(node.decorator_list):
             factory = self._factory_call(decorator, (_Factory.DEPRECATED, _Factory.CLASS), shadow)
             if factory is not None:
+                if self._replaced_by_outer(node.decorator_list[:index], decorator):
+                    return None
                 kind, settings = factory
                 route = _Route.CLASS_FRONT if kind is _Factory.DEPRECATED else _Route.CLASS
-                api_type = _member_api_type(attr, None) if attr is not None else _class_api_type(_is_dataclass(node))
+                is_dataclass = _is_dataclass(node, self._qualified)
+                api_type = _member_api_type(attr, None) if attr is not None else _class_api_type(is_dataclass)
                 return self._finish(settings, route, api_type, proxy=True)
         info = _ClassInfo(self.parsed.name, {}, list(node.bases))
         body_scope = _scope_events(node.body)
+        accessors: dict[str, dict[str, Optional[_Wrapper]]] = {}
         for stmt in node.body:
-            self._class_statement(info, stmt, body_scope)
+            self._class_statement(info, stmt, body_scope, accessors)
         return info
 
-    def _class_statement(self, info: _ClassInfo, stmt: ast.stmt, body_scope: Mapping[str, list]) -> None:
-        """Record what one class-body statement binds as a member."""
+    def _class_statement(
+        self,
+        info: _ClassInfo,
+        stmt: ast.stmt,
+        body_scope: Mapping[str, list],
+        accessors: dict[str, dict[str, Optional[_Wrapper]]],
+    ) -> None:
+        """Record what one class-body statement binds as a member; *accessors* holds each property's accessor slots."""
         if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            wrapper = self._decorated_def(stmt, attr=stmt.name, shadow=body_scope)
-            accessor = any(
-                isinstance(d, ast.Attribute) and _dotted(d) == f"{stmt.name}.{d.attr}" for d in stmt.decorator_list
-            )
-            if wrapper is None and accessor and info.members.get(stmt.name) is not None:
-                return  # ``@old.setter`` rebuilds a property from a deprecated getter; the getter still warns
-            info.members[stmt.name] = wrapper
-        elif isinstance(stmt, ast.ClassDef):
+            self._member_def(info, stmt, body_scope, accessors)
+            return
+        for name in _scope_events([stmt]):
+            accessors.pop(name, None)
+        if isinstance(stmt, ast.ClassDef):
             nested = self._class(stmt, attr=stmt.name, shadow=body_scope)
             info.members[stmt.name] = nested if isinstance(nested, _Wrapper) else None
         elif isinstance(stmt, (ast.Assign, ast.AnnAssign)) and stmt.value is not None:
@@ -782,13 +981,42 @@ class _ModuleAnalyzer:
             for name in _scope_events([stmt]):
                 info.members[name] = None
 
+    def _member_def(
+        self,
+        info: _ClassInfo,
+        stmt: Union[ast.FunctionDef, ast.AsyncFunctionDef],
+        body_scope: Mapping[str, list],
+        accessors: dict[str, dict[str, Optional[_Wrapper]]],
+    ) -> None:
+        """Record a method, or one accessor of a property, as the member the import scan reads.
+
+        ``@old.setter`` rebuilds the property with one accessor replaced, and the import scan reports its first
+        deprecated accessor in getter, setter, deleter order, whatever order the source declares them in.
+
+        """
+        wrapper = self._decorated_def(stmt, attr=stmt.name, shadow=body_scope)
+        slot = next(
+            (
+                _ACCESSOR_SLOTS[d.attr]
+                for d in stmt.decorator_list
+                if isinstance(d, ast.Attribute) and d.attr in _ACCESSOR_SLOTS and _dotted(d) == f"{stmt.name}.{d.attr}"
+            ),
+            None,
+        )
+        if slot is None:
+            slots: dict[str, Optional[_Wrapper]] = {"fget": wrapper}
+        else:
+            slots = {**accessors.get(stmt.name, {"fget": info.members.get(stmt.name)}), slot: wrapper}
+        accessors[stmt.name] = slots
+        info.members[stmt.name] = next((slots[s] for s in _ACCESSOR_SLOTS.values() if slots.get(s) is not None), None)
+
     def _wrapper_expr(self, value: ast.expr, *, attr: Optional[str], shadow: Mapping[str, list]) -> Optional[_Wrapper]:
         """Recognize ``factory(...)(obj)`` and ``deprecated_instance(obj, ...)``; any other value is no wrapper."""
-        if not isinstance(value, ast.Call):
+        if not isinstance(value, ast.Call) or self._shadowed_factory(value, shadow):
             return None
         if self.aliases.kind(value.func) is _Factory.INSTANCE:
             self.consumed.add(id(value.func))
-            args = self._bind(value, _Factory.INSTANCE)
+            args = self._bind(value, _Factory.INSTANCE, shadow)
             api_type = _member_api_type(attr, None) if attr is not None else self._instance_api_type(args)
             return self._finish(self._read_settings(args, value, shadow), _Route.INSTANCE, api_type, proxy=True)
         if len(value.args) != 1 or value.keywords:
@@ -811,8 +1039,7 @@ class _ModuleAnalyzer:
         gives a wrapper the import scan attributes to the module the function came from.
 
         """
-        obj_kind, obj_node, origin = self._name_kind(obj, shadow)
-        is_dataclass = isinstance(obj_node, ast.ClassDef) and _is_dataclass(obj_node)
+        obj_kind, is_dataclass, origin = self._name_kind(obj, shadow)
         here = self.parsed.name
         if kind is _Factory.CLASS:
             return _Route.CLASS, _class_api_type(is_dataclass), True, here
@@ -824,34 +1051,35 @@ class _ModuleAnalyzer:
             return _Route.CALLABLE, _callable_api_type, False, origin
         return _Route.UNKNOWN_FRONT, _callable_api_type, None, origin
 
-    def _name_kind(self, node: ast.expr, shadow: Mapping[str, list]) -> tuple[str, Optional[ast.AST], str]:
-        """Return ``def``, ``class`` or ``other`` for what *node* names, its defining node and its defining module."""
+    def _name_kind(self, node: ast.expr, shadow: Mapping[str, list]) -> tuple[str, bool, str]:
+        """Return ``def``, ``class`` or ``other`` for what *node* names, whether it is a dataclass, and its module."""
         here = self.parsed.name
         if isinstance(node, ast.Lambda):
-            return "def", node, here
+            return "def", False, here
         if not isinstance(node, ast.Name):
-            return "other", None, here
+            return "other", False, here
         event = _single(shadow, node.id) if node.id in shadow else _single(self.scope, node.id)
         if event is not None and event.kind in ("def", "class"):
-            return event.kind, event.value, here
+            is_dataclass = isinstance(event.value, ast.ClassDef) and _is_dataclass(event.value, self._qualified)
+            return event.kind, is_dataclass, here
         if event is not None and isinstance(event.value, ast.ImportFrom):
             origin = _absolute_import(here, self.parsed.is_package, event.value)
             source = next((alias.name for alias in event.value.names if (alias.asname or alias.name) == node.id), "")
-            kind, defined = self.imported_kind(origin, source) if self.in_tree(origin) else ("other", None)
-            return kind, defined, origin
-        return "other", None, here
+            kind, is_dataclass = self.imported_kind(origin, source) if self.in_tree(origin) else ("other", False)
+            return kind, is_dataclass, origin
+        return "other", False, here
 
     def _instance_api_type(self, args: _CallArgs) -> Callable[[bool], str]:
         """``deprecated_instance`` of a same-file class proxies the class; of anything else, a data object."""
         obj = args.given.get("obj")
-        kind, node, _ = self._name_kind(obj, {}) if obj is not None else ("other", None, "")
+        kind, is_dataclass, _ = self._name_kind(obj, {}) if obj is not None else ("other", False, "")
         if kind == "class":
-            return _class_api_type(isinstance(node, ast.ClassDef) and _is_dataclass(node))
+            return _class_api_type(is_dataclass)
         return lambda _: "data"
 
     # -- argument reading -----------------------------------------------------------------------------------------
 
-    def _bind(self, call: ast.Call, factory: _Factory) -> _CallArgs:
+    def _bind(self, call: ast.Call, factory: _Factory, shadow: Mapping[str, list]) -> _CallArgs:
         """Map a factory call's arguments to parameter names; a same-file literal ``**dict`` splat is expanded."""
         given: dict[str, ast.expr] = {}
         splat: Optional[str] = None
@@ -866,7 +1094,7 @@ class _ModuleAnalyzer:
             if keyword.arg is not None:
                 given[keyword.arg] = keyword.value
                 continue
-            entries = self._literal_dict(keyword.value)
+            entries = self._literal_dict(keyword.value, shadow)
             if entries is None:
                 splat = f"**{ast.unparse(keyword.value)}"
             else:
@@ -874,10 +1102,17 @@ class _ModuleAnalyzer:
                     given.setdefault(key, value)
         return _CallArgs(given, splat)
 
-    def _literal_dict(self, node: ast.expr) -> Optional[dict[str, ast.expr]]:
-        """Return the entries of a dict literal, inline or a same-file name bound once to one, with string keys."""
+    def _literal_dict(self, node: ast.expr, shadow: Mapping[str, list]) -> Optional[dict[str, ast.expr]]:
+        """Return the entries of a dict literal, inline or a same-file name bound once to one, with string keys.
+
+        A name the enclosing class body binds is left unread: which binding a decorator sees depends on statement
+        order, as for a string setting (:meth:`_string`).
+
+        """
+        if isinstance(node, ast.Name) and node.id in shadow:
+            return None
         if isinstance(node, ast.Name):
-            event = _single(self.scope, node.id) if node.id not in self.mutated else None
+            event = self._settled_binding(node.id) if node.id not in self.escaped else None
             node = event.value if event is not None and event.kind == "assign" else node
         if not isinstance(node, ast.Dict):
             return None
@@ -887,6 +1122,10 @@ class _ModuleAnalyzer:
                 return None
             entries[key.value] = value
         return entries
+
+    def _settled_binding(self, name: str) -> Optional[_Event]:
+        """Return the one module-level binding of *name*, or ``None`` when the source does not settle what it holds."""
+        return None if self.globals_unsettled else _single(self.scope, name)
 
     def _setting(self, args: _CallArgs, name: str) -> Optional[ast.expr]:
         """Return the expression given for *name*, raising :class:`LookupError` when only a splat could carry it."""
@@ -902,17 +1141,19 @@ class _ModuleAnalyzer:
             node = self._setting(args, name)
         except LookupError as err:
             return _Read(default, str(err))
-        if node is None or (isinstance(node, ast.Constant) and node.value is None and default is None):
+        if node is None:
             return _Read(default)
         literal = node
         if isinstance(node, ast.Name) and node.id not in shadow:
-            event = _single(self.scope, node.id)
+            event = self._settled_binding(node.id)
             literal = event.value if event is not None and event.kind == "assign" else node
+        if isinstance(literal, ast.Constant) and literal.value is None:
+            return _Read(default)  # ``None`` leaves the setting unset, as the runtime reads a falsy version
         if isinstance(literal, ast.Constant) and isinstance(literal.value, str):
             return _Read(literal.value)
         return _Read(default, f"`{name}` is `{ast.unparse(node)}`, not a literal")
 
-    def _mapping(self, args: _CallArgs, name: str) -> _Read:
+    def _mapping(self, args: _CallArgs, name: str, shadow: Mapping[str, list]) -> _Read:
         """Read a mapping setting: ``None`` or a dict literal (inline or a same-file name bound once to one)."""
         try:
             node = self._setting(args, name)
@@ -920,7 +1161,7 @@ class _ModuleAnalyzer:
             return _Read(None, str(err))
         if node is None or (isinstance(node, ast.Constant) and node.value is None):
             return _Read(None)
-        entries = self._literal_dict(node)
+        entries = self._literal_dict(node, shadow)
         if entries is None:
             return _Read(None, f"`{name}` is `{ast.unparse(node)}`, not a literal")
         return _Read(dict.fromkeys(entries) or None)
@@ -961,7 +1202,8 @@ class _ModuleAnalyzer:
             return _Read(("replacement", node.id, event.kind))
         if event.kind == "import":
             return _Read(("replacement", node.id, "other"))
-        if event.kind == "assign" and depth == 0 and isinstance(event.value, ast.expr):
+        settled = events is not self.scope or not self.globals_unsettled
+        if event.kind == "assign" and depth == 0 and isinstance(event.value, ast.expr) and settled:
             read = self._classify_target(event.value, {}, depth + 1)
             if read.reason is None:
                 return read if read.value[0] == "const" else _Read(("replacement", node.id, read.value[2]))
@@ -977,8 +1219,8 @@ class _ModuleAnalyzer:
             deprecated_in=self._string(args, "deprecated_in", shadow, ""),
             remove_in=self._string(args, "remove_in", shadow, ""),
             template=template,
-            args_mapping=self._mapping(args, "args_mapping"),
-            attrs_mapping=self._mapping(args, "attrs_mapping"),
+            args_mapping=self._mapping(args, "args_mapping", shadow),
+            attrs_mapping=self._mapping(args, "attrs_mapping", shadow),
             target=self._target(args, shadow),
         )
 
@@ -1014,13 +1256,50 @@ class _ModuleAnalyzer:
         a pyDeprecate name the source does not settle (imported inside a function, or rebound).
 
         """
-        gaps = list(self.lookup_gaps)
+        gaps: list[str] = []
         for node in ast.walk(self.parsed.tree):
+            if isinstance(node, ast.Call) and self._is_foreign_factory_call(node):
+                gaps.append(
+                    f"{self.where}:{node.lineno}: `{ast.unparse(node.func)}` is called with `remove_in` but comes from"
+                    " a module static mode does not read; if it is a pyDeprecate factory, its wrapper is not audited"
+                )
             if not isinstance(node, (ast.Name, ast.Attribute)) or id(node) in self.consumed:
                 continue
             if isinstance(node.ctx, ast.Load) and self._is_factory_reference(node):
                 gaps.append(f"{self.where}:{node.lineno}: unrecognized use of `{ast.unparse(node)}`")
-        return gaps
+        return [*self.lookup_gaps, *gaps]  # the walk adds the import cycles it meets to ``lookup_gaps``
+
+    def _is_foreign_factory_call(self, call: ast.Call) -> bool:
+        """Tell whether *call* passes ``remove_in`` to a name that may hold a factory the reader cannot see.
+
+        A factory re-exported by a module outside the scanned tree (``from compat import deprecated``, or a star import
+        of one) is not recognized, so its wrappers would pass unseen. ``remove_in`` is pyDeprecate's own spelling, so a
+        call passing it by keyword marks such a use; a call with positional settings stays out of reach.
+
+        """
+        if id(call.func) in self.consumed or not any(keyword.arg == "remove_in" for keyword in call.keywords):
+            return False
+        if isinstance(call.func, (ast.Name, ast.Attribute)) and self._is_factory_reference(call.func):
+            return False  # already reported as an unrecognized use
+        root = call.func
+        while isinstance(root, ast.Attribute):
+            root = root.value
+        return isinstance(root, ast.Name) and self._is_foreign_name(root.id)
+
+    def _is_foreign_name(self, name: str) -> bool:
+        """Tell whether a module-level *name* comes from a module the reader does not follow, so it may be a factory."""
+        if name not in self.scope:
+            return self.foreign_star and not hasattr(builtins, name)
+        event = _single(self.scope, name)
+        if event is None or event.kind != "import":
+            return False
+        if isinstance(event.value, ast.Import):
+            origin = next(a.name for a in event.value.names if (a.asname or a.name.split(".")[0]) == name)
+        else:
+            origin, source = self._import_origin(name) or ("", "")
+            if self.in_tree(origin):
+                return self.imported_kind(origin, source)[0] == "other"
+        return origin.split(".")[0] != "deprecate" and not _is_memberless_module(origin)
 
     def _is_factory_reference(self, node: Union[ast.Name, ast.Attribute]) -> bool:
         """Tell whether *node* refers to a factory, a configured factory, or a pyDeprecate name bound ambiguously."""
@@ -1030,7 +1309,18 @@ class _ModuleAnalyzer:
             return False
         if node.id in self.aliases.ambiguous:
             return self.aliases.ambiguous[node.id] is not _Factory.TARGET_MODE
-        return node.id in self.ever_configured or self._imported_configured(node.id) is not None
+        lookup = self._imported_configured(node.id)
+        if isinstance(lookup, str):
+            self._unfollowed(node, lookup)
+            return False
+        return node.id in self.ever_configured or lookup is not None
+
+    def _unfollowed(self, node: ast.expr, reason: str) -> None:
+        """Record once per name why an imported name that may hold a configured factory was not followed."""
+        name = ast.unparse(node)
+        if name not in self.unfollowed:
+            self.unfollowed.add(name)
+            self.lookup_gaps.append(f"{self.where}:{node.lineno}: `{name}` {reason}")
 
 
 def _callable_api_type(has_mapping: bool) -> str:
@@ -1053,11 +1343,7 @@ def _member_api_type(attr: str, descriptor: Optional[str]) -> Callable[[bool], s
 def _store_target(read: _Read, route: _Route, mappings: tuple[Any, Any]) -> _Read:
     """Return the ``target`` the factory of *route* stores for a classified read, or why the source does not say."""
     if read.reason is not None:
-        expr = read.value[1] if isinstance(read.value, tuple) and read.value[0] == "expr" else None
-        # any expression given to ``deprecated_module(target=...)`` other than ``None`` names a replacement module
-        return (
-            _Read(types.ModuleType(expr)) if route is _Route.MODULE and expr is not None else _Read(None, read.reason)
-        )
+        return _Read(None, read.reason)
     classified = read.value
     if classified[0] == "default":
         default = {_Route.CALLABLE: TargetMode.AUTO, _Route.UNKNOWN_FRONT: TargetMode.AUTO}.get(route)
@@ -1072,7 +1358,10 @@ def _normalise_target(read: tuple[Any, ...], route: _Route, mappings: tuple[Any,
     args_mapping, attrs_mapping = mappings
     kind, value = read[0], read[1]
     if route is _Route.MODULE:
-        return _Read(None if kind == "const" and value is None else types.ModuleType(str(value)))
+        # a named replacement (module, function or class) is named by the warning the factory renders, which counts as
+        # guidance, so it is stored as a module; a constant (``True``, a ``TargetMode`` member) has no name and gives
+        # none, as at runtime
+        return _Read(types.ModuleType(str(value)) if kind == "replacement" else None)
     if kind == "replacement":
         if route is _Route.CLASS_FRONT and read[2] != "class":
             if read[2] == "def":
@@ -1129,6 +1418,8 @@ class _StaticSource(NamedTuple):
     name: str
     location: Path
     import_root: Optional[Path]
+    #: Every directory of a namespace package, in import-path order; empty for any other source.
+    portions: tuple[Path, ...] = ()
 
 
 def _locate_static(path: str, package_dir: Optional[Path]) -> Union[_StaticSource, str]:
@@ -1155,18 +1446,25 @@ def _locate_static(path: str, package_dir: Optional[Path]) -> Union[_StaticSourc
     if spec is None:
         return f"No such path or importable module: {path!r}"
     if spec.submodule_search_locations:
-        location = Path(next(iter(spec.submodule_search_locations)))
-        return _StaticSource("package", path, location, location.parent)
+        portions = tuple(Path(location) for location in spec.submodule_search_locations)
+        # a namespace package has no ``__init__`` (no origin) and may span several directories, each one walked
+        namespace = portions if spec.origin is None else ()
+        return _StaticSource("package", path, portions[0], portions[0].parent, namespace)
     if spec.origin and spec.origin.endswith(".py"):
         return _StaticSource("module", path, Path(spec.origin), Path(spec.origin).parent)
     return f"{path!r} has no Python source for `--static` to read."
 
 
 def _package_entries(pkg_dir: Path) -> Iterator[tuple[str, bool]]:
-    """Yield ``(name, is_package)`` for the submodules of a package directory, as :func:`pkgutil.iter_modules` does."""
+    """Yield ``(name, is_package)`` for the submodules of a package directory, as :func:`pkgutil.iter_modules` does.
+
+    A directory that cannot be listed is a ``module not audited`` gap rather than a package with no submodules.
+
+    """
     try:
         filenames = sorted(entry.name for entry in os.scandir(pkg_dir))
-    except OSError:
+    except OSError as err:
+        _print_gap(_GapKind.MODULE_NOT_AUDITED, f"submodules of {_display(pkg_dir)} not listed: {err}")
         return
     yielded: set[str] = set()
     for filename in filenames:
@@ -1177,8 +1475,10 @@ def _package_entries(pkg_dir: Path) -> Iterator[tuple[str, bool]]:
         if not name and (pkg_dir / filename).is_dir() and "." not in filename:
             try:
                 is_package = any(inspect.getmodulename(sub) == "__init__" for sub in os.listdir(pkg_dir / filename))
-            except OSError:
-                is_package = False
+            except OSError as err:
+                sub_dir = _display(pkg_dir / filename)
+                _print_gap(_GapKind.MODULE_NOT_AUDITED, f"submodules of {sub_dir} not listed: {err}")
+                continue
             if not is_package:
                 continue
             name = filename
@@ -1206,6 +1506,23 @@ def _walk_package(
         else:
             source = pkg_dir / f"{sub}.py"
             yield modname, source if source.is_file() else None
+
+
+def _walk_namespace(
+    portions: Sequence[Path], name: str, *, recursive: bool, exclude: Sequence[str]
+) -> Iterator[tuple[str, Optional[Path]]]:
+    """Yield the submodules of a namespace package across its directories, as the import scan walks ``__path__``.
+
+    The package has no ``__init__`` of its own, so its root is neither read nor a gap; a submodule found in more than
+    one directory is taken from the first, as importing it would.
+
+    """
+    claimed: set[str] = set()
+    for portion in portions:
+        found = list(_walk_package(portion, name, recursive=recursive, exclude=exclude, top=False))
+        children = {module[len(name) + 1 :].split(".")[0] for module, _ in found}
+        yield from (entry for entry in found if entry[0][len(name) + 1 :].split(".")[0] not in claimed)
+        claimed |= children
 
 
 def _plain_modules(directory: Path, exclude: Sequence[str]) -> Iterator[tuple[str, Optional[Path]]]:
@@ -1251,22 +1568,35 @@ class _Reader:
         root = self.root_package
         return root is not None and (module == root or module.startswith(f"{root}."))
 
-    def parse(self, module: str, path: Optional[Path] = None, *, report: bool = False) -> Optional[_Parsed]:
-        """Parse *module* once; with *report*, a file that cannot be read is a ``module not audited`` gap."""
+    def parse(self, module: str, path: Optional[Path] = None) -> Optional[_Parsed]:
+        """Parse *module* once; a file that cannot be read is a ``module not audited`` gap, printed when first met.
+
+        The gap is printed where the failure happens, so a module reached only through another module's import (never
+        walked itself under ``--no-recursive`` or ``--exclude``) still reports why its names were not audited.
+
+        """
         if module not in self._parsed:
-            roots = [self.source.import_root] if self.source.import_root is not None else []
+            roots = [portion.parent for portion in self.source.portions]
+            roots = roots or ([self.source.import_root] if self.source.import_root is not None else [])
             path = path if path is not None else _module_source_file(module, roots) if self.in_tree(module) else None
             if path is None:
+                namespace_root = bool(self.source.portions) and module == self.source.name
+                if self.in_tree(module) and not namespace_root:  # a namespace package has no source of its own
+                    self.missing(module)
                 return None  # nothing to cache: a later call may name the file
             parsed: Optional[_Parsed] = None
             try:
                 parsed = _Parsed(module, path, ast.parse(path.read_bytes(), filename=str(path)))
             except (OSError, SyntaxError, ValueError, RecursionError, MemoryError) as err:
                 self._errors[module] = f"could not read its source: {err!r}"
+                self._report(module)
             self._parsed[module] = parsed
-        if report:
-            self._report(module)
         return self._parsed[module]
+
+    def missing(self, module: str) -> None:
+        """Report a module of the scanned tree that has no Python source to read, once."""
+        self._errors.setdefault(module, "no Python source to read")
+        self._report(module)
 
     def _report(self, module: str) -> None:
         """Print the ``module not audited`` gap of a module that could not be read or analyzed, once."""
@@ -1311,12 +1641,13 @@ class _Reader:
 
     def _analyze(self, parsed: _Parsed, *, isolated: bool) -> Optional[_ModuleFacts]:
         """Run the analyzer on *parsed*; isolated, it asks no other module, for the table."""
-        name_kind = (lambda _module, _name: ("other", None)) if isolated else self.name_kind
+        name_kind = (lambda _module, _name: ("other", False)) if isolated else self.name_kind
         configured = (lambda _module, _name: None) if isolated else self.configured
         try:
             return _ModuleAnalyzer(parsed, self.aliases(parsed), self.in_tree, name_kind, configured).run()
         except (RecursionError, MemoryError) as err:
             self._errors.setdefault(parsed.name, f"its source is nested too deeply to analyze: {err!r}")
+            self._report(parsed.name)
             return None
 
     def table(self, module: str) -> Optional[_ModuleFacts]:
@@ -1326,7 +1657,7 @@ class _Reader:
             self._tables[module] = self._analyze(parsed, isolated=True) if parsed is not None else None
         return self._tables[module]
 
-    def facts(self, module: str, path: Optional[Path] = None, *, report: bool = False) -> Optional[_ModuleFacts]:
+    def facts(self, module: str, path: Optional[Path] = None) -> Optional[_ModuleFacts]:
         """Analyze *module* once, or return ``None`` when its source cannot be read or analyzed."""
         parsed = self.parse(module, path)
         if module not in self._facts:
@@ -1336,8 +1667,6 @@ class _Reader:
                 self._expand_stars(module, facts)
             self._in_progress.discard(module)
             self._facts[module] = facts
-        if report:
-            self._report(module)
         return self._facts[module]
 
     def _expand_stars(self, module: str, facts: _ModuleFacts) -> None:
@@ -1355,10 +1684,11 @@ class _Reader:
                 if listed and name not in facts.bindings:
                     facts.bindings[name] = _ImportRef(origin, name)
 
-    def configured(self, module: str, name: str, depth: int = 0) -> _Lookup:
-        """Return the configured factory an in-tree module binds *name* to, following its re-exports."""
-        if depth >= _IMPORT_HOPS:
-            return f"is re-exported through more than {_IMPORT_HOPS} modules; not followed"
+    def configured(self, module: str, name: str, seen: frozenset[tuple[str, str]] = frozenset()) -> _Lookup:
+        """Return the configured factory an in-tree module binds *name* to, following its re-exports to the end."""
+        if (module, name) in seen:
+            return _CYCLE
+        seen |= {(module, name)}
         table = self.table(module)
         if table is None:
             return None
@@ -1366,39 +1696,50 @@ class _Reader:
             return table.configured[name]
         value = table.bindings.get(name)
         if isinstance(value, _ImportRef):
-            return self.configured(value.module, value.name, depth + 1)
+            return self.configured(value.module, value.name, seen)
         for origin in table.star_sources if name not in table.bindings else ():
             parsed = self.parse(origin)
             exports = _literal_all(parsed.tree) if parsed is not None else None
             if exports is None and _is_public(name) or isinstance(exports, set) and name in exports:
-                found = self.configured(origin, name, depth + 1)
+                found = self.configured(origin, name, seen)
                 if found is not None:
                     return found
         return None
 
-    def name_kind(self, module: str, name: str, depth: int = 0) -> tuple[str, Optional[ast.AST]]:
-        """Return ``def``, ``class`` or ``other`` for what *module* binds *name* to, following in-tree imports."""
-        parsed = self.parse(module) if depth < _IMPORT_HOPS else None
-        event = _single(_scope_events(parsed.tree.body), name) if parsed is not None else None
+    def name_kind(self, module: str, name: str, seen: frozenset[tuple[str, str]] = frozenset()) -> tuple[str, bool]:
+        """Return ``def``, ``class`` or ``other`` for what *module* binds *name* to, and whether it is a dataclass.
+
+        In-tree imports are followed to the end; a re-export cycle names nothing. A class's decorators are resolved in
+        the module that defines it.
+
+        """
+        parsed = self.parse(module) if (module, name) not in seen else None
+        if parsed is None:
+            return "other", False
+        scope = _scope_events(parsed.tree.body)
+        event = _single(scope, name)
         if event is None:
-            return "other", None
+            return "other", False
         if event.kind in ("def", "class"):
-            return event.kind, event.value
-        if parsed is not None and isinstance(event.value, ast.ImportFrom):
+            qualify = functools.partial(_qualified_name, parsed, scope)
+            return event.kind, isinstance(event.value, ast.ClassDef) and _is_dataclass(event.value, qualify)
+        if isinstance(event.value, ast.ImportFrom):
             origin = _absolute_import(module, parsed.is_package, event.value)
             source = next((alias.name for alias in event.value.names if (alias.asname or alias.name) == name), "")
-            if self.in_tree(origin):
-                return self.name_kind(origin, source, depth + 1)
-        return "other", None
+            if self.in_tree(origin) and origin != module:
+                return self.name_kind(origin, source, seen | {(module, name)})
+        return "other", False
 
     def resolve(self, value: _Value) -> tuple[_Value, bool]:
-        """Follow in-tree import references to the wrapper or class they name; also tell whether the hops ran out."""
-        for _ in range(_IMPORT_HOPS):
-            if not isinstance(value, _ImportRef):
-                return value, False
+        """Follow in-tree import references to the wrapper or class they name; also tell whether they form a cycle."""
+        seen: set[_ImportRef] = set()
+        while isinstance(value, _ImportRef):
+            if value in seen:
+                return None, True
+            seen.add(value)
             facts = self.facts(value.module)
             value = facts.bindings.get(value.name) if facts is not None else None
-        return (None, True) if isinstance(value, _ImportRef) else (value, False)
+        return value, False
 
     def class_members(self, info: _ClassInfo, unaudited: list[str]) -> dict[str, _Wrapper]:
         """Return a class's deprecated members, those inherited from bases in the scanned tree included.
@@ -1505,12 +1846,9 @@ def _module_rows(
     for name in sorted(facts.bindings):
         if name.startswith("_"):
             continue
-        value, exhausted = reader.resolve(facts.bindings[name])
-        if exhausted:
-            _print_gap(
-                _GapKind.STATIC_UNRESOLVED,
-                f"{module}.{name}: re-exported through more than {_IMPORT_HOPS} modules; not followed",
-            )
+        value, cycle = reader.resolve(facts.bindings[name])
+        if cycle:
+            _print_gap(_GapKind.STATIC_UNRESOLVED, f"{module}.{name}: {_CYCLE}")
         elif isinstance(value, _Wrapper):
             rows.extend(_wrapper_rows(module, name, value, attribute=attribute, seen=seen))
         elif isinstance(value, _ClassInfo) and include_members and value.module == module:
@@ -1548,7 +1886,9 @@ def _read_static(
 ) -> list[DeprecationWrapperInfo]:
     """Read every wrapper of a located source, printing a gap for everything the source alone does not settle."""
     reader = _Reader(source)
-    if source.kind == "package":
+    if source.portions:
+        modules = list(_walk_namespace(source.portions, source.name, recursive=recursive, exclude=exclude))
+    elif source.kind == "package":
         modules = list(_walk_package(source.location, source.name, recursive=recursive, exclude=exclude))
     elif source.kind == "plain":
         modules = list(_plain_modules(source.location, exclude))
@@ -1560,9 +1900,9 @@ def _read_static(
     seen: set[int] = set()
     for module, path in modules:
         if path is None:
-            _print_gap(_GapKind.MODULE_NOT_AUDITED, f"{module}: no Python source to read")
+            reader.missing(module)
             continue
-        facts = reader.facts(module, path, report=True)
+        facts = reader.facts(module, path)
         if facts is None:
             continue
         for detail in facts.gaps:
@@ -1607,9 +1947,13 @@ def _static_policy_findings(wrappers: list[DeprecationWrapperInfo], spec: _Polic
     A version held in a variable leaves ``min-grace`` unable to judge a wrapper, but not ``message-required``, which
     still reads its target and message — so one unsettled setting never hides a violation another rule can prove.
 
+    Each wrapper a rule that ran had to leave out is named by a ``not statically resolvable`` gap, printed once the
+    rules have run: a rule that raised below never ran, so it names no wrapper "not checked".
+
     Raises:
         ImportError: As :func:`~deprecate.audit._policy._policy_findings` does, when ``min-grace`` runs without the
-            ``packaging`` library.
+            ``packaging`` library. Nothing is printed then; the caller re-runs the rules that need no version parsing,
+            and their own call prints the gaps of those.
 
     """
     findings: list[_Finding] = []
@@ -1617,5 +1961,6 @@ def _static_policy_findings(wrappers: list[DeprecationWrapperInfo], spec: _Polic
         findings += _policy_findings(_resolved(wrappers, _GRACE_KEYWORDS), replace(spec, message_required=False))
     if spec.message_required:
         findings += _policy_findings(_resolved(wrappers, _GUIDANCE_KEYWORDS), replace(spec, grace=None))
+    _report_unresolved(wrappers, _policy_keywords(spec))
     order = {(info.module, info.function): index for index, info in enumerate(wrappers)}
     return sorted(findings, key=lambda f: (order.get((f.module, f.symbol), 0), f.rule is _Rule.MESSAGE_REQUIRED))

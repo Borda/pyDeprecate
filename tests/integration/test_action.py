@@ -1498,3 +1498,22 @@ class TestActionMetadata:
         assert parsed is not None
         assert (program, parsed[0].function.__name__) == ("pydeprecate", f"cmd_{subcommand}")
         assert hook["id"].removeprefix("pydeprecate-").split("-")[0] in (subcommand, "pydeprecate")
+        # the ``-static`` hook variants must request static mode, the others must not
+        assert bool(parsed[1].get("static")) is hook["id"].endswith("-static")
+
+    @pytest.mark.parametrize(
+        "hook",
+        [
+            pytest.param(hook, id=hook["id"])
+            for hook in yaml.safe_load(_HOOKS_YAML.read_text(encoding="utf-8"))
+            if "--static" in shlex.split(hook["entry"])
+        ],
+    )
+    def test_precommit_static_hook_shows_its_output(self, hook: dict[str, Any]) -> None:
+        """A hook running ``--static`` is ``verbose``, so pre-commit prints the gaps of a run that passes.
+
+        A static run prints a wrapper it cannot read from source as a ``not statically resolvable`` gap and still
+        exits ``0``. pre-commit prints a passing hook's output only when the hook is ``verbose``, so without that
+        setting the one signal that part of the package went unaudited would never reach a CI log.
+        """
+        assert hook.get("verbose") is True

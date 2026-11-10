@@ -11,6 +11,8 @@ settle, which it reports as a ``not statically resolvable`` gap. The unit tests 
 | ``positional_notify``           | positional ``target``, ``deprecated_in``, ``remove_in`` | resolved               |
 | ``templated_double``            | ``@dep.deprecated`` through a module alias              | resolved               |
 | ``LegacyHolder.*``              | members: method, classmethod, staticmethod, property    | resolved               |
+| ``LegacyHolder.legacy_level``   | deprecated getter and setter: the getter's settings     | resolved               |
+| ``LegacyHolder.legacy_mode``    | deleter declared before setter: the setter's settings   | resolved               |
 | ``WarnOnlyProxyClass``          | ``@deprecated_class`` imported from ``deprecate.proxy`` | resolved               |
 | ``LegacyRecord``                | ``@deprecated_class`` on a ``@dataclass``               | resolved               |
 | ``wrapped_double``              | ``deprecated(...)(source)`` with a module constant      | resolved               |
@@ -19,6 +21,7 @@ settle, which it reports as a ``not statically resolvable`` gap. The unit tests 
 | ``public_alias``                | private wrapper bound to a public alias                 | resolved               |
 | ``splat_forward``               | ``**`` of a module-level dict literal                   | resolved               |
 | ``warnings_block``              | defined inside ``with catch_warnings():``               | resolved               |
+| ``typed_redeclared``            | redeclared for type checkers under ``if TYPE_CHECKING`` | resolved               |
 | ``ambiguous_removal``           | ``remove_in`` from a name bound twice                   | gap (``remove_in``)    |
 | ``formatted_removal``           | ``remove_in`` as an f-string                            | gap (``remove_in``)    |
 | ``called_splat``                | ``**dict(...)`` splat                                   | gap (every setting)    |
@@ -31,7 +34,7 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 
 from dataclasses import dataclass
 from functools import partial
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from warnings import catch_warnings, simplefilter
 
 import deprecate as dep
@@ -95,6 +98,32 @@ class LegacyHolder:
     def legacy_size(self) -> int:
         """Warn on a property read, with a custom message."""
         return 1
+
+    @property
+    @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
+    def legacy_level(self) -> int:
+        """Warn on a read; the row carries this getter's settings, not those of the deprecated setter below."""
+        return 1
+
+    @legacy_level.setter
+    @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="3.0")
+    def legacy_level(self, value: int) -> None:
+        """Warn on a write, with a later removal release than the getter."""
+
+    @property
+    def legacy_mode(self) -> int:
+        """A getter that is not deprecated."""
+        return 0
+
+    @legacy_mode.deleter
+    @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="4.0")
+    def legacy_mode(self) -> None:
+        """Warn on delete; declared before the setter, yet the setter is the accessor the row reads."""
+
+    @legacy_mode.setter
+    @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.5")
+    def legacy_mode(self, value: int) -> None:
+        """Warn on a write: the first deprecated accessor in getter, setter, deleter order."""
 
     def current(self) -> int:
         """A member that is not deprecated and yields no row."""
@@ -162,6 +191,18 @@ with catch_warnings():
     def warnings_block(x: int) -> int:
         """Defined inside a ``with`` block, which always runs and binds at module level."""
         return void(x)
+
+
+@deprecated(target=double_value, deprecated_in="1.0", remove_in="2.0")
+def typed_redeclared(x: int) -> int:
+    """Redeclared below for type checkers, in a block that never runs, so this wrapper is what callers get."""
+    return void(x)
+
+
+if TYPE_CHECKING:
+
+    def typed_redeclared(x: int) -> int:  # type: ignore[no-redef]
+        """The signature type checkers read in place of the wrapper's."""
 
 
 # ---------------------------------------------------------------------------------------------------------------------

@@ -20,8 +20,9 @@ import sys
 import warnings
 from collections.abc import Generator, Iterator, Sequence
 from contextlib import contextmanager, nullcontext, suppress
+from enum import Enum
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 
 def _load_toml(path: str, *, strict: bool = False) -> dict[str, Any]:
@@ -106,8 +107,27 @@ def _version_from_dynamic(pkg_name: str, scan_path: str, pyproject_dir: str) -> 
 _SOURCE_HOPS = 3
 
 
+def _is_dotted_name(name: str) -> bool:
+    """Tell whether *name* is a dotted module path: every ``.``-separated part is a Python identifier.
+
+    A part with a path separator, an absolute path or nothing at all (``a..b``, ``/x``) is rejected, so a name that
+    passes cannot reach outside a directory it is joined to.
+
+    Examples:
+        >>> _is_dotted_name("pkg.sub"), _is_dotted_name("pkg")
+        (True, True)
+        >>> _is_dotted_name("pkg..sub"), _is_dotted_name("/etc/m"), _is_dotted_name("")
+        (False, False, False)
+
+    """
+    return all(part.isidentifier() for part in name.split("."))
+
+
 def _module_source_file(module: str, roots: Sequence[Path]) -> Optional[Path]:
     """Return the source file of dotted *module* under the first import root that has it, without importing anything.
+
+    A *module* that is not a dotted name (:func:`_is_dotted_name`) has no source file: it is taken from scanned source
+    and ``pyproject.toml``, and joined as it stands, ``/x`` or ``a/../b`` would leave the roots.
 
     Examples:
         >>> import tempfile
@@ -116,11 +136,14 @@ def _module_source_file(module: str, roots: Sequence[Path]) -> Optional[Path]:
         ...     pkg.mkdir()
         ...     _ = (pkg / "__init__.py").write_text("")
         ...     _ = (pkg / "about.py").write_text("")
-        ...     found = [_module_source_file(name, [Path(root)]) for name in ("pkg", "pkg.about", "pkg.nope")]
+        ...     names = ("pkg", "pkg.about", "pkg.nope", "pkg/about")
+        ...     found = [_module_source_file(name, [Path(root)]) for name in names]
         ...     [path.relative_to(root).as_posix() if path else None for path in found]
-        ['pkg/__init__.py', 'pkg/about.py', None]
+        ['pkg/__init__.py', 'pkg/about.py', None, None]
 
     """
+    if not _is_dotted_name(module):
+        return None
     parts = module.split(".")
     for root in roots:
         base = root.joinpath(*parts)
@@ -130,24 +153,81 @@ def _module_source_file(module: str, roots: Sequence[Path]) -> Optional[Path]:
     return None
 
 
-def _star_exports(tree: ast.Module, name: str) -> bool:
-    """Tell whether ``from <module> import *`` binds *name*: listed in a literal ``__all__``, else any public name.
+#: Why :func:`_literal_all` gives up on an ``__all__``; the static scan prints it in its ``module not audited`` gaps.
+_ALL_UNREADABLE = "has an `__all__` that is not one literal list of names"
+
+
+def _binds_all(node: ast.AST) -> bool:
+    """Tell whether *node* itself binds ``__all__``: a name store or ``del``, a ``def``, a class or an import."""
+    if isinstance(node, ast.Name):
+        return node.id == "__all__" and isinstance(node.ctx, (ast.Store, ast.Del))
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+        return node.name == "__all__"
+    if isinstance(node, (ast.Import, ast.ImportFrom)):
+        return any((alias.asname or alias.name.split(".")[0]) == "__all__" for alias in node.names)
+    return False
+
+
+def _all_assigned(stmt: ast.stmt) -> Optional[ast.expr]:
+    """Return the value a statement assigns to ``__all__`` (``__all__ = ...`` or ``__all__: T = ...``), if it does."""
+    if isinstance(stmt, ast.Assign):
+        named = any(isinstance(target, ast.Name) and target.id == "__all__" for target in stmt.targets)
+    elif isinstance(stmt, ast.AnnAssign):
+        named = isinstance(stmt.target, ast.Name) and stmt.target.id == "__all__"
+    else:
+        return None
+    return stmt.value if named else None
+
+
+def _literal_all(tree: ast.Module) -> Union[set[str], None, str]:
+    r"""Return the names a module's ``__all__`` lists for a star import; the one reader both scans share.
+
+    ``None`` when the module binds no ``__all__`` (a star import copies every public name), the set of names when
+    exactly one binding does and it is a module-level ``__all__ = [...]`` (or tuple) of string literals, else
+    :data:`_ALL_UNREADABLE`: any other form (``+=``, a second assignment, a conditional or computed list, an import)
+    can leave a list the source does not settle. A bare annotation (``__all__: list[str]``) binds nothing.
+
+    Examples:
+        >>> sorted(_literal_all(ast.parse("__all__ = ['b', 'a']")))
+        ['a', 'b']
+        >>> _literal_all(ast.parse("__version__ = '1.0'")) is None
+        True
+        >>> _literal_all(ast.parse("__all__ = ['a']\n__all__ += ['b']")) == _ALL_UNREADABLE
+        True
+
+    """
+    bare = {id(node.target) for node in ast.walk(tree) if isinstance(node, ast.AnnAssign) and node.value is None}
+    bindings = sum(1 for node in ast.walk(tree) if id(node) not in bare and _binds_all(node))
+    if not bindings:
+        return None
+    values = [value for stmt in tree.body if (value := _all_assigned(stmt)) is not None]
+    if bindings == 1 and len(values) == 1 and isinstance(values[0], (ast.List, ast.Tuple)):
+        elts = values[0].elts
+        names = [elt.value for elt in elts if isinstance(elt, ast.Constant) and isinstance(elt.value, str)]
+        if len(names) == len(elts):
+            return set(names)
+    return _ALL_UNREADABLE
+
+
+def _star_exports(tree: ast.Module, name: str) -> Optional[bool]:
+    r"""Tell whether ``from <module> import *`` binds *name*: listed in a literal ``__all__``, else any public name.
+
+    ``None`` when the module's ``__all__`` is not one literal list (:func:`_literal_all`), so what the star import
+    binds is not known.
 
     Examples:
         >>> _star_exports(ast.parse("__all__ = ['__version__']"), "__version__")
         True
         >>> _star_exports(ast.parse("__version__ = '1.0'"), "__version__")
         False
+        >>> _star_exports(ast.parse("__all__ = ['a']\n__all__ += ['__version__']"), "__version__") is None
+        True
 
     """
-    for node in tree.body:
-        if (
-            isinstance(node, ast.Assign)
-            and any(isinstance(target, ast.Name) and target.id == "__all__" for target in node.targets)
-            and isinstance(node.value, (ast.List, ast.Tuple))
-        ):
-            return any(isinstance(elt, ast.Constant) and elt.value == name for elt in node.value.elts)
-    return not name.startswith("_")
+    exports = _literal_all(tree)
+    if isinstance(exports, str):
+        return None
+    return name in exports if exports is not None else not name.startswith("_")
 
 
 def _absolute_import(module: str, is_package: bool, node: ast.ImportFrom) -> str:
@@ -169,9 +249,18 @@ def _absolute_import(module: str, is_package: bool, node: ast.ImportFrom) -> str
     return ".".join([*base, node.module] if node.module else base)
 
 
-def _string_from_source(
-    module: str, name: str, roots: Sequence[Path], *, hops: int = _SOURCE_HOPS, via_star: bool = False
-) -> Optional[str]:
+class _Unbound(Enum):
+    """Type of :data:`_UNBOUND`, what reading a star import yields when the import binds nothing under that name."""
+
+    STAR_IMPORT = "star import leaves the name as it was"
+
+
+#: Returned by :func:`_module_string` for a ``from X import *`` that leaves the name as the statement before it left it,
+#: kept apart from ``None`` (the star import binds the name, to something the reader cannot see).
+_UNBOUND = _Unbound.STAR_IMPORT
+
+
+def _string_from_source(module: str, name: str, roots: Sequence[Path], *, hops: int = _SOURCE_HOPS) -> Optional[str]:
     r"""Return the string constant that module-level *name* is bound to in *module*'s source, read with ``ast``.
 
     Nothing is imported. Follows ``from X import name``, ``from X import other as name`` and ``from X import *``
@@ -189,15 +278,38 @@ def _string_from_source(
         '1.4.2'
 
     """
-    source = _module_source_file(module, roots) if hops >= 0 else None
+    found = _module_string(module, name, roots, hops=hops, via_star=False)
+    return None if isinstance(found, _Unbound) else found
+
+
+def _module_string(
+    module: str, name: str, roots: Sequence[Path], *, hops: int, via_star: bool
+) -> Union[str, None, _Unbound]:
+    """Return what *module* leaves *name* bound to, for :func:`_string_from_source`; *via_star* reads a star import.
+
+    A star import is a different question from a plain read: it binds *name* only when the module exports it, and the
+    importing module keeps what it held before the statement otherwise. So with *via_star* there are three answers: the
+    string; ``None`` when the import does bind the name but the reader cannot tell to what (a non-literal value, a
+    module that cannot be parsed, an ``__all__`` that cannot be read, a module beyond the *hops* budget), which clears
+    an earlier literal as the runtime rebind would; and :data:`_UNBOUND` when it does not bind the name, because the
+    module does not export it or lies outside the *roots* (the standard library, a third-party package), whose
+    ``__version__`` a package does not take as its own.
+
+    """
+    source = _module_source_file(module, roots)
     if source is None:
+        return _UNBOUND if via_star else None
+    if hops < 0:
         return None
     try:
         tree = ast.parse(source.read_bytes(), filename=str(source))
     except (OSError, SyntaxError, ValueError, RecursionError, MemoryError):
         return None
-    if via_star and not _star_exports(tree, name):
-        return None
+    exported = _star_exports(tree, name) if via_star else True
+    if exported is None:
+        return None  # an ``__all__`` the source does not settle: the star import may rebind it
+    if not exported:
+        return _UNBOUND
     if any(isinstance(node, ast.Global) and name in node.names for node in ast.walk(tree)):
         return None  # a function may rebind it at runtime
     found: Optional[str] = None
@@ -240,8 +352,8 @@ def _rebound_string(
         origin = _absolute_import(module, is_package, node)
         for alias in node.names:
             if alias.name == "*":
-                hop = _string_from_source(origin, name, roots, hops=hops - 1, via_star=True)
-                current = hop if hop is not None else current
+                hop = _module_string(origin, name, roots, hops=hops - 1, via_star=True)
+                current = current if isinstance(hop, _Unbound) else hop
             elif (alias.asname or alias.name) == name:
                 current = _string_from_source(origin, alias.name, roots, hops=hops - 1)
         return current
@@ -312,12 +424,36 @@ def _version_from_source(
 
 
 def _setuptools_version_attr(data: dict[str, Any]) -> Optional[str]:
-    """Return the dotted ``attr`` of ``[tool.setuptools.dynamic].version`` in a parsed ``pyproject.toml``, if any."""
+    """Return the ``attr`` of ``[tool.setuptools.dynamic].version`` in a parsed ``pyproject.toml``, if it is usable.
+
+    Usable means a dotted name (``module.attribute``, :func:`_is_dotted_name`): setuptools values are, and the module
+    part is looked up as a file under the import roots, so anything else (a path, an empty part) is ignored.
+
+    Examples:
+        >>> data = {"tool": {"setuptools": {"dynamic": {"version": {"attr": "pkg.about.__version__"}}}}}
+        >>> _setuptools_version_attr(data)
+        'pkg.about.__version__'
+        >>> data["tool"]["setuptools"]["dynamic"]["version"]["attr"] = "/tmp/m.__version__"
+        >>> _setuptools_version_attr(data) is None
+        True
+
+    """
     node: Any = data
     for key in ("tool", "setuptools", "dynamic", "version"):
         node = node.get(key) if isinstance(node, dict) else None
     attr = node.get("attr") if isinstance(node, dict) else None
-    return attr if isinstance(attr, str) and "." in attr else None
+    return attr if isinstance(attr, str) and "." in attr and _is_dotted_name(attr) else None
+
+
+class _NotAProject(Enum):
+    """Type of :data:`_NOT_A_PROJECT`, the outcome for a ``pyproject.toml`` that has no ``[project]`` table."""
+
+    MISSING = "no [project] table"
+
+
+#: Returned by :func:`_version_from_toml` for a file with no ``[project]`` table, which owns no package version. Kept
+#: apart from ``None`` (a ``[project]`` whose version cannot be resolved) so the walk up knows where to stop.
+_NOT_A_PROJECT = _NotAProject.MISSING
 
 
 def _version_from_toml(
@@ -327,8 +463,8 @@ def _version_from_toml(
     allow_import: bool = True,
     module_name: str = "",
     import_root: Optional[Path] = None,
-) -> Optional[str]:
-    """Extract ``[project].version`` from *toml_path*, or ``None``.
+) -> Union[str, None, _NotAProject]:
+    """Extract ``[project].version`` from *toml_path*: the version, ``None`` when unresolved, or :data:`_NOT_A_PROJECT`.
 
     A ``dynamic = ["version"]`` project falls back to importing the package; with *allow_import* off, to reading that
     version from source instead (:func:`_version_from_source`).
@@ -342,13 +478,14 @@ def _version_from_toml(
         import_root: Directory holding the top-level package, for the source read.
 
     Returns:
-        Version string or ``None`` when not resolvable.
+        The version string; ``None`` when the file has a ``[project]`` table whose version is not resolvable; or
+        :data:`_NOT_A_PROJECT` when it has no ``[project]`` table (or none that can be read), so it says nothing.
 
     """
     data = _load_toml(toml_path)
     project = data.get("project", {})
     if not project:
-        return None
+        return _NOT_A_PROJECT
 
     version = project.get("version")
     if isinstance(version, str):
@@ -397,8 +534,10 @@ def _read_pyproject_version(
 ) -> Optional[str]:
     """Return ``[project].version`` from the nearest ``pyproject.toml`` up to 2 levels above *path*.
 
-    Searches the directory itself, its parent, and its grandparent — stops
-    as soon as a resolvable version is found or the limit is reached.
+    Searches the directory itself, its parent, and its grandparent, skipping a file with no ``[project]`` table. The
+    nearest file that has one owns the package's version, so the search stops there, even when that version is
+    unresolved (a ``dynamic`` version that cannot be read): an ancestor's ``[project].version`` belongs to another
+    project, and the caller falls back to installed metadata and reports a gap instead.
 
     Args:
         path: File-system path to start the upward search from.
@@ -407,14 +546,14 @@ def _read_pyproject_version(
         import_root: Directory holding the top-level package, for the source read of a dynamic version.
 
     Returns:
-        Version string or ``None`` when not found within 2 levels.
+        Version string or ``None`` when the nearest ``[project]`` table yields none, or none is found within 2 levels.
 
     """
     for toml_path in _iter_pyproject_paths(path):
         version = _version_from_toml(
             toml_path, path, allow_import=allow_import, module_name=module_name, import_root=import_root
         )
-        if version is not None:
+        if not isinstance(version, _NotAProject):
             return version
     return None
 
@@ -428,8 +567,9 @@ def _resolve_package_version(
     (``validate_deprecation_expiry``, ``generate_deprecation_table``), so the same package never resolves to one
     version in one entry point and to another version — or to none — in a different one. Sources, first hit wins:
 
-    1. ``[project].version`` in the nearest ``pyproject.toml`` above *path* (reflects local development checkouts
-       whose version may differ from the installed dist; a ``dynamic`` version imports ``[project].name``).
+    1. ``[project].version`` in the nearest ``pyproject.toml`` above *path* that has a ``[project]`` table (reflects
+       local development checkouts whose version may differ from the installed dist; a ``dynamic`` version imports
+       ``[project].name``). That table owns the version: when it yields none, an ancestor's file is not consulted.
     2. ``importlib.metadata.version`` of the full module name, then its top-level import package. A dotted
        component can have its own distribution and version, distinct from another package sharing its namespace.
     3. The same lookup for the distribution that provides the top-level import package, as the import name
@@ -480,7 +620,7 @@ def _resolve_package_version(
     if dist_name is not None:
         with suppress(Exception):
             return importlib.metadata.version(dist_name)
-    if not all(part.isidentifier() for part in module_name.split(".")):
+    if not _is_dotted_name(module_name):
         return None
     if not allow_import:
         return _version_from_source(module_name, import_root)

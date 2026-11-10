@@ -1,8 +1,7 @@
 """Subcommand implementations for the CLI: ``check``, ``expiry``, ``policy``, ``chains``, ``all`` and ``status``."""
 
-from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Callable, Optional
 
 from deprecate._cli._pkg import _safe_module_name
 from deprecate._cli.config import (
@@ -27,7 +26,6 @@ from deprecate._cli.report import (
 from deprecate._cli.scan import _scan_for_command
 from deprecate._cli.static import (
     _EXPIRY_KEYWORDS,
-    _policy_keywords,
     _report_unresolved,
     _resolved,
     _static_policy_findings,
@@ -292,24 +290,34 @@ def cmd_expiry(
     )
     if scan is None:
         return 2
-    wrappers = scan.wrappers
-    if static:
-        _report_unresolved(wrappers, _EXPIRY_KEYWORDS)
-        wrappers = _resolved(wrappers, _EXPIRY_KEYWORDS)
-    return _expiry_wrappers(wrappers, scan.version, exit_zero=exit_zero)
+    return _expiry_wrappers(scan.wrappers, scan.version, exit_zero=exit_zero, static=static)
 
 
-def _expiry_wrappers(wrappers: list[DeprecationWrapperInfo], version: Optional[str], *, exit_zero: bool = False) -> int:
+def _expiry_wrappers(
+    wrappers: list[DeprecationWrapperInfo], version: Optional[str], *, exit_zero: bool = False, static: bool = False
+) -> int:
     """Report the already-scanned wrappers past their removal deadline and return the ``expiry`` exit code.
 
     The evaluation half of :func:`cmd_expiry`, which ``cmd_all`` runs on the wrappers and the version of its single
     scan. *version* is never validated here: a typed ``--version`` was validated before the scan, and an auto-detected
     one that is not PEP 440 is an advisory skip, not a usage error.
 
+    Args:
+        wrappers: The scanned wrappers.
+        version: The resolved package version, or None when it could not be resolved.
+        exit_zero: Exit 0 even when expired wrappers are found.
+        static: The wrappers were read from source (``--static``): the check runs on those whose ``remove_in`` the
+            source settled, and a ``not statically resolvable`` gap names each wrapper it left out. The gaps print only
+            once the check has run — when it could not (no version, an invalid one, no ``packaging``) it has already
+            printed why, and a gap per wrapper would imply that the others were checked.
+
     """
-    expired = _do_expiry_prescanned(wrappers, version)
+    checked = _resolved(wrappers, _EXPIRY_KEYWORDS) if static else wrappers
+    expired = _do_expiry_prescanned(checked, version)
     if expired is None:  # check could not run — advisory already printed to stderr
         return 0
+    if static:
+        _report_unresolved(wrappers, _EXPIRY_KEYWORDS)
     _record_findings(expired)
     if not expired:
         _print("No expired deprecated wrappers found.")
@@ -395,7 +403,6 @@ def cmd_policy(
     spec, policy_header = resolved
     if not static:
         return _policy_wrappers(scan.wrappers, spec, policy_header, exit_zero=exit_zero)
-    _report_unresolved(scan.wrappers, _policy_keywords(spec))
     return _policy_wrappers(scan.wrappers, spec, policy_header, exit_zero=exit_zero, findings=_static_policy_findings)
 
 
