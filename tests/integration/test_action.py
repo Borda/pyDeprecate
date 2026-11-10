@@ -1067,6 +1067,21 @@ class TestActionSummary:
         assert ("::warning title=pyDeprecate::no pyDeprecate report is available" in out) is summary
 
     @pytest.mark.subprocess
+    def test_older_cli_says_sarif_is_skipped(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """With ``sarif: true`` and a CLI older than ``--report-json``, the warning says no SARIF file is written.
+
+        A later ``upload-sarif`` step would otherwise find the ``sarif-file`` output empty with no explanation.
+        """
+        _use_repo_checkout(monkeypatch)
+        _set_action_env(monkeypatch, subcommand="check", path="tests.collections.chains", install="false", sarif="true")
+        monkeypatch.setattr(action_runner, "report_supported", lambda python: False)
+        code = action_runner.main()
+        assert code == 0
+        assert "the `sarif` input is skipped (the `sarif-file` output stays empty)" in capsys.readouterr().out
+
+    @pytest.mark.subprocess
     @pytest.mark.parametrize(
         ("program", "supported"),
         [

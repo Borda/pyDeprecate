@@ -11,6 +11,7 @@ import json
 import sys
 from pathlib import Path, PurePath
 from typing import Any, Optional
+from urllib.parse import quote
 
 from deprecate import __about__
 from deprecate._cli.findings import _level
@@ -91,12 +92,15 @@ def _artifact_location(source: PurePath, root: PurePath) -> dict[str, str]:
         >>> from pathlib import PurePosixPath
         >>> _artifact_location(PurePosixPath("/repo/src/pkg.py"), PurePosixPath("/repo"))
         {'uri': 'src/pkg.py', 'uriBaseId': '%SRCROOT%'}
+        >>> _artifact_location(PurePosixPath("/repo/my src/pkg#1.py"), PurePosixPath("/repo"))
+        {'uri': 'my%20src/pkg%231.py', 'uriBaseId': '%SRCROOT%'}
         >>> _artifact_location(PurePosixPath("/elsewhere/pkg.py"), PurePosixPath("/repo"))
         {'uri': 'file:///elsewhere/pkg.py'}
 
     """
     try:
-        return {"uri": source.relative_to(root).as_posix(), "uriBaseId": _SRCROOT}
+        # a URI reference: a space, `#`, `?` or `%` in a directory name is percent-encoded, as `as_uri()` does below
+        return {"uri": quote(source.relative_to(root).as_posix(), safe="/"), "uriBaseId": _SRCROOT}
     except ValueError:
         return {"uri": source.as_uri()}
 

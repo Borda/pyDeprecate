@@ -751,10 +751,11 @@ def cmd_check(
 
     Returns:
         0 on success or warnings only; 1 when an error is found (or, in strict mode, a gap) and ``exit_zero`` is False;
-        2 for a usage error on any path, before anything is scanned: a malformed ``--exclude`` or ``strict``,
-        ``strict`` with ``exit_zero``, a *path* that is a file, a directory holding several packages, or neither an
-        existing path nor an importable module, or two paths importing as the same name from different places. Raises
-        ``_ScanError`` (exit 3) when a scanned package itself cannot be imported.
+        2 for a usage error on any path, before anything is scanned (a missing submodule of an importable package: once
+        its path is reached): a malformed ``--exclude`` or ``strict``, ``strict`` with ``exit_zero``, a *path* that is a
+        file, a directory holding several packages, or neither an existing path nor an importable module, or two paths
+        importing as the same name from different places. Raises ``_ScanError`` (exit 3) when a scanned package itself
+        cannot be imported.
 
     """
     options = _RunOptions(recursive, exclude, include_members, exit_zero, strict, ignore, baseline)
@@ -815,11 +816,12 @@ def cmd_expiry(
         0 on success, when the ``packaging`` library is unavailable, when no version could be resolved (the gap is
         printed and the check is skipped), or when an auto-detected version turns out not to be valid PEP 440 (advisory
         — the check is skipped); 1 when expired wrappers are found (or, in strict mode, any gap is recorded, including
-        the three skips above) and ``exit_zero`` is False; 2 for a usage error on any path, before anything is scanned:
-        a user-supplied ``--version`` that is not a valid PEP 440 version string, a malformed ``--exclude`` or
-        ``strict``, ``strict`` with ``exit_zero``, a *path* that is a file, a directory holding several packages, or
-        neither an existing path nor an importable module, or two paths importing as the same name from different
-        places. Raises ``_ScanError`` (exit 3) when a scanned package itself cannot be imported.
+        the three skips above) and ``exit_zero`` is False; 2 for a usage error on any path, before anything is scanned
+        (a missing submodule of an importable package: once its path is reached): a user-supplied ``--version`` that is
+        not a valid PEP 440 version string, a malformed ``--exclude`` or ``strict``, ``strict`` with ``exit_zero``, a
+        *path* that is a file, a directory holding several packages, or neither an existing path nor an importable
+        module, or two paths importing as the same name from different places. Raises ``_ScanError`` (exit 3) when a
+        scanned package itself cannot be imported.
 
     """
     err_code = _validate_user_version(version)
@@ -900,11 +902,12 @@ def cmd_policy(
         0 on success, or when ``min-grace`` is skipped because ``packaging`` is unavailable and ``message_required``
         finds no violation; 1 when violations are found (including from a still-running ``message_required`` check), or
         in strict mode a gap is recorded, and ``exit_zero`` is False; 2 for a usage error on any path, before anything
-        is scanned: a rule's value, ``exclude`` or ``strict`` — from a flag or from ``pyproject.toml`` — that is
-        malformed, ``strict`` with ``exit_zero``, a ``policy`` key in ``[tool.pydeprecate]`` that is not a table, a
-        ``pyproject.toml`` within reach that cannot be read or parsed, a *path* that is a file, a directory holding
-        several packages, or neither an existing path nor an importable module, or two paths importing as the same name
-        from different places. Raises ``_ScanError`` (exit 3) when a scanned package itself cannot be imported.
+        is scanned (a missing submodule of an importable package: once its path is reached): a rule's value, ``exclude``
+        or ``strict`` — from a flag or from ``pyproject.toml`` — that is malformed, ``strict`` with ``exit_zero``, a
+        ``policy`` key in ``[tool.pydeprecate]`` that is not a table, a ``pyproject.toml`` within reach that cannot be
+        read or parsed, a *path* that is a file, a directory holding several packages, or neither an existing path nor
+        an importable module, or two paths importing as the same name from different places. Raises ``_ScanError``
+        (exit 3) when a scanned package itself cannot be imported.
 
     """
     policy_flags = {PolicyRule.MIN_GRACE.value: min_grace, PolicyRule.MESSAGE_REQUIRED.value: message_required}
@@ -962,10 +965,11 @@ def cmd_chains(
 
     Returns:
         0 when no chains are found or ``exit_zero`` is True; 1 when chains are found (or, in strict mode, a gap is
-        recorded); 2 for a usage error on any path, before anything is scanned: a malformed ``--exclude`` or
-        ``strict``, ``strict`` with ``exit_zero``, a *path* that is a file, a directory holding several packages, or
-        neither an existing path nor an importable module, or two paths importing as the same name from different
-        places. Raises ``_ScanError`` (exit 3) when a scanned package itself cannot be imported.
+        recorded); 2 for a usage error on any path, before anything is scanned (a missing submodule of an importable
+        package: once its path is reached): a malformed ``--exclude`` or ``strict``, ``strict`` with ``exit_zero``, a
+        *path* that is a file, a directory holding several packages, or neither an existing path nor an importable
+        module, or two paths importing as the same name from different places. Raises ``_ScanError`` (exit 3) when a
+        scanned package itself cannot be imported.
 
     """
     options = _RunOptions(recursive, exclude, include_members, exit_zero, strict, ignore, baseline)
@@ -1153,10 +1157,11 @@ def cmd_status(
 
     Returns:
         0 once the table is rendered — status is not a pass/fail gate; 2 for a usage error on any path, before anything
-        is scanned: a user-supplied ``--version`` that is not a valid PEP 440 version string, a ``--style`` other than
-        ``compact`` or ``matrix``, a malformed ``--exclude``, a *path* that is a file, a directory holding several
-        packages, or neither an existing path nor an importable module, or two paths importing as the same name from
-        different places. Raises ``_ScanError`` (exit 3) when a scanned package itself cannot be imported.
+        is scanned (a missing submodule of an importable package: once its path is reached): a user-supplied
+        ``--version`` that is not a valid PEP 440 version string, a ``--style`` other than ``compact`` or ``matrix``, a
+        malformed ``--exclude``, a *path* that is a file, a directory holding several packages, or neither an existing
+        path nor an importable module, or two paths importing as the same name from different places. Raises
+        ``_ScanError`` (exit 3) when a scanned package itself cannot be imported.
 
     """
     err_code = _validate_user_version(version)

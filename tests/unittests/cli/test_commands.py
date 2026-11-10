@@ -1913,6 +1913,42 @@ class TestMultiPath:
         assert captured.out.count("Scanning:") == 1
         assert captured.err.count("scanning it once") == 1
 
+    @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
+    def test_covered_path_with_own_settings_exits_two(
+        self, mock_find: MagicMock, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A subpackage with its own ``[tool.pydeprecate]`` settings cannot be folded into its parent's scan.
+
+        The parent's recursive scan already audits the subpackage, but with the parent's settings; dropping the
+        subpackage's own ``strict`` or ``ignore`` silently would gate it differently from what its owner configured.
+
+        """
+        pkg = _project(tmp_path / "a", "mypkg", pyproject="[tool.pydeprecate]\nexclude = []\n")
+        sub = write_pkg(pkg, "sub", "")
+        (sub / "pyproject.toml").write_text("[tool.pydeprecate]\nstrict = true\n")
+        result = cmd_check(path=[str(pkg), str(sub)])
+        assert result == 2
+        assert "has its own `[tool.pydeprecate]` settings" in capsys.readouterr().err
+        mock_find.assert_not_called()
+
+    @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
+    def test_plain_directories_sharing_a_file_name_exit_two(
+        self, mock_find: MagicMock, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Two plain directories that each hold ``util.py`` cannot share a run.
+
+        A plain directory imports its top-level files by bare name, so the second directory's ``util`` would resolve to
+        the first one's module from ``sys.modules`` and its own wrappers would never be audited.
+
+        """
+        for name in ("da", "db"):
+            (tmp_path / name).mkdir()
+            (tmp_path / name / "util.py").write_text("")
+        result = cmd_check(path=[str(tmp_path / "da"), str(tmp_path / "db")])
+        assert result == 2
+        assert "both import as util; scan them in separate runs" in capsys.readouterr().err
+        mock_find.assert_not_called()
+
     @pytest.mark.parametrize(
         ("broken", "expected"),
         [pytest.param("a", 1, id="gap-of-strict-path-fails"), pytest.param("b", 0, id="gap-of-other-path-passes")],

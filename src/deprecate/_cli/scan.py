@@ -14,7 +14,7 @@ from importlib.machinery import ModuleSpec
 from pathlib import Path
 from typing import NamedTuple, Optional
 
-from deprecate._cli._pkg import _safe_module_name, _select_child_package
+from deprecate._cli._pkg import _ConfigReadError, _read_pydeprecate_config, _safe_module_name, _select_child_package
 from deprecate._cli.config import _Config, _ConfigFlag, _resolve_exclude, _source_label
 from deprecate._cli.report import (
     _RUN_RECORD,
@@ -161,8 +161,10 @@ def _preflight_targets(paths: Sequence[str], *, recursive: bool) -> Optional[lis
     """Check every path of a run before the first import, and drop the paths another path's scan already covers.
 
     The same target given twice, or a package together with its own subpackage in a recursive scan, is scanned once,
-    with one stderr note per dropped path. Two paths whose scans bind the same top-level import name from different
-    places cannot share one process: ``sys.modules`` would hand the second scan the first copy.
+    with one stderr note per dropped path; a covered path whose own ``pyproject.toml`` differs from the covering
+    path's is refused, since its settings would be silently dropped. Two paths whose scans bind the same top-level
+    import name from different places (a package name, or the bare name of a plain directory's top-level file) cannot
+    share one process: ``sys.modules`` would hand the second scan the first copy.
 
     Returns:
         The targets to scan, in path order, or ``None`` after printing a usage error (the caller exits 2).
@@ -179,20 +181,37 @@ def _preflight_targets(paths: Sequence[str], *, recursive: bool) -> Optional[lis
         cover = _covering_target(targets, index, recursive=recursive)
         if cover is None:
             kept.append(target)
+        elif _config_file(target.path) != _config_file(cover.path):
+            _print(
+                f"{target.path!r} has its own `[tool.pydeprecate]` settings, but the scan of {cover.path!r} already"
+                " audits it with those of its own path; scan it in a separate run.",
+                stderr=True,
+            )
+            return None
         else:
             _print(
                 f"pydeprecate: {target.path!r} is already audited by the scan of {cover.path!r}; scanning it once.",
                 stderr=True,
             )
     for index, target in enumerate(kept):
-        clash = next((other for other in kept[:index] if _same_name_elsewhere(other, target)), None)
-        if clash is not None:
-            _print(
-                f"{clash.path} and {target.path} both import as {target.import_name}; scan them in separate runs.",
-                stderr=True,
-            )
-            return None
+        for other in kept[:index]:
+            name = _shared_name(other, target)
+            if name is not None:
+                _print(
+                    f"{other.path} and {target.path} both import as {name}; scan them in separate runs.", stderr=True
+                )
+                return None
     return kept
+
+
+def _config_file(path: str) -> Optional[str]:
+    """Return the ``pyproject.toml`` whose ``[tool.pydeprecate]`` settings apply to *path*, if any."""
+    if not Path(path).exists():
+        return None
+    try:
+        return _read_pydeprecate_config(path)[1]
+    except _ConfigReadError as err:  # reported as a usage error once the path is planned
+        return err.path
 
 
 def _covering_target(targets: list[_ScanTarget], index: int, *, recursive: bool) -> Optional[_ScanTarget]:
@@ -206,10 +225,29 @@ def _covering_target(targets: list[_ScanTarget], index: int, *, recursive: bool)
     return None
 
 
-def _same_name_elsewhere(first: _ScanTarget, second: _ScanTarget) -> bool:
-    """Tell whether two targets bind the same top-level import name to different places."""
-    return (
-        second.import_name is not None and first.import_name == second.import_name and first.location != second.location
+def _bound_names(target: _ScanTarget) -> dict[str, Optional[Path]]:
+    """Return the top-level import names a target's scan binds in ``sys.modules``, each with where it loads from.
+
+    A package or module binds its top-level name; a plain directory binds the bare name of each top-level file it scans.
+
+    """
+    if target.import_name is not None:
+        return {target.import_name: target.location}
+    if target.location is None or not target.location.is_dir():
+        return {}
+    return {
+        entry.stem: entry.resolve()
+        for entry in target.location.iterdir()
+        if entry.is_file() and entry.suffix == ".py" and not entry.name.startswith("__")
+    }
+
+
+def _shared_name(first: _ScanTarget, second: _ScanTarget) -> Optional[str]:
+    """Return a top-level import name both targets bind to different places, or ``None`` when they can share a run."""
+    first_names, second_names = _bound_names(first), _bound_names(second)
+    return next(
+        (name for name in sorted(first_names.keys() & second_names.keys()) if first_names[name] != second_names[name]),
+        None,
     )
 
 

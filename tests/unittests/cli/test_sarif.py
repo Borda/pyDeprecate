@@ -168,6 +168,12 @@ class TestArtifactLocation:
                 id="posix-under-root",
             ),
             pytest.param(
+                PurePosixPath("/repo/my src/pkg#1.py"),
+                PurePosixPath("/repo"),
+                {"uri": "my%20src/pkg%231.py", "uriBaseId": "%SRCROOT%"},
+                id="posix-percent-encoded",
+            ),
+            pytest.param(
                 PurePosixPath("/other/pkg.py"),
                 PurePosixPath("/repo"),
                 {"uri": "file:///other/pkg.py"},

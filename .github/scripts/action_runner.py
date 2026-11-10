@@ -72,6 +72,8 @@ OUTPUT_NAMES = ("exit-code", "findings", "errors", "warnings", "gaps", "suppress
 SUMMARY_OUTPUTS = ("findings", "errors", "warnings", "gaps", "suppressed")
 #: Name of the SARIF file and of the kept report copy inside the outputs directory.
 SARIF_FILENAME = "report.sarif"
+#: Appended to a fallback warning when the `sarif` input was set: the run cannot write the file.
+_SARIF_SKIPPED = " and the `sarif` input is skipped (the `sarif-file` output stays empty)"
 
 _TRUE_VALUES = ("true", "1")
 _FALSE_VALUES = ("false", "0")
@@ -558,15 +560,19 @@ def _run_action(env: dict[str, str], outputs: dict[str, str]) -> int:
     if not inputs.install and not report_supported(python):
         annotate(
             "warning",
-            "the installed pyDeprecate predates `--report-json`, so gaps are not annotated and no job summary is"
-            " written; keep `install: true` or upgrade the pyDeprecate this job installs",
+            "the installed pyDeprecate predates `--report-json`, so gaps are not annotated, no job summary is"
+            f" written{_SARIF_SKIPPED if inputs.sarif else ''}; keep `install: true` or upgrade the pyDeprecate"
+            " this job installs",
         )
         return run_gate(inputs, python, None, env, outputs)
     try:
         # a private directory removed on exit, so no report outlives the step or lands in the checkout
         scratch = tempfile.TemporaryDirectory(prefix="pydeprecate-", dir=env.get("RUNNER_TEMP") or None)
     except OSError as err:
-        annotate("warning", f"could not create a temporary directory for the report ({err}); running without it")
+        skipped = _SARIF_SKIPPED if inputs.sarif else ""
+        annotate(
+            "warning", f"could not create a temporary directory for the report ({err}); running without it{skipped}"
+        )
         return run_gate(inputs, python, None, env, outputs)
     with scratch as scratch_dir:
         # never created here: only a CLI run that completed writes it, so a missing file means no report

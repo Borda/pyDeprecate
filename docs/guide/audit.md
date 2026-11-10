@@ -538,7 +538,7 @@ On GitHub Actions, use the ready-made step instead: the [GitHub Action](#github-
 
 #### Monorepo: several packages in one run
 
-Pass every package to the same command — `pydeprecate all --gate=policy packages/core/src/core packages/cli/src/cli` (since 0.16). Each package is scanned with its own `[tool.pydeprecate]` settings and its own version from the `pyproject.toml` nearest to it, the findings of all packages print in one set of sections, each package gets its own table under a `### <package>` heading, and one exit code covers them all. Every path is checked before the first import, so a typo or a broken `pyproject.toml` in any package fails the run with exit `2` before anything is scanned. Two packages that import under the same top-level name cannot share a run; scan them in separate runs. See [Several paths in one run](cli.md#several-paths-in-one-run).
+Pass every package to the same command — `pydeprecate all --gate=policy packages/core/src/core packages/cli/src/cli` (since 0.16). Each package is scanned with its own `[tool.pydeprecate]` settings and its own version from the `pyproject.toml` nearest to it, the findings of all packages print in one set of sections, each package gets its own table under a `### <package>` heading, and one exit code covers them all. Every path is checked before the first import, so a typo or a broken `pyproject.toml` in any package fails the run with exit `2` before anything is scanned (only a missing submodule of an importable package (`pkg.nosuch`) is found when its own path is reached). Two packages that import under the same top-level name cannot share a run; scan them in separate runs. See [Several paths in one run](cli.md#several-paths-in-one-run).
 
 ## Detecting Deprecation Chains
 
