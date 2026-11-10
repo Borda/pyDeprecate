@@ -455,6 +455,11 @@ def _report_findings(record: _RunRecord) -> list[dict[str, Any]]:
     at the higher level. Findings the subcommand does not evaluate are left out.
 
     """
+    return [finding for finding, _ in _report_findings_with_sources(record)]
+
+
+def _report_findings_with_sources(record: _RunRecord) -> list[tuple[dict[str, Any], Optional[str]]]:
+    """Return :func:`_report_findings` paired with each finding's absolute source file (``None`` when unlocated)."""
     best: dict[str, tuple[_Level, _Finding, Optional[str]]] = {}
     for finding, path in zip(record.findings, record.finding_paths):
         level = _level(finding.rule, record.command or "")
@@ -464,7 +469,7 @@ def _report_findings(record: _RunRecord) -> list[dict[str, Any]]:
         if kept is None or _LEVEL_RANK[level] < _LEVEL_RANK[kept[0]]:
             best[finding.id] = (level, finding, path)
     ordered = sorted(best.values(), key=lambda item: (_LEVEL_RANK[item[0]], item[1].id))
-    return [_report_finding(finding, level, path) for level, finding, path in ordered]
+    return [(_report_finding(finding, level, path), finding.source_file) for level, finding, path in ordered]
 
 
 def _build_report(record: _RunRecord, exit_code: int) -> dict[str, Any]:

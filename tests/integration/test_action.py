@@ -36,7 +36,7 @@ _MISCONFIGURED_MODULE = _REPO_ROOT / "tests" / "collections" / "misconfigured.py
 _RUNNER_TIMEOUT = 300
 #: Inherited variables the runner tests must not see: terminal colour switches change the CLI's text output, and every
 #: ``PYDEPRECATE_ACTION_*`` variable is an action input the runner would read.
-_AMBIENT_ENV = ("FORCE_COLOR", "NO_COLOR")
+_AMBIENT_ENV = ("FORCE_COLOR", "NO_COLOR", "GITHUB_OUTPUT")
 
 
 def _load_runner() -> ModuleType:
@@ -100,6 +100,32 @@ def _run_runner(env: dict[str, str], cwd: Path = _REPO_ROOT) -> subprocess.Compl
         cwd=cwd,
         timeout=_RUNNER_TIMEOUT,
     )
+
+
+# A package with one wrapper past its removal at 2.0, its decorator on line 8 of `__init__.py`.
+_EXPIRED_INIT = """\
+from deprecate import deprecated
+
+
+def new_fn(x: int) -> int:
+    return x
+
+
+@deprecated(target=new_fn, deprecated_in="1.0", remove_in="1.5")
+def old_fn(x: int) -> int:
+    pass
+"""
+
+
+def _finding_record(index: int, level: str = "error") -> dict[str, object]:
+    """Build a report finding numbered *index* at *level*, located in a file whose name holds ``:`` and ``,``."""
+    return {
+        "id": f"expired:pkg:fn{index}",
+        "rule": "expired",
+        "level": level,
+        "message": f"finding {index}",
+        "location": {"file": "src/a:b,c.py", "line": index + 1},
+    }
 
 
 def _is_rejected(env: dict[str, str]) -> bool:
@@ -1236,6 +1262,78 @@ class TestActionOutputSafety:
         assert result.stdout.count("::warning") == 1
 
     @pytest.mark.subprocess
+    def test_findings_are_annotated_on_their_lines(self, tmp_path: Path) -> None:
+        """Each finding is one annotation carrying its file, line and rule, with the console message.
+
+        A reviewer sees the expired wrapper flagged on its own line in the pull request instead of one generic error.
+        """
+        pkg = tmp_path / "vpkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text(_EXPIRED_INIT, encoding="utf-8")
+        env = _runner_env(tmp_path, subcommand="expiry", path="vpkg", args="--version 2.0")
+        result = _run_runner(env, cwd=tmp_path)
+        assert result.returncode == 1, result.stdout + result.stderr
+        assert (
+            "::error file=vpkg/__init__.py,line=8,title=pyDeprecate expired::Callable `vpkg.old_fn` was scheduled"
+            in (result.stdout)
+        )
+
+    @pytest.mark.subprocess
+    @pytest.mark.parametrize(
+        ("inputs", "exit_code", "expected"),
+        [
+            pytest.param({"subcommand": "check"}, 0, {"exit-code": "0", "errors": "0", "gaps": "0"}, id="pass"),
+            pytest.param(
+                {"subcommand": "expiry", "args": "--version 2.0"}, 1, {"exit-code": "1", "errors": "1"}, id="fail"
+            ),
+            pytest.param(
+                {"subcommand": "check", "args": "--verison 2.0"}, 2, {"exit-code": "2", "errors": ""}, id="usage"
+            ),
+            pytest.param({"subcommand": "bogus"}, 2, {"exit-code": "2", "findings": ""}, id="input-error"),
+        ],
+    )
+    def test_outputs_are_published(
+        self, tmp_path: Path, inputs: dict[str, str], exit_code: int, expected: dict[str, str]
+    ) -> None:
+        """Every run writes all outputs to ``GITHUB_OUTPUT``: the exit code always, counts only from a report.
+
+        A later step branches on ``steps.<id>.outputs.errors``; a usage error has no report, so its counts are empty
+        rather than a misleading zero.
+        """
+        pkg = tmp_path / "vpkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text(_EXPIRED_INIT, encoding="utf-8")
+        output_file = tmp_path / "github_output"
+        env = {**_runner_env(tmp_path, path="vpkg", **inputs), "GITHUB_OUTPUT": str(output_file)}
+        result = _run_runner(env, cwd=tmp_path)
+        written = dict(line.split("=", 1) for line in output_file.read_text(encoding="utf-8").splitlines())
+        assert result.returncode == exit_code, result.stdout + result.stderr
+        assert list(written) == list(action_runner.OUTPUT_NAMES)
+        assert {name: written[name] for name in expected} == expected
+
+    @pytest.mark.subprocess
+    def test_sarif_input_publishes_the_file(self, tmp_path: Path) -> None:
+        """``sarif: true`` writes a SARIF file into ``RUNNER_TEMP`` and publishes its path and the report copy.
+
+        A later ``upload-sarif`` step reads ``steps.<id>.outputs.sarif-file``; the file must outlive the runner's
+        private report directory.
+        """
+        pkg = tmp_path / "vpkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text(_EXPIRED_INIT, encoding="utf-8")
+        output_file = tmp_path / "github_output"
+        env = {
+            **_runner_env(tmp_path, subcommand="expiry", path="vpkg", args="--version 2.0", sarif="true"),
+            "GITHUB_OUTPUT": str(output_file),
+        }
+        result = _run_runner(env, cwd=tmp_path)
+        written = dict(line.split("=", 1) for line in output_file.read_text(encoding="utf-8").splitlines())
+        sarif = json.loads(Path(written["sarif-file"]).read_text(encoding="utf-8"))
+        assert result.returncode == 1, result.stdout + result.stderr
+        assert sarif["runs"][0]["results"][0]["ruleId"] == "expired"
+        assert json.loads(Path(written["report-json"]).read_text(encoding="utf-8"))["schema"] == 2
+
+    @pytest.mark.subprocess
     def test_fail_on_gap_fails_the_step(self, tmp_path: Path) -> None:
         """``fail-on-gap: true`` turns the same unaudited module into a failed step that still annotates the gap.
 
@@ -1268,15 +1366,15 @@ class TestActionOutputSafety:
 
     @pytest.mark.subprocess
     def test_clean_scan_raises_no_gap_warning(self, tmp_path: Path) -> None:
-        """A scan that audited everything prints no gap line and raises no warning annotation.
+        """A scan that audited everything prints no gap line and raises no gap warning annotation.
 
-        The negative control of the gap warnings: a maintainer's clean run must not be decorated with warnings, or
-        the real ones would be lost among them.
+        The negative control of the gap warnings: a maintainer's clean run must not be decorated with gap warnings, or
+        the real ones would be lost among them. Its warning-level findings are annotated on their own lines.
         """
         result = _run_action(tmp_path, subcommand="check", path="tests.collections.chains")
         assert result.returncode == 0, result.stdout + result.stderr
         assert "pydeprecate gap:" not in result.stderr
-        assert "::warning" not in result.stdout
+        assert "::warning title=pyDeprecate::" not in result.stdout
 
     @pytest.mark.subprocess
     def test_gap_line_survives_a_narrow_terminal(self, tmp_path: Path) -> None:
@@ -1479,6 +1577,7 @@ class TestActionMetadata:
             "fail-on-gap": str(fail_on_gap).lower(),
             "install": "false",
             "summary": "true",
+            "sarif": "true",
         }
         step_env = next(step for step in _load_action()["runs"]["steps"] if "run" in step)["env"]
         delivered = {variable: distinct[_input_named_by(expression)] for variable, expression in step_env.items()}
@@ -1491,6 +1590,7 @@ class TestActionMetadata:
             fail_on_gap=fail_on_gap,
             install=False,
             summary=True,
+            sarif=True,
         )
 
     def test_subcommands_match_cli(self) -> None:
@@ -1513,6 +1613,15 @@ class TestActionMetadata:
         env = {"PYDEPRECATE_ACTION_SUBCOMMAND": subcommand, "PYDEPRECATE_ACTION_EXIT_ZERO": "true"}
         assert _is_rejected(env) is (not cli_has_flag)
 
+    def test_outputs_match_runner(self) -> None:
+        """``action.yml`` declares exactly the outputs the runner writes, each read from the runner's step.
+
+        An output the runner never writes stays empty forever; one it writes but ``action.yml`` omits is unreachable.
+        """
+        declared = _load_action()["outputs"]
+        assert list(declared) == list(action_runner.OUTPUT_NAMES)
+        assert all(spec["value"] == f"${{{{ steps.pydeprecate.outputs.{name} }}}}" for name, spec in declared.items())
+
     def test_report_schema_matches_cli(self) -> None:
         """The runner reads the report layout version the CLI writes.
 
@@ -1530,3 +1639,39 @@ class TestActionMetadata:
         hooks = yaml.safe_load(_HOOKS_YAML.read_text(encoding="utf-8"))
         hook_requirements = {dep for hook in hooks for dep in hook["additional_dependencies"]}
         assert hook_requirements == {f"pyDeprecate[{','.join(action_runner.INSTALL_EXTRAS)}]"}
+
+
+class TestFindingAnnotations:
+    """``annotate_findings`` turns report findings into workflow-command annotations, capped and escaped."""
+
+    def test_capped_with_a_notice_for_the_rest(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """More than the cap of findings give the cap of annotations and one notice counting the rest.
+
+        A package with hundreds of expired wrappers must not flood the pull request; the log and report keep them all.
+        """
+        action_runner.annotate_findings(
+            [_finding_record(index) for index in range(action_runner.FINDING_ANNOTATIONS_MAX + 1)]
+        )
+        lines = capsys.readouterr().out.splitlines()
+        assert len([line for line in lines if line.startswith("::error ")]) == action_runner.FINDING_ANNOTATIONS_MAX
+        assert lines[-1] == "::notice title=pyDeprecate::1 more findings; see the log or the report"
+
+    def test_errors_first_and_properties_escaped(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """Errors are annotated before warnings, and ``:``/``,`` in a file name are escaped as property values.
+
+        An unescaped comma would end the ``file=`` property early and point the annotation at a wrong file.
+        """
+        action_runner.annotate_findings([_finding_record(1, "warning"), _finding_record(2, "error")])
+        lines = capsys.readouterr().out.splitlines()
+        assert lines == [
+            "::error file=src/a%3Ab%2Cc.py,line=3,title=pyDeprecate expired::finding 2",
+            "::warning file=src/a%3Ab%2Cc.py,line=2,title=pyDeprecate expired::finding 1",
+        ]
+
+    def test_unlocated_finding_has_no_file(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """A finding without a location is annotated without ``file=`` and ``line=``.
+
+        A ``deprecated_instance`` data object has no source file; the annotation still names the problem.
+        """
+        action_runner.annotate_findings([{**_finding_record(1), "location": None}])
+        assert capsys.readouterr().out == "::error title=pyDeprecate expired::finding 1\n"

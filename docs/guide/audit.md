@@ -858,8 +858,34 @@ jobs:
 | `exit-zero`   | `false` | Report findings without failing the step (`--exit-zero`); not valid with `status`.                                                                                                                                                                                                                                                   |
 | `install`     | `true`  | Install `pyDeprecate[cli,audit]` from the action's own ref into the job's Python.                                                                                                                                                                                                                                                    |
 | `summary`     | `false` | Append the markdown deprecation status table of the gate's own scan to the job summary, read from the report the CLI writes with `--report-json`, so it covers exactly what the gate scanned however `path` and `args` name the package. Summary failures only warn and preserve the gate result. No summary on CLI exit `2` or `3`. |
+| `sarif`       | `false` | Also write the findings as a SARIF 2.1.0 file (`--report-sarif`, since 0.16) and publish its path as the `sarif-file` output; not valid with `status`.                                                                                                                                                                               |
 
 The step finishes with the CLI's own exit code (see the table above; `3` gets an error annotation naming a scan or internal error), with three exceptions of its own: a `path` starting with `-` exits `2`, a failed `pip install` (`install: true`) returns pip's exit code, and a CLI process that cannot be started returns `1`. A failing run adds an error annotation to the pull request's checks. The CLI has no "fail on warning" mode: advisory findings such as identity mappings never fail the step, and `exit-zero: true` turns hard errors into reports while you clear a backlog. `fail-on-gap: true` makes an incomplete audit fail the step: every gap the run annotates then also fails it.
+
+Each finding of the run becomes one annotation on the line of its wrapper — errors first, then warnings, at most 50, then one notice counting the rest (the log and the report list them all); findings accepted with `--ignore` or `--baseline` are never annotated. Gaps keep their one warning per kind.
+
+The step publishes outputs for later steps; give it an `id` to read them:
+
+| Output                                                 | Value                                                                                                                           |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| `exit-code`                                            | The step's exit code; always set.                                                                                               |
+| `findings`, `errors`, `warnings`, `gaps`, `suppressed` | Counts from the run's report; empty when the CLI wrote no report (exit `2` or `3`, or an older CLI kept with `install: false`). |
+| `report-json`                                          | Path of a copy of the run's `--report-json` file, kept in `RUNNER_TEMP` until the job ends.                                     |
+| `sarif-file`                                           | Path of the SARIF file when `sarif: true`; empty otherwise.                                                                     |
+
+Upload the findings to GitHub code scanning with `sarif: true` and the `upload-sarif` action, run even when the gate failed:
+
+```yaml
+- uses: Borda/pyDeprecate@v0.16.0
+  id: pydeprecate
+  with:
+    subcommand: all
+    sarif: true
+- uses: github/codeql-action/upload-sarif@v4
+  if: always() && steps.pydeprecate.outputs.sarif-file != ''
+  with:
+    sarif_file: ${{ steps.pydeprecate.outputs.sarif-file }}
+```
 
 **The `uses:` ref pins the pyDeprecate version.** With the default `install: true` the action installs pyDeprecate from the same commit as the action itself, so `@v0.15.0` audits with 0.15.0. That install replaces whatever pyDeprecate version your job already had, for every later step too, and the action warns when it does. Pin the action to the release your project depends on, or install `pyDeprecate[audit,cli]` yourself and set `install: false`. Set `install: false` as well where `pip` is unavailable, such as a uv-managed virtual environment.
 

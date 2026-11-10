@@ -14,7 +14,7 @@ import sys
 from collections.abc import Callable, Sequence
 from typing import Any, NamedTuple, Optional
 
-from deprecate._cli import _REPORT_OPTION, commands
+from deprecate._cli import _REPORT_OPTION, _SARIF_OPTION, commands
 from deprecate._cli.config import _ConfigBool, _ConfigFlag, _ConfigList
 
 #: The subcommands, in the order ``--help`` lists them; each runs the ``cmd_<name>`` function of :mod:`commands`.
@@ -98,6 +98,13 @@ def _parse_file_path(text: str) -> str:
 def _positional_dest(name: str) -> str:
     """Return the namespace attribute a positional operand is parsed into: ``path`` as is, the version apart."""
     return _VERSION_OPERAND if name == "version" else name
+
+
+class _ReportTargets(NamedTuple):
+    """The files ``cli()`` writes after the subcommand: the ``--report-json`` and the ``--report-sarif`` file."""
+
+    json: Optional[str]
+    sarif: Optional[str]
 
 
 class _CliCommand(NamedTuple):
@@ -230,6 +237,15 @@ def _add_subcommand(subparsers: Any, name: str) -> argparse.ArgumentParser:  # n
         default=None,
         help="Write the run's machine-readable record (deprecation table and gaps) to FILE on exit 0 or 1.",
     )
+    if name != "status":  # `status` gates on nothing, so it has no findings to report as SARIF
+        parser.add_argument(
+            _SARIF_OPTION,
+            dest="report_sarif",
+            type=_parse_file_path,
+            metavar="FILE",
+            default=None,
+            help="Write the run's findings as a SARIF 2.1.0 file to FILE on exit 0 or 1, for code-scanning tools.",
+        )
     return parser
 
 
@@ -292,8 +308,8 @@ def _normalize_options(argv: Sequence[str], bool_params: frozenset[str]) -> list
     return result
 
 
-def _parse_cli_args(argv: Sequence[str]) -> Optional[tuple[_CliCommand, dict[str, Any], Optional[str]]]:
-    """Parse the command line into the subcommand to run, its keyword arguments and the ``--report-json`` path.
+def _parse_cli_args(argv: Sequence[str]) -> Optional[tuple[_CliCommand, dict[str, Any], _ReportTargets]]:
+    """Parse the command line into the subcommand to run, its keyword arguments and the report files to write.
 
     A first argument that names no subcommand selects ``check``, so ``pydeprecate src/pkg`` checks ``src/pkg``. The
     subcommand's own parser runs ``parse_intermixed_args``, which binds the path and version positionals correctly
@@ -301,8 +317,9 @@ def _parse_cli_args(argv: Sequence[str]) -> Optional[tuple[_CliCommand, dict[str
     they are bound here, since ``parse_known_intermixed_args`` on Python 3.9 still parses options after it.
 
     Returns:
-        The subcommand, its keyword arguments (only those typed) and the report path, or ``None`` after printing the
-        help for an empty command line. ``--help`` and every usage error exit through argparse (0 and 2).
+        The subcommand, its keyword arguments (only those typed) and the ``--report-json``/``--report-sarif`` paths,
+        or ``None`` after printing the help for an empty command line. ``--help`` and every usage error exit through
+        argparse (0 and 2).
 
     """
     parser, subparsers = _build_parser()
@@ -332,4 +349,5 @@ def _parse_cli_args(argv: Sequence[str]) -> Optional[tuple[_CliCommand, dict[str
             subparser.error("the version was given twice, as an argument and as `--version`; pass it once")
         kwargs["version"] = kwargs.pop(_VERSION_OPERAND)
     report_path = kwargs.pop("report_json")
-    return command, kwargs, report_path
+    sarif_path = kwargs.pop("report_sarif", None)
+    return command, kwargs, _ReportTargets(report_path, sarif_path)

@@ -8,8 +8,11 @@ interpolated into script text), and the script:
 2. optionally installs ``pyDeprecate[cli,audit]`` from that same checkout into the job's current Python, so the
    ``uses:`` ref pins the version — the same binding the pre-commit hook manifest uses,
 3. runs ``python -m deprecate <subcommand> [path] [args...] --report-json=<file>`` and returns its exit code unchanged,
-4. raises one warning annotation per kind of gap the CLI recorded in that report, and optionally appends the report's
-   deprecation table — the table of the very scan that gated — to the job summary.
+4. raises one annotation per finding (capped) and one warning annotation per kind of gap the CLI recorded in that
+   report, and optionally appends the report's deprecation table — the table of the very scan that gated — to the job
+   summary,
+5. publishes the step outputs (exit code, counts, the paths of a kept report copy and of the SARIF file) to
+   ``GITHUB_OUTPUT``.
 
 Everything the runner knows about a run comes from the CLI's ``--report-json`` file, never from matching its console
 output. Self-contained on purpose: it runs in the caller's environment before pyDeprecate may be installed, so it uses
@@ -23,6 +26,7 @@ import json
 import os
 import secrets
 import shlex
+import shutil
 import signal
 import subprocess
 import sys
@@ -46,6 +50,7 @@ INPUT_DEFAULTS = {
     "fail-on-gap": "false",
     "install": "true",
     "summary": "false",
+    "sarif": "false",
 }
 #: Name of the report file inside the runner's private temporary directory.
 REPORT_FILENAME = "report.json"
@@ -56,13 +61,23 @@ REPORT_SCHEMA = 2
 REPORT_SCHEMAS = (1, 2)
 #: Most gap details quoted in one warning annotation; the CLI log above it lists every one.
 GAP_DETAILS_SHOWN = 3
+#: Most findings annotated in one run; one notice counts the rest, which the log and the report list in full.
+FINDING_ANNOTATIONS_MAX = 50
+#: Workflow-command level of each finding level of the report.
+FINDING_LEVELS = {"error": "error", "warning": "warning", "note": "notice"}
+#: Step outputs, in the order ``action.yml`` declares them.
+OUTPUT_NAMES = ("exit-code", "findings", "errors", "warnings", "gaps", "suppressed", "report-json", "sarif-file")
+#: Count outputs, each read from the report ``summary`` key of the same name.
+SUMMARY_OUTPUTS = ("findings", "errors", "warnings", "gaps", "suppressed")
+#: Name of the SARIF file and of the kept report copy inside the outputs directory.
+SARIF_FILENAME = "report.sarif"
 
 _TRUE_VALUES = ("true", "1")
 _FALSE_VALUES = ("false", "0")
 #: ``args`` tokens that make the CLI print its help and exit 0 without scanning anything.
 _HELP_FLAGS = ("-h", "--help")
-#: Both spellings of the ``--report-json`` option (the CLI also takes the underscore form) that the runner owns.
-_REPORT_OPTION_PREFIXES = ("--report-json", "--report_json")
+#: Both spellings of the report options (the CLI also takes the underscore form) that the runner owns.
+_REPORT_OPTION_PREFIXES = ("--report-json", "--report_json", "--report-sarif", "--report_sarif")
 #: Program a child interpreter runs to print the installed pyDeprecate's metadata version, or nothing when absent.
 _VERSION_QUERY = (
     "import importlib.metadata as m\n"
@@ -120,11 +135,17 @@ class ActionInputs:
     fail_on_gap: bool
     install: bool
     summary: bool
+    sarif: bool = False
 
 
 def escape_data(text: str) -> str:
     """Escape a workflow-command message so newlines or ``%`` in it cannot start or corrupt a command."""
     return text.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+
+
+def escape_property(text: str) -> str:
+    """Escape a workflow-command property value (``file=``, ``title=``), which also ends at ``:`` and ``,``."""
+    return escape_data(text).replace(":", "%3A").replace(",", "%2C")
 
 
 def annotate(level: str, message: str) -> None:
@@ -169,7 +190,8 @@ def _reserved_args_reason(arg: str) -> str | None:
         return "the CLI would print its help and exit 0 without scanning anything, turning the gate green"
     if arg.startswith(_REPORT_OPTION_PREFIXES):
         return (
-            "the action passes its own `--report-json` to annotate gaps and fill the job summary; drop it from `args`"
+            "the action passes its own report options to annotate the run and fill the job summary and the `sarif`"
+            " output; drop it from `args`"
         )
     return None
 
@@ -209,11 +231,14 @@ def read_inputs(env: dict[str, str]) -> ActionInputs:
         fail_on_gap=_parse_bool("fail-on-gap", _input(env, "fail-on-gap")),
         install=_parse_bool("install", _input(env, "install")),
         summary=_parse_bool("summary", _input(env, "summary")),
+        sarif=_parse_bool("sarif", _input(env, "sarif")),
     )
     if inputs.exit_zero and inputs.subcommand == "status":
         raise ValueError("input `exit-zero` has no effect on `status`, which never fails on findings")
     if inputs.fail_on_gap and inputs.subcommand == "status":
         raise ValueError("input `fail-on-gap` has no effect on `status`, which never fails")
+    if inputs.sarif and inputs.subcommand == "status":
+        raise ValueError("input `sarif` has no effect on `status`, which reports no findings")
     if inputs.fail_on_gap and inputs.exit_zero:
         raise ValueError(
             "inputs `fail-on-gap` and `exit-zero` contradict each other: `fail-on-gap` fails the step on a gap,"
@@ -222,7 +247,9 @@ def read_inputs(env: dict[str, str]) -> ActionInputs:
     return inputs
 
 
-def build_cli_argv(inputs: ActionInputs, python: str, report_file: Path | None = None) -> list[str]:
+def build_cli_argv(
+    inputs: ActionInputs, python: str, report_file: Path | None = None, sarif_file: Path | None = None
+) -> list[str]:
     """Build the ``python -m deprecate`` command line for the gate run, writing its report to ``report_file``.
 
     The runner's own options (``--strict`` for ``fail-on-gap``, ``--exit-zero``, the report) follow ``args``.
@@ -241,6 +268,8 @@ def build_cli_argv(inputs: ActionInputs, python: str, report_file: Path | None =
         argv.append("--exit-zero")
     if report_file is not None:
         argv.append(f"--report-json={report_file}")
+    if sarif_file is not None:
+        argv.append(f"--report-sarif={sarif_file}")
     return argv
 
 
@@ -403,6 +432,73 @@ def annotate_gaps(gaps: list[dict[str, Any]]) -> None:
         annotate("warning", "\n".join(lines))
 
 
+def annotate_findings(findings: list[dict[str, Any]]) -> None:
+    """Raise one annotation per finding of a schema-2 report, errors first, at most :data:`FINDING_ANNOTATIONS_MAX`.
+
+    Each annotation carries the finding's file and line when the report has them, so it lands on the line of the
+    deprecated wrapper in the pull request; the rest are counted in one notice.
+
+    """
+    ordered = sorted(
+        (finding for finding in findings if finding.get("level") in FINDING_LEVELS),
+        key=lambda finding: list(FINDING_LEVELS).index(finding["level"]),
+    )
+    for finding in ordered[:FINDING_ANNOTATIONS_MAX]:
+        properties = []
+        location = finding.get("location")
+        if isinstance(location, dict) and location.get("file"):
+            properties.append(f"file={escape_property(str(location['file']))}")
+            if isinstance(location.get("line"), int):
+                properties.append(f"line={location['line']}")
+        rule = str(finding.get("rule", ""))
+        properties.append(f"title={escape_property('pyDeprecate ' + rule)}")
+        level = FINDING_LEVELS[finding["level"]]
+        print(f"::{level} {','.join(properties)}::{escape_data(str(finding.get('message', '')))}", flush=True)
+    hidden = len(ordered) - FINDING_ANNOTATIONS_MAX
+    if hidden > 0:
+        annotate("notice", f"{hidden} more findings; see the log or the report")
+
+
+def write_outputs(env: dict[str, str], outputs: dict[str, str]) -> None:
+    """Append the step outputs as ``name=value`` lines to ``GITHUB_OUTPUT``; skipped silently when it is unset.
+
+    Every value is one line (a count or a path), so the plain ``name=value`` form is enough.
+
+    """
+    target = env.get("GITHUB_OUTPUT")
+    if not target:
+        return
+    try:
+        with open(target, "a", encoding="utf-8") as handle:
+            for name in OUTPUT_NAMES:
+                handle.write(f"{name}={outputs.get(name, '')}\n")
+    except OSError as err:
+        annotate("warning", f"could not write the step outputs: {err}")
+
+
+def outputs_directory(env: dict[str, str], inputs: ActionInputs) -> Path | None:
+    """Create the directory that keeps the report copy and the SARIF file for later steps, or ``None``.
+
+    Created only when something reads it: step outputs (``GITHUB_OUTPUT`` set) or the ``sarif`` input. It lives in
+    ``RUNNER_TEMP``, which the runner empties at the end of the job; without ``RUNNER_TEMP`` the path outputs stay
+    empty.
+
+    """
+    if not (inputs.sarif or env.get("GITHUB_OUTPUT")):
+        return None
+    runner_temp = env.get("RUNNER_TEMP")
+    if not runner_temp:
+        annotate("warning", "RUNNER_TEMP is not set, so the `report-json` and `sarif-file` outputs stay empty")
+        return None
+    directory = Path(runner_temp) / f"pydeprecate-outputs-{secrets.token_hex(4)}"
+    try:
+        directory.mkdir()
+    except OSError as err:
+        annotate("warning", f"could not create the outputs directory ({err}); the path outputs stay empty")
+        return None
+    return directory
+
+
 def append_summary(table: str, env: dict[str, str]) -> None:
     """Append the markdown ``table`` to the job summary; failures only warn."""
     target = env.get("GITHUB_STEP_SUMMARY")
@@ -425,9 +521,17 @@ def _ensure_utf8_streams() -> None:
 
 
 def main() -> int:
-    """Run the action end to end and return the exit code the step should finish with."""
+    """Run the action end to end, publish the step outputs, and return the exit code the step should finish with."""
     _ensure_utf8_streams()
     env = dict(os.environ)
+    outputs: dict[str, str] = {}
+    code = _run_action(env, outputs)
+    write_outputs(env, {**outputs, "exit-code": str(code)})
+    return code
+
+
+def _run_action(env: dict[str, str], outputs: dict[str, str]) -> int:
+    """Validate the inputs, install, run the gate and annotate it; fill *outputs* along the way."""
     try:
         inputs = read_inputs(env)
     except ValueError as err:
@@ -446,22 +550,53 @@ def main() -> int:
             "the installed pyDeprecate predates `--report-json`, so gaps are not annotated and no job summary is"
             " written; keep `install: true` or upgrade the pyDeprecate this job installs",
         )
-        return run_gate(inputs, python, None, env)
+        return run_gate(inputs, python, None, env, outputs)
     try:
         # a private directory removed on exit, so no report outlives the step or lands in the checkout
         scratch = tempfile.TemporaryDirectory(prefix="pydeprecate-", dir=env.get("RUNNER_TEMP") or None)
     except OSError as err:
         annotate("warning", f"could not create a temporary directory for the report ({err}); running without it")
-        return run_gate(inputs, python, None, env)
+        return run_gate(inputs, python, None, env, outputs)
     with scratch as scratch_dir:
         # never created here: only a CLI run that completed writes it, so a missing file means no report
-        return run_gate(inputs, python, Path(scratch_dir) / REPORT_FILENAME, env)
+        return run_gate(inputs, python, Path(scratch_dir) / REPORT_FILENAME, env, outputs)
 
 
-def run_gate(inputs: ActionInputs, python: str, report_file: Path | None, env: dict[str, str]) -> int:
-    """Run the gate, then annotate its gaps and, with ``summary``, append its table from ``report_file``."""
+def publish_report(
+    report: dict[str, Any], report_file: Path, kept: Path | None, sarif_file: Path | None, outputs: dict[str, str]
+) -> None:
+    """Annotate the report's findings and gaps, and fill the count and path outputs from it and the kept files."""
+    findings = report.get("findings")
+    if isinstance(findings, list):
+        annotate_findings([finding for finding in findings if isinstance(finding, dict)])
+    annotate_gaps([gap for gap in report.get("gaps") or [] if isinstance(gap, dict)])
+    summary = report.get("summary")
+    if isinstance(summary, dict):
+        for name in SUMMARY_OUTPUTS:
+            if isinstance(summary.get(name), int):
+                outputs[name] = str(summary[name])
+    if kept is not None:
+        try:
+            outputs["report-json"] = str(shutil.copy(report_file, kept / REPORT_FILENAME))
+        except OSError as err:
+            annotate("warning", f"could not keep a copy of the report for later steps: {err}")
+    if sarif_file is not None and sarif_file.is_file():
+        outputs["sarif-file"] = str(sarif_file)
+
+
+def run_gate(
+    inputs: ActionInputs,
+    python: str,
+    report_file: Path | None,
+    env: dict[str, str],
+    outputs: dict[str, str] | None = None,
+) -> int:
+    """Run the gate, annotate its findings and gaps, with ``summary`` append its table, and fill the step *outputs*."""
+    outputs = {} if outputs is None else outputs
+    kept = outputs_directory(env, inputs) if report_file is not None else None
+    sarif_file = kept / SARIF_FILENAME if kept is not None and inputs.sarif else None
     try:
-        returncode = run_cli(build_cli_argv(inputs, python, report_file))
+        returncode = run_cli(build_cli_argv(inputs, python, report_file, sarif_file))
     except CliStartError as err:
         annotate("error", str(err))
         return 1
@@ -483,7 +618,7 @@ def run_gate(inputs: ActionInputs, python: str, report_file: Path | None, env: d
         skipped = " and the job summary is skipped" if inputs.summary else ""
         annotate("warning", f"the gate wrote no pyDeprecate report, so its gaps are not annotated{skipped}")
         return gate.code
-    annotate_gaps([gap for gap in report.get("gaps") or [] if isinstance(gap, dict)])
+    publish_report(report, report_file, kept, sarif_file, outputs)
     if inputs.summary:
         table = report.get("table")
         if isinstance(table, str):

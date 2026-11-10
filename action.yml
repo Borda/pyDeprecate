@@ -5,7 +5,8 @@
 # imports the audited package, so its runtime dependencies must already be importable there.
 # All logic lives in `.github/scripts/action_runner.py`; inputs reach it only through `env:` (never interpolated into
 # the script), and `tests/integration/test_action.py` keeps inputs, defaults and env names in lockstep with it.
-# Gaps and the job-summary table come from the CLI's `--report-json` file, never from its console output.
+# Findings, gaps, the job-summary table and the step outputs come from the CLI's `--report-json` file, never from its
+# console output; the step keeps a copy of that file (and the SARIF file) in RUNNER_TEMP for later steps.
 # The step exits with the CLI's code, except: a `path` starting with `-` exits 2, a failed install returns pip's exit
 # code, and a CLI that cannot start returns 1.
 name: pyDeprecate audit
@@ -56,11 +57,44 @@ inputs:
       and preserve the gate result. No summary is written when the CLI exits `2` or `3`.
     required: false
     default: "false"
+  sarif:
+    description: >-
+      Also write the run's findings as a SARIF 2.1.0 file (passes `--report-sarif`) for `github/codeql-action/upload-sarif`;
+      its path is the `sarif-file` output. Not valid with `status`. Needs pyDeprecate 0.16 or newer.
+    required: false
+    default: "false"
+
+outputs:
+  exit-code:
+    description: The step's exit code (the CLI's, or the action's own `2` for a bad input).
+    value: ${{ steps.pydeprecate.outputs.exit-code }}
+  findings:
+    description: Number of active findings in the report; empty when no report was written (exit `2` or `3`).
+    value: ${{ steps.pydeprecate.outputs.findings }}
+  errors:
+    description: Number of error-level findings (the ones that fail the gate); empty without a report.
+    value: ${{ steps.pydeprecate.outputs.errors }}
+  warnings:
+    description: Number of warning-level findings; empty without a report.
+    value: ${{ steps.pydeprecate.outputs.warnings }}
+  gaps:
+    description: Number of gaps (parts of the audit that did not run); empty without a report.
+    value: ${{ steps.pydeprecate.outputs.gaps }}
+  suppressed:
+    description: Number of findings accepted by `--ignore` or `--baseline`; empty without a report.
+    value: ${{ steps.pydeprecate.outputs.suppressed }}
+  report-json:
+    description: Path of a copy of the run's `--report-json` file kept for later steps; empty without a report.
+    value: ${{ steps.pydeprecate.outputs.report-json }}
+  sarif-file:
+    description: Path of the SARIF file when `sarif` is `true` and the CLI wrote it; empty otherwise.
+    value: ${{ steps.pydeprecate.outputs.sarif-file }}
 
 runs:
   using: composite
   steps:
     - name: pyDeprecate
+      id: pydeprecate
       shell: python
       env:
         PYDEPRECATE_ACTION_SUBCOMMAND: ${{ inputs.subcommand }}
@@ -70,6 +104,7 @@ runs:
         PYDEPRECATE_ACTION_FAIL_ON_GAP: ${{ inputs.fail-on-gap }}
         PYDEPRECATE_ACTION_INSTALL: ${{ inputs.install }}
         PYDEPRECATE_ACTION_SUMMARY: ${{ inputs.summary }}
+        PYDEPRECATE_ACTION_SARIF: ${{ inputs.sarif }}
       run: |
         import os, runpy
         runpy.run_path(os.path.join(os.environ["GITHUB_ACTION_PATH"], ".github", "scripts", "action_runner.py"), run_name="__main__")

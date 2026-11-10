@@ -252,14 +252,14 @@ class TestParseCliArgs:
         """
         parsed = _parse_cli_args(argv)
         assert parsed is not None
-        command, kwargs, report_path = parsed
-        assert (command.function, kwargs, report_path) == (expected_command, expected_kwargs, None)
+        command, kwargs, reports = parsed
+        assert (command.function, kwargs, reports) == (expected_command, expected_kwargs, (None, None))
 
     def test_report_option_is_split_off(self) -> None:
         """``--report-json`` is the CLI's own option and never reaches the ``cmd_*`` function."""
         parsed = _parse_cli_args(["status", "pkg", "--report_json=out/r.json"])
         assert parsed is not None
-        assert (parsed[1], parsed[2]) == ({"path": "pkg"}, "out/r.json")
+        assert (parsed[1], parsed[2]) == ({"path": "pkg"}, ("out/r.json", None))
 
     @pytest.mark.parametrize(
         ("argv", "expected_kwargs"),

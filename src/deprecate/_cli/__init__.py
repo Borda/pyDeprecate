@@ -26,6 +26,8 @@ from deprecate import __about__
 #: Option of every subcommand naming the file the run's machine-readable report goes to; ``cli`` handles it itself.
 #: The GitHub Action probes for this name to tell whether the installed CLI writes reports.
 _REPORT_OPTION = "--report-json"
+#: Option of every gate subcommand naming the SARIF 2.1.0 file of the run; ``cli`` handles it itself.
+_SARIF_OPTION = "--report-sarif"
 #: Exit code of a run that crashed: the scanned package could not be imported, or the CLI itself failed. Distinct
 #: from 1 (findings) and 2 (usage error), and never downgraded by ``--exit-zero``.
 _CRASH_EXIT = 3
@@ -73,14 +75,14 @@ def cli() -> None:
     parsed = _parse_cli_args(sys.argv[1:])
     if parsed is None:  # bare `pydeprecate`: the help was printed
         return
-    command, kwargs, report_path = parsed
+    command, kwargs, (report_path, sarif_path) = parsed
     if _run_active():
         # an audited package whose import runs the CLI again sees the outer `sys.argv`; only the outermost run may
         # write the report, or the nested run's report would pass for the outer scan's
-        report_path = None
+        report_path = sarif_path = None
     with _record_run() as run_record:
         run_record.command = command.function.__name__.replace("cmd_", "", 1)
-        run_record.wants_report = report_path is not None
+        run_record.wants_report = report_path is not None or sarif_path is not None
         try:
             exit_code = command.function(**kwargs)
         except _ScanError as exc:
@@ -94,4 +96,8 @@ def cli() -> None:
     # never written for a usage error (exit 2): nothing was scanned
     if report_path is not None and exit_code in (0, 1):
         _write_report(report_path, run_record, exit_code)
+    if sarif_path is not None and exit_code in (0, 1):
+        from deprecate._cli.sarif import _write_sarif
+
+        _write_sarif(sarif_path, run_record, exit_code)
     sys.exit(exit_code)

@@ -1515,6 +1515,46 @@ class TestCliReportSchemaTwo:
         assert "mypkg.new_old_fn" in third.stdout
         assert "mypkg.old_fn" not in third.stdout
 
+    def test_report_sarif_lists_active_findings(self, tmp_path: Path) -> None:
+        """``--report-sarif`` writes one SARIF result per active finding, located relative to the working directory.
+
+        CI uploads the file to code scanning, which needs a ``%SRCROOT%``-relative location to show each alert.
+
+        """
+        pkg = _make_pkg(tmp_path, content=_MYPKG_INIT_TWO_EXPIRED)
+        sarif = tmp_path / "out.sarif"
+        result = _run_cli("expiry", str(pkg), "--version=2.0", f"--report-sarif={sarif}", cwd=tmp_path)
+        run = json.loads(sarif.read_text(encoding="utf-8"))["runs"][0]
+        assert result.returncode == 1, result.stderr
+        assert [res["partialFingerprints"]["pydeprecateFindingId/v1"] for res in run["results"]] == [
+            "expired:mypkg:mid_fn",
+            "expired:mypkg:old_fn",
+        ]
+        assert {res["locations"][0]["physicalLocation"]["artifactLocation"]["uri"] for res in run["results"]} == {
+            "mypkg/__init__.py"
+        }
+
+    @pytest.mark.parametrize(
+        ("args", "exit_code"),
+        [
+            pytest.param(("status",), 2, id="status-has-no-sarif"),
+            pytest.param(("expiry", "--verison=2.0"), 2, id="usage-error"),
+        ],
+    )
+    def test_report_sarif_not_written_on_usage_error(
+        self, tmp_path: Path, args: tuple[str, ...], exit_code: int
+    ) -> None:
+        """A usage error writes no SARIF file, and ``status`` refuses the option as unknown.
+
+        Code scanning must never receive a file from a run that scanned nothing.
+
+        """
+        pkg = _make_pkg(tmp_path)
+        sarif = tmp_path / "out.sarif"
+        result = _run_cli(args[0], str(pkg), *args[1:], f"--report-sarif={sarif}", cwd=tmp_path)
+        assert result.returncode == exit_code
+        assert not sarif.exists()
+
     def test_strict_gap_is_the_gate_reason(self, tmp_path: Path) -> None:
         """A strict run that fails only on a gap records ``gaps`` as the reason, and the gap carries its path.
 

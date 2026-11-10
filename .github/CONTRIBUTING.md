@@ -335,6 +335,7 @@ pyDeprecate/
 │   │   ├── config.py           # [tool.pydeprecate] pyproject.toml config and flag-default resolution
 │   │   ├── findings.py         # Level of each finding per subcommand and the one exit-code function
 │   │   ├── report.py           # _print(), the _Reporter finding sections and the --report-json writer
+│   │   ├── sarif.py            # SARIF 2.1.0 writer of --report-sarif
 │   │   ├── scan.py             # Path scanning: file, package or plain directory -> wrappers
 │   │   └── suppress.py         # Ignore entries and the --baseline report that accept known findings
 │   ├── _types.py               # Shared type definitions: DeprecationConfig, _ProxyConfig

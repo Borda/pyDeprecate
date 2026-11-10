@@ -2313,6 +2313,14 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
+## Why does a pyDeprecate annotation show no file or line?
+
+**Q:** The GitHub Action's annotation for a finding appears on the run summary instead of on a line of the pull request.
+
+**A:** The finding's wrapper has no source location the CLI can name: a `deprecated_instance` data object (a wrapped value has no defining line), or code compiled from a string. Since 0.16 every other finding is annotated with the file and the line of its wrapper's first decorator; a deprecated module is annotated on its file without a line. A file outside the job's working directory is named by its absolute path, which GitHub cannot match to the pull request, so run the action from the repository root (the default) and scan the package in the checkout rather than an installed copy.
+
+______________________________________________________________________
+
 ## Why did the GitHub Action skip my job summary?
 
 **Q:** The action ran with `summary: true`, but the job summary is absent or warns that the gate wrote no pyDeprecate report, or that no pyDeprecate report is available, or another runner warning about the summary.
