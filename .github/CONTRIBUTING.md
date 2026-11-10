@@ -335,7 +335,7 @@ pyDeprecate/
 │   │   ├── config.py           # [tool.pydeprecate] pyproject.toml config and flag-default resolution
 │   │   ├── findings.py         # Level of each finding per subcommand and the one exit-code function
 │   │   ├── report.py           # _print() and the plain-text _Reporter finding sections
-│   │   ├── scan.py             # Path scanning: file, package or plain directory -> wrappers
+│   │   ├── scan.py             # Path scanning: package, plain directory or module name -> wrappers
 │   │   └── static.py           # --static: read wrappers from source with ast, importing nothing
 │   ├── _types.py               # Shared type definitions: DeprecationConfig, _ProxyConfig
 │   ├── deprecation.py          # Front door: deprecated() dispatcher (functions/methods -> routine, classes -> proxy)
