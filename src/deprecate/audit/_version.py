@@ -289,16 +289,15 @@ def _module_string(
 
     A star import is a different question from a plain read: it binds *name* only when the module exports it, and the
     importing module keeps what it held before the statement otherwise. So with *via_star* there are three answers: the
-    string; ``None`` when the import does bind the name but the reader cannot tell to what (a non-literal value, a
-    module that cannot be parsed, an ``__all__`` that cannot be read, a module beyond the *hops* budget), which clears
-    an earlier literal as the runtime rebind would; and :data:`_UNBOUND` when it does not bind the name, because the
-    module does not export it or lies outside the *roots* (the standard library, a third-party package), whose
-    ``__version__`` a package does not take as its own.
+    string; ``None`` when the import may bind the name but the reader cannot tell to what (a non-literal value, a
+    module that cannot be found or parsed, an ``__all__`` that cannot be read, a module beyond the *hops* budget),
+    which clears an earlier literal because the runtime import may rebind it; and :data:`_UNBOUND` when the source
+    confirms the module does not export the name.
 
     """
     source = _module_source_file(module, roots)
     if source is None:
-        return _UNBOUND if via_star else None
+        return None
     if hops < 0:
         return None
     try:

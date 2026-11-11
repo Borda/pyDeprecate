@@ -497,8 +497,8 @@ class TestResolveWithoutImport:
                 "__version__ = '1.0'\nfrom json import *\n",
                 {},
                 None,
-                "1.0",
-                id="star-outside-roots-keeps-earlier-literal",
+                None,
+                id="star-outside-roots-clears-earlier-literal",
             ),
             pytest.param("", {}, None, None, id="nothing-to-read"),
             pytest.param(
@@ -548,7 +548,8 @@ class TestResolveWithoutImport:
         rather than keeping the placeholder literal before it, which would silently pass every expiry check. A star
         import that does export ``__version__`` rebinds it just the same, so a value the reader cannot read (a
         computed one, a module that is not valid Python, a chain longer than it follows) clears the earlier literal;
-        one that does not export it, or comes from outside the package (the standard library), leaves it in place.
+        one confirmed not to export it leaves it in place. An uninspectable external module may export it, so its
+        star import also leaves the version unresolved.
 
         """
         pkg = write_pkg(tmp_path, "srcpkg", init_head + _SENTINEL_TAIL)
@@ -558,6 +559,19 @@ class TestResolveWithoutImport:
             (tmp_path / "pyproject.toml").write_text(pyproject)
         version = _resolve_package_version("srcpkg", path=str(pkg), allow_import=False, import_root=tmp_path)
         assert (version, (pkg / "IMPORTED").exists()) == (expected, False)
+
+    def test_external_star_export_leaves_version_unresolved(self, tmp_path: Path) -> None:
+        """An external star import may replace the package's literal with its own exported version.
+
+        The external module is outside the scan root, so the static reader cannot inspect its export list even
+        though it could be available at runtime. Returning the earlier literal would report a stale version.
+
+        """
+        scan_root = tmp_path / "scan"
+        scan_root.mkdir()
+        pkg = write_pkg(scan_root, "srcpkg", "__version__ = '1.0'\nfrom external_meta import *\n")
+        (tmp_path / "external_meta.py").write_text("__all__ = ['__version__']\n__version__ = '2.0'\n")
+        assert _resolve_package_version("srcpkg", path=str(pkg), allow_import=False, import_root=scan_root) is None
 
     @pytest.mark.parametrize(
         "attr_module",
