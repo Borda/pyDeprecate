@@ -12,8 +12,9 @@ from pathlib import Path
 from typing import Optional
 
 from deprecate._cli._pkg import _safe_module_name
-from deprecate.audit import DeprecationWrapperInfo, generate_deprecation_table
+from deprecate.audit import DeprecationWrapperInfo, TableStyle
 from deprecate.audit._findings import _Finding, _misconfiguration
+from deprecate.audit._report import _render_deprecation_table, _resolve_table_version
 from deprecate.audit._version import _resolve_package_version
 
 
@@ -350,9 +351,10 @@ def _render_recorded_table(record: _RunRecord) -> Optional[str]:
     module_name = _safe_module_name(scan.path)
     version = scan.version if scan.version is not None else _resolve_package_version(module_name, path=scan.path)
     try:
-        return generate_deprecation_table(
-            module_name, current_version=version, _wrappers=scan.wrappers, _version_explicit=False
+        resolved_version, parsed_version = _resolve_table_version(
+            module_name, current_version=version, version_explicit=False
         )
+        return _render_deprecation_table(scan.wrappers, resolved_version, parsed_version, TableStyle.COMPACT)
     except Exception as exc:  # a display artifact: it never fails the run, as in `cmd_all`
         _print(f"Could not render the deprecation table for the JSON report: {exc}", stderr=True)
         return None

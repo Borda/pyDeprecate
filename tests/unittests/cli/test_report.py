@@ -192,7 +192,7 @@ class TestWriteReport:
             gaps=[(_GapKind.PACKAGING_MISSING, "no packaging")],
             scan=_ScanRecord(path="some_module", wrappers=[], version="1.0"),
         )
-        with patch("deprecate._cli.report.generate_deprecation_table", side_effect=RuntimeError("boom")):
+        with patch("deprecate._cli.report._render_deprecation_table", side_effect=RuntimeError("boom")):
             _write_report(str(report_file), record)
         report = json.loads(report_file.read_text(encoding="utf-8"))
         assert report["table"] is None

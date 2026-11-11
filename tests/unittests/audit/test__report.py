@@ -1,6 +1,7 @@
 """Unit tests for private helpers in :mod:`deprecate.audit._report`."""
 
 import functools
+import importlib.util
 import warnings
 from collections.abc import Callable
 from typing import Any
@@ -8,7 +9,9 @@ from typing import Any
 import pytest
 
 import tests.collections.misconfigured as clean_module
-from deprecate.audit._report import _format_report_target
+from deprecate._types import DeprecationConfig
+from deprecate.audit import DeprecationWrapperInfo, TableStyle
+from deprecate.audit._report import _format_report_target, _render_deprecation_table
 from deprecate.proxy import deprecated_class
 from tests.collections.api_current.core import (
     CallableAdder,
@@ -20,6 +23,8 @@ from tests.collections.api_current.core import (
     partial_new_cls_target,
     partial_target,
 )
+
+_requires_packaging = pytest.mark.skipif(importlib.util.find_spec("packaging") is None, reason="requires packaging")
 
 
 class TestFormatReportProxyTarget:
@@ -103,3 +108,73 @@ class TestFormatReportCallableTarget:
         source whenever the callable has one.
         """
         assert _format_report_target(target) == expected
+
+
+def _matrix_row(function: str, deprecated_in: str, remove_in: str) -> DeprecationWrapperInfo:
+    """Build a scanned-wrapper row carrying only the two versions a matrix table reads."""
+    return DeprecationWrapperInfo(
+        module="pkg",
+        function=function,
+        deprecated_info=DeprecationConfig(deprecated_in=deprecated_in, remove_in=remove_in),
+    )
+
+
+#: Three spellings of one release in ``deprecated_in``, all removed in the same later release.
+_MATRIX_ROWS_ONE_RELEASE = [
+    _matrix_row("plain", "1.0", "2.0"),
+    _matrix_row("prefixed", "v1.0", "2.0"),
+    _matrix_row("padded", "1.0.0", "2.0"),
+]
+
+
+def _matrix_header(rows: list[DeprecationWrapperInfo]) -> list[str]:
+    """Render *rows* as a matrix table and return the version column headers of its header row."""
+    table = _render_deprecation_table(rows, None, None, TableStyle.MATRIX)
+    return [cell.strip() for cell in table.splitlines()[0].strip("|").split("|")][3:]
+
+
+def _matrix_cells(rows: list[DeprecationWrapperInfo]) -> list[list[str]]:
+    """Render *rows* as a matrix table and return, per body row, the marker cells under the version columns."""
+    table = _render_deprecation_table(rows, None, None, TableStyle.MATRIX)
+    body = [line for line in table.splitlines() if line.startswith("| `pkg.")]
+    return [[cell.strip() for cell in line.strip("|").split("|")][3:] for line in body]
+
+
+class TestMatrixVersionColumns:
+    """Matrix-style tables give one column per release, however each wrapper spells its version."""
+
+    @_requires_packaging
+    def test_equal_releases_share_one_column(self) -> None:
+        """``1.0``, ``v1.0`` and ``1.0.0`` are one release and get one column, headed by the shortest spelling.
+
+        A package whose wrappers were written over several years spells the same release differently; keying the
+        columns on the raw strings gave two identical ``v1.0`` headers and a separate ``v1.0.0`` column, so the
+        table claimed three releases and split the ``D`` markers of one release across them.
+        """
+        assert _matrix_header(_MATRIX_ROWS_ONE_RELEASE) == ["v1.0", "v2.0"]
+
+    @_requires_packaging
+    def test_merged_column_marks_every_spelling(self) -> None:
+        """Each wrapper's ``D`` marker lands in the shared column of its release.
+
+        Merging the headers must keep every row's markers in the merged column, or a row spelled ``1.0.0`` would show
+        no deprecation version at all.
+        """
+        table = _render_deprecation_table(_MATRIX_ROWS_ONE_RELEASE, None, None, TableStyle.MATRIX)
+        rows = [line for line in table.splitlines() if line.startswith("| `pkg.")]
+        assert [row.rstrip("|").split("|")[-2:] for row in rows] == [[" D ", " R "]] * 3
+
+    def test_without_packaging_only_prefix_spellings_merge(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Without ``packaging`` the columns merge only spellings that differ by the ``v`` prefix.
+
+        Release equality such as ``1.0`` == ``1.0.0`` needs PEP 440 parsing; when ``packaging`` is missing the table
+        still renders, the ``v``-prefixed spelling shares the column its header already showed, and ``1.0.0`` keeps a
+        column of its own; each row must carry its ``D`` marker under the column of its own spelling.
+        """
+        monkeypatch.setattr("deprecate.audit._report._safe_parse_version", lambda version: None)
+        assert _matrix_header(_MATRIX_ROWS_ONE_RELEASE) == ["v1.0", "v1.0.0", "v2.0"]
+        assert _matrix_cells(_MATRIX_ROWS_ONE_RELEASE) == [
+            ["", "D", "R"],  # padded: ``1.0.0`` keeps a column of its own
+            ["D", "", "R"],  # plain: ``1.0`` is the spelling that heads the shared column
+            ["D", "", "R"],  # prefixed: ``v1.0`` joins the ``1.0`` column
+        ]
