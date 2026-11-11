@@ -5343,7 +5343,7 @@ this scan unchanged.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>List of :class:<code>~deprecate.audit.DeprecationWrapperInfo</code> dataclasses, one per deprecated wrapper found.</p>
+                <p>List of :class:<code>~deprecate.audit.DeprecationWrapperInfo</code> dataclasses, one per deprecated wrapper found: where</p>
               </div>
             </td>
           </tr>
@@ -5358,15 +5358,22 @@ this scan unchanged.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Each contains:
-- module: Module name where the wrapper is defined
-- function: Wrapper name
-- deprecated_info: DeprecationConfig metadata from the decorator (<code>__deprecation_config__</code> attribute)
-- invalid_args: List of args_mapping keys not in wrapper signature
-- empty_args_mapping: True if args_mapping is None or empty
-- identity_args_mapping: List of identity mappings (key == value)
-- self_reference: True if target points to same wrapper
-- no_effect: True if wrapper has zero impact</p>
+                <p>it is defined (<code>module</code>, <code>function</code>), its decorator metadata (<code>deprecated_info</code>) and every validation</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="list">list</span>[<a class="autorefs autorefs-internal" title="            deprecate.audit.DeprecationWrapperInfo
+
+
+  
+      dataclass
+   (deprecate.audit._wrappers.DeprecationWrapperInfo)" href="#deprecate.audit.DeprecationWrapperInfo">DeprecationWrapperInfo</a>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>field its attributes document.</p>
               </div>
             </td>
           </tr>
@@ -5726,6 +5733,54 @@ nothing.</p>
             <td>
               <div class="doc-md-description">
                 <p>Empty list if all deprecated callables are still within their deprecation period.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ImportError">ImportError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If <code>packaging</code> is not installed, or if <code>current_version</code> is <code>None</code> and no version can be
+resolved for the package. A string module path that cannot be imported raises <code>ModuleNotFoundError</code>
+(an <code>ImportError</code> subclass).</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If <code>current_version</code> is not a valid PEP 440 version, if <code>module</code> is an empty string, or if
+<code>current_version</code> is <code>None</code> and <code>module</code> is an object without a <code>__name__</code>.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="Exception">Exception</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Any other error raised by the import-time code of a string module path (for example a
+<code>RuntimeError</code>) propagates unchanged, with or without <code>current_version</code>. With <code>current_version=None</code>
+the import runs before the version lookup, so this error is reported instead of a missing version.</p>
               </div>
             </td>
           </tr>
@@ -6359,7 +6414,7 @@ nothing.</p>
 
 
 <h2 id="deprecate.audit.generate_deprecation_table" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">deprecate</span><span class="o">.</span><span class="n">audit</span><span class="o">.</span><span class="n">generate_deprecation_table</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">current_version</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">style</span><span class="o">=</span><span class="n">TableStyle</span><span class="o">.</span><span class="n">COMPACT</span><span class="p">,</span> <span class="n">include_members</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">_wrappers</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">_version_explicit</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">deprecate</span><span class="o">.</span><span class="n">audit</span><span class="o">.</span><span class="n">generate_deprecation_table</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">current_version</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">style</span><span class="o">=</span><span class="n">TableStyle</span><span class="o">.</span><span class="n">COMPACT</span><span class="p">,</span> <span class="n">include_members</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
 <a href="#deprecate.audit.generate_deprecation_table" class="headerlink" title="Permanent link">🔗</a></h2>
 
@@ -6446,7 +6501,10 @@ installed.</p>
                 <p>Table format — <code>"compact"</code> or <code>"matrix"</code>.
 - <code>"compact"</code>: <code>Original API | API Type | New API | Deprecated | Remove | Current Status</code>
 - <code>"matrix"</code>: <code>Original API | API Type | New API | &lt;all versions...&gt;</code>, with markers
-  <code>D</code> (deprecated) and <code>R</code> (remove) in version columns.</p>
+  <code>D</code> (deprecated) and <code>R</code> (remove) in version columns; <code>D/R</code> marks a release that is both
+  deprecated and removed. There is one column per release: spellings such as <code>1.0</code>, <code>v1.0</code> and
+  <code>1.0.0</code> merge into one column when <code>packaging</code> is installed, and without it only the <code>v</code>
+  prefix is ignored.</p>
               </div>
             </td>
             <td>
@@ -6485,26 +6543,6 @@ nothing.</p>
             </td>
             <td>
                   <code>None</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>_version_explicit</code>
-            </td>
-            <td>
-                  <code><span title="bool">bool</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Whether <code>current_version</code> was typed by the caller rather than auto-detected
-on its behalf. A caller that resolves the version itself (the CLI's single-scan path) passes
-<code>False</code> so an unparsable one degrades to an unparsed version string — the same fallback this
-function applies to a version it auto-detects — instead of raising. Underscore prefix marks it
-internal; it is not part of the public signature.</p>
-              </div>
-            </td>
-            <td>
-                  <code>True</code>
             </td>
           </tr>
       </tbody>
@@ -6802,10 +6840,10 @@ that lack the introductory version metadata without crashing callers.</p>
               <div class="doc-md-description">
                 <p>Inferred deprecated API type for report generation.
 Possible values: <code>callable</code>, <code>args</code>, <code>class</code>, <code>dataclass</code>, <code>dataclass attributes</code>,
-<code>data</code>, <code>class constructor</code>, <code>class constructor args</code>, <code>class method</code>, <code>class method args</code>,
-<code>classmethod</code>, <code>classmethod args</code>, <code>staticmethod</code>, <code>staticmethod args</code>. A row for an object
-deprecated only with <code>warnings.deprecated</code>/<code>typing_extensions.deprecated</code> gets the same shape
-classification; <code>pep702_message</code> marks it.</p>
+<code>data</code>, <code>module</code>, <code>class constructor</code>, <code>class constructor args</code>, <code>class method</code>,
+<code>class method args</code>, <code>classmethod</code>, <code>classmethod args</code>, <code>staticmethod</code>, <code>staticmethod args</code>.
+A row for an object deprecated only with <code>warnings.deprecated</code>/<code>typing_extensions.deprecated</code> gets the
+same shape classification; <code>pep702_message</code> marks it.</p>
               </div>
             </td>
           </tr>
@@ -6925,7 +6963,7 @@ info.invalid_args
 
     <div class="doc doc-contents ">
 
-        <p>Derive <code>empty_deprecated_in</code> from <code>deprecated_info</code> to keep them in sync.</p>
+        <p>Derive <code>empty_deprecated_in</code> from <code>deprecated_info</code> and keep <code>api_type</code> a plain string.</p>
 
 
     </div>
