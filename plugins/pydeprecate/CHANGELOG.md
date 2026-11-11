@@ -2,11 +2,11 @@
 
 All notable changes to the `pydeprecate` coding-agent plugin (the `sunset` and `prune` skills) are listed here. The plugin `version` follows its own cadence, independent of the `pyDeprecate` package version; `compatible_package_version` is the package support window the skills are verified against.
 
-## [0.5.4] - Unreleased
+## [0.6.0] - Unreleased
 
 ### Added
 
-- `sunset`: `deprecated_instance(old_obj, target=new_obj, ...)` (since pyDeprecate 0.16) for an old object name that should already serve its replacement, with the fallback for older releases; the `message-required` note says a data replacement still needs a `message_template`.
+- `sunset` (the skill that deprecates an API) now covers deprecating an object or constant with `deprecated_instance(old_obj, target=new_obj, ...)`: the old name keeps warning while it serves the replacement. This needs pyDeprecate 0.16; on older releases the skill tells the agent to wrap the replacement itself. Its `message-required` note now says a data replacement needs a `message_template` (or an `attrs_mapping`).
 
 ## [0.5.3] - Unreleased
 
