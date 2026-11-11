@@ -475,6 +475,13 @@ class TestResolveWithoutImport:
                 id="star-rebound-all-clears-earlier-literal",
             ),
             pytest.param(
+                "__version__ = '1.0'\nfrom ._meta import *\n",
+                {"_meta.py": "__all__ = []\n__all__.append('__version__')\n__version__ = '2.0'\n"},
+                None,
+                None,
+                id="star-mutated-all-clears-earlier-literal",
+            ),
+            pytest.param(
                 "__version__ = '1.0'\nfrom ._m1 import *\n",
                 {
                     "_m1.py": "__all__ = ['__version__']\nfrom ._m2 import *\n",
@@ -625,6 +632,13 @@ class TestLiteralAll:
             pytest.param("__all__ = [*other, 'a']\n", _ALL_UNREADABLE, id="starred"),
             pytest.param("__all__ = ['a', name]\n", _ALL_UNREADABLE, id="non-literal-name"),
             pytest.param("from ._meta import __all__\n", _ALL_UNREADABLE, id="imported"),
+            pytest.param("__all__ = []\n__all__.append('a')\n", _ALL_UNREADABLE, id="appended-to"),
+            pytest.param("__all__ = ['a']\n__all__.extend(['b'])\n", _ALL_UNREADABLE, id="extended"),
+            pytest.param("__all__ = ['a']\n__all__[0] = 'b'\n", _ALL_UNREADABLE, id="item-assigned"),
+            pytest.param("__all__ = ['a']\nfor _name in __all__:\n    pass\n", _ALL_UNREADABLE, id="read-by-code"),
+            pytest.param(
+                "__all__ = ['a']\ndef _fn():\n    __all__.remove('a')\n", _ALL_UNREADABLE, id="mutated-in-function"
+            ),
         ],
     )
     def test_reads_all_only_when_one_literal_binds_it(self, source: str, expected: object) -> None:
@@ -633,7 +647,9 @@ class TestLiteralAll:
         A star import copies the names ``__all__`` lists, so a reader that follows only the first assignment would
         see an export the module's later ``+=`` or rebinding removes, or miss one it adds. Both the static scan and
         the version reader answer "does this star import bind that name" from this one rule: no ``__all__`` is ``None``
-        (every public name), one literal list is a set, and anything the source does not settle is the reason.
+        (every public name), one literal list is a set, and anything the source does not settle is the reason. A list
+        changed in place (``__all__.append(...)``) is not settled by its one assignment either, so any other use of the
+        name makes it unreadable: a read-only use over-reports as a gap, never as a silently wrong export set.
 
         """
         assert _literal_all(ast.parse(source)) == expected

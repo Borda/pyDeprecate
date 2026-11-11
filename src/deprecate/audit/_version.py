@@ -168,6 +168,11 @@ def _binds_all(node: ast.AST) -> bool:
     return False
 
 
+def _uses_all(node: ast.AST) -> bool:
+    """Tell whether *node* uses ``__all__`` without binding it: ``__all__.append(...)``, an item write or any read."""
+    return isinstance(node, ast.Name) and node.id == "__all__" and isinstance(node.ctx, ast.Load)
+
+
 def _all_assigned(stmt: ast.stmt) -> Optional[ast.expr]:
     """Return the value a statement assigns to ``__all__`` (``__all__ = ...`` or ``__all__: T = ...``), if it does."""
     if isinstance(stmt, ast.Assign):
@@ -185,7 +190,10 @@ def _literal_all(tree: ast.Module) -> Union[set[str], None, str]:
     ``None`` when the module binds no ``__all__`` (a star import copies every public name), the set of names when
     exactly one binding does and it is a module-level ``__all__ = [...]`` (or tuple) of string literals, else
     :data:`_ALL_UNREADABLE`: any other form (``+=``, a second assignment, a conditional or computed list, an import)
-    can leave a list the source does not settle. A bare annotation (``__all__: list[str]``) binds nothing.
+    can leave a list the source does not settle. So can any other use of the name: ``__all__.append(...)`` changes the
+    list in place after its one assignment, and a reader cannot tell that apart from a read-only use, so every use
+    makes the list unreadable (an over-report, never a silently wrong export set). A bare annotation
+    (``__all__: list[str]``) binds nothing.
 
     Examples:
         >>> sorted(_literal_all(ast.parse("__all__ = ['b', 'a']")))
@@ -194,12 +202,16 @@ def _literal_all(tree: ast.Module) -> Union[set[str], None, str]:
         True
         >>> _literal_all(ast.parse("__all__ = ['a']\n__all__ += ['b']")) == _ALL_UNREADABLE
         True
+        >>> _literal_all(ast.parse("__all__ = []\n__all__.append('a')")) == _ALL_UNREADABLE
+        True
 
     """
     bare = {id(node.target) for node in ast.walk(tree) if isinstance(node, ast.AnnAssign) and node.value is None}
     bindings = sum(1 for node in ast.walk(tree) if id(node) not in bare and _binds_all(node))
     if not bindings:
         return None
+    if any(_uses_all(node) for node in ast.walk(tree)):
+        return _ALL_UNREADABLE
     values = [value for stmt in tree.body if (value := _all_assigned(stmt)) is not None]
     if bindings == 1 and len(values) == 1 and isinstance(values[0], (ast.List, ast.Tuple)):
         elts = values[0].elts
@@ -221,6 +233,8 @@ def _star_exports(tree: ast.Module, name: str) -> Optional[bool]:
         >>> _star_exports(ast.parse("__version__ = '1.0'"), "__version__")
         False
         >>> _star_exports(ast.parse("__all__ = ['a']\n__all__ += ['__version__']"), "__version__") is None
+        True
+        >>> _star_exports(ast.parse("__all__ = []\n__all__.append('__version__')"), "__version__") is None
         True
 
     """

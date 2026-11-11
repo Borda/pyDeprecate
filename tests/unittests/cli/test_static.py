@@ -669,6 +669,59 @@ class TestBindingIdentity:
             imported = [(f.id, f.message) for f in _policy_findings(find_deprecation_wrappers(_PKG), _GUIDANCE_ONLY)]
         assert [(f.id, f.message) for f in _static_policy_findings(_read_package(pkg), _GUIDANCE_ONLY)] == imported
 
+    @pytest.mark.parametrize(
+        "template",
+        [
+            pytest.param("Use `new`.", id="plain-text"),
+            pytest.param("%(source_name)s moved to `new`.", id="placeholder-in-custom-text"),
+            pytest.param("%(target_name)s", id="placeholder-that-renders-empty"),
+            pytest.param(
+                "The `%(source_name)s` module was deprecated since v%(deprecated_in)s."
+                " It will be removed in v%(remove_in)s.",
+                id="text-that-renders-to-the-built-in-notice",
+            ),
+        ],
+    )
+    def test_module_template_guidance_matches_import_scan(
+        self, probe_package: Callable[..., Path], template: str
+    ) -> None:
+        """A module wrapper's ``message-required`` verdict reads the rendered template, as the import scan does.
+
+        ``deprecated_module`` renders its ``message_template`` at decoration time and stores the result, so a
+        template that renders empty (``%(target_name)s`` with no ``target``) or to exactly the built-in notice gives
+        callers no guidance, however different the raw text looks. Judging the raw text let such a module pass the
+        rule in static mode while import mode reported it.
+
+        """
+        pkg = probe_package(
+            {
+                "__init__.py": "",
+                "old.py": "from deprecate import deprecated_module\n\n"
+                f"deprecated_module(__name__, deprecated_in='1.0', remove_in='2.0', message_template={template!r})\n",
+            }
+        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            imported = [(f.id, f.message) for f in _policy_findings(find_deprecation_wrappers(_PKG), _GUIDANCE_ONLY)]
+        assert [(f.id, f.message) for f in _static_policy_findings(_read_package(pkg), _GUIDANCE_ONLY)] == imported
+
+    def test_module_template_using_an_unsettled_version_is_a_gap(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A module template that renders a version the source does not settle is reported, not judged on its raw text.
+
+        The rendered notice depends on the version: ``TABLE['x']`` may hold anything, so whether the stored text
+        equals the built-in notice is unknown and the module's guidance is left unjudged, with a gap naming why.
+
+        """
+        source = (
+            "from deprecate import deprecated_module\n\nTABLE = {}\n\n"
+            "deprecated_module(__name__, deprecated_in='1.0', remove_in=TABLE['x'], message_template='%(remove_in)s')\n"
+        )
+        wrappers = _read_package(_write(tmp_path, {"__init__.py": source}))
+        _static_policy_findings(wrappers, _GUIDANCE_ONLY)
+        assert "`message_template` renders `remove_in`" in capsys.readouterr().err
+
 
 # ---------------------------------------------------------------------------
 # Discovery: which files are read
@@ -785,6 +838,31 @@ class TestDiscovery:
         pkg = _write(tmp_path, {**files, "broken.py": "def (:\n"})
         _read_package(pkg, recursive=recursive, exclude=exclude)
         assert f"module not audited: {gap}" in capsys.readouterr().err
+
+    @pytest.mark.parametrize(
+        ("recursive", "exclude"),
+        [
+            pytest.param(False, (), id="no-recursive"),
+            pytest.param(True, (f"{_PKG}.core",), id="excluded-module-re-exported-by-a-walked-one"),
+        ],
+    )
+    def test_structural_gaps_of_a_module_reached_only_through_an_import_are_printed(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str], recursive: bool, exclude: tuple[str, ...]
+    ) -> None:
+        """A shape the reader cannot place in a module the walk skips is still a gap when another module re-exports it.
+
+        The package re-exports ``old`` from ``core``, which builds its wrapper through ``partial(deprecated, ...)``, a
+        shape static mode does not read. Under ``--no-recursive`` or ``--exclude`` ``core`` is analyzed only to follow
+        the re-export, and the gap that analysis records is the sole sign that ``old`` went unaudited.
+
+        """
+        core = (
+            f"from functools import partial\n{_DEP}\n"
+            "old = partial(deprecated, deprecated_in='1.0', remove_in='2.0')(print)\n"
+        )
+        pkg = _write(tmp_path, {"__init__.py": "from .core import old\n", "core.py": core})
+        _read_package(pkg, recursive=recursive, exclude=exclude)
+        assert "core.py:4: unrecognized use of `deprecated`" in capsys.readouterr().err
 
     def test_plain_directory_reads_top_level_files(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         """A plain directory reads its top-level modules by file name and reports nested files as not audited.
@@ -1208,6 +1286,14 @@ class TestNoSilentMiss:
             ),
             pytest.param(
                 {
+                    "__init__.py": "from .core import *\n",
+                    "core.py": f"{_DEP}__all__ = []\n__all__.append('old')\n\n@{_EXPIRED}\ndef old():\n    pass\n",
+                },
+                f"`from {_PKG}.core import *`: `{_PKG}.core` has an `__all__` that is not one literal list of names",
+                id="star-import-of-an-all-appended-to",
+            ),
+            pytest.param(
+                {
                     "m.py": "try:\n    from deprecate import deprecated\nexcept ImportError:\n    deprecated = None\n\n"
                     f"@{_EXPIRED}\ndef old():\n    pass\n"
                 },
@@ -1275,6 +1361,30 @@ class TestNoSilentMiss:
             ),
             pytest.param(
                 {
+                    "m.py": f"{_DEP}\nclass API:\n    @{_EXPIRED}\n    def old(self):\n        pass\n\n"
+                    "    if False:\n        def old(self):\n            pass\n"
+                },
+                "m.py:8: `old` may be rebound by this `if` statement",
+                id="class-member-replaced-inside-if",
+            ),
+            pytest.param(
+                {
+                    "m.py": f"{_DEP}\nclass API:\n    @{_EXPIRED}\n    def old(self):\n        pass\n\n"
+                    "    try:\n        old = None\n    except NameError:\n        pass\n"
+                },
+                "m.py:8: `old` may be rebound by this `try` statement",
+                id="class-member-replaced-inside-try",
+            ),
+            pytest.param(
+                {
+                    "m.py": "from deprecate import deprecated_module\n\n"
+                    "deprecated_module(__name__, deprecated_in='1.0', remove_in='2.0', message_template='%(nope)s')\n"
+                },
+                "m.py:3: `message_template` cannot be rendered",
+                id="module-template-the-factory-rejects",
+            ),
+            pytest.param(
+                {
                     "m.py": f"{_DEP}\nclass Holder:\n    deprecated = staticmethod(lambda **kw: lambda f: f)\n\n"
                     f"    @{_EXPIRED}\n    def old(self):\n        pass\n"
                 },
@@ -1316,8 +1426,9 @@ class TestNoSilentMiss:
 
         Each case once gave neither a row nor a gap: a configured decorator inside ``try``, a broken file first parsed
         through another module's import, a base class from another distribution, a target or a splat whose value
-        depends on runtime, a star import of a computed ``__all__``, a factory name the module rebinds, and a re-export
-        chain longer than the reader follows.
+        depends on runtime, a star import of a computed or in-place mutated ``__all__``, a factory name the module
+        rebinds, a deprecated class member that an ``if`` or ``try`` in the class body may replace (the import scan
+        reports it whenever that statement does not run), and a re-export chain longer than the reader follows.
 
         """
         wrappers = _read_package(_write(tmp_path, {"__init__.py": "", **files}))
@@ -1356,6 +1467,20 @@ class TestNoSilentMiss:
                     "@deprecated(args_mapping=M, **KW)\ndef old(a=0):\n    pass\n"
                 },
                 id="dict-only-copied-or-given-to-a-factory",
+            ),
+            pytest.param(
+                {
+                    "m.py": f"{_DEP}\nclass API:\n    @{_EXPIRED}\n    def old(self):\n        pass\n\n"
+                    "    def old(self):\n        pass\n"
+                },
+                id="class-member-replaced-by-a-plain-definition",
+            ),
+            pytest.param(
+                {
+                    "m.py": f"{_DEP}\nclass API:\n    @{_EXPIRED}\n    def old(self):\n        pass\n\n"
+                    "    with open(__file__):\n        def old(self):\n            pass\n"
+                },
+                id="class-member-replaced-in-a-with-body-that-always-runs",
             ),
         ],
     )
@@ -1470,6 +1595,15 @@ class TestNoSilentMiss:
                 id="configured-decorator-star-imported-over-a-local-binding",
             ),
             pytest.param(
+                {
+                    "m.py": f"from typing import TYPE_CHECKING\n{_DEP}\nclass API:\n    @{_EXPIRED}\n"
+                    "    def old(self):\n        pass\n\n"
+                    "    if TYPE_CHECKING:\n        def old(self):\n            pass\n"
+                },
+                True,
+                id="member-redefined-under-type-checking-keeps-its-wrapper",
+            ),
+            pytest.param(
                 {"m.py": f"import abc\n{_DEP}\nclass K(abc.ABC):\n    @{_EXPIRED}\n    def old(self):\n        pass\n"},
                 True,
                 id="standard-library-base",
@@ -1495,9 +1629,10 @@ class TestNoSilentMiss:
         Covers an import cycle between modules, a factory re-exported through two modules, a module holding a long
         ``1 + 1 + ...`` chain that the reader handles without a gap, a plain member that shadows an inherited deprecated
         one, a star import filtered by ``__all__``, star imports bound in statement order (a later star import, or a
-        local binding after one, wins, also for a configured decorator), and a standard-library base class, which
-        carries no deprecated member and so needs no gap. A module the reader cannot walk at all is a gap, not a parity
-        case; see ``test_module_too_deep_to_read_is_a_gap``.
+        local binding after one, wins, also for a configured decorator), a member redefined under
+        ``if TYPE_CHECKING:`` (that body never runs, so the deprecated member stays), and a standard-library base
+        class, which carries no deprecated member and so needs no gap. A module the reader cannot walk at all is a gap,
+        not a parity case; see ``test_module_too_deep_to_read_is_a_gap``.
 
         """
         pkg = probe_package({"__init__.py": "", **files})

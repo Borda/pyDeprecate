@@ -30,7 +30,7 @@ import sys
 import sysconfig
 import types
 from collections import defaultdict
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Collection, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from enum import Enum
 from pathlib import Path
@@ -46,7 +46,7 @@ from deprecate.audit._policy import _has_migration_guidance, _policy_findings, _
 from deprecate.audit._scan import _is_excluded
 from deprecate.audit._version import _absolute_import, _literal_all, _module_source_file
 from deprecate.audit._wrappers import _classify_member_api_type, _format_subject
-from deprecate.module import deprecated_module
+from deprecate.module import _build_module_warn_msg, deprecated_module
 
 #: The settings each check reads; a wrapper with one of them unresolved is left out of that check, with a gap.
 _EXPIRY_KEYWORDS = ("remove_in",)
@@ -852,12 +852,15 @@ class _ModuleAnalyzer:
         conditional = isinstance(stmt, _CONDITIONAL_STATEMENTS)
         for name in _scope_events([stmt]):
             if conditional and isinstance(self.bindings.get(name), (_Wrapper, _ClassInfo)):
-                keyword = type(stmt).__name__.lower()
-                self.lookup_gaps.append(
-                    f"{self.where}:{stmt.lineno}: `{name}` may be rebound by this `{keyword}` statement, so whether it"
-                    " still holds its deprecation wrapper is not settled; it is not audited"
-                )
+                self.lookup_gaps.append(self._rebound_gap(stmt, name))
             self._set(name, None)
+
+    def _rebound_gap(self, stmt: ast.stmt, name: str) -> str:
+        """Return the gap line for a deprecated *name* the conditional statement *stmt* may rebind."""
+        return (
+            f"{self.where}:{stmt.lineno}: `{name}` may be rebound by this `{type(stmt).__name__.lower()}` statement, so"
+            " whether it still holds its deprecation wrapper is not settled; it is not audited"
+        )
 
     def _assign(self, stmt: Union[ast.Assign, ast.AnnAssign]) -> None:
         """Bind each plain name target to the wrapper, class or import the value is (an alias shares the object)."""
@@ -1082,6 +1085,10 @@ class _ModuleAnalyzer:
         if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
             self._member_def(info, stmt, body_scope, accessors)
             return
+        if isinstance(stmt, ast.If) and self._qualified(stmt.test) in _TYPE_CHECKING_FLAGS:
+            for inner in stmt.orelse:  # as in ``_block``: the ``if TYPE_CHECKING:`` body never runs, its ``else`` does
+                self._class_statement(info, inner, body_scope, accessors)
+            return
         for name in _scope_events([stmt]):
             accessors.pop(name, None)
         if isinstance(stmt, ast.ClassDef):
@@ -1093,8 +1100,21 @@ class _ModuleAnalyzer:
                 if isinstance(target, ast.Name):
                     info.members[target.id] = self._wrapper_expr(stmt.value, attr=target.id, shadow=body_scope)
         else:
-            for name in _scope_events([stmt]):
-                info.members[name] = None
+            self._opaque_members(info, stmt)
+
+    def _opaque_members(self, info: _ClassInfo, stmt: ast.stmt) -> None:
+        """Bind each member *stmt* assigns to no wrapper, reporting a deprecated one an ``if`` or ``try`` may replace.
+
+        As for module-level names (:meth:`_rebind_opaque`): whether an ``if``, ``try`` or loop body runs is not settled
+        by the source, so a deprecated member it rebinds may still hold its wrapper at runtime, where the import scan
+        reports it; a ``with`` body always runs, so the member it rebinds is replaced for certain.
+
+        """
+        conditional = isinstance(stmt, _CONDITIONAL_STATEMENTS)
+        for name in _scope_events([stmt]):
+            if conditional and isinstance(info.members.get(name), _Wrapper):
+                self.lookup_gaps.append(self._rebound_gap(stmt, name))
+            info.members[name] = None
 
     def _member_def(
         self,
@@ -1310,10 +1330,11 @@ class _ModuleAnalyzer:
         """Turn read settings into the configuration the factory of *route* stores, recording what stays unsettled."""
         mappings = (settings.args_mapping.value, settings.attrs_mapping.value)
         target = _store_target(settings.target, route, mappings)
+        template = _module_template(self.parsed.name, settings, target) if route is _Route.MODULE else settings.template
         reads = {
             "deprecated_in": settings.deprecated_in,
             "remove_in": settings.remove_in,
-            "message_template": settings.template,
+            "message_template": template,
             "args_mapping": settings.args_mapping,
             "attrs_mapping": settings.attrs_mapping,
             "target": target,
@@ -1324,7 +1345,7 @@ class _ModuleAnalyzer:
             target=target.value,
             args_mapping=settings.args_mapping.value,
             attrs_mapping=settings.attrs_mapping.value,
-            message_template=settings.template.value,
+            message_template=template.value,
         )
         unresolved = {name: f"{settings.where}: {read.reason}" for name, read in reads.items() if read.reason}
         return _Wrapper(self.parsed.name, proxy, api_type(bool(settings.args_mapping.value)), config, unresolved)
@@ -1418,6 +1439,33 @@ def _class_api_type(is_dataclass: bool) -> Callable[[bool], str]:
 def _member_api_type(attr: str, descriptor: Optional[str]) -> Callable[[bool], str]:
     """The ``api_type`` rule of a class member, shared with the import scan."""
     return lambda has_mapping: _classify_member_api_type(attr, descriptor, has_mapping)
+
+
+def _module_template(name: str, settings: _Settings, target: _Read) -> _Read:
+    """Return the ``message_template`` ``deprecated_module`` stores: the template rendered up front, not as spelled.
+
+    The other factories keep the raw template, but a module wrapper stores the notice it renders at decoration time, so
+    what the guidance check compares is the rendered text. A template that renders a setting the source does not settle,
+    or that the factory would reject, is unresolved rather than judged on its raw text.
+
+    """
+    template = settings.template
+    if template.reason is not None or not template.value:
+        return template
+    for key, read in (
+        ("deprecated_in", settings.deprecated_in),
+        ("remove_in", settings.remove_in),
+        ("target_name", target),
+    ):
+        if read.reason is not None and f"%({key})" in template.value:
+            return _Read(None, f"`message_template` renders `{key}`, but {read.reason}")
+    try:
+        rendered = _build_module_warn_msg(
+            name, settings.deprecated_in.value, settings.remove_in.value, target.value, template.value
+        )
+    except (ValueError, KeyError, TypeError) as err:
+        return _Read(None, f"`message_template` cannot be rendered: {type(err).__name__}: {err}")
+    return _Read(rendered)
 
 
 def _store_target(read: _Read, route: _Route, mappings: tuple[Any, Any]) -> _Read:
@@ -1761,6 +1809,17 @@ class _Reader:
             self._facts[module] = facts
         return self._facts[module]
 
+    def unwalked_gaps(self, walked: Collection[str]) -> list[str]:
+        """Return the gap details of every analyzed module outside *walked*, in module order, each module once.
+
+        A module the walk skips (``--no-recursive``, ``--exclude``) is still analyzed when a walked module re-exports a
+        name from it or star-imports it, and what that analysis could not place is the only sign the importer's view is
+        incomplete.
+
+        """
+        outside = (self._facts[module] for module in sorted(set(self._facts) - set(walked)))
+        return [detail for facts in outside if facts is not None for detail in facts.gaps]
+
     def _expand_stars(self, module: str, facts: _ModuleFacts) -> None:
         """Bind the names each in-tree ``from X import *`` of *module* copies, as listed by ``X.__all__``.
 
@@ -2075,6 +2134,8 @@ def _read_static(
         rows.extend(
             _module_rows(reader, module, facts, include_members=include_members, attribute=attribute, seen=seen)
         )
+    for detail in reader.unwalked_gaps([module for module, _ in modules]):
+        _print_gap(_GapKind.STATIC_UNRESOLVED, detail)
     return rows
 
 
