@@ -403,6 +403,8 @@ class _DeprecatedProxy:
         # instances, and constructor-derived state.
         _ctor_positional_only = _ctor_facts.positional_only
         _ctor_positional_only_order = _ctor_facts.order if _ctor_positional_only else ()
+        # Caller keywords bind according to the source signature, even when the replacement has a different shape.
+        _source_facts = _read_call_facts(obj) if args_mapping and _dc_check is not obj else _ctor_facts
         # Validate misconfig (NOTIFY+mapping, ARGS_REMAP+no-args_mapping, NOTIFY+args_extra). The
         # validator returns True when any signal fired so we extend ``misconfigured`` accordingly —
         # ``DeprecationConfig.misconfigured`` becomes a single source of truth for all signals.
@@ -443,8 +445,8 @@ class _DeprecatedProxy:
             facts=_CallFacts(
                 target_positional_only=_ctor_positional_only,
                 target_positional_only_order=_ctor_positional_only_order,
-                # Read by the ARGS_REMAP call path only, where the called object is the one the caller addresses.
-                source_keyword_overflow=_ctor_positional_only if _ctor_facts.var_keyword else frozenset(),
+                # Source binding determines whether a positional-only name belongs in **kwargs.
+                source_keyword_overflow=_source_facts.positional_only if _source_facts.var_keyword else frozenset(),
             ),
         )
         object.__setattr__(self, "_DeprecatedProxy__config", cfg)
@@ -1470,10 +1472,13 @@ def _reconstruct_proxy(
     # A 0.14 payload carries no ``facts`` (``_ProxyConfig.__setstate__`` starts them empty) but its metadata holds the
     # constructor POSITIONAL_ONLY split; without this rebuild the restored proxy would pass those values by keyword.
     if not cfg.facts.target_positional_only and dep.target_positional_only:
+        # The 0.14-compatible pickle state omits call facts, so recover source binding from the wrapped callable.
+        signature = _read_call_facts(cfg.obj) if dep.args_mapping else _SigFacts()
         cfg.facts = replace(
             cfg.facts,
             target_positional_only=dep.target_positional_only,
             target_positional_only_order=dep.target_positional_only_order,
+            source_keyword_overflow=signature.positional_only if signature.var_keyword else frozenset(),
         )
     # The protocol subclass is re-derived from the wrapped object, never pickled by reference, so a payload stays
     # loadable in a process whose class cache is empty and in releases whose subclasses differ.
@@ -1794,9 +1799,11 @@ def _proxy_call_callable_with_mapping(
             proxy._warn(arg_name=old_key)
     if not any(old_key in kwargs for old_key in mapping):
         proxy._warn()
+    # Preserve keywords accepted by the source's **kwargs before splitting positional-only arguments.
+    kwargs, keyword_overflow = _take_keyword_overflow(proxy._cfg.facts.source_keyword_overflow, mapping, kwargs)
     mapped_kwargs = _remap_call_kwargs(proxy, dep, args, kwargs)
     mapped_kwargs = proxy._merge_args_extra(mapped_kwargs)
-    return _proxy_call_with_positional_split(target_fn, proxy._cfg.facts, args, mapped_kwargs)
+    return _proxy_call_with_positional_split(target_fn, proxy._cfg.facts, args, mapped_kwargs, keyword_overflow)
 
 
 def _proxy_source_path(obj: Any, name: str) -> str:  # noqa: ANN401

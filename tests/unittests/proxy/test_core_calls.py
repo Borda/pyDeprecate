@@ -340,6 +340,56 @@ class TestCallableTargetPositionalOnlyBridge:
         assert result == (5, 0)
 
 
+class TestKeywordOverflowRestoration:
+    """Preserve positional-only keyword names across replacement calls and serialization."""
+
+    def test_callable_target_keeps_keyword(self) -> None:
+        """A replacement accepting **kwargs receives the caller's positional-only-named keyword unchanged.
+
+        A migration renames another argument while the caller supplies a keyword named like a positional-only default.
+        The replacement must retain its default and receive the keyword in its extra keyword dictionary.
+        """
+        alias = deprecated_instance(
+            _positional_default_echo,
+            target=_positional_default_echo,
+            args_mapping={"old_flag": "flag"},
+            **_DEPRS_CASE_STD_ARGS,
+        )
+        with pytest.warns(FutureWarning):
+            result = alias(old_flag=1, x=99)
+        assert result == (1, {"flag": 1, "x": 99})
+        with pytest.warns(FutureWarning):
+            unchanged = alias(x=99)
+        assert unchanged == (1, {"x": 99})
+
+    def test_callable_target_preserves_keyword_bridge(self) -> None:
+        """A source keyword still bridges to a replacement's positional-only parameter.
+
+        A replacement may also accept extra keywords; that must not change binding of a keyword accepted by the source.
+        """
+
+        def source(x: int = 1, **kwargs: object) -> tuple[int, dict[str, object]]:
+            return x, kwargs
+
+        alias = deprecated_instance(
+            source, target=_positional_default_echo, args_mapping={"old_flag": "flag"}, **_DEPRS_CASE_STD_ARGS
+        )
+        with pytest.warns(FutureWarning):
+            result = alias(x=99)
+        assert result == (99, {})
+
+    def test_pickle_keeps_keyword(self) -> None:
+        """A restored remapping proxy keeps the same keyword semantics as its original.
+
+        A serialized alias must not move a caller keyword into the positional-only default after loading.
+        """
+        alias = deprecated_instance(_positional_default_echo, args_mapping={"old_flag": "flag"}, **_DEPRS_CASE_STD_ARGS)
+        restored = pickle.loads(pickle.dumps(alias))  # noqa: S301 - payload created in this test
+        with pytest.warns(FutureWarning):
+            result = restored(old_flag=1, x=99)
+        assert result == (1, {"flag": 1, "x": 99})
+
+
 class TestArgsMappingPositionalDuplicate:
     """A positional argument wins over a deprecated keyword renamed onto the same positional-only parameter."""
 
