@@ -16,10 +16,7 @@ from contextlib import contextmanager, suppress
 from contextvars import ContextVar
 from dataclasses import replace
 from functools import cached_property
-from typing import TYPE_CHECKING, Any, Optional, Union
-
-if TYPE_CHECKING:
-    pass
+from typing import Any, Optional, Union
 
 from deprecate._frames import _caller_stacklevel
 from deprecate._properties import _DeprecatedProperty
@@ -659,16 +656,9 @@ def find_deprecation_wrappers(
             this scan unchanged.
 
     Returns:
-        List of :class:`~deprecate.audit.DeprecationWrapperInfo` dataclasses, one per deprecated wrapper found.
-        Each contains:
-            - module: Module name where the wrapper is defined
-            - function: Wrapper name
-            - deprecated_info: DeprecationConfig metadata from the decorator (``__deprecation_config__`` attribute)
-            - invalid_args: List of args_mapping keys not in wrapper signature
-            - empty_args_mapping: True if args_mapping is None or empty
-            - identity_args_mapping: List of identity mappings (key == value)
-            - self_reference: True if target points to same wrapper
-            - no_effect: True if wrapper has zero impact
+        List of :class:`~deprecate.audit.DeprecationWrapperInfo` dataclasses, one per deprecated wrapper found: where
+        it is defined (``module``, ``function``), its decorator metadata (``deprecated_info``) and every validation
+        field its attributes document.
 
     Example:
         >>> from deprecate import find_deprecation_wrappers

@@ -5,6 +5,7 @@ import importlib.metadata
 import importlib.util
 import inspect
 import pkgutil
+import re
 import sys
 import types
 import warnings
@@ -37,9 +38,8 @@ from deprecate.audit import (
     validate_deprecation_wrapper,
     validate_mapping_compatibility,
 )
-from deprecate.audit._lifecycle import _check_deprecated_wrapper_expiry, _get_package_version, _parse_version
-from tests._helpers import captured_warnings
-from tests.collections.api_current.core import plain_function_target
+from deprecate.audit._lifecycle import _check_expiry_for_callables, _get_package_version, _parse_version
+from tests._helpers import captured_warnings, write_pkg
 
 # Check if packaging is available for version comparison tests
 _PACKAGING_AVAILABLE = importlib.util.find_spec("packaging") is not None
@@ -924,8 +924,16 @@ class TestGenerateDeprecationMarkdown:
 
 
 @_requires_packaging
-class TestCheckDeprecationExpiry:
-    """Tests for _check_deprecated_wrapper_expiry()."""
+class TestSingleWrapperExpiry:
+    """Expiry of one wrapper through the batch check on a single ``validate_deprecation_wrapper`` result.
+
+    Every wrapper kind (``@deprecated``, ``deprecated_class``, ``deprecated_instance``) is compared against its own
+    ``remove_in`` the same way. Error paths of the batch check for a missing or malformed ``remove_in`` are covered in
+    ``tests/unittests/audit/test__lifecycle.py``, a malformed current version through the public
+    ``validate_deprecation_expiry`` (``test_invalid_current_version_raises`` and
+    ``test_invalid_current_version_raises_before_scan`` in this module), and a non-wrapper is rejected by
+    ``validate_deprecation_wrapper`` itself (``test_no_deprecated_attr``).
+    """
 
     @pytest.mark.parametrize(
         ("callable_", "current_version"),
@@ -941,8 +949,13 @@ class TestCheckDeprecationExpiry:
         ],
     )
     def test_not_expired_before_deadline(self, callable_: Any, current_version: str) -> None:  # noqa: ANN401
-        """Callable before its remove_in deadline passes silently."""
-        _check_deprecated_wrapper_expiry(callable_, current_version)
+        """A wrapper before its remove_in deadline yields no expiry message.
+
+        A release still inside the deprecation window, including a pre-release of the removal version, must leave the
+        CI gate green for every wrapper kind, so the check reports nothing rather than a false expiry.
+        """
+        expired = _check_expiry_for_callables([validate_deprecation_wrapper(callable_)], current_version)
+        assert expired == []
 
     @pytest.mark.parametrize(
         ("callable_", "current_version", "remove_in"),
@@ -958,45 +971,30 @@ class TestCheckDeprecationExpiry:
             (proxy_module.depr_config_dict_read_only, "2.0", "2.0"),  # deprecated_instance, read_only
         ],
     )
-    def test_raises_at_or_after_deadline(self, callable_: Any, current_version: str, remove_in: str) -> None:  # noqa: ANN401
-        """Callable at or past its remove_in deadline raises AssertionError."""
-        with pytest.raises(
-            AssertionError,
-            match=rf"scheduled for removal in version {remove_in}.*still exists in version {current_version}",
-        ):
-            _check_deprecated_wrapper_expiry(callable_, current_version)
+    def test_reported_at_or_after_deadline(self, callable_: Any, current_version: str, remove_in: str) -> None:  # noqa: ANN401
+        """A wrapper at or past its remove_in deadline yields one message naming both versions.
 
-    def test_error_message_content(self) -> None:
-        """Error message includes callable name, both versions, and actionable guidance."""
-        with pytest.raises(AssertionError) as exc_info:
-            _check_deprecated_wrapper_expiry(proxy_module.decorated_pow_self, "1.0")  # remove_in="0.5"
-        msg = str(exc_info.value)
-        assert "decorated_pow_self" in msg
-        assert "0.5" in msg
-        assert "1.0" in msg
-        assert "scheduled for removal" in msg
-        assert "Please delete this deprecated code" in msg
+        Reaching the removal version, or any later release, is the moment the deprecated code must be deleted; the gate
+        reports exactly one message for the wrapper, quoting the scheduled and the current version.
+        """
+        (message,) = _check_expiry_for_callables([validate_deprecation_wrapper(callable_)], current_version)
+        assert re.search(
+            rf"scheduled for removal in version {remove_in}.*still exists in version {current_version}", message
+        )
 
-    def test_non_deprecated_callable_raises_value_error(self) -> None:
-        """Non-decorated callable raises ValueError immediately."""
-        with pytest.raises(ValueError, match="missing or invalid `__deprecation_config__`"):
-            _check_deprecated_wrapper_expiry(plain_function_target, "1.0")
+    def test_message_content(self) -> None:
+        """The expiry message names the wrapper, both versions and the action to take.
 
-    def test_no_remove_in_raises_value_error(self) -> None:
-        """Deprecated callable without remove_in raises ValueError."""
-        with pytest.raises(ValueError, match="does not have a 'remove_in' version specified"):
-            _check_deprecated_wrapper_expiry(proxy_module.depr_func_no_remove_in, "2.0")
-
-    def test_invalid_current_version_raises_value_error(self) -> None:
-        """Malformed current_version raises ValueError with clear message."""
-        with pytest.raises(ValueError, match="Invalid current_version"):
-            _check_deprecated_wrapper_expiry(proxy_module.decorated_pow_self, "invalid-version")
-
-    def test_invalid_remove_in_raises_value_error(self) -> None:
-        """Callable with a malformed remove_in string raises ValueError naming the callable."""
-        _bad_version_fn = sample_module.make_malformed_remove_in_wrapper()
-        with pytest.raises(ValueError, match="Invalid remove_in.*_bad_version_fn"):
-            _check_deprecated_wrapper_expiry(_bad_version_fn, "1.0")
+        A maintainer reading a red CI job must learn which symbol to delete and why from the message alone, without
+        re-running the scan locally.
+        """
+        wrapper = validate_deprecation_wrapper(proxy_module.decorated_pow_self)  # remove_in="0.5"
+        (message,) = _check_expiry_for_callables([wrapper], "1.0")
+        assert "decorated_pow_self" in message
+        assert "0.5" in message
+        assert "1.0" in message
+        assert "scheduled for removal" in message
+        assert "Please delete this deprecated code" in message
 
     def test_version_stage_ordering(self) -> None:
         """Pre-release stages order correctly per PEP 440: alpha < beta < rc < stable < post."""
@@ -1065,6 +1063,30 @@ class TestCheckModuleDeprecationExpiry:
         """Auto-detection raises ImportError when the package has no version metadata."""
         with pytest.raises(ImportError, match="Could not determine version"):
             validate_deprecation_expiry("tests.collections.api_deprecated.core", None, recursive=False)
+
+    def test_auto_detect_surfaces_package_import_error(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Auto-detection lets the scanned package's own import error through instead of a version error.
+
+        A maintainer runs the expiry gate without a version on a package that is not installed and whose
+        ``__init__`` raises. The version resolver would import it, swallow the failure and report "Could not
+        determine version", sending the maintainer to fix version metadata instead of the real error; the package is
+        imported before the version is looked up, so its own exception reaches the caller unchanged.
+        """
+        write_pkg(tmp_path, "aud_broken_init_pkg", "raise RuntimeError('aud broken init')\n")
+        monkeypatch.syspath_prepend(str(tmp_path))
+        with pytest.raises(RuntimeError, match="aud broken init"):
+            validate_deprecation_expiry("aud_broken_init_pkg", None, recursive=False)
+
+    def test_auto_detect_missing_module_raises_module_not_found(self) -> None:
+        """Auto-detection on a module path that cannot be imported raises ``ModuleNotFoundError`` naming it.
+
+        A maintainer mistypes the package in ``validate_deprecation_expiry("my_pkgg", None)``. The module is imported
+        before its version is looked up, so the error names the missing module instead of a vague "could not
+        determine version"; it stays an ``ImportError`` subclass, so callers catching ``ImportError`` keep working.
+        """
+        with pytest.raises(ModuleNotFoundError) as excinfo:
+            validate_deprecation_expiry("aud_no_such_package_xyz", None, recursive=False)
+        assert excinfo.value.name == "aud_no_such_package_xyz"
 
     def test_auto_detect_requires_module_name(self) -> None:
         """Auto-detection raises ValueError when the module object has no __name__."""

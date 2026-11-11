@@ -94,7 +94,7 @@ class TestCliEntryPoint:
             pytest.param([_EXPIRED_FINDING], 1, id="gate-fails"),
         ],
     )
-    @patch("deprecate._cli.commands.generate_deprecation_table", side_effect=RuntimeError("table rendering failed"))
+    @patch("deprecate._cli.commands._render_deprecation_table", side_effect=RuntimeError("table rendering failed"))
     @patch("deprecate._cli.commands._expiry_findings")
     @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
     def test_all_report_json_survives_table_render_failure(
