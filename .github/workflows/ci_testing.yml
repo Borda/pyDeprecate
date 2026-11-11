@@ -57,8 +57,8 @@ jobs:
             python -m phmdoctest "$md" -s "phmdoctest:skip" --outfile "tests/docs/test_${name}.py"; \
           done
           # tests marked `without_coverage` (see pyproject.toml) cannot run under subprocess coverage: separate invocation
-          python -m pytest . -vv --cov=deprecate -m "not without_coverage"
-          python -m pytest . -vv -m without_coverage
+          python -m pytest . --cov=deprecate -m "not without_coverage"
+          python -m pytest . -m without_coverage
 
       - name: 📊 Statistics
         if: success()
