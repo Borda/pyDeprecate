@@ -336,7 +336,17 @@ pyDeprecate/
 │   │   ├── findings.py         # Level of each finding per subcommand and the one exit-code function
 │   │   ├── report.py           # _print() and the plain-text _Reporter finding sections
 │   │   ├── scan.py             # Path scanning: package, plain directory or module name -> wrappers
-│   │   └── static.py           # --static: read wrappers from source with ast, importing nothing
+│   │   └── static/             # --static: read wrappers from source with ast, importing nothing
+│   │       ├── __init__.py     # What static mode reads and reports; imports go to the defining submodule, no re-exports
+│   │       ├── analyzer.py     # One module's wrappers: factory calls and decorators in a parsed module body
+│   │       ├── checks.py       # The checks' view of static rows: settings a rule needs, gaps, policy findings
+│   │       ├── consts.py       # Fixed names and tables: recognized factories, routes, limits
+│   │       ├── discovery.py    # Locate the source: package directory, namespace package or module file
+│   │       ├── model.py        # Values the reader builds: wrappers, per-module facts, one read setting
+│   │       ├── reader.py       # A tree of modules: parse once, follow imports and star exports, merge bases
+│   │       ├── rows.py         # Rows handed to the checks, named and ordered as the import scan does
+│   │       ├── scope.py        # How a source binds names: factory aliases, scope events, rebinding
+│   │       └── targets.py      # Turn a `target` expression into what the factory of its route stores
 │   ├── _types.py               # Shared type definitions: DeprecationConfig, _ProxyConfig
 │   ├── deprecation.py          # Front door: deprecated() dispatcher (functions/methods -> routine, classes -> proxy)
 │   ├── routine.py              # Function/method decorator: deprecated_callable() (strict) + packing descriptors
@@ -526,7 +536,7 @@ The integration suite also keeps characterization for positional and keyword for
 >
 > Failing to do this causes the corresponding generated test file(s) under `tests/docs/` or `tests/integration/test_readme.py` to fail in CI. Enumerating specific files here goes stale as soon as a new doc example is added — grep for the fixture module's import if in doubt.
 
-**`unittests/`** — Tests import private symbols directly (e.g. `_raise_warn`, `_parse_version`) and use mocking/monkeypatching to stay isolated from external state. Each file mirrors a source module (`deprecation.py`, `docstring/inject.py` in `unittests/docstring/test_inject.py`, `utils.py`), and a source subpackage becomes a test subpackage with one file per submodule — `unittests/audit/test__policy.py` for `deprecate/audit/_policy.py`; private symbols of the `audit/` subpackage are imported from their defining submodule (`deprecate.audit._policy`), never from the package root. The internal `_cli/` package maps to `unittests/cli/` (`test_commands.py` for `_cli/commands.py`, `test_cli.py` for the `cli()` entry point in `_cli/__init__.py`), with wrapper fixtures shared by several of those files kept in `cli/_helpers.py`. It follows the same import rule, and a `patch()` targets the submodule that looks the name up at call time (`deprecate._cli.scan.find_deprecation_wrappers`, not `deprecate._cli.find_deprecation_wrappers`). `cli()` looks the `cmd_*` subcommands up in `deprecate._cli.commands` when it runs, so a test of its dispatch patches `deprecate._cli.commands.cmd_check` with `autospec=True` (the parser is built from the signature it sees), as does a test that runs the real `cmd_all` with a stubbed table (`deprecate._cli.commands._status_table`). A patch on another binding may leave the test green while it runs the real code.
+**`unittests/`** — Tests import private symbols directly (e.g. `_raise_warn`, `_parse_version`) and use mocking/monkeypatching to stay isolated from external state. Each file mirrors a source module (`deprecation.py`, `docstring/inject.py` in `unittests/docstring/test_inject.py`, `utils.py`), and a source subpackage becomes a test subpackage with one file per submodule — `unittests/audit/test__policy.py` for `deprecate/audit/_policy.py`; private symbols of the `audit/` subpackage are imported from their defining submodule (`deprecate.audit._policy`), never from the package root. The internal `_cli/` package maps to `unittests/cli/` (`test_commands.py` for `_cli/commands.py`, `test_cli.py` for the `cli()` entry point in `_cli/__init__.py`), with wrapper fixtures shared by several of those files kept in `cli/_helpers.py`. The `_cli/static/` subpackage is the one exception to one test file per submodule: `cli/test_static.py` drives its reader end to end (parity with the import scan), so no single submodule owns those tests, and the file imports each private symbol from its defining submodule. It follows the same import rule, and a `patch()` targets the submodule that looks the name up at call time (`deprecate._cli.scan.find_deprecation_wrappers`, not `deprecate._cli.find_deprecation_wrappers`). `cli()` looks the `cmd_*` subcommands up in `deprecate._cli.commands` when it runs, so a test of its dispatch patches `deprecate._cli.commands.cmd_check` with `autospec=True` (the parser is built from the signature it sees), as does a test that runs the real `cmd_all` with a stubbed table (`deprecate._cli.commands._status_table`). A patch on another binding may leave the test green while it runs the real code.
 
 > [!IMPORTANT]
 >

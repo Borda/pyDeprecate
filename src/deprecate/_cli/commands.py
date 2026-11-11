@@ -24,12 +24,8 @@ from deprecate._cli.report import (
     _Reporter,
 )
 from deprecate._cli.scan import _scan_for_command
-from deprecate._cli.static import (
-    _EXPIRY_KEYWORDS,
-    _report_unresolved,
-    _resolved,
-    _static_policy_findings,
-)
+from deprecate._cli.static.checks import _report_unresolved, _resolved, _static_policy_findings
+from deprecate._cli.static.consts import _EXPIRY_KEYWORDS
 from deprecate.audit import (
     DeprecationWrapperInfo,
     PolicyRule,
@@ -426,7 +422,7 @@ def _policy_wrappers(
             without failing on them, and the output has to say so. Never inferred from *exit_zero*, which
             downgrades the exit code without changing what the violations mean.
         findings: How the rules evaluate the wrappers; a ``--static`` scan runs each rule on the wrappers whose
-            settings for it resolved (:func:`~deprecate._cli.static._static_policy_findings`). ``None`` runs
+            settings for it resolved (:func:`~deprecate._cli.static.checks._static_policy_findings`). ``None`` runs
             :func:`_policy_findings`, looked up at call time.
 
     """

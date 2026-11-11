@@ -14,7 +14,8 @@ from typing import Optional
 from deprecate._cli._pkg import _safe_module_name, _select_child_package
 from deprecate._cli.config import _Config, _ConfigFlag, _resolve_exclude, _source_label
 from deprecate._cli.report import _GapKind, _print, _print_gap, _record_scan, _ScanRecord
-from deprecate._cli.static import _locate_static, _read_static
+from deprecate._cli.static.discovery import _locate_static
+from deprecate._cli.static.rows import _read_static
 from deprecate.audit import DeprecationWrapperInfo, find_deprecation_wrappers
 from deprecate.audit._scan import _is_excluded
 from deprecate.audit._version import _is_package_dir, _managed_sys_path, _resolve_package_version

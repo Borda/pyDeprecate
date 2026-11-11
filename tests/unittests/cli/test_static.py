@@ -12,17 +12,11 @@ from typing import Any, Callable, Optional
 import pytest
 
 from deprecate import TargetMode
-from deprecate._cli.static import (
-    _GUIDANCE_KEYWORDS,
-    _locate_static,
-    _policy_keywords,
-    _read_static,
-    _report_unresolved,
-    _resolved,
-    _static_policy_findings,
-    _StaticSource,
-    _StaticTarget,
-)
+from deprecate._cli.static.checks import _policy_keywords, _report_unresolved, _resolved, _static_policy_findings
+from deprecate._cli.static.consts import _GUIDANCE_KEYWORDS
+from deprecate._cli.static.discovery import _locate_static, _StaticSource
+from deprecate._cli.static.model import _StaticTarget
+from deprecate._cli.static.rows import _read_static
 from deprecate.audit import DeprecationWrapperInfo, find_deprecation_wrappers
 from deprecate.audit._lifecycle import _expiry_findings
 from deprecate.audit._policy import _build_policy_spec, _policy_findings
