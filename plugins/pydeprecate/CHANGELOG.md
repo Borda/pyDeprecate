@@ -6,7 +6,7 @@ All notable changes to the `pydeprecate` coding-agent plugin (the `sunset` and `
 
 ### Changed
 
-- `sunset`: describe the static policy fallback and its coverage limits when the consumer package cannot be imported.
+- `sunset`: describe the static policy fallback and its coverage limits when the consumer package cannot be imported, and gate the fallback on `pydeprecate policy --help` listing `--static`.
 
 ## [0.6.0] - Unreleased
 

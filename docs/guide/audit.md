@@ -768,7 +768,7 @@ repos:
 
     A submodule that fails to import is skipped with a `UserWarning: audit: skipped <module>` and the scan carries on (see [Troubleshooting](../troubleshooting.md)). pre-commit hides the output of a hook that passes, so a missing dependency in the isolated environment leaves those modules unaudited with no visible failure. Prefer the local hook whenever your package has runtime dependencies, and pin `rev` to the pyDeprecate release your project depends on.
 
-**Remote hook — any package, without importing it (`expiry` and `policy` only).** The `pydeprecate-expiry-static` and `pydeprecate-policy-static` hooks read your source with `ast` and import nothing from your package, so they need none of its runtime dependencies (available from `v0.16.0`):
+**Remote hook — any package, without importing it (`expiry` and `policy` only).** The `pydeprecate-expiry-static` and `pydeprecate-policy-static` hooks read your source with `ast` and import nothing from your package, so they need none of its runtime dependencies (available from `v0.16.0`, the upcoming release, not yet tagged — the recipe below fails until it is published):
 
 ```yaml
 # .pre-commit-config.yaml
