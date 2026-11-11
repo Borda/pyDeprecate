@@ -420,6 +420,35 @@ class TestArgsMappingPositionalDuplicate:
         assert result == (9, 0)
 
 
+class TestArgsMappingKeyNamedLikeBoundParameter:
+    """A mapping key spelled like a positionally bound parameter never overwrites a caller's keyword."""
+
+    @pytest.mark.parametrize(
+        "mapping_config",
+        [
+            pytest.param({}, id="wrapped-callable"),
+            pytest.param({"target": _positional_pair}, id="callable-target"),
+        ],
+    )
+    def test_caller_keyword_reaches_renamed_slot(self, mapping_config: dict[str, Any]) -> None:
+        """``alias(9, old_b=2)`` returns ``(9, 2)`` although the mapping also lists the bound name ``a``.
+
+        The called function takes ``a`` and ``b`` positional-only, and the mapping renames both ``a`` and ``old_b`` to
+        ``b``. The caller fills ``a`` positionally and passes only ``old_b`` by keyword, so the entry for ``a`` has no
+        keyword to rename. The positional-binding marker the proxy adds for ``a`` must not take part in that rename,
+        or it would replace the caller's ``old_b`` value and the call would return ``(9, 0)``.
+
+        """
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            alias = deprecated_instance(
+                _positional_pair, args_mapping={"a": "b", "old_b": "b"}, **mapping_config, **_DEPRS_CASE_STD_ARGS
+            )
+        with pytest.warns(FutureWarning):
+            result = alias(9, old_b=2)
+        assert result == (9, 2)
+
+
 class TestArgsExtra:
     """args_extra injects additional kwargs into deprecated_class() and deprecated_instance() forwarded calls."""
 

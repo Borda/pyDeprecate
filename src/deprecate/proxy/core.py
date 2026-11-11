@@ -1740,6 +1740,9 @@ def _remap_call_kwargs(
     travelling positionally.  A keyword the caller passed under a bound name itself is left in place, so a genuine
     duplicate still raises Python's own ``TypeError``.
 
+    A placeholder is never renamed: a mapping entry keyed by a bound name has no caller keyword to rename, so it is left
+    out of the rename, and its placeholder cannot overwrite a value the caller passed under the entry's new name.
+
     Only positional-only parameters are reconciled: the proxy records the declaration order of the called object just
     when it has some, so a rename onto a positionally bound positional-or-keyword parameter still raises Python's
     "multiple values" ``TypeError``.
@@ -1752,7 +1755,8 @@ def _remap_call_kwargs(
         for name in facts.target_positional_only_order[: len(args)]
         if name in facts.target_positional_only and name not in kwargs
     }
-    remapped = _remap_kwargs(dep.args_mapping or {}, {**kwargs, **bound}, name=dep.name, stream=cfg.stream)
+    mapping = {old: new for old, new in (dep.args_mapping or {}).items() if old not in bound}
+    remapped = _remap_kwargs(mapping, {**kwargs, **bound}, name=dep.name, stream=cfg.stream)
     return {key: value for key, value in remapped.items() if value is not _BOUND_POSITIONALLY}
 
 
