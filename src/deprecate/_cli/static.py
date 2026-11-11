@@ -516,6 +516,54 @@ class _StaticTarget:
         raise TypeError(f"`{self.__qualname__}` was read from source by `--static` and cannot be called")
 
 
+class _StaticData:
+    """A replacement object named in source but never evaluated: plain data, so never callable.
+
+    A ``deprecated_instance`` target that is not callable is served under the old name, but the built-in warning cannot
+    name it, so ``message-required`` counts only an ``attrs_mapping`` or a custom message as guidance, as at runtime.
+
+    Examples:
+        >>> target = _StaticData("{'a': 1}")
+        >>> callable(target), target.__qualname__
+        (False, "{'a': 1}")
+
+    """
+
+    def __init__(self, text: str) -> None:
+        self.__qualname__ = text
+        self.__name__ = text
+        self.__module__ = ""
+
+
+#: Expressions that build a plain data object (a literal, a display, a comprehension): never callable.
+_DATA_DISPLAYS = (
+    ast.Constant,
+    ast.Dict,
+    ast.List,
+    ast.Set,
+    ast.Tuple,
+    ast.ListComp,
+    ast.SetComp,
+    ast.DictComp,
+    ast.JoinedStr,
+)
+
+
+def _may_be_callable_class(node: ast.ClassDef) -> bool:
+    """Tell whether instances of a same-file class could be called.
+
+    That holds when the class defines ``__call__`` or has bases that may define it.
+
+    """
+    if node.keywords or any(not (isinstance(base, ast.Name) and base.id == "object") for base in node.bases):
+        return True
+    return any(
+        (isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)) and stmt.name == "__call__")
+        or (isinstance(stmt, (ast.Assign, ast.AnnAssign)) and "__call__" in ast.unparse(stmt))
+        for stmt in node.body
+    )
+
+
 @dataclass(eq=False)
 class _Wrapper:
     """One wrapper object the source builds; bound to every name an assignment or import gives it."""
@@ -702,7 +750,38 @@ class _TargetReader:
             return _Read(("expr", text), f"`target` is `{text}`, whose attribute value is not settled")
         if isinstance(node, ast.Name):
             return self._classify_name(node, shadow, depth)
-        return _Read(("expr", ast.unparse(node)), f"`target` is `{ast.unparse(node)}`, not a literal or a name")
+        text = ast.unparse(node)
+        if isinstance(node, _DATA_DISPLAYS) or self._constructs_object(node, shadow):
+            # plain data: no route but ``deprecated_instance`` takes it, so the reason stays for every other route
+            return _Read(("data", text), f"`target` is `{text}`, not a literal or a name")
+        return _Read(("expr", text), f"`target` is `{text}`, not a literal or a name")
+
+    def _constructs_object(self, node: ast.expr, shadow: Mapping[str, list]) -> bool:
+        """Tell whether *node* builds an object of a class the source binds, which is plain data without ``__call__``.
+
+        A same-file class is read for ``__call__`` and bases; a name imported from outside the scanned tree is not read
+        and is taken as a class, the same blind spot as a replacement name imported from there. A name imported from the
+        tree counts only when its module binds a class. Any other callee may return a callable, so it is not settled.
+
+        """
+        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name):
+            return False
+        name = node.func.id
+        event = _single(shadow if name in shadow else self.scope.events, name)
+        if event is None:
+            return False
+        if event.kind == "class":
+            return isinstance(event.value, ast.ClassDef) and not _may_be_callable_class(event.value)
+        if event.kind != "import" or not isinstance(event.value, ast.ImportFrom):
+            return False
+        origin = _absolute_import(self.parsed.name, self.parsed.is_package, event.value)
+        if not self.in_tree(origin):
+            return True
+        if origin == self.parsed.name:
+            return False
+        source = next((alias.name for alias in event.value.names if (alias.asname or alias.name) == name), name)
+        read = self.imported(origin, source)
+        return read is not None and read.reason is None and read.value[0] == "replacement" and read.value[2] == "class"
 
     def _classify_name(self, node: ast.Name, shadow: Mapping[str, list], depth: int) -> _Read:
         """Classify a ``target`` given by name, from how the class body or the module binds it."""
@@ -724,6 +803,10 @@ class _TargetReader:
             read = self.classify(event.value, {}, depth + 1)
             if read.reason is None:
                 return read if read.value[0] == "const" else _Read(("replacement", node.id, read.value[2]))
+            unsettled = f"`target` is `{node.id}`, which is not bound to a literal or a definition"
+            if isinstance(read.value, tuple) and read.value[0] == "data":
+                return _Read(("data", node.id), unsettled)
+            return _Read(("expr", node.id), unsettled)
         return _Read(("expr", node.id), f"`target` is `{node.id}`, which is not bound to a literal or a definition")
 
     def _imported(self, node: ast.Name, event: _Event) -> _Read:
@@ -1471,6 +1554,10 @@ def _module_template(name: str, settings: _Settings, target: _Read) -> _Read:
 def _store_target(read: _Read, route: _Route, mappings: tuple[Any, Any]) -> _Read:
     """Return the ``target`` the factory of *route* stores for a classified read, or why the source does not say."""
     if read.reason is not None:
+        if route is _Route.INSTANCE and isinstance(read.value, tuple) and read.value[0] == "data":
+            return _Read(
+                _StaticData(read.value[1])
+            )  # a replacement object that is data, as ``deprecated_instance`` stores
         return _Read(None, read.reason)
     classified = read.value
     if classified[0] == "default":

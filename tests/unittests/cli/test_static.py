@@ -26,7 +26,6 @@ from deprecate._cli.static import (
 from deprecate.audit import DeprecationWrapperInfo, find_deprecation_wrappers
 from deprecate.audit._lifecycle import _expiry_findings
 from deprecate.audit._policy import _build_policy_spec, _policy_findings
-from deprecate.proxy import deprecated_instance
 
 _ROOT = Path(__file__).resolve().parents[3]
 #: Name of the throwaway package each source-snippet test writes, imports for comparison and then forgets.
@@ -460,15 +459,11 @@ class TestTargetSemantics:
         assert [f.rule.value for f in findings] == ["min-grace"]
         assert set(_policy_keywords(_build_policy_spec("0.3", True))) >= set(_GUIDANCE_KEYWORDS)
 
-    @pytest.mark.skipif(
-        "target" not in __import__("inspect").signature(deprecated_instance).parameters,
-        reason="`deprecated_instance` has no `target` here; the case guards the merge that adds it",
-    )
     def test_instance_replacement_matches_import_scan(self, probe_package: Callable[..., Path]) -> None:
         """A data replacement given to ``deprecated_instance`` is judged by ``message-required`` as at runtime.
 
-        Once ``deprecated_instance`` accepts ``target``, a non-callable replacement needs an ``attrs_mapping`` or a
-        custom message to count as guidance; static mode must stop treating it as a forwarding callable then.
+        A non-callable replacement needs an ``attrs_mapping`` or a custom message to count as guidance, so static mode
+        must not treat it as a forwarding callable.
 
         """
         body = "NEW = {'a': 1}\nold = deprecated_instance({'a': 1}, target=NEW, deprecated_in='1.0', remove_in='2.0')\n"
@@ -477,6 +472,62 @@ class TestTargetSemantics:
             warnings.simplefilter("ignore")
             imported = [f.id for f in _policy_findings(find_deprecation_wrappers(_PKG), _GUIDANCE_ONLY)]
         assert [f.id for f in _static_policy_findings(_read_package(pkg), _GUIDANCE_ONLY)] == imported
+
+    @pytest.mark.parametrize(
+        ("target", "extra"),
+        [
+            pytest.param("[1, 2]", "", id="list-display"),
+            pytest.param("Plain()", "", id="same-file-class-instance"),
+            pytest.param("Plain()", ", message_template='use the new object'", id="template-guides"),
+        ],
+    )
+    def test_instance_data_target_needs_a_message(self, tmp_path: Path, target: str, extra: str) -> None:
+        """A data replacement counts as guidance only with a message, never as a forwarding callable.
+
+        A team serves a new configuration object under the old name. The warning cannot name a plain data object, so
+        only a hand-written template tells callers where to go, and the other wrappers are flagged.
+
+        """
+        source = (
+            "from deprecate import deprecated_instance\n\nclass Plain:\n    pass\n\n"
+            f"old = deprecated_instance(Plain(), target={target}, deprecated_in='1.0', remove_in='2.0'{extra})\n"
+        )
+        findings = _static_policy_findings(_read_package(_write(tmp_path, {"__init__.py": source})), _GUIDANCE_ONLY)
+        assert [f.rule.value for f in findings] == ([] if extra else ["message-required"])
+
+    def test_instance_target_of_callable_class_stays_a_gap(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """An instance of a class that defines ``__call__`` may be a forwarding callable, so it is reported, not judged.
+
+        The replacement object is built from a class the same file defines with ``__call__``: calling it would forward,
+        which a data reading would misjudge as a missing message.
+
+        """
+        source = (
+            "from deprecate import deprecated_instance\n\nclass Handler:\n    def __call__(self):\n        return 1\n\n"
+            "old = deprecated_instance(Handler(), target=Handler(), deprecated_in='1.0', remove_in='2.0')\n"
+        )
+        findings = _static_policy_findings(_read_package(_write(tmp_path, {"__init__.py": source})), _GUIDANCE_ONLY)
+        assert findings == []
+        assert "`target` is `Handler()`, not a literal or a name" in capsys.readouterr().err
+
+    def test_dict_target_of_a_callable_wrapper_stays_a_gap(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A dict ``target`` on a function wrapper is still reported: only a served object may take a data target.
+
+        Reading the dict as data is specific to ``deprecated_instance``; on ``@deprecated`` the runtime rejects it, so
+        the source cannot be judged.
+
+        """
+        source = (
+            "from deprecate import deprecated\n\n"
+            "@deprecated(target={'a': 1}, deprecated_in='1.0', remove_in='2.0')\ndef old(x):\n    return x\n"
+        )
+        findings = _static_policy_findings(_read_package(_write(tmp_path, {"__init__.py": source})), _GUIDANCE_ONLY)
+        assert findings == []
+        assert "not a literal or a name" in capsys.readouterr().err
 
     def test_static_target_is_never_called(self) -> None:
         """A replacement read from source is a named placeholder that refuses to run.
