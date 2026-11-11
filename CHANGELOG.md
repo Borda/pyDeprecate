@@ -8,6 +8,12 @@
 
 - **`--static` mode for `pydeprecate expiry` and `pydeprecate policy`, and the `pydeprecate-expiry-static` / `pydeprecate-policy-static` pre-commit hooks.** `--static` reads the package source with `ast` and imports nothing from it, so a package can be audited without its runtime dependencies installed. Settings spelled as literals, as module-level names bound once to literals, or as a splatted module-level dict literal are checked like an import-mode run; anything the source alone does not settle is printed as a `pydeprecate gap: not statically resolvable` line and does not change the exit code. The two `-static` hooks run the same checks from the shipped `.pre-commit-hooks.yaml`, and the `--report-json` record carries a new `mode` field, `"static"` or `"import"`. `check`, `chains`, `all` and `status` have no static mode and exit `2` with `--static`. ([#264](https://github.com/Borda/pyDeprecate/pull/264))
 
+### Fixed
+
+- **Matrix audit tables have one column per release.** `generate_deprecation_table(..., style="matrix")` and the CLI matrix output merge the spellings `1.0`, `v1.0` and `1.0.0` of one release into a single column, headed by the shortest spelling. Without `packaging` only spellings that differ by the `v` prefix merge. ([#262](https://github.com/Borda/pyDeprecate/pull/262))
+- **`validate_deprecation_expiry(<module path>)` without a version surfaces the package's real import error.** The module path is now imported before the version lookup, so a package whose own import fails raises its actual exception instead of "Could not determine version". A degenerate module path such as an empty name raises importlib's own error. ([#262](https://github.com/Borda/pyDeprecate/pull/262))
+- **Unparsed matrix columns are ordered by their displayed header text.** Version strings that are not PEP 440 releases come after the parsed releases, now sorted by the `v`-prefixed header as rendered instead of the raw string, so columns such as `next` and `vlegacy` swap order (`vlegacy | vnext`). A committed matrix table that contains such columns re-renders with the new order. ([#262](https://github.com/Borda/pyDeprecate/pull/262))
+
 ## [0.15.0] — 2026-11-09 — Scoped fatal deprecations, a dependency-free CLI, & CI integrations
 
 ### Added

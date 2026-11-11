@@ -34,11 +34,11 @@ from deprecate.audit import (
     DeprecationWrapperInfo,
     PolicyRule,
     TableStyle,
-    generate_deprecation_table,
 )
 from deprecate.audit._findings import _Finding, _Rule, _wrapper_findings
-from deprecate.audit._lifecycle import _expiry_findings, _parse_version
+from deprecate.audit._lifecycle import _expiry_findings
 from deprecate.audit._policy import _build_policy_spec, _policy_findings
+from deprecate.audit._report import _render_deprecation_table, _resolve_table_version
 from deprecate.audit._wrappers import _format_subject
 
 if TYPE_CHECKING:
@@ -56,9 +56,10 @@ def _do_expiry_prescanned(wrappers: list[DeprecationWrapperInfo], version: Optio
     neither an unresolvable nor an unparsable one is a usage error the user can be blamed for, so the expiry gate
     is skipped with a message instead of failing the run.
 
-    A wrapper whose own ``remove_in`` is not PEP 440 is skipped by the check, which only warns about it. This
-    function also records each such wrapper as a :attr:`_GapKind.REMOVE_IN_INVALID` gap, since the warning can be
-    silenced by the audited package; the expired list and the exit code are unchanged.
+    A wrapper whose own ``remove_in`` is not PEP 440 is skipped by the check, which only warns about it. The check
+    hands each such wrapper back to :func:`_record_remove_in_gap`, which records it as a
+    :attr:`_GapKind.REMOVE_IN_INVALID` gap, since the warning can be silenced by the audited package; the expired list
+    and the exit code are unchanged.
 
     Args:
         wrappers: Pre-scanned wrapper list to compare against *version*.
@@ -73,23 +74,10 @@ def _do_expiry_prescanned(wrappers: list[DeprecationWrapperInfo], version: Optio
         _print_gap(_GapKind.VERSION_UNRESOLVED, "Cannot check expiry: version not resolved. Pass --version explicitly.")
         return None
     try:
-        expired = _expiry_findings(wrappers, version)
-        # Reached only when the check itself ran, so an unusable `version` is reported once (below) and not again per
-        # wrapper. The audit layer only warns about a `remove_in` it skips; the gap is recorded here so it stays free
-        # of CLI imports.
-        for info in wrappers:
-            remove_in = info.deprecated_info.remove_in
-            if not remove_in:
-                continue
-            try:
-                _parse_version(remove_in)
-            except ValueError:
-                _print_gap(
-                    _GapKind.REMOVE_IN_INVALID,
-                    f"{_format_subject(info)} has `remove_in` `{remove_in}`, which is not a valid PEP 440 version "
-                    "string, so its removal deadline was not checked.",
-                )
-        return expired
+        # The audit layer only warns about a `remove_in` it skips and hands the wrapper back, so the gap is recorded
+        # here and the audit layer stays free of CLI imports. An unusable `version` fails before any wrapper is read,
+        # so it is reported once (below) and never as a per-wrapper gap.
+        return _expiry_findings(wrappers, version, on_unparsable=_record_remove_in_gap)
     except ImportError:
         _print_gap(
             _GapKind.PACKAGING_MISSING,
@@ -107,6 +95,15 @@ def _do_expiry_prescanned(wrappers: list[DeprecationWrapperInfo], version: Optio
             "string. Pass `--version` explicitly for a definitive check.",
         )
         return None
+
+
+def _record_remove_in_gap(info: DeprecationWrapperInfo) -> None:
+    """Record a wrapper whose ``remove_in`` is not PEP 440 as a gap: its removal deadline was never checked."""
+    _print_gap(
+        _GapKind.REMOVE_IN_INVALID,
+        f"{_format_subject(info)} has `remove_in` `{info.deprecated_info.remove_in}`, which is not a valid PEP 440 "
+        "version string, so its removal deadline was not checked.",
+    )
 
 
 def _save_table(markdown: str, output: str) -> None:
@@ -703,13 +700,10 @@ def _status_table(
     """
     # Never resolve the importable module name eagerly: a plain directory without ``__init__.py`` has none, and
     # status still renders its table. ``_safe_module_name`` falls back to the raw path, used only as table metadata.
-    markdown = generate_deprecation_table(
-        _safe_module_name(path),
-        current_version=version,
-        style=style,
-        _wrappers=wrappers,
-        _version_explicit=version_explicit,
+    resolved_version, parsed_version = _resolve_table_version(
+        _safe_module_name(path), current_version=version, version_explicit=version_explicit
     )
+    markdown = _render_deprecation_table(wrappers, resolved_version, parsed_version, style)
     _record_table(markdown)
     _print(markdown)
     return markdown

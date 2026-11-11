@@ -6,7 +6,7 @@ import sys
 from collections.abc import Callable, Iterator
 from contextlib import AbstractContextManager
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 
@@ -481,7 +481,7 @@ class TestCmdExpiry:
     def test_version_passed_through(self, mock_check: MagicMock, mock_scan: MagicMock) -> None:
         """An explicit version is the one the scanned wrappers are compared against."""
         cmd_expiry(path="some_module", version="3.0")
-        mock_check.assert_called_once_with([], "3.0")
+        mock_check.assert_called_once_with([], "3.0", on_unparsable=ANY)
 
     @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
     @patch("deprecate._cli.commands._expiry_findings", return_value=[])
@@ -541,8 +541,9 @@ class TestCmdExpiry:
     def test_unparsable_remove_in_keeps_expired_exit_code(self) -> None:
         """An unparsable ``remove_in`` on one wrapper does not hide a genuinely expired wrapper beside it.
 
-        The gap is advisory and is recorded after the expiry check ran, so a package that mixes a mistyped deadline
-        with an overdue one still fails the gate for the overdue wrapper, exactly as it did before the gap existed.
+        The gap is advisory and is recorded as the expiry check skips the wrapper, so a package that mixes a mistyped
+        deadline with an overdue one still fails the gate for the overdue wrapper, exactly as it did before the gap
+        existed.
         """
         typo = DeprecationWrapperInfo(
             module="mod",
@@ -919,7 +920,7 @@ class TestCmdAll:
     ) -> None:
         """The status table raising inside cmd_all must not change the aggregate exit code.
 
-        The status table is a display artifact appended after the three gates. If ``generate_deprecation_table``
+        The status table is a display artifact appended after the three gates. If ``_render_deprecation_table``
         or any rendering step throws, cmd_all must still report exit 0 (no issues) or exit 1 (issues found)
         based solely on the check, expiry, and chains outcomes — not on the table step crashing.
 
@@ -933,7 +934,7 @@ class TestCmdAll:
         captured = capsys.readouterr()
         assert "Could not render the deprecation table" in captured.err
 
-    @patch("deprecate._cli.commands.generate_deprecation_table", return_value=_ALL_TABLE)
+    @patch("deprecate._cli.commands._render_deprecation_table", return_value=_ALL_TABLE)
     @patch("deprecate._cli.commands._expiry_findings", return_value=[])
     @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
     def test_output_writes_table_to_file(
@@ -949,7 +950,7 @@ class TestCmdAll:
         assert result == 0
         assert out_file.read_text(encoding="utf-8") == _ALL_TABLE
 
-    @patch("deprecate._cli.commands.generate_deprecation_table", return_value=_ALL_TABLE)
+    @patch("deprecate._cli.commands._render_deprecation_table", return_value=_ALL_TABLE)
     @patch("deprecate._cli.commands._expiry_findings", return_value=[])
     @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[_INVALID_ARGS])
     def test_output_writes_table_when_gate_fails(
@@ -972,7 +973,7 @@ class TestCmdAll:
             pytest.param([_INVALID_ARGS], 1, id="gate-fails"),
         ],
     )
-    @patch("deprecate._cli.commands.generate_deprecation_table", return_value=_ALL_TABLE)
+    @patch("deprecate._cli.commands._render_deprecation_table", return_value=_ALL_TABLE)
     @patch("deprecate._cli.commands._expiry_findings", return_value=[])
     @patch("deprecate._cli.scan.find_deprecation_wrappers")
     def test_unwritable_output_keeps_gate_exit_code(
@@ -1009,7 +1010,7 @@ class TestCmdAll:
         assert result == 2
         assert not out_file.exists()
 
-    @patch("deprecate._cli.commands.generate_deprecation_table", return_value=_ALL_TABLE)
+    @patch("deprecate._cli.commands._render_deprecation_table", return_value=_ALL_TABLE)
     @patch("deprecate._cli.commands._expiry_findings", return_value=[])
     @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
     def test_policy_usage_error_writes_no_table_file(
@@ -1027,7 +1028,7 @@ class TestCmdAll:
         assert result == 2
         assert not out_file.exists()
 
-    @patch("deprecate._cli.commands.generate_deprecation_table", return_value=_ALL_TABLE)
+    @patch("deprecate._cli.commands._render_deprecation_table", return_value=_ALL_TABLE)
     @patch("deprecate._cli.commands._expiry_findings", return_value=[])
     @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
     def test_output_keeps_table_in_the_run_record(
@@ -1048,7 +1049,7 @@ class TestCmdStatus:
     """Tests for cmd_status() — markdown table rendering."""
 
     @patch(
-        "deprecate._cli.commands.generate_deprecation_table",
+        "deprecate._cli.commands._render_deprecation_table",
         return_value="| A | B |\n| :--- | :--- |\n| `fn` | callable |",
     )
     @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
@@ -1065,7 +1066,7 @@ class TestCmdStatus:
         assert result == 0
         assert "| A | B |" in capsys.readouterr().out
 
-    @patch("deprecate._cli.commands.generate_deprecation_table", return_value="| A |")
+    @patch("deprecate._cli.commands._render_deprecation_table", return_value="| A |")
     def test_table_renders_the_given_wrappers(self, mock_gen: MagicMock, capsys: pytest.CaptureFixture[str]) -> None:
         """The table helper renders exactly the wrappers it is handed, the ones of the caller's own scan.
 
@@ -1075,7 +1076,7 @@ class TestCmdStatus:
         wrappers = [DeprecationWrapperInfo(module="m", function="f")]
         _status_table(wrappers, "some_module", None, style=TableStyle("compact"), version_explicit=False)
         mock_gen.assert_called_once()
-        assert mock_gen.call_args.kwargs["_wrappers"] == wrappers
+        assert mock_gen.call_args.args[0] == wrappers
 
     @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
     def test_invalid_version_exits_two(self, mock_find: MagicMock, capsys: pytest.CaptureFixture[str]) -> None:
@@ -1089,7 +1090,7 @@ class TestCmdStatus:
         mock_find.assert_not_called()
         assert "Invalid `--version` 'abc'" in capsys.readouterr().err
 
-    @patch("deprecate._cli.commands.generate_deprecation_table", return_value="| A |")
+    @patch("deprecate._cli.commands._render_deprecation_table", return_value="| A |")
     @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
     def test_invalid_style_exits_two(
         self, mock_find: MagicMock, mock_gen: MagicMock, tmp_path: Path, capsys: pytest.CaptureFixture[str]
@@ -1110,7 +1111,7 @@ class TestCmdStatus:
         mock_gen.assert_not_called()
         assert "Invalid `--style` 'bogus'; expected one of: compact, matrix." in capsys.readouterr().err
 
-    @patch("deprecate._cli.commands.generate_deprecation_table", return_value="| Col |\n| :--- |\n| `fn` |")
+    @patch("deprecate._cli.commands._render_deprecation_table", return_value="| Col |\n| :--- |\n| `fn` |")
     @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
     def test_output_writes_to_file(
         self, mock_find: MagicMock, mock_gen: MagicMock, tmp_path: Path, capsys: pytest.CaptureFixture[str]

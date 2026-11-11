@@ -354,8 +354,8 @@ def make_malformed_remove_in_wrapper() -> _DeprecatedCallable:
     ``remove_in``.
 
     Examples:
-        Developer types a placeholder such as ``"not-semver"`` for ``remove_in``; the expiry check must reject it with
-        an error naming the callable.
+        Developer types a placeholder such as ``"not-semver"`` for ``remove_in``; the batch expiry check warns about
+        the callable and skips it instead of failing the whole scan.
 
     """
 
