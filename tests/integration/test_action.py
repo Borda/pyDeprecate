@@ -1517,3 +1517,32 @@ class TestActionMetadata:
         setting the one signal that part of the package went unaudited would never reach a CI log.
         """
         assert hook.get("verbose") is True
+
+    @pytest.mark.parametrize(
+        "hook",
+        [
+            pytest.param(hook, id=hook["id"])
+            for hook in yaml.safe_load(_HOOKS_YAML.read_text(encoding="utf-8"))
+            if hook["id"].endswith("-static")
+        ],
+    )
+    @pytest.mark.parametrize(
+        ("path", "tags", "matches"),
+        [
+            pytest.param("src/pkg/module.py", {"file", "python"}, True, id="python-source"),
+            pytest.param("bin/tool", {"file", "python"}, True, id="extensionless-python-script"),
+            pytest.param("pyproject.toml", {"file", "toml"}, True, id="root-project-config"),
+            pytest.param("pkg/other.toml", {"file", "toml"}, True, id="other-toml"),
+            pytest.param("notes.txt", {"file", "text"}, False, id="unrelated-text"),
+        ],
+    )
+    def test_static_hook_filters_relevant_files(
+        self, hook: dict[str, Any], path: str, tags: set[str], matches: bool
+    ) -> None:
+        """Static hooks run when source or project settings change, but ignore unrelated files.
+
+        pre-commit combines type and filename filters, so a Python-only type filter would skip a policy or version
+        change made solely in pyproject.toml even if the filename pattern matched it.
+        """
+        assert "files" not in hook
+        assert bool(tags.intersection(hook["types_or"])) is matches, path

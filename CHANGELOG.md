@@ -6,7 +6,11 @@
 
 **CLI & CI**
 
-- **`--static` mode for `pydeprecate expiry` and `pydeprecate policy`, and the `pydeprecate-expiry-static` / `pydeprecate-policy-static` pre-commit hooks.** `--static` reads the package source with `ast` and imports nothing from it, so a package can be audited without its runtime dependencies installed. Settings spelled as literals, as module-level names bound once to literals, or as a splatted module-level dict literal are checked like an import-mode run; anything the source alone does not settle is printed as a `pydeprecate gap: not statically resolvable` line and does not change the exit code. The two `-static` hooks run the same checks from the shipped `.pre-commit-hooks.yaml`, and the `--report-json` record carries a new `mode` field, `"static"` or `"import"`. `check`, `chains`, `all` and `status` have no static mode and exit `2` with `--static`. ([#264](https://github.com/Borda/pyDeprecate/pull/264))
+- **`--static` mode for `pydeprecate expiry` and `pydeprecate policy`, and the `pydeprecate-expiry-static` / `pydeprecate-policy-static` pre-commit hooks.** `--static` reads the package source with `ast` and imports nothing from it, so a package can be audited without its runtime dependencies installed. Recognized wrappers with resolvable settings are checked; recognized unresolved forms produce a `pydeprecate gap: not statically resolvable` line without changing the exit code. Some forms are invisible without a gap, including wrappers created in loops or through `getattr`, `importlib` or `exec`; bare target names imported from outside the package can also be misclassified. See the CLI guide for the full limitations. The two `-static` hooks run the same checks from the shipped `.pre-commit-hooks.yaml`, and the `--report-json` record carries a new `mode` field, `"static"` or `"import"`. `check`, `chains`, `all` and `status` have no static mode and exit `2` with `--static`. ([#264](https://github.com/Borda/pyDeprecate/pull/264))
+
+### Changed
+
+- **Version detection stops at the nearest project.** For a path scan, the nearest `pyproject.toml` with a `[project]` table owns version detection even when its version cannot be resolved; an ancestor project's version is not used. If the remaining metadata and package-version sources also fail, expiry reports a `version not resolved` gap. ([#264](https://github.com/Borda/pyDeprecate/pull/264))
 
 ### Fixed
 

@@ -2,6 +2,12 @@
 
 All notable changes to the `pydeprecate` coding-agent plugin (the `sunset` and `prune` skills) are listed here. The plugin `version` follows its own cadence, independent of the `pyDeprecate` package version; `compatible_package_version` is the package support window the skills are verified against.
 
+## [0.5.5] - Unreleased
+
+### Changed
+
+- `sunset`: describe the static policy fallback and its coverage limits when the consumer package cannot be imported.
+
 ## [0.5.3] - Unreleased
 
 ### Changed
