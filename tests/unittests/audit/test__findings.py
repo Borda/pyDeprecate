@@ -82,14 +82,31 @@ class TestWrapperFindings:
             pytest.param(
                 DeprecationConfig(target=TargetMode.NOTIFY, misconfigured=True), "`target=False`", id="target-false"
             ),
+            pytest.param(
+                DeprecationConfig(target=TargetMode.ARGS_REMAP, args_mapping={"old_x": "x"}, call_options_inert=True),
+                "`args_mapping` on a served object that is not callable",
+                id="args-mapping-on-uncalled-object",
+            ),
+            pytest.param(
+                DeprecationConfig(target=None, args_extra={"bias": 1}, call_options_inert=True),
+                "`args_extra` on a served object that is not callable",
+                id="args-extra-on-uncalled-object",
+            ),
+            pytest.param(
+                DeprecationConfig(target={"timeout": 30}, args_mapping={"old_x": "x"}, call_options_inert=True),
+                "`args_mapping` on a served object that is not callable",
+                id="args-mapping-on-uncalled-replacement",
+            ),
         ],
     )
     def test_misconfigured_target_names_the_case(self, config: DeprecationConfig, case: str) -> None:
         """A misconfigured target names the contradiction, so the report says what to change.
 
-        All three spellings of the misconfiguration (a mapping or extra arguments the notify-only mode ignores, a
-        remap mode with nothing to remap, the invalid ``target=False`` sentinel) are errors in ``check``; the reader
-        needs to know which one the wrapper has.
+        All spellings of the misconfiguration (a mapping or extra arguments the notify-only mode ignores, a remap mode
+        with nothing to remap, the invalid ``target=False`` sentinel, call-time options on an object that is never
+        called) are errors in ``check``; the reader needs to know which one the wrapper has. The last case stores a
+        target that reads as ``ARGS_REMAP``, as unset, or as the data replacement, so it must be named from its own
+        signal rather than from the target.
 
         """
         info = DeprecationWrapperInfo(

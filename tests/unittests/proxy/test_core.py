@@ -4,6 +4,7 @@ import abc
 import copy
 import inspect
 import pickle
+import threading
 import warnings
 from collections.abc import Callable, Mapping
 from dataclasses import FrozenInstanceError
@@ -31,6 +32,7 @@ from tests.collections.api_current.core import (
     NewCls,
     Pep702ProxyTarget,
     Pep702StaticTarget,
+    RaisingEqualityData,
     base_sum_kwargs,
 )
 from tests.collections.api_current.forwarding import SubclassableBase
@@ -126,6 +128,40 @@ class TestProxyInit:
         meta = object.__getattribute__(proxy, "__deprecation_config__")
         assert meta.name == "LegacyClass"
         assert meta.args_mapping is None
+
+    @pytest.mark.parametrize(
+        "build_alias",
+        [
+            pytest.param(
+                lambda: deprecated_instance(
+                    HostileSignatureCallable(), args_mapping={"old_flag": "flag"}, **_DEPRS_CASE_STD_ARGS
+                ),
+                id="instance-source",
+            ),
+            pytest.param(
+                lambda: deprecated_class(
+                    target=HostileSignatureCallable(), args_mapping={"old_flag": "flag"}, **_DEPRS_CASE_STD_ARGS
+                )(NewCls),
+                id="class-target",
+            ),
+        ],
+    )
+    def test_raising_call_signature_leaves_split_data_empty(self, build_alias: Callable[[], Any]) -> None:
+        """A mapped callable whose ``__signature__`` raises ``RuntimeError`` still wraps, with no positional-only data.
+
+        An ``args_mapping`` makes the proxy read the signature of the object it calls, to forward renamed values onto
+        positional-only parameters. A mock or lazily built extension object can expose a ``__signature__`` that raises
+        something other than ``TypeError``/``ValueError``; building the alias must not fail at import time because of
+        it, whether the callable is the wrapped object or the replacement of a deprecated class. The read falls back to
+        empty facts, so no positional-only split is recorded and the configuration stays valid.
+
+        """
+        meta = object.__getattribute__(build_alias(), "__deprecation_config__")
+        assert (meta.target_positional_only, meta.args_mapping_positional_only, meta.misconfigured) == (
+            frozenset(),
+            (),
+            False,
+        )
 
 
 class TestProxyReadOnly:
@@ -831,6 +867,27 @@ class TestProxyClassProperty:
             _ = proxy.get
 
 
+class _CallCounter:
+    """Callable replacement holding state: it counts the calls it has served."""
+
+    def __init__(self) -> None:
+        """Start with no calls served."""
+        self.calls = 0
+
+    def __call__(self) -> int:
+        """Count this call and return the running total."""
+        self.calls += 1
+        return self.calls
+
+
+class _CopyRefusingSettings:
+    """Replacement object whose own ``__copy__`` refuses with an error other than ``TypeError``."""
+
+    def __copy__(self) -> "_CopyRefusingSettings":
+        """Refuse the copy the way a resource-holding object guarding its handle might."""
+        raise RuntimeError("settings hold a live handle and cannot be copied")
+
+
 class TestProxyCopyPickle:
     """``copy.copy`` / ``copy.deepcopy`` / pickle round-trips reconstruct the proxy.
 
@@ -864,6 +921,59 @@ class TestProxyCopyPickle:
         assert type(dup) is type(proxy)
         dup["limits"]["low"] = 99
         assert proxy["limits"]["low"] == 1
+
+    def test_copy_keeps_callable_replacement_state_separate(self) -> None:
+        """Calling a shallow copy of an alias changes the copy's replacement, never the original's.
+
+        An old function name serves a stateful callable object (a counter) as its replacement. A consumer that takes a
+        ``copy.copy`` of the alias and calls it must update its own copy of the counter: sharing the replacement would
+        let calls through the copy change the state every other caller of the original alias sees, while
+        ``copy.deepcopy`` already gives the copy its own replacement.
+
+        """
+        replacement = _CallCounter()
+        proxy = deprecated_instance(base_sum_kwargs, target=replacement, **_DEPRS_CASE_STD_ARGS, stream=None)
+        dup = copy.copy(proxy)
+        assert (dup(), replacement.calls) == (1, 0)
+
+    @pytest.mark.parametrize(
+        "build_alias",
+        [
+            pytest.param(
+                lambda: deprecated_class(target=warnings, **_DEPRS_CASE_STD_ARGS, stream=None)(NewCls),
+                id="module-target",
+            ),
+            pytest.param(
+                lambda: deprecated_instance(
+                    {}, target=(value for value in range(2)), **_DEPRS_CASE_STD_ARGS, stream=None
+                ),
+                id="generator-target",
+            ),
+            pytest.param(
+                lambda: deprecated_instance({}, target=threading.Lock(), **_DEPRS_CASE_STD_ARGS, stream=None),
+                id="lock-target",
+            ),
+            pytest.param(
+                lambda: deprecated_instance({}, target=_CopyRefusingSettings(), **_DEPRS_CASE_STD_ARGS, stream=None),
+                id="copy-raising-target",
+            ),
+        ],
+    )
+    def test_copy_shares_uncopyable_replacement(self, build_alias: Callable[[], Any]) -> None:
+        """A shallow copy of an alias whose replacement cannot be copied shares that replacement instead of failing.
+
+        Modules, generators and locks refuse ``copy.copy``, and an object may refuse in its own ``__copy__`` with any
+        error, such as a ``RuntimeError`` guarding a live handle. Snapshotting a namespace or a settings holder that
+        contains such an alias with ``copy.copy`` must still give a working proxy, so the copy falls back to serving
+        the same replacement object as the original.
+
+        """
+        proxy = build_alias()
+        dup = copy.copy(proxy)
+        assert (
+            object.__getattribute__(dup, "__deprecation_config__").target
+            is object.__getattribute__(proxy, "__deprecation_config__").target
+        )
 
     def test_copy_preserves_deprecation_metadata(self) -> None:
         """Preserve deprecation metadata when copying a proxy.
@@ -1249,3 +1359,44 @@ class TestClassDocstringInjection:
         assert NewCls.__doc__ in depr_documented_class.__doc__
         assert ".. deprecated:: 1.0" in depr_documented_class.__doc__
         assert ".. deprecated::" not in NewCls.__doc__
+
+
+class TestProxyTargetIdentityChecks:
+    """The proxy never compares a replacement object with ``==`` when deciding its own mode."""
+
+    def test_mro_entries_does_not_compare_replacement(self) -> None:
+        """Resolving the alias as a base warns and returns the replacement without calling its ``__eq__``.
+
+        Mode checks must use identity: a replacement such as an array or a data frame raises from ``==``, which would
+        turn the base-class resolution of a ``class`` statement into a ``ValueError``.
+        """
+        replacement = RaisingEqualityData()
+        alias = deprecated_instance({}, target=replacement, deprecated_in="1.0", remove_in="2.0")
+        with pytest.warns(FutureWarning, match="was deprecated since v1.0"):
+            entries = alias.__mro_entries__(())
+        assert entries[0] is replacement
+
+    @pytest.mark.parametrize(
+        "duplicate",
+        [
+            pytest.param(copy.copy, id="copy"),
+            pytest.param(copy.deepcopy, id="deepcopy"),
+            pytest.param(lambda obj: pickle.loads(pickle.dumps(obj)), id="pickle"),  # noqa: S301
+        ],
+    )
+    def test_copy_does_not_compare_replacement(self, duplicate: Callable[[Any], Any]) -> None:
+        """Copy, deepcopy and a pickle round-trip duplicate the replacement without calling its ``__eq__``.
+
+        A deprecated alias that serves an array or a data frame is snapshotted by a config-saving tool or sent to a
+        worker process. Deciding whether the replacement is plain data to copy must use identity and type checks, so
+        the duplicate is a proxy again serving its own copy of the replacement instead of a ``ValueError``.
+        """
+        replacement = RaisingEqualityData()
+        alias = deprecated_instance({}, target=replacement, deprecated_in="1.0", remove_in="2.0")
+
+        duplicated = duplicate(alias)
+
+        served = object.__getattribute__(duplicated, "__deprecation_config__").target
+        assert type(duplicated) is type(alias)
+        assert type(served) is RaisingEqualityData
+        assert served is not replacement

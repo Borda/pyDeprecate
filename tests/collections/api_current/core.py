@@ -803,6 +803,18 @@ def positional_only_target(x: int, /, y: int = 0) -> int:
     return x + y
 
 
+def positional_default_keywords(
+    x: int = 1, /, flag: Optional[int] = None, **kwargs: object
+) -> tuple[int, Optional[int], dict[str, object]]:
+    """Return the positional-only ``x``, ``flag`` and the extra keywords, showing which slot each keyword reached.
+
+    Calling it directly as ``positional_default_keywords(flag=1, x=99)`` keeps the default ``x=1`` and puts the
+    caller's ``x`` into ``kwargs``.  Wrapped by ``shape_remap_positional_default_keywords`` and
+    ``shape_forward_positional_default_keywords`` in :mod:`tests.collections.api_deprecated.regressions`.
+    """
+    return x, flag, kwargs
+
+
 class SourcePathTarget:
     """Plain class whose proxies render ``%(source_path)s`` in a custom ``message_template``.
 
@@ -1508,3 +1520,37 @@ class InPlaceAliasSource:
         return type(other) is type(self) and vars(other) == vars(self)
 
     __hash__ = None  # type: ignore[assignment]
+
+
+# ========== Replacement objects served through ``deprecated_instance(target=...)`` ==========
+
+#: Current retry settings; the deprecated alias ``depr_retry_settings`` serves these values.
+retry_settings = {"timeout": 30, "retries": 5}
+
+
+class ThemeSettings:
+    """Display settings whose ``color`` attribute was renamed to ``colour``; ``brightness`` is set per instance."""
+
+    colour = "teal"
+
+    def __init__(self) -> None:
+        """Set the per-instance brightness, which exists only in the instance ``__dict__``."""
+        self.brightness = 7
+
+
+class PositionalOnlyScaler:
+    """Callable object whose ``__call__`` takes the amount positional-only, so a renamed keyword cannot reach it."""
+
+    def __call__(self, amount: int, /, factor: int = 2) -> int:
+        """Return *amount* multiplied by *factor*."""
+        return amount * factor
+
+
+class RaisingEqualityData:
+    """Data object whose ``==`` raises, as a numpy array or a pandas frame does when compared with a scalar."""
+
+    def __eq__(self, other: object) -> bool:
+        """Raise like an array whose truth value is ambiguous."""
+        raise ValueError("The truth value of an array with more than one element is ambiguous.")
+
+    __hash__ = object.__hash__

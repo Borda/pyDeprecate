@@ -45,7 +45,7 @@ from pydeprecate import deprecated  # wrong — no such module
 
 You have two ways to quiet it, and one alternative pattern for a different use case:
 
-- **Apply `@deprecated_class()` directly** — same result, and it skips the notice entirely. Prefer this for new code, and it is required to reach class-only knobs such as `attrs_mapping`.
+- **Apply `@deprecated_class()` directly** — same result, and it skips the notice entirely. Prefer this for new code, and it is required to reach proxy-only knobs such as `attrs_mapping`.
 - **Pass `stream=None`** — suppresses the notice (and every other deprecation notice from that decoration) while keeping `@deprecated` on the class.
 - **Decorate `__init__` instead of the class** — use this when you want a notice only at instantiation time while keeping the class name and identity untouched (no proxy involved).
 
@@ -2110,8 +2110,8 @@ print(f"Found {len(violations)} violations")
 <details><summary>Output: <code>f"Found {len(violations)} violations"</code></summary>
 
 ```
-Found 5 violations
-Found 3 violations
+Found 6 violations
+Found 4 violations
 ```
 
 </details>

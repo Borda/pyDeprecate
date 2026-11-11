@@ -20,6 +20,7 @@ from tests.collections.api_deprecated.forwarding import (
     deprecated_var_positional_forward,
 )
 from tests.collections.api_deprecated.regressions import (
+    shape_forward_positional_default_keywords,
     shape_notify_area_dispatch,
     shape_notify_positional_only,
     shape_notify_raw_signature,
@@ -27,6 +28,7 @@ from tests.collections.api_deprecated.regressions import (
     shape_notify_wraps_chain,
     shape_remap_area_dispatch,
     shape_remap_old_new,
+    shape_remap_positional_default_keywords,
     shape_remap_var_positional_extra_fills_slot,
     shape_remap_var_positional_rename_fills_slot,
     shape_remap_var_positional_with_extra,
@@ -142,6 +144,36 @@ class TestNotifyCallShape:
 
         warned_calls = shape_notify_positional_only._state.warned_calls  # type: ignore[attr-defined]
         assert ([record.category for record in caught], warned_calls) == ([FutureWarning], 1)
+
+
+class TestPositionalOnlyNamedKeyword:
+    """A keyword named like a positional-only parameter reaches ``**kwargs``, as it does in an undecorated call."""
+
+    def test_remap_keeps_keyword_out_of_positional_slot(self) -> None:
+        """``f(old_flag=1, x=99)`` returns ``(1, 1, {"x": 99})``, the result of the undecorated ``f(flag=1, x=99)``.
+
+        The source takes a positional-only ``x`` with a default plus ``**kwargs``, and ``old_flag`` is renamed to
+        ``flag``.  Python binds a keyword ``x`` to ``**kwargs``, never to the positional-only slot, so the renamed call
+        must leave the default ``x=1`` in place and hand ``x=99`` to ``kwargs``, instead of moving the caller's value
+        into the positional slot once the rename makes the wrapper rewrite the call.
+
+        """
+        with pytest.warns(FutureWarning, match=re.escape("`old_flag` -> `flag`")):
+            result = shape_remap_positional_default_keywords(old_flag=1, x=99)  # type: ignore[call-arg]
+
+        assert result == (1, 1, {"x": 99})
+
+    def test_forward_keeps_keyword_out_of_positional_slot(self) -> None:
+        """A forwarded ``f(x=99)`` reaches the target as ``(1, None, {"x": 99})``, as the undecorated source binds it.
+
+        Source and target share the signature ``(x=1, /, flag=None, **kwargs)``.  The undecorated source would bind the
+        caller's ``x`` to ``**kwargs`` and keep the default ``x=1``; forwarding to the target must carry that binding
+        over instead of moving ``x=99`` into the target's positional slot.
+
+        """
+        result = shape_forward_positional_default_keywords(x=99)  # type: ignore[call-arg]
+
+        assert result == (1, None, {"x": 99})
 
 
 class TestArgsRemapCallShape:
