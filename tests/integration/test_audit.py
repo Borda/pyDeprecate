@@ -314,6 +314,9 @@ class TestValidateDeprecatedWrapperCallableProxy:
             # deprecated_instance — no args_mapping
             (proxy_module.depr_config_dict, "dict", False, False, []),
             (proxy_module.depr_config_dict_read_only, "dict", False, False, []),
+            # deprecated_instance — replacement object / attribute renames
+            (proxy_module.depr_retry_settings, "depr_retry_settings", True, False, []),
+            (proxy_module.depr_theme_settings, "depr_theme_settings", True, False, []),
         ],
     )
     def test_all_proxy_types_pass_basic_validation(
@@ -324,7 +327,7 @@ class TestValidateDeprecatedWrapperCallableProxy:
         has_mapping: bool,
         invalid_args: list,
     ) -> None:
-        """All 8 proxy objects (6 deprecated_class + 2 deprecated_instance) pass validate_deprecation_wrapper.
+        """All 10 proxy objects (6 deprecated_class + 4 deprecated_instance) pass validate_deprecation_wrapper.
 
         Verifies the unified DeprecationConfig schema — function name, version fields, and chain_type — for every proxy
         variant. Proxy __call__ is (*args, **kwargs) so the signature check is skipped and invalid_args is always [] for
@@ -581,6 +584,8 @@ class TestValidateDeprecationChains:
         [
             ("caller_sum_via_depr_sum", ChainType.TARGET),
             ("caller_acc_via_depr_map", ChainType.TARGET),
+            # data alias whose replacement is itself a deprecated data alias
+            ("chain_outer_settings", ChainType.TARGET),
         ],
     )
     def test_detects_target_chain(self, chain_issues: list, fn_name: str, expected_chain_type: ChainType) -> None:
@@ -632,6 +637,16 @@ class TestValidateDeprecationChains:
     def test_no_warning_for_clean_target(self, chain_issues: list) -> None:
         """Wrapper pointing directly to a non-deprecated target is not reported."""
         assert all("caller_sum_direct" not in i.function for i in chain_issues)
+
+    def test_data_chain_reports_outer_alias_only(self, chain_issues: list) -> None:
+        """A data-object chain is reported once, on the alias that points at another deprecated alias.
+
+        ``chain_inner_settings`` serves a plain dict, so it is not itself a chain; only ``chain_outer_settings`` is,
+        because callers of the outer name hop through a second deprecated object.
+
+        """
+        functions = {i.function for i in chain_issues}
+        assert ("chain_outer_settings" in functions, "chain_inner_settings" in functions) == (True, False)
 
     def test_returns_list_of_infos(self, chain_issues: list) -> None:
         """Return value is a non-empty list of DeprecationWrapperInfo with chain_type set."""
@@ -736,6 +751,19 @@ class TestGenerateDeprecationMarkdown:
         assert "| `tests.collections.api_deprecated.core.DeprecatedColorEnum` | class |" in report
         assert "| `tests.collections.api_deprecated.core.MappedDataClass` | dataclass attributes |" in report
         assert "| `tests.collections.api_deprecated.core.ServiceCls.old_warn_method` | class method |" in report
+
+    @_requires_packaging
+    def test_markdown_reports_data_target_by_type_name(self) -> None:
+        """A data alias with a replacement object shows the replacement's type name, never its values.
+
+        A package replaced its retry settings dict. The migration table must tell readers the alias serves a ``dict``
+        without printing settings that may carry secrets or run to thousands of entries.
+
+        """
+        report = generate_deprecation_table(proxy_module, current_version="1.5", recursive=False)
+        row = "| `tests.collections.api_deprecated.core.depr_retry_settings` | data | `dict` | v1.0 | v2.0 |"
+        assert row in report
+        assert "timeout" not in report
 
     def test_markdown_groups_class_members_together(self) -> None:
         """Rows are ordered by module/symbol family so class members stay contiguous."""

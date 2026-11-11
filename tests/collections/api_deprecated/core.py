@@ -76,10 +76,12 @@ from tests.collections.api_current.core import (
     NewEnum,
     NewIntEnum,
     Palette,
+    PositionalOnlyScaler,
     PositionalOnlyTarget,
     RequiredPositionalOnlyTarget,
     SideEffectBox,
     TagList,
+    ThemeSettings,
     TimerDecorator,
     _InnerOrderPropTarget,
     add_values,
@@ -92,6 +94,7 @@ from tests.collections.api_current.core import (
     increment_value,
     positional_only_target,
     power_with_new_coef,
+    retry_settings,
     return_b,
     return_z,
     timing_wrapper,
@@ -1531,6 +1534,41 @@ with catch_warnings():
     )
     DepPositionalOnlyMixed = deprecated_class(args_mapping={"old_x": "x"}, **_DEPRS_CASE_STD_INF_ARGS)(
         MixedPositionalOnlyTarget
+    )
+
+
+# ========== Instance proxies with a replacement object or mappings (``deprecated_instance(target=...)``) ==========
+
+# old settings dict whose name now serves the current ``retry_settings`` values
+depr_retry_settings = deprecated_instance(
+    {"timeout": 10}, name="depr_retry_settings", target=retry_settings, **_DEPRS_CASE_STD_INF_ARGS
+)
+
+# settings object whose ``color`` attribute was renamed to ``colour``; only the old spelling warns
+depr_theme_settings = deprecated_instance(
+    ThemeSettings(), name="depr_theme_settings", attrs_mapping={"color": "colour"}, **_DEPRS_CASE_STD_INF_ARGS
+)
+
+
+def resize_source(size_px: int, margin: int = 0) -> int:
+    """Previous resize entry point; the proxy forwards its calls to ``positional_only_target``."""
+    return void(size_px, margin)
+
+
+# old function forwarding to a target whose first parameter is POSITIONAL_ONLY, under a renamed keyword;
+# the decoration-time UserWarning about the positional-only remap is suppressed so importing stays quiet
+with catch_warnings():
+    simplefilter("ignore", UserWarning)
+    depr_resize = deprecated_instance(
+        resize_source,
+        name="depr_resize",
+        target=positional_only_target,
+        args_mapping={"size_px": "x", "margin": "y"},
+        **_DEPRS_CASE_STD_INF_ARGS,
+    )
+    # callable object whose amount is POSITIONAL_ONLY, called by a renamed keyword
+    depr_scaler = deprecated_instance(
+        PositionalOnlyScaler(), name="depr_scaler", args_mapping={"quantity": "amount"}, **_DEPRS_CASE_STD_INF_ARGS
     )
 
 

@@ -3,13 +3,17 @@
 import importlib.util
 import sys
 import types
-from typing import Any, NoReturn
+from collections.abc import Callable
+from typing import Any, NoReturn, Optional
 
 import pytest
 
 from deprecate import (
+    DeprecationProxy,
     PolicyRule,
     TargetMode,
+    deprecated_class,
+    deprecated_instance,
     validate_deprecation_policy,
 )
 from deprecate._types import DeprecationConfig
@@ -28,10 +32,14 @@ from deprecate.audit._policy import (
     _has_migration_guidance,
     _satisfies_grace_window,
 )
+from tests.collections.api_current.core import RaisingEqualityData, ThemeSettings
 
 _PACKAGING_AVAILABLE = importlib.util.find_spec("packaging") is not None
 _requires_packaging = pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging library")
 
+_DEPRS_CASE_STD_ARGS: dict[str, Any] = {"deprecated_in": "1.0", "remove_in": "2.0"}
+#: Constructor-argument rename for the class proxies; ``ThemeSettings`` takes no arguments, so it is never exercised.
+_CLASS_RENAME: dict[str, Optional[str]] = {"time_limit": "timeout"}
 _MODULE_IDENTITY: dict[str, Any] = {"name": "pkg.old_mod", "deprecated_in": "1.0", "remove_in": "2.0"}
 #: The notice ``deprecated_module()`` renders into ``message_template`` for that module when the author passes none.
 _MODULE_BUILT_IN_NOTICE = "The `pkg.old_mod` module was deprecated since v1.0. It will be removed in v2.0."
@@ -265,6 +273,53 @@ class TestHasMigrationGuidance:
                 True,
                 id="unset-target-still-applies-its-mapping",
             ),
+            pytest.param(
+                DeprecationConfig(target={"timeout": 30}), False, id="non-callable-replacement-warns-without-naming-it"
+            ),
+            pytest.param(
+                DeprecationConfig(target={"timeout": 30}, attrs_mapping={"old": "new"}),
+                True,
+                id="non-callable-replacement-with-attrs-mapping",
+            ),
+            pytest.param(
+                DeprecationConfig(target={"timeout": 30}, message_template="use `NEW_SETTINGS` instead"),
+                True,
+                id="non-callable-replacement-with-custom-message",
+            ),
+            pytest.param(
+                DeprecationConfig(target={"timeout": 30}, args_mapping={"old": "new"}),
+                False,
+                id="non-callable-replacement-is-never-called-so-args-mapping-is-inert",
+            ),
+            pytest.param(
+                DeprecationConfig(
+                    target=TargetMode.ARGS_REMAP,
+                    args_mapping={"old": "new"},
+                    misconfigured=True,
+                    call_options_inert=True,
+                ),
+                False,
+                id="inert-args-mapping-on-uncalled-object",
+            ),
+            pytest.param(
+                DeprecationConfig(
+                    target=TargetMode.ARGS_REMAP,
+                    args_mapping={"old": "new"},
+                    misconfigured=True,
+                    call_options_inert=True,
+                    message_template="use `NEW_SETTINGS` instead",
+                ),
+                True,
+                id="inert-args-mapping-with-custom-message",
+            ),
+            pytest.param(
+                DeprecationConfig(target=TargetMode.ARGS_REMAP, args_mapping={"old": "new"}, misconfigured=True),
+                True,
+                id="unrelated-misconfiguration-keeps-live-args-mapping",
+            ),
+            pytest.param(
+                DeprecationConfig(target=RaisingEqualityData()), False, id="replacement-with-raising-equality"
+            ),
         ],
     )
     def test_guidance_sources(self, config: DeprecationConfig, expected: bool) -> None:
@@ -273,9 +328,68 @@ class TestHasMigrationGuidance:
         The rule exists to catch the dead-end warning ("this is deprecated", full stop); a wrapper that renames
         arguments or carries a hand-written migration sentence is not a dead end even without a target. A mapping
         counts only where it survives to call time: an empty one renames nothing, and one paired with an explicit
-        ``TargetMode.NOTIFY`` is discarded at decoration time, so both leave callers the same dead end.
+        ``TargetMode.NOTIFY`` is discarded at decoration time, so both leave callers the same dead end. A
+        ``deprecated_instance`` replacement that is plain data is served silently under the old name, but the warning
+        never names it, so on its own it is still a dead end; an ``args_mapping`` beside it is inert because a data
+        object is never called. An ``args_mapping`` on a data object without a replacement resolves to
+        ``ARGS_REMAP`` and is recorded as inert call options, so it counts no more; a misconfiguration of any other
+        kind leaves a live ``args_mapping`` counting. A replacement whose ``==`` raises (an array) must be classified
+        without ever comparing it.
         """
         info = DeprecationWrapperInfo(module="pkg", function="old_api", deprecated_info=config)
+        assert _has_migration_guidance(info) is expected
+
+    @pytest.mark.parametrize(
+        ("build", "warning", "expected"),
+        [
+            pytest.param(
+                lambda: deprecated_class(args_mapping=_CLASS_RENAME, attrs_mapping={}, **_DEPRS_CASE_STD_ARGS)(
+                    ThemeSettings
+                ),
+                r"received `attrs_mapping=\{\}` \(empty dict\)",
+                True,
+                id="class-args-mapping-next-to-empty-attrs-mapping",
+            ),
+            pytest.param(
+                lambda: deprecated_class(target=False, args_mapping=_CLASS_RENAME, **_DEPRS_CASE_STD_ARGS)(
+                    ThemeSettings
+                ),
+                r"`target=False` is not valid",
+                True,
+                id="class-args-mapping-next-to-legacy-target-false",
+            ),
+            pytest.param(
+                lambda: deprecated_instance({"timeout": 30}, args_mapping={"old": "new"}, **_DEPRS_CASE_STD_ARGS),
+                "is not callable",
+                False,
+                id="instance-args-mapping-on-data-object",
+            ),
+            pytest.param(
+                lambda: deprecated_instance(
+                    {"timeout": 30},
+                    args_mapping={"old": "new"},
+                    message_template="use `NEW_SETTINGS` instead",
+                    **_DEPRS_CASE_STD_ARGS,
+                ),
+                "is not callable",
+                True,
+                id="instance-args-mapping-on-data-object-with-custom-message",
+            ),
+        ],
+    )
+    def test_misconfigured_factory_wrappers(
+        self, build: Callable[[], DeprecationProxy], warning: str, expected: bool
+    ) -> None:
+        """A creation-time misconfiguration discounts an ``args_mapping`` only when the served object is never called.
+
+        Each factory call here warns at creation and marks its config misconfigured, but for different reasons. A class
+        proxy with an empty ``attrs_mapping`` or the legacy ``target=False`` still renames constructor arguments at
+        call time, so the ``message-required`` gate must not fail it. A data object is never called, so an
+        ``args_mapping`` on it renames nothing and only a hand-written message guides callers.
+        """
+        with pytest.warns(UserWarning, match=warning):
+            proxy = build()
+        info = DeprecationWrapperInfo(module="pkg", function="old_api", deprecated_info=proxy.__deprecation_config__)
         assert _has_migration_guidance(info) is expected
 
     @pytest.mark.parametrize(
@@ -343,9 +457,14 @@ class TestMessageRequiredRemedy:
             pytest.param(
                 "data",
                 DeprecationConfig(target=None, name="old_cfg"),
-                ["Instance `pkg.old_cfg`", "a custom `message_template`"],
-                ["`target`", "`args_mapping`", "`attrs_mapping`"],
-                id="instance-has-only-a-template",
+                [
+                    "Instance `pkg.old_cfg`",
+                    "a custom `message_template`",
+                    "an `attrs_mapping`",
+                    "for a callable object, an `args_mapping` or a callable `target`",
+                ],
+                ["`args_mapping`/`attrs_mapping`", "a `target`"],
+                id="instance-names-what-guides-a-data-object",
             ),
             pytest.param(
                 "module",
@@ -375,10 +494,12 @@ class TestMessageRequiredRemedy:
     ) -> None:
         """The remedy text lists the arguments the wrapper's factory actually takes, under the matching subject noun.
 
-        A maintainer reads the violation and reaches for the first option it names. ``deprecated_instance()`` has
-        no ``target`` or mapping argument at all, and ``deprecated_module()`` has no ``args_mapping``, so a remedy
-        copied from the callable case sends them to a keyword that raises ``TypeError`` -- and calling an instance
-        proxy a *Callable* points them at the wrong factory to begin with.
+        A maintainer reads the violation and reaches for the first option it names. On a ``deprecated_instance()``
+        object an ``args_mapping`` applies only when the object is callable and a plain replacement ``target`` is not
+        named in the warning, so both are offered for a callable object only; ``deprecated_module()`` has no
+        ``args_mapping``, so a remedy copied from the callable case sends them to a
+        knob that changes nothing a caller sees -- and calling an instance proxy a *Callable* points them at the wrong
+        factory to begin with.
         """
         info = DeprecationWrapperInfo(module="pkg", function="old_cfg", deprecated_info=config, api_type=api_type)
         spec = _build_policy_spec(None, True)
@@ -467,20 +588,29 @@ class TestValidateDeprecationPolicy:
         assert not [v for v in violations if wrapper_name in v]
 
     @_requires_packaging
-    def test_instance_remedy_names_only_the_message_template(self) -> None:
-        """A bare ``deprecated_instance`` violation tells the reader to set ``message_template`` and nothing else.
+    @pytest.mark.parametrize(
+        "wrapper_name",
+        [
+            pytest.param("warns_without_template_instance", id="no-replacement"),
+            pytest.param("replaced_without_template_instance", id="data-replacement-not-named"),
+        ],
+    )
+    def test_instance_remedy_names_data_object_guidance(self, wrapper_name: str) -> None:
+        """A ``deprecated_instance`` violation offers ``args_mapping`` only for a callable object.
 
-        ``deprecated_instance()`` accepts no ``target`` or mapping, so a remedy listing those would send a
-        maintainer after knobs that do not exist; the message must name the one knob the API actually has.
+        A data object is never called, so an ``args_mapping`` on it changes nothing, and a plain replacement passed as
+        ``target`` is served silently but never named in the warning. The violation fires for both wrappers and must
+        point at a custom ``message_template`` or an ``attrs_mapping`` first, and offer an ``args_mapping`` only for a
+        callable object, never unconditionally as the callable remedy does.
         """
         violations = validate_deprecation_policy("tests.collections.policy", recursive=False)
 
-        (violation,) = [v for v in violations if "warns_without_template_instance" in v]
+        (violation,) = [v for v in violations if f".{wrapper_name}`" in v]
 
         assert "Instance" in violation
-        assert "configure a custom `message_template`" in violation
-        assert "args_mapping" not in violation
-        assert "`target`" not in violation
+        assert "configure a custom `message_template`, an `attrs_mapping`" in violation
+        assert "for a callable object, an `args_mapping`" in violation
+        assert "`args_mapping`/`attrs_mapping`" not in violation
 
     @_requires_packaging
     def test_module_with_custom_template_is_not_reported(self) -> None:

@@ -88,7 +88,7 @@ print(configure_cache(cache_ttl=45))
 
 ### `target=False` → `TargetMode.NOTIFY` or a callable target
 
-`target=False` was never a valid target. On a callable it now emits `UserWarning` at decoration time and behaves like warn-only mode. Proxy factories treat it like an omitted target while marking the configuration as misconfigured, so a supplied mapping may still be inferred; do not rely on either compatibility path. Choose the behavior you actually need:
+`target=False` was never a valid target. On a callable it now emits `UserWarning` at decoration time and behaves like warn-only mode. `deprecated_class` treats it like an omitted target while marking the configuration as misconfigured, so a supplied mapping may still be inferred; `deprecated_instance` raises `TypeError`; do not rely on either compatibility path. Choose the behavior you actually need:
 
 ```diff
 - # DEPRECATED API — invalid legacy sentinel
@@ -167,14 +167,14 @@ The same rule applies to `deprecated_class()` and `deprecated_instance()`: `targ
 
 Contradictory combinations emit `UserWarning` at decoration time. The warning is a migration task: the ignored configuration is scheduled to become an error in v1.0.
 
-| Combination                                                         | Migration                                                                                                    |
-| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `TargetMode.ARGS_REMAP` without `args_mapping`                      | Add a real mapping, or use `TargetMode.NOTIFY` for warn-only behavior.                                       |
-| Explicit `TargetMode.NOTIFY` with `args_mapping`                    | Omit `target` so `AUTO` infers `ARGS_REMAP`, select `ARGS_REMAP` explicitly, or remove the mapping.          |
-| Explicit `TargetMode.NOTIFY` with `args_extra`                      | Use a callable `target` if extra kwargs must reach a replacement, or remove `args_extra`.                    |
-| `deprecated_class(target=TargetMode.NOTIFY, attrs_mapping=...)`     | Omit `target` so the proxy infers `ATTRS_REMAP`, select `ATTRS_REMAP` explicitly, or remove the mapping.     |
-| `deprecated_class(target=TargetMode.ATTRS_REMAP)` without a mapping | Add `attrs_mapping={"old": "new"}`, or use `NOTIFY` for class-wide warnings.                                 |
-| `@deprecated(target=TargetMode.ATTRS_REMAP)`                        | Use `deprecated_class(attrs_mapping=...)`; the common front door does not expose class-only `attrs_mapping`. |
+| Combination                                                         | Migration                                                                                                        |
+| ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `TargetMode.ARGS_REMAP` without `args_mapping`                      | Add a real mapping, or use `TargetMode.NOTIFY` for warn-only behavior.                                           |
+| Explicit `TargetMode.NOTIFY` with `args_mapping`                    | Omit `target` so `AUTO` infers `ARGS_REMAP`, select `ARGS_REMAP` explicitly, or remove the mapping.              |
+| Explicit `TargetMode.NOTIFY` with `args_extra`                      | Use a callable `target` if extra kwargs must reach a replacement, or remove `args_extra`.                        |
+| `deprecated_class(target=TargetMode.NOTIFY, attrs_mapping=...)`     | Omit `target` so the proxy infers `ATTRS_REMAP`, select `ATTRS_REMAP` explicitly, or remove the mapping.         |
+| `deprecated_class(target=TargetMode.ATTRS_REMAP)` without a mapping | Add `attrs_mapping={"old": "new"}`, or use `NOTIFY` for class-wide warnings.                                     |
+| `@deprecated(target=TargetMode.ATTRS_REMAP)`                        | Use `deprecated_class(attrs_mapping=...)`; the common front door does not expose the proxy-only `attrs_mapping`. |
 
 An explicitly supplied `NOTIFY` is never rewritten: its mapping stays inert. Inference happens only when `target` is omitted.
 
