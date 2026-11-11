@@ -220,7 +220,7 @@ print(RETRY_DEFAULTS["timeout"])  # warns: FutureWarning
 
 </details>
 
-Everything callers do with the old name follows the replacement: `isinstance`, hashing, and the protocols the proxy serves come from it, and writes through the old name land on it. Keep the replacement the same type as the old object (or a subclass) unless the change of type is intended — a tuple constant replaced by a list stops being hashable as soon as the deprecation ships. `target=True`, `target=False`, `TargetMode.AUTO`, and a module raise `TypeError`; redirect a module with [`deprecated_module`](modules.md).
+Everything callers do with the old name follows the replacement: `isinstance` and hashing come from it, and writes through the old name land on it. The protocols the proxy offers are the combined set of the old object and the replacement, because `skip_if` can serve the old object: a function replaced by a dict still reports `callable(proxy)` as `True`, although calling the proxy raises `TypeError`. Keep the replacement the same type as the old object (or a subclass) unless the change of type is intended — a tuple constant replaced by a list stops being hashable as soon as the deprecation ships. `target=True`, `target=False`, `TargetMode.AUTO`, and a module raise `TypeError`; redirect a module with [`deprecated_module`](modules.md).
 
 `attrs_mapping` deprecates only the listed attribute spellings of an object, the same way it does on a class proxy. Every other attribute stays silent. The mapping covers attributes, not the keys of a mapping object:
 

@@ -161,7 +161,7 @@ OLD_SETTINGS = deprecated_instance(
 )
 ```
 
-With `target=`, `isinstance`, hashing and protocols follow the replacement and writes land on it. A data replacement is not named by the built-in warning, so pass `message_template`. `attrs_mapping` works on objects as on classes (attributes only, not dict keys); `args_mapping` renames keyword arguments of a callable object. `target=True`/`False`, `TargetMode.AUTO` and modules raise `TypeError`.
+With `target=`, `isinstance` and hashing follow the replacement and writes land on it. The protocols the proxy offers are those of the old object and the replacement combined (`skip_if` can serve the old object), so a function replaced by a dict still reports `callable(proxy)` as `True` although calling it raises `TypeError`. A data replacement is not named by the built-in warning, so pass `message_template`. `attrs_mapping` works on objects as on classes (attributes only, not dict keys); `args_mapping` renames keyword arguments of a callable object. `target=True`/`False`, `TargetMode.AUTO` and modules raise `TypeError`.
 
 The proxy forwards arithmetic, unary, and conversion operators to the wrapped object and warns on data-use operations (arithmetic, conversions, context entry, iteration). Ordering comparisons, `format()`, and context exit are silent. In-place operators (`+= `, `-=`, etc.) return the active object's result, not a re-wrapped proxy — `old_val += 1` rebinds to a plain `int`. One edge case: `"prefix" + proxy_str` fails if the left-hand type raises `TypeError` directly rather than returning `NotImplemented` (e.g. `str.__add__`); use proxy on the left side or wrap in a container.
 
