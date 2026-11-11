@@ -88,7 +88,7 @@ print(configure_cache(cache_ttl=45))
 
 ### `target=False` → `TargetMode.NOTIFY` or a callable target
 
-`target=False` was never a valid target. On a callable it now emits `UserWarning` at decoration time and behaves like warn-only mode. Proxy factories treat it like an omitted target while marking the configuration as misconfigured, so a supplied mapping may still be inferred; do not rely on either compatibility path. Choose the behavior you actually need:
+`target=False` was never a valid target. On a callable it now emits `UserWarning` at decoration time and behaves like warn-only mode. `deprecated_class` treats it like an omitted target while marking the configuration as misconfigured, so a supplied mapping may still be inferred; `deprecated_instance` raises `TypeError`; do not rely on either compatibility path. Choose the behavior you actually need:
 
 ```diff
 - # DEPRECATED API — invalid legacy sentinel

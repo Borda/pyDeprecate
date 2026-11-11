@@ -8,10 +8,10 @@
 
 ### Changed
 
-- **`args_mapping` / `args_extra` on a non-callable object emit `UserWarning` and mark the config misconfigured.** The mapping is inert at runtime and audit reports the proxy with `misconfigured=True`. ([#263](https://github.com/Borda/pyDeprecate/pull/263))
+- **`args_mapping` / `args_extra` on a non-callable object emit `UserWarning` and mark the config misconfigured.** The mapping is inert at runtime and audit reports the proxy with `misconfigured_target=True`. ([#263](https://github.com/Borda/pyDeprecate/pull/263))
 - **Misconfiguration warnings name the factory.** The message says whether `deprecated_instance` or `deprecated_class` was called. ([#263](https://github.com/Borda/pyDeprecate/pull/263))
-- **`copy.copy` of a proxy shallow-copies a plain data replacement.** Top-level writes through the copy no longer reach the shared replacement; nested mutable values stay shared. ([#263](https://github.com/Borda/pyDeprecate/pull/263))
-- **Audit treats a deprecated proxy target as a `TARGET` chain and reports data targets by type.** ([#263](https://github.com/Borda/pyDeprecate/pull/263))
+- **`copy.copy` of a proxy shallow-copies a plain data replacement.** Top-level writes through a successful copy do not reach the original replacement; if copying raises, the replacement remains shared. Nested mutable values stay shared. ([#263](https://github.com/Borda/pyDeprecate/pull/263))
+- **Audit treats a deprecated data proxy target as a `TARGET` chain and reports data targets by type; callable `ARGS_REMAP` targets are `STACKED` chains.** ([#263](https://github.com/Borda/pyDeprecate/pull/263))
 
 ### Fixed
 
