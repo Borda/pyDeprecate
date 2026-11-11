@@ -1195,7 +1195,7 @@ class TestNoSilentMiss:
                     "m.py": f"{_DEP}REMOVE = '9.0'\nglobals().update(REMOVE='2.0')\n\n"
                     "@deprecated(deprecated_in='1.0', remove_in=REMOVE)\ndef old():\n    pass\n"
                 },
-                "`remove_in` is `REMOVE`, not a literal",
+                "unrecognized use of `deprecated`",
                 id="version-in-a-module-that-updates-its-globals",
             ),
             pytest.param(
@@ -1539,3 +1539,71 @@ class TestNoSilentMiss:
         )
         assert _rows(_read_package(pkg)) == [f"{_PKG}.ok:old"]
         assert gap in capsys.readouterr().err
+
+
+class TestDynamicSourceBindings:
+    """Dynamic bindings cannot be treated as settled replacements or factories."""
+
+    @pytest.mark.parametrize("value", [pytest.param("None", id="none"), pytest.param("TargetMode.NOTIFY", id="notify")])
+    def test_attribute_target_is_not_assumed_callable(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str], value: str
+    ) -> None:
+        """A class attribute holding a non-callable target must not hide missing guidance.
+
+        A project centralizes its deprecation policy on a class, so static analysis must report uncertainty if it
+        cannot resolve the attribute rather than treating it as a replacement function.
+        """
+        source = (
+            f"from deprecate import deprecated, TargetMode\nclass Settings:\n    target = {value}\n"
+            "@deprecated(target=Settings.target, deprecated_in='1.0', remove_in='2.0')\ndef old(): pass\n"
+        )
+        wrappers = _read_package(_write(tmp_path, {"__init__.py": source}))
+        _report_unresolved(wrappers, _GUIDANCE_KEYWORDS)
+        assert "target" in capsys.readouterr().err
+
+    def test_factory_rebound_through_globals_is_a_gap(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        """A factory overwritten through the module namespace cannot produce a settled wrapper.
+
+        A compatibility module replaces its imported factory dynamically before applying a decorator.
+        """
+        source = (
+            "from deprecate import deprecated\nglobals()['deprecated'] = lambda **kw: lambda f: f\n"
+            "@deprecated(deprecated_in='1.0', remove_in='2.0')\ndef old(): pass\n"
+        )
+        wrappers = _read_package(_write(tmp_path, {"__init__.py": source}))
+        _report_unresolved(wrappers, ("remove_in",))
+        assert _expiry_ids(wrappers) == []
+        assert "not statically resolvable" in capsys.readouterr().err
+
+    def test_module_qualified_base_matches_import_scan(self, probe_package: Callable[..., Path]) -> None:
+        """A subclass inherits deprecated methods from an imported in-tree module.
+
+        A package exposes a subclass using its base module's qualified name, and both class bindings must be audited.
+        """
+        pkg = probe_package(
+            {
+                "__init__.py": "from . import base\nclass Derived(base.Base): pass\n",
+                "base.py": f"{_DEP}class Base:\n    @{_EXPIRED}\n    def old(self): pass\n",
+            }
+        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            imported = [f.id for f in _expiry_findings(find_deprecation_wrappers(_PKG, True), "99.0")]
+        assert _expiry_ids(_read_package(pkg)) == imported
+
+    def test_rebound_base_module_is_not_assumed(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        """A dynamically replaced base module must not contribute its former class's deprecated members.
+
+        A package replaces an imported base module through its globals before defining the subclass. The original
+        module still has a deprecated method, but the subclass does not inherit it.
+        """
+        pkg = _write(
+            tmp_path,
+            {
+                "__init__.py": "from . import base\nclass Other: pass\n"
+                "globals()['base'] = type('M', (), {'Base': Other})\nclass Derived(base.Base): pass\n",
+                "base.py": f"{_DEP}class Base:\n    @{_EXPIRED}\n    def old(self): pass\n",
+            },
+        )
+        assert _rows(_read_package(pkg)) == [f"{_PKG}.base:Base.old"]
+        assert "members inherited from `base.Base`" in capsys.readouterr().err

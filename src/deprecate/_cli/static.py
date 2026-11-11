@@ -695,8 +695,11 @@ class _TargetReader:
         member = self.aliases.target_mode(node)
         if member is not None:
             return _Read(("const", member))
-        if isinstance(node, (ast.Lambda, ast.Attribute)):
-            return _Read(("replacement", ast.unparse(node), "def" if isinstance(node, ast.Lambda) else "other"))
+        if isinstance(node, ast.Lambda):
+            return _Read(("replacement", ast.unparse(node), "def"))
+        if isinstance(node, ast.Attribute):
+            text = ast.unparse(node)
+            return _Read(("expr", text), f"`target` is `{text}`, whose attribute value is not settled")
         if isinstance(node, ast.Name):
             return self._classify_name(node, shadow, depth)
         return _Read(("expr", ast.unparse(node)), f"`target` is `{ast.unparse(node)}`, not a literal or a name")
@@ -1713,6 +1716,14 @@ class _Reader:
                     unsettled = {alias.asname or alias.name: kind} if alias.name in exported.ambiguous else {}
                 aliases.merge(bound, settled=id(node) in top, scope=scope, star=alias.name == "*")
                 aliases.ambiguous.update(unsettled)
+        # Namespace writes can replace an imported factory without a syntactic name assignment.
+        rebinds = _globals_rebinds(parsed.tree)
+        global_names = {name for node in ast.walk(parsed.tree) if isinstance(node, ast.Global) for name in node.names}
+        for name in set(aliases.names) | set(aliases.modules):
+            if rebinds is None or name in rebinds or name in global_names:
+                kind = aliases.names.pop(name, None)
+                aliases.modules.pop(name, None)
+                aliases.ambiguous[name] = kind
         aliases.settle()
         self._aliases[parsed.name] = aliases
         return aliases
@@ -1889,22 +1900,21 @@ class _Reader:
 
     def _base(self, module: str, base: ast.expr) -> Union[_ClassInfo, str, None]:
         """Return the in-tree class a base expression names, ``None`` for a memberless one, else why it is unread."""
-        while isinstance(base, ast.Subscript):  # ``Base[T]`` subclasses ``Base``
-            base = base.value
-        root = base
-        while isinstance(root, ast.Attribute):
-            root = root.value
+        base, root = _base_expression(base)
         facts = self.facts(module)
         parsed = self.parse(module)
         if not isinstance(root, ast.Name) or facts is None or parsed is None:
             return "not a name the source settles"
-        if isinstance(base, ast.Name) and base.id in facts.bindings:
-            resolved, _ = self.resolve(facts.bindings[base.id])
+        scope = _module_scope(parsed)
+        if scope.unsettled or len(scope.events.get(root.id, [])) > 1:
+            return "not a class the source settles after rebinding"
+        if isinstance(base, ast.Name):
+            resolved, _ = self.resolve(facts.bindings.get(base.id))
             if isinstance(resolved, _ClassInfo):
                 return resolved
-        event = _single(_scope_events(parsed.tree.body), root.id)
+        event = _single(scope.events, root.id)
         if event is None:
-            unbound = root.id not in _scope_events(parsed.tree.body)
+            unbound = root.id not in scope.events
             return None if unbound and hasattr(builtins, root.id) else "not a class the source defines"
         if event.kind != "import":
             return "not a class the scanned source defines"
@@ -1913,11 +1923,45 @@ class _Reader:
             if isinstance(event.value, ast.ImportFrom)
             else root.id
         )
+        resolved = self._qualified_base(base, event, origin, root.id)
+        if resolved is not None:
+            return resolved
         if self.in_tree(origin):
             return "not a class the scanned source defines"
         if _is_memberless_module(origin):
             return None
         return f"imported from `{origin}`, whose source is not read"
+
+    def _qualified_base(self, base: ast.expr, event: _Event, origin: str, root: str) -> Optional[_ClassInfo]:
+        """Resolve a module-qualified base only when its imported module is in the scanned tree."""
+        if not isinstance(base, ast.Attribute) or not isinstance(base.value, ast.Name):
+            return None
+        imported_module = None
+        if isinstance(event.value, ast.ImportFrom):
+            alias = next((a for a in event.value.names if (a.asname or a.name) == root), None)
+            if alias is not None:
+                imported_module = f"{origin}.{alias.name}"
+        elif isinstance(event.value, ast.Import):
+            alias = next((a for a in event.value.names if (a.asname or a.name.split(".")[0]) == root), None)
+            if alias is not None:
+                imported_module = alias.name if alias.asname else root
+        if not imported_module or not self.in_tree(imported_module):
+            return None
+        facts = self.facts(imported_module)
+        if facts is None:
+            return None
+        resolved, _ = self.resolve(facts.bindings.get(base.attr))
+        return resolved if isinstance(resolved, _ClassInfo) else None
+
+
+def _base_expression(base: ast.expr) -> tuple[ast.expr, ast.expr]:
+    """Unwrap generic subscripts and find the root name of a base expression."""
+    while isinstance(base, ast.Subscript):  # ``Base[T]`` subclasses ``Base``
+        base = base.value
+    root = base
+    while isinstance(root, ast.Attribute):
+        root = root.value
+    return base, root
 
 
 def _is_public(name: str) -> bool:
