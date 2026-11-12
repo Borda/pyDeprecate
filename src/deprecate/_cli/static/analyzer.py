@@ -14,30 +14,30 @@ from deprecate._cli.static.consts import (
     _TYPE_CHECKING_FLAGS,
     _Factory,
     _positional_params,
-    _Route,
+    _TargetRoute,
 )
 from deprecate._cli.static.model import (
-    _CallArgs,
-    _ClassInfo,
     _display,
+    _FactoryCallArgs,
+    _FactorySettings,
     _ImportRef,
     _Lookup,
     _module_scope,
     _ModuleFacts,
-    _Parsed,
+    _ParsedModule,
+    _PlainClass,
     _qualified_name,
-    _Read,
-    _Settings,
+    _SettingValue,
+    _SourceWrapper,
     _Value,
-    _Wrapper,
 )
 from deprecate._cli.static.scope import (
-    _Aliases,
     _dotted,
     _escaped_names,
-    _Event,
     _is_dataclass,
     _is_memberless_module,
+    _NameBinding,
+    _PyDeprecateNames,
     _scope_events,
     _single,
 )
@@ -47,7 +47,7 @@ from deprecate._cli.static.targets import (
     _member_api_type,
     _module_template,
     _store_target,
-    _TargetReader,
+    _TargetClassifier,
 )
 from deprecate._types import DeprecationConfig
 from deprecate.audit._version import _absolute_import
@@ -58,12 +58,12 @@ class _ModuleAnalyzer:
 
     def __init__(
         self,
-        parsed: _Parsed,
-        aliases: _Aliases,
+        parsed: _ParsedModule,
+        aliases: _PyDeprecateNames,
         in_tree: Callable[[str], bool],
         name_kind: Callable[[str, str], tuple[str, bool]],
         imported_configured: Callable[[str, str], _Lookup],
-        imported_target: Callable[[str, str], Optional[_Read]],
+        imported_target: Callable[[str, str], Optional[_SettingValue]],
     ) -> None:
         self.parsed = parsed
         self.aliases = aliases
@@ -79,17 +79,17 @@ class _ModuleAnalyzer:
         #: Whether a star import may bind names the reader cannot list (pyDeprecate's own star imports aside).
         self.foreign_star = module_scope.foreign_star
         #: Reads a ``target`` from how this module binds the names it uses, following in-tree imports.
-        self.targets = _TargetReader(parsed, aliases, module_scope, in_tree, imported_target)
+        self.targets = _TargetClassifier(parsed, aliases, module_scope, in_tree, imported_target)
         self.consumed: set[int] = set()
         self.bindings: dict[str, _Value] = {}
         #: Names bound to a configured factory call (``_dep = deprecated(...)``), later applied as ``@_dep``.
-        self.configured: dict[str, tuple[_Factory, _Settings]] = {}
+        self.configured: dict[str, tuple[_Factory, _FactorySettings]] = {}
         #: Every name the module ever bound to a configured factory, whose unconsumed uses are gaps.
         self.ever_configured: set[str] = set()
         self.lookup_gaps: list[str] = []
         #: Names whose import cycle is already a gap, so each is reported once rather than at every use.
         self.unfollowed: set[str] = set()
-        self.module_wrapper: Optional[_Wrapper] = None
+        self.module_wrapper: Optional[_SourceWrapper] = None
         self.star_sources: list[tuple[str, int]] = []
         #: The position of the statement being read, counted over block bodies too, so bindings can be ordered.
         self.position = 0
@@ -154,7 +154,7 @@ class _ModuleAnalyzer:
         """
         conditional = isinstance(stmt, _CONDITIONAL_STATEMENTS)
         for name in _scope_events([stmt]):
-            if conditional and isinstance(self.bindings.get(name), (_Wrapper, _ClassInfo)):
+            if conditional and isinstance(self.bindings.get(name), (_SourceWrapper, _PlainClass)):
                 self.lookup_gaps.append(self._rebound_gap(stmt, name))
             self._set(name, None)
 
@@ -186,7 +186,7 @@ class _ModuleAnalyzer:
                 if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
                     self._set(node.id, None)
 
-    def _configured_factory(self, value: ast.expr) -> Optional[tuple[_Factory, _Settings]]:
+    def _configured_factory(self, value: ast.expr) -> Optional[tuple[_Factory, _FactorySettings]]:
         """Recognize ``deprecated(...)`` or ``deprecated_class(...)`` assigned to a name to be applied later."""
         if not isinstance(value, ast.Call):
             return None
@@ -206,7 +206,7 @@ class _ModuleAnalyzer:
 
     def _factory_call(
         self, node: ast.expr, kinds: tuple[_Factory, ...], shadow: Mapping[str, list]
-    ) -> Optional[tuple[_Factory, _Settings]]:
+    ) -> Optional[tuple[_Factory, _FactorySettings]]:
         """Return the factory and settings of ``factory(...)``, or of a name bound to one here or in-tree."""
         if self._shadowed_factory(node, shadow):
             return None
@@ -308,13 +308,13 @@ class _ModuleAnalyzer:
         self.consumed.add(id(call.func))
         if self.module_wrapper is None:
             settings = self._read_settings(args, call, {})
-            self.module_wrapper = self._finish(settings, _Route.MODULE, lambda _: "module", proxy=False)
+            self.module_wrapper = self._finish(settings, _TargetRoute.MODULE, lambda _: "module", proxy=False)
 
     def _decorated_def(
         self, node: Union[ast.FunctionDef, ast.AsyncFunctionDef], *, attr: Optional[str], shadow: Mapping[str, list]
-    ) -> Optional[_Wrapper]:
+    ) -> Optional[_SourceWrapper]:
         """Return the wrapper the outermost ``@deprecated``/``@deprecated_callable`` of a ``def`` builds, if any."""
-        found: Optional[_Wrapper] = None
+        found: Optional[_SourceWrapper] = None
         replaced = False
         descriptor = next(
             (name for d in node.decorator_list if (name := _dotted(d)) in ("classmethod", "staticmethod")), None
@@ -327,7 +327,7 @@ class _ModuleAnalyzer:
             if replaced:
                 continue
             kind, settings = factory
-            route = _Route.CALLABLE if kind is _Factory.DEPRECATED else _Route.CALLABLE_STRICT
+            route = _TargetRoute.CALLABLE if kind is _Factory.DEPRECATED else _TargetRoute.CALLABLE_STRICT
             api_type = _member_api_type(attr, descriptor) if attr is not None else _callable_api_type
             found = self._finish(settings, route, api_type, proxy=False)
         return found
@@ -358,7 +358,7 @@ class _ModuleAnalyzer:
 
     def _class(
         self, node: ast.ClassDef, *, attr: Optional[str], shadow: Mapping[str, list]
-    ) -> Union[_Wrapper, _ClassInfo, None]:
+    ) -> Union[_SourceWrapper, _PlainClass, None]:
         """Return the proxy a class decorator builds, else the class with its own member bindings."""
         for index, decorator in enumerate(node.decorator_list):
             factory = self._factory_call(decorator, (_Factory.DEPRECATED, _Factory.CLASS), shadow)
@@ -366,23 +366,23 @@ class _ModuleAnalyzer:
                 if self._replaced_by_outer(node.decorator_list[:index], decorator):
                     return None
                 kind, settings = factory
-                route = _Route.CLASS_FRONT if kind is _Factory.DEPRECATED else _Route.CLASS
+                route = _TargetRoute.CLASS_FRONT if kind is _Factory.DEPRECATED else _TargetRoute.CLASS
                 is_dataclass = _is_dataclass(node, self._qualified)
                 api_type = _member_api_type(attr, None) if attr is not None else _class_api_type(is_dataclass)
                 return self._finish(settings, route, api_type, proxy=True)
-        info = _ClassInfo(self.parsed.name, {}, list(node.bases))
+        info = _PlainClass(self.parsed.name, {}, list(node.bases))
         body_scope = _scope_events(node.body)
-        accessors: dict[str, dict[str, Optional[_Wrapper]]] = {}
+        accessors: dict[str, dict[str, Optional[_SourceWrapper]]] = {}
         for stmt in node.body:
             self._class_statement(info, stmt, body_scope, accessors)
         return info
 
     def _class_statement(
         self,
-        info: _ClassInfo,
+        info: _PlainClass,
         stmt: ast.stmt,
         body_scope: Mapping[str, list],
-        accessors: dict[str, dict[str, Optional[_Wrapper]]],
+        accessors: dict[str, dict[str, Optional[_SourceWrapper]]],
     ) -> None:
         """Record what one class-body statement binds as a member; *accessors* holds each property's accessor slots."""
         if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -396,7 +396,7 @@ class _ModuleAnalyzer:
             accessors.pop(name, None)
         if isinstance(stmt, ast.ClassDef):
             nested = self._class(stmt, attr=stmt.name, shadow=body_scope)
-            info.members[stmt.name] = nested if isinstance(nested, _Wrapper) else None
+            info.members[stmt.name] = nested if isinstance(nested, _SourceWrapper) else None
         elif isinstance(stmt, (ast.Assign, ast.AnnAssign)) and stmt.value is not None:
             targets = stmt.targets if isinstance(stmt, ast.Assign) else [stmt.target]
             for target in targets:
@@ -405,7 +405,7 @@ class _ModuleAnalyzer:
         else:
             self._opaque_members(info, stmt)
 
-    def _opaque_members(self, info: _ClassInfo, stmt: ast.stmt) -> None:
+    def _opaque_members(self, info: _PlainClass, stmt: ast.stmt) -> None:
         """Bind each member *stmt* assigns to no wrapper, reporting a deprecated one an ``if`` or ``try`` may replace.
 
         As for module-level names (:meth:`_rebind_opaque`): whether an ``if``, ``try`` or loop body runs is not settled
@@ -415,16 +415,16 @@ class _ModuleAnalyzer:
         """
         conditional = isinstance(stmt, _CONDITIONAL_STATEMENTS)
         for name in _scope_events([stmt]):
-            if conditional and isinstance(info.members.get(name), _Wrapper):
+            if conditional and isinstance(info.members.get(name), _SourceWrapper):
                 self.lookup_gaps.append(self._rebound_gap(stmt, name))
             info.members[name] = None
 
     def _member_def(
         self,
-        info: _ClassInfo,
+        info: _PlainClass,
         stmt: Union[ast.FunctionDef, ast.AsyncFunctionDef],
         body_scope: Mapping[str, list],
-        accessors: dict[str, dict[str, Optional[_Wrapper]]],
+        accessors: dict[str, dict[str, Optional[_SourceWrapper]]],
     ) -> None:
         """Record a method, or one accessor of a property, as the member the import scan reads.
 
@@ -442,13 +442,15 @@ class _ModuleAnalyzer:
             None,
         )
         if slot is None:
-            slots: dict[str, Optional[_Wrapper]] = {"fget": wrapper}
+            slots: dict[str, Optional[_SourceWrapper]] = {"fget": wrapper}
         else:
             slots = {**accessors.get(stmt.name, {"fget": info.members.get(stmt.name)}), slot: wrapper}
         accessors[stmt.name] = slots
         info.members[stmt.name] = next((slots[s] for s in _ACCESSOR_SLOTS.values() if slots.get(s) is not None), None)
 
-    def _wrapper_expr(self, value: ast.expr, *, attr: Optional[str], shadow: Mapping[str, list]) -> Optional[_Wrapper]:
+    def _wrapper_expr(
+        self, value: ast.expr, *, attr: Optional[str], shadow: Mapping[str, list]
+    ) -> Optional[_SourceWrapper]:
         """Recognize ``factory(...)(obj)`` and ``deprecated_instance(obj, ...)``; any other value is no wrapper."""
         if not isinstance(value, ast.Call) or self._shadowed_factory(value, shadow):
             return None
@@ -456,7 +458,7 @@ class _ModuleAnalyzer:
             self.consumed.add(id(value.func))
             args = self._bind(value, _Factory.INSTANCE, shadow)
             api_type = _member_api_type(attr, None) if attr is not None else self._instance_api_type(args)
-            return self._finish(self._read_settings(args, value, shadow), _Route.INSTANCE, api_type, proxy=True)
+            return self._finish(self._read_settings(args, value, shadow), _TargetRoute.INSTANCE, api_type, proxy=True)
         if len(value.args) != 1 or value.keywords:
             return None
         factory = self._factory_call(value.func, (_Factory.DEPRECATED, _Factory.CALLABLE, _Factory.CLASS), shadow)
@@ -470,7 +472,7 @@ class _ModuleAnalyzer:
 
     def _wrapped_route(
         self, kind: _Factory, obj: ast.expr, shadow: Mapping[str, list]
-    ) -> tuple[_Route, Callable[[bool], str], Optional[bool], str]:
+    ) -> tuple[_TargetRoute, Callable[[bool], str], Optional[bool], str]:
         """Return the route, api_type rule, proxy flag and module of ``factory(...)(obj)`` from what *obj* names.
 
         A function wrapper copies its source's ``__module__`` (``functools.wraps``), so wrapping an imported function
@@ -480,14 +482,14 @@ class _ModuleAnalyzer:
         obj_kind, is_dataclass, origin = self._name_kind(obj, shadow)
         here = self.parsed.name
         if kind is _Factory.CLASS:
-            return _Route.CLASS, _class_api_type(is_dataclass), True, here
+            return _TargetRoute.CLASS, _class_api_type(is_dataclass), True, here
         if kind is _Factory.CALLABLE:
-            return _Route.CALLABLE_STRICT, _callable_api_type, False, origin
+            return _TargetRoute.CALLABLE_STRICT, _callable_api_type, False, origin
         if obj_kind == "class":
-            return _Route.CLASS_FRONT, _class_api_type(is_dataclass), True, here
+            return _TargetRoute.CLASS_FRONT, _class_api_type(is_dataclass), True, here
         if obj_kind == "def":
-            return _Route.CALLABLE, _callable_api_type, False, origin
-        return _Route.UNKNOWN_FRONT, _callable_api_type, None, origin
+            return _TargetRoute.CALLABLE, _callable_api_type, False, origin
+        return _TargetRoute.UNKNOWN_FRONT, _callable_api_type, None, origin
 
     def _name_kind(self, node: ast.expr, shadow: Mapping[str, list]) -> tuple[str, bool, str]:
         """Return ``def``, ``class`` or ``other`` for what *node* names, whether it is a dataclass, and its module."""
@@ -507,7 +509,7 @@ class _ModuleAnalyzer:
             return kind, is_dataclass, origin
         return "other", False, here
 
-    def _instance_api_type(self, args: _CallArgs) -> Callable[[bool], str]:
+    def _instance_api_type(self, args: _FactoryCallArgs) -> Callable[[bool], str]:
         """``deprecated_instance`` of a same-file class proxies the class; of anything else, a data object."""
         obj = args.given.get("obj")
         kind, is_dataclass, _ = self._name_kind(obj, {}) if obj is not None else ("other", False, "")
@@ -517,7 +519,7 @@ class _ModuleAnalyzer:
 
     # -- argument reading -----------------------------------------------------------------------------------------
 
-    def _bind(self, call: ast.Call, factory: _Factory, shadow: Mapping[str, list]) -> _CallArgs:
+    def _bind(self, call: ast.Call, factory: _Factory, shadow: Mapping[str, list]) -> _FactoryCallArgs:
         """Map a factory call's arguments to parameter names; a same-file literal ``**dict`` splat is expanded."""
         given: dict[str, ast.expr] = {}
         splat: Optional[str] = None
@@ -538,7 +540,7 @@ class _ModuleAnalyzer:
             else:
                 for key, value in entries.items():
                     given.setdefault(key, value)
-        return _CallArgs(given, splat)
+        return _FactoryCallArgs(given, splat)
 
     def _literal_dict(self, node: ast.expr, shadow: Mapping[str, list]) -> Optional[dict[str, ast.expr]]:
         """Return the entries of a dict literal, inline or a same-file name bound once to one, with string keys.
@@ -561,11 +563,11 @@ class _ModuleAnalyzer:
             entries[key.value] = value
         return entries
 
-    def _settled_binding(self, name: str) -> Optional[_Event]:
+    def _settled_binding(self, name: str) -> Optional[_NameBinding]:
         """Return the one module-level binding of *name*, or ``None`` when the source does not settle what it holds."""
         return None if self.globals_unsettled else _single(self.scope, name)
 
-    def _setting(self, args: _CallArgs, name: str) -> Optional[ast.expr]:
+    def _setting(self, args: _FactoryCallArgs, name: str) -> Optional[ast.expr]:
         """Return the expression given for *name*, raising :class:`LookupError` when only a splat could carry it."""
         if name in args.given:
             return args.given[name]
@@ -573,51 +575,53 @@ class _ModuleAnalyzer:
             raise LookupError(f"arguments come from `{args.splat}`")
         return None
 
-    def _string(self, args: _CallArgs, name: str, shadow: Mapping[str, list], default: Optional[str]) -> _Read:
+    def _string(
+        self, args: _FactoryCallArgs, name: str, shadow: Mapping[str, list], default: Optional[str]
+    ) -> _SettingValue:
         """Read a string setting: a literal, or a same-file module-level name bound once to one."""
         try:
             node = self._setting(args, name)
         except LookupError as err:
-            return _Read(default, str(err))
+            return _SettingValue(default, str(err))
         if node is None:
-            return _Read(default)
+            return _SettingValue(default)
         literal = node
         if isinstance(node, ast.Name) and node.id not in shadow:
             event = self._settled_binding(node.id)
             literal = event.value if event is not None and event.kind == "assign" else node
         if isinstance(literal, ast.Constant) and literal.value is None:
-            return _Read(default)  # ``None`` leaves the setting unset, as the runtime reads a falsy version
+            return _SettingValue(default)  # ``None`` leaves the setting unset, as the runtime reads a falsy version
         if isinstance(literal, ast.Constant) and isinstance(literal.value, str):
-            return _Read(literal.value)
-        return _Read(default, f"`{name}` is `{ast.unparse(node)}`, not a literal")
+            return _SettingValue(literal.value)
+        return _SettingValue(default, f"`{name}` is `{ast.unparse(node)}`, not a literal")
 
-    def _mapping(self, args: _CallArgs, name: str, shadow: Mapping[str, list]) -> _Read:
+    def _mapping(self, args: _FactoryCallArgs, name: str, shadow: Mapping[str, list]) -> _SettingValue:
         """Read a mapping setting: ``None`` or a dict literal (inline or a same-file name bound once to one)."""
         try:
             node = self._setting(args, name)
         except LookupError as err:
-            return _Read(None, str(err))
+            return _SettingValue(None, str(err))
         if node is None or (isinstance(node, ast.Constant) and node.value is None):
-            return _Read(None)
+            return _SettingValue(None)
         entries = self._literal_dict(node, shadow)
         if entries is None:
-            return _Read(None, f"`{name}` is `{ast.unparse(node)}`, not a literal")
-        return _Read(dict.fromkeys(entries) or None)
+            return _SettingValue(None, f"`{name}` is `{ast.unparse(node)}`, not a literal")
+        return _SettingValue(dict.fromkeys(entries) or None)
 
-    def _target(self, args: _CallArgs, shadow: Mapping[str, list]) -> _Read:
+    def _target(self, args: _FactoryCallArgs, shadow: Mapping[str, list]) -> _SettingValue:
         """Read and classify the ``target`` setting; :func:`_store_target` stores it per factory route."""
         try:
             node = self._setting(args, "target")
         except LookupError as err:
-            return _Read(None, str(err))
-        return _Read(("default",)) if node is None else self.targets.classify(node, shadow, depth=0)
+            return _SettingValue(None, str(err))
+        return _SettingValue(("default",)) if node is None else self.targets.classify(node, shadow, depth=0)
 
-    def _read_settings(self, args: _CallArgs, call: ast.Call, shadow: Mapping[str, list]) -> _Settings:
+    def _read_settings(self, args: _FactoryCallArgs, call: ast.Call, shadow: Mapping[str, list]) -> _FactorySettings:
         """Read every setting the checks use from one factory call, in the scope it is spelled in."""
         template = self._string(args, "message_template", shadow, None)
         if template.reason is None and template.value is None:
             template = self._string(args, "template_mgs", shadow, None)
-        return _Settings(
+        return _FactorySettings(
             where=f"{self.where}:{call.lineno}",
             deprecated_in=self._string(args, "deprecated_in", shadow, ""),
             remove_in=self._string(args, "remove_in", shadow, ""),
@@ -628,12 +632,14 @@ class _ModuleAnalyzer:
         )
 
     def _finish(
-        self, settings: _Settings, route: _Route, api_type: Callable[[bool], str], *, proxy: Optional[bool]
-    ) -> _Wrapper:
+        self, settings: _FactorySettings, route: _TargetRoute, api_type: Callable[[bool], str], *, proxy: Optional[bool]
+    ) -> _SourceWrapper:
         """Turn read settings into the configuration the factory of *route* stores, recording what stays unsettled."""
         mappings = (settings.args_mapping.value, settings.attrs_mapping.value)
         target = _store_target(settings.target, route, mappings)
-        template = _module_template(self.parsed.name, settings, target) if route is _Route.MODULE else settings.template
+        template = (
+            _module_template(self.parsed.name, settings, target) if route is _TargetRoute.MODULE else settings.template
+        )
         reads = {
             "deprecated_in": settings.deprecated_in,
             "remove_in": settings.remove_in,
@@ -651,7 +657,7 @@ class _ModuleAnalyzer:
             message_template=template.value,
         )
         unresolved = {name: f"{settings.where}: {read.reason}" for name, read in reads.items() if read.reason}
-        return _Wrapper(self.parsed.name, proxy, api_type(bool(settings.args_mapping.value)), config, unresolved)
+        return _SourceWrapper(self.parsed.name, proxy, api_type(bool(settings.args_mapping.value)), config, unresolved)
 
     def _unrecognized(self) -> list[str]:
         """Return one gap detail per factory reference no recognized shape consumed.

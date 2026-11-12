@@ -12,34 +12,34 @@ from deprecate._cli.static.analyzer import _ModuleAnalyzer
 from deprecate._cli.static.consts import _BASE_DEPTH, _CYCLE
 from deprecate._cli.static.discovery import _StaticSource
 from deprecate._cli.static.model import (
-    _ClassInfo,
     _ImportRef,
     _Lookup,
     _module_scope,
     _ModuleFacts,
     _ModuleScope,
-    _Parsed,
+    _ParsedModule,
+    _PlainClass,
     _qualified_name,
-    _Read,
+    _SettingValue,
+    _SourceWrapper,
     _Value,
-    _Wrapper,
 )
 from deprecate._cli.static.scope import (
-    _Aliases,
     _direct_aliases,
-    _Event,
     _globals_rebinds,
     _is_dataclass,
     _is_memberless_module,
     _module_level_nodes,
+    _NameBinding,
+    _PyDeprecateNames,
     _scope_events,
     _single,
 )
-from deprecate._cli.static.targets import _TargetReader
+from deprecate._cli.static.targets import _TargetClassifier
 from deprecate.audit._version import _absolute_import, _literal_all, _module_source_file
 
 
-class _Reader:
+class _TreeReader:
     """Parse and analyze the modules of one scanned tree on demand, following in-tree imports between them.
 
     Two analyses run per module. The *table* is read with no cross-module lookups, so it settles what a module's names
@@ -51,13 +51,13 @@ class _Reader:
     def __init__(self, source: _StaticSource) -> None:
         self.source = source
         self.root_package = source.name if source.kind == "package" else None
-        self._parsed: dict[str, Optional[_Parsed]] = {}
+        self._parsed: dict[str, Optional[_ParsedModule]] = {}
         #: Why a module's source could not be read or analyzed, printed once as a ``module not audited`` gap.
         self._errors: dict[str, str] = {}
         self._reported: set[str] = set()
         self._facts: dict[str, Optional[_ModuleFacts]] = {}
         self._tables: dict[str, Optional[_ModuleFacts]] = {}
-        self._aliases: dict[str, _Aliases] = {}
+        self._aliases: dict[str, _PyDeprecateNames] = {}
         self._scopes: dict[str, _ModuleScope] = {}
         self._in_progress: set[str] = set()
 
@@ -66,7 +66,7 @@ class _Reader:
         root = self.root_package
         return root is not None and (module == root or module.startswith(f"{root}."))
 
-    def parse(self, module: str, path: Optional[Path] = None) -> Optional[_Parsed]:
+    def parse(self, module: str, path: Optional[Path] = None) -> Optional[_ParsedModule]:
         """Parse *module* once; a file that cannot be read is a ``module not audited`` gap, printed when first met.
 
         The gap is printed where the failure happens, so a module reached only through another module's import (never
@@ -82,9 +82,9 @@ class _Reader:
                 if self.in_tree(module) and not namespace_root:  # a namespace package has no source of its own
                     self.missing(module)
                 return None  # nothing to cache: a later call may name the file
-            parsed: Optional[_Parsed] = None
+            parsed: Optional[_ParsedModule] = None
             try:
-                parsed = _Parsed(module, path, ast.parse(path.read_bytes(), filename=str(path)))
+                parsed = _ParsedModule(module, path, ast.parse(path.read_bytes(), filename=str(path)))
             except (OSError, SyntaxError, ValueError, RecursionError, MemoryError) as err:
                 self._errors[module] = f"could not read its source: {err!r}"
                 self._report(module)
@@ -102,11 +102,11 @@ class _Reader:
             self._reported.add(module)
             _print_gap(_GapKind.MODULE_NOT_AUDITED, f"{module}: {self._errors[module]}")
 
-    def aliases(self, parsed: _Parsed) -> _Aliases:
+    def aliases(self, parsed: _ParsedModule) -> _PyDeprecateNames:
         """Return the pyDeprecate names *parsed* binds, following in-tree modules that re-export them."""
         if parsed.name in self._aliases:
             return self._aliases[parsed.name]
-        self._aliases[parsed.name] = _Aliases()  # an import cycle back here re-exports nothing
+        self._aliases[parsed.name] = _PyDeprecateNames()  # an import cycle back here re-exports nothing
         aliases = _direct_aliases(parsed.tree)
         top = _module_level_nodes(parsed.tree)
         scope = _scope_events(parsed.tree.body)
@@ -120,7 +120,7 @@ class _Reader:
             exported = self.aliases(hop)
             exports = _literal_all(hop.tree)
             for alias in node.names:
-                bound = _Aliases()
+                bound = _PyDeprecateNames()
                 if alias.name == "*":
                     public = (lambda name: name in exports) if isinstance(exports, set) else _is_public
                     bound.names = {name: kind for name, kind in exported.names.items() if public(name)}
@@ -145,7 +145,7 @@ class _Reader:
         self._aliases[parsed.name] = aliases
         return aliases
 
-    def _analyze(self, parsed: _Parsed, *, isolated: bool) -> Optional[_ModuleFacts]:
+    def _analyze(self, parsed: _ParsedModule, *, isolated: bool) -> Optional[_ModuleFacts]:
         """Run the analyzer on *parsed*; isolated, it asks no other module, for the table."""
         name_kind = (lambda _module, _name: ("other", False)) if isolated else self.name_kind
         configured = (lambda _module, _name: None) if isolated else self.configured
@@ -267,7 +267,7 @@ class _Reader:
 
     def imported_target(
         self, module: str, name: str, seen: frozenset[tuple[str, str]] = frozenset()
-    ) -> Optional[_Read]:
+    ) -> Optional[_SettingValue]:
         """Classify what an in-tree module binds *name* to as a ``target``; ``None`` when its source is unread.
 
         Only the module's syntax and pyDeprecate aliases are read, never another module's analysis, so a module being
@@ -275,7 +275,7 @@ class _Reader:
 
         """
         if (module, name) in seen:
-            return _Read(("expr", name), f"`target` is `{name}`, which {_CYCLE}")
+            return _SettingValue(("expr", name), f"`target` is `{name}`, which {_CYCLE}")
         parsed = self.parse(module)
         if parsed is None:
             return None
@@ -283,10 +283,10 @@ class _Reader:
             if module not in self._scopes:
                 self._scopes[module] = _module_scope(parsed)
             imported = functools.partial(self.imported_target, seen=seen | {(module, name)})
-            targets = _TargetReader(parsed, self.aliases(parsed), self._scopes[module], self.in_tree, imported)
+            targets = _TargetClassifier(parsed, self.aliases(parsed), self._scopes[module], self.in_tree, imported)
             return targets.classify(ast.Name(id=name, ctx=ast.Load()), {}, depth=0)
         except (RecursionError, MemoryError):  # a value nested too deeply to unparse settles nothing
-            return _Read(("expr", name), f"`target` is `{name}`, whose source is nested too deeply to analyze")
+            return _SettingValue(("expr", name), f"`target` is `{name}`, whose source is nested too deeply to analyze")
 
     def resolve(self, value: _Value) -> tuple[_Value, bool]:
         """Follow in-tree import references to the wrapper or class they name; also tell whether they form a cycle."""
@@ -299,7 +299,7 @@ class _Reader:
             value = facts.bindings.get(value.name) if facts is not None else None
         return value, False
 
-    def class_members(self, info: _ClassInfo, unaudited: list[str]) -> dict[str, _Wrapper]:
+    def class_members(self, info: _PlainClass, unaudited: list[str]) -> dict[str, _SourceWrapper]:
         """Return a class's deprecated members, those inherited from bases in the scanned tree included.
 
         Each member resolves through the method resolution order, so a plain member of an earlier base hides a
@@ -307,26 +307,26 @@ class _Reader:
         added to *unaudited* unless it comes from the standard library, which holds no deprecated member.
 
         """
-        merged: dict[str, Optional[_Wrapper]] = {}
+        merged: dict[str, Optional[_SourceWrapper]] = {}
         for cls in self._mro(info, unaudited, depth=0):
             for attr, wrapper in cls.members.items():
                 merged.setdefault(attr, wrapper)
         return {attr: wrapper for attr, wrapper in merged.items() if wrapper is not None}
 
-    def _mro(self, info: _ClassInfo, unaudited: list[str], depth: int) -> list[_ClassInfo]:
+    def _mro(self, info: _PlainClass, unaudited: list[str], depth: int) -> list[_PlainClass]:
         """Return the C3 linearization of *info* over the bases the reader resolves, noting the others."""
-        bases: list[_ClassInfo] = []
+        bases: list[_PlainClass] = []
         for base in info.bases:
             resolved = self._base(info.module, base)
-            if isinstance(resolved, _ClassInfo) and depth < _BASE_DEPTH:
+            if isinstance(resolved, _PlainClass) and depth < _BASE_DEPTH:
                 bases.append(resolved)
-            elif isinstance(resolved, _ClassInfo):
+            elif isinstance(resolved, _PlainClass):
                 unaudited.append(f"`{ast.unparse(base)}` (base classes nest more than {_BASE_DEPTH} levels)")
             elif resolved is not None:
                 unaudited.append(f"`{ast.unparse(base)}` ({resolved})")
         return _c3_merge(info, [self._mro(base, unaudited, depth + 1) for base in bases] + [bases])
 
-    def _base(self, module: str, base: ast.expr) -> Union[_ClassInfo, str, None]:
+    def _base(self, module: str, base: ast.expr) -> Union[_PlainClass, str, None]:
         """Return the in-tree class a base expression names, ``None`` for a memberless one, else why it is unread."""
         base, root = _base_expression(base)
         facts = self.facts(module)
@@ -338,7 +338,7 @@ class _Reader:
             return "not a class the source settles after rebinding"
         if isinstance(base, ast.Name):
             resolved, _ = self.resolve(facts.bindings.get(base.id))
-            if isinstance(resolved, _ClassInfo):
+            if isinstance(resolved, _PlainClass):
                 return resolved
         event = _single(scope.events, root.id)
         if event is None:
@@ -360,7 +360,7 @@ class _Reader:
             return None
         return f"imported from `{origin}`, whose source is not read"
 
-    def _qualified_base(self, base: ast.expr, event: _Event, origin: str, root: str) -> Optional[_ClassInfo]:
+    def _qualified_base(self, base: ast.expr, event: _NameBinding, origin: str, root: str) -> Optional[_PlainClass]:
         """Resolve a module-qualified base only when its imported module is in the scanned tree."""
         if not isinstance(base, ast.Attribute) or not isinstance(base.value, ast.Name):
             return None
@@ -379,7 +379,7 @@ class _Reader:
         if facts is None:
             return None
         resolved, _ = self.resolve(facts.bindings.get(base.attr))
-        return resolved if isinstance(resolved, _ClassInfo) else None
+        return resolved if isinstance(resolved, _PlainClass) else None
 
 
 def _base_expression(base: ast.expr) -> tuple[ast.expr, ast.expr]:
@@ -397,7 +397,7 @@ def _is_public(name: str) -> bool:
     return not name.startswith("_")
 
 
-def _c3_merge(head: _ClassInfo, sequences: list[list[_ClassInfo]]) -> list[_ClassInfo]:
+def _c3_merge(head: _PlainClass, sequences: list[list[_PlainClass]]) -> list[_PlainClass]:
     """Merge base linearizations as Python's C3 does; an inconsistent order falls back to depth-first."""
     result = [head]
     pending = [list(seq) for seq in sequences if seq]

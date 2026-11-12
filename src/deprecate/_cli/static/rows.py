@@ -10,12 +10,12 @@ from dataclasses import replace
 from deprecate._cli.report import _GapKind, _print_gap
 from deprecate._cli.static.consts import _CYCLE
 from deprecate._cli.static.discovery import _plain_modules, _StaticSource, _walk_namespace, _walk_package
-from deprecate._cli.static.model import _ClassInfo, _ModuleFacts, _StaticWrapperInfo, _Wrapper
-from deprecate._cli.static.reader import _Reader
+from deprecate._cli.static.model import _ModuleFacts, _PlainClass, _SourceWrapper, _StaticWrapperInfo
+from deprecate._cli.static.reader import _TreeReader
 from deprecate.audit import DeprecationWrapperInfo
 
 
-def _row(module: str, function: str, wrapper: _Wrapper) -> _StaticWrapperInfo:
+def _row(module: str, function: str, wrapper: _SourceWrapper) -> _StaticWrapperInfo:
     """Build the synthetic wrapper info the checks read, named as the import scan names it."""
     config = replace(wrapper.config, name=function.rsplit(".", 1)[-1] if function else module)
     return _StaticWrapperInfo(
@@ -28,7 +28,7 @@ def _row(module: str, function: str, wrapper: _Wrapper) -> _StaticWrapperInfo:
 
 
 def _module_rows(
-    reader: _Reader, module: str, facts: _ModuleFacts, *, include_members: bool, attribute: bool, seen: set[int]
+    reader: _TreeReader, module: str, facts: _ModuleFacts, *, include_members: bool, attribute: bool, seen: set[int]
 ) -> list[DeprecationWrapperInfo]:
     """Return one module's rows in import-scan order: the module itself, then its public bindings by name."""
     rows: list[DeprecationWrapperInfo] = []
@@ -40,9 +40,9 @@ def _module_rows(
         value, cycle = reader.resolve(facts.bindings[name])
         if cycle:
             _print_gap(_GapKind.STATIC_UNRESOLVED, f"{module}.{name}: {_CYCLE}")
-        elif isinstance(value, _Wrapper):
+        elif isinstance(value, _SourceWrapper):
             rows.extend(_wrapper_rows(module, name, value, attribute=attribute, seen=seen))
-        elif isinstance(value, _ClassInfo) and include_members and value.module == module:
+        elif isinstance(value, _PlainClass) and include_members and value.module == module:
             unaudited: list[str] = []
             members = reader.class_members(value, unaudited)
             for base in dict.fromkeys(unaudited):
@@ -54,7 +54,7 @@ def _module_rows(
 
 
 def _wrapper_rows(
-    module: str, name: str, value: _Wrapper, *, attribute: bool, seen: set[int]
+    module: str, name: str, value: _SourceWrapper, *, attribute: bool, seen: set[int]
 ) -> list[DeprecationWrapperInfo]:
     """Return the row of one public binding of a wrapper, or none when another binding or module owns it."""
     foreign = value.module != module and value.module.split(".")[0] == module.split(".")[0]
@@ -76,7 +76,7 @@ def _read_static(
     source: _StaticSource, *, recursive: bool, include_members: bool, exclude: Sequence[str]
 ) -> list[DeprecationWrapperInfo]:
     """Read every wrapper of a located source, printing a gap for everything the source alone does not settle."""
-    reader = _Reader(source)
+    reader = _TreeReader(source)
     if source.portions:
         modules = list(_walk_namespace(source.portions, source.name, recursive=recursive, exclude=exclude))
     elif source.kind == "package":

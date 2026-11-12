@@ -34,7 +34,7 @@ def _dotted(node: ast.expr) -> Optional[str]:
 
 
 @dataclass
-class _Aliases:
+class _PyDeprecateNames:
     """The names a module binds to recognized pyDeprecate objects, and the pyDeprecate modules it binds.
 
     ``ambiguous`` holds the names a pyDeprecate import binds that the source does not settle: bound inside a function,
@@ -46,7 +46,7 @@ class _Aliases:
     modules: dict[str, str] = field(default_factory=dict)
     ambiguous: dict[str, Optional[_Factory]] = field(default_factory=dict)
 
-    def merge(self, bound: "_Aliases", *, settled: bool, scope: Mapping[str, list], star: bool) -> None:
+    def merge(self, bound: "_PyDeprecateNames", *, settled: bool, scope: Mapping[str, list], star: bool) -> None:
         """Add what one import statement binds: settled when it is the name's only module-level binding."""
         for name, kind in bound.names.items():
             if settled and len(scope.get(name, [])) == (0 if star else 1):
@@ -59,7 +59,7 @@ class _Aliases:
             else:
                 self.ambiguous[name] = None
 
-    def settle(self) -> "_Aliases":
+    def settle(self) -> "_PyDeprecateNames":
         """Drop from ``ambiguous`` the names a module-level import settles; a function-local import shadows locally."""
         self.ambiguous = {
             name: kind for name, kind in self.ambiguous.items() if name not in self.names and name not in self.modules
@@ -87,7 +87,7 @@ class _Aliases:
         return TargetMode.__members__.get(node.attr)
 
 
-def _binds_package_only(events: Sequence["_Event"], name: str) -> bool:
+def _binds_package_only(events: Sequence["_NameBinding"], name: str) -> bool:
     r"""Tell whether every binding of *name* is a plain ``import deprecate[.sub]``, which all bind the same package.
 
     Examples:
@@ -118,13 +118,13 @@ def _module_level_nodes(tree: ast.Module) -> set[int]:
     return found
 
 
-def _direct_aliases(tree: ast.Module) -> _Aliases:
+def _direct_aliases(tree: ast.Module) -> _PyDeprecateNames:
     """Collect the pyDeprecate names and modules a module's own import statements bind."""
-    aliases = _Aliases()
+    aliases = _PyDeprecateNames()
     top = _module_level_nodes(tree)
     scope = _scope_events(tree.body)
     for node in ast.walk(tree):
-        bound = _Aliases()
+        bound = _PyDeprecateNames()
         if isinstance(node, ast.Import):
             for alias in node.names:
                 if alias.name.split(".")[0] != "deprecate":
@@ -141,7 +141,7 @@ def _direct_aliases(tree: ast.Module) -> _Aliases:
     return aliases.settle()
 
 
-def _bind_from_deprecate(aliases: _Aliases, module: str, alias: ast.alias) -> None:
+def _bind_from_deprecate(aliases: _PyDeprecateNames, module: str, alias: ast.alias) -> None:
     """Record what one ``from <pyDeprecate module> import <alias>`` binds."""
     if alias.name == "*":
         aliases.names.update(_module_exports(module, star=True))
@@ -154,14 +154,14 @@ def _bind_from_deprecate(aliases: _Aliases, module: str, alias: ast.alias) -> No
         aliases.modules[local] = f"{module}.{alias.name}"
 
 
-class _Event(NamedTuple):
+class _NameBinding(NamedTuple):
     """One binding of a name in a scope: how it is bound, and the assigned value for a plain assignment."""
 
     kind: str  # "assign", "def", "class", "import" or "other"
     value: Optional[ast.AST] = None
 
 
-def _node_events(node: ast.AST, events: dict[str, list[_Event]]) -> list[ast.AST]:
+def _node_events(node: ast.AST, events: dict[str, list[_NameBinding]]) -> list[ast.AST]:
     """Record the bindings *node* itself makes in its scope and return the child nodes still to visit.
 
     A ``def``, ``class`` or lambda opens a scope of its own, so none of its children is visited. A plain ``name =
@@ -170,7 +170,7 @@ def _node_events(node: ast.AST, events: dict[str, list[_Event]]) -> list[ast.AST
 
     """
     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-        events[node.name].append(_Event("class" if isinstance(node, ast.ClassDef) else "def", node))
+        events[node.name].append(_NameBinding("class" if isinstance(node, ast.ClassDef) else "def", node))
         return []
     if isinstance(node, (ast.Assign, ast.AnnAssign)):
         targets = node.targets if isinstance(node, ast.Assign) else [node.target]
@@ -179,34 +179,34 @@ def _node_events(node: ast.AST, events: dict[str, list[_Event]]) -> list[ast.AST
             if not isinstance(target, ast.Name):
                 rest.append(target)
             elif node.value is not None:
-                events[target.id].append(_Event("assign", node.value))
+                events[target.id].append(_NameBinding("assign", node.value))
         return rest
     if isinstance(node, (ast.Import, ast.ImportFrom)):
         _import_events(node, events)
     elif isinstance(node, ast.Name) and isinstance(node.ctx, (ast.Store, ast.Del)):
-        events[node.id].append(_Event("other"))
+        events[node.id].append(_NameBinding("other"))
     elif not isinstance(node, ast.Lambda):
         return list(ast.iter_child_nodes(node))
     return []
 
 
-def _import_events(node: Union[ast.Import, ast.ImportFrom], events: dict[str, list[_Event]]) -> None:
+def _import_events(node: Union[ast.Import, ast.ImportFrom], events: dict[str, list[_NameBinding]]) -> None:
     """Record what an import binds: ``import a.b`` binds ``a``; ``from x import a as b`` binds ``b``."""
     for alias in node.names:
         if isinstance(node, ast.Import):
-            events[alias.asname or alias.name.split(".")[0]].append(_Event("import", node))
+            events[alias.asname or alias.name.split(".")[0]].append(_NameBinding("import", node))
         elif alias.name != "*":
-            events[alias.asname or alias.name].append(_Event("import", node))
+            events[alias.asname or alias.name].append(_NameBinding("import", node))
 
 
-def _scope_events(body: Sequence[ast.stmt]) -> dict[str, list[_Event]]:
+def _scope_events(body: Sequence[ast.stmt]) -> dict[str, list[_NameBinding]]:
     """Return every binding of every name in a module or class body, compound statements included.
 
     The walk keeps its own stack, so a deeply nested expression (a long generated concatenation) cannot exhaust the
     interpreter's recursion limit.
 
     """
-    events: dict[str, list[_Event]] = defaultdict(list)
+    events: dict[str, list[_NameBinding]] = defaultdict(list)
     stack: list[ast.AST] = list(body)
     while stack:
         stack.extend(_node_events(stack.pop(), events))
@@ -217,9 +217,9 @@ def _escaped_names(tree: ast.Module, is_factory: Callable[[ast.expr], bool]) -> 
     r"""Return the names whose object the module hands to code that may change it, so a dict they hold is not settled.
 
     A dict stays as its literal spells it only while every read of its name copies it — a ``**name`` splat into a call
-    or a dict display — or passes it by keyword to a pyDeprecate factory, which stores it unchanged. Any other read may
-    change it: ``name[key] = ...``, ``name.update(...)``, an alias (``other = name``, then ``other[key] = ...``) or a
-    helper call (``bump(name)``).
+    or a dict display — or passes it by keyword to a pyDeprecate factory, which stores it unchanged. Any other read
+    may change it: ``name[key] = ...``, ``name.update(...)``, an alias (``other = name``, then ``other[key] = ...``) or
+    a helper call (``bump(name)``).
 
     Examples:
         >>> tree = ast.parse("KW = {}\nprint(**KW)\nCOPY = {**KW}\nM = {}\nALIAS = M")
@@ -310,7 +310,7 @@ def _is_memberless_module(module: str) -> bool:
     return bool(origin) and os.path.normcase(str(origin)).startswith(stdlib) and "site-packages" not in str(origin)
 
 
-def _single(events: Mapping[str, list[_Event]], name: str) -> Optional[_Event]:
+def _single(events: Mapping[str, list[_NameBinding]], name: str) -> Optional[_NameBinding]:
     """Return the binding of *name* when the scope binds it exactly once, else ``None``."""
     found = events.get(name, [])
     return found[0] if len(found) == 1 else None

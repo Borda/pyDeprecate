@@ -92,7 +92,7 @@ _DEPRECATE_MODULES = frozenset(
 )
 
 
-class _Route(str, Enum):
+class _TargetRoute(str, Enum):
     """How the factory that built a wrapper normalises its ``target``, mirroring the runtime decorators."""
 
     CALLABLE = "callable"  # ``@deprecated`` on a function or method

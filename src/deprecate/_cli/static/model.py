@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, NamedTuple, Optional, Union
 
 from deprecate._cli.static.consts import _DEPRECATE_MODULES, _Factory
-from deprecate._cli.static.scope import _dotted, _Event, _globals_rebinds, _scope_events, _single
+from deprecate._cli.static.scope import _dotted, _globals_rebinds, _NameBinding, _scope_events, _single
 from deprecate._types import DeprecationConfig
 from deprecate.audit import DeprecationWrapperInfo
 from deprecate.audit._version import _absolute_import
@@ -43,14 +43,14 @@ class _StaticTarget:
         raise TypeError(f"`{self.__qualname__}` was read from source by `--static` and cannot be called")
 
 
-class _StaticData:
+class _StaticDataTarget:
     """A replacement object named in source but never evaluated: plain data, so never callable.
 
     A ``deprecated_instance`` target that is not callable is served under the old name, but the built-in warning cannot
     name it, so ``message-required`` counts only an ``attrs_mapping`` or a custom message as guidance, as at runtime.
 
     Examples:
-        >>> target = _StaticData("{'a': 1}")
+        >>> target = _StaticDataTarget("{'a': 1}")
         >>> callable(target), target.__qualname__
         (False, "{'a': 1}")
 
@@ -92,7 +92,7 @@ def _may_be_callable_class(node: ast.ClassDef) -> bool:
 
 
 @dataclass(eq=False)
-class _Wrapper:
+class _SourceWrapper:
     """One wrapper object the source builds; bound to every name an assignment or import gives it."""
 
     module: str
@@ -104,11 +104,11 @@ class _Wrapper:
 
 
 @dataclass(eq=False)
-class _ClassInfo:
+class _PlainClass:
     """A plain class: its own member bindings (``None`` for a member that is not deprecated) and its bases."""
 
     module: str
-    members: dict[str, Optional[_Wrapper]]
+    members: dict[str, Optional[_SourceWrapper]]
     bases: list[ast.expr]
 
 
@@ -120,7 +120,7 @@ class _ImportRef:
     name: str
 
 
-_Value = Union[_Wrapper, _ClassInfo, _ImportRef, None]
+_Value = Union[_SourceWrapper, _PlainClass, _ImportRef, None]
 
 
 @dataclass
@@ -128,17 +128,17 @@ class _ModuleFacts:
     """What one module binds at module level, its ``deprecated_module`` wrapper and its unrecognized factory uses."""
 
     bindings: dict[str, _Value]
-    module_wrapper: Optional[_Wrapper]
+    module_wrapper: Optional[_SourceWrapper]
     gaps: list[str]
     #: Each in-tree ``from X import *`` as ``(X, statement position)``, in statement order.
     star_sources: list[tuple[str, int]]
     #: Names bound to a configured factory, for importers that apply it as a decorator.
-    configured: dict[str, tuple["_Factory", "_Settings"]] = field(default_factory=dict)
+    configured: dict[str, tuple["_Factory", "_FactorySettings"]] = field(default_factory=dict)
     #: The statement position of each name's last module-level binding, so a star import binds in statement order.
     positions: dict[str, int] = field(default_factory=dict)
 
 
-class _Parsed(NamedTuple):
+class _ParsedModule(NamedTuple):
     """One source file: its module name, path and syntax tree."""
 
     name: str
@@ -151,7 +151,7 @@ class _Parsed(NamedTuple):
         return self.path.name == "__init__.py"
 
 
-def _qualified_name(parsed: _Parsed, scope: Mapping[str, list[_Event]], node: ast.expr) -> Optional[str]:
+def _qualified_name(parsed: _ParsedModule, scope: Mapping[str, list[_NameBinding]], node: ast.expr) -> Optional[str]:
     """Return the dotted name *node* spells in *parsed*, its root resolved through the one import that binds it."""
     dotted = _dotted(node)
     if dotted is None:
@@ -168,7 +168,7 @@ def _qualified_name(parsed: _Parsed, scope: Mapping[str, list[_Event]], node: as
     return dotted
 
 
-class _CallArgs(NamedTuple):
+class _FactoryCallArgs(NamedTuple):
     """The arguments of a factory call by parameter name, and an unresolved splat that may carry any of the others."""
 
     given: dict[str, ast.expr]
@@ -176,14 +176,14 @@ class _CallArgs(NamedTuple):
     splat: Optional[str]
 
 
-class _Read(NamedTuple):
+class _SettingValue(NamedTuple):
     """A setting read from source: its value, or the reason the source does not settle it."""
 
     value: Any
     reason: Optional[str] = None
 
 
-class _Settings(NamedTuple):
+class _FactorySettings(NamedTuple):
     """The settings of one factory call, read in the module that spells them.
 
     ``target`` is classified but not normalised: ``("default",)``, ``("const", value)`` or ``("replacement", text,
@@ -192,12 +192,12 @@ class _Settings(NamedTuple):
     """
 
     where: str
-    deprecated_in: _Read
-    remove_in: _Read
-    template: _Read
-    args_mapping: _Read
-    attrs_mapping: _Read
-    target: _Read
+    deprecated_in: _SettingValue
+    remove_in: _SettingValue
+    template: _SettingValue
+    args_mapping: _SettingValue
+    attrs_mapping: _SettingValue
+    target: _SettingValue
 
 
 def _display(path: Path) -> str:
@@ -209,28 +209,28 @@ def _display(path: Path) -> str:
 
 
 #: A configured factory an in-tree module binds, or why the reader could not follow the name to one.
-_Lookup = Union[tuple[_Factory, _Settings], str, None]
+_Lookup = Union[tuple[_Factory, _FactorySettings], str, None]
 
 
 class _ModuleScope(NamedTuple):
     """Every binding of a module's top-level names, and what the source leaves unsettled about them."""
 
-    events: dict[str, list[_Event]]
+    events: dict[str, list[_NameBinding]]
     #: Whether the module writes its globals under a computed key, so no module-level name is settled.
     unsettled: bool
     #: Whether a star import may bind names the reader cannot list (pyDeprecate's own star imports aside).
     foreign_star: bool
 
 
-def _module_scope(parsed: _Parsed) -> _ModuleScope:
+def _module_scope(parsed: _ParsedModule) -> _ModuleScope:
     """Return the bindings of *parsed*'s module-level names, rebinding through ``global`` or ``globals()`` included."""
     events = _scope_events(parsed.tree.body)
     for node in ast.walk(parsed.tree):  # a function's ``global name`` may rebind it at runtime
         for name in node.names if isinstance(node, ast.Global) else ():
-            events.setdefault(name, []).append(_Event("other"))
+            events.setdefault(name, []).append(_NameBinding("other"))
     rebinds = _globals_rebinds(parsed.tree)
     for name in rebinds or ():  # as may ``globals()["NAME"] = ...``
-        events.setdefault(name, []).append(_Event("other"))
+        events.setdefault(name, []).append(_NameBinding("other"))
     foreign_star = any(
         isinstance(node, ast.ImportFrom)
         and any(alias.name == "*" for alias in node.names)

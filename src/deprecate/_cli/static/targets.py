@@ -6,18 +6,18 @@ from collections.abc import Mapping
 from typing import Any, Callable, Optional
 
 from deprecate import TargetMode
-from deprecate._cli.static.consts import _Route
+from deprecate._cli.static.consts import _TargetRoute
 from deprecate._cli.static.model import (
     _DATA_DISPLAYS,
+    _FactorySettings,
     _may_be_callable_class,
     _ModuleScope,
-    _Parsed,
-    _Read,
-    _Settings,
-    _StaticData,
+    _ParsedModule,
+    _SettingValue,
+    _StaticDataTarget,
     _StaticTarget,
 )
-from deprecate._cli.static.scope import _Aliases, _Event, _single
+from deprecate._cli.static.scope import _NameBinding, _PyDeprecateNames, _single
 from deprecate._types import DeprecationConfig
 from deprecate._validate import _resolve_legacy_proxy_target, _resolve_legacy_target
 from deprecate.audit import DeprecationWrapperInfo
@@ -27,7 +27,7 @@ from deprecate.audit._wrappers import _classify_member_api_type
 from deprecate.module import _build_module_warn_msg
 
 
-class _TargetReader:
+class _TargetClassifier:
     """Classify a ``target`` expression from how one module binds the names it uses.
 
     The module of a factory call reads its own ``target`` with one; for a ``target`` imported from another module of the
@@ -37,11 +37,11 @@ class _TargetReader:
 
     def __init__(
         self,
-        parsed: _Parsed,
-        aliases: _Aliases,
+        parsed: _ParsedModule,
+        aliases: _PyDeprecateNames,
         scope: _ModuleScope,
         in_tree: Callable[[str], bool],
-        imported: Callable[[str, str], Optional[_Read]],
+        imported: Callable[[str, str], Optional[_SettingValue]],
     ) -> None:
         self.parsed = parsed
         self.aliases = aliases
@@ -50,25 +50,25 @@ class _TargetReader:
         #: Classifies what an in-tree module binds a name to; ``None`` when that module's source cannot be read.
         self.imported = imported
 
-    def classify(self, node: ast.expr, shadow: Mapping[str, list], depth: int) -> _Read:
+    def classify(self, node: ast.expr, shadow: Mapping[str, list], depth: int) -> _SettingValue:
         """Classify a ``target`` expression as ``("const", value)`` or ``("replacement", text, kind)``."""
         if isinstance(node, ast.Constant) and (node.value is None or isinstance(node.value, bool)):
-            return _Read(("const", node.value))
+            return _SettingValue(("const", node.value))
         member = self.aliases.target_mode(node)
         if member is not None:
-            return _Read(("const", member))
+            return _SettingValue(("const", member))
         if isinstance(node, ast.Lambda):
-            return _Read(("replacement", ast.unparse(node), "def"))
+            return _SettingValue(("replacement", ast.unparse(node), "def"))
         if isinstance(node, ast.Attribute):
             text = ast.unparse(node)
-            return _Read(("expr", text), f"`target` is `{text}`, whose attribute value is not settled")
+            return _SettingValue(("expr", text), f"`target` is `{text}`, whose attribute value is not settled")
         if isinstance(node, ast.Name):
             return self._classify_name(node, shadow, depth)
         text = ast.unparse(node)
         if isinstance(node, _DATA_DISPLAYS) or self._constructs_object(node, shadow):
             # plain data: no route but ``deprecated_instance`` takes it, so the reason stays for every other route
-            return _Read(("data", text), f"`target` is `{text}`, not a literal or a name")
-        return _Read(("expr", text), f"`target` is `{text}`, not a literal or a name")
+            return _SettingValue(("data", text), f"`target` is `{text}`, not a literal or a name")
+        return _SettingValue(("expr", text), f"`target` is `{text}`, not a literal or a name")
 
     def _constructs_object(self, node: ast.expr, shadow: Mapping[str, list]) -> bool:
         """Tell whether *node* builds an object of a class the source binds, which is plain data without ``__call__``.
@@ -97,33 +97,35 @@ class _TargetReader:
         read = self.imported(origin, source)
         return read is not None and read.reason is None and read.value[0] == "replacement" and read.value[2] == "class"
 
-    def _classify_name(self, node: ast.Name, shadow: Mapping[str, list], depth: int) -> _Read:
+    def _classify_name(self, node: ast.Name, shadow: Mapping[str, list], depth: int) -> _SettingValue:
         """Classify a ``target`` given by name, from how the class body or the module binds it."""
         events = shadow if node.id in shadow else self.scope.events
         bindings = events.get(node.id, [])
         if not bindings and self.scope.foreign_star and events is self.scope.events:
-            return _Read(("expr", node.id), f"`target` is `{node.id}`, which a star import may bind")
+            return _SettingValue(("expr", node.id), f"`target` is `{node.id}`, which a star import may bind")
         if not bindings:  # a builtin, or a name the module never binds: a replacement callable at runtime
-            return _Read(("replacement", node.id, "other"))
+            return _SettingValue(("replacement", node.id, "other"))
         event = _single(events, node.id)
         if event is None:
-            return _Read(("expr", node.id), f"`target` is `{node.id}`, which is bound more than once")
+            return _SettingValue(("expr", node.id), f"`target` is `{node.id}`, which is bound more than once")
         if event.kind in ("def", "class"):
-            return _Read(("replacement", node.id, event.kind))
+            return _SettingValue(("replacement", node.id, event.kind))
         if event.kind == "import":
             return self._imported(node, event)
         settled = events is not self.scope.events or not self.scope.unsettled
         if event.kind == "assign" and depth == 0 and isinstance(event.value, ast.expr) and settled:
             read = self.classify(event.value, {}, depth + 1)
             if read.reason is None:
-                return read if read.value[0] == "const" else _Read(("replacement", node.id, read.value[2]))
+                return read if read.value[0] == "const" else _SettingValue(("replacement", node.id, read.value[2]))
             unsettled = f"`target` is `{node.id}`, which is not bound to a literal or a definition"
             if isinstance(read.value, tuple) and read.value[0] == "data":
-                return _Read(("data", node.id), unsettled)
-            return _Read(("expr", node.id), unsettled)
-        return _Read(("expr", node.id), f"`target` is `{node.id}`, which is not bound to a literal or a definition")
+                return _SettingValue(("data", node.id), unsettled)
+            return _SettingValue(("expr", node.id), unsettled)
+        return _SettingValue(
+            ("expr", node.id), f"`target` is `{node.id}`, which is not bound to a literal or a definition"
+        )
 
-    def _imported(self, node: ast.Name, event: _Event) -> _Read:
+    def _imported(self, node: ast.Name, event: _NameBinding) -> _SettingValue:
         """Classify a ``target`` imported by name: as the in-tree module it comes from binds it, else a replacement.
 
         A constant kept in another module of the tree (``REPL = None``, ``MODE = TargetMode.NOTIFY``) is read there, so
@@ -131,7 +133,7 @@ class _TargetReader:
         replacement callable, a blind spot the CLI guide lists.
 
         """
-        replacement = _Read(("replacement", node.id, "other"))
+        replacement = _SettingValue(("replacement", node.id, "other"))
         if not isinstance(event.value, ast.ImportFrom):  # ``import pkg`` binds a module
             return replacement
         origin = _absolute_import(self.parsed.name, self.parsed.is_package, event.value)
@@ -143,8 +145,8 @@ class _TargetReader:
             return replacement
         if read.reason is not None:
             reason = f"`target` is `{node.id}`, imported from `{origin}`, which does not settle its value"
-            return _Read(("expr", node.id), reason)
-        return read if read.value[0] == "const" else _Read(("replacement", node.id, read.value[2]))
+            return _SettingValue(("expr", node.id), reason)
+        return read if read.value[0] == "const" else _SettingValue(("replacement", node.id, read.value[2]))
 
 
 def _callable_api_type(has_mapping: bool) -> str:
@@ -164,7 +166,7 @@ def _member_api_type(attr: str, descriptor: Optional[str]) -> Callable[[bool], s
     return lambda has_mapping: _classify_member_api_type(attr, descriptor, has_mapping)
 
 
-def _module_template(name: str, settings: _Settings, target: _Read) -> _Read:
+def _module_template(name: str, settings: _FactorySettings, target: _SettingValue) -> _SettingValue:
     """Return the ``message_template`` ``deprecated_module`` stores: the template rendered up front, not as spelled.
 
     The other factories keep the raw template, but a module wrapper stores the notice it renders at decoration time, so
@@ -181,60 +183,62 @@ def _module_template(name: str, settings: _Settings, target: _Read) -> _Read:
         ("target_name", target),
     ):
         if read.reason is not None and f"%({key})" in template.value:
-            return _Read(None, f"`message_template` renders `{key}`, but {read.reason}")
+            return _SettingValue(None, f"`message_template` renders `{key}`, but {read.reason}")
     try:
         rendered = _build_module_warn_msg(
             name, settings.deprecated_in.value, settings.remove_in.value, target.value, template.value
         )
     except (ValueError, KeyError, TypeError) as err:
-        return _Read(None, f"`message_template` cannot be rendered: {type(err).__name__}: {err}")
-    return _Read(rendered)
+        return _SettingValue(None, f"`message_template` cannot be rendered: {type(err).__name__}: {err}")
+    return _SettingValue(rendered)
 
 
-def _store_target(read: _Read, route: _Route, mappings: tuple[Any, Any]) -> _Read:
+def _store_target(read: _SettingValue, route: _TargetRoute, mappings: tuple[Any, Any]) -> _SettingValue:
     """Return the ``target`` the factory of *route* stores for a classified read, or why the source does not say."""
     if read.reason is not None:
-        if route is _Route.INSTANCE and isinstance(read.value, tuple) and read.value[0] == "data":
-            return _Read(
-                _StaticData(read.value[1])
+        if route is _TargetRoute.INSTANCE and isinstance(read.value, tuple) and read.value[0] == "data":
+            return _SettingValue(
+                _StaticDataTarget(read.value[1])
             )  # a replacement object that is data, as ``deprecated_instance`` stores
-        return _Read(None, read.reason)
+        return _SettingValue(None, read.reason)
     classified = read.value
     if classified[0] == "default":
-        default = {_Route.CALLABLE: TargetMode.AUTO, _Route.UNKNOWN_FRONT: TargetMode.AUTO}.get(route)
-        classified = ("const", TargetMode.NOTIFY if route is _Route.CALLABLE_STRICT else default)
-    if route is _Route.UNKNOWN_FRONT:
+        default = {_TargetRoute.CALLABLE: TargetMode.AUTO, _TargetRoute.UNKNOWN_FRONT: TargetMode.AUTO}.get(route)
+        classified = ("const", TargetMode.NOTIFY if route is _TargetRoute.CALLABLE_STRICT else default)
+    if route is _TargetRoute.UNKNOWN_FRONT:
         return _unknown_front(classified, mappings)
     return _normalise_target(classified, route, mappings)
 
 
-def _normalise_target(read: tuple[Any, ...], route: _Route, mappings: tuple[Any, Any]) -> _Read:
+def _normalise_target(read: tuple[Any, ...], route: _TargetRoute, mappings: tuple[Any, Any]) -> _SettingValue:
     """Turn a classified ``target`` into the value the factory of *route* stores, as the runtime normalises it."""
     args_mapping, attrs_mapping = mappings
     kind, value = read[0], read[1]
-    if route is _Route.MODULE:
+    if route is _TargetRoute.MODULE:
         # a named replacement (module, function or class) is named by the warning the factory renders, which counts as
         # guidance, so it is stored as a module; a constant (``True``, a ``TargetMode`` member) has no name and gives
         # none, as at runtime
-        return _Read(types.ModuleType(str(value)) if kind == "replacement" else None)
+        return _SettingValue(types.ModuleType(str(value)) if kind == "replacement" else None)
     if kind == "replacement":
-        if route is _Route.CLASS_FRONT and read[2] != "class":
+        if route is _TargetRoute.CLASS_FRONT and read[2] != "class":
             if read[2] == "def":
-                return _Read(_auto_resolve(None, mappings))  # a non-class target is ignored on the class route
-            return _Read(None, f"`@deprecated` on a class ignores a non-class `target`; `{value}` may be either")
-        return _Read(_StaticTarget(value))
-    if route in (_Route.CALLABLE, _Route.CALLABLE_STRICT):
+                return _SettingValue(_auto_resolve(None, mappings))  # a non-class target is ignored on the class route
+            return _SettingValue(
+                None, f"`@deprecated` on a class ignores a non-class `target`; `{value}` may be either"
+            )
+        return _SettingValue(_StaticTarget(value))
+    if route in (_TargetRoute.CALLABLE, _TargetRoute.CALLABLE_STRICT):
         if value is TargetMode.AUTO:
-            return _Read(TargetMode.ARGS_REMAP if args_mapping else TargetMode.NOTIFY)
-        return _Read(_resolve_legacy_target(value, emit=False) if not isinstance(value, TargetMode) else value)
-    if route is _Route.CLASS_FRONT:
+            return _SettingValue(TargetMode.ARGS_REMAP if args_mapping else TargetMode.NOTIFY)
+        return _SettingValue(_resolve_legacy_target(value, emit=False) if not isinstance(value, TargetMode) else value)
+    if route is _TargetRoute.CLASS_FRONT:
         target = TargetMode.ARGS_REMAP if value is True else None if value in (None, False, TargetMode.AUTO) else value
-        return _Read(_auto_resolve(target, mappings))
-    if route is _Route.CLASS:
+        return _SettingValue(_auto_resolve(target, mappings))
+    if route is _TargetRoute.CLASS:
         if isinstance(value, bool) or value is None:
             value = _resolve_legacy_proxy_target(value, args_mapping=args_mapping, emit=False)
-        return _Read(_auto_resolve(value, mappings))
-    return _Read(value)  # deprecated_instance stores its target as given
+        return _SettingValue(_auto_resolve(value, mappings))
+    return _SettingValue(value)  # deprecated_instance stores its target as given
 
 
 def _auto_resolve(target: Any, mappings: tuple[Any, Any]) -> Any:  # noqa: ANN401
@@ -247,10 +251,10 @@ def _auto_resolve(target: Any, mappings: tuple[Any, Any]) -> Any:  # noqa: ANN40
     return target
 
 
-def _unknown_front(read: tuple[Any, ...], mappings: tuple[Any, Any]) -> _Read:
+def _unknown_front(read: tuple[Any, ...], mappings: tuple[Any, Any]) -> _SettingValue:
     """Normalise ``deprecated(...)(obj)`` when *obj* may be a class: settled only when both routes agree on guidance."""
-    as_callable = _normalise_target(read, _Route.CALLABLE, mappings)
-    as_class = _normalise_target(read, _Route.CLASS_FRONT, mappings)
+    as_callable = _normalise_target(read, _TargetRoute.CALLABLE, mappings)
+    as_class = _normalise_target(read, _TargetRoute.CLASS_FRONT, mappings)
     if as_callable.reason is None and as_class.reason is None:
         guidance = {
             _has_migration_guidance(
@@ -260,4 +264,6 @@ def _unknown_front(read: tuple[Any, ...], mappings: tuple[Any, Any]) -> _Read:
         }
         if len(guidance) == 1:
             return as_callable
-    return _Read(None, "`@deprecated` routes on whether the wrapped object is a class, which the source does not show")
+    return _SettingValue(
+        None, "`@deprecated` routes on whether the wrapped object is a class, which the source does not show"
+    )
