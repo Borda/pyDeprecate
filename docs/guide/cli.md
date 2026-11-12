@@ -277,7 +277,7 @@ On GitHub Actions the CLI also ships as a ready-made step, `uses: Borda/pyDeprec
 All subcommands accept:
 
 - **Package directory** — path to a directory with `__init__.py` (e.g. `src/mypackage`)
-- **Importable module name** — dotted module path (e.g. `mypackage.utils`)
+- **Importable module name** — a dotted module path (e.g. `mypackage.utils`) in import mode; static mode accepts only top-level module names
 - **Plain directory** — scans top-level `.py` files only (nested files are reported as a `nested files not audited` gap)
 
 A single `.py` file, or a directory holding two or more top-level packages, is a usage error (exit `2`) for every subcommand. While scanning, the imported code sees no pydeprecate arguments in `sys.argv`, and the header line `Imported from:` names the file the package was actually imported from.
