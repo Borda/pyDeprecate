@@ -262,7 +262,7 @@ def _located(function: str, source_file: str, rule: _Rule, check: _Check) -> _Fi
 
 
 class TestReportFindings:
-    """The ``findings`` array of the schema-2 report: levels per subcommand, order, de-duplication and locations."""
+    """The ``findings`` array of the report: levels per subcommand, order, de-duplication and locations."""
 
     def test_sorted_by_level_then_id(self, tmp_path: Path) -> None:
         """Errors come before warnings, and findings of one level are ordered by id.

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "pyDeprecate --report-json, layout version 2",
+  "title": "pyDeprecate --report-json, layout version 1",
   "description": "The machine-readable record of one pydeprecate CLI run. Readers must ignore keys they do not know: adding a key never bumps `schema`.",
   "type": "object",
   "required": [
@@ -20,7 +20,7 @@
     "summary"
   ],
   "properties": {
-    "schema": { "const": 2 },
+    "schema": { "const": 1 },
     "tool": {
       "type": "object",
       "required": ["name", "version"],

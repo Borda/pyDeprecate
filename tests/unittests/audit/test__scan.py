@@ -379,6 +379,72 @@ class TestFindDeprecationWrappersReexport:
 
         assert len([r for r in results if r.function in ("canonical", "alias")]) == 1
 
+    @pytest.mark.parametrize(
+        "aliases",
+        [
+            pytest.param((), id="no-alias"),
+            pytest.param(("a_alias",), id="alias-sorting-before"),
+            pytest.param(("z_alias",), id="alias-sorting-after"),
+            pytest.param(("a_alias", "b_alias", "z_alias"), id="aliases-on-both-sides"),
+        ],
+    )
+    def test_alias_keeps_the_binding_named_like_the_wrapper(self, aliases: tuple[str, ...]) -> None:
+        """A wrapper bound under its own name and extra aliases is reported under its own name, whatever sorts first.
+
+        A library keeps ``old_name = new_name``-style shorthands while a rename settles. Scan order is alphabetical, so
+        an alias that sorts before the real name used to claim the wrapper and rename its row, and with it the finding
+        id every ``--ignore`` entry and baseline matches on. The binding named like the wrapper must win.
+
+        """
+        mod = types.ModuleType(col.__name__)
+        vars(mod).update(dict.fromkeys(aliases, col.decorated_sum), decorated_sum=col.decorated_sum)
+        results = find_deprecation_wrappers(mod, recursive=False)
+        assert [r.function for r in results] == ["decorated_sum"]
+
+    def test_alias_leaves_the_rows_of_other_wrappers_unchanged(self) -> None:
+        """Aliasing one wrapper changes nothing about the rows of the wrappers that have no alias.
+
+        The preference only decides between bindings of the same object, so a module's other wrappers keep their name
+        and their position in the scan.
+
+        """
+        plain = types.ModuleType(col.__name__)
+        vars(plain).update(decorated_sum=col.decorated_sum, decorated_sum_calls_2=col.decorated_sum_calls_2)
+        aliased = types.ModuleType(col.__name__)
+        vars(aliased).update(vars(plain), a_alias=col.decorated_sum)
+        assert [r.function for r in find_deprecation_wrappers(aliased, recursive=False)] == [
+            r.function for r in find_deprecation_wrappers(plain, recursive=False)
+        ]
+
+    def test_aliases_only_fall_back_to_the_first_name_scanned(self) -> None:
+        """A wrapper with no binding named like itself is reported under the first public alias in scan order.
+
+        ``old = deprecated(...)(_impl)`` binds the wrapper only under names unlike its own ``__name__``, so there is no
+        canonical binding to prefer; the long-standing alphabetical choice stays, and a private name never counts as
+        the canonical one.
+
+        """
+        mod = types.ModuleType("fallback_mod")
+
+        @deprecated(deprecated_in="1.0", remove_in="2.0")
+        def _impl() -> None:
+            """Wrapper whose own name is private, bound only under public aliases."""
+
+        _impl.__module__ = mod.__name__
+        vars(mod).update(_impl=_impl, z_old=_impl, a_old=_impl)
+        assert [r.function for r in find_deprecation_wrappers(mod, recursive=False)] == ["a_old"]
+
+    def test_proxy_alias_falls_back_to_the_first_name_scanned(self) -> None:
+        """A deprecated-class proxy bound under its own name and an earlier-sorting alias keeps the alphabetical choice.
+
+        A proxy has no reliable name of its own (reading ``__name__`` forwards to the wrapped or target class), so it
+        never owns a canonical binding and the first public name in scan order reports it, as it always has.
+
+        """
+        mod = types.ModuleType(col.__name__)
+        vars(mod).update(AliasedDataClass=col.DeprecatedDataClass, DeprecatedDataClass=col.DeprecatedDataClass)
+        assert [r.function for r in find_deprecation_wrappers(mod, recursive=False)] == ["AliasedDataClass"]
+
     def test_pep702_reexport_attributed_to_defining_module(self) -> None:
         """A PEP 702-only function or class re-exported by a sibling module is reported once, where it is defined.
 

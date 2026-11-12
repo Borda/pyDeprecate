@@ -1,9 +1,10 @@
 """Accepted findings for the CLI: the ``ignore`` list and the ``--baseline`` report that suppress findings.
 
 An ignore entry names findings by pattern: ``<module-glob>:<symbol-glob>`` for every rule, or ``<rule>:<module-
-glob>:<symbol-glob>`` for one rule (``*`` for any). A baseline is a ``--report-json`` file of layout version 2 or later;
-its finding ids (active and suppressed) are accepted as they are. A finding matched by both counts as ignored.
-Suppressed findings are never printed, counted or gated on; the report lists them under ``suppressed``.
+glob>:<symbol-glob>`` for one rule (``*`` for any). A baseline is a ``--report-json`` file with a ``findings`` array
+(pyDeprecate 0.16 or later); the ids of its active findings, and of the suppressed findings the baseline itself
+suppressed, are accepted as they are. A finding matched by both counts as ignored. Suppressed findings are never
+printed, counted or gated on; the report lists them under ``suppressed``.
 
 """
 
@@ -11,7 +12,7 @@ import json
 from dataclasses import dataclass, field
 from fnmatch import fnmatchcase
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from deprecate.audit._findings import _Finding, _Rule
 
@@ -21,8 +22,9 @@ _IGNORE = "ignore"
 _BASELINE = "baseline"
 #: The rule part of an ignore entry that matches every rule.
 _ANY_RULE = "*"
-#: Oldest ``--report-json`` layout version a baseline may have: the first with finding ids.
-_BASELINE_MIN_SCHEMA = 2
+#: Oldest ``--report-json`` layout version a baseline may have. Finding ids were added to layout 1 without a bump, so a
+#: baseline also needs the ``findings`` array, which a report of pyDeprecate 0.15 lacks.
+_BASELINE_MIN_SCHEMA = 1
 
 
 @dataclass(frozen=True)
@@ -88,34 +90,73 @@ def _parse_ignore(entries: list[str], source: str) -> list[_IgnoreEntry]:
     return parsed
 
 
-def _load_baseline(path: str) -> frozenset[str]:
-    """Return the finding ids of the baseline report at *path*, from both its ``findings`` and ``suppressed`` arrays.
-
-    Ids of the ``suppressed`` array count too, so a baseline regenerated from a run that already used it keeps the
-    findings it suppressed.
+def _read_baseline(path: str, regenerate: str) -> object:
+    """Return the parsed JSON document of the baseline file at *path*.
 
     Raises:
-        ValueError: When the file is missing or unreadable, is not JSON, or is not a report of layout version 2 or later
-            with a ``findings`` array.
+        ValueError: Saying the file cannot be read when it is missing or unreadable (with a hint to create a missing
+            one), or naming *regenerate* when it is not JSON (a document nested too deeply to parse included).
 
     """
-    regenerate = (
-        f"Baseline {path} is not a pyDeprecate schema-{_BASELINE_MIN_SCHEMA} report; regenerate it with --report-json"
-    )
     try:
-        data = json.loads(Path(path).read_text(encoding="utf-8"))
-    except (OSError, ValueError) as err:
+        return json.loads(Path(path).read_text(encoding="utf-8"))
+    except OSError as err:
+        hint = "; create it with --report-json" if isinstance(err, FileNotFoundError) else ""
+        raise ValueError(f"Baseline {path} cannot be read ({err.strerror or err}){hint}") from err
+    except (ValueError, RecursionError) as err:
         raise ValueError(f"{regenerate} ({err})") from err
-    schema = data.get("schema") if isinstance(data, dict) else None
+
+
+def _baseline_records(data: dict[str, Any], key: str, regenerate: str) -> list[dict[str, Any]]:
+    """Return the finding records of the report's *key* array, each checked to be an object with a string ``id``.
+
+    An absent array is empty. One that is not a list, or holds an entry that is not an object with a string ``id``, is
+    refused, so a corrupted or hand-edited baseline never loses an accepted id silently.
+
+    Raises:
+        ValueError: Naming *regenerate* and the first malformed part.
+
+    """
+    records = data.get(key, [])
+    if not isinstance(records, list):
+        raise ValueError(f"{regenerate} (`{key}` is not a list)")
+    for index, record in enumerate(records):
+        if not isinstance(record, dict) or not isinstance(record.get("id"), str):
+            raise ValueError(f"{regenerate} (`{key}[{index}]` is not a finding with a string `id`)")
+    return records
+
+
+def _load_baseline(path: str) -> frozenset[str]:
+    """Return the finding ids of the baseline report at *path*: its active findings and those its baseline suppressed.
+
+    An id of the ``suppressed`` array counts only when its ``suppressed_by.kind`` is ``baseline``, so a baseline
+    regenerated from a run that already used one keeps the findings that baseline suppressed. A finding an ignore entry
+    suppressed is left out: it stays accepted only while the ignore entry does, never through a regenerated baseline.
+
+    Raises:
+        ValueError: When the file is missing or unreadable, or is not JSON; when it is not a pyDeprecate report (no
+            integer ``schema`` of at least 1) or is one without a ``findings`` array (written before pyDeprecate 0.16);
+            when ``findings`` or ``suppressed`` (which may be absent) is not a list, or holds an entry that is not an
+            object with a string ``id``.
+
+    """
+    regenerate = f"Baseline {path} is not a pyDeprecate report; regenerate it with --report-json"
+    data = _read_baseline(path, regenerate)
+    if not isinstance(data, dict):
+        raise ValueError(regenerate)
+    schema = data.get("schema")
     if not isinstance(schema, int) or isinstance(schema, bool) or schema < _BASELINE_MIN_SCHEMA:
         raise ValueError(regenerate)
-    if not isinstance(data.get("findings"), list):
-        raise ValueError(regenerate)
-    ids = set()
-    for key in ("findings", "suppressed"):
-        for item in data.get(key) or []:
-            if isinstance(item, dict) and isinstance(item.get("id"), str):
-                ids.add(item["id"])
+    if "findings" not in data:
+        raise ValueError(
+            f"Baseline {path} has no `findings` list (a report written before pyDeprecate 0.16); regenerate it with"
+            " --report-json"
+        )
+    ids = {record["id"] for record in _baseline_records(data, "findings", regenerate)}
+    for record in _baseline_records(data, "suppressed", regenerate):
+        suppressed_by = record.get("suppressed_by")
+        if isinstance(suppressed_by, dict) and suppressed_by.get("kind") == _BASELINE:
+            ids.add(record["id"])
     return frozenset(ids)
 
 
@@ -131,15 +172,17 @@ class _Suppressor:
     def match(self, finding: _Finding) -> Optional[tuple[str, str]]:
         """Return how *finding* is suppressed — ``(kind, entry)`` — or ``None`` when it stays active.
 
-        Ignore entries are checked first, so a finding both entries match counts as ignored.
+        Ignore entries are checked first, so a finding both entries match counts as ignored; its baseline id still
+        counts as matched, so it is never reported as stale.
 
         """
+        if finding.id in self.baseline:
+            self.used_ids.add(finding.id)
         for entry in self.ignore:
             if entry.matches(finding):
                 self.used_entries.add(entry.text)
                 return _IGNORE, entry.text
         if finding.id in self.baseline:
-            self.used_ids.add(finding.id)
             return _BASELINE, finding.id
         return None
 

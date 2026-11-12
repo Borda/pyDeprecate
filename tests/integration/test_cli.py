@@ -14,8 +14,8 @@ import pytest
 from tests._helpers import write_pkg
 
 _SRC_DIR = str(Path(__file__).resolve().parent.parent.parent / "src")
-#: The JSON Schema the docs ship for the ``--report-json`` file of layout version 2.
-_REPORT_SCHEMA_FILE = Path(__file__).resolve().parent.parent.parent / "docs" / "schemas" / "report-2.schema.json"
+#: The JSON Schema the docs ship for the ``--report-json`` file of layout version 1.
+_REPORT_SCHEMA_FILE = Path(__file__).resolve().parent.parent.parent / "docs" / "schemas" / "report-1.schema.json"
 _PACKAGING_AVAILABLE = importlib.util.find_spec("packaging") is not None
 _MYPKG_INIT = """\
 from deprecate import deprecated
@@ -1435,8 +1435,8 @@ def mid_fn(x: int) -> int:
 
 @pytest.mark.subprocess
 @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="expiry needs the packaging library")
-class TestCliReportSchemaTwo:
-    """The ``--report-json`` file of layout version 2: per-finding records, the gate outcome, and the shipped schema."""
+class TestCliReportFindings:
+    """Per-finding records and the gate outcome the ``--report-json`` file gained in 0.16, and its shipped schema."""
 
     def test_expired_findings_are_recorded_with_stable_ids(self, tmp_path: Path) -> None:
         """Each expired wrapper is one finding whose id, message and location match what the console printed.
@@ -1475,7 +1475,7 @@ class TestCliReportSchemaTwo:
     ) -> None:
         """Every subcommand writes a report the shipped JSON Schema accepts, naming the command, path and version.
 
-        Consumers validate the file against ``docs/schemas/report-2.schema.json`` before trusting it; a writer that
+        Consumers validate the file against ``docs/schemas/report-1.schema.json`` before trusting it; a writer that
         drifted from the documented layout would be rejected by every such consumer.
 
         """
@@ -1514,6 +1514,28 @@ class TestCliReportSchemaTwo:
         assert accepted["summary"]["suppressed"] == 2
         assert "mypkg.new_old_fn" in third.stdout
         assert "mypkg.old_fn" not in third.stdout
+
+    def test_ignored_finding_is_not_carried_into_baseline(self, tmp_path: Path) -> None:
+        """A report taken as baseline keeps no finding an ignore entry suppressed in the run that wrote it.
+
+        A team ignores one overdue wrapper for a sprint and records the rest as its baseline. Once the ignore entry is
+        deleted, the wrapper must fail the gate again instead of staying accepted forever through the baseline.
+
+        """
+        pkg = _make_pkg(tmp_path, content=_MYPKG_INIT_TWO_EXPIRED)
+        baseline = tmp_path / "baseline.json"
+        _run_cli(
+            "expiry",
+            str(pkg),
+            "--version=2.0",
+            "--ignore=expired:mypkg:old_fn",
+            f"--report-json={baseline}",
+            cwd=tmp_path,
+        )
+        result = _run_cli("expiry", str(pkg), "--version=2.0", f"--baseline={baseline}", cwd=tmp_path)
+        assert result.returncode == 1, result.stderr
+        assert "mypkg.old_fn" in result.stdout
+        assert "mypkg.mid_fn" not in result.stdout
 
     def test_strict_gap_is_the_gate_reason(self, tmp_path: Path) -> None:
         """A strict run that fails only on a gap records ``gaps`` as the reason, and the gap carries its path.
@@ -1561,7 +1583,7 @@ class TestCliReportJson:
         result = _run_cli(subcommand, str(pkg), *args, f"--report-json={report}", cwd=tmp_path)
         data = json.loads(report.read_text(encoding="utf-8"))
         assert result.returncode == exit_code, result.stderr
-        assert data["schema"] == 2
+        assert data["schema"] == 1
         assert "old_fn" in data["table"]
 
     def test_failing_gate_still_writes_report(self, tmp_path: Path) -> None:
@@ -1675,6 +1697,42 @@ class TestCliReportJson:
         result = _run_cli("check", str(pkg), "--strict", "--exit-zero", f"--report-json={report}", cwd=tmp_path)
         assert result.returncode == 2
         assert "contradict each other" in result.stderr
+        assert not report.exists()
+
+    def test_exit_zero_overrides_strict_from_pyproject(self, tmp_path: Path) -> None:
+        """``--exit-zero`` against ``strict = true`` in ``pyproject.toml`` passes and records the run as not strict.
+
+        The GitHub Action runner appends ``--exit-zero`` to an advisory step and nothing else, in a project whose
+        ``pyproject.toml`` already declares ``strict = true`` for its local gate. The step must exit 0, say once that
+        the file's strict mode was disabled, still print the gap, and write a report whose ``options`` show what ran.
+
+        """
+        pkg = _make_pkg(tmp_path)
+        (pkg / "broken.py").write_text("raise RuntimeError('boom')\n")
+        (tmp_path / "pyproject.toml").write_text("[tool.pydeprecate]\nstrict = true\n")
+        report = tmp_path / "report.json"
+        result = _run_cli("check", str(pkg), "--exit-zero", f"--report-json={report}", cwd=tmp_path)
+        options = json.loads(report.read_text(encoding="utf-8"))["options"]
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert result.stderr.count("is disabled by `--exit-zero` for this run.") == 1
+        assert "pydeprecate gap: module not audited: mypkg.broken" in result.stderr
+        assert (options["strict"], options["exit_zero"]) == (False, True)
+
+    def test_ignore_list_literal_exits_two_before_scanning(self, tmp_path: Path) -> None:
+        """``--ignore`` given a Python list literal is a usage error: exit 2, nothing scanned, no report written.
+
+        A Fire-era command line such as ``--ignore='["expired:mypkg:old_fn", "mypkg:mid_fn"]'`` reaches argparse as one
+        string holding commas. Split on them it would read as two malformed entries at best, so the run refuses it
+        with the same advice as ``--exclude`` instead of letting the author believe the findings are accepted.
+
+        """
+        pkg = _make_pkg(tmp_path)
+        report = tmp_path / "report.json"
+        literal = '["expired:mypkg:old_fn", "mypkg:mid_fn"]'
+        result = _run_cli("check", str(pkg), f"--ignore={literal}", f"--report-json={report}", cwd=tmp_path)
+        assert result.returncode == 2
+        assert f"Invalid `--ignore` value `{literal}`; pass comma-separated entries" in result.stderr
+        assert "Scanning:" not in result.stdout
         assert not report.exists()
 
     def test_clean_scan_records_no_gap(self, tmp_path: Path) -> None:

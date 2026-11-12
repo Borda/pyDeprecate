@@ -11,9 +11,10 @@ not read: its call is a gap only when it passes ``remove_in`` by keyword, so one
 configured decorator imported from such a module, can pass unseen.
 
 The identity rules follow the import scan (:func:`deprecate.audit.find_deprecation_wrappers`): one row per public
-module-level binding, the alphabetically-first binding of a wrapper bound under several names, a non-proxy wrapper
-re-exported inside its own package attributed to the module that defines it, a proxy to the first module in walk order
-that binds it, class members per class binding with the members of same-tree base classes.
+module-level binding, the binding named like a decorated ``def`` when it is bound under several names (else the
+alphabetically-first binding), a non-proxy wrapper re-exported inside its own package attributed to the module that
+defines it, a proxy to the first module in walk order that binds it, class members per class binding with the members
+of same-tree base classes.
 
 This package is private (no ``__all__``): a caller imports each name from the submodule that defines it, and the
 surface may change without notice.

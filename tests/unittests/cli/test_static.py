@@ -554,9 +554,16 @@ class TestBindingIdentity:
                 id="private-wrapper-public-alias",
             ),
             pytest.param(
-                "@deprecated(deprecated_in='1.0', remove_in='2.0')\ndef zeta(x):\n    return x\n\nalpha = zeta\n",
-                ["alpha"],
-                id="alphabetically-first-binding",
+                "@deprecated(deprecated_in='1.0', remove_in='2.0')\ndef zeta(x):\n    return x\n\nalpha = zeta\n"
+                "omega = zeta\n",
+                ["zeta"],
+                id="binding-named-like-the-wrapper-wins",
+            ),
+            pytest.param(
+                "def _impl(x):\n    return x\n\n_old = deprecated(deprecated_in='1.0', remove_in='2.0')(_impl)\n"
+                "z_old = _old\na_old = _old\n",
+                ["a_old"],
+                id="no-binding-named-like-the-wrapper-takes-the-alphabetically-first",
             ),
             pytest.param(
                 "class Base:\n    @deprecated(deprecated_in='1.0', remove_in='2.0')\n    def old(self):\n"

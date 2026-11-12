@@ -127,8 +127,10 @@ class DeprecationWrapperInfo:
             recorded on ``__deprecated__`` — a string, possibly empty. It is the only metadata such an object carries,
             so ``deprecated_info`` holds no versions or target and ``empty_deprecated_in`` is ``True``.
         source_file: Absolute path of the file that defines the deprecated object, or ``None`` when it has none: a
-            :func:`~deprecate.proxy.deprecated_instance` data object, or code compiled from a string. For a deprecated
-            module it is the module's file.
+            :func:`~deprecate.proxy.deprecated_instance` data object, a class built at runtime (a functional ``Enum``
+            or a ``type()`` call), or a function compiled from a string. A class built by ``exec`` in a namespace named
+            after a real module may be attributed to that module's file (Python 3.13+). For a deprecated module it is
+            the module's file.
         source_line: First line of the definition — the line of its first decorator — or ``None`` with no
             ``source_file`` and for a deprecated module. Neither field takes part in equality or ``repr``.
 
@@ -327,10 +329,14 @@ def _validate_args_mapping(
 def _definition_of(obj: Any) -> Any:  # noqa: ANN401
     """Return the class or function whose source defines the deprecated *obj*, or ``None`` when there is none."""
     if isinstance(obj, _DeprecatedProxy):
-        # a `deprecated_class` proxy is defined by its class; a `deprecated_instance` object, callable or not, is
-        # bound by an assignment that nothing records, so the function it wraps is not where it was deprecated
-        return obj.wrapped if inspect.isclass(obj.wrapped) else None
-    target = obj
+        # a `deprecated_class` proxy is defined by its class, which lies beneath any further proxy stacked over it; a
+        # `deprecated_instance` object, callable or not, is bound by an assignment that nothing records, so the
+        # function it wraps is not where it was deprecated
+        source: Any = obj
+        while isinstance(source, _DeprecatedProxy):
+            source = source.wrapped
+        return source if inspect.isclass(source) else None
+    target: Any = obj
     if isinstance(target, property):
         target = target.fget
     elif isinstance(target, cached_property):
@@ -339,16 +345,27 @@ def _definition_of(obj: Any) -> Any:  # noqa: ANN401
         target = target.__func__
     if inspect.isclass(target):
         return target
-    return inspect.unwrap(target) if inspect.isfunction(target) or inspect.ismethod(target) else None
+    # `__wrapped__` leads out of an outer decorator (``functools.lru_cache``, ``functools.wraps``) to the function it
+    # wraps, but stops at a proxy: reading through a `deprecated_instance` proxy would reach the object behind it
+    unwrapped = inspect.unwrap(target, stop=lambda wrapper: isinstance(wrapper, _DeprecatedProxy))
+    if isinstance(unwrapped, _DeprecatedProxy):
+        return _definition_of(unwrapped)
+    if inspect.isfunction(unwrapped) or inspect.ismethod(unwrapped) or inspect.isclass(unwrapped):
+        return unwrapped
+    return None
 
 
 def _source_location(obj: Any) -> tuple[Optional[str], Optional[int]]:  # noqa: ANN401
     """Return the absolute file and first line that define the deprecated *obj*; never raises.
 
-    A function's line is ``co_firstlineno`` of the undecorated function, which is the line of its first decorator. A
-    class (also behind a :func:`~deprecate.proxy.deprecated_class` proxy) uses ``__firstlineno__`` where Python sets it
-    (3.13+) and :func:`inspect.getsourcelines` before. A :func:`~deprecate.proxy.deprecated_instance` object, code
-    compiled from a string (``<string>``) and anything :mod:`inspect` cannot place give ``(None, None)``.
+    A function's line is ``co_firstlineno`` of the undecorated function, which is the line of its first decorator;
+    ``__wrapped__`` leads there, also from behind an outer decorator such as :func:`functools.lru_cache`. A
+    class (also behind a :func:`~deprecate.proxy.deprecated_class` proxy) uses its own ``__firstlineno__`` where Python
+    sets it (3.13+) and :func:`inspect.getsourcelines` before. A :func:`~deprecate.proxy.deprecated_instance` object, a
+    class built at runtime (a functional ``Enum`` or a ``type()`` call), a function compiled from a string
+    (``<string>``) and anything :mod:`inspect` cannot place give ``(None, None)``. A class built by ``exec`` in a
+    namespace named after a real module is placed by that module's file instead (Python 3.13+): its own
+    ``__firstlineno__`` and ``__module__`` are all the lookup reads.
 
     Examples:
         >>> path, line = _source_location(_source_location)
@@ -362,12 +379,16 @@ def _source_location(obj: Any) -> tuple[Optional[str], Optional[int]]:  # noqa: 
         definition = _definition_of(obj)
         if inspect.isclass(definition):
             file_name = inspect.getsourcefile(definition)
-            line = getattr(definition, "__firstlineno__", None) or inspect.getsourcelines(definition)[1]
+            # the class's own attribute only: an inherited one (Python 3.13+ sets it per ``class`` statement) belongs to
+            # a base, so a functional ``Enum`` or a ``type()`` call would be placed at its base's file and line
+            line = vars(definition).get("__firstlineno__") or inspect.getsourcelines(definition)[1]
         elif definition is not None and hasattr(definition, "__code__"):
             file_name, line = definition.__code__.co_filename, definition.__code__.co_firstlineno
         else:
             return None, None
-    except (OSError, TypeError, ValueError):
+    except Exception:
+        # the location is optional metadata: whatever `inspect` or a hostile class raises (an unreadable or edited
+        # source file, a metaclass that refuses an attribute), it must never fail the audit that asked for it
         return None, None
     if not file_name or file_name.startswith("<"):
         return None, None

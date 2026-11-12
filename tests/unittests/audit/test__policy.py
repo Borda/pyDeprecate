@@ -5,6 +5,7 @@ import sys
 import types
 from collections.abc import Callable
 from typing import Any, NoReturn, Optional
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -30,6 +31,7 @@ from deprecate.audit._policy import (
     _build_policy_spec,
     _check_policy_for_callables,
     _has_migration_guidance,
+    _policy_findings,
     _satisfies_grace_window,
 )
 from tests.collections.api_current.core import RaisingEqualityData, ThemeSettings
@@ -806,6 +808,72 @@ class TestValidateDeprecationPolicy:
         assert len(record) == 1
         assert [v for v in violations if PolicyRule.MIN_GRACE.value in v and "too_close" in v]
         assert not [v for v in violations if "broken_version" in v]
+
+
+class TestUnparsableVersionCallback:
+    """``on_unparsable`` hears about every version the grace-window rule skipped, and about nothing else."""
+
+    @_requires_packaging
+    @pytest.mark.parametrize(
+        ("config", "field_name"),
+        [
+            pytest.param(
+                DeprecationConfig(deprecated_in="1.0", remove_in="next-release", target=str),
+                "remove_in",
+                id="remove_in",
+            ),
+            pytest.param(
+                DeprecationConfig(deprecated_in="first", remove_in="2.0", target=str),
+                "deprecated_in",
+                id="deprecated_in",
+            ),
+        ],
+    )
+    def test_skipped_field_reaches_the_callback(self, config: DeprecationConfig, field_name: str) -> None:
+        """A version field that is set but not PEP 440 is handed to the callback with its name, after the warning.
+
+        The warning alone can be silenced by the audited package, so a caller that must not lose the skip (the CLI's
+        strict gate) records it from the callback instead; it needs to know which field to point the user at.
+
+        """
+        info = DeprecationWrapperInfo(module="pkg", function="typo", deprecated_info=config)
+        on_unparsable = MagicMock()
+
+        with pytest.warns(UserWarning, match=f"unparsable `{field_name}`"):
+            findings = _policy_findings([info], _build_policy_spec("0.3", True), on_unparsable=on_unparsable)
+
+        assert findings == []
+        on_unparsable.assert_called_once_with(info, field_name)
+
+    @pytest.mark.parametrize(
+        ("config", "min_grace"),
+        [
+            pytest.param(
+                DeprecationConfig(deprecated_in="1.0", target=str),
+                "0.3",
+                marks=_requires_packaging,
+                id="remove_in-unset",
+            ),
+            pytest.param(
+                DeprecationConfig(deprecated_in="1.0", remove_in="next-release", target=str), None, id="grace-rule-off"
+            ),
+        ],
+    )
+    def test_nothing_skipped_never_calls_the_callback(
+        self, config: DeprecationConfig, min_grace: Optional[str]
+    ) -> None:
+        """An unset version, or a grace-window rule that is switched off, never reaches the callback.
+
+        Leaving ``remove_in`` unset is a deliberate choice rather than a skipped check, and with the rule switched off
+        no version is parsed at all, which is also what keeps a ``message_required``-only policy free of ``packaging``.
+
+        """
+        info = DeprecationWrapperInfo(module="pkg", function="fn", deprecated_info=config)
+        on_unparsable = MagicMock()
+
+        _policy_findings([info], _build_policy_spec(min_grace, True), on_unparsable=on_unparsable)
+
+        on_unparsable.assert_not_called()
 
 
 def _reject_version_parse(_version_string: str) -> NoReturn:

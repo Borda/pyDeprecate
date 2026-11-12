@@ -4,7 +4,7 @@ import logging
 from collections import OrderedDict
 from dataclasses import dataclass, field
 from enum import Enum
-from functools import cached_property, partial
+from functools import cached_property, lru_cache, partial
 from types import SimpleNamespace
 from typing import Any, Callable, Optional
 from warnings import catch_warnings, simplefilter
@@ -1032,6 +1032,13 @@ def make_depr_module_raising_class(metaclass: type) -> Any:  # noqa: ANN401
     return deprecated_class(message_template=_SOURCE_PATH_TEMPLATE, **_DEPRS_CASE_STD_INF_ARGS)(
         make_module_raising_class(metaclass)
     )
+
+
+@lru_cache
+@deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)
+def depr_notify_lru_cached(x: int) -> int:
+    """Warn-only deprecation under an outer ``functools.lru_cache``, whose wrapper copies the deprecation metadata."""
+    return x
 
 
 # ---------------------------------------------------------------------------

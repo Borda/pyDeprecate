@@ -4,6 +4,7 @@ import dataclasses
 import importlib.util
 import types
 import warnings
+from enum import Enum
 from pathlib import Path
 from typing import Any, Optional
 
@@ -33,7 +34,19 @@ from deprecate.audit._wrappers import (
     _source_location,
 )
 from deprecate.proxy import _DeprecatedProxy, _ProxySpec
-from tests.collections.api_current.core import ColorEnum, RaisingEqualityData
+from tests.collections.api_current.core import (
+    ColorEnum,
+    ModuleRaisingGetattributeMeta,
+    ModuleRaisingPropertyMeta,
+    RaisingEqualityData,
+    SourcePathTarget,
+)
+from tests.collections.api_deprecated.regressions import (
+    DeprSourcePathClass,
+    DeprSourcePathStacked,
+    depr_notify_lru_cached,
+    make_depr_module_raising_class,
+)
 from tests.collections.chains import caller_via_notify_layer
 
 _PACKAGING_AVAILABLE = importlib.util.find_spec("packaging") is not None
@@ -275,7 +288,9 @@ class TestSourceLocation:
         ("wrapper", "file_name", "line_start"),
         [
             pytest.param(core_wrappers.decorated_sum, "core.py", "@_deprecation_sum", id="function"),
+            pytest.param(depr_notify_lru_cached, "regressions.py", "@lru_cache", id="outer-lru-cache"),
             pytest.param(core_wrappers.DeprecatedEnum, "core.py", "@deprecated_class(", id="class-proxy"),
+            pytest.param(DeprSourcePathStacked, "core.py", "class SourcePathTarget", id="stacked-class-proxies"),
             pytest.param(
                 core_wrappers.InnerOrderDeprecatedPropCls.__dict__["value"].fget,
                 "core.py",
@@ -296,6 +311,22 @@ class TestSourceLocation:
         assert Path(info.source_file).name == file_name
         assert Path(info.source_file).is_absolute()
         assert _defining_line(info).startswith(line_start)
+
+    def test_outer_wrapper_over_class_proxy_is_located_by_the_class(self) -> None:
+        """A decorator applied above a ``deprecated_class`` proxy is located by the class the proxy wraps.
+
+        A logging or caching decorator over a deprecated class reaches the proxy through ``__wrapped__``.  Following
+        that chain stops at the proxy and lets the proxy rule decide, because reading through a proxy would land on
+        whatever object it wraps, which is not always where the deprecation was declared; for a class proxy the rule
+        gives the wrapped class.
+
+        """
+
+        def _outer() -> None:
+            """Stand-in for the wrapper function an outer decorator returns."""
+
+        _outer.__dict__["__wrapped__"] = DeprSourcePathClass
+        assert _source_location(_outer) == _source_location(SourcePathTarget)
 
     def test_module_has_file_without_line(self) -> None:
         """A deprecated module is located by its file only; it has no single defining line.
@@ -328,6 +359,43 @@ class TestSourceLocation:
         namespace: dict[str, Any] = {}
         exec(compile("def generated():\n    pass\n", "<string>", "exec"), namespace)  # noqa: S102
         assert _source_location(namespace["generated"]) == (None, None)
+
+    @pytest.mark.parametrize(
+        "dynamic_class",
+        [
+            pytest.param(Enum("DynamicColor", "RED GREEN"), id="functional-enum"),
+            pytest.param(type("DynamicSubclass", (SourcePathTarget,), {}), id="type-built-subclass"),
+        ],
+    )
+    def test_dynamically_built_class_has_no_location(self, dynamic_class: type) -> None:
+        """A class built at runtime has no definition in any file, so it is not given its base class's line.
+
+        A functional ``Enum("Color", "RED GREEN")`` or a ``type(name, bases, ns)`` call creates a class with no
+        ``class`` statement.  From Python 3.13 the compiler stores ``__firstlineno__`` on each ``class`` statement, and
+        such a class inherits its base's value through the MRO (``Enum``'s, or ``SourcePathTarget``'s here).  Reading
+        it would annotate an unrelated line in the base's file, so only the class's own attribute may count.
+
+        """
+        assert _source_location(dynamic_class) == (None, None)
+
+    @pytest.mark.parametrize(
+        "metaclass",
+        [
+            pytest.param(ModuleRaisingGetattributeMeta, id="getattribute-raises"),
+            pytest.param(ModuleRaisingPropertyMeta, id="module-property-raises"),
+        ],
+    )
+    def test_refusing_metaclass_has_no_location(self, metaclass: type) -> None:
+        """A deprecated class whose metaclass raises on attribute lookups is audited, just without a location.
+
+        A framework class may use a metaclass that intercepts attribute lookups and raises on names it does not serve
+        (here ``__module__``, which the source lookup reads).  The location is optional metadata, so
+        ``validate_deprecation_wrapper`` must still return its result with both fields ``None`` instead of letting
+        the ``RuntimeError`` abort the audit of every other wrapper.
+
+        """
+        info = validate_deprecation_wrapper(make_depr_module_raising_class(metaclass))
+        assert (info.source_file, info.source_line) == (None, None)
 
     def test_location_takes_no_part_in_equality(self) -> None:
         """Two results that differ only in location compare equal and print the same ``repr``.

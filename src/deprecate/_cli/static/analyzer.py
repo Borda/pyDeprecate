@@ -378,6 +378,7 @@ class _ModuleAnalyzer:
             route = _TargetRoute.CALLABLE if kind is _Factory.DEPRECATED else _TargetRoute.CALLABLE_STRICT
             api_type = _member_api_type(attr, descriptor) if attr is not None else _callable_api_type
             found = self._finish(settings, route, api_type, proxy=False)
+            found.own_name = node.name
         return found
 
     def _replaced_by_outer(self, outer: Sequence[ast.expr], factory: ast.expr) -> bool:

@@ -12,7 +12,7 @@ import types
 import warnings
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 
 if TYPE_CHECKING:
     from packaging.version import Version
@@ -227,6 +227,11 @@ class _PolicySpec:
     message_required: bool
 
 
+#: Callback for a wrapper the grace-window rule skipped because one of its version fields is not PEP 440: called with
+#: the wrapper and the field name (``deprecated_in`` or ``remove_in``), after the skip's warning.
+_OnUnparsableVersion = Callable[[DeprecationWrapperInfo, str], None]
+
+
 def _format_release_boundaries(unit: VersionBump) -> str:
     """Name the release levels a removal may land on for a window counted in ``unit`` -- ``unit`` and coarser.
 
@@ -259,7 +264,13 @@ def _build_policy_spec(min_grace: Optional[GraceWindowSpec], message_required: b
     return _PolicySpec(grace=grace, message_required=message_required)
 
 
-def _parse_policy_version(raw: Optional[str], info: DeprecationWrapperInfo, field_name: str) -> Optional["Version"]:
+def _parse_policy_version(
+    raw: Optional[str],
+    info: DeprecationWrapperInfo,
+    field_name: str,
+    *,
+    on_unparsable: Optional[_OnUnparsableVersion] = None,
+) -> Optional["Version"]:
     """Parse one of a wrapper's version fields, warning instead of raising on a typo.
 
     A single unparsable version string must not abort a batch policy scan (mirroring the expiry gate's
@@ -269,6 +280,9 @@ def _parse_policy_version(raw: Optional[str], info: DeprecationWrapperInfo, fiel
         raw: Raw version string from the wrapper metadata; ``None`` or empty means the field is unset.
         info: Wrapper whose version is being parsed, used for the warning text.
         field_name: Metadata field name (``deprecated_in`` or ``remove_in``) named in the warning.
+        on_unparsable: Called with *info* and *field_name* when the version is set but not PEP 440, after the warning,
+            so a caller can record the skip on a channel the audited package cannot silence (the CLI records a gap).
+            An unset field is a deliberate choice, not a skip, and never reaches it.
 
     Returns:
         The parsed version, or ``None`` when the field is unset or unparsable.
@@ -284,6 +298,8 @@ def _parse_policy_version(raw: Optional[str], info: DeprecationWrapperInfo, fiel
             "the policy rules depending on it are skipped until the version string is fixed.",
             stacklevel=_caller_stacklevel(),
         )
+        if on_unparsable is not None:
+            on_unparsable(info, field_name)
         return None
 
 
@@ -513,12 +529,16 @@ def _message_required_remedy(api_type: str) -> str:
     return _MESSAGE_REQUIRED_REMEDIES.get(api_type, _MESSAGE_REQUIRED_DEFAULT_REMEDY)
 
 
-def _policy_violations_for_wrapper(info: DeprecationWrapperInfo, spec: _PolicySpec) -> list[_Finding]:
+def _policy_violations_for_wrapper(
+    info: DeprecationWrapperInfo, spec: _PolicySpec, *, on_unparsable: Optional[_OnUnparsableVersion] = None
+) -> list[_Finding]:
     """Collect every policy violation of a single wrapper.
 
     Args:
         info: Wrapper to check.
         spec: Parsed policy configuration.
+        on_unparsable: Called for each version field the grace-window rule skipped as not PEP 440, as in
+            :func:`_parse_policy_version`.
 
     Returns:
         One finding per violated rule; each message is prefixed with its :class:`~deprecate.audit.PolicyRule` slug.
@@ -532,8 +552,8 @@ def _policy_violations_for_wrapper(info: DeprecationWrapperInfo, spec: _PolicySp
     # asked to run. Keeping the parse lazy is what lets a ``message_required``-only policy work with no
     # version machinery at all, while the grace-window rule still surfaces the install hint.
     if spec.grace is not None:
-        deprecated_ver = _parse_policy_version(config.deprecated_in, info, "deprecated_in")
-        remove_ver = _parse_policy_version(config.remove_in, info, "remove_in")
+        deprecated_ver = _parse_policy_version(config.deprecated_in, info, "deprecated_in", on_unparsable=on_unparsable)
+        remove_ver = _parse_policy_version(config.remove_in, info, "remove_in", on_unparsable=on_unparsable)
         if deprecated_ver is not None and remove_ver is not None:
             grace_violation = _grace_window_violation(info, deprecated_ver, remove_ver, spec.grace)
             if grace_violation is not None:
@@ -574,14 +594,29 @@ def _check_policy_for_callables(results: list[DeprecationWrapperInfo], spec: _Po
     return [finding.message for finding in _policy_findings(results, spec)]
 
 
-def _policy_findings(results: list[DeprecationWrapperInfo], spec: _PolicySpec) -> list[_Finding]:
+def _policy_findings(
+    results: list[DeprecationWrapperInfo],
+    spec: _PolicySpec,
+    *,
+    on_unparsable: Optional[_OnUnparsableVersion] = None,
+) -> list[_Finding]:
     """Return one finding per policy rule each wrapper breaks, in wrapper order; the CLI gates on these.
+
+    Args:
+        results: Pre-scanned wrapper info list.
+        spec: Parsed policy configuration.
+        on_unparsable: Called with each wrapper and version field the grace-window rule skipped as not PEP 440, after
+            its warning (see :func:`_parse_policy_version`); the CLI records each call as a gap.
 
     Raises:
         ImportError: As :func:`_check_policy_for_callables`.
 
     """
-    return [finding for info in results for finding in _policy_violations_for_wrapper(info, spec)]
+    return [
+        finding
+        for info in results
+        for finding in _policy_violations_for_wrapper(info, spec, on_unparsable=on_unparsable)
+    ]
 
 
 def validate_deprecation_policy(

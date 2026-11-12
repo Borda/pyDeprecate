@@ -50,10 +50,10 @@ INPUT_DEFAULTS = {
 #: Name of the report file inside the runner's private temporary directory.
 REPORT_FILENAME = "report.json"
 #: Layout version of the CLI's ``--report-json`` file that the CLI of this ref writes.
-REPORT_SCHEMA = 2
-#: Layout versions this runner reads: schema 2 only adds keys, so an older CLI kept with ``install: false`` still
-#: writes a usable schema-1 report.
-REPORT_SCHEMAS = (1, 2)
+REPORT_SCHEMA = 1
+#: Layout versions this runner reads. New keys never bump the layout, so a 0.15 CLI kept with ``install: false`` writes
+#: the same version 1, and the gaps and table this runner reads keep their meaning in it.
+REPORT_SCHEMAS = (1,)
 #: Most gap details quoted in one warning annotation; the CLI log above it lists every one.
 GAP_DETAILS_SHOWN = 3
 

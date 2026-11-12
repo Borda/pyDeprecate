@@ -42,8 +42,12 @@ class _GapKind(str, Enum):
     VERSION_UNRESOLVED = "version not resolved"
     #: The auto-detected package version is not a valid PEP 440 version, so removal deadlines were not checked.
     VERSION_INVALID = "version not PEP 440"
-    #: A wrapper's ``remove_in`` is not a valid PEP 440 version, so its removal deadline was not checked.
+    #: A wrapper's ``remove_in`` is not a valid PEP 440 version, so its removal deadline (``expiry``) or its grace
+    #: window (``policy``'s ``min-grace``) was not checked; ``all`` names each wrapper once.
     REMOVE_IN_INVALID = "remove_in not PEP 440"
+    #: A wrapper's ``deprecated_in`` is not a valid PEP 440 version, so its grace window (``min-grace``) was not
+    #: checked.
+    DEPRECATED_IN_INVALID = "deprecated_in not PEP 440"
     #: The ``packaging`` library is missing, so version-based checks were skipped.
     PACKAGING_MISSING = "packaging missing"
     #: A plain-directory scan left the Python files in its subdirectories out.
@@ -62,6 +66,7 @@ _GAP_HINTS: dict[_GapKind, str] = {
     _GapKind.VERSION_UNRESOLVED: "install the scanned package in this environment or pass `--version X.Y`",
     _GapKind.VERSION_INVALID: "pass `--version X.Y` with a valid PEP 440 version",
     _GapKind.REMOVE_IN_INVALID: "set the wrapper's `remove_in` to a valid PEP 440 version such as `2.0`",
+    _GapKind.DEPRECATED_IN_INVALID: "set the wrapper's `deprecated_in` to a valid PEP 440 version such as `1.0`",
     _GapKind.PACKAGING_MISSING: "install 'pyDeprecate[audit]' to enable version-based checks",
     _GapKind.NESTED_FILES: "scan an importable package (with `__init__.py` files) instead of a plain directory",
     _GapKind.OTHER_COPY: (
@@ -258,6 +263,22 @@ def _print_gap(kind: _GapKind, detail: str) -> None:
         record.gaps.append(_Gap(kind, detail, record.current_path))
 
 
+def _gap_recorded(kind: _GapKind, detail_prefix: str) -> bool:
+    """Tell whether the run already recorded a *kind* gap for the scan path in progress whose detail starts so.
+
+    Lets a second check that skips the same wrapper for the same reason (``all`` runs ``expiry`` and ``policy`` on one
+    scan) leave the gap the first check printed as the only one. Without an active run record nothing was recorded.
+
+    """
+    record = _RUN_RECORD.get()
+    if record is None:
+        return False
+    return any(
+        gap.kind is kind and gap.path == record.current_path and gap.detail.startswith(detail_prefix)
+        for gap in record.gaps
+    )
+
+
 def _print_skipped_modules(skipped: dict[str, str]) -> None:
     """Print one :attr:`_GapKind.MODULE_NOT_AUDITED` line per skipped module (``name: error repr``) to stderr."""
     for module_name, reason in skipped.items():
@@ -371,10 +392,10 @@ class _Reporter:
 # ---------------------------------------------------------------------------
 
 #: Version of the ``--report-json`` layout. Bumped only when a key is removed or renamed, or its meaning or type
-#: changes; adding a key does not bump it, and readers ignore keys they do not know. Schema 2 added per-finding records
-#: and the run's gate outcome; every schema-1 key (``schema``, ``table``, ``gaps[].kind/detail/hint``) keeps its type
-#: and meaning.
-_REPORT_SCHEMA = 2
+#: changes; adding a key does not bump it, and readers ignore keys they do not know. Per-finding records, the run's gate
+#: outcome and ``mode`` were added under schema 1, so every key a 0.15 report has (``schema``, ``table``,
+#: ``gaps[].kind/detail/hint``) keeps its type and meaning, and a 0.15 reader still accepts the report.
+_REPORT_SCHEMA = 1
 #: Default of each option the report lists, for a run that never resolved it (``status``, a usage error).
 _DEFAULT_OPTIONS: dict[str, Any] = {"strict": False, "exit_zero": False, "gates": [], "recursive": True, "exclude": []}
 
