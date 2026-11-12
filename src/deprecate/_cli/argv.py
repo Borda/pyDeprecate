@@ -27,6 +27,8 @@ _BOOL_LITERALS: dict[str, bool] = {"true": True, "false": False, "1": True, "0":
 _OFF_LITERALS = frozenset({"none", "false"})
 #: Namespace attribute of the positional version, kept apart from ``--version`` so that giving both is caught.
 _VERSION_OPERAND = "version_operand"
+#: Every spelling of the ``--static`` flag, after :func:`_normalize_options` respelled it.
+_STATIC_SPELLINGS = frozenset({"static", "no-static", "nostatic"})
 
 
 def _ensure_utf8_streams() -> None:
@@ -114,7 +116,7 @@ def _cli_command(name: str) -> _CliCommand:
     Examples:
         >>> command = _cli_command("expiry")
         >>> command.positionals, sorted(command.bool_params)
-        (('path', 'version'), ['exit_zero', 'include_members', 'recursive'])
+        (('path', 'version'), ['exit_zero', 'include_members', 'recursive', 'static'])
 
     """
     function = getattr(commands, f"cmd_{name}")
@@ -304,7 +306,16 @@ def _parse_cli_args(argv: Sequence[str]) -> Optional[tuple[_CliCommand, dict[str
     command = _cli_command(name)
     subparser = subparsers[name]
     options, operands = (rest[: rest.index("--")], rest[rest.index("--") + 1 :]) if "--" in rest else (rest, [])
-    namespace, extras = subparser.parse_known_intermixed_args(_normalize_options(options, command.bool_params))
+    normalized = _normalize_options(options, command.bool_params)
+    if "static" not in command.bool_params and any(
+        arg.startswith("--") and arg[2:].partition("=")[0] in _STATIC_SPELLINGS for arg in normalized
+    ):
+        # `check`, `chains`, `all` and `status` need the imported objects; refuse the flag, in any spelling, rather
+        # than ignore it, and name both its spellings so `--no-static` is not read as an accepted no-op
+        subparser.error(
+            f"--static, --no-static and --nostatic are supported by `expiry` and `policy` only, not `{name}`"
+        )
+    namespace, extras = subparser.parse_known_intermixed_args(normalized)
     kwargs = vars(namespace)
     for operand in operands:
         free = [_positional_dest(name) for name in command.positionals if _positional_dest(name) not in kwargs]

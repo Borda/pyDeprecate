@@ -141,8 +141,10 @@ class TestCliCommand:
         ("name", "expected"),
         [
             pytest.param("check", {"exit_zero", "include_members", "recursive"}, id="check"),
-            pytest.param("expiry", {"exit_zero", "include_members", "recursive"}, id="expiry"),
-            pytest.param("policy", {"exit_zero", "include_members", "message_required", "recursive"}, id="policy"),
+            pytest.param("expiry", {"exit_zero", "include_members", "recursive", "static"}, id="expiry"),
+            pytest.param(
+                "policy", {"exit_zero", "include_members", "message_required", "recursive", "static"}, id="policy"
+            ),
             pytest.param("chains", {"exit_zero", "include_members", "recursive"}, id="chains"),
             pytest.param("all", {"exit_zero", "include_members", "recursive"}, id="all"),
             pytest.param("status", {"include_members", "recursive"}, id="status"),
@@ -304,12 +306,35 @@ class TestParseCliArgs:
             pytest.param(["check", "pkg", "--report-json="], "expects a file path", id="report-empty-path"),
             pytest.param(["expiry", "pkg", "0.1", "--version=9.0"], "the version was given twice", id="version-twice"),
             pytest.param(["check", "--", "pkg_a", "pkg_b"], "pass one path per run", id="operands-after-separator"),
+            pytest.param(
+                ["check", "pkg", "--static"],
+                "are supported by `expiry` and `policy` only, not `check`",
+                id="static-on-check",
+            ),
+            pytest.param(
+                ["chains", "pkg", "--no-static"],
+                "are supported by `expiry` and `policy` only, not `chains`",
+                id="no-static-on-chains",
+            ),
+            pytest.param(
+                ["all", "pkg", "--nostatic"],
+                "are supported by `expiry` and `policy` only, not `all`",
+                id="nostatic-on-all",
+            ),
+            pytest.param(
+                ["status", "pkg", "--static=false"],
+                "are supported by `expiry` and `policy` only, not `status`",
+                id="static-false-on-status",
+            ),
         ],
     )
     def test_usage_error_exits_two(self, argv: list[str], message: str, capsys: pytest.CaptureFixture[str]) -> None:
         """A malformed command line exits 2 with argparse's message before any subcommand runs.
 
-        Option abbreviations are off, so ``--exit`` is a typo, never a silent ``--exit-zero``.
+        Option abbreviations are off, so ``--exit`` is a typo, never a silent ``--exit-zero``. ``--static`` is refused
+        on a subcommand that has no static mode in every spelling, ``--no-static`` and ``--static=false`` included,
+        and the message names both flags: a no-op that took the negative spelling quietly would hide that a CI line
+        meant for ``expiry`` or ``policy`` was copied onto the wrong subcommand.
 
         """
         with pytest.raises(SystemExit) as exc_info:

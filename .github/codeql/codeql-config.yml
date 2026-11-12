@@ -1,0 +1,6 @@
+# CodeQL configuration, loaded by the `config-file:` input of the init step in `.github/workflows/codeql.yml`.
+# `tests/collections/static_forms.py` is the parity fixture of the static scanner: it binds `REMOVAL` twice and
+# imports `deprecate` both as a module alias and by name on purpose, because each shape is a form the scanner
+# must recognize. Refactoring those away would delete the forms under test, so the fixture is not analyzed.
+paths-ignore:
+  - tests/collections/static_forms.py

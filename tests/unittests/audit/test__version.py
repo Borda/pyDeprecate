@@ -1,5 +1,6 @@
 """Unit tests for :mod:`deprecate.audit._version`: version detection and ``pyproject.toml`` reading."""
 
+import ast
 import importlib.metadata
 import sys
 from collections.abc import Generator
@@ -10,9 +11,13 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from deprecate.audit._version import (
+    _NOT_A_PROJECT,
     _distribution_for_import,
     _distribution_from_top_level,
+    _literal_all,
     _load_toml,
+    _module_source_file,
+    _read_pyproject_version,
     _resolve_package_version,
     _version_from_dynamic,
     _version_from_toml,
@@ -253,11 +258,16 @@ class TestVersionFromToml:
         toml.write_text('[project]\nname = "mypkg"\nversion = "2.1.0"\n')
         assert _version_from_toml(str(toml), str(tmp_path)) == "2.1.0"
 
-    def test_missing_project_table_returns_none(self, tmp_path: Path) -> None:
-        """A pyproject without a ``[project]`` table yields ``None``."""
+    def test_missing_project_table_is_not_a_project(self, tmp_path: Path) -> None:
+        """A pyproject without a ``[project]`` table is reported as no project at all, not as an unresolved version.
+
+        The walk up to the owning ``pyproject.toml`` skips a file that only configures tools but stops at one whose
+        ``[project]`` table exists, so the two outcomes must stay distinguishable.
+
+        """
         toml = tmp_path / "pyproject.toml"
         toml.write_text('[build-system]\nrequires = ["setuptools"]\n')
-        assert _version_from_toml(str(toml), str(tmp_path)) is None
+        assert _version_from_toml(str(toml), str(tmp_path)) is _NOT_A_PROJECT
 
     @pytest.mark.usefixtures("_clean_sys_modules")
     def test_dynamic_version_falls_back_to_import(self, tmp_path: Path) -> None:
@@ -273,10 +283,54 @@ class TestVersionFromToml:
         assert _version_from_toml(str(toml), str(tmp_path)) == "5.6.7"
 
     def test_dynamic_without_name_returns_none(self, tmp_path: Path) -> None:
-        """A dynamic-version project missing ``[project].name`` cannot be imported and yields ``None``."""
+        """A dynamic-version project missing ``[project].name`` cannot be imported and yields ``None``.
+
+        The project table is there, so the answer is an unresolved version (``None``), not the no-project marker.
+
+        """
         toml = tmp_path / "pyproject.toml"
         toml.write_text('[project]\ndynamic = ["version"]\n')
         assert _version_from_toml(str(toml), str(tmp_path)) is None
+
+
+class TestReadPyprojectVersion:
+    """Tests for _read_pyproject_version() — the walk up from the scanned path to the ``pyproject.toml`` owning it."""
+
+    @pytest.mark.usefixtures("_clean_sys_modules")
+    @pytest.mark.parametrize("allow_import", [True, False])
+    def test_nearest_project_owns_an_unresolved_version(self, tmp_path: Path, allow_import: bool) -> None:
+        """A package whose own ``[project]`` declares a version nobody can resolve reads none, not its parent's.
+
+        A package vendored into a larger repository (a monorepo, a docs example tree) carries its own
+        ``pyproject.toml`` with ``dynamic = ["version"]``. When that version cannot be read, because the import yields
+        no ``__version__`` or the source holds none, continuing to the repository's ``pyproject.toml`` would judge the
+        package's removal deadlines against an unrelated project's release number. The same holds in the import and the
+        ``--static`` chain.
+
+        """
+        (tmp_path / "pyproject.toml").write_text('[project]\nname = "outer"\nversion = "9.9.9"\n')
+        inner = tmp_path / "inner"
+        inner.mkdir()
+        (inner / "pyproject.toml").write_text('[project]\nname = "ownedpkg"\ndynamic = ["version"]\n')
+        pkg = write_pkg(inner, "ownedpkg", "")
+        version = _read_pyproject_version(
+            str(pkg), allow_import=allow_import, module_name="ownedpkg", import_root=inner
+        )
+        assert version is None
+
+    def test_pyproject_without_project_table_is_skipped(self, tmp_path: Path) -> None:
+        """A ``pyproject.toml`` that only configures tools says nothing about the version, so the walk goes on.
+
+        A package keeps its linter settings in its own ``pyproject.toml`` while the version lives in the repository's
+        root file one level up; the tool-only file must not end the search.
+
+        """
+        (tmp_path / "pyproject.toml").write_text('[project]\nname = "outer"\nversion = "9.9.9"\n')
+        inner = tmp_path / "inner"
+        inner.mkdir()
+        (inner / "pyproject.toml").write_text("[tool.ruff]\nline-length = 100\n")
+        pkg = write_pkg(inner, "toolonlypkg", "")
+        assert _read_pyproject_version(str(pkg)) == "9.9.9"
 
 
 def _version_failing_for_sub(name: str) -> str:
@@ -357,3 +411,289 @@ class TestMetadataLookupFailures:
         fakes = [_FakeDistribution(listed, metadata) for listed, metadata in dists]
         with patch("deprecate.audit._version.importlib.metadata.distributions", return_value=fakes):
             assert _distribution_from_top_level("demo") == expected
+
+
+# ---------------------------------------------------------------------------
+# _resolve_package_version(allow_import=False) — the ``--static`` chain
+# ---------------------------------------------------------------------------
+
+#: An ``__init__`` tail that records any attempt to run it before failing, so a test proves it was never imported.
+_SENTINEL_TAIL = "from pathlib import Path\nPath(__file__).with_name('IMPORTED').write_text('x')\nraise RuntimeError\n"
+_DYNAMIC_PROJECT = '[project]\nname = "srcpkg"\ndynamic = ["version"]\n'
+
+
+class TestResolveWithoutImport:
+    """``allow_import=False`` reads a version from source and metadata only; the package's code never runs."""
+
+    @pytest.mark.parametrize(
+        ("init_head", "extra", "pyproject", "expected"),
+        [
+            pytest.param("", {}, '[project]\nname = "srcpkg"\nversion = "4.2"\n', "4.2", id="static-pyproject"),
+            pytest.param(
+                "",
+                {"about.py": "__version__ = '3.1'\n"},
+                _DYNAMIC_PROJECT + '[tool.setuptools.dynamic]\nversion = { attr = "srcpkg.about.__version__" }\n',
+                "3.1",
+                id="setuptools-attr",
+            ),
+            pytest.param(
+                "from srcpkg._meta import *\n",
+                {"_meta.py": "__all__ = ['__version__']\n__version__ = '2.7'\n"},
+                _DYNAMIC_PROJECT,
+                "2.7",
+                id="dynamic-star-reexport",
+            ),
+            pytest.param(
+                "from ._version import version as __version__\n",
+                {"_version.py": "version = '1.9'\n"},
+                None,
+                "1.9",
+                id="aliased-reexport",
+            ),
+            pytest.param(
+                "from ._meta import *\n", {"_meta.py": "__version__ = '0.1'\n"}, None, None, id="star-skips-private"
+            ),
+            pytest.param(
+                "__version__ = '1.0'\nfrom ._meta import *\n",
+                {"_meta.py": "__all__ = ['__version__']\n__version__ = compute()\n"},
+                None,
+                None,
+                id="star-nonliteral-clears-earlier-literal",
+            ),
+            pytest.param(
+                "__version__ = '1.0'\nfrom ._meta import *\n",
+                {"_meta.py": "__all__ = ['__version__']\nthis is not python\n"},
+                None,
+                None,
+                id="star-unreadable-clears-earlier-literal",
+            ),
+            pytest.param(
+                "__version__ = '1.0'\nfrom ._meta import *\n",
+                {"_meta.py": "__all__ = ['x']\n__all__ += ['__version__']\n__version__ = '2.0'\n"},
+                None,
+                None,
+                id="star-rebound-all-clears-earlier-literal",
+            ),
+            pytest.param(
+                "__version__ = '1.0'\nfrom ._meta import *\n",
+                {"_meta.py": "__all__ = []\n__all__.append('__version__')\n__version__ = '2.0'\n"},
+                None,
+                None,
+                id="star-mutated-all-clears-earlier-literal",
+            ),
+            pytest.param(
+                "__version__ = '1.0'\nfrom ._m1 import *\n",
+                {
+                    "_m1.py": "__all__ = ['__version__']\nfrom ._m2 import *\n",
+                    "_m2.py": "__all__ = ['__version__']\nfrom ._m3 import *\n",
+                    "_m3.py": "__all__ = ['__version__']\nfrom ._m4 import *\n",
+                    "_m4.py": "__all__ = ['__version__']\n__version__ = '2.0'\n",
+                },
+                None,
+                None,
+                id="star-chain-past-hop-budget-clears-earlier-literal",
+            ),
+            pytest.param(
+                "__version__ = '1.0'\nfrom ._meta import *\n",
+                {"_meta.py": "__version__ = '9.9'\n"},
+                None,
+                "1.0",
+                id="star-skipping-private-keeps-earlier-literal",
+            ),
+            pytest.param(
+                "__version__ = '1.0'\nfrom json import *\n",
+                {},
+                None,
+                None,
+                id="star-outside-roots-clears-earlier-literal",
+            ),
+            pytest.param("__version__ = '1.0'\nglobals()['__version__'] = '3.0'\n", {}, None, None, id="globals-write"),
+            pytest.param("__version__ = '1.0'\nvars().update(__version__='3.0')\n", {}, None, None, id="vars-update"),
+            pytest.param(
+                "__version__ = '1.0'\ndef inspect(obj): return vars(obj)\n", {}, None, "1.0", id="unrelated-vars"
+            ),
+            pytest.param(
+                "__version__ = '1.0'\ndef inspect(obj): return obj.modules\n", {}, None, "1.0", id="unrelated-modules"
+            ),
+            pytest.param(
+                "__version__ = '1.0'\nimport sys\nsys.modules[__name__].__version__ = '3.0'\n",
+                {},
+                None,
+                None,
+                id="module-attribute-write",
+            ),
+            pytest.param("", {}, None, None, id="nothing-to-read"),
+            pytest.param(
+                "__version__ = '0.0.0'\ntry:\n    from ._version import __version__\nexcept ImportError:\n    pass\n",
+                {"_version.py": "__version__ = '3.0'\n"},
+                None,
+                None,
+                id="try-rebind-is-unresolved",
+            ),
+            pytest.param(
+                "__version__ = '1.0'\nimport sys\nif sys.platform:\n    __version__ = '3.0'\n",
+                {},
+                None,
+                None,
+                id="conditional-rebind-is-unresolved",
+            ),
+            pytest.param(
+                "__version__ = '1.0'\ndef _bump():\n    global __version__\n    __version__ = '3.0'\n",
+                {},
+                None,
+                None,
+                id="global-rebind-is-unresolved",
+            ),
+            pytest.param(
+                "try:\n    import json\nexcept ImportError:\n    pass\n__version__ = '1.5'\n",
+                {},
+                None,
+                "1.5",
+                id="unrelated-compound-keeps-version",
+            ),
+        ],
+    )
+    def test_reads_version_from_source(
+        self,
+        tmp_path: Path,
+        init_head: str,
+        extra: dict[str, str],
+        pyproject: Optional[str],
+        expected: Optional[str],
+    ) -> None:
+        """Each layout yields its version without the package being imported, or ``None`` when none is spelled.
+
+        A static scan runs where the package's dependencies are missing, so importing it for ``__version__`` would
+        fail or run arbitrary code; the source, ``pyproject.toml`` and installed metadata are all it may read. A star
+        import binds ``__version__`` only through a literal ``__all__``, as at runtime. A rebinding whose outcome
+        depends on runtime (inside ``try`` or ``if``, or through a function's ``global``) leaves the version unresolved
+        rather than keeping the placeholder literal before it, which would silently pass every expiry check. A star
+        import that does export ``__version__`` rebinds it just the same, so a value the reader cannot read (a
+        computed one, a module that is not valid Python, a chain longer than it follows) clears the earlier literal;
+        one confirmed not to export it leaves it in place. An uninspectable external module may export it, so its
+        star import also leaves the version unresolved.
+
+        """
+        pkg = write_pkg(tmp_path, "srcpkg", init_head + _SENTINEL_TAIL)
+        for name, source in extra.items():
+            (pkg / name).write_text(source)
+        if pyproject is not None:
+            (tmp_path / "pyproject.toml").write_text(pyproject)
+        version = _resolve_package_version("srcpkg", path=str(pkg), allow_import=False, import_root=tmp_path)
+        assert (version, (pkg / "IMPORTED").exists()) == (expected, False)
+
+    def test_external_star_export_leaves_version_unresolved(self, tmp_path: Path) -> None:
+        """An external star import may replace the package's literal with its own exported version.
+
+        The external module is outside the scan root, so the static reader cannot inspect its export list even
+        though it could be available at runtime. Returning the earlier literal would report a stale version.
+
+        """
+        scan_root = tmp_path / "scan"
+        scan_root.mkdir()
+        pkg = write_pkg(scan_root, "srcpkg", "__version__ = '1.0'\nfrom external_meta import *\n")
+        (tmp_path / "external_meta.py").write_text("__all__ = ['__version__']\n__version__ = '2.0'\n")
+        assert _resolve_package_version("srcpkg", path=str(pkg), allow_import=False, import_root=scan_root) is None
+
+    @pytest.mark.parametrize(
+        "attr_module",
+        [
+            pytest.param("{outside}/m", id="absolute-part"),
+            pytest.param("srcpkg..about", id="empty-part"),
+            pytest.param("srcpkg/about", id="separator-in-part"),
+        ],
+    )
+    def test_setuptools_attr_must_be_a_dotted_name(self, tmp_path: Path, attr_module: str) -> None:
+        """A ``version.attr`` that is not a dotted module path reads no file, whatever file its text would name.
+
+        ``pyproject.toml`` is data a scanned repository controls, yet ``pathlib`` restarts a path at any absolute
+        component, so an attr such as ``/home/user/m.__version__`` would read ``m.py`` far outside the package and
+        report its ``__version__`` as the package's. Empty and ``/``-bearing parts collapse into a legitimate-looking
+        sub-path in the same way. Real setuptools values are dotted identifiers, so anything else is unresolved.
+
+        """
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        (outside / "m.py").write_text("__version__ = '6.6'\n")
+        pkg = write_pkg(tmp_path, "srcpkg", _SENTINEL_TAIL)
+        (pkg / "about.py").write_text("__version__ = '4.4'\n")
+        attr = attr_module.format(outside=outside.as_posix()) + ".__version__"
+        pyproject = _DYNAMIC_PROJECT + f'[tool.setuptools.dynamic]\nversion = {{ attr = "{attr}" }}\n'
+        (tmp_path / "pyproject.toml").write_text(pyproject)
+        version = _resolve_package_version("srcpkg", path=str(pkg), allow_import=False, import_root=tmp_path)
+        assert (version, (pkg / "IMPORTED").exists()) == (None, False)
+
+
+#: What :func:`_literal_all` reports for an ``__all__`` that source alone does not settle.
+_ALL_UNREADABLE = "has an `__all__` that is not one literal list of names"
+
+
+class TestLiteralAll:
+    """Tests for _literal_all() — the one reader of a module's ``__all__`` behind the version and static scans."""
+
+    @pytest.mark.parametrize(
+        ("source", "expected"),
+        [
+            pytest.param("__all__ = ['a', 'b']\n", {"a", "b"}, id="list"),
+            pytest.param("__all__ = ('a',)\n", {"a"}, id="tuple"),
+            pytest.param("__all__: list[str] = ['a']\n", {"a"}, id="annotated"),
+            pytest.param("__all__ = ['a']\n__all__: list[str]\n", {"a"}, id="annotation-only-is-no-binding"),
+            pytest.param("__all__ = []\n", set(), id="empty-list"),
+            pytest.param("x = 1\n", None, id="no-all"),
+            pytest.param("__all__ = ['a']\n__all__ += ['b']\n", _ALL_UNREADABLE, id="augmented"),
+            pytest.param("__all__ = ['a']\n__all__ = ['b']\n", _ALL_UNREADABLE, id="rebound"),
+            pytest.param("if x:\n    __all__ = ['a']\n", _ALL_UNREADABLE, id="conditional"),
+            pytest.param("__all__ = ['a'] + ['b']\n", _ALL_UNREADABLE, id="computed"),
+            pytest.param("__all__ = [*other, 'a']\n", _ALL_UNREADABLE, id="starred"),
+            pytest.param("__all__ = ['a', name]\n", _ALL_UNREADABLE, id="non-literal-name"),
+            pytest.param("from ._meta import __all__\n", _ALL_UNREADABLE, id="imported"),
+            pytest.param("__all__ = []\n__all__.append('a')\n", _ALL_UNREADABLE, id="appended-to"),
+            pytest.param("__all__ = ['a']\n__all__.extend(['b'])\n", _ALL_UNREADABLE, id="extended"),
+            pytest.param("__all__ = ['a']\n__all__[0] = 'b'\n", _ALL_UNREADABLE, id="item-assigned"),
+            pytest.param("__all__ = ['a']\nfor _name in __all__:\n    pass\n", _ALL_UNREADABLE, id="read-by-code"),
+            pytest.param(
+                "__all__ = ['a']\ndef _fn():\n    __all__.remove('a')\n", _ALL_UNREADABLE, id="mutated-in-function"
+            ),
+        ],
+    )
+    def test_reads_all_only_when_one_literal_binds_it(self, source: str, expected: object) -> None:
+        """A module's ``__all__`` is the set of names when exactly one literal list binds it, else why it is not read.
+
+        A star import copies the names ``__all__`` lists, so a reader that follows only the first assignment would
+        see an export the module's later ``+=`` or rebinding removes, or miss one it adds. Both the static scan and
+        the version reader answer "does this star import bind that name" from this one rule: no ``__all__`` is ``None``
+        (every public name), one literal list is a set, and anything the source does not settle is the reason. A list
+        changed in place (``__all__.append(...)``) is not settled by its one assignment either, so any other use of the
+        name makes it unreadable: a read-only use over-reports as a gap, never as a silently wrong export set.
+
+        """
+        assert _literal_all(ast.parse(source)) == expected
+
+
+class TestModuleSourceFile:
+    """Tests for _module_source_file() — locating a dotted module's source under the import roots."""
+
+    @pytest.mark.parametrize(
+        "module",
+        [
+            pytest.param("pkg/about", id="separator"),
+            pytest.param("pkg..about", id="empty-part"),
+            pytest.param("", id="empty-name"),
+            pytest.param("{outside}/m", id="absolute-part"),
+        ],
+    )
+    def test_rejects_a_name_that_is_not_dotted_identifiers(self, tmp_path: Path, module: str) -> None:
+        """A name with a ``/``, an empty part or an absolute part never leaves the roots to find a file.
+
+        Both the version reader and the static scan hand this function names taken from scanned source and
+        ``pyproject.toml``. ``Path.joinpath`` restarts at an absolute part and collapses empty ones, so only a name
+        made of identifiers may be looked up; the files below exist and would be returned if the name were joined.
+
+        """
+        root = tmp_path / "root"
+        root.mkdir()
+        (write_pkg(root, "pkg", "") / "about.py").write_text("")
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        (outside / "m.py").write_text("")
+        assert _module_source_file(module.format(outside=outside.as_posix()), [root]) is None
