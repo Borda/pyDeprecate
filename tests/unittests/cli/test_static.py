@@ -2068,3 +2068,138 @@ class TestStaticRegressionBindings:
             _StaticSource("plain", str(tmp_path), tmp_path, None), recursive=True, include_members=True, exclude=["b"]
         )
         assert "not statically resolvable" in capsys.readouterr().err
+
+    @pytest.mark.parametrize(
+        "helper",
+        [
+            pytest.param("def helper():\n        return object().method()", id="function-body"),
+            pytest.param("async def helper():\n        return object().method()", id="async-function-body"),
+            pytest.param("helper = lambda: object().method()", id="lambda-body"),
+        ],
+    )
+    def test_deferred_call_does_not_interrupt_with_body(self, tmp_path: Path, helper: str) -> None:
+        """A call in a deferred function body cannot stop the surrounding context manager.
+
+        An uncalled helper before a deprecated function must not hide that live wrapper from a static scan.
+        """
+        pkg = _write(
+            tmp_path,
+            {
+                "__init__.py": f"from contextlib import nullcontext\n{_DEP}with nullcontext():\n    {helper}\n"
+                f"    @{_EXPIRED}\n    def old(): pass\n"
+            },
+        )
+        assert [row.function for row in _read_package(pkg)] == ["old"]
+
+    @pytest.mark.parametrize(
+        "helper",
+        [
+            pytest.param("def helper(value=fail()): pass", id="default-argument"),
+            pytest.param("@fail()\n    def helper(): pass", id="decorator"),
+        ],
+    )
+    def test_definition_time_call_can_interrupt_with_body(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str], helper: str
+    ) -> None:
+        """A function default or decorator executes before a later wrapper is bound.
+
+        A suppressing context manager may stop at that call, so the later wrapper must remain unresolved.
+        """
+        pkg = _write(
+            tmp_path,
+            {
+                "__init__.py": f"from contextlib import suppress\n{_DEP}with suppress(Exception):\n    {helper}\n"
+                f"    @{_EXPIRED}\n    def old(): pass\n"
+            },
+        )
+        assert _read_package(pkg) == []
+        assert "not statically resolvable" in capsys.readouterr().err
+
+    @pytest.mark.parametrize(
+        "nested",
+        [
+            pytest.param("def run(self):\n        def __call__(self): pass", id="nested-function"),
+            pytest.param("class Inner:\n        def __call__(self): pass", id="nested-class"),
+        ],
+    )
+    def test_nested_call_method_does_not_make_target_callable(self, tmp_path: Path, nested: str) -> None:
+        """A call method in a nested scope does not make the enclosing class callable.
+
+        Static policy must still flag a data replacement that provides no migration guidance.
+        """
+        pkg = _write(
+            tmp_path,
+            {
+                "__init__.py": f"from deprecate import deprecated_instance\nclass Target:\n    {nested}\n"
+                "old = deprecated_instance({}, target=Target(), deprecated_in='1.0', remove_in='2.0')\n"
+            },
+        )
+        findings = _static_policy_findings(_read_package(pkg), _GUIDANCE_ONLY)
+        assert [finding.id for finding in findings] == [f"message-required:{_PKG}:old"]
+
+    def test_comprehension_target_does_not_make_class_callable(self, tmp_path: Path) -> None:
+        """A comprehension variable is local to the comprehension, not a class attribute.
+
+        A data target with a comprehension variable named like the call method still needs guidance.
+        """
+        pkg = _write(
+            tmp_path,
+            {
+                "__init__.py": "from deprecate import deprecated_instance\n"
+                "class Target:\n    values = [__call__ for __call__ in range(2)]\n"
+                "old = deprecated_instance({}, target=Target(), deprecated_in='1.0', remove_in='2.0')\n"
+            },
+        )
+        findings = _static_policy_findings(_read_package(pkg), _GUIDANCE_ONLY)
+        assert [finding.id for finding in findings] == [f"message-required:{_PKG}:old"]
+
+    def test_imported_call_method_makes_class_callability_unresolved(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """An imported class-body binding can make instances callable.
+
+        An imported call method must not be treated as proof that a replacement is plain data.
+        """
+        pkg = _write(
+            tmp_path,
+            {
+                "__init__.py": "from deprecate import deprecated_instance\n"
+                "class Target:\n    from math import sin as __call__\n"
+                "old = deprecated_instance({}, target=Target(), deprecated_in='1.0', remove_in='2.0')\n"
+            },
+        )
+        assert _static_policy_findings(_read_package(pkg), _GUIDANCE_ONLY) == []
+        assert "not statically resolvable" in capsys.readouterr().err
+
+    def test_generator_body_does_not_interrupt_with_body(self, tmp_path: Path) -> None:
+        """A generator expression defers its element expression until iteration.
+
+        Creating an unconsumed generator cannot prevent a later wrapper from being bound.
+        """
+        pkg = _write(
+            tmp_path,
+            {
+                "__init__.py": f"from contextlib import nullcontext\n{_DEP}with nullcontext():\n"
+                "    values = (fail() for item in (1, 2))\n"
+                f"    @{_EXPIRED}\n    def old(): pass\n"
+            },
+        )
+        assert [row.function for row in _read_package(pkg)] == ["old"]
+
+    def test_generator_outer_iterable_can_interrupt_with_body(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A generator expression evaluates its first iterable immediately.
+
+        A failing iterable call can be suppressed before a later wrapper is created.
+        """
+        pkg = _write(
+            tmp_path,
+            {
+                "__init__.py": f"from contextlib import suppress\n{_DEP}with suppress(Exception):\n"
+                "    values = (item for item in fail())\n"
+                f"    @{_EXPIRED}\n    def old(): pass\n"
+            },
+        )
+        assert _read_package(pkg) == []
+        assert "not statically resolvable" in capsys.readouterr().err

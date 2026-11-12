@@ -84,11 +84,22 @@ def _may_be_callable_class(node: ast.ClassDef) -> bool:
     """
     if node.keywords or any(not (isinstance(base, ast.Name) and base.id == "object") for base in node.bases):
         return True
-    return any(
-        (isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)) and stmt.name == "__call__")
-        or (isinstance(stmt, (ast.Assign, ast.AnnAssign)) and "__call__" in ast.unparse(stmt))
-        for stmt in ast.walk(node)
-    )
+    stack: list[ast.AST] = list(node.body)
+    while stack:
+        stmt = stack.pop()
+        if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            if stmt.name == "__call__":
+                return True
+            continue  # bindings inside a nested scope do not belong to this class
+        if isinstance(stmt, ast.Name) and stmt.id == "__call__" and isinstance(stmt.ctx, ast.Store):
+            return True
+        if isinstance(stmt, (ast.Import, ast.ImportFrom)) and any(
+            (alias.asname or alias.name.split(".")[0]) == "__call__" for alias in stmt.names
+        ):
+            return True
+        if not isinstance(stmt, (ast.Lambda, ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)):
+            stack.extend(ast.iter_child_nodes(stmt))
+    return False
 
 
 @dataclass(eq=False)

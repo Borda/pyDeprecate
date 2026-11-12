@@ -36,7 +36,6 @@ from deprecate._cli.static.scope import (
     _escaped_names,
     _is_dataclass,
     _is_memberless_module,
-    _module_level_nodes,
     _NameBinding,
     _PyDeprecateNames,
     _scope_events,
@@ -52,6 +51,30 @@ from deprecate._cli.static.targets import (
 )
 from deprecate._types import DeprecationConfig
 from deprecate.audit._version import _absolute_import
+
+
+def _may_interrupt_execution(stmt: ast.stmt) -> bool:
+    """Detect calls or imports executed while a module-level statement runs."""
+    stack: list[ast.AST] = [stmt]
+    while stack:
+        node = stack.pop()
+        if isinstance(node, (ast.Call, ast.Import, ast.ImportFrom)):
+            return True
+        if isinstance(node, ast.GeneratorExp):
+            # The first iterable runs now; the generator's remaining expressions run during iteration.
+            stack.append(node.generators[0].iter)
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+            # Defaults, annotations and decorators may execute at definition time; function bodies do not.
+            for field, value in ast.iter_fields(node):
+                if field == "body":
+                    continue
+                if isinstance(value, ast.AST):
+                    stack.append(value)
+                elif isinstance(value, list):
+                    stack.extend(child for child in value if isinstance(child, ast.AST))
+        else:
+            stack.extend(ast.iter_child_nodes(node))
+    return False
 
 
 class _ModuleAnalyzer:
@@ -159,13 +182,7 @@ class _ModuleAnalyzer:
                 if may_interrupt:
                     self._rebind_opaque(inner)
                     continue
-                module_nodes = _module_level_nodes(ast.Module(body=[inner], type_ignores=[]))
-                may_interrupt = any(
-                    isinstance(node, ast.Call)
-                    or isinstance(node, (ast.Import, ast.ImportFrom))
-                    and id(node) in module_nodes
-                    for node in ast.walk(inner)
-                )
+                may_interrupt = _may_interrupt_execution(inner)
             self._statement(inner)
 
     def _rebind_opaque(self, stmt: ast.stmt) -> None:
