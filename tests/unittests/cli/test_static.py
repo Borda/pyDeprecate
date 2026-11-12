@@ -1787,3 +1787,140 @@ class TestDynamicSourceBindings:
         )
         assert _rows(_read_package(pkg)) == [f"{_PKG}.base:Base.old"]
         assert "members inherited from `base.Base`" in capsys.readouterr().err
+
+
+class TestStaticRegressionBindings:
+    """Exercise static scans of bindings whose runtime values differ from their syntax."""
+
+    def test_class_member_alias_survives_rebinding(self, probe_package: Callable[..., Path]) -> None:
+        """An old method remains exposed through an alias after its original name is replaced.
+
+        Both scanners must identify the remaining class attribute as the deprecated wrapper.
+        """
+        pkg = probe_package(
+            {
+                "__init__.py": f"{_DEP}class API:\n    @{_EXPIRED}\n    def old(self): pass\n"
+                "    alias = old\n    old = None\n"
+            }
+        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            imported = [info.function for info in find_deprecation_wrappers(_PKG)]
+        assert [info.function for info in _read_package(pkg)] == imported == ["API.alias"]
+
+    def test_suppressed_exception_in_with_reports_gap(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        """A context manager can suppress an exception before a wrapper is rebound.
+
+        The scan must not silently assume the later assignment ran.
+        """
+        pkg = _write(
+            tmp_path,
+            {
+                "__init__.py": f"from contextlib import suppress\n{_DEP}@{_EXPIRED}\ndef old(): pass\n"
+                "with suppress(ValueError):\n    raise ValueError()\n    old = None\n"
+            },
+        )
+        rows = _read_package(pkg)
+        assert [info.function for info in rows] == ["old"] or "not statically resolvable" in capsys.readouterr().err
+
+    def test_first_with_assignment_can_fail(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        """A failed assignment can be suppressed before it replaces a wrapper.
+
+        An exception in the first statement leaves the original name live at runtime.
+        """
+        pkg = _write(
+            tmp_path,
+            {
+                "__init__.py": f"from contextlib import suppress\n{_DEP}@{_EXPIRED}\ndef old(): pass\n"
+                "with suppress(ValueError):\n    old = int('bad')\n"
+            },
+        )
+        _read_package(pkg)
+        assert "not statically resolvable" in capsys.readouterr().err
+
+    def test_suppressed_call_does_not_create_phantom(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        """A suppressed error can prevent a later decorator from running.
+
+        Static analysis must not report a wrapper that may never have been created.
+        """
+        pkg = _write(
+            tmp_path,
+            {
+                "__init__.py": f"from contextlib import suppress\n{_DEP}"
+                "with suppress(ValueError):\n    int('bad')\n"
+                f"    @{_EXPIRED}\n    def old(): pass\n"
+            },
+        )
+        assert _read_package(pkg) == []
+        assert "not statically resolvable" in capsys.readouterr().err
+
+    def test_module_wrapper_aliased_into_class(self, probe_package: Callable[..., Path]) -> None:
+        """A class can expose a deprecated module-level function as a method.
+
+        Class lookup falls back to globals when the class has not bound the name.
+        """
+        pkg = probe_package({"__init__.py": f"{_DEP}@{_EXPIRED}\ndef old(): pass\nclass API:\n    alias = old\n"})
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            imported = [info.function for info in find_deprecation_wrappers(_PKG)]
+        assert [info.function for info in _read_package(pkg)] == imported
+
+    def test_unknown_proxy_callability_reports_gap(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        """A factory can return non-callable data to a deprecated instance proxy.
+
+        Without knowing whether the object can be called, the mapping cannot establish guidance.
+        """
+        pkg = _write(
+            tmp_path,
+            {
+                "__init__.py": "from deprecate import deprecated_instance\n"
+                "def factory(): return {}\n"
+                "old = deprecated_instance(factory(), args_mapping={'old': 'new'}, "
+                "deprecated_in='1.0', remove_in='2.0')\n"
+            },
+        )
+        _static_policy_findings(_read_package(pkg), _GUIDANCE_ONLY)
+        assert "callability" in capsys.readouterr().err
+
+    def test_class_target_alias_uses_class_scope(self, probe_package: Callable[..., Path]) -> None:
+        """A class-local alias of NOTIFY must not masquerade as migration guidance.
+
+        The static policy check must agree with the imported class's policy result.
+        """
+        pkg = probe_package(
+            {
+                "__init__.py": f"from deprecate import TargetMode\n{_DEP}class API:\n"
+                "    MODE = TargetMode.NOTIFY\n    REPL = MODE\n"
+                "    @deprecated(target=REPL, deprecated_in='1.0', remove_in='2.0')\n"
+                "    def old(self): pass\n"
+            }
+        )
+        imported = [f.id for f in _policy_findings(find_deprecation_wrappers(_PKG), _GUIDANCE_ONLY)]
+        assert [f.id for f in _static_policy_findings(_read_package(pkg), _GUIDANCE_ONLY)] == imported
+        assert imported
+
+    def test_noncallable_instance_mapping_is_inert(self, probe_package: Callable[..., Path]) -> None:
+        """A call mapping on a dictionary proxy cannot guide callers.
+
+        Both policy paths must report the missing migration guidance.
+        """
+        pkg = probe_package(
+            {
+                "__init__.py": "from deprecate import deprecated_instance\n"
+                "old = deprecated_instance({}, args_mapping={'old': 'new'}, "
+                "deprecated_in='1.0', remove_in='2.0')\n"
+            }
+        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            imported = [f.id for f in _policy_findings(find_deprecation_wrappers(_PKG), _GUIDANCE_ONLY)]
+        assert [f.id for f in _static_policy_findings(_read_package(pkg), _GUIDANCE_ONLY)] == imported
+        assert imported
+
+    def test_excluded_root_has_no_rows(self, tmp_path: Path) -> None:
+        """An excluded package root must not contribute its deprecated wrappers.
+
+        A root-only scan should honor the same exclusion as an import scan.
+        """
+        pkg = _write(tmp_path, {"__init__.py": f"{_DEP}@{_EXPIRED}\ndef old(): pass\n"})
+        assert _read_package(pkg, exclude=(_PKG,)) == []

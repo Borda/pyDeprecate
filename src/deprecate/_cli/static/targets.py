@@ -113,8 +113,9 @@ class _TargetClassifier:
         if event.kind == "import":
             return self._imported(node, event)
         settled = events is not self.scope.events or not self.scope.unsettled
-        if event.kind == "assign" and depth == 0 and isinstance(event.value, ast.expr) and settled:
-            read = self.classify(event.value, {}, depth + 1)
+        # Bound recursion so a cyclic alias is reported unresolved rather than looping.
+        if event.kind == "assign" and depth < 16 and isinstance(event.value, ast.expr) and settled:
+            read = self.classify(event.value, shadow, depth + 1)
             if read.reason is None:
                 return read if read.value[0] == "const" else _SettingValue(("replacement", node.id, read.value[2]))
             unsettled = f"`target` is `{node.id}`, which is not bound to a literal or a definition"

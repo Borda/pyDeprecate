@@ -137,12 +137,28 @@ class _ModuleAnalyzer:
                 return
             body = stmt.orelse  # an ``if TYPE_CHECKING:`` body is read by type checkers only; its ``else`` always runs
         else:
-            # a ``with`` body always runs (``with catch_warnings():`` around decorations is common), so it is read
-            # as module-level code; its ``as`` targets bind opaque values
+            # A ``with`` body starts as module-level code; its ``as`` targets bind opaque values.
             for name in _scope_events([ast.Expr(item.optional_vars) for item in stmt.items if item.optional_vars]):
                 self._set(name, None)
             body = stmt.body
+        may_interrupt = False
+        non_suppressing = isinstance(stmt, (ast.With, ast.AsyncWith)) and all(
+            isinstance(item.context_expr, ast.Call)
+            and self._qualified(item.context_expr.func) == "warnings.catch_warnings"
+            for item in stmt.items
+        )
         for inner in body:
+            if not isinstance(stmt, ast.If) and not non_suppressing:
+                # A context manager may suppress an exception before a binding executes.
+                for name in _scope_events([inner]):
+                    if may_interrupt or isinstance(self.bindings.get(name), (_SourceWrapper, _PlainClass)):
+                        self.lookup_gaps.append(self._rebound_gap(stmt, name))
+                if isinstance(inner, ast.Raise):
+                    break
+                if may_interrupt:
+                    self._rebind_opaque(inner)
+                    continue
+                may_interrupt = any(isinstance(node, ast.Call) for node in ast.walk(inner))
             self._statement(inner)
 
     def _rebind_opaque(self, stmt: ast.stmt) -> None:
@@ -401,19 +417,39 @@ class _ModuleAnalyzer:
             targets = stmt.targets if isinstance(stmt, ast.Assign) else [stmt.target]
             for target in targets:
                 if isinstance(target, ast.Name):
-                    info.members[target.id] = self._wrapper_expr(stmt.value, attr=target.id, shadow=body_scope)
+                    if isinstance(stmt.value, ast.Name):
+                        info.members[target.id] = self._class_alias(info, stmt.value.id, target.id)
+                    else:
+                        info.members[target.id] = self._wrapper_expr(stmt.value, attr=target.id, shadow=body_scope)
         else:
             self._opaque_members(info, stmt)
+
+    def _class_alias(self, info: _PlainClass, source: str, target: str) -> Optional[_SourceWrapper]:
+        """Resolve a class or module binding and classify it under the exposed member name."""
+        member = info.members.get(source) if source in info.members else self.bindings.get(source)
+        if not isinstance(member, _SourceWrapper):
+            return None
+        descriptor = (
+            "classmethod"
+            if member.api_type.startswith("classmethod")
+            else "staticmethod"
+            if member.api_type.startswith("staticmethod")
+            else None
+        )
+        return replace(member, api_type=_member_api_type(target, descriptor)(bool(member.config.args_mapping)))
 
     def _opaque_members(self, info: _PlainClass, stmt: ast.stmt) -> None:
         """Bind each member *stmt* assigns to no wrapper, reporting a deprecated one an ``if`` or ``try`` may replace.
 
         As for module-level names (:meth:`_rebind_opaque`): whether an ``if``, ``try`` or loop body runs is not settled
         by the source, so a deprecated member it rebinds may still hold its wrapper at runtime, where the import scan
-        reports it; a ``with`` body always runs, so the member it rebinds is replaced for certain.
+        reports it. A multi-statement ``with`` body may stop before a rebinding if its manager suppresses an error.
 
         """
-        conditional = isinstance(stmt, _CONDITIONAL_STATEMENTS)
+        conditional = isinstance(stmt, _CONDITIONAL_STATEMENTS) or (
+            isinstance(stmt, (ast.With, ast.AsyncWith))
+            and any(isinstance(node, (ast.Call, ast.Raise)) for inner in stmt.body for node in ast.walk(inner))
+        )
         for name in _scope_events([stmt]):
             if conditional and isinstance(info.members.get(name), _SourceWrapper):
                 self.lookup_gaps.append(self._rebound_gap(stmt, name))
@@ -458,7 +494,19 @@ class _ModuleAnalyzer:
             self.consumed.add(id(value.func))
             args = self._bind(value, _Factory.INSTANCE, shadow)
             api_type = _member_api_type(attr, None) if attr is not None else self._instance_api_type(args)
-            return self._finish(self._read_settings(args, value, shadow), _TargetRoute.INSTANCE, api_type, proxy=True)
+            wrapper = self._finish(
+                self._read_settings(args, value, shadow), _TargetRoute.INSTANCE, api_type, proxy=True
+            )
+            obj = args.given.get("obj")
+            if obj is not None and wrapper.config.args_mapping and not callable(wrapper.config.target):
+                classification = self.targets.classify(obj, shadow, 0)
+                if classification.value[0] == "data":
+                    wrapper = replace(wrapper, config=replace(wrapper.config, call_options_inert=True))
+                elif classification.value[0] != "replacement" or classification.value[2] != "def":
+                    wrapper.unresolved["args_mapping"] = (
+                        f"{self.where}:{value.lineno}: callability of the proxied object is not settled"
+                    )
+            return wrapper
         if len(value.args) != 1 or value.keywords:
             return None
         factory = self._factory_call(value.func, (_Factory.DEPRECATED, _Factory.CALLABLE, _Factory.CLASS), shadow)

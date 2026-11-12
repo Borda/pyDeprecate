@@ -13,6 +13,7 @@ from deprecate._cli.static.discovery import _plain_modules, _StaticSource, _walk
 from deprecate._cli.static.model import _ModuleFacts, _PlainClass, _SourceWrapper, _StaticWrapperInfo
 from deprecate._cli.static.reader import _TreeReader
 from deprecate.audit import DeprecationWrapperInfo
+from deprecate.audit._scan import _is_excluded
 
 
 def _row(module: str, function: str, wrapper: _SourceWrapper) -> _StaticWrapperInfo:
@@ -105,4 +106,4 @@ def _read_static(
         )
     for detail in reader.unwalked_gaps([module for module, _ in modules]):
         _print_gap(_GapKind.STATIC_UNRESOLVED, detail)
-    return rows
+    return [row for row in rows if not _is_excluded(row.module, exclude)]
