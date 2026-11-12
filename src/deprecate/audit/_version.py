@@ -325,12 +325,50 @@ def _module_string(
         return _UNBOUND
     if any(isinstance(node, ast.Global) and name in node.names for node in ast.walk(tree)):
         return None  # a function may rebind it at runtime
+    if _namespace_may_rebind(tree, name):
+        return None
     found: Optional[str] = None
     for node in tree.body:
         found = _rebound_string(
             node, found, name, module=module, is_package=source.name == "__init__.py", roots=roots, hops=hops
         )
     return found
+
+
+def _namespace_may_rebind(tree: ast.Module, name: str) -> bool:
+    """Detect namespace access that can mutate a binding without a name store."""
+    # Namespace objects can escape through aliases or be mutated indirectly.
+    sys_names = {
+        alias.asname or "sys"
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Import)
+        for alias in node.names
+        if alias.name == "sys"
+    }
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id in {"globals", "vars"}
+            and not node.args
+            and not node.keywords
+        ):
+            return True
+        if isinstance(node, ast.Attribute) and (
+            (node.attr == "modules" and isinstance(node.value, ast.Name) and node.value.id in sys_names)
+            or (node.attr == name and isinstance(node.ctx, (ast.Store, ast.Del)))
+        ):
+            return True
+        if isinstance(node, ast.ImportFrom) and node.module == "sys" and any(a.name == "modules" for a in node.names):
+            return True
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id in {"setattr", "delattr"}
+            and (len(node.args) < 2 or not isinstance(node.args[1], ast.Constant) or node.args[1].value == name)
+        ):
+            return True
+    return False
 
 
 def _rebound_string(

@@ -507,6 +507,21 @@ class TestResolveWithoutImport:
                 None,
                 id="star-outside-roots-clears-earlier-literal",
             ),
+            pytest.param("__version__ = '1.0'\nglobals()['__version__'] = '3.0'\n", {}, None, None, id="globals-write"),
+            pytest.param("__version__ = '1.0'\nvars().update(__version__='3.0')\n", {}, None, None, id="vars-update"),
+            pytest.param(
+                "__version__ = '1.0'\ndef inspect(obj): return vars(obj)\n", {}, None, "1.0", id="unrelated-vars"
+            ),
+            pytest.param(
+                "__version__ = '1.0'\ndef inspect(obj): return obj.modules\n", {}, None, "1.0", id="unrelated-modules"
+            ),
+            pytest.param(
+                "__version__ = '1.0'\nimport sys\nsys.modules[__name__].__version__ = '3.0'\n",
+                {},
+                None,
+                None,
+                id="module-attribute-write",
+            ),
             pytest.param("", {}, None, None, id="nothing-to-read"),
             pytest.param(
                 "__version__ = '0.0.0'\ntry:\n    from ._version import __version__\nexcept ImportError:\n    pass\n",
