@@ -36,6 +36,7 @@ from deprecate._cli.static.scope import (
     _escaped_names,
     _is_dataclass,
     _is_memberless_module,
+    _module_level_nodes,
     _NameBinding,
     _PyDeprecateNames,
     _scope_events,
@@ -158,7 +159,13 @@ class _ModuleAnalyzer:
                 if may_interrupt:
                     self._rebind_opaque(inner)
                     continue
-                may_interrupt = any(isinstance(node, ast.Call) for node in ast.walk(inner))
+                module_nodes = _module_level_nodes(ast.Module(body=[inner], type_ignores=[]))
+                may_interrupt = any(
+                    isinstance(node, ast.Call)
+                    or isinstance(node, (ast.Import, ast.ImportFrom))
+                    and id(node) in module_nodes
+                    for node in ast.walk(inner)
+                )
             self._statement(inner)
 
     def _rebind_opaque(self, stmt: ast.stmt) -> None:
@@ -317,7 +324,7 @@ class _ModuleAnalyzer:
         own = (
             name is None
             or (isinstance(name, ast.Name) and name.id == "__name__")
-            or (isinstance(name, ast.Constant) and name.value == self.parsed.name)
+            or (isinstance(name, ast.Constant) and name.value in (None, self.parsed.name))
         )
         if not own or args.splat is not None and "name" not in args.given:
             return

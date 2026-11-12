@@ -1924,3 +1924,147 @@ class TestStaticRegressionBindings:
         """
         pkg = _write(tmp_path, {"__init__.py": f"{_DEP}@{_EXPIRED}\ndef old(): pass\n"})
         assert _read_package(pkg, exclude=(_PKG,)) == []
+
+    def test_suppressed_import_does_not_create_phantom(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A suppressed missing optional import prevents a later wrapper from being created.
+
+        Static scanning must report the uncertainty instead of claiming the skipped wrapper exists.
+        """
+        pkg = _write(
+            tmp_path,
+            {
+                "__init__.py": f"from contextlib import suppress\n{_DEP}"
+                "with suppress(ImportError):\n    import unavailable_optional_dependency\n"
+                f"    @{_EXPIRED}\n    def old(): pass\n"
+            },
+        )
+        assert _read_package(pkg) == []
+        assert "not statically resolvable" in capsys.readouterr().err
+
+    def test_explicit_none_names_current_module(self, tmp_path: Path) -> None:
+        """An explicit None module name has the same meaning as an omitted name.
+
+        Projects passing it explicitly still need their module removal deadline audited.
+        """
+        pkg = _write(
+            tmp_path,
+            {
+                "__init__.py": "from deprecate import deprecated_module\n"
+                "deprecated_module(None, deprecated_in='1.0', remove_in='2.0')\n"
+            },
+        )
+        assert [row.function for row in _read_package(pkg)] == [""]
+
+    def test_conditional_callable_target_is_unresolved(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A conditional call method may make a target callable.
+
+        The scanner must not classify that instance as definitely non-callable data.
+        """
+        pkg = _write(
+            tmp_path,
+            {
+                "__init__.py": "from deprecate import deprecated_instance\n"
+                "class Target:\n    if True:\n        def __call__(self): pass\n"
+                "old = deprecated_instance({}, target=Target(), deprecated_in='1.0', remove_in='2.0')\n"
+            },
+        )
+        _static_policy_findings(_read_package(pkg), _GUIDANCE_ONLY)
+        assert "not statically resolvable" in capsys.readouterr().err
+
+    def test_plain_directory_sibling_reexport_is_not_silent(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """An excluded sibling can still be re-exported by a scanned module.
+
+        A directory scan must report the wrapper or a gap when it cannot follow the import.
+        """
+        (tmp_path / "a.py").write_text("from b import old\n")
+        (tmp_path / "b.py").write_text(f"{_DEP}@{_EXPIRED}\ndef old(): pass\n")
+        rows = _read_static(
+            _StaticSource("plain", str(tmp_path), tmp_path, None), recursive=True, include_members=True, exclude=["b"]
+        )
+        assert [(row.module, row.function) for row in rows] == [("a", "old")] or (
+            "import from `b` is not audited" in capsys.readouterr().err
+        )
+
+    def test_unknown_earlier_base_does_not_claim_inherited_wrapper(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """An external base may shadow a later local deprecated method.
+
+        The scanner must retain the unknown-base gap without reporting an uncertain inherited row.
+        """
+        pkg = _write(
+            tmp_path,
+            {
+                "__init__.py": f"{_DEP}from external_package import External\n"
+                f"class Local:\n    @{_EXPIRED}\n    def old(self): pass\n"
+                "class Child(External, Local): pass\n"
+            },
+        )
+        assert "Child.old" not in [row.function for row in _read_package(pkg)]
+        assert "not statically resolvable" in capsys.readouterr().err
+
+    def test_import_inside_function_does_not_interrupt_with_body(self, tmp_path: Path) -> None:
+        """An import inside an uncalled function does not interrupt a module-level context manager.
+
+        A wrapper defined after the function is created normally and must remain visible.
+        """
+        pkg = _write(
+            tmp_path,
+            {
+                "__init__.py": f"from contextlib import nullcontext\n{_DEP}"
+                "with nullcontext():\n    def helper():\n        import os\n"
+                f"    @{_EXPIRED}\n    def old(): pass\n"
+            },
+        )
+        assert [row.function for row in _read_package(pkg)] == ["old"]
+
+    def test_function_local_sibling_import_has_no_reexport_gap(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A function-local import does not create a module re-export.
+
+        An uncalled helper importing a sibling should not report a missing module-level wrapper.
+        """
+        (tmp_path / "a.py").write_text("def helper():\n    from b import old\n")
+        (tmp_path / "b.py").write_text("old = 1\n")
+        _read_static(
+            _StaticSource("plain", str(tmp_path), tmp_path, None), recursive=True, include_members=True, exclude=["b"]
+        )
+        assert "not statically resolvable" not in capsys.readouterr().err
+
+    def test_shared_unknown_base_preserves_visible_member(self, tmp_path: Path) -> None:
+        """A shared external base follows both local branches in the C3 order.
+
+        A method on the later local branch stays visible ahead of their shared unknown ancestor.
+        """
+        pkg = _write(
+            tmp_path,
+            {
+                "__init__.py": f"{_DEP}from external_package import External\n"
+                "class A(External): pass\n"
+                f"class B(External):\n    @{_EXPIRED}\n    def old(self): pass\n"
+                "class Child(A, B): pass\n"
+            },
+        )
+        assert "Child.old" in [row.function for row in _read_package(pkg)]
+
+    def test_plain_directory_sibling_package_reexport_is_not_silent(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A sibling package can be re-exported from a scanned top-level module.
+
+        An excluded sibling package must still produce a gap when its exported wrapper cannot be read.
+        """
+        (tmp_path / "a.py").write_text("from b import old\n")
+        (tmp_path / "b").mkdir()
+        (tmp_path / "b" / "__init__.py").write_text(f"{_DEP}@{_EXPIRED}\ndef old(): pass\n")
+        _read_static(
+            _StaticSource("plain", str(tmp_path), tmp_path, None), recursive=True, include_members=True, exclude=["b"]
+        )
+        assert "not statically resolvable" in capsys.readouterr().err

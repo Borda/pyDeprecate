@@ -87,7 +87,7 @@ def _may_be_callable_class(node: ast.ClassDef) -> bool:
     return any(
         (isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)) and stmt.name == "__call__")
         or (isinstance(stmt, (ast.Assign, ast.AnnAssign)) and "__call__" in ast.unparse(stmt))
-        for stmt in node.body
+        for stmt in ast.walk(node)
     )
 
 

@@ -174,6 +174,22 @@ class _TreeReader:
             facts = self._analyze(parsed, isolated=False) if parsed is not None else None
             if facts is not None:
                 self._expand_stars(module, facts)
+                if self.source.kind == "plain" and parsed is not None:
+                    # Sibling imports may expose wrappers even when the sibling is excluded from the walk.
+                    module_nodes = _module_level_nodes(parsed.tree)
+                    for node in ast.walk(parsed.tree):
+                        if (
+                            isinstance(node, ast.ImportFrom)
+                            and id(node) in module_nodes
+                            and node.module
+                            and (
+                                (self.source.location / f"{node.module}.py").is_file()
+                                or (self.source.location / node.module / "__init__.py").is_file()
+                            )
+                        ):
+                            facts.gaps.append(
+                                f"{module}: import from `{node.module}` is not audited in a plain directory"
+                            )
             self._in_progress.discard(module)
             self._facts[module] = facts
         return self._facts[module]
@@ -308,12 +324,17 @@ class _TreeReader:
 
         """
         merged: dict[str, Optional[_SourceWrapper]] = {}
-        for cls in self._mro(info, unaudited, depth=0):
+        unknown: dict[tuple[str, str], _PlainClass] = {}
+        for cls in self._mro(info, unaudited, unknown, depth=0):
+            if cls in unknown.values():
+                break  # an unread base may hide any member of a later base
             for attr, wrapper in cls.members.items():
                 merged.setdefault(attr, wrapper)
         return {attr: wrapper for attr, wrapper in merged.items() if wrapper is not None}
 
-    def _mro(self, info: _PlainClass, unaudited: list[str], depth: int) -> list[_PlainClass]:
+    def _mro(
+        self, info: _PlainClass, unaudited: list[str], unknown: dict[tuple[str, str], _PlainClass], depth: int
+    ) -> list[_PlainClass]:
         """Return the C3 linearization of *info* over the bases the reader resolves, noting the others."""
         bases: list[_PlainClass] = []
         for base in info.bases:
@@ -322,9 +343,13 @@ class _TreeReader:
                 bases.append(resolved)
             elif isinstance(resolved, _PlainClass):
                 unaudited.append(f"`{ast.unparse(base)}` (base classes nest more than {_BASE_DEPTH} levels)")
+                key = (info.module, ast.unparse(base))
+                bases.append(unknown.setdefault(key, _PlainClass(info.module, {}, [])))
             elif resolved is not None:
                 unaudited.append(f"`{ast.unparse(base)}` ({resolved})")
-        return _c3_merge(info, [self._mro(base, unaudited, depth + 1) for base in bases] + [bases])
+                key = (info.module, ast.unparse(base))
+                bases.append(unknown.setdefault(key, _PlainClass(info.module, {}, [])))
+        return _c3_merge(info, [self._mro(base, unaudited, unknown, depth + 1) for base in bases] + [bases])
 
     def _base(self, module: str, base: ast.expr) -> Union[_PlainClass, str, None]:
         """Return the in-tree class a base expression names, ``None`` for a memberless one, else why it is unread."""
