@@ -44,6 +44,24 @@ from tests.collections.api_deprecated.regressions import (
 from tests.unittests.proxy._helpers import _future_warning_count
 
 
+def _positional_default_echo(x: int = 1, /, **kwargs: object) -> tuple[int, dict[str, object]]:
+    """Return the positional-only ``x`` and the extra keywords, showing which slot a caller's keyword reached."""
+    return x, kwargs
+
+
+def _positional_pair(a: int = 0, b: int = 0, /) -> tuple[int, int]:
+    """Return both positional-only parameters, showing which value reached ``a``."""
+    return a, b
+
+
+class _PositionalDefaultRecord(tuple):
+    """Tuple of the positional-only ``x`` and the extra keywords its constructor received."""
+
+    def __new__(cls, x: int = 1, /, **kwargs: object) -> "_PositionalDefaultRecord":
+        """Record ``x`` and the extra keywords as a ``(x, kwargs)`` pair."""
+        return super().__new__(cls, (x, kwargs))
+
+
 class TestProxyCallGlobal:
     """Direct coverage of globally warned call forwarding."""
 
@@ -229,6 +247,206 @@ class TestArgsMapping:
         """
         with pytest.warns(FutureWarning), pytest.warns(UserWarning, match=r"`old_key`.*is ignored"):
             ProxyArgsRemapForArgWarnMessage(old_key=5, new_key=6)  # type: ignore[call-arg]
+
+
+class TestArgsRemapUntouchedCall:
+    """An ``args_mapping`` proxy forwards a call that uses no deprecated keyword exactly as the caller made it."""
+
+    @pytest.mark.parametrize(
+        "build_alias",
+        [
+            pytest.param(
+                lambda: deprecated_instance(
+                    _positional_default_echo, args_mapping={"old_flag": "flag"}, **_DEPRS_CASE_STD_ARGS
+                ),
+                id="function",
+            ),
+            pytest.param(
+                lambda: deprecated_class(args_mapping={"old_flag": "flag"}, **_DEPRS_CASE_STD_ARGS)(
+                    _PositionalDefaultRecord
+                ),
+                id="class",
+            ),
+        ],
+    )
+    def test_keyword_named_like_positional_only_param_stays_keyword(
+        self, build_alias: Callable[[], Callable[..., Any]]
+    ) -> None:
+        """A keyword the mapping never touches reaches ``**kwargs``, not the positional-only slot of the same name.
+
+        The wrapped callable takes a positional-only ``x`` with a default plus ``**kwargs``, and only ``old_flag`` is
+        renamed. Calling it directly as ``f(x=99)`` puts ``x`` into ``kwargs`` and leaves the default ``1`` in place;
+        the deprecated alias must give the same result and stay silent, as ``@deprecated`` does for a call that uses
+        no deprecated argument, instead of moving the caller's ``x`` into the positional slot.
+
+        """
+        alias = build_alias()
+        with captured_warnings() as caught:
+            result = alias(x=99)
+        assert (tuple(result), caught) == ((1, {"x": 99}), [])
+
+    @pytest.mark.parametrize(
+        "build_alias",
+        [
+            pytest.param(
+                lambda: deprecated_instance(
+                    _positional_default_echo, args_mapping={"old_flag": "flag"}, **_DEPRS_CASE_STD_ARGS
+                ),
+                id="function",
+            ),
+            pytest.param(
+                lambda: deprecated_class(args_mapping={"old_flag": "flag"}, **_DEPRS_CASE_STD_ARGS)(
+                    _PositionalDefaultRecord
+                ),
+                id="class",
+            ),
+        ],
+    )
+    def test_renamed_call_keeps_positional_only_named_keyword_in_kwargs(
+        self, build_alias: Callable[[], Callable[..., Any]]
+    ) -> None:
+        """``alias(old_flag=1, x=99)`` gives ``(1, {"flag": 1, "x": 99})``, the result of the direct renamed call.
+
+        Here the caller does use the deprecated ``old_flag``, so the proxy rewrites the call to pass ``flag``. Calling
+        the wrapped callable directly as ``f(flag=1, x=99)`` keeps the default ``x=1`` and puts the caller's ``x`` into
+        ``kwargs``; the rename must not change that by moving ``x=99`` into the positional-only slot, as the shared
+        ``@deprecated`` dispatcher does not either.
+
+        """
+        alias = build_alias()
+        with pytest.warns(FutureWarning, match="`old_flag` -> `flag`"):
+            result = alias(old_flag=1, x=99)
+        assert tuple(result) == (1, {"flag": 1, "x": 99})
+
+
+class TestCallableTargetPositionalOnlyBridge:
+    """A callable-target ``args_mapping`` proxy bridges old keyword calls onto positional-only replacement params."""
+
+    def test_keyword_reaches_positional_only_slot(self) -> None:
+        """``alias(a=5)`` returns ``(5, 0)`` although the replacement takes ``a`` positional-only.
+
+        The old callable accepted ``a`` by keyword and its replacement declares ``a`` positional-only, so calling the
+        replacement directly as ``f(a=5)`` raises ``TypeError``. The alias exists to keep old call sites working: it
+        forwards the keyword into the positional slot, the same bridge ``@deprecated(target=...)`` applies to a call
+        that uses no deprecated argument, and still warns that the old callable is deprecated.
+
+        """
+        with pytest.warns(UserWarning, match=r"remaps \['old_a'\] to POSITIONAL_ONLY"):
+            alias = deprecated_instance(
+                _positional_default_echo, target=_positional_pair, args_mapping={"old_a": "a"}, **_DEPRS_CASE_STD_ARGS
+            )
+        with pytest.warns(FutureWarning):
+            result = alias(a=5)
+        assert result == (5, 0)
+
+
+class TestKeywordOverflowRestoration:
+    """Preserve positional-only keyword names across replacement calls and serialization."""
+
+    def test_callable_target_keeps_keyword(self) -> None:
+        """A replacement accepting **kwargs receives the caller's positional-only-named keyword unchanged.
+
+        A migration renames another argument while the caller supplies a keyword named like a positional-only default.
+        The replacement must retain its default and receive the keyword in its extra keyword dictionary.
+        """
+        alias = deprecated_instance(
+            _positional_default_echo,
+            target=_positional_default_echo,
+            args_mapping={"old_flag": "flag"},
+            **_DEPRS_CASE_STD_ARGS,
+        )
+        with pytest.warns(FutureWarning):
+            result = alias(old_flag=1, x=99)
+        assert result == (1, {"flag": 1, "x": 99})
+        with pytest.warns(FutureWarning):
+            unchanged = alias(x=99)
+        assert unchanged == (1, {"x": 99})
+
+    def test_callable_target_preserves_keyword_bridge(self) -> None:
+        """A source keyword still bridges to a replacement's positional-only parameter.
+
+        A replacement may also accept extra keywords; that must not change binding of a keyword accepted by the source.
+        """
+
+        def source(x: int = 1, **kwargs: object) -> tuple[int, dict[str, object]]:
+            return x, kwargs
+
+        alias = deprecated_instance(
+            source, target=_positional_default_echo, args_mapping={"old_flag": "flag"}, **_DEPRS_CASE_STD_ARGS
+        )
+        with pytest.warns(FutureWarning):
+            result = alias(x=99)
+        assert result == (99, {})
+
+    def test_pickle_keeps_keyword(self) -> None:
+        """A restored remapping proxy keeps the same keyword semantics as its original.
+
+        A serialized alias must not move a caller keyword into the positional-only default after loading.
+        """
+        alias = deprecated_instance(_positional_default_echo, args_mapping={"old_flag": "flag"}, **_DEPRS_CASE_STD_ARGS)
+        restored = pickle.loads(pickle.dumps(alias))  # noqa: S301 - payload created in this test
+        with pytest.warns(FutureWarning):
+            result = restored(old_flag=1, x=99)
+        assert result == (1, {"flag": 1, "x": 99})
+
+
+class TestArgsMappingPositionalDuplicate:
+    """A positional argument wins over a deprecated keyword renamed onto the same positional-only parameter."""
+
+    @pytest.mark.parametrize(
+        "mapping_config",
+        [
+            pytest.param({}, id="wrapped-callable"),
+            pytest.param({"target": _positional_pair}, id="callable-target"),
+        ],
+    )
+    def test_positional_value_wins_with_collision_warning(self, mapping_config: dict[str, Any]) -> None:
+        """``alias(9, old_a=1)`` returns ``(9, 0)`` and names ``old_a`` as ignored, as ``@deprecated`` does.
+
+        The called function takes ``a`` positional-only, and ``old_a`` was renamed to ``a``. A caller passing ``a``
+        positionally and the old keyword as well supplies the value twice; forwarding the renamed keyword would make
+        Python reject ``a`` as a positional-only argument passed by keyword. The decorator resolves the same call by
+        keeping the positional value and warning that the old keyword is ignored, and the proxy must do the same,
+        whether it calls the wrapped function or a callable replacement.
+
+        """
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            alias = deprecated_instance(
+                _positional_pair, args_mapping={"old_a": "a"}, **mapping_config, **_DEPRS_CASE_STD_ARGS
+            )
+        with pytest.warns(FutureWarning), pytest.warns(UserWarning, match=r"`old_a` \(deprecated\) and `a`.*ignored"):
+            result = alias(9, old_a=1)
+        assert result == (9, 0)
+
+
+class TestArgsMappingKeyNamedLikeBoundParameter:
+    """A mapping key spelled like a positionally bound parameter never overwrites a caller's keyword."""
+
+    @pytest.mark.parametrize(
+        "mapping_config",
+        [
+            pytest.param({}, id="wrapped-callable"),
+            pytest.param({"target": _positional_pair}, id="callable-target"),
+        ],
+    )
+    def test_caller_keyword_reaches_renamed_slot(self, mapping_config: dict[str, Any]) -> None:
+        """``alias(9, old_b=2)`` returns ``(9, 2)`` although the mapping also lists the bound name ``a``.
+
+        The called function takes ``a`` and ``b`` positional-only, and the mapping renames both ``a`` and ``old_b`` to
+        ``b``. The caller fills ``a`` positionally and passes only ``old_b`` by keyword, so the entry for ``a`` has no
+        keyword to rename. The positional-binding marker the proxy adds for ``a`` must not take part in that rename,
+        or it would replace the caller's ``old_b`` value and the call would return ``(9, 0)``.
+
+        """
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            alias = deprecated_instance(
+                _positional_pair, args_mapping={"a": "b", "old_b": "b"}, **mapping_config, **_DEPRS_CASE_STD_ARGS
+            )
+        with pytest.warns(FutureWarning):
+            result = alias(9, old_b=2)
+        assert result == (9, 2)
 
 
 class TestArgsExtra:

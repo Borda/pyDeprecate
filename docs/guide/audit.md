@@ -49,7 +49,7 @@ Use these utilities to verify that a deprecated wrapper is correctly configured:
 - `identity_args_mapping` — list of args where key equals value (e.g. `{"arg": "arg"}` — no effect)
 - `self_reference` — `True` if target points to the same function
 - `no_effect` — `True` if the wrapper has zero impact (self-reference, empty mapping, or all-identity)
-- `misconfigured_target` — `True` when the wrapper's target contradicts its configuration: `NOTIFY` with an `args_mapping`, `args_extra` or `attrs_mapping`, `ARGS_REMAP` with an empty `args_mapping`, or the invalid `target=False`. This is not identical to `DeprecationConfig.misconfigured`: for example, a legacy `target=True` wrapper skips the callable-mode validation, so its `DeprecationConfig.misconfigured` stays `False` while an `ARGS_REMAP` wrapper with an empty mapping is still flagged here. In CI, read this audit field rather than `DeprecationConfig.misconfigured`
+- `misconfigured_target` — `True` when the wrapper's target contradicts its configuration: `NOTIFY` with an `args_mapping`, `args_extra` or `attrs_mapping`, `ARGS_REMAP` with an empty `args_mapping`, an `args_mapping` or `args_extra` on a served object that is not callable, or the invalid `target=False`. This is not identical to `DeprecationConfig.misconfigured`: for example, a legacy `target=True` wrapper skips the callable-mode validation, so its `DeprecationConfig.misconfigured` stays `False` while an `ARGS_REMAP` wrapper with an empty mapping is still flagged here. In CI, read this audit field rather than `DeprecationConfig.misconfigured`
 - `all_identity` — `True` if every entry in `args_mapping` maps a key to itself
 - `chain_type` — chain classification used when reporting deprecation chains, such as `TARGET` or `STACKED`
 - `empty_deprecated_in` — `True` when `deprecated_in` is absent or empty; useful in CI to surface wrappers with no version annotation
@@ -59,7 +59,7 @@ Use these utilities to verify that a deprecated wrapper is correctly configured:
 
 !!! note "`DeprecationConfig` cache fields leave in v1.0"
 
-    `deprecated_info` is a `DeprecationConfig` whose audit metadata fields (`deprecated_in`, `remove_in`, `name`, `target`, `args_mapping`, `args_extra`, `misconfigured`, `docstring_style`, `message_template`, `attrs_mapping`, `as_exception`, `args_mapping_auto_expanded`, `args_mapping_positional_only`) are stable. Eight further fields are internal call-time caches that the wrapper reads on every call instead of inspecting signatures again: `target_positional_only`, `target_positional_only_order`, `source_positional_only`, `source_positional_only_order`, `source_var_positional_prefix`, `target_all_param_names`, `target_accepts_var_positional` and `target_accepts_var_keyword`. They will be removed from `DeprecationConfig` in v1.0, so do not read them in audit or CI code.
+    `deprecated_info` is a `DeprecationConfig` whose audit metadata fields (`deprecated_in`, `remove_in`, `name`, `target`, `args_mapping`, `args_extra`, `misconfigured`, `docstring_style`, `message_template`, `attrs_mapping`, `as_exception`, `args_mapping_auto_expanded`, `args_mapping_positional_only`, `call_options_inert`) are stable. Eight further fields are internal call-time caches that the wrapper reads on every call instead of inspecting signatures again: `target_positional_only`, `target_positional_only_order`, `source_positional_only`, `source_positional_only_order`, `source_var_positional_prefix`, `target_all_param_names`, `target_accepts_var_positional` and `target_accepts_var_keyword`. They will be removed from `DeprecationConfig` in v1.0, so do not read them in audit or CI code.
 
 ### Validating a single function
 
@@ -119,8 +119,8 @@ if result.no_effect:
   <summary>Output: <code>"Warning: This wrapper configuration has zero impact!"</code></summary>
 
 ```
-DeprecationWrapperInfo(module='', function='bad_func', deprecated_info=DeprecationConfig(deprecated_in='1.0', remove_in='', name='bad_func', target=<TargetMode.ARGS_REMAP: 'args_remap'>, args_mapping={'nonexistent': 'new_arg'}, args_extra=None, misconfigured=False, docstring_style='rst', message_template=None, attrs_mapping=None, as_exception=None, args_mapping_auto_expanded=(), args_mapping_positional_only=(), target_positional_only=frozenset(), source_positional_only=frozenset(), source_var_positional_prefix=0), invalid_args=['nonexistent'], empty_args_mapping=False, identity_args_mapping=[], self_reference=False, no_effect=False, misconfigured_target=False, all_identity=False, chain_type=None, empty_deprecated_in=False, args_mapping_auto_expanded=[], args_mapping_positional_only=[], inner_order_property=False)
-DeprecationWrapperInfo(module='', function='empty_func', deprecated_info=DeprecationConfig(deprecated_in='1.0', remove_in='', name='empty_func', target=<TargetMode.ARGS_REMAP: 'args_remap'>, args_mapping={}, args_extra=None, misconfigured=True, docstring_style='rst', message_template=None, attrs_mapping=None, as_exception=None, args_mapping_auto_expanded=(), args_mapping_positional_only=(), target_positional_only=frozenset(), source_positional_only=frozenset(), source_var_positional_prefix=0), invalid_args=[], empty_args_mapping=True, identity_args_mapping=[], self_reference=False, no_effect=True, misconfigured_target=True, all_identity=False, chain_type=None, empty_deprecated_in=False, args_mapping_auto_expanded=[], args_mapping_positional_only=[], inner_order_property=False)
+DeprecationWrapperInfo(module='', function='bad_func', deprecated_info=DeprecationConfig(deprecated_in='1.0', remove_in='', name='bad_func', target=<TargetMode.ARGS_REMAP: 'args_remap'>, args_mapping={'nonexistent': 'new_arg'}, args_extra=None, misconfigured=False, docstring_style='rst', message_template=None, attrs_mapping=None, as_exception=None, args_mapping_auto_expanded=(), args_mapping_positional_only=(), target_positional_only=frozenset(), source_positional_only=frozenset(), source_var_positional_prefix=0, call_options_inert=False), invalid_args=['nonexistent'], empty_args_mapping=False, identity_args_mapping=[], self_reference=False, no_effect=False, misconfigured_target=False, all_identity=False, chain_type=None, empty_deprecated_in=False, args_mapping_auto_expanded=[], args_mapping_positional_only=[], inner_order_property=False)
+DeprecationWrapperInfo(module='', function='empty_func', deprecated_info=DeprecationConfig(deprecated_in='1.0', remove_in='', name='empty_func', target=<TargetMode.ARGS_REMAP: 'args_remap'>, args_mapping={}, args_extra=None, misconfigured=True, docstring_style='rst', message_template=None, attrs_mapping=None, as_exception=None, args_mapping_auto_expanded=(), args_mapping_positional_only=(), target_positional_only=frozenset(), source_positional_only=frozenset(), source_var_positional_prefix=0, call_options_inert=False), invalid_args=[], empty_args_mapping=True, identity_args_mapping=[], self_reference=False, no_effect=True, misconfigured_target=True, all_identity=False, chain_type=None, empty_deprecated_in=False, args_mapping_auto_expanded=[], args_mapping_positional_only=[], inner_order_property=False)
 Warning: This wrapper configuration has zero impact!
 ```
 
@@ -476,7 +476,7 @@ Rule details worth knowing before you tune the defaults:
 
 - **`min_grace`** is a version-shaped delta **string** with two or three components and at most one non-zero — `"1.0"` one major, `"0.3"` three minors, `"0.0.2"` two patches. Always pass a string: a float such as `0.10` drops its trailing zero and reads as one minor. A bare `"1"` is rejected as ambiguous (one *what*?), and so is `"1.2"` or any other mixed spelling — `ValueError`, raised before the scan starts. An all-zero spelling (`"0.0"`) is a valid **zero-count window**: the distance check is effectively off, but a clean bump of that unit or coarser is still required, so `1.2` → `1.2.1` still violates a zero-minor window. Internally every spelling is parsed into `deprecate.audit.GraceWindow(count, unit)` — one unit, one count — which the scan alone consults; a `GraceWindow` instance (`from deprecate import GraceWindow, VersionBump`) or a one-key unit table (`{"major": 1}`) is accepted as well. The removal must be one **clean bump** of a single component with everything below it reset — `1.2` → `1.5` or `2.0`, never `2.3` or `1.3.1` — because a mixed bump lands on no release boundary a project promises removals on. A coarser bump always clears a finer window: deprecated in `1.2`, removed in `2.0` satisfies `"0.3"` even though the minor number went *down*; a finer bump (a patch against a minor-counted window) never does.
 - **A `0.x` project** needs no special setting: a bump to `1.0` is a major step and clears any window, while removals inside the `0.x` line are counted in minors as usual. `min_grace="1.0"` is the strict "removals only at a major" policy.
-- **`message_required`** counts a forwarding `target`, an `args_mapping`, an `attrs_mapping`, or a custom `message_template` as guidance. An *empty* `args_mapping`/`attrs_mapping` (`{}`) does **not** count — it carries no actual rename, so the rule treats it the same as no mapping at all. A deprecated *module* satisfies the rule with a **custom** `message_template` — the auto-rendered text `deprecated_module()` stores there by default does not count, since every module would otherwise pass trivially; a module relying only on `target`/`attrs_mapping` still needs one of those to be non-empty. A `deprecated_instance()` proxy built with no `target` and no `args_mapping`/`attrs_mapping` likewise needs a custom `message_template` to satisfy the default policy.
+- **`message_required`** counts a callable or module `target`, an `args_mapping`, an `attrs_mapping`, or a custom `message_template` as guidance. An *empty* `args_mapping`/`attrs_mapping` (`{}`) does **not** count — it carries no actual rename, so the rule treats it the same as no mapping at all. A deprecated *module* satisfies the rule with a **custom** `message_template` — the auto-rendered text `deprecated_module()` stores there by default does not count, since every module would otherwise pass trivially; a module relying only on `target`/`attrs_mapping` still needs one of those to be non-empty. A `deprecated_instance()` proxy over a data object (a dict, a settings instance) needs a custom `message_template` or an `attrs_mapping` to satisfy the default policy: the object is never called, so its `args_mapping` never applies, and a replacement passed as `target=` is served under the old name but not named in the built-in warning.
 
 ### Scanning a package
 
@@ -503,14 +503,15 @@ print(f"Found {len(violations)} violations")
   <summary>Output: <code>f"Found {len(violations)} violations"</code></summary>
 
 ```
-Found 6 violations
+Found 7 violations
+[message-required]
 [message-required]
 [message-required]
 [message-required]
 [min-grace]
 [min-grace]
 [min-grace]
-Found 3 violations
+Found 4 violations
 ```
 
 </details>
@@ -544,7 +545,7 @@ A deprecated wrapper whose `target` is itself another deprecated function create
 
 Two chain types are reported:
 
-- `ChainType.TARGET` — the target is a deprecated callable that forwards to another function. Fix by pointing directly to the final (non-deprecated) implementation.
+- `ChainType.TARGET` — the target is itself deprecated: a deprecated callable that forwards to another function, or a deprecated object passed as `deprecated_instance(target=...)`. Fix by pointing directly to the final (non-deprecated) replacement.
 - `ChainType.STACKED` — mappings chain through multiple hops and must be composed. This covers callable argument chains, stacked `@deprecated(TargetMode.ARGS_REMAP, args_mapping=...)` decorators, and `deprecated_class(attrs_mapping=...)` entries where one deprecated attribute key maps to a value that is itself another key in the same mapping (a multi-hop rename chain such as `{"a": "b", "b": "c"}`).
 
 The example below shows both bad patterns and the correct direct form:
@@ -703,13 +704,15 @@ for info in issues:
   <summary>Output: <code>f"Found {len(issues)} wrappers with POSITIONAL_ONLY mapping incompatibilities"</code></summary>
 
 ```
-Found 6 wrappers with POSITIONAL_ONLY mapping incompatibilities
+Found 8 wrappers with POSITIONAL_ONLY mapping incompatibilities
   tests.collections.api_deprecated.core.DepPositionalOnly: incompatible keys = ['old_val']
   tests.collections.api_deprecated.core.DepPositionalOnlyDerived: incompatible keys = ['old_val']
   tests.collections.api_deprecated.core.DepPositionalOnlyImmutable: incompatible keys = ['old_val']
   tests.collections.api_deprecated.core.DepPositionalOnlyMixed: incompatible keys = ['old_x']
   tests.collections.api_deprecated.core.DepPositionalOnlyRequired: incompatible keys = ['old_val']
   tests.collections.api_deprecated.core.PositionalOnlyProxyHolder.LegacyTarget: incompatible keys = ['old_val']
+  tests.collections.api_deprecated.core.depr_resize: incompatible keys = ['size_px']
+  tests.collections.api_deprecated.core.depr_scaler: incompatible keys = ['quantity']
 ```
 
 </details>
@@ -768,9 +771,23 @@ repos:
 
     A submodule that fails to import is skipped with a `UserWarning: audit: skipped <module>` and the scan carries on (see [Troubleshooting](../troubleshooting.md)). pre-commit hides the output of a hook that passes, so a missing dependency in the isolated environment leaves those modules unaudited with no visible failure. Prefer the local hook whenever your package has runtime dependencies, and pin `rev` to the pyDeprecate release your project depends on.
 
-The isolated environment separates dependencies, not trust: like the local hook, it imports your package and runs its import-time code with your user's permissions. When the hook runs on checkouts you do not trust, such as pull requests from forks in CI, run it without secrets or privileged credentials.
+**Remote hook — any package, without importing it (`expiry` and `policy` only).** The `pydeprecate-expiry-static` and `pydeprecate-policy-static` hooks read your source with `ast` and import nothing from your package, so they need none of its runtime dependencies (available from `v0.16.0`, the upcoming release, not yet tagged — the recipe below fails until it is published):
 
-Run it on demand using the configured hook ID: `pydeprecate` for the local recipe or `pydeprecate-check` for either remote recipe. The commands below use the local ID:
+```yaml
+# .pre-commit-config.yaml
+repos:
+  - repo: https://github.com/Borda/pyDeprecate
+    rev: v0.16.0 # the first tag shipping the static hooks
+    hooks:
+      - id: pydeprecate-expiry-static
+      - id: pydeprecate-policy-static
+```
+
+They check removal deadlines and policy rules for recognized wrappers whose relevant settings can be resolved. Recognized unresolved forms produce a `not statically resolvable` gap without failing the hook; some forms remain invisible without a gap. Read the hook's output (`pre-commit run --verbose`) when you first enable it, and use an import-mode audit for fuller coverage; see [Static mode](cli.md#static-mode). Configuration checks and chains need the imported wrappers, so keep `pydeprecate check` in a local hook or in CI.
+
+The isolated environment separates dependencies, not trust: like the local hook, the import-mode remote hooks import your package and run its import-time code with your user's permissions. When the hook runs on checkouts you do not trust, such as pull requests from forks in CI, run it without secrets or privileged credentials.
+
+Run it on demand using the configured hook ID: `pydeprecate` for the local recipe, `pydeprecate-check` for an import-mode remote recipe, or `pydeprecate-expiry-static` and `pydeprecate-policy-static` for the static remote recipe. The commands below use the local ID:
 
 ```bash
 # Get a clear signal before pushing (runs when a Python file is staged):
@@ -780,7 +797,7 @@ pre-commit run pydeprecate
 pre-commit run pydeprecate --all-files
 ```
 
-The hook ignores the staged file names and scans the whole package each time: pyDeprecate resolves wrappers through importable modules, never single files. With no path in `args`, the hook audits the single package under `src/`, or else the single package at the repository root, so src-layout and single-package repositories need no `args`. A root holding two or more top-level packages (for example `mypkg/` and `tests/`) fails with a non-zero exit and `contains multiple packages (mypkg, tests)` rather than passing on an empty scan, so such repositories must name the package in `args`, e.g. `args: [mypkg]`. Each subcommand has its own hook id, with the subcommand already in the hook's `entry`: `pydeprecate-check`, `pydeprecate-policy`, `pydeprecate-expiry`, `pydeprecate-chains` and `pydeprecate-all`, plus `pydeprecate` as an alias of `pydeprecate-check`. Pass flags and the path through `args`, in any order — `args: [--exit-zero]` reports without blocking while you clear a backlog. Every subcommand reads `[tool.pydeprecate]`, and `expiry` and `all` also read the version from `pyproject.toml`, so to re-run the hook when only `pyproject.toml` changes, override both filters on the hook: `types: [file]` together with `files: '(\.py|(^|/)pyproject\.toml)$'`. The manifest's `types: [python]` would otherwise stay in force, and pre-commit needs a file to match every filter, so a `pyproject.toml`-only commit would skip the hook.
+The hook ignores the staged file names and scans the whole package each time: pyDeprecate resolves wrappers through importable modules, never single files. With no path in `args`, the hook audits the single package under `src/`, or else the single package at the repository root, so src-layout and single-package repositories need no `args`. A root holding two or more top-level packages (for example `mypkg/` and `tests/`) fails with a non-zero exit and `contains multiple packages (mypkg, tests)` rather than passing on an empty scan, so such repositories must name the package in `args`, e.g. `args: [mypkg]`. Each subcommand has its own hook id, with the subcommand already in the hook's `entry`: `pydeprecate-check`, `pydeprecate-policy`, `pydeprecate-expiry`, `pydeprecate-chains` and `pydeprecate-all`, plus `pydeprecate` as an alias of `pydeprecate-check`, and `pydeprecate-expiry-static` and `pydeprecate-policy-static` for the import-free [static mode](cli.md#static-mode) (the same as `args: [--static]` on `pydeprecate-expiry` or `pydeprecate-policy`). Pass flags and the path through `args`, in any order — `args: [--exit-zero]` reports without blocking while you clear a backlog. The static hooks run for Python and `pyproject.toml` changes. Every subcommand reads `[tool.pydeprecate]`, and `expiry` and `all` also read the version from `pyproject.toml`, so to re-run an import-mode hook when only `pyproject.toml` changes, override both filters on the hook: `types: [file]` together with `files: '(\.py|(^|/)pyproject\.toml)$'`. The import-mode manifest's `types: [python]` would otherwise stay in force, and pre-commit needs a file to match every filter, so a `pyproject.toml`-only commit would skip the hook.
 
 The CLI provides six subcommands. Use `check` for wrapper config validation, `policy` to gate on your project's deprecation-governance rules, `all` to run every check in a single pass (and append a deprecation table), or `status` to generate a standalone markdown deprecation table without running any checks. See the [CLI Reference](cli.md) for full flag and exit-code documentation.
 
@@ -859,7 +876,7 @@ jobs:
 | `install`     | `true`  | Install `pyDeprecate[cli,audit]` from the action's own ref into the job's Python.                                                                                                                                                                                                                                                    |
 | `summary`     | `false` | Append the markdown deprecation status table of the gate's own scan to the job summary, read from the report the CLI writes with `--report-json`, so it covers exactly what the gate scanned however `path` and `args` name the package. Summary failures only warn and preserve the gate result. No summary on CLI exit `2` or `3`. |
 
-The step finishes with the CLI's own exit code (see the table above; `3` gets an error annotation naming a scan or internal error), with three exceptions of its own: a `path` starting with `-` exits `2`, a failed `pip install` (`install: true`) returns pip's exit code, and a CLI process that cannot be started returns `1`. A failing run adds an error annotation to the pull request's checks. The CLI has no "fail on warning" mode: advisory findings such as identity mappings never fail the step, and `exit-zero: true` turns hard errors into reports while you clear a backlog. `fail-on-gap: true` makes an incomplete audit fail the step: every gap the run annotates then also fails it.
+The step finishes with the CLI's own exit code (see the table above; `3` gets an error annotation naming a scan or internal error), with three exceptions of its own: a `path` starting with `-` exits `2`, a failed `pip install` (`install: true`) returns pip's exit code, and a CLI process that cannot be started returns `1`. The action has no static input; to audit without importing the package, pass `--static` through `args` with `subcommand: expiry` or `policy` (see [Static mode](cli.md#static-mode)). A failing run adds an error annotation to the pull request's checks. The CLI has no "fail on warning" mode: advisory findings such as identity mappings never fail the step, and `exit-zero: true` turns hard errors into reports while you clear a backlog. `fail-on-gap: true` makes an incomplete audit fail the step: every gap the run annotates then also fails it.
 
 **The `uses:` ref pins the pyDeprecate version.** With the default `install: true` the action installs pyDeprecate from the same commit as the action itself, so `@v0.15.0` audits with 0.15.0. That install replaces whatever pyDeprecate version your job already had, for every later step too, and the action warns when it does. Pin the action to the release your project depends on, or install `pyDeprecate[audit,cli]` yourself and set `install: false`. Set `install: false` as well where `pip` is unavailable, such as a uv-managed virtual environment.
 

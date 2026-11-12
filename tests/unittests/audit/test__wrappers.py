@@ -16,6 +16,7 @@ from deprecate import (
     DeprecatedError,
     as_exceptions,
     deprecated,
+    deprecated_instance,
     find_deprecation_wrappers,
     validate_deprecation_expiry,
 )
@@ -32,7 +33,7 @@ from deprecate.audit._wrappers import (
     _source_location,
 )
 from deprecate.proxy import _DeprecatedProxy, _ProxySpec
-from tests.collections.api_current.core import ColorEnum
+from tests.collections.api_current.core import ColorEnum, RaisingEqualityData
 from tests.collections.chains import caller_via_notify_layer
 
 _PACKAGING_AVAILABLE = importlib.util.find_spec("packaging") is not None
@@ -126,7 +127,7 @@ class TestValidateDeprecationWrapperWithProxy:
 
         """
         proxy = _DeprecatedProxy(
-            obj={},
+            obj=ColorEnum,
             spec=_ProxySpec(
                 name="warn_only_mapped",
                 deprecated_in="1.0",
@@ -196,6 +197,67 @@ class TestValidateDeprecationWrapperWithProxy:
         though the inner link forwards nowhere further.
         """
         result = validate_deprecation_wrapper(caller_via_notify_layer)
+        assert result.chain_type is ChainType.TARGET
+
+    def test_instance_target_that_is_deprecated_is_target_chain(self) -> None:
+        """An instance alias whose replacement is itself a deprecated data object is a forwarding TARGET chain.
+
+        ``OLD_SETTINGS`` was pointed at ``MID_SETTINGS``, which a later release deprecated in turn. A settings dict is
+        not callable, yet callers of the old name now hop through a second deprecated object, so the audit must
+        report the chain and tell the author to point straight at the final replacement.
+        """
+        mid = deprecated_instance({"timeout": 30}, name="MID_SETTINGS", deprecated_in="1.5", remove_in="3.0")
+        old = deprecated_instance(
+            {"timeout": 10}, name="OLD_SETTINGS", target=mid, deprecated_in="1.0", remove_in="2.0"
+        )
+        result = validate_deprecation_wrapper(old)
+        assert result.chain_type is ChainType.TARGET
+
+    def test_instance_with_raising_equality_replacement_audits_without_comparing(self) -> None:
+        """Audit a data alias whose replacement raises from ``==`` without calling that ``__eq__``.
+
+        ``OLD_ARRAY`` was pointed at a replacement such as a numpy array or a data frame, whose ``==`` against a
+        scalar raises. The audit looks at the replacement only by identity, so a CI run over such a package must
+        finish and report the alias, rather than crash while checking whether it forwards to itself.
+        """
+        old = deprecated_instance(
+            {"values": [1]}, name="OLD_ARRAY", target=RaisingEqualityData(), deprecated_in="1.0", remove_in="2.0"
+        )
+        result = validate_deprecation_wrapper(old)
+        assert result.function == "OLD_ARRAY"
+        assert result.self_reference is False
+        assert result.chain_type is None
+
+    def test_data_proxy_with_args_mapping_is_misconfigured_target(self) -> None:
+        """Audit flags a data object deprecated with an ``args_mapping`` it can never apply.
+
+        A settings dict is never called, so renaming a call argument on it has no effect. The factory already warns
+        at creation; the audit run over the package must also report the alias as a misconfigured target so the
+        mistake surfaces in CI and not only on import.
+        """
+        with pytest.warns(UserWarning, match="is not callable"):
+            proxy = deprecated_instance(
+                {"timeout": 10}, name="OLD_SETTINGS", args_mapping={"old": "new"}, deprecated_in="1.0", remove_in="2.0"
+            )
+        result = validate_deprecation_wrapper(proxy)
+        assert result.misconfigured_target is True
+
+    def test_instance_target_with_inert_args_mapping_is_target_chain(self) -> None:
+        """A deprecated data replacement carrying an ``args_mapping`` it never applies is a TARGET link, not STACKED.
+
+        ``MID_SETTINGS`` was deprecated with an ``args_mapping`` by mistake: a settings dict is never called, so the
+        mapping is inert, yet its own config resolves to ``ARGS_REMAP``. Reporting ``OLD_SETTINGS`` as a stacked chain
+        would steer the author toward composing call mappings that never run; the old name only hops through a second
+        deprecated data object.
+        """
+        with pytest.warns(UserWarning, match="is not callable"):
+            mid = deprecated_instance(
+                {"timeout": 30}, name="MID_SETTINGS", args_mapping={"old": "new"}, deprecated_in="1.5", remove_in="3.0"
+            )
+        old = deprecated_instance(
+            {"timeout": 10}, name="OLD_SETTINGS", target=mid, deprecated_in="1.0", remove_in="2.0"
+        )
+        result = validate_deprecation_wrapper(old)
         assert result.chain_type is ChainType.TARGET
 
 

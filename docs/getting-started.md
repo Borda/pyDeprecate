@@ -126,9 +126,9 @@ Not sure which API to reach for? This table maps common scenarios to the right t
 
 Prefer passing an explicit `target` (`TargetMode.NOTIFY`, `TargetMode.ARGS_REMAP`, or a callable) so the intent is visible at the call site — `TargetMode.AUTO` is only the front-door default that resolves an omitted `target`, and you never write it yourself.
 
-All three decorators (`@deprecated`, `deprecated_callable()`, `deprecated_class()`) share every parameter above. The only differences: `deprecated_class()` adds the class-only `attrs_mapping` (attribute-name remapping — `TypeError` on the other two), and a class source is dispatched to `deprecated_class` by `@deprecated` but rejected with `TypeError` by `deprecated_callable()`. `TargetMode.AUTO` is front-door-only: `deprecated_callable()` defaults `target` to `TargetMode.NOTIFY`, `deprecated_class()` leaves it unset, and both raise `TypeError` when handed `TargetMode.AUTO` explicitly.
+All three decorators (`@deprecated`, `deprecated_callable()`, `deprecated_class()`) share every parameter above. The only differences: `deprecated_class()` adds `attrs_mapping` (attribute-name remapping — `TypeError` on the other two), and a class source is dispatched to `deprecated_class` by `@deprecated` but rejected with `TypeError` by `deprecated_callable()`. `TargetMode.AUTO` is front-door-only: `deprecated_callable()` defaults `target` to `TargetMode.NOTIFY`, `deprecated_class()` leaves it unset, and both raise `TypeError` when handed `TargetMode.AUTO` explicitly.
 
-`deprecated_instance()` shares `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_extra`, `message_template`, `skip_if`, and `as_exception`; it requires `obj` and adds `name` (display name) and `read_only`.
+`deprecated_instance()` shares `target`, `args_mapping`, `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_extra`, `message_template`, `skip_if`, and `as_exception`, and takes `attrs_mapping` like `deprecated_class()`; it requires `obj` and adds `name` (display name) and `read_only`.
 
 ### Parameter matrix across the API
 
@@ -138,9 +138,9 @@ Every parameter each factory accepts, with its default. 🚫 marks a parameter t
 | ------------------ | --------------------- | --------------------- | --------------------- | --------------------- | ------------------- |
 | `obj`              | 🚫                    | 🚫                    | 🚫                    | **required**          | 🚫                  |
 | `name`             | 🚫                    | 🚫                    | 🚫                    | `""`                  | `None`              |
-| `target`           | `TargetMode.AUTO`     | `TargetMode.NOTIFY`   | `None`                | 🚫                    | `None`              |
-| `args_mapping`     | `None`                | `None`                | `None`                | 🚫                    | 🚫                  |
-| `attrs_mapping`    | 🚫                    | 🚫                    | `None`                | 🚫                    | `None`              |
+| `target`           | `TargetMode.AUTO`     | `TargetMode.NOTIFY`   | `None`                | `None`                | `None`              |
+| `args_mapping`     | `None`                | `None`                | `None`                | `None`                | 🚫                  |
+| `attrs_mapping`    | 🚫                    | 🚫                    | `None`                | `None`                | `None`              |
 | `args_extra`       | `None`                | `None`                | `None`                | `None`                | 🚫                  |
 | `deprecated_in`    | `""`                  | `""`                  | `""`                  | `""`                  | `""`                |
 | `remove_in`        | `""`                  | `""`                  | `""`                  | `""`                  | `""`                |
@@ -153,7 +153,7 @@ Every parameter each factory accepts, with its default. 🚫 marks a parameter t
 | `update_docstring` | `False`               | `False`               | `False`               | 🚫                    | 🚫                  |
 | `docstring_style`  | `"auto"`              | `"auto"`              | `"auto"`              | 🚫                    | 🚫                  |
 
-Notes: `deprecation_warning` is the default `FutureWarning` sink (`stream=None` silences it). `deprecated_module` is the exception: omit `stream` to warn through `warnings.warn`; an explicit `stream=None` still warns there and emits a `FutureWarning` at the call, because it silences the module warning only from v1.0. `name` is a display label for `deprecated_instance` and the module's `__name__` for `deprecated_module` (auto-detected from the caller when omitted). `message_template` is the custom-notice override on every factory; `template_mgs` is its **deprecated alias** (renamed in v0.12; emits a `FutureWarning`, removed in v1.0) — pass `message_template` instead. The front door `@deprecated` exposes only the parameters common to `deprecated_callable` and `deprecated_class`; the class-only `attrs_mapping` is 🚫 there — use `deprecated_class(attrs_mapping=...)` directly.
+Notes: `deprecation_warning` is the default `FutureWarning` sink (`stream=None` silences it). `deprecated_module` is the exception: omit `stream` to warn through `warnings.warn`; an explicit `stream=None` still warns there and emits a `FutureWarning` at the call, because it silences the module warning only from v1.0. `name` is a display label for `deprecated_instance` and the module's `__name__` for `deprecated_module` (auto-detected from the caller when omitted). `message_template` is the custom-notice override on every factory; `template_mgs` is its **deprecated alias** (renamed in v0.12; emits a `FutureWarning`, removed in v1.0) — pass `message_template` instead. The front door `@deprecated` exposes only the parameters common to `deprecated_callable` and `deprecated_class`; the proxy-only `attrs_mapping` is 🚫 there — use `deprecated_class(attrs_mapping=...)` (or `deprecated_instance(obj, attrs_mapping=...)`) directly.
 
 ______________________________________________________________________
 

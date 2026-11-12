@@ -24,6 +24,8 @@ from deprecate._cli.report import (
     _record_scanned_path,
     _ScanRecord,
 )
+from deprecate._cli.static.discovery import _locate_static
+from deprecate._cli.static.rows import _read_static
 from deprecate.audit import DeprecationWrapperInfo, find_deprecation_wrappers
 from deprecate.audit._scan import _collect_skipped_modules, _is_excluded
 from deprecate.audit._version import _is_package_dir, _managed_sys_path, _resolve_package_version
@@ -313,6 +315,7 @@ def _scan_for_command(
     version_explicit: bool = False,
     resolve_version: bool = False,
     record: bool = True,
+    static: bool = False,
 ) -> Optional[_ScanRecord]:
     """Run the scan prologue shared by every subcommand and return what it scanned.
 
@@ -333,6 +336,8 @@ def _scan_for_command(
         resolve_version: Auto-detect a missing *version* — for the subcommands that compare against one.
         record: Keep the scan for ``--report-json``. ``all`` and ``status`` turn it off: they record the table they
             render instead, so a table that failed to render is not rebuilt from the scan for the report.
+        static: Read the source with ``ast`` instead of importing it (``--static``): nothing from the scanned package is
+            imported or executed, the version included (:func:`_static_scan`).
 
     Returns:
         The recorded scan, or ``None`` after printing a usage error (the caller exits 2).
@@ -354,6 +359,40 @@ def _scan_for_command(
     if run_record is not None:
         run_record.current_path = path
     _record_options(recursive=recursive, exclude=resolved_exclude[0])
+    run = _static_scan if static else _import_scan
+    return run(
+        path,
+        package_dir,
+        recursive=recursive,
+        include_members=include_members,
+        exclude=resolved_exclude,
+        version=version,
+        version_explicit=version_explicit,
+        resolve_version=resolve_version,
+        record=record,
+        record_version=run_record is not None and run_record.wants_report,
+    )
+
+
+def _import_scan(
+    path: str,
+    package_dir: Optional[Path],
+    *,
+    recursive: bool,
+    include_members: bool,
+    exclude: tuple[list[str], str],
+    version: Optional[str],
+    version_explicit: bool,
+    resolve_version: bool,
+    record: bool,
+    record_version: bool,
+) -> Optional[_ScanRecord]:
+    """Run the importing half of :func:`_scan_for_command`: version, header, scan, imported location, record.
+
+    Returns:
+        The recorded scan, or ``None`` after printing a usage error (the caller exits 2).
+
+    """
     # Every submodule the version detection or the scan skips is recorded as a gap of this scan right after it, also
     # when the scan then fails, so a strict verdict computed at the subcommand's return already counts it.
     with _collect_skipped_modules() as skipped_modules:
@@ -362,11 +401,11 @@ def _scan_for_command(
                 path,
                 recursive=recursive,
                 include_members=include_members,
-                exclude=resolved_exclude,
+                exclude=exclude,
                 version=version,
                 version_explicit=version_explicit,
                 resolve_version=resolve_version,
-                record_version=run_record is not None and run_record.wants_report,
+                record_version=record_version,
             )
         finally:
             # Unlike the `audit: skipped` warning, these lines survive the audited package's own warnings filters.
@@ -387,6 +426,51 @@ def _scan_for_command(
             " the scan audited that copy.",
         )
     scan = _ScanRecord(path, wrappers, recorded_version)
+    if record:
+        _record_scan(scan)
+    return scan
+
+
+def _static_scan(
+    path: str,
+    package_dir: Optional[Path],
+    *,
+    recursive: bool,
+    include_members: bool,
+    exclude: tuple[list[str], str],
+    version: Optional[str],
+    version_explicit: bool,
+    resolve_version: bool,
+    record: bool,
+    record_version: bool,
+) -> Optional[_ScanRecord]:
+    """Run the ``--static`` half of :func:`_scan_for_command`: locate, version and read the source, importing nothing.
+
+    A module name is located without running it, and only a top-level one (a dotted name would import its parents);
+    the version comes from ``pyproject.toml``, installed metadata or the source's ``__version__``, never from an import.
+    With *record_version* and no *resolve_version*, the version is still detected for the report, never the header.
+
+    Returns:
+        The recorded scan, or ``None`` after printing a usage error (the caller exits 2).
+
+    """
+    located = _locate_static(path, package_dir)
+    if isinstance(located, str):
+        _print(located, stderr=True)
+        return None
+    recorded = version
+    if version is None and (resolve_version or record_version):
+        existing = path if Path(path).exists() else None
+        recorded = _resolve_package_version(
+            _safe_module_name(path), path=existing, allow_import=False, import_root=located.import_root
+        )
+        if resolve_version:
+            version = recorded
+    _print_scan_header(path, version, user_provided=version_explicit, exclude=exclude)
+    _print("Mode: static (source read with ast; nothing imported)")
+    wrappers = _read_static(located, recursive=recursive, include_members=include_members, exclude=exclude[0])
+    _record_scanned_path(path, recorded, user_provided=version_explicit)
+    scan = _ScanRecord(path, wrappers, recorded, static=True, import_root=located.import_root)
     if record:
         _record_scan(scan)
     return scan

@@ -45,7 +45,7 @@ from pydeprecate import deprecated  # wrong — no such module
 
 You have two ways to quiet it, and one alternative pattern for a different use case:
 
-- **Apply `@deprecated_class()` directly** — same result, and it skips the notice entirely. Prefer this for new code, and it is required to reach class-only knobs such as `attrs_mapping`.
+- **Apply `@deprecated_class()` directly** — same result, and it skips the notice entirely. Prefer this for new code, and it is required to reach proxy-only knobs such as `attrs_mapping`.
 - **Pass `stream=None`** — suppresses the notice (and every other deprecation notice from that decoration) while keeping `@deprecated` on the class.
 - **Decorate `__init__` instead of the class** — use this when you want a notice only at instantiation time while keeping the class name and identity untouched (no proxy involved).
 
@@ -2110,8 +2110,8 @@ print(f"Found {len(violations)} violations")
 <details><summary>Output: <code>f"Found {len(violations)} violations"</code></summary>
 
 ```
-Found 5 violations
-Found 3 violations
+Found 6 violations
+Found 4 violations
 ```
 
 </details>
@@ -2175,8 +2175,17 @@ Two fixes:
 
 - Run a local hook (`repo: local`, `language: system`, `entry: pydeprecate check`) so the scan uses your development environment — the recommended setup for any package with runtime dependencies.
 - Keep the remote hook and list your dependencies in `additional_dependencies`. The list replaces the hook's own, so start it with the hook's `"pyDeprecate[cli,audit]"` entry (pyDeprecate's `cli` and `audit` extras, which pip resolves to the hook's own checkout) and then append yours — without the `audit` extra, `packaging` is missing, so `expiry` and the `min-grace` policy rule are skipped with a warning instead of failing, and without `tomli` on Python 3.9–3.10 `[tool.pydeprecate]` settings are ignored.
+- For removal deadlines and policy rules only, use the import-free `pydeprecate-expiry-static` and `pydeprecate-policy-static` hooks, which need none of your dependencies (from `v0.16.0`).
 
 Both recipes are in the [audit guide](guide/audit.md#pre-commit-integration).
+
+______________________________________________________________________
+
+## Can pydeprecate audit a package whose dependencies are not installed?
+
+**Q:** Can pydeprecate audit a package whose dependencies are not installed?
+
+**A:** Yes, for removal deadlines and policy rules: `pydeprecate expiry --static` and `pydeprecate policy --static` (from `v0.16.0`; the `pydeprecate-expiry-static` and `pydeprecate-policy-static` pre-commit hooks) read your source with `ast` and import nothing from your package, so its dependencies, and even its own import-time code, never run. The scan checks recognized wrappers when the settings a rule needs are statically resolvable, including literals, module-level names bound once to literals, and settings splatted from a module-level dict literal. A wrapper the scan recognizes but the source alone does not settle is printed as a `pydeprecate gap: not statically resolvable: <file>:<line>: <reason>` line and does not change the exit code, so read those lines and spell the settings literally where you want them gated. Wrappers built in loops or through `getattr`, `importlib` or `exec`, or imported from outside the scanned package, are not seen and print no gap line. `check`, `chains`, `all` and `status` need the imported wrappers and have no static mode. See [Static mode](guide/cli.md#static-mode).
 
 ______________________________________________________________________
 

@@ -2,7 +2,7 @@
 
 from collections import Counter
 from pathlib import Path
-from typing import TYPE_CHECKING, NamedTuple, Optional
+from typing import TYPE_CHECKING, Callable, NamedTuple, Optional
 
 from deprecate._cli._pkg import _safe_module_name
 from deprecate._cli.config import (
@@ -31,6 +31,8 @@ from deprecate._cli.report import (
     _RunRecord,
 )
 from deprecate._cli.scan import _scan_for_command
+from deprecate._cli.static.checks import _report_unresolved, _resolved, _static_policy_findings
+from deprecate._cli.static.consts import _EXPIRY_KEYWORDS
 from deprecate.audit import (
     DeprecationWrapperInfo,
     PolicyRule,
@@ -44,6 +46,9 @@ from deprecate.audit._wrappers import _format_subject
 
 if TYPE_CHECKING:
     from deprecate.audit._policy import _PolicySpec
+
+#: How a ``policy`` run evaluates scanned wrappers: :func:`_policy_findings`, or the per-rule static variant.
+_PolicyFindings = Callable[[list[DeprecationWrapperInfo], "_PolicySpec"], list[_Finding]]
 
 
 def _do_expiry_prescanned(wrappers: list[DeprecationWrapperInfo], version: Optional[str]) -> Optional[list[_Finding]]:
@@ -133,7 +138,7 @@ def _skipped_policy_rules(spec: "_PolicySpec") -> list[str]:
 
 
 def _policy_violations_without_packaging(
-    wrappers: list[DeprecationWrapperInfo], spec: "_PolicySpec"
+    wrappers: list[DeprecationWrapperInfo], spec: "_PolicySpec", findings: Optional[_PolicyFindings] = None
 ) -> Optional[list[_Finding]]:
     """Handle a missing-``packaging`` failure from :func:`_policy_findings`.
 
@@ -144,6 +149,8 @@ def _policy_violations_without_packaging(
     Args:
         wrappers: Pre-scanned wrapper list to re-check for ``message_required`` alone.
         spec: The originally requested (unsatisfiable) policy configuration.
+        findings: The policy evaluation to re-run, :func:`_static_policy_findings` for a ``--static`` scan; ``None``
+            runs :func:`_policy_findings`, looked up at call time.
 
     Returns:
         The ``message_required``-only violations list, or ``None`` when ``message_required`` is disabled and there
@@ -160,7 +167,8 @@ def _policy_violations_without_packaging(
         return None
     # `message_required` needs no version parsing at all, so a spec with the grace-window rule switched off keeps
     # the version machinery — and with it the ImportError just handled — out of this second pass entirely.
-    return _policy_findings(wrappers, _build_policy_spec(None, True))
+    evaluate = findings if findings is not None else _policy_findings
+    return evaluate(wrappers, _build_policy_spec(None, True))
 
 
 #: The checks whose error findings fail each gate subcommand, as the report's ``options.gates`` lists them.
@@ -358,6 +366,7 @@ def cmd_expiry(
     strict: _ConfigBool = _FROM_PYPROJECT,
     ignore: _ConfigList = _FROM_PYPROJECT,
     baseline: _ConfigFlag = _FROM_PYPROJECT,
+    static: bool = False,
 ) -> int:
     """Check for deprecated wrappers that have passed their scheduled removal version.
 
@@ -387,6 +396,9 @@ def cmd_expiry(
             ``--ignore=`` switches the file's list off. Suppressed findings are not printed, counted or gated on.
         baseline: A ``--report-json`` file (layout 2 or later) whose findings are accepted by id. Default: ``baseline``
             of ``[tool.pydeprecate]`` (relative to that ``pyproject.toml``), else none; ``--baseline=`` switches it off.
+        static: Read the source with ``ast`` instead of importing the package, for an environment without its
+            runtime dependencies (default False). Nothing from the package is imported or executed; a wrapper or
+            ``remove_in`` the source alone does not settle is a ``not statically resolvable`` gap, not a finding.
 
     Returns:
         0 on success, when the ``packaging`` library is unavailable, when no version could be resolved (the gap is
@@ -415,24 +427,39 @@ def cmd_expiry(
             version=version,
             version_explicit=version is not None,
             resolve_version=True,
+            static=static,
         )
         if scan is None:
             return 2
-        _expiry_wrappers(scan.wrappers, scan.version)
+        _expiry_wrappers(scan.wrappers, scan.version, static=static)
         return _finish_gate(start, "expiry", exit_zero=exit_zero)
 
 
-def _expiry_wrappers(wrappers: list[DeprecationWrapperInfo], version: Optional[str], *, exit_zero: bool = False) -> int:
+def _expiry_wrappers(
+    wrappers: list[DeprecationWrapperInfo], version: Optional[str], *, exit_zero: bool = False, static: bool = False
+) -> int:
     """Report the already-scanned wrappers past their removal deadline and return the ``expiry`` exit code.
 
     The evaluation half of :func:`cmd_expiry`, which ``cmd_all`` runs on the wrappers and the version of its single
     scan. *version* is never validated here: a typed ``--version`` was validated before the scan, and an auto-detected
     one that is not PEP 440 is an advisory skip, not a usage error.
 
+    Args:
+        wrappers: The scanned wrappers.
+        version: The resolved package version, or None when it could not be resolved.
+        exit_zero: Exit 0 even when expired wrappers are found.
+        static: The wrappers were read from source (``--static``): the check runs on those whose ``remove_in`` the
+            source settled, and a ``not statically resolvable`` gap names each wrapper it left out. The gaps print only
+            once the check has run — when it could not (no version, an invalid one, no ``packaging``) it has already
+            printed why, and a gap per wrapper would imply that the others were checked.
+
     """
-    derived = _do_expiry_prescanned(wrappers, version)
+    checked = _resolved(wrappers, _EXPIRY_KEYWORDS) if static else wrappers
+    derived = _do_expiry_prescanned(checked, version)
     if derived is None:  # check could not run — advisory already printed to stderr
         return 0
+    if static:
+        _report_unresolved(wrappers, _EXPIRY_KEYWORDS)
     expired = _record_findings(derived)
     if not expired:
         _print("No expired deprecated wrappers found.")
@@ -453,6 +480,7 @@ def cmd_policy(
     strict: _ConfigBool = _FROM_PYPROJECT,
     ignore: _ConfigList = _FROM_PYPROJECT,
     baseline: _ConfigFlag = _FROM_PYPROJECT,
+    static: bool = False,
 ) -> int:
     """Check deprecated wrappers against deprecation-governance policy rules.
 
@@ -499,6 +527,10 @@ def cmd_policy(
             ``--ignore=`` switches the file's list off. Suppressed findings are not printed, counted or gated on.
         baseline: A ``--report-json`` file (layout 2 or later) whose findings are accepted by id. Default: ``baseline``
             of ``[tool.pydeprecate]`` (relative to that ``pyproject.toml``), else none; ``--baseline=`` switches it off.
+        static: Read the source with ``ast`` instead of importing the package, for an environment without its
+            runtime dependencies (default False). Nothing from the package is imported or executed; each rule checks
+            the wrappers whose settings for it the source settles, and every other one is a ``not statically
+            resolvable`` gap, not a finding.
 
     Returns:
         0 on success, or when ``min-grace`` is skipped because ``packaging`` is unavailable and ``message_required``
@@ -521,12 +553,12 @@ def cmd_policy(
         if resolved is None:
             return 2
         scan = _scan_for_command(
-            path, recursive=recursive, exclude=exclude, config=config, include_members=include_members
+            path, recursive=recursive, exclude=exclude, config=config, include_members=include_members, static=static
         )
         if scan is None:
             return 2
         spec, policy_header = resolved
-        _policy_wrappers(scan.wrappers, spec, policy_header)
+        _policy_wrappers(scan.wrappers, spec, policy_header, findings=_static_policy_findings if static else None)
         return _finish_gate(start, "policy", exit_zero=exit_zero)
 
 
@@ -537,6 +569,7 @@ def _policy_wrappers(
     *,
     exit_zero: bool = False,
     advisory: bool = False,
+    findings: Optional[_PolicyFindings] = None,
 ) -> int:
     """Report the policy violations of already-scanned wrappers and return the ``policy`` exit code.
 
@@ -551,15 +584,18 @@ def _policy_wrappers(
             subcommand, instead of the red ``[ERROR]`` of a gating run. ``cmd_all`` reports policy violations
             without failing on them, and the output has to say so. Never inferred from *exit_zero*, which
             downgrades the exit code without changing what the violations mean.
+        findings: How the rules evaluate the wrappers; a ``--static`` scan runs each rule on the wrappers whose
+            settings for it resolved (:func:`~deprecate._cli.static.checks._static_policy_findings`). ``None`` runs
+            :func:`_policy_findings`, looked up at call time.
 
     """
     _print(policy_header)
     try:
-        violations = _policy_findings(wrappers, spec)
+        violations = (findings if findings is not None else _policy_findings)(wrappers, spec)
     except ImportError as exc:
         if not _is_missing_packaging_import_error(exc):
             raise
-        fallback = _policy_violations_without_packaging(wrappers, spec)
+        fallback = _policy_violations_without_packaging(wrappers, spec, findings)
         if fallback is None:
             return 0
         violations = fallback

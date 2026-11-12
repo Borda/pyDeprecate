@@ -23,6 +23,7 @@ from unittest import mock
 import pytest
 import yaml
 
+from deprecate._cli import argv as cli_argv
 from deprecate._cli import commands as cli_commands
 from deprecate._cli import report as cli_report
 
@@ -1530,3 +1531,66 @@ class TestActionMetadata:
         hooks = yaml.safe_load(_HOOKS_YAML.read_text(encoding="utf-8"))
         hook_requirements = {dep for hook in hooks for dep in hook["additional_dependencies"]}
         assert hook_requirements == {f"pyDeprecate[{','.join(action_runner.INSTALL_EXTRAS)}]"}
+
+    @pytest.mark.parametrize(
+        "hook", [pytest.param(hook, id=hook["id"]) for hook in yaml.safe_load(_HOOKS_YAML.read_text(encoding="utf-8"))]
+    )
+    def test_precommit_hook_entry_is_a_cli_command(self, hook: dict[str, Any]) -> None:
+        """Every hook's ``entry`` is a command line the CLI accepts, naming the subcommand the hook id promises.
+
+        A hook whose entry the parser rejected (a flag on a subcommand that lacks it, such as ``--static`` on
+        ``check``) would fail every pre-commit run of every project that enabled it, with a usage error.
+        """
+        program, subcommand, *flags = shlex.split(hook["entry"])
+        parsed = cli_argv._parse_cli_args([subcommand, *flags])
+        assert parsed is not None
+        assert (program, parsed[0].function.__name__) == ("pydeprecate", f"cmd_{subcommand}")
+        assert hook["id"].removeprefix("pydeprecate-").split("-")[0] in (subcommand, "pydeprecate")
+        # the ``-static`` hook variants must request static mode, the others must not
+        assert bool(parsed[1].get("static")) is hook["id"].endswith("-static")
+
+    @pytest.mark.parametrize(
+        "hook",
+        [
+            pytest.param(hook, id=hook["id"])
+            for hook in yaml.safe_load(_HOOKS_YAML.read_text(encoding="utf-8"))
+            if "--static" in shlex.split(hook["entry"])
+        ],
+    )
+    def test_precommit_static_hook_shows_its_output(self, hook: dict[str, Any]) -> None:
+        """A hook running ``--static`` is ``verbose``, so pre-commit prints the gaps of a run that passes.
+
+        A static run prints a wrapper it cannot read from source as a ``not statically resolvable`` gap and still
+        exits ``0``. pre-commit prints a passing hook's output only when the hook is ``verbose``, so without that
+        setting the one signal that part of the package went unaudited would never reach a CI log.
+        """
+        assert hook.get("verbose") is True
+
+    @pytest.mark.parametrize(
+        "hook",
+        [
+            pytest.param(hook, id=hook["id"])
+            for hook in yaml.safe_load(_HOOKS_YAML.read_text(encoding="utf-8"))
+            if hook["id"].endswith("-static")
+        ],
+    )
+    @pytest.mark.parametrize(
+        ("path", "tags", "matches"),
+        [
+            pytest.param("src/pkg/module.py", {"file", "python"}, True, id="python-source"),
+            pytest.param("bin/tool", {"file", "python"}, True, id="extensionless-python-script"),
+            pytest.param("pyproject.toml", {"file", "toml"}, True, id="root-project-config"),
+            pytest.param("pkg/other.toml", {"file", "toml"}, True, id="other-toml"),
+            pytest.param("notes.txt", {"file", "text"}, False, id="unrelated-text"),
+        ],
+    )
+    def test_static_hook_filters_relevant_files(
+        self, hook: dict[str, Any], path: str, tags: set[str], matches: bool
+    ) -> None:
+        """Static hooks run when source or project settings change, but ignore unrelated files.
+
+        pre-commit combines type and filename filters, so a Python-only type filter would skip a policy or version
+        change made solely in pyproject.toml even if the filename pattern matched it.
+        """
+        assert "files" not in hook
+        assert bool(tags.intersection(hook["types_or"])) is matches, path

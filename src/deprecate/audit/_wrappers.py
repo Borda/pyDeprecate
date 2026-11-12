@@ -28,8 +28,9 @@ class ChainType(Enum):
     """Type of deprecation chain detected by :func:`~deprecate.audit.validate_deprecation_chains`.
 
     Attributes:
-        TARGET: The ``target`` argument is itself a callable decorated with :func:`~deprecate.deprecated`
-            (a forwarding chain). Fix by pointing directly to the final non-deprecated target.
+        TARGET: The ``target`` argument is itself deprecated — a callable decorated with :func:`~deprecate.deprecated`
+            or a deprecated proxy, including a :func:`~deprecate.proxy.deprecated_instance` data object (a forwarding
+            chain). Fix by pointing directly to the final non-deprecated target.
         STACKED: Arg mappings chain and must be composed/collapsed. Two sub-cases:
             (a) Callable ``target`` is itself ``@deprecated(True, args_mapping=...)`` — the
             caller's mapping feeds into the target's self-renaming, so both hops must be
@@ -92,7 +93,9 @@ class DeprecationWrapperInfo:
             (:attr:`~deprecate.audit.ChainType.TARGET` or :attr:`~deprecate.audit.ChainType.STACKED`).
         misconfigured_target: True when the wrapper has an invalid target configuration:
             ``target=False``, :attr:`~deprecate._types.TargetMode.NOTIFY` with ``args_mapping``, ``args_extra``
-            or ``attrs_mapping``, or :attr:`~deprecate._types.TargetMode.ARGS_REMAP` with empty ``args_mapping``.
+            or ``attrs_mapping``, :attr:`~deprecate._types.TargetMode.ARGS_REMAP` with empty ``args_mapping``, or
+            ``args_mapping``/``args_extra`` on a served object that is not callable
+            (:attr:`~deprecate._types.DeprecationConfig.call_options_inert`).
         empty_deprecated_in: True when ``deprecated_in`` is empty. Missing ``remove_in`` alone is a valid use case
             (many libraries deprecate without a scheduled removal date), so only the absence of ``deprecated_in``
             is treated as a misconfiguration signal. CI pipelines can filter on this field to surface wrappers
@@ -280,10 +283,14 @@ def _detect_chain_type(
 ) -> Optional[ChainType]:
     """Return the chain type when target or attrs_mapping forms a deprecation chain, else None."""
     chain_type: Optional[ChainType] = None
-    target_config = get_deprecation_config(target) if callable(target) else None
+    # A deprecated ``deprecated_instance`` data object is a chain link too, although it is not callable.
+    target_config = get_deprecation_config(target) if callable(target) or isinstance(target, _DeprecatedProxy) else None
     if target_config is not None:
         wrp_depr_tgt = target_config.target
-        chain_type = ChainType.STACKED if wrp_depr_tgt is TargetMode.ARGS_REMAP else ChainType.TARGET
+        # Stacking composes call-time renames, so it needs a target that is called: a data object whose own config
+        # reads ``ARGS_REMAP`` holds an inert ``args_mapping`` and only forwards access, a plain ``TARGET`` link.
+        is_stacked = wrp_depr_tgt is TargetMode.ARGS_REMAP and callable(target)
+        chain_type = ChainType.STACKED if is_stacked else ChainType.TARGET
     elif _is_args_remap:
         wrapped = getattr(func, "__wrapped__", None)
         # ``target`` is always a ``TargetMode`` (or callable/None) after normalization — the legacy
@@ -319,7 +326,11 @@ def _validate_args_mapping(
 
 def _definition_of(obj: Any) -> Any:  # noqa: ANN401
     """Return the class or function whose source defines the deprecated *obj*, or ``None`` when there is none."""
-    target = obj.wrapped if isinstance(obj, _DeprecatedProxy) else obj
+    if isinstance(obj, _DeprecatedProxy):
+        # a `deprecated_class` proxy is defined by its class; a `deprecated_instance` object, callable or not, is
+        # bound by an assignment that nothing records, so the function it wraps is not where it was deprecated
+        return obj.wrapped if inspect.isclass(obj.wrapped) else None
+    target = obj
     if isinstance(target, property):
         target = target.fget
     elif isinstance(target, cached_property):
@@ -336,7 +347,7 @@ def _source_location(obj: Any) -> tuple[Optional[str], Optional[int]]:  # noqa: 
 
     A function's line is ``co_firstlineno`` of the undecorated function, which is the line of its first decorator. A
     class (also behind a :func:`~deprecate.proxy.deprecated_class` proxy) uses ``__firstlineno__`` where Python sets it
-    (3.13+) and :func:`inspect.getsourcelines` before. A :func:`~deprecate.proxy.deprecated_instance` data object, code
+    (3.13+) and :func:`inspect.getsourcelines` before. A :func:`~deprecate.proxy.deprecated_instance` object, code
     compiled from a string (``<string>``) and anything :mod:`inspect` cannot place give ``(None, None)``.
 
     Examples:

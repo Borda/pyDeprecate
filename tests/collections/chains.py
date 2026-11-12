@@ -186,7 +186,7 @@ Deprecation Chain Schema:
 
 """
 
-from deprecate import TargetMode, deprecated, void
+from deprecate import TargetMode, deprecated, deprecated_instance, void
 from tests.collections.api_current.core import base_sum_kwargs, stacked_chain_identity
 from tests.collections.api_deprecated.core import (
     _DEPRS_CASE_STD_ARGS,
@@ -345,6 +345,15 @@ def caller_via_notify_layer(value: int) -> int:
 
     """
     return void(value)
+
+
+# Data-object chain: ``chain_outer_settings`` serves the deprecated ``chain_inner_settings`` object, which a later
+# release deprecated in turn.  Neither is callable, so the audit reports ``ChainType.TARGET`` on the outer alias only.
+# Fix: point the outer alias straight at the surviving settings object.
+chain_inner_settings = deprecated_instance({"timeout": 30}, name="chain_inner_settings", **_DEPRS_CASE_STD_ARGS)
+chain_outer_settings = deprecated_instance(
+    {"timeout": 10}, name="chain_outer_settings", target=chain_inner_settings, **_DEPRS_CASE_STD_ARGS
+)
 
 
 class StackedRemapMethodHolder:

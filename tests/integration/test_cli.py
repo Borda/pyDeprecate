@@ -1768,3 +1768,161 @@ class TestCliReportJson:
         assert result.returncode == 0, result.stdout + result.stderr
         assert result.stdout.count("Scanning:") == 1
         assert json.loads(report.read_text(encoding="utf-8"))["gaps"] == []
+
+
+# A package whose import needs a runtime dependency the audit environment lacks. Its ``__init__`` drops a sentinel
+# file before the failing import, so a test can prove that a ``--static`` run never executed it.
+_HEAVYPKG_INIT = """\
+from pathlib import Path
+
+Path(__file__).with_name("IMPORTED").write_text("executed")
+import a_runtime_dependency_that_is_not_installed  # noqa: F401
+from deprecate import deprecated
+
+
+def new_fn(x: int) -> int:
+    return x
+
+
+@deprecated(target=new_fn, deprecated_in="1.0", remove_in="2.0")
+def old_fn(x: int) -> int:
+    return x
+
+
+@deprecated(deprecated_in="1.0", remove_in="1.3")
+def warn_only(x: int) -> int:
+    return x
+"""
+
+
+@pytest.mark.subprocess
+class TestCliStatic:
+    """``--static`` audits ``expiry`` and ``policy`` from source alone, importing nothing from the scanned package."""
+
+    def test_expiry_static_reads_source_without_importing(self, tmp_path: Path) -> None:
+        """``expiry --static`` reports the overdue wrappers of a package whose import would fail.
+
+        A remote pre-commit hook runs in an isolated environment without the project's runtime dependencies, so an
+        import-mode scan of such a package exits 3 and audits nothing. Reading the source with ``ast`` still finds
+        both wrappers past their ``remove_in`` and gates on them, while the package's module-level code never runs.
+
+        """
+        pkg = _make_pkg(tmp_path, name="heavypkg", content=_HEAVYPKG_INIT)
+        result = _run_cli("expiry", str(pkg), "--static", "--version", "3.0", cwd=tmp_path)
+        assert result.returncode == 1, result.stdout + result.stderr
+        assert "Mode: static (source read with ast; nothing imported)" in result.stdout
+        assert "Callable `heavypkg.old_fn` was scheduled for removal in version 2.0" in result.stdout
+        assert "Callable `heavypkg.warn_only` was scheduled for removal in version 1.3" in result.stdout
+        assert not (pkg / "IMPORTED").exists()
+
+    def test_policy_static_flags_missing_guidance(self, tmp_path: Path) -> None:
+        """``policy --static`` reports the wrapper that names no replacement, from source alone.
+
+        The forwarding wrapper names ``new_fn`` and passes; the warn-only one breaks ``message-required`` exactly as an
+        import-mode run would word it, without the package ever being imported.
+
+        """
+        pkg = _make_pkg(tmp_path, name="heavypkg", content=_HEAVYPKG_INIT)
+        result = _run_cli("policy", str(pkg), "--static", cwd=tmp_path)
+        assert result.returncode == 1, result.stdout + result.stderr
+        assert "[message-required] Callable `heavypkg.warn_only` warns without naming a replacement" in result.stdout
+        assert "heavypkg.old_fn" not in result.stdout
+        assert not (pkg / "IMPORTED").exists()
+
+    @pytest.mark.parametrize("subcommand", ["check", "chains", "all", "status"])
+    def test_static_on_other_subcommands_exits_two(self, tmp_path: Path, subcommand: str) -> None:
+        """``--static`` on a subcommand that needs the imported objects is a usage error, before anything is scanned.
+
+        Only the removal schedule and the replacement a wrapper names can be read from source; configuration checks,
+        chains and the status table need the live objects, so the flag is refused rather than silently ignored.
+
+        """
+        pkg = _make_pkg(tmp_path, name="heavypkg", content=_HEAVYPKG_INIT)
+        result = _run_cli(subcommand, str(pkg), "--static", cwd=tmp_path)
+        assert result.returncode == 2, result.stdout + result.stderr
+        assert f"are supported by `expiry` and `policy` only, not `{subcommand}`" in result.stderr
+        assert not (pkg / "IMPORTED").exists()
+
+    def test_report_records_static_mode_without_importing(self, tmp_path: Path) -> None:
+        """``--report-json`` of a static run says so and builds its table from the source read, importing nothing.
+
+        The report table normally auto-detects the version, which can import the package; a static run must keep that
+        path closed too, or the hook would fail on the very packages it exists for.
+
+        """
+        pkg = _make_pkg(tmp_path, name="heavypkg", content=_HEAVYPKG_INIT)
+        report = tmp_path / "report.json"
+        result = _run_cli("policy", str(pkg), "--static", f"--report-json={report}", cwd=tmp_path)
+        assert result.returncode == 1, result.stdout + result.stderr
+        data = json.loads(report.read_text(encoding="utf-8"))
+        assert data["mode"] == "static"
+        assert "`heavypkg.warn_only`" in data["table"]
+        assert not (pkg / "IMPORTED").exists()
+
+    @pytest.mark.parametrize(
+        "flags",
+        [
+            pytest.param((), id="default-is-import"),
+            pytest.param(("--no-static",), id="no-static"),
+            pytest.param(("--nostatic",), id="nostatic"),
+            pytest.param(("--static=false",), id="static-equals-false"),
+            pytest.param(("--static", "false"), id="static-then-false"),
+        ],
+    )
+    def test_import_mode_when_static_is_off(self, tmp_path: Path, flags: tuple[str, ...]) -> None:
+        """Every way of leaving ``--static`` off audits by import and records ``"mode": "import"`` in the report.
+
+        A pipeline may disable the flag its hook enables for one run, or pass nothing at all; neither may print the
+        static banner or label the report as a static read, since the scan then did import the package.
+
+        """
+        pkg = _make_pkg(tmp_path)
+        report = tmp_path / "report.json"
+        result = _run_cli("expiry", str(pkg), "--version", "9.0", *flags, f"--report-json={report}", cwd=tmp_path)
+        assert result.returncode == 1, result.stdout + result.stderr
+        assert "Mode: static" not in result.stdout
+        assert json.loads(report.read_text(encoding="utf-8"))["mode"] == "import"
+
+    def test_version_read_from_source(self, tmp_path: Path) -> None:
+        """Without ``--version``, a static run reads the package's ``__version__`` from source instead of importing it.
+
+        The package is not installed and its import fails, which leaves its own source as the only version a hook
+        environment can find.
+
+        """
+        content = _HEAVYPKG_INIT.replace(
+            "from pathlib import Path\n", "from pathlib import Path\n\n__version__ = '3.0'\n"
+        )
+        pkg = _make_pkg(tmp_path, name="heavypkg", content=content)
+        result = _run_cli("expiry", str(pkg), "--static", cwd=tmp_path)
+        assert result.returncode == 1, result.stdout + result.stderr
+        assert "Version: 3.0 (auto-detected)" in result.stdout
+        assert "2 expired wrapper(s) found." in result.stdout
+        assert not (pkg / "IMPORTED").exists()
+
+    def test_dotted_module_name_exits_two(self) -> None:
+        """A dotted module name is refused in static mode, since locating it would import its parent packages.
+
+        Passing the package directory instead reads the same files without running any of them.
+
+        """
+        result = _run_cli("expiry", "deprecate.audit", "--static")
+        assert result.returncode == 2, result.stdout + result.stderr
+        assert "would import its parent packages" in result.stderr
+
+    def test_policy_config_applies_without_importing(self, tmp_path: Path) -> None:
+        """``[tool.pydeprecate.policy]`` in ``pyproject.toml`` configures a static run, read without the import.
+
+        Switching ``message-required`` off and asking for a full major of grace turns the warn-only wrapper's
+        one-minor runway into the only violation.
+
+        """
+        pkg = _make_pkg(tmp_path, name="heavypkg", content=_HEAVYPKG_INIT)
+        (tmp_path / "pyproject.toml").write_text(
+            '[tool.pydeprecate.policy]\nmin-grace = "1.0"\nmessage-required = false\n', encoding="utf-8"
+        )
+        result = _run_cli("policy", str(pkg), "--static", cwd=tmp_path)
+        assert result.returncode == 1, result.stdout + result.stderr
+        assert "[min-grace] Callable `heavypkg.warn_only`" in result.stdout
+        assert "message-required" not in result.stdout.split("Policy:", 1)[1].split("\n", 1)[1]
+        assert not (pkg / "IMPORTED").exists()

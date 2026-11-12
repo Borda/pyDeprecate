@@ -1,9 +1,31 @@
 # Changelog
 
-## [UnReleased]
+## [UnReleased] - 2026-MM-DD
+
+### Added
+
+- **`deprecated_instance` accepts keyword-only `target`, `args_mapping` and `attrs_mapping`.** The old name can now serve a replacement object, rename keyword arguments when the object is called, and deprecate selected attributes, as `deprecated_class` does. ([#263](https://github.com/Borda/pyDeprecate/pull/263))
+
+### Changed
+
+- **`args_mapping` / `args_extra` on a non-callable object emit `UserWarning` and mark the config misconfigured.** The mapping is inert at runtime and audit reports the proxy with `misconfigured_target=True`. ([#263](https://github.com/Borda/pyDeprecate/pull/263))
+- **Misconfiguration warnings name the factory.** The message says whether `deprecated_instance` or `deprecated_class` was called. ([#263](https://github.com/Borda/pyDeprecate/pull/263))
+- **`copy.copy` of a proxy shallow-copies a plain data replacement.** Top-level writes through a successful copy do not reach the original replacement; if copying raises, the replacement remains shared. Nested mutable values stay shared. ([#263](https://github.com/Borda/pyDeprecate/pull/263))
+- **Audit treats a deprecated data proxy target as a `TARGET` chain and reports data targets by type; callable `ARGS_REMAP` targets are `STACKED` chains.** ([#263](https://github.com/Borda/pyDeprecate/pull/263))
+
+### Added
+
+**CLI & CI**
+
+- **`--static` mode for `pydeprecate expiry` and `pydeprecate policy`, and the `pydeprecate-expiry-static` / `pydeprecate-policy-static` pre-commit hooks.** `--static` reads the package source with `ast` and imports nothing from it, so a package can be audited without its runtime dependencies installed. Recognized wrappers with resolvable settings are checked; recognized unresolved forms produce a `pydeprecate gap: not statically resolvable` line without changing the exit code. Some forms are invisible without a gap, including wrappers created in loops or through `getattr`, `importlib` or `exec`; bare target names imported from outside the package can also be misclassified. See the CLI guide for the full limitations. The two `-static` hooks run the same checks from the shipped `.pre-commit-hooks.yaml`, and the `--report-json` record carries a new `mode` field, `"static"` or `"import"`. `check`, `chains`, `all` and `status` have no static mode and exit `2` with `--static`. ([#264](https://github.com/Borda/pyDeprecate/pull/264))
+
+### Changed
+
+- **Version detection stops at the nearest project.** For a path scan, the nearest `pyproject.toml` with a `[project]` table owns version detection even when its version cannot be resolved; an ancestor project's version is not used. If the remaining metadata and package-version sources also fail, expiry reports a `version not resolved` gap. ([#264](https://github.com/Borda/pyDeprecate/pull/264))
 
 ### Fixed
 
+- **A keyword named like a positional-only parameter stays a keyword when a call is rewritten.** For a callable declaring `**kwargs`, such as `def f(x=1, /, flag=None, **kwargs)`, a renamed or forwarded call like `f(old_flag=1, x=99)` now passes `x=99` into `kwargs` and keeps the default `x`, as the undecorated call does, instead of moving it into the positional slot. Applies to `@deprecated` and to `deprecated_class` / `deprecated_instance` proxies with `args_mapping`. ([#263](https://github.com/Borda/pyDeprecate/pull/263))
 - **Matrix audit tables have one column per release.** `generate_deprecation_table(..., style="matrix")` and the CLI matrix output merge the spellings `1.0`, `v1.0` and `1.0.0` of one release into a single column, headed by the shortest spelling. Without `packaging` only spellings that differ by the `v` prefix merge. ([#262](https://github.com/Borda/pyDeprecate/pull/262))
 - **`validate_deprecation_expiry(<module path>)` without a version surfaces the package's real import error.** The module path is now imported before the version lookup, so a package whose own import fails raises its actual exception instead of "Could not determine version". A degenerate module path such as an empty name raises importlib's own error. ([#262](https://github.com/Borda/pyDeprecate/pull/262))
 - **Unparsed matrix columns are ordered by their displayed header text.** Version strings that are not PEP 440 releases come after the parsed releases, now sorted by the `v`-prefixed header as rendered instead of the raw string, so columns such as `next` and `vlegacy` swap order (`vlegacy | vnext`). A committed matrix table that contains such columns re-renders with the new order. ([#262](https://github.com/Borda/pyDeprecate/pull/262))
