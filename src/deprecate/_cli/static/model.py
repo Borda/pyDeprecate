@@ -81,6 +81,12 @@ def _may_be_callable_class(node: ast.ClassDef) -> bool:
 
     That holds when the class defines ``__call__`` or has bases that may define it.
 
+    Examples:
+        >>> _may_be_callable_class(ast.parse("class C: __call__ = lambda self: None").body[0])
+        True
+        >>> _may_be_callable_class(ast.parse("class C: pass").body[0])
+        False
+
     """
     if node.keywords or any(not (isinstance(base, ast.Name) and base.id == "object") for base in node.bases):
         return True

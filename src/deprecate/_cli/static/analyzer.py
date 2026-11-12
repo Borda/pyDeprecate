@@ -54,7 +54,15 @@ from deprecate.audit._version import _absolute_import
 
 
 def _may_interrupt_execution(stmt: ast.stmt) -> bool:
-    """Detect calls or imports executed while a module-level statement runs."""
+    """Detect calls or imports executed while a module-level statement runs.
+
+    Examples:
+        >>> _may_interrupt_execution(ast.parse("def helper(): return work()").body[0])
+        False
+        >>> _may_interrupt_execution(ast.parse("def helper(value=work()): pass").body[0])
+        True
+
+    """
     stack: list[ast.AST] = [stmt]
     while stack:
         node = stack.pop()
