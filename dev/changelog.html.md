@@ -13,6 +13,16 @@
 - **`copy.copy` of a proxy shallow-copies a plain data replacement.** Top-level writes through a successful copy do not reach the original replacement; if copying raises, the replacement remains shared. Nested mutable values stay shared. ([#263](https://github.com/Borda/pyDeprecate/pull/263))
 - **Audit treats a deprecated data proxy target as a `TARGET` chain and reports data targets by type; callable `ARGS_REMAP` targets are `STACKED` chains.** ([#263](https://github.com/Borda/pyDeprecate/pull/263))
 
+### Added
+
+**CLI & CI**
+
+- **`--static` mode for `pydeprecate expiry` and `pydeprecate policy`, and the `pydeprecate-expiry-static` / `pydeprecate-policy-static` pre-commit hooks.** `--static` reads the package source with `ast` and imports nothing from it, so a package can be audited without its runtime dependencies installed. Recognized wrappers with resolvable settings are checked; recognized unresolved forms produce a `pydeprecate gap: not statically resolvable` line without changing the exit code. Some forms are invisible without a gap, including wrappers created in loops or through `getattr`, `importlib` or `exec`; bare target names imported from outside the package can also be misclassified. See the CLI guide for the full limitations. The two `-static` hooks run the same checks from the shipped `.pre-commit-hooks.yaml`, and the `--report-json` record carries a new `mode` field, `"static"` or `"import"`. `check`, `chains`, `all` and `status` have no static mode and exit `2` with `--static`. ([#264](https://github.com/Borda/pyDeprecate/pull/264))
+
+### Changed
+
+- **Version detection stops at the nearest project.** For a path scan, the nearest `pyproject.toml` with a `[project]` table owns version detection even when its version cannot be resolved; an ancestor project's version is not used. If the remaining metadata and package-version sources also fail, expiry reports a `version not resolved` gap. ([#264](https://github.com/Borda/pyDeprecate/pull/264))
+
 ### Fixed
 
 - **A keyword named like a positional-only parameter stays a keyword when a call is rewritten.** For a callable declaring `**kwargs`, such as `def f(x=1, /, flag=None, **kwargs)`, a renamed or forwarded call like `f(old_flag=1, x=99)` now passes `x=99` into `kwargs` and keeps the default `x`, as the undecorated call does, instead of moving it into the positional slot. Applies to `@deprecated` and to `deprecated_class` / `deprecated_instance` proxies with `args_mapping`. ([#263](https://github.com/Borda/pyDeprecate/pull/263))

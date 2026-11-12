@@ -419,6 +419,12 @@
 
         {
           "@type": "Question",
+          "name": "Can pydeprecate audit a package whose dependencies are not installed?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Yes, for removal deadlines and policy rules: pydeprecate expiry --static and pydeprecate policy --static (from v0.16.0; the pydeprecate-expiry-static and pydeprecate-policy-static pre-commit hooks) read your source with ast and import nothing from your package, so its dependencies, and even its own import-time code, never run. The scan checks recognized wrappers when the settings a rule needs are statically resolvable, including literals, module-level names bound once to literals, and settings splatted from a module-level dict literal. A wrapper the scan recognizes but the source alone does not settle is printed as a pydeprecate gap: not statically resolvable: \u003cfile\u003e:\u003cline\u003e: \u003creason\u003e line and does not change the exit code, so read those lines and spell the settings literally where you want them gated. Wrappers built in loops or through getattr, importlib or exec, or imported from outside the scanned package, are not seen and print no gap line. check, chains, all and status need the imported wrappers and have no static mode. See Static mode." }
+        },
+
+        {
+          "@type": "Question",
           "name": "My pydeprecate pre-commit hook fails: contains multiple packages",
           "acceptedAnswer": { "@type": "Answer", "text": "With no path in args, the hook looks for a single package under src/, then at the repository root. A root that holds two or more top-level packages (here mypkg/ and tests/) is ambiguous, so pyDeprecate stops with an error instead of scanning nothing and passing. Src-layout repositories and single-package roots resolve on their own. For a multi-package repository, name the package to audit in the hook args: The same error, a usage error with exit 2, applies to every subcommand; see the audit guide." }
         },
@@ -2045,6 +2051,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#can-pydeprecate-audit-a-package-whose-dependencies-are-not-installed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Can pydeprecate audit a package whose dependencies are not installed?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#my-pydeprecate-pre-commit-hook-fails-contains-multiple-packages" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2989,6 +3006,17 @@
     <span class="md-ellipsis">
       
         My pydeprecate pre-commit hook passes but misses deprecations
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#can-pydeprecate-audit-a-package-whose-dependencies-are-not-installed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Can pydeprecate audit a package whose dependencies are not installed?
       
     </span>
   </a>
@@ -4922,8 +4950,13 @@
 <ul>
 <li>Run a local hook (<code>repo: local</code>, <code>language: system</code>, <code>entry: pydeprecate check</code>) so the scan uses your development environment — the recommended setup for any package with runtime dependencies.</li>
 <li>Keep the remote hook and list your dependencies in <code>additional_dependencies</code>. The list replaces the hook's own, so start it with the hook's <code>"pyDeprecate[cli,audit]"</code> entry (pyDeprecate's <code>cli</code> and <code>audit</code> extras, which pip resolves to the hook's own checkout) and then append yours — without the <code>audit</code> extra, <code>packaging</code> is missing, so <code>expiry</code> and the <code>min-grace</code> policy rule are skipped with a warning instead of failing, and without <code>tomli</code> on Python 3.9–3.10 <code>[tool.pydeprecate]</code> settings are ignored.</li>
+<li>For removal deadlines and policy rules only, use the import-free <code>pydeprecate-expiry-static</code> and <code>pydeprecate-policy-static</code> hooks, which need none of your dependencies (from <code>v0.16.0</code>).</li>
 </ul>
 <p>Both recipes are in the <a href="guide/audit.html#pre-commit-integration">audit guide</a>.</p>
+<hr />
+<h2 id="can-pydeprecate-audit-a-package-whose-dependencies-are-not-installed">Can pydeprecate audit a package whose dependencies are not installed?<a class="headerlink" href="#can-pydeprecate-audit-a-package-whose-dependencies-are-not-installed" title="Permanent link">🔗</a></h2>
+<p><strong>Q:</strong> Can pydeprecate audit a package whose dependencies are not installed?</p>
+<p><strong>A:</strong> Yes, for removal deadlines and policy rules: <code>pydeprecate expiry --static</code> and <code>pydeprecate policy --static</code> (from <code>v0.16.0</code>; the <code>pydeprecate-expiry-static</code> and <code>pydeprecate-policy-static</code> pre-commit hooks) read your source with <code>ast</code> and import nothing from your package, so its dependencies, and even its own import-time code, never run. The scan checks recognized wrappers when the settings a rule needs are statically resolvable, including literals, module-level names bound once to literals, and settings splatted from a module-level dict literal. A wrapper the scan recognizes but the source alone does not settle is printed as a <code>pydeprecate gap: not statically resolvable: &lt;file&gt;:&lt;line&gt;: &lt;reason&gt;</code> line and does not change the exit code, so read those lines and spell the settings literally where you want them gated. Wrappers built in loops or through <code>getattr</code>, <code>importlib</code> or <code>exec</code>, or imported from outside the scanned package, are not seen and print no gap line. <code>check</code>, <code>chains</code>, <code>all</code> and <code>status</code> need the imported wrappers and have no static mode. See <a href="guide/cli.html#static-mode">Static mode</a>.</p>
 <hr />
 <h2 id="my-pydeprecate-pre-commit-hook-fails-contains-multiple-packages">My pydeprecate pre-commit hook fails: contains multiple packages<a class="headerlink" href="#my-pydeprecate-pre-commit-hook-fails-contains-multiple-packages" title="Permanent link">🔗</a></h2>
 <p><strong>Q:</strong> The <code>pydeprecate</code> pre-commit hook fails with <code>contains multiple packages (mypkg, tests)</code> and a non-zero exit. What should I change?</p>
@@ -5016,7 +5049,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 11, 2026 13:46:14 UTC">2026-11-11</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 12, 2026 20:20:52 UTC">2026-11-12</span>
   </span>
 
     

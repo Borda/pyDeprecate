@@ -100,7 +100,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-10-29",
-  "dateModified": "2026-11-11"
+  "dateModified": "2026-11-12"
 }
 </script>
 
@@ -1466,7 +1466,8 @@
 </ul>
 <h2 id="audit-tooling">Audit tooling<a class="headerlink" href="#audit-tooling" title="Permanent link">🔗</a></h2>
 <ul>
-<li><strong>There is no import-free scan mode.</strong> The audit imports the package it scans, so its module-level code runs and its runtime dependencies must be installed in the scanning environment. The remote pre-commit hook runs in an isolated environment and therefore only suits packages without such dependencies; use a <code>repo: local</code> hook otherwise. See <a href="guide/audit.html">Audit Tools</a> and <a href="guide/cli.html">the CLI reference</a>.</li>
+<li><strong>The full audit imports the package it scans.</strong> Its module-level code runs and its runtime dependencies must be installed in the scanning environment, so the import-mode remote pre-commit hooks only suit packages without such dependencies; use a <code>repo: local</code> hook otherwise. See <a href="guide/audit.html">Audit Tools</a> and <a href="guide/cli.html">the CLI reference</a>.</li>
+<li><strong>The import-free mode covers <code>expiry</code> and <code>policy</code> only, and only what the source spells.</strong> <code>pydeprecate expiry --static</code> and <code>policy --static</code> read the source with <code>ast</code>, so <code>check</code>, <code>chains</code>, <code>all</code> and <code>status</code>, which need the imported wrappers, have no static mode. A setting computed at runtime, held in a name bound more than once, or splatted from anything but a module-level dict literal is reported as a <code>not statically resolvable</code> gap rather than checked, and a gap does not fail the run. Static mode cannot see wrappers built in loops or through <code>getattr</code>, <code>importlib</code> or <code>exec</code>, a proxy built from the private <code>_DeprecatedProxy</code> directly, or a deprecated object or configured decorator imported from outside the scanned package, and it reads a <code>target</code> imported from outside the package as a replacement even when it holds <code>None</code> or a <code>TargetMode</code> member; members inherited from a base class outside it are a gap. Its <code>--report-json</code> table names a replacement by its source text. See <a href="guide/cli.html#static-mode">Static mode</a>.</li>
 <li><strong>Scans are per package, never per file.</strong> A single <code>.py</code> path is rejected with <code>File paths are not supported</code>, and a directory holding two or more top-level packages is rejected as well, so "scan only the files changed in this commit" is not available. Pass the package directory or an importable name. See <a href="guide/cli.html#path-formats">Path formats</a>.</li>
 <li><strong>The GitHub Action's <code>install: true</code> re-pins pyDeprecate.</strong> The default installs pyDeprecate from the action's own ref into the job's Python, replacing the version your job already had. Set <code>install: false</code> when your project pins its own version. See <a href="guide/audit.html#github-action">GitHub Action</a>.</li>
 </ul>
@@ -1492,7 +1493,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 11, 2026 13:46:14 UTC">2026-11-11</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 12, 2026 20:20:52 UTC">2026-11-12</span>
   </span>
 
     
