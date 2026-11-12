@@ -393,7 +393,7 @@ pyDeprecate/
 │   ├── brand.md, changelog.md  # Brand guide; changelog page
 │   ├── llms.txt                # Authoritative agent contract; llms-full.txt is the condensed context
 │   ├── robots.txt              # AI crawler access policy
-│   ├── schemas/                # JSON Schema of the CLI's `--report-json` file (report-2.schema.json)
+│   ├── schemas/                # JSON Schema of the CLI's `--report-json` file (report-1.schema.json)
 │   ├── mkdocs_hooks.py         # MkDocs build hooks (Markdown mirrors, sitemap)
 │   ├── overrides/              # Jinja2 templates: main.html (JSON-LD), mike_redirect.html
 │   ├── stylesheets/            # Site CSS

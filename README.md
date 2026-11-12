@@ -1599,7 +1599,7 @@ The `DeprecationWrapperInfo` dataclass has these fields (`empty_deprecated_in` i
 - `args_mapping_positional_only`: `args_mapping` keys whose remapped target is a positional-only constructor parameter (forwarded positionally by the proxy)
 - `inner_order_property`: True for the inner decorator order `@property @deprecated`, where only the getter warns
 - `pep702_message`: `None` for pyDeprecate wrappers; on a row found with `find_deprecation_wrappers(..., include_pep702=True)` for a symbol deprecated only with `warnings.deprecated`, the decorator's message (a string, possibly empty) — such a row keeps a shape `api_type` (`callable`, `class`, `class method`, ...) and has no versions
-- `source_file`, `source_line` (since 0.16): where the deprecated object is defined — the absolute file and the line of its first decorator; `None` for a `deprecated_instance` data object and for code compiled from a string, and a deprecated module has a file but no line. Neither takes part in equality or `repr()`
+- `source_file`, `source_line` (since 0.16): where the deprecated object is defined — the absolute file and the line of its first decorator (the outermost one, such as a `functools.lru_cache` above `@deprecated`); `None` for a `deprecated_instance` data object, for a class built at runtime (a functional `Enum` or a `type()` call) and for a function compiled from a string (a class built by `exec` in a namespace named after a real module may be attributed to that module's file on Python 3.13+), and a deprecated module has a file but no line. Neither takes part in equality or `repr()`
 
 <details>
 <summary><b>Validating a Single Function</b></summary>

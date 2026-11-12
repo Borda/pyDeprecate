@@ -14,7 +14,7 @@ from deprecate.audit._findings import _Finding, _Rule
 
 
 class _Level(str, enum.Enum):
-    """How a finding counts in one subcommand; the values are the levels the report and SARIF output use."""
+    """How a finding counts in one subcommand; the values are the levels the report uses."""
 
     ERROR = "error"
     WARNING = "warning"
