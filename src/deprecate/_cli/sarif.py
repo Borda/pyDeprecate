@@ -16,6 +16,7 @@ from urllib.parse import quote
 from deprecate import __about__
 from deprecate._cli.findings import _level
 from deprecate._cli.report import (
+    _location_root,
     _report_findings_with_sources,
     _report_suppressed,
     _run_mode,
@@ -28,7 +29,7 @@ from deprecate.audit._findings import _Rule
 _SARIF_VERSION = "2.1.0"
 _SARIF_SCHEMA = "https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json"
 _INFORMATION_URI = "https://github.com/Borda/pyDeprecate"
-#: The base id relative result locations are resolved against: the directory the CLI ran in.
+#: The base id relative result locations are resolved against: the repository root of the directory the CLI ran in.
 _SRCROOT = "%SRCROOT%"
 #: Results GitHub code scanning accepts in one run; more are written, with an advisory.
 _RESULTS_LIMIT = 25_000
@@ -142,15 +143,40 @@ def _sarif_result(finding: dict[str, Any], source: Optional[str], rule_index: in
     return result
 
 
-def _print_advisories(total: int, unlocated: int, mode: str) -> None:
+def _is_outside(result: dict[str, Any]) -> bool:
+    """Tell whether a SARIF *result* is located outside the root: by an absolute URI without the ``%SRCROOT%`` base.
+
+    Examples:
+        >>> inside = {"physicalLocation": {"artifactLocation": {"uri": "src/a.py", "uriBaseId": "%SRCROOT%"}}}
+        >>> outside = {"physicalLocation": {"artifactLocation": {"uri": "file:///elsewhere/pkg.py"}}}
+        >>> _is_outside({"locations": [inside]}), _is_outside({"locations": [outside]}), _is_outside({})
+        (False, True, False)
+
+    """
+    locations = result.get("locations")
+    if not locations:  # an unlocated result is counted apart, in `unlocated`
+        return False
+    return "uriBaseId" not in locations[0]["physicalLocation"]["artifactLocation"]
+
+
+def _print_advisories(total: int, *, unlocated: int, outside: int, mode: str, root: Path) -> None:
     """Print on stderr what keeps GitHub code scanning from showing the run's results; the file is written as built.
 
     Args:
         total: Number of results in the run.
         unlocated: Results without a location, which code scanning does not display.
+        outside: Results located outside *root*, by an absolute ``file`` URI no repository file matches.
         mode: The run's mode, ``static`` or ``import``; a ``--static`` scan records no source location at all.
+        root: The repository root relative locations resolve against.
 
     """
+    if outside:
+        print(
+            f"pydeprecate: {outside} SARIF result(s) lie outside the repository root {root}, so their absolute file URI"
+            " matches no repository file in GitHub code scanning; scan the package in the checkout, not an installed"
+            " copy.",
+            file=sys.stderr,
+        )
     if total > _RESULTS_LIMIT:
         print(
             f"pydeprecate: the SARIF run holds {total} results, more than the {_RESULTS_LIMIT} GitHub code"
@@ -177,10 +203,11 @@ def _build_sarif(record: _RunRecord, exit_code: int, root: Optional[Path] = None
     Args:
         record: The run record the subcommand filled.
         exit_code: The process exit code (0 or 1).
-        root: Directory relative locations resolve against; the working directory by default.
+        root: Directory relative locations resolve against; by default the repository root of the working directory
+            (:func:`~deprecate._cli.report._location_root`), the base of the ``--report-json`` locations too.
 
     """
-    base = root if root is not None else Path.cwd()
+    base = root if root is not None else _location_root()
     command = record.command or ""
     # a rule's default level is its highest in the run: `--gate` raises a rule to an error for the paths it names
     gates = frozenset().union(*record.gates_by_path.values())
@@ -188,11 +215,12 @@ def _build_sarif(record: _RunRecord, exit_code: int, root: Optional[Path] = None
     rule_levels = {rule: level for rule in _Rule if (level := _level(rule, command, gates)) is not None}
     rules = list(rule_levels)
     rule_index = {rule.value: index for index, rule in enumerate(rules)}
-    findings = _report_findings_with_sources(record)
+    findings = _report_findings_with_sources(record, base)
     results = [_sarif_result(finding, source, rule_index[finding["rule"]], base) for finding, source in findings]
     unlocated = sum(1 for _, source in findings if source is None)
+    outside = sum(1 for result in results if _is_outside(result))
     mode = _run_mode(record)
-    _print_advisories(len(results), unlocated, mode)
+    _print_advisories(len(results), unlocated=unlocated, outside=outside, mode=mode, root=base)
     return {
         "$schema": _SARIF_SCHEMA,
         "version": _SARIF_VERSION,
@@ -228,7 +256,7 @@ def _build_sarif(record: _RunRecord, exit_code: int, root: Optional[Path] = None
                     }
                 ],
                 "properties": {
-                    "suppressed": len(_report_suppressed(record)),
+                    "suppressed": len(_report_suppressed(record, base)),
                     "unlocated": unlocated,
                     "mode": mode,
                     "paths": [scanned.path for scanned in record.scanned],

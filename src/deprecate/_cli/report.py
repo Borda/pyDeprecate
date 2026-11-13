@@ -477,6 +477,8 @@ class _Reporter:
 _REPORT_SCHEMA = 1
 #: Default of each option the report lists, for a run that never resolved it (``status``, a usage error).
 _DEFAULT_OPTIONS: dict[str, Any] = {"strict": False, "exit_zero": False, "gates": [], "recursive": True, "exclude": []}
+#: Environment variable naming the checkout directory of a GitHub Actions job; locates the repository without ``.git``.
+_WORKSPACE_ENV = "GITHUB_WORKSPACE"
 
 
 def _render_recorded_table(record: _RunRecord) -> Optional[str]:
@@ -516,20 +518,58 @@ def _render_recorded_table(record: _RunRecord) -> Optional[str]:
     return _join_tables(tables)
 
 
-def _report_location(finding: _Finding) -> Optional[dict[str, Any]]:
-    """Return where *finding*'s wrapper is defined: a POSIX path relative to the working directory when under it."""
+def _find_location_root(cwd: Path, workspace: Optional[str]) -> Path:
+    """Return the repository root that report and SARIF locations are relative to, for a run in directory *cwd*.
+
+    That is the nearest directory at or above *cwd* holding a ``.git`` entry (a directory, or the file of a worktree or
+    submodule); without one, the *workspace* directory (``GITHUB_WORKSPACE``) when it is absolute and *cwd* lies in it;
+    else *cwd* itself. GitHub resolves relative code-scanning and annotation paths against the repository root, so a
+    run started in a sub-directory of the checkout still names every file as the repository does.
+
+    Args:
+        cwd: The directory the CLI runs in.
+        workspace: The value of ``GITHUB_WORKSPACE``, ``None`` or empty outside GitHub Actions.
+
+    Examples:
+        >>> import tempfile
+        >>> with tempfile.TemporaryDirectory() as tmp:
+        ...     repo = Path(tmp).resolve()
+        ...     (repo / ".git").mkdir()
+        ...     (repo / "src").mkdir()
+        ...     _find_location_root(repo / "src", None) == repo
+        True
+
+    """
+    for directory in (cwd, *cwd.parents):
+        # `os.path.exists` never raises: an unreadable ancestor counts as holding no `.git`
+        if os.path.exists(directory / ".git"):
+            return directory
+    if workspace:
+        workspace_dir = Path(workspace)
+        if workspace_dir.is_absolute() and cwd.is_relative_to(workspace_dir):
+            return workspace_dir
+    return cwd
+
+
+def _location_root() -> Path:
+    """Return the repository root of the working directory: the base of every report and SARIF location of the run."""
+    return _find_location_root(Path.cwd(), os.environ.get(_WORKSPACE_ENV))
+
+
+def _report_location(finding: _Finding, root: Path) -> Optional[dict[str, Any]]:
+    """Return where *finding*'s wrapper is defined: a POSIX path relative to the repository *root* when under it."""
     if finding.source_file is None:
         return None
     source = Path(finding.source_file)
     try:
-        file_name = source.relative_to(Path.cwd()).as_posix()
+        file_name = source.relative_to(root).as_posix()
     except ValueError:
         file_name = PurePath(source).as_posix()
     return {"file": file_name, "line": finding.source_line}
 
 
-def _report_finding(finding: _Finding, level: _Level, path: Optional[str]) -> dict[str, Any]:
-    """Return the report record of one finding at the level it has in this run."""
+def _report_finding(finding: _Finding, level: _Level, path: Optional[str], root: Path) -> dict[str, Any]:
+    """Return the report record of one finding at the level it has in this run, located relative to *root*."""
     return {
         "id": finding.id,
         "rule": finding.rule.value,
@@ -545,12 +585,12 @@ def _report_finding(finding: _Finding, level: _Level, path: Optional[str]) -> di
         },
         "deprecated_in": finding.deprecated_in,
         "remove_in": finding.remove_in,
-        "location": _report_location(finding),
+        "location": _report_location(finding, root),
         "path": path,
     }
 
 
-def _report_suppressed(record: _RunRecord) -> list[dict[str, Any]]:
+def _report_suppressed(record: _RunRecord, root: Path) -> list[dict[str, Any]]:
     """Return the run's suppressed findings, one per id, each with what suppressed it, sorted like the findings."""
     best: dict[str, tuple[_Level, _SuppressedFinding]] = {}
     for item in record.suppressed:
@@ -563,24 +603,24 @@ def _report_suppressed(record: _RunRecord) -> list[dict[str, Any]]:
     ordered = sorted(best.values(), key=lambda pair: (_LEVEL_RANK[pair[0]], pair[1].finding.id))
     return [
         {
-            **_report_finding(item.finding, level, item.path),
+            **_report_finding(item.finding, level, item.path, root),
             "suppressed_by": {"kind": item.kind, "entry": item.entry},
         }
         for level, item in ordered
     ]
 
 
-def _report_findings(record: _RunRecord) -> list[dict[str, Any]]:
+def _report_findings(record: _RunRecord, root: Path) -> list[dict[str, Any]]:
     """Return the run's findings, one per id at its highest level in the subcommand, sorted by ``(level, id)``.
 
     ``all`` derives a ``chain`` finding in its ``check`` pass and again in its ``chains`` pass; the two are one record,
-    at the higher level. Findings the subcommand does not evaluate are left out.
+    at the higher level. Findings the subcommand does not evaluate are left out. Locations are relative to *root*.
 
     """
-    return [finding for finding, _ in _report_findings_with_sources(record)]
+    return [finding for finding, _ in _report_findings_with_sources(record, root)]
 
 
-def _report_findings_with_sources(record: _RunRecord) -> list[tuple[dict[str, Any], Optional[str]]]:
+def _report_findings_with_sources(record: _RunRecord, root: Path) -> list[tuple[dict[str, Any], Optional[str]]]:
     """Return :func:`_report_findings` paired with each finding's absolute source file (``None`` when unlocated)."""
     best: dict[str, tuple[_Level, _Finding, Optional[str]]] = {}
     for finding, path in zip(record.findings, record.finding_paths):
@@ -591,7 +631,7 @@ def _report_findings_with_sources(record: _RunRecord) -> list[tuple[dict[str, An
         if kept is None or _LEVEL_RANK[level] < _LEVEL_RANK[kept[0]]:
             best[finding.id] = (level, finding, path)
     ordered = sorted(best.values(), key=lambda item: (_LEVEL_RANK[item[0]], item[1].id))
-    return [(_report_finding(finding, level, path), finding.source_file) for level, finding, path in ordered]
+    return [(_report_finding(finding, level, path, root), finding.source_file) for level, finding, path in ordered]
 
 
 def _run_mode(record: _RunRecord) -> str:
@@ -605,8 +645,9 @@ def _run_mode(record: _RunRecord) -> str:
 
 def _build_report(record: _RunRecord, exit_code: int) -> dict[str, Any]:
     """Return the ``--report-json`` document of the run (layout :data:`_REPORT_SCHEMA`)."""
-    findings = _report_findings(record)
-    suppressed = _report_suppressed(record)
+    root = _location_root()
+    findings = _report_findings(record, root)
+    suppressed = _report_suppressed(record, root)
     levels = [finding["level"] for finding in findings]
     return {
         "schema": _REPORT_SCHEMA,

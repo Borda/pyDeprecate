@@ -1,6 +1,9 @@
 """Unit tests for :mod:`deprecate._cli.sarif`: the SARIF 2.1.0 document of a CLI run."""
 
 import json
+import os
+import tempfile
+from collections.abc import Callable
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Optional
 from unittest import mock
@@ -9,6 +12,7 @@ import pytest
 
 from deprecate._cli.report import (
     _build_report,
+    _find_location_root,
     _Gap,
     _GapKind,
     _RunRecord,
@@ -19,6 +23,14 @@ from deprecate._cli.report import (
 from deprecate._cli.sarif import _artifact_location, _build_sarif, _rule_name, _write_sarif
 from deprecate.audit import DeprecationWrapperInfo
 from deprecate.audit._findings import _Check, _Finding, _make_finding, _Rule
+
+#: The system temp directory, where pytest's ``tmp_path`` lives.
+_TEMP_DIR = Path(tempfile.gettempdir()).resolve()
+#: Whether a ``.git`` sits at or above the temp directory: the root walk would stop there, not at the test's own dirs.
+_TEMP_IN_GIT_TREE = any(os.path.exists(directory / ".git") for directory in (_TEMP_DIR, *_TEMP_DIR.parents))
+_skip_temp_in_git_tree = pytest.mark.skipif(_TEMP_IN_GIT_TREE, reason="the temp directory lies inside a git checkout")
+#: An absolute ``GITHUB_WORKSPACE`` that holds no temporary directory, on any OS.
+_FOREIGN_WORKSPACE = str(Path(_TEMP_DIR.anchor) / "pydeprecate-no-such-workspace")
 
 
 def _finding(
@@ -406,3 +418,92 @@ class TestArtifactLocation:
     def test_rule_name_is_pascal_case(self) -> None:
         """Rule names are the PascalCase of the slug, as SARIF tooling expects a readable name."""
         assert _rule_name(_Rule.POSITIONAL_ONLY_MAPPING) == "PositionalOnlyMapping"
+
+
+class TestLocationRoot:
+    """Report and SARIF locations are relative to the repository root, wherever in the checkout the CLI runs."""
+
+    @pytest.mark.parametrize(
+        "make_marker", [pytest.param(Path.mkdir, id="git-directory"), pytest.param(Path.touch, id="worktree-git-file")]
+    )
+    def test_nearest_git_entry_is_the_root(self, tmp_path: Path, make_marker: Callable[[Path], None]) -> None:
+        """A run in a sub-directory of a checkout anchors at the directory holding ``.git``, before the workspace.
+
+        GitHub resolves relative SARIF paths against the repository root, so ``cd src && pydeprecate check pkg`` must
+        still name ``src/pkg/...``. A worktree or submodule marks its root with a ``.git`` file instead of a directory.
+
+        """
+        repo = tmp_path / "repo"
+        (repo / "src" / "pkg").mkdir(parents=True)
+        make_marker(repo / ".git")
+        assert _find_location_root(repo / "src" / "pkg", str(tmp_path)) == repo
+
+    @_skip_temp_in_git_tree
+    def test_workspace_holding_cwd_is_the_root(self, tmp_path: Path) -> None:
+        """Without ``.git``, ``GITHUB_WORKSPACE`` is the root when the run happens inside it.
+
+        ``actions/checkout`` falls back to a tarball without ``.git`` when git is missing on the runner; the workspace
+        is then the only marker of where the repository starts.
+
+        """
+        cwd = tmp_path / "ws" / "sub"
+        cwd.mkdir(parents=True)
+        assert _find_location_root(cwd, str(tmp_path / "ws")) == tmp_path / "ws"
+
+    @_skip_temp_in_git_tree
+    @pytest.mark.parametrize(
+        "workspace",
+        [
+            pytest.param(None, id="no-workspace"),
+            pytest.param("", id="empty-workspace"),
+            pytest.param("ws", id="relative-workspace"),
+            pytest.param(_FOREIGN_WORKSPACE, id="workspace-not-holding-cwd"),
+        ],
+    )
+    def test_without_repository_the_working_directory_is_the_root(
+        self, tmp_path: Path, workspace: Optional[str]
+    ) -> None:
+        """Outside a checkout, with no workspace holding the run, locations stay relative to the working directory.
+
+        Unit tests and ad-hoc runs work in temporary directories while CI sets ``GITHUB_WORKSPACE`` to the checkout;
+        a workspace elsewhere, or a relative one, must not turn every location absolute.
+
+        """
+        assert _find_location_root(tmp_path, workspace) == tmp_path
+
+    def test_sarif_and_report_share_the_root_from_a_subdirectory(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Run from ``<repo>/src``, the SARIF URI, its ``%SRCROOT%`` base and the JSON location all start at ``<repo>``.
+
+        The Action annotates from the JSON report and code scanning reads the SARIF file of the same run; both must
+        name the file the way the repository does, not relative to the directory the step happened to run in.
+
+        """
+        (tmp_path / ".git").mkdir()
+        (tmp_path / "src").mkdir()
+        monkeypatch.chdir(tmp_path / "src")
+        monkeypatch.delenv("GITHUB_WORKSPACE", raising=False)
+        record = _record("check", _finding(_Rule.INVALID_ARGS, "old_fn", str(tmp_path / "src" / "pkg.py"), line=5))
+        run = _run(_build_sarif(record, 1))
+        report_location = _build_report(record, 1)["findings"][0]["location"]
+        assert run["results"][0]["locations"][0]["physicalLocation"]["artifactLocation"]["uri"] == "src/pkg.py"
+        assert run["originalUriBaseIds"]["%SRCROOT%"]["uri"] == tmp_path.as_uri() + "/"
+        assert report_location == {"file": "src/pkg.py", "line": 5}
+
+    def test_result_outside_the_root_is_counted_on_stderr(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A wrapper file outside the repository root keeps its absolute URI and is counted in a stderr advisory.
+
+        A module-name scan of an installed copy locates findings in ``site-packages``; code scanning cannot show such
+        a result, and the run says so instead of uploading alerts that silently never appear.
+
+        """
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        inside = _finding(_Rule.NO_EFFECT, "a_fn", str(repo / "pkg.py"))
+        outside = _finding(_Rule.NO_EFFECT, "b_fn", str(tmp_path / "site-packages" / "pkg.py"))
+        run = _run(_build_sarif(_record("check", inside, outside), 0, root=repo))
+        assert "pydeprecate: 1 SARIF result(s) lie outside the repository root" in capsys.readouterr().err
+        assert run["properties"]["unlocated"] == 0
