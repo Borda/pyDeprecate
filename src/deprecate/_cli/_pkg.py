@@ -8,13 +8,36 @@ This module is private (no ``__all__``); its surface may change without notice.
 
 """
 
+from collections.abc import Iterator, Sequence
 from pathlib import Path
 from typing import Any, Optional
 
+from deprecate.audit._scan import _is_excluded
 from deprecate.audit._version import _is_package_dir, _iter_pyproject_paths, _load_toml
 
 #: Dotted key of the ``pyproject.toml`` table that carries the CLI's project-level settings.
 _CONFIG_TABLE = ("tool", "pydeprecate")
+
+
+def _plain_dir_modules(directory: Path, exclude: Sequence[str]) -> Iterator[Path]:
+    """Yield the non-dunder Python files a plain-directory scan includes, in filename order.
+
+    Examples:
+        >>> from tempfile import TemporaryDirectory
+        >>> with TemporaryDirectory() as root:
+        ...     directory = Path(root)
+        ...     for name in ("later.py", "first.py", "__init__.py", "ignored.py", "notes.txt"):
+        ...         (directory / name).touch()
+        ...     (directory / "folder.py").mkdir()
+        ...     [entry.name for entry in _plain_dir_modules(directory, ("ignored",))]
+        ['first.py', 'later.py']
+
+    """
+    for entry in sorted(directory.iterdir(), key=lambda ent: ent.name):
+        if not (entry.is_file() and entry.suffix == ".py" and not entry.name.startswith("__")):
+            continue
+        if not _is_excluded(entry.stem, exclude):
+            yield entry
 
 
 class _ConfigReadError(Exception):

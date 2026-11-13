@@ -222,17 +222,6 @@ def _save_table(markdown: str, output: str) -> None:
     _print(f"→ Saved to: {out_path}", stderr=True)
 
 
-def _skipped_policy_rules(spec: "_PolicySpec") -> list[str]:
-    """Return the CLI-facing slugs of the version-dependent policy rules *spec* has enabled.
-
-    These are exactly the rules that cannot run without the ``packaging`` library — used to name them in the advisory
-    printed when ``packaging`` turns out to be unavailable. Today ``min-grace`` is the only such rule, so the list holds
-    at most one entry.
-
-    """
-    return [PolicyRule.MIN_GRACE.value] if spec.grace is not None else []
-
-
 def _policy_violations_without_packaging(
     wrappers: list[DeprecationWrapperInfo], spec: "_PolicySpec", findings: Optional[_PolicyFindings] = None
 ) -> Optional[list[_Finding]]:
@@ -253,10 +242,10 @@ def _policy_violations_without_packaging(
         is nothing left to check.
 
     """
-    skipped_rules = ", ".join(f"`{rule}`" for rule in _skipped_policy_rules(spec))
+    # ``min-grace`` is the only version-dependent policy rule, so it is the one skipped without ``packaging``.
     _print_gap(
         _GapKind.PACKAGING_MISSING,
-        f"The `packaging` library is required for the {skipped_rules} policy rule; skipping it.\n"
+        f"The `packaging` library is required for the `{PolicyRule.MIN_GRACE.value}` policy rule; skipping it.\n"
         "Install it with: `pip install 'pyDeprecate[audit]'`",
     )
     if not spec.message_required:
@@ -405,7 +394,7 @@ def _plan_path(target: _ScanTarget, options: _RunOptions) -> Optional[_PathPlan]
     gates = frozenset() if options.gate is None else _resolve_gate(options.gate, config)
     policy = None
     if gates is not None and options.policy_flags is not None:
-        policy = _resolve_policy_spec(path, options.policy_flags, config)
+        policy = _resolve_policy_spec(options.policy_flags, config)
     if gates is None or (options.policy_flags is not None and policy is None):
         return None
     return _PathPlan(target, config, strict, suppressor, gates, policy, tuple(exclude[0]), options.recursive)
@@ -785,29 +774,22 @@ def _check_derive(wrappers: list[DeprecationWrapperInfo]) -> list[_Finding]:
     return _record_findings([finding for info in wrappers for finding in _wrapper_findings(info)])
 
 
-def _check_render(findings: list[_Finding]) -> None:
-    """Print the configuration findings section by section, then the verdict line."""
-    if _Reporter.issues(findings, error_on_chains=False):
-        _print("\nIssues were found in deprecated wrappers.")
-    else:
-        _print("\nAll deprecated wrappers look correct!")
-
-
 def _run_check(record: _RunRecord, scanned: list[tuple[_PathPlan, _ScanRecord]]) -> None:
     """Derive the configuration findings of every scanned path and print them as one set of sections."""
     if not any(scan.worker["wrapper_count"] if scan.worker is not None else scan.wrappers for _, scan in scanned):
         _print("No deprecated callables found.")
         return
-    _check_render(
-        _derive_each(
-            record,
-            scanned,
-            lambda _plan, scan: (
-                _worker_findings(scan, "check") if scan.worker is not None else _check_derive(scan.wrappers)
-            ),
-        )
-        or []
+    findings = _derive_each(
+        record,
+        scanned,
+        lambda _plan, scan: (
+            _worker_findings(scan, "check") if scan.worker is not None else _check_derive(scan.wrappers)
+        ),
     )
+    if _Reporter.issues(findings or [], error_on_chains=False):
+        _print("\nIssues were found in deprecated wrappers.")
+    else:
+        _print("\nAll deprecated wrappers look correct!")
 
 
 def _expiry_derive(
@@ -816,8 +798,8 @@ def _expiry_derive(
     """Record and return the active ``expired`` findings, or ``None`` when the check could not run (gap printed).
 
     A ``--static`` scan (*static*) checks the wrappers whose ``remove_in`` the source settled; a ``not statically
-    resolvable`` gap names each one it left out, printed only once the check has run — when it could not (no version, an
-    invalid one, no ``packaging``) it has already printed why, and a gap per wrapper would imply that the others were
+    resolvable`` gap names each one it left out, printed only once the check has run — when it could not (no version,
+    an invalid one, no ``packaging``) it has already printed why, and a gap per wrapper would imply that the others were
     checked.
 
     """
@@ -826,12 +808,21 @@ def _expiry_derive(
     if derived is None:
         return None
     if static:
-        _report_unresolved(wrappers, _EXPIRY_KEYWORDS, rule_keywords={_Rule.EXPIRED.value: _EXPIRY_KEYWORDS})
+        _report_unresolved(wrappers, {_Rule.EXPIRED.value: _EXPIRY_KEYWORDS})
     return _record_findings(derived)
 
 
-def _expiry_render(expired: Optional[list[_Finding]]) -> None:
-    """Print the expired wrappers and their count; nothing when the check did not run."""
+def _run_expiry(record: _RunRecord, scanned: list[tuple[_PathPlan, _ScanRecord]]) -> None:
+    """Check every scanned path against its own version and print the expired wrappers of all of them."""
+    expired = _derive_each(
+        record,
+        scanned,
+        lambda _plan, scan: (
+            _worker_findings(scan, "expiry")
+            if scan.worker is not None
+            else _expiry_derive(scan.wrappers, scan.version, static=scan.static)
+        ),
+    )
     if expired is None:
         return
     if not expired:
@@ -839,21 +830,6 @@ def _expiry_render(expired: Optional[list[_Finding]]) -> None:
         return
     _Reporter.expiry([finding.message for finding in expired])
     _print(f"\n{len(expired)} expired wrapper(s) found.")
-
-
-def _run_expiry(record: _RunRecord, scanned: list[tuple[_PathPlan, _ScanRecord]]) -> None:
-    """Check every scanned path against its own version and print the expired wrappers of all of them."""
-    _expiry_render(
-        _derive_each(
-            record,
-            scanned,
-            lambda _plan, scan: (
-                _worker_findings(scan, "expiry")
-                if scan.worker is not None
-                else _expiry_derive(scan.wrappers, scan.version, static=scan.static)
-            ),
-        )
-    )
 
 
 def _policy_derive(
@@ -941,8 +917,15 @@ def _chain_derive(wrappers: list[DeprecationWrapperInfo]) -> list[_Finding]:
     )
 
 
-def _chain_render(chains: list[_Finding]) -> None:
-    """Print the deprecation chains as errors, with their count."""
+def _run_chains(record: _RunRecord, scanned: list[tuple[_PathPlan, _ScanRecord]]) -> None:
+    """Derive the deprecation chains of every scanned path and print them as one section."""
+    chains = _derive_each(
+        record,
+        scanned,
+        lambda _plan, scan: (
+            _worker_findings(scan, "chains") if scan.worker is not None else _chain_derive(scan.wrappers)
+        ),
+    )
     if not chains:
         _print("No deprecation chains found.")
         return
@@ -950,23 +933,46 @@ def _chain_render(chains: list[_Finding]) -> None:
     _print(f"\n{len(chains)} deprecation chain(s) found.")
 
 
-def _run_chains(record: _RunRecord, scanned: list[tuple[_PathPlan, _ScanRecord]]) -> None:
-    """Derive the deprecation chains of every scanned path and print them as one section."""
-    _chain_render(
-        _derive_each(
-            record,
-            scanned,
-            lambda _plan, scan: (
-                _worker_findings(scan, "chains") if scan.worker is not None else _chain_derive(scan.wrappers)
-            ),
-        )
-        or []
-    )
-
-
 # ---------------------------------------------------------------------------
 # Subcommand functions
 # ---------------------------------------------------------------------------
+
+
+def _run_gate(
+    name: str,
+    path: _PathArg,
+    options: _RunOptions,
+    run: Callable[[_RunRecord, list[tuple[_PathPlan, _ScanRecord]]], None],
+    *,
+    version: Optional[str] = None,
+    resolve_version: bool = False,
+    record: bool = True,
+) -> int:
+    """Plan, scan, run and finish one gate with the same run record throughout.
+
+    Examples:
+        A file path is rejected before the check runs, as for every gate subcommand.
+
+        >>> from contextlib import redirect_stderr
+        >>> from io import StringIO
+        >>> errors = StringIO()
+        >>> with redirect_stderr(errors):
+        ...     code = _run_gate("check", __file__, _RunOptions(), _run_check)
+        >>> code, "File paths are not supported" in errors.getvalue()
+        (2, True)
+
+    """
+    with _ensure_run_record() as run_record:
+        start = _start_gate(run_record, path, options)
+        if start is None:
+            return 2
+        scanned = _scan_plans(
+            start.plans, options, version=version, resolve_version=resolve_version, record=record, command=name
+        )
+        if scanned is None:
+            return 2
+        run(run_record, scanned)
+        return _finish_gate(start, name, exit_zero=options.exit_zero)
 
 
 def cmd_check(
@@ -1020,15 +1026,7 @@ def cmd_check(
 
     """
     options = _RunOptions(recursive, exclude, include_members, exit_zero, strict, ignore, baseline)
-    with _ensure_run_record() as record:
-        start = _start_gate(record, path, options)
-        if start is None:
-            return 2
-        scanned = _scan_plans(start.plans, options, command="check")
-        if scanned is None:
-            return 2
-        _run_check(record, scanned)
-        return _finish_gate(start, "check", exit_zero=exit_zero)
+    return _run_gate("check", path, options, _run_check)
 
 
 def cmd_expiry(
@@ -1104,15 +1102,7 @@ def cmd_expiry(
         static=static,
         own_versions=version is None,
     )
-    with _ensure_run_record() as record:
-        start = _start_gate(record, path, options)
-        if start is None:
-            return 2
-        scanned = _scan_plans(start.plans, options, version=version, resolve_version=True, command="expiry")
-        if scanned is None:
-            return 2
-        _run_expiry(record, scanned)
-        return _finish_gate(start, "expiry", exit_zero=exit_zero)
+    return _run_gate("expiry", path, options, _run_expiry, version=version, resolve_version=True)
 
 
 def cmd_policy(
@@ -1206,15 +1196,7 @@ def cmd_policy(
         policy_flags=policy_flags,
         static=static,
     )
-    with _ensure_run_record() as record:
-        start = _start_gate(record, path, options)
-        if start is None:
-            return 2
-        scanned = _scan_plans(start.plans, options, command="policy")
-        if scanned is None:
-            return 2
-        _run_policy(record, scanned, in_all=False)
-        return _finish_gate(start, "policy", exit_zero=exit_zero)
+    return _run_gate("policy", path, options, partial(_run_policy, in_all=False))
 
 
 def cmd_chains(
@@ -1266,16 +1248,8 @@ def cmd_chains(
 
     """
     options = _RunOptions(recursive, exclude, include_members, exit_zero, strict, ignore, baseline)
-    with _ensure_run_record() as record:
-        start = _start_gate(record, path, options)
-        if start is None:
-            return 2
-        # every wrapper, not only chains: the run record needs them all for its table; the chain filter is below
-        scanned = _scan_plans(start.plans, options, command="chains")
-        if scanned is None:
-            return 2
-        _run_chains(record, scanned)
-        return _finish_gate(start, "chains", exit_zero=exit_zero)
+    # every wrapper, not only chains: the run record needs them all for its table; the chain filter is in _run_chains
+    return _run_gate("chains", path, options, _run_chains)
 
 
 def cmd_all(
@@ -1371,25 +1345,45 @@ def cmd_all(
         policy_flags=policy_flags,
         own_versions=version is None,
     )
-    with _ensure_run_record() as run_record:
-        start = _start_gate(run_record, path, options)
-        if start is None:
-            return 2
-        scanned = _scan_plans(start.plans, options, version=version, resolve_version=True, record=False, command="all")
-        if scanned is None:
-            return 2
-        # The checks record their findings and the exit code of ``all`` is computed once below from those findings and
-        # the run's gaps, at the levels ``all`` gives them (policy violations are warnings here unless gated). Each
-        # path's version may be auto-detected; only a typed one was validated, so a package stamped with a non-PEP 440
-        # version skips the expiry check with an advisory instead of failing as an invalid ``--version``.
-        _run_check(run_record, scanned)
-        _run_expiry(run_record, scanned)
-        # Advisory inside ``all`` by default: the policy defaults encode a project convention (a three-minor grace
-        # window on a clean release boundary) that not every repo shares; ``--gate=policy`` opts in to gating on it.
-        _run_policy(run_record, scanned, in_all=True)
-        _run_chains(run_record, scanned)
-        _append_tables(run_record, scanned, output, version_explicit=version is not None)
-        return _finish_gate(start, "all", exit_zero=exit_zero)
+    return _run_gate(
+        "all",
+        path,
+        options,
+        partial(_run_all, output=output, version_explicit=version is not None),
+        version=version,
+        resolve_version=True,
+        record=False,
+    )
+
+
+def _run_all(
+    record: _RunRecord,
+    scanned: list[tuple[_PathPlan, _ScanRecord]],
+    *,
+    output: Optional[str],
+    version_explicit: bool,
+) -> None:
+    """Run the four checks in order, with policy advisory unless gated, then append their shared scan's tables.
+
+    Examples:
+        No paths yield no expiry or policy verdict, and no tables.
+
+        >>> _run_all(_RunRecord(), [], output=None, version_explicit=False)
+        No deprecated callables found.
+        No deprecation chains found.
+
+    """
+    # The checks record their findings and the exit code of ``all`` is computed once by the caller from those findings
+    # and the run's gaps, at the levels ``all`` gives them (policy violations are warnings here unless gated). Each
+    # path's version may be auto-detected; only a typed one was validated, so a package stamped with a non-PEP 440
+    # version skips the expiry check with an advisory instead of failing as an invalid ``--version``.
+    _run_check(record, scanned)
+    _run_expiry(record, scanned)
+    # Advisory inside ``all`` by default: the policy defaults encode a project convention (a three-minor grace
+    # window on a clean release boundary) that not every repo shares; ``--gate=policy`` opts in to gating on it.
+    _run_policy(record, scanned, in_all=True)
+    _run_chains(record, scanned)
+    _append_tables(record, scanned, output, version_explicit=version_explicit)
 
 
 def _append_tables(

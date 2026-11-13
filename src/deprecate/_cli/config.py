@@ -42,7 +42,7 @@ def _is_missing_packaging_import_error(error: ImportError) -> bool:
     return "No module named 'packaging'" in str(error)
 
 
-def _validate_user_version(version: Optional[str], *, explicit: bool = True) -> Optional[int]:
+def _validate_user_version(version: Optional[str]) -> Optional[int]:
     """Reject a malformed user-supplied ``--version`` before any subcommand does real scan work.
 
     Applies only to a value the user actually typed — ``expiry``, ``status``, and ``all`` previously
@@ -54,18 +54,14 @@ def _validate_user_version(version: Optional[str], *, explicit: bool = True) -> 
 
     Args:
         version: The raw ``--version`` string the user supplied, or ``None`` when omitted (auto-detect).
-        explicit: Whether *version* was typed by the user. ``cmd_all`` hands its already-resolved version
-            down to ``cmd_expiry``/``cmd_status``, so those calls pass ``False`` when that
-            version was auto-detected — otherwise a package whose own metadata version is not PEP 440
-            would be reported as a malformed ``--version`` flag the user never typed.
 
     Returns:
-        ``2`` when *version* is given, was typed by the user, and fails PEP 440 parsing; ``None`` when it
-        is valid, omitted, auto-detected, or when the ``packaging`` library is unavailable (each
+        ``2`` when *version* is given and fails PEP 440 parsing; ``None`` when it
+        is valid, omitted, or when the ``packaging`` library is unavailable (each
         subcommand's own advisory ImportError fallback already handles that case).
 
     """
-    if version is None or not explicit:
+    if version is None:
         return None
     try:
         _parse_version(version)
@@ -442,16 +438,13 @@ def _resolve_gate(gate: _ConfigList, config: _Config) -> Optional[frozenset[str]
     return frozenset(checks)
 
 
-def _resolve_policy_spec(
-    path: str, flags: dict[str, _ConfigFlag], config: _Config
-) -> Optional[tuple["_PolicySpec", str]]:
+def _resolve_policy_spec(flags: dict[str, _ConfigFlag], config: _Config) -> Optional[tuple["_PolicySpec", str]]:
     """Build the policy spec as flag > ``pyproject.toml`` > built-in default per rule, printing any usage error.
 
     A TOML ``false`` for ``min-grace`` is normalised to ``None`` (TOML has no null) so the value is what
     :func:`_build_policy_spec` expects.
 
     Args:
-        path: The ``path`` argument of the subcommand.
         flags: Rule slug to the value the subcommand received; :data:`_FROM_PYPROJECT` means "not typed".
         config: The already-loaded ``[tool.pydeprecate]`` configuration; :func:`cmd_policy` loads it once so the
             file is never re-read (and re-warned about) here.
