@@ -903,7 +903,13 @@ The step publishes outputs for later steps; give it an `id` to read them:
 | `report-json`                                          | Path of a copy of the run's `--report-json` file, kept in `RUNNER_TEMP` until the job ends.                                     |
 | `sarif-file`                                           | Path of the SARIF file when `sarif: true`; empty otherwise.                                                                     |
 
-Upload the findings to GitHub code scanning with `sarif: true` and the `upload-sarif` action, run even when the gate failed:
+Upload the findings to GitHub code scanning with `sarif: true` and the `upload-sarif` action, run even when the gate failed. The upload fails with a read-only `GITHUB_TOKEN`: give the job `security-events: write`, and keep `contents: read` for the checkout.
+
+```yaml
+permissions:
+  contents: read
+  security-events: write
+```
 
 ```yaml
 - uses: Borda/pyDeprecate@v0.16.0
