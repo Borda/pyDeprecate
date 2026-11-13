@@ -2304,6 +2304,19 @@ def _project(root: Path, name: str, *, pyproject: str = "", body: str = "", brok
     return pkg
 
 
+#: A ``[tool.pydeprecate]`` table that leaves the top-level ``util`` module out of a plain-directory scan.
+_EXCLUDE_UTIL = '[tool.pydeprecate]\nexclude = ["util"]\n'
+
+
+def _plain_dir(root: Path, main: str, pyproject: str) -> Path:
+    """Create the plain directory *root* holding ``util.py``, ``<main>.py`` and a ``pyproject.toml`` of *pyproject*."""
+    root.mkdir()
+    (root / "util.py").write_text("")
+    (root / f"{main}.py").write_text("")
+    (root / "pyproject.toml").write_text(pyproject)
+    return root
+
+
 class TestMultiPath:
     """Several paths in one run: one preflight before any import, one scan each, one exit code over all of them."""
 
@@ -2402,6 +2415,146 @@ class TestMultiPath:
         assert "has its own `[tool.pydeprecate]` settings" in capsys.readouterr().err
         mock_find.assert_not_called()
 
+    @pytest.mark.parametrize(
+        ("covered", "exclude"),
+        [
+            pytest.param("data/sub", _FROM_PYPROJECT, id="under-plain-directory"),
+            pytest.param("sub", "mypkg.sub", id="excluded-by-cover"),
+        ],
+    )
+    @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
+    def test_subpackage_the_walk_skips_keeps_own_scan(
+        self,
+        mock_find: MagicMock,
+        covered: str,
+        exclude: _ConfigFlag,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """A subpackage the package's recursive walk never imports is scanned on its own instead of being dropped.
+
+        The walk enters only package directories and skips what the package's ``exclude`` names, so ``data/sub`` under
+        a ``data`` directory without ``__init__.py``, or a subpackage the package excludes, would be audited zero times
+        if the run dropped it as covered while its stderr note claimed the opposite.
+
+        """
+        pkg = _project(tmp_path / "a", "mypkg")
+        write_pkg(pkg, "sub", "")
+        (pkg / "data").mkdir()
+        write_pkg(pkg / "data", "sub", "")
+        result = cmd_check(path=[str(pkg), str(pkg / covered)], exclude=exclude)
+        captured = capsys.readouterr()
+        assert result == 0
+        assert mock_find.call_count == 2
+        assert captured.out.count("Scanning:") == 2
+        assert "already audited" not in captured.err
+
+    def test_missing_submodule_beside_its_package_exits_two(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """``pkg pkg.nosuch`` reports the misspelt submodule instead of folding it into the package's scan.
+
+        Listed alone, ``pkg.nosuch`` exits 2 as no importable module. Next to its parent package it was dropped as
+        already audited, so a typo in a CI command line passed with exit 0 and audited nothing it named.
+
+        """
+        write_pkg(tmp_path, "parentpkg", "")
+        monkeypatch.syspath_prepend(str(tmp_path))
+        result = cmd_check(path=["parentpkg", "parentpkg.nosuch"])
+        captured = capsys.readouterr()
+        assert result == 2
+        assert "No such path or importable module: 'parentpkg.nosuch'" in captured.err
+        assert "already audited" not in captured.err
+
+    @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
+    @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
+    def test_src_layout_subpackage_inherits_root_settings(
+        self, mock_find: MagicMock, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A subpackage of a src-layout package is folded into the package's scan, not refused for settings it lacks.
+
+        The only ``pyproject.toml`` sits at the repository root, two levels above ``src/mypkg`` but three above
+        ``src/mypkg/sub``, so the subpackage's own lookup finds no settings and no version. Both are the root
+        project's, which the package's scan applies to the subpackage anyway.
+
+        """
+        root_pyproject = '[project]\nversion = "1.0"\n\n[tool.pydeprecate]\nexclude = []\n'
+        pkg = _project(tmp_path / "repo" / "src", "mypkg")
+        (tmp_path / "repo" / "pyproject.toml").write_text(root_pyproject)
+        write_pkg(pkg, "sub", "")
+        result = cmd_expiry(path=[str(pkg), str(pkg / "sub")])
+        captured = capsys.readouterr()
+        assert result == 0
+        assert mock_find.call_count == 1
+        assert captured.err.count("scanning it once") == 1
+
+    @pytest.mark.parametrize(
+        ("command", "kwargs", "expected", "scans"),
+        [
+            pytest.param(cmd_expiry, {}, 2, 0, id="expiry-auto-version"),
+            pytest.param(cmd_status, {}, 2, 0, id="status-auto-version"),
+            pytest.param(cmd_expiry, {"version": "3.0"}, 0, 1, id="expiry-typed-version"),
+            pytest.param(cmd_check, {}, 0, 1, id="check-uses-no-version"),
+        ],
+    )
+    @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
+    def test_nested_project_keeps_its_own_version(
+        self,
+        mock_find: MagicMock,
+        command: Callable[..., int],
+        kwargs: dict[str, str],
+        expected: int,
+        scans: int,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """A subpackage released as its own project is not judged at its parent's version, nor silently dropped.
+
+        ``mypkg`` is at 1.0 and ``mypkg/component`` has its own ``[project]`` at 3.0, without settings of its own. A
+        run that auto-detects each path's version refuses to fold the component into the parent's scan, which would
+        check it against 1.0; a typed version, or a check without a version, loses nothing by scanning it once.
+
+        """
+        pkg = _project(tmp_path / "repo", "mypkg", pyproject='[project]\nversion = "1.0"\n')
+        component = write_pkg(pkg, "component", "")
+        (component / "pyproject.toml").write_text('[project]\nversion = "3.0"\n')
+        result = command(path=[str(pkg), str(component)], **kwargs)
+        err = capsys.readouterr().err
+        assert result == expected
+        assert ("has its own version" in err) is (expected == 2)
+        assert mock_find.call_count == scans
+
+    @pytest.mark.parametrize(
+        ("distribution", "expected"),
+        [pytest.param("ownpkg-component", 2, id="own-distribution"), pytest.param("other-dist", 0, id="none")],
+    )
+    @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
+    def test_dotted_component_with_own_distribution_is_refused(
+        self,
+        mock_find: MagicMock,
+        distribution: str,
+        expected: int,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """``pkg pkg.component`` is refused when ``pkg.component`` is installed as a distribution of its own.
+
+        The version resolver reads the ``pkg-component`` distribution first for the dotted name, so scanned alone the
+        component is checked against its own release; folded into ``pkg``'s scan it would be checked against ``pkg``'s.
+
+        """
+        pkg = write_pkg(tmp_path, "ownpkg", "")
+        write_pkg(pkg, "component", "")
+        dist_info = tmp_path / f"{distribution.replace('-', '_')}-3.0.dist-info"
+        dist_info.mkdir()
+        (dist_info / "METADATA").write_text(f"Metadata-Version: 2.1\nName: {distribution}\nVersion: 3.0\n")
+        monkeypatch.syspath_prepend(str(tmp_path))
+        result = cmd_expiry(path=["ownpkg", "ownpkg.component"])
+        err = capsys.readouterr().err
+        assert result == expected
+        assert ("has its own version (from the distribution 'ownpkg-component')" in err) is (expected == 2)
+
     @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
     def test_plain_directories_sharing_a_file_name_exit_two(
         self, mock_find: MagicMock, tmp_path: Path, capsys: pytest.CaptureFixture[str]
@@ -2419,6 +2572,38 @@ class TestMultiPath:
         assert result == 2
         assert "both import as util; scan them in separate runs" in capsys.readouterr().err
         mock_find.assert_not_called()
+
+    @pytest.mark.parametrize(
+        ("exclude", "pyproject_a", "pyproject_b", "scans"),
+        [
+            pytest.param("util", "", "", 2, id="flag"),
+            pytest.param(_FROM_PYPROJECT, _EXCLUDE_UTIL, _EXCLUDE_UTIL, 2, id="both-pyprojects"),
+            pytest.param(_FROM_PYPROJECT, _EXCLUDE_UTIL, "", 3, id="one-pyproject"),
+        ],
+    )
+    @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
+    def test_excluded_shared_file_name_does_not_collide(
+        self,
+        mock_find: MagicMock,
+        exclude: _ConfigFlag,
+        pyproject_a: str,
+        pyproject_b: str,
+        scans: int,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Two plain directories that both hold ``util.py`` share a run once ``util`` is left out of a scan.
+
+        A directory scan imports only the files its ``exclude`` keeps, so a ``util`` that at most one of the two scans
+        imports binds no name twice; refusing the run anyway blocked a valid combined audit of the other modules.
+
+        """
+        first = _plain_dir(tmp_path / "da", "a_main", pyproject_a)
+        second = _plain_dir(tmp_path / "db", "b_main", pyproject_b)
+        result = cmd_check(path=[str(first), str(second)], exclude=exclude)
+        assert result == 0
+        assert "both import as" not in capsys.readouterr().err
+        assert mock_find.call_count == scans
 
     @pytest.mark.parametrize(
         ("broken", "expected"),

@@ -55,7 +55,7 @@ from deprecate._cli.report import (
     _ScanRecord,
     _unrendered_table,
 )
-from deprecate._cli.scan import _preflight_targets, _scan_for_command, _ScanTarget
+from deprecate._cli.scan import _preflight_targets, _scan_for_command, _ScanTarget, _select_plans
 from deprecate._cli.static.checks import _report_unresolved, _resolved, _static_policy_findings
 from deprecate._cli.static.consts import _EXPIRY_KEYWORDS
 from deprecate._cli.suppress import _Suppressor
@@ -320,6 +320,9 @@ class _RunOptions:
     gating: bool = True
     #: Read each path's source with ``ast`` instead of importing it (``--static``); ``expiry`` and ``policy`` only.
     static: bool = False
+    #: Whether each path is judged against its own auto-detected version (``expiry``, ``all`` and ``status`` without a
+    #: typed ``--version``), so a covered path with a version of its own cannot be folded into another path's scan.
+    own_versions: bool = False
 
 
 @dataclass(frozen=True)
@@ -379,7 +382,7 @@ def _plan_path(target: _ScanTarget, options: _RunOptions) -> Optional[_PathPlan]
     if config is None or exclude is None:
         return None
     if not options.gating:
-        return _PathPlan(target, config)
+        return _PathPlan(target, config, exclude=tuple(exclude[0]), recursive=options.recursive)
     strict = _resolve_strict(options.strict, options.exit_zero, config)
     suppressor = None if strict is None else _resolve_suppressor(options.ignore, options.baseline, config)
     if strict is None or suppressor is None:
@@ -397,23 +400,25 @@ def _plan_paths(paths: Sequence[str], options: _RunOptions) -> Optional[list[_Pa
     """Check every path of a run and resolve its settings before anything is imported.
 
     Any usage error on any path stops the whole run with exit 2 before the first scan: a path that is a file, a
-    directory of several packages or neither a path nor a findable module, two paths importing as the same name from
-    different places, or a malformed setting of any path's ``pyproject.toml``.
+    directory of several packages or neither a path nor a findable module, a malformed setting of any path's
+    ``pyproject.toml``, or two paths importing as the same name from different places. Coverage is decided once every
+    path is planned, so a covering path's own ``exclude`` can keep a subpackage it leaves out (:func:`_select_plans`).
 
     Returns:
         One plan per path to scan (a path another path's scan already covers is dropped with a note), or ``None``.
 
     """
-    targets = _preflight_targets(paths, recursive=options.recursive)
+    targets = _preflight_targets(paths)
     if targets is None:
         return None
-    plans = []
+    plans: list[_PathPlan] = []
     for target in targets:
-        plan = _plan_path(target, options)
+        # the same path given twice shares one plan, so its settings are read (and any advisory printed) once
+        plan = next((known for known in plans if known.target == target), None) or _plan_path(target, options)
         if plan is None:
             return None
         plans.append(plan)
-    return plans
+    return _select_plans(plans, recursive=options.recursive, own_versions=options.own_versions)
 
 
 class _GateStart(NamedTuple):
@@ -989,7 +994,17 @@ def cmd_expiry(
     err_code = _validate_user_version(version)
     if err_code is not None:
         return err_code
-    options = _RunOptions(recursive, exclude, include_members, exit_zero, strict, ignore, baseline, static=static)
+    options = _RunOptions(
+        recursive,
+        exclude,
+        include_members,
+        exit_zero,
+        strict,
+        ignore,
+        baseline,
+        static=static,
+        own_versions=version is None,
+    )
     with _ensure_run_record() as record:
         start = _start_gate(record, path, options)
         if start is None:
@@ -1246,7 +1261,16 @@ def cmd_all(
         rule.value: _FROM_PYPROJECT for rule in (PolicyRule.MIN_GRACE, PolicyRule.MESSAGE_REQUIRED)
     }
     options = _RunOptions(
-        recursive, exclude, include_members, exit_zero, strict, ignore, baseline, gate=gate, policy_flags=policy_flags
+        recursive,
+        exclude,
+        include_members,
+        exit_zero,
+        strict,
+        ignore,
+        baseline,
+        gate=gate,
+        policy_flags=policy_flags,
+        own_versions=version is None,
     )
     with _ensure_run_record() as run_record:
         start = _start_gate(run_record, path, options)
@@ -1356,7 +1380,7 @@ def cmd_status(
         valid = ", ".join(s.value for s in TableStyle)
         _print(f"Invalid `--style` {style!r}; expected one of: {valid}.", stderr=True)
         return 2
-    options = _RunOptions(recursive, exclude, include_members, gating=False)
+    options = _RunOptions(recursive, exclude, include_members, gating=False, own_versions=version is None)
     plans = _plan_paths(_as_paths(path), options)
     if plans is None:
         return 2

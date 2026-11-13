@@ -1,8 +1,9 @@
 """Path scanning for the CLI: resolve a package, plain directory or module name into deprecation wrappers.
 
-:func:`_preflight_targets` checks every path of a run before anything is imported, and :func:`_scan_for_command` is the
-one scan prologue every subcommand runs per path, so a path is accepted, refused, imported and reported the same way
-whichever gate scans it.
+:func:`_preflight_targets` checks every path of a run before anything is imported, :func:`_select_plans` drops the paths
+another path's scan already audits once every path is planned, and :func:`_scan_for_command` is the one scan prologue
+every subcommand runs per path, so a path is accepted, refused, imported and reported the same way whichever gate scans
+it.
 
 """
 
@@ -10,11 +11,11 @@ import importlib.util
 import sys
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
-from importlib.machinery import ModuleSpec
+from importlib.machinery import ModuleSpec, all_suffixes
 from pathlib import Path
-from typing import NamedTuple, Optional
+from typing import NamedTuple, Optional, Protocol, TypeVar
 
-from deprecate._cli._pkg import _ConfigReadError, _read_pydeprecate_config, _safe_module_name, _select_child_package
+from deprecate._cli._pkg import _safe_module_name, _select_child_package
 from deprecate._cli.config import _Config, _ConfigFlag, _resolve_exclude, _source_label
 from deprecate._cli.report import (
     _RUN_RECORD,
@@ -31,7 +32,13 @@ from deprecate._cli.static.discovery import _locate_static
 from deprecate._cli.static.rows import _read_static
 from deprecate.audit import DeprecationWrapperInfo, find_deprecation_wrappers
 from deprecate.audit._scan import _collect_skipped_modules, _is_excluded
-from deprecate.audit._version import _is_package_dir, _managed_sys_path, _resolve_package_version
+from deprecate.audit._version import (
+    _is_package_dir,
+    _managed_sys_path,
+    _own_distribution,
+    _project_file,
+    _resolve_package_version,
+)
 
 
 class _ScanError(Exception):
@@ -142,34 +149,105 @@ def _check_target(path: str) -> Optional[_ScanTarget]:
     return _ScanTarget(path, top, path, _spec_location(_top_level_spec(top)))
 
 
-def _covers(scan: _ScanTarget, other: _ScanTarget, *, recursive: bool) -> bool:
-    """Tell whether the scan of *scan* already audits everything the scan of *other* would.
+class _Planned(Protocol):
+    """What the coverage and import-name checks of a run read from one path's plan (the CLI's ``_PathPlan``)."""
 
-    That holds for the same target spelled twice, and with *recursive* for a subpackage of *scan*'s package: by name
-    (``pkg`` covers ``pkg.sub``) or by directory (the package directory ``src/pkg`` covers ``src/pkg/sub``).
+    @property
+    def target(self) -> _ScanTarget:
+        """The checked path."""
+
+    @property
+    def exclude(self) -> tuple[str, ...]:
+        """The path's resolved module-exclusion patterns."""
+
+    @property
+    def config(self) -> _Config:
+        """The path's ``[tool.pydeprecate]`` settings and the ``pyproject.toml`` they came from."""
+
+
+def _module_source(directory: Path, name: str) -> Optional[Path]:
+    """Return the regular package directory or the module file *name* names inside *directory*, if there is one.
+
+    Judged from the filesystem alone: a directory counts only with an ``__init__.py`` (a regular package), a file with
+    any suffix the import system loads (source, bytecode or extension module).
 
     """
-    if (scan.module, scan.location) == (other.module, other.location):
-        return True
-    if not recursive or scan.module is None or other.module is None:
-        return False
+    package = directory / name
+    if _is_package_dir(package):
+        return package
+    return next((directory / f"{name}{suf}" for suf in all_suffixes() if (directory / f"{name}{suf}").is_file()), None)
+
+
+def _walk_reaches(package_dir: Path, parts: Sequence[str]) -> bool:
+    """Tell whether a recursive scan of the package in *package_dir* imports its submodule at the relative *parts*.
+
+    Judged from the filesystem alone, so nothing is imported. The scan's walk (:func:`pkgutil.iter_modules`) enters
+    only package directories, so every part but the last must name one (a directory with ``__init__.py``), and the last
+    part a package directory or a module file. A directory without ``__init__.py`` on the way, a name that does not
+    exist or is no identifier, and no parts at all are not reached.
+
+    Examples:
+        >>> import tempfile
+        >>> with tempfile.TemporaryDirectory() as tmp:
+        ...     pkg = Path(tmp)
+        ...     (pkg / "data" / "sub").mkdir(parents=True)
+        ...     _ = (pkg / "data" / "sub" / "__init__.py").write_text("")
+        ...     _walk_reaches(pkg, ["data", "sub"]), _walk_reaches(pkg / "data", ["sub"])
+        (False, True)
+
+    """
+    location = package_dir
+    for part in parts:
+        source = _module_source(location, part) if location.is_dir() and part.isidentifier() else None
+        if source is None:
+            return False
+        location = source
+    return bool(parts)
+
+
+def _walk_route(scan: _ScanTarget, other: _ScanTarget) -> Optional[tuple[Path, list[str]]]:
+    """Return where the recursive scan of *scan* would have to walk to import *other*, if *other* lies inside it.
+
+    The route is the directory of *scan*'s top-level package and the dotted name of *other* under it, split into its
+    parts: by name (``pkg`` holds ``pkg.sub``) or by directory (the package directory ``src/pkg`` holds
+    ``src/pkg/sub``, named ``pkg.sub``).
+
+    """
+    if scan.import_name is None or scan.module is None or other.module is None or scan.location is None:
+        return None
     if scan.import_name == other.import_name and scan.location == other.location:
-        return other.module.startswith(f"{scan.module}.")
-    whole_package = scan.module == scan.import_name and scan.location is not None and scan.location.is_dir()
-    return whole_package and other.location is not None and scan.location in other.location.parents
+        inside = other.module.startswith(f"{scan.module}.")
+        return (scan.location, other.module.split(".")) if inside else None
+    whole_package = scan.module == scan.import_name and scan.location.is_dir()
+    if not whole_package or other.location is None or scan.location not in other.location.parents:
+        return None
+    return scan.location, [scan.import_name, *other.location.relative_to(scan.location).parts]
 
 
-def _preflight_targets(paths: Sequence[str], *, recursive: bool) -> Optional[list[_ScanTarget]]:
-    """Check every path of a run before the first import, and drop the paths another path's scan already covers.
+def _covers(scan: _Planned, other: _Planned, *, recursive: bool) -> bool:
+    """Tell whether the scan of *scan* already audits everything the scan of *other* would.
 
-    The same target given twice, or a package together with its own subpackage in a recursive scan, is scanned once,
-    with one stderr note per dropped path; a covered path whose own ``pyproject.toml`` differs from the covering
-    path's is refused, since its settings would be silently dropped. Two paths whose scans bind the same top-level
-    import name from different places (a package name, or the bare name of a plain directory's top-level file) cannot
-    share one process: ``sys.modules`` would hand the second scan the first copy.
+    That holds for the same target spelled twice, and with *recursive* for a subpackage that the recursive walk of
+    *scan*'s package imports: every directory between them is a package (:func:`_walk_reaches`) and *scan*'s ``exclude``
+    does not leave the subpackage out. A subpackage under a directory without ``__init__.py``, a submodule that does not
+    exist, or one *scan* excludes is not covered, so it keeps its own scan (and its own usage error).
+
+    """
+    first, second = scan.target, other.target
+    if (first.module, first.location) == (second.module, second.location):
+        return True
+    route = _walk_route(first, second) if recursive else None
+    if route is None:
+        return False
+    package_dir, parts = route
+    return _walk_reaches(package_dir, parts[1:]) and not _is_excluded(".".join(parts), scan.exclude)
+
+
+def _preflight_targets(paths: Sequence[str]) -> Optional[list[_ScanTarget]]:
+    """Check every path of a run before the first import and describe what each one's scan would import.
 
     Returns:
-        The targets to scan, in path order, or ``None`` after printing a usage error (the caller exits 2).
+        The targets, in path order, or ``None`` after printing a usage error (the caller exits 2).
 
     """
     targets = []
@@ -178,59 +256,108 @@ def _preflight_targets(paths: Sequence[str], *, recursive: bool) -> Optional[lis
         if target is None:
             return None
         targets.append(target)
+    return targets
+
+
+#: A path plan, kept as its own type through :func:`_select_plans`.
+_PlanT = TypeVar("_PlanT", bound=_Planned)
+
+
+def _version_source(target: _ScanTarget) -> Optional[str]:
+    """Return what gives *target* an auto-detected version of its own, found without importing anything, if anything.
+
+    An existing path takes its version from the nearest ``pyproject.toml`` with a ``[project]`` table, a dotted module
+    name from a distribution named after it (``pkg.component`` from ``pkg-component``). ``None`` when there is neither:
+    the version then comes from the same top-level package as that of a path covering it.
+
+    """
+    if Path(target.path).exists():
+        return _project_file(target.path)
+    if target.module is not None and "." in target.module:
+        distribution = _own_distribution(target.module)
+        return None if distribution is None else f"the distribution {distribution!r}"
+    return None
+
+
+def _own_context(plan: _Planned, cover: _Planned, *, own_versions: bool) -> Optional[str]:
+    """Return what *plan*'s own scan would apply that the scan of *cover* drops, or ``None`` when nothing differs.
+
+    A covered path whose own lookup finds no ``[tool.pydeprecate]`` file, or no version source, inherits the covering
+    path's, as the covering scan applies its own to it anyway. Only a different file of its own, or with *own_versions*
+    (each path judged against its auto-detected version) a version source of its own, would be silently dropped.
+
+    """
+    settings = plan.config[1]
+    if settings is not None and settings != cover.config[1]:
+        return "has its own `[tool.pydeprecate]` settings"
+    version_source = _version_source(plan.target) if own_versions else None
+    if version_source is not None and version_source != _version_source(cover.target):
+        return f"has its own version (from {version_source})"
+    return None
+
+
+def _select_plans(plans: Sequence[_PlanT], *, recursive: bool, own_versions: bool = False) -> Optional[list[_PlanT]]:
+    """Drop the paths another path's scan already audits, and refuse two paths that cannot share one process.
+
+    Runs once every path is planned, before the first import, so a covering path's own resolved ``exclude`` decides
+    what its scan reaches. The same target given twice, or a package together with a subpackage its recursive walk
+    imports (:func:`_covers`), is scanned once, with one stderr note per dropped path; a covered path with settings or,
+    with *own_versions*, a version of its own (:func:`_own_context`) is refused, since they would be silently dropped.
+    Two paths whose scans bind the same top-level import name from different places (a package name, or the bare name
+    of a plain directory's top-level file) cannot share one process: ``sys.modules`` would hand the second scan the
+    first copy.
+
+    Returns:
+        The plans to scan, in path order, or ``None`` after printing a usage error (the caller exits 2).
+
+    """
     kept = []
-    for index, target in enumerate(targets):
-        cover = _covering_target(targets, index, recursive=recursive)
+    for index, plan in enumerate(plans):
+        cover = _covering_plan(plans, index, recursive=recursive)
+        own = None if cover is None else _own_context(plan, cover, own_versions=own_versions)
         if cover is None:
-            kept.append(target)
-        elif _config_file(target.path) != _config_file(cover.path):
+            kept.append(plan)
+        elif own is not None:
             _print(
-                f"{target.path!r} has its own `[tool.pydeprecate]` settings, but the scan of {cover.path!r} already"
-                " audits it with those of its own path; scan it in a separate run.",
+                f"{plan.target.path!r} {own}, but the scan of {cover.target.path!r} already audits it with those of"
+                " its own path; scan it in a separate run.",
                 stderr=True,
             )
             return None
         else:
             _print(
-                f"pydeprecate: {target.path!r} is already audited by the scan of {cover.path!r}; scanning it once.",
+                f"pydeprecate: {plan.target.path!r} is already audited by the scan of {cover.target.path!r};"
+                " scanning it once.",
                 stderr=True,
             )
-    for index, target in enumerate(kept):
+    for index, plan in enumerate(kept):
         for other in kept[:index]:
-            name = _shared_name(other, target)
+            name = _shared_name(other, plan)
             if name is not None:
                 _print(
-                    f"{other.path} and {target.path} both import as {name}; scan them in separate runs.", stderr=True
+                    f"{other.target.path} and {plan.target.path} both import as {name}; scan them in separate runs.",
+                    stderr=True,
                 )
                 return None
     return kept
 
 
-def _config_file(path: str) -> Optional[str]:
-    """Return the ``pyproject.toml`` whose ``[tool.pydeprecate]`` settings apply to *path*, if any."""
-    if not Path(path).exists():
-        return None
-    try:
-        return _read_pydeprecate_config(path)[1]
-    except _ConfigReadError as err:  # reported as a usage error once the path is planned
-        return err.path
-
-
-def _covering_target(targets: list[_ScanTarget], index: int, *, recursive: bool) -> Optional[_ScanTarget]:
-    """Return another target whose scan covers ``targets[index]``; of two that cover each other, the first one wins."""
-    target = targets[index]
-    for pos, other in enumerate(targets):
-        if pos == index or not _covers(other, target, recursive=recursive):
+def _covering_plan(plans: Sequence[_PlanT], index: int, *, recursive: bool) -> Optional[_PlanT]:
+    """Return another plan whose scan covers ``plans[index]``; of two that cover each other, the first one wins."""
+    plan = plans[index]
+    for pos, other in enumerate(plans):
+        if pos == index or not _covers(other, plan, recursive=recursive):
             continue
-        if pos < index or not _covers(target, other, recursive=recursive):
+        if pos < index or not _covers(plan, other, recursive=recursive):
             return other
     return None
 
 
-def _bound_names(target: _ScanTarget) -> dict[str, Optional[Path]]:
+def _bound_names(target: _ScanTarget, exclude: Sequence[str] = ()) -> dict[str, Optional[Path]]:
     """Return the top-level import names a target's scan binds in ``sys.modules``, each with where it loads from.
 
-    A package or module binds its top-level name; a plain directory binds the bare name of each top-level file it scans.
+    A package or module binds its top-level name; a plain directory binds the bare name of each top-level file it scans,
+    which leaves out a file whose name matches one of the target's *exclude* patterns, as :func:`_scan_directory` does.
 
     """
     if target.import_name is not None:
@@ -241,12 +368,19 @@ def _bound_names(target: _ScanTarget) -> dict[str, Optional[Path]]:
         entry.stem: entry.resolve()
         for entry in target.location.iterdir()
         if entry.is_file() and entry.suffix == ".py" and not entry.name.startswith("__")
+        if not _is_excluded(entry.stem, exclude)
     }
 
 
-def _shared_name(first: _ScanTarget, second: _ScanTarget) -> Optional[str]:
-    """Return a top-level import name both targets bind to different places, or ``None`` when they can share a run."""
-    first_names, second_names = _bound_names(first), _bound_names(second)
+def _shared_name(first: _Planned, second: _Planned) -> Optional[str]:
+    """Return a top-level import name both paths' scans bind to different places, or ``None`` when they can share a run.
+
+    Each path counts only what its own scan imports by name, so a file its resolved ``exclude`` leaves out takes no
+    part.
+
+    """
+    first_names = _bound_names(first.target, first.exclude)
+    second_names = _bound_names(second.target, second.exclude)
     return next(
         (name for name in sorted(first_names.keys() & second_names.keys()) if first_names[name] != second_names[name]),
         None,

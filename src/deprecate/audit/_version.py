@@ -600,12 +600,37 @@ def _read_pyproject_version(
         Version string or ``None`` when the nearest ``[project]`` table yields none, or none is found within 2 levels.
 
     """
-    for toml_path in _iter_pyproject_paths(path):
-        version = _version_from_toml(
-            toml_path, path, allow_import=allow_import, module_name=module_name, import_root=import_root
-        )
-        if not isinstance(version, _NotAProject):
-            return version
+    toml_path = _project_file(path)
+    if toml_path is None:
+        return None
+    version = _version_from_toml(
+        toml_path, path, allow_import=allow_import, module_name=module_name, import_root=import_root
+    )
+    return None if isinstance(version, _NotAProject) else version
+
+
+def _project_file(path: str) -> Optional[str]:
+    """Return the nearest ``pyproject.toml`` up to 2 levels above *path* that has a ``[project]`` table, if any.
+
+    That file owns the version of the package at *path* (:func:`_read_pyproject_version`); a ``pyproject.toml`` holding
+    only tool settings says nothing about the version and is skipped. Nothing is imported.
+
+    """
+    return next((toml_path for toml_path in _iter_pyproject_paths(path) if _load_toml(toml_path).get("project")), None)
+
+
+def _own_distribution(module_name: str) -> Optional[str]:
+    """Return the installed distribution named after the dotted *module_name* itself, if there is one.
+
+    The resolver's step 2 (:func:`_resolve_package_version`) reads this distribution first, so a component such as
+    ``pkg.component`` released as ``pkg-component`` has a version of its own, distinct from ``pkg``'s. Only installed
+    metadata is read; nothing is imported.
+
+    """
+    distribution = module_name.replace(".", "-")
+    with suppress(Exception):
+        importlib.metadata.version(distribution)
+        return distribution
     return None
 
 
