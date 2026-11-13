@@ -526,18 +526,20 @@ Good to know:
 
 ### Enforcing the policy in CI
 
-The policy defaults encode *a* convention, not *the* convention. Write the numbers your project actually releases on into `[tool.pydeprecate.policy]` (above) and run the CLI as its own CI step — the table is the single source of truth, the step is the gate, and there is no test code to maintain. In any CI system, after installing your project and `pyDeprecate[audit,cli]`, run these two commands — the same pair pyDeprecate runs on itself:
+The policy defaults encode *a* convention, not *the* convention. Write the numbers your project actually releases on into `[tool.pydeprecate.policy]` (above) and run the CLI as its own CI step — the table is the single source of truth, the step is the gate, and there is no test code to maintain. In any CI system, after installing your project and `pyDeprecate[audit,cli]`, run one command (since 0.16):
 
 ```bash
-# audit everything; policy violations are advisory here
-pydeprecate all src/mypackage
-# reads [tool.pydeprecate.policy] from pyproject.toml; exits 1 on a violation
-pydeprecate policy src/mypackage
+# audit everything in one scan; reads [tool.pydeprecate.policy] and exits 1 on a violation too
+pydeprecate all --gate=policy src/mypackage
 ```
 
-`pydeprecate all` prints policy violations as a `[WARNING]` without failing, so the dedicated `policy` step is the one that blocks the merge. A one-off override never needs a config edit — `pydeprecate policy src/mypackage --min-grace=0.3` beats the table for that run only.
+Without `--gate=policy`, `pydeprecate all` prints policy violations as a `[WARNING]` without failing; `gate = ["policy"]` in `[tool.pydeprecate]` makes the gate the project default. On 0.15 and older, run `pydeprecate all` and a separate `pydeprecate policy src/mypackage` step instead. A one-off override never needs a config edit — `pydeprecate policy src/mypackage --min-grace=0.3` beats the table for that run only.
 
-On GitHub Actions, use the ready-made step instead: the [GitHub Action](#github-action) below runs the same two gates.
+On GitHub Actions, use the ready-made step instead: the [GitHub Action](#github-action) below runs the same gate.
+
+#### Monorepo: several packages in one run
+
+Pass every package to the same command — `pydeprecate all --gate=policy packages/core/src/core packages/cli/src/cli` (since 0.16). Each package is scanned with its own `[tool.pydeprecate]` settings and its own version from the `pyproject.toml` nearest to it, the findings of all packages print in one set of sections, each package gets its own table under a `### <package>` heading, and one exit code covers them all. Every path is checked before the first import, so a typo or a broken `pyproject.toml` in any package fails the run with exit `2` before anything is scanned (only a missing submodule of an importable package (`pkg.nosuch`) is found when its own path is reached). Two packages that import under the same top-level name cannot share a run; scan them in separate runs. When more than one path remains after deduplication, import-mode scans run in separate Python worker processes, so a shared import can initialize once in each worker. A single retained path runs in the calling process, and `--static` reads source without importing it or starting these workers. See [Several paths in one run](cli.md#several-paths-in-one-run).
 
 ## Detecting Deprecation Chains
 
@@ -797,7 +799,7 @@ pre-commit run pydeprecate
 pre-commit run pydeprecate --all-files
 ```
 
-The hook ignores the staged file names and scans the whole package each time: pyDeprecate resolves wrappers through importable modules, never single files. With no path in `args`, the hook audits the single package under `src/`, or else the single package at the repository root, so src-layout and single-package repositories need no `args`. A root holding two or more top-level packages (for example `mypkg/` and `tests/`) fails with a non-zero exit and `contains multiple packages (mypkg, tests)` rather than passing on an empty scan, so such repositories must name the package in `args`, e.g. `args: [mypkg]`. Each subcommand has its own hook id, with the subcommand already in the hook's `entry`: `pydeprecate-check`, `pydeprecate-policy`, `pydeprecate-expiry`, `pydeprecate-chains` and `pydeprecate-all`, plus `pydeprecate` as an alias of `pydeprecate-check`, and `pydeprecate-expiry-static` and `pydeprecate-policy-static` for the import-free [static mode](cli.md#static-mode) (the same as `args: [--static]` on `pydeprecate-expiry` or `pydeprecate-policy`). Pass flags and the path through `args`, in any order — `args: [--exit-zero]` reports without blocking while you clear a backlog. The static hooks run for Python and `pyproject.toml` changes. Every subcommand reads `[tool.pydeprecate]`, and `expiry` and `all` also read the version from `pyproject.toml`, so to re-run an import-mode hook when only `pyproject.toml` changes, override both filters on the hook: `types: [file]` together with `files: '(\.py|(^|/)pyproject\.toml)$'`. The import-mode manifest's `types: [python]` would otherwise stay in force, and pre-commit needs a file to match every filter, so a `pyproject.toml`-only commit would skip the hook.
+The hook ignores the staged file names and scans the whole package each time: pyDeprecate resolves wrappers through importable modules, never single files. With no path in `args`, the hook audits the single package under `src/`, or else the single package at the repository root, so src-layout and single-package repositories need no `args`. A root holding two or more top-level packages (for example `mypkg/` and `tests/`) fails with a non-zero exit and `contains multiple packages (mypkg, tests)` rather than passing on an empty scan, so such repositories must name the package in `args`, e.g. `args: [mypkg]`. Each subcommand has its own hook id, with the subcommand already in the hook's `entry`: `pydeprecate-check`, `pydeprecate-policy`, `pydeprecate-expiry`, `pydeprecate-chains` and `pydeprecate-all`, plus `pydeprecate` as an alias of `pydeprecate-check`, and `pydeprecate-expiry-static` and `pydeprecate-policy-static` for the import-free [static mode](cli.md#static-mode) (the same as `args: [--static]` on `pydeprecate-expiry` or `pydeprecate-policy`). Pass flags and the path through `args`, in any order — `args: [--exit-zero]` reports without blocking while you clear a backlog. To gate on the policy as well, use one `pydeprecate-all` hook with `args: [--gate=policy]` (since 0.16) instead of adding a second `pydeprecate-policy` hook: one scan, one import of your package. Several packages may be listed in `args` (since 0.16); they are audited in one run. The static hooks run for Python and `pyproject.toml` changes. Every subcommand reads `[tool.pydeprecate]`, and `expiry` and `all` also read the version from `pyproject.toml`, so to re-run an import-mode hook when only `pyproject.toml` changes, override both filters on the hook: `types: [file]` together with `files: '(\.py|(^|/)pyproject\.toml)$'`. The import-mode manifest's `types: [python]` would otherwise stay in force, and pre-commit needs a file to match every filter, so a `pyproject.toml`-only commit would skip the hook.
 
 The CLI provides six subcommands. Use `check` for wrapper config validation, `policy` to gate on your project's deprecation-governance rules, `all` to run every check in a single pass (and append a deprecation table), or `status` to generate a standalone markdown deprecation table without running any checks. See the [CLI Reference](cli.md) for full flag and exit-code documentation.
 
@@ -809,10 +811,14 @@ pip install 'pyDeprecate[audit,cli]'
 pydeprecate check src/your_package
 
 # all — exits 1 on any check error, chains, or expired wrappers; appends deprecation table
-# policy violations are printed here but never change this exit code
+# policy violations are printed here but change this exit code only with --gate=policy (since 0.16)
 pydeprecate all src/your_package
+pydeprecate all --gate=policy src/your_package
 
-# policy — exits 1 if any deprecation breaks a governance rule (gate on it separately from `all`)
+# several packages in one run, one exit code (since 0.16)
+pydeprecate all src/pkg_a src/pkg_b
+
+# policy — exits 1 if any deprecation breaks a governance rule
 pydeprecate policy src/your_package
 
 # status — standalone deprecation status table only (no checks, not a pass/fail gate)
@@ -824,12 +830,12 @@ pydeprecate check src/your_package --exit-zero
 
 **Exit codes** (see [CLI Reference — Exit codes](cli.md#exit-codes) for per-subcommand details):
 
-| Exit code | Meaning                                                                                                                                                   |
-| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `0`       | No hard errors (or `--exit-zero` was set)                                                                                                                 |
-| `1`       | Hard error found: invalid arg mappings, chains, expired wrappers, or policy violations under `policy`; with `--strict`, also any gap                      |
-| `2`       | A malformed setting: `--exclude`, `strict`, or for `policy` a rule value, from a flag or from `[tool.pydeprecate]`; a typed `--strict` with `--exit-zero` |
-| `3`       | The audit did not run: the scanned package cannot be imported, or an internal CLI error                                                                   |
+| Exit code | Meaning                                                                                                                                                           |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0`       | No hard errors (or `--exit-zero` was set)                                                                                                                         |
+| `1`       | Hard error found: invalid arg mappings, chains, expired wrappers, or policy violations under `policy` or `all --gate=policy`; with `--strict`, also any gap       |
+| `2`       | A malformed setting: `--exclude`, `strict`, `gate`, or for `policy` a rule value, from a flag or from `[tool.pydeprecate]`; a typed `--strict` with `--exit-zero` |
+| `3`       | The audit did not run: the scanned package cannot be imported, or an internal CLI error                                                                           |
 
 `--exit-zero` turns exit `1` into `0` and never masks `2` or `3`.
 
@@ -852,31 +858,71 @@ jobs:
           python-version: "3.11"
       - run: pip install -e . # pulls in the runtime dependencies the scanned modules import
 
-      - name: Audit deprecations (policy advisory here)
-        uses: Borda/pyDeprecate@v0.15.0 # pin a release tag or a commit SHA
+      - name: Audit deprecations and enforce the policy
+        uses: Borda/pyDeprecate@v0.16.0 # pin a release tag or a commit SHA
         with:
           path: src/mypackage
+          args: --gate=policy # policy violations fail the step too, from the same scan
           summary: true # add a deprecation status table to the job summary
-
-      - name: Enforce the deprecation policy
-        uses: Borda/pyDeprecate@v0.15.0
-        with:
-          subcommand: policy
-          path: src/mypackage
-          install: false # already installed by the previous step
 ```
 
-| Input         | Default | Meaning                                                                                                                                                                                                                                                                                                                                                                    |
-| ------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `subcommand`  | `all`   | One of `check`, `expiry`, `policy`, `chains`, `all`, `status`; any other value fails the step with exit code `2`.                                                                                                                                                                                                                                                          |
-| `path`        | empty   | Package directory or importable module name, relative to the workspace. Empty lets the CLI pick the single package under `src/`, else the single package at the repository root. A value starting with `-` fails the step with exit code `2`; write such a directory as `./-name` and pass CLI options through `args`.                                                     |
-| `args`        | empty   | Extra CLI flags, split with shell-style quoting, e.g. `--exclude='mypackage.tests,*._legacy*' --version 2.0`. Backslashes are escape characters, so quote Windows paths or use `/`.                                                                                                                                                                                        |
-| `fail-on-gap` | `false` | Fail the step when any part of the audit did not run (`--strict`, since 0.16), such as a module that could not be imported; not valid with `exit-zero` or `status`; `exit-zero: true` also switches off a `strict = true` from `pyproject.toml`, so an advisory step passes. With `install: false` and an older pyDeprecate the CLI rejects the option with exit code `2`. |
-| `exit-zero`   | `false` | Report findings without failing the step (`--exit-zero`); not valid with `status`.                                                                                                                                                                                                                                                                                         |
-| `install`     | `true`  | Install `pyDeprecate[cli,audit]` from the action's own ref into the job's Python.                                                                                                                                                                                                                                                                                          |
-| `summary`     | `false` | Append the markdown deprecation status table of the gate's own scan to the job summary, read from the report the CLI writes with `--report-json`, so it covers exactly what the gate scanned however `path` and `args` name the package. Summary failures only warn and preserve the gate result. No summary on CLI exit `2` or `3`.                                       |
+A monorepo lists one path per line (since 0.16); the step scans each package with its own settings and exits with one code:
+
+```yaml
+- uses: Borda/pyDeprecate@v0.16.0
+  with:
+    path: |
+      packages/core/src/core
+      packages/cli/src/cli
+    args: --gate=policy
+```
+
+With `v0.15.0`, which has no `--gate`, run the policy as a second step: `subcommand: policy` with `install: false`.
+
+| Input         | Default | Meaning                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `subcommand`  | `all`   | One of `check`, `expiry`, `policy`, `chains`, `all`, `status`; any other value fails the step with exit code `2`.                                                                                                                                                                                                                                                                                          |
+| `path`        | empty   | Package directory or importable module name, relative to the workspace; several, one per line, are scanned in one run (since 0.16; empty lines are dropped). Empty lets the CLI pick the single package under `src/`, else the single package at the repository root. A path starting with `-` fails the step with exit code `2`; write such a directory as `./-name` and pass CLI options through `args`. |
+| `args`        | empty   | Extra CLI flags, split with shell-style quoting, e.g. `--exclude='mypackage.tests,*._legacy*' --version 2.0`. Backslashes are escape characters, so quote Windows paths or use `/`.                                                                                                                                                                                                                        |
+| `fail-on-gap` | `false` | Fail the step when any part of the audit did not run (`--strict`, since 0.16), such as a module that could not be imported; not valid with `exit-zero` or `status`; `exit-zero: true` also switches off a `strict = true` from `pyproject.toml`, so an advisory step passes. With `install: false` and an older pyDeprecate the CLI rejects the option with exit code `2`.                                 |
+| `exit-zero`   | `false` | Report findings without failing the step (`--exit-zero`); not valid with `status`.                                                                                                                                                                                                                                                                                                                         |
+| `install`     | `true`  | Install `pyDeprecate[cli,audit]` from the action's own ref into the job's Python.                                                                                                                                                                                                                                                                                                                          |
+| `summary`     | `false` | Append the markdown deprecation status table of the gate's own scan to the job summary, read from the report the CLI writes with `--report-json`, so it covers exactly what the gate scanned however `path` and `args` name the package. Summary failures only warn and preserve the gate result. No summary on CLI exit `2` or `3`.                                                                       |
+| `sarif`       | `false` | Also write the findings as a SARIF 2.1.0 file (`--report-sarif`, since 0.16) and publish its path as the `sarif-file` output; not valid with `status`.                                                                                                                                                                                                                                                     |
 
 The step finishes with the CLI's own exit code (see the table above; `3` gets an error annotation naming a scan or internal error), with three exceptions of its own: a `path` starting with `-` exits `2`, a failed `pip install` (`install: true`) returns pip's exit code, and a CLI process that cannot be started returns `1`. The action has no static input; to audit without importing the package, pass `--static` through `args` with `subcommand: expiry` or `policy` (see [Static mode](cli.md#static-mode)). A failing run adds an error annotation to the pull request's checks. The CLI has no "fail on warning" mode: advisory findings such as identity mappings never fail the step, and `exit-zero: true` turns hard errors into reports while you clear a backlog. `fail-on-gap: true` makes an incomplete audit fail the step: every gap the run annotates then also fails it.
+
+Each finding of the run becomes one annotation on the line of its wrapper — errors first, then warnings, at most 50, then one notice counting the rest (the log and the report list them all); findings accepted with `--ignore` or `--baseline` are never annotated. Gaps keep their one warning per kind.
+
+The step publishes outputs for later steps; give it an `id` to read them:
+
+| Output                                                 | Value                                                                                                                           |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| `exit-code`                                            | The step's exit code; always set.                                                                                               |
+| `findings`, `errors`, `warnings`, `gaps`, `suppressed` | Counts from the run's report; empty when the CLI wrote no report (exit `2` or `3`, or an older CLI kept with `install: false`). |
+| `report-json`                                          | Path of a copy of the run's `--report-json` file, kept in `RUNNER_TEMP` until the job ends.                                     |
+| `sarif-file`                                           | Path of the SARIF file when `sarif: true`; empty otherwise.                                                                     |
+
+[SARIF](cli.md#sarif-for-code-scanning) is the format GitHub code scanning reads, so uploading it shows each finding as an alert on the wrapper's line instead of only a failed job. Upload the findings to GitHub code scanning with `sarif: true` and the `upload-sarif` action, run even when the gate failed. The upload fails with a read-only `GITHUB_TOKEN`: give the job `security-events: write`, keep `contents: read` for the checkout, and add `actions: read` for a private repository.
+
+```yaml
+permissions:
+  contents: read
+  security-events: write
+  actions: read  # required for private repositories
+```
+
+```yaml
+- uses: Borda/pyDeprecate@v0.16.0
+  id: pydeprecate
+  with:
+    subcommand: all
+    sarif: true
+- uses: github/codeql-action/upload-sarif@v4
+  if: always() && steps.pydeprecate.outputs.sarif-file != ''
+  with:
+    sarif_file: ${{ steps.pydeprecate.outputs.sarif-file }}
+```
 
 **The `uses:` ref pins the pyDeprecate version.** With the default `install: true` the action installs pyDeprecate from the same commit as the action itself, so `@v0.15.0` audits with 0.15.0. That install replaces whatever pyDeprecate version your job already had, for every later step too, and the action warns when it does. Pin the action to the release your project depends on, or install `pyDeprecate[audit,cli]` yourself and set `install: false`. Set `install: false` as well where `pip` is unavailable, such as a uv-managed virtual environment.
 

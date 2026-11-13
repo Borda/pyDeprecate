@@ -384,7 +384,7 @@
         {
           "@type": "Question",
           "name": "Why does pydeprecate all report policy violations but still exit 0?",
-          "acceptedAnswer": { "@type": "Answer", "text": "No \u2014 that is deliberate. The policy defaults (min_grace=\"0.3\", message_required=True) encode *a* release convention, not a universal rule, so all runs the policy check in advisory mode: violations are printed for visibility but never contribute to all\u0027s exit code. Only invalid argument mappings, misconfigured targets, inner-order properties, deprecated-to-deprecated chains, and expired wrappers make all exit 1. This \"advisory\" treatment covers violation *counts* only \u2014 a policy configuration failure (the nearest pyproject.toml cannot be read or parsed, or a [tool.pydeprecate.policy] value is malformed) still exits 2 even inside all, printing Cannot read \u003cpath\u003e: \u003cerr\u003e, and that failure is checked before the chains check runs." }
+          "acceptedAnswer": { "@type": "Answer", "text": "No \u2014 that is deliberate. The policy defaults (min_grace=\"0.3\", message_required=True) encode *a* release convention, not a universal rule, so all runs the policy check in advisory mode by default: violations are printed for visibility but never contribute to all\u0027s exit code. Since 0.16 you can opt in with pydeprecate all --gate=policy src/mypackage (or gate = [\"policy\"] in [tool.pydeprecate]), which makes all exit 1 on the policy violations of that same scan; on 0.15 use the separate policy step below. Without that opt-in, only invalid argument mappings, misconfigured targets, inner-order properties, deprecated-to-deprecated chains, and expired wrappers make all exit 1. This \"advisory\" treatment covers violation *counts* only \u2014 a policy configuration failure (the nearest pyproject.toml cannot be read or parsed, or a [tool.pydeprecate.policy] value is malformed) still exits 2 even inside all, printing Cannot read \u003cpath\u003e: \u003cerr\u003e, and that failure is checked before the chains check runs." }
         },
 
         {
@@ -511,6 +511,12 @@
           "@type": "Question",
           "name": "Why does the GitHub Action say the report is not of layout version 1?",
           "acceptedAnswer": { "@type": "Answer", "text": "The action\u0027s runner reads only the layout version its own CLI writes (1 since 0.15); a report of another version comes from a different pyDeprecate than the action ref, typically with install: false. The step\u0027s exit code is still the CLI\u0027s, so the gate result is right; only the annotations and the summary are skipped. Pin the action to the release your job installs (uses: Borda/pyDeprecate@v0.16.0), or keep the default install: true so the action installs the CLI from its own ref." }
+        },
+
+        {
+          "@type": "Question",
+          "name": "Why does a pyDeprecate annotation show no file or line?",
+          "acceptedAnswer": { "@type": "Answer", "text": "The finding has no source location the CLI can name: every finding from a --static run lacks one, as can a deprecated_instance data object (a wrapped value has no defining line), a class built at runtime, or code compiled from a string. Since 0.16 a finding with a source location is annotated with the file and the line of its wrapper\u0027s first decorator; a deprecated module is annotated on its file without a line. A file outside the repository checkout (the nearest directory holding .git at or above the job\u0027s working directory) is named by its absolute path, which GitHub cannot match to the pull request, so scan the package in the checkout rather than an installed copy." }
         },
 
         {
@@ -2245,6 +2251,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#why-does-a-pydeprecate-annotation-show-no-file-or-line" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why does a pyDeprecate annotation show no file or line?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#why-did-the-github-action-skip-my-job-summary" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3233,6 +3250,17 @@
     <span class="md-ellipsis">
       
         Why does the GitHub Action say the report is not of layout version 1?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-does-a-pydeprecate-annotation-show-no-file-or-line" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why does a pyDeprecate annotation show no file or line?
       
     </span>
   </a>
@@ -4964,8 +4992,8 @@
 <hr />
 <h2 id="why-does-pydeprecate-all-report-policy-violations-but-still-exit-0">Why does <code>pydeprecate all</code> report policy violations but still exit 0?<a class="headerlink" href="#why-does-pydeprecate-all-report-policy-violations-but-still-exit-0" title="Permanent link">🔗</a></h2>
 <p><strong>Q:</strong> <code>pydeprecate all src/mypackage</code> prints a <em>Deprecation Policy Violations</em> table, but the command exits <code>0</code> and my CI step passes. Is the exit code wrong?</p>
-<p><strong>A:</strong> No — that is deliberate. The policy defaults (<code>min_grace="0.3"</code>, <code>message_required=True</code>) encode <em>a</em> release convention, not a universal rule, so <code>all</code> runs the policy check in <strong>advisory</strong> mode: violations are printed for visibility but never contribute to <code>all</code>'s exit code. Only invalid argument mappings, misconfigured targets, inner-order properties, deprecated-to-deprecated chains, and expired wrappers make <code>all</code> exit <code>1</code>. This "advisory" treatment covers violation <em>counts</em> only — a policy <strong>configuration</strong> failure (the nearest <code>pyproject.toml</code> cannot be read or parsed, or a <code>[tool.pydeprecate.policy]</code> value is malformed) still exits <code>2</code> even inside <code>all</code>, printing <code>Cannot read &lt;path&gt;: &lt;err&gt;</code>, and that failure is checked before the chains check runs.</p>
-<p>To make the build fail on a policy violation, give <code>pydeprecate policy</code> its own CI step — its exit code is truthful (<code>0</code> clean, <code>1</code> violations, <code>2</code> a malformed rule argument):</p>
+<p><strong>A:</strong> No — that is deliberate. The policy defaults (<code>min_grace="0.3"</code>, <code>message_required=True</code>) encode <em>a</em> release convention, not a universal rule, so <code>all</code> runs the policy check in <strong>advisory</strong> mode by default: violations are printed for visibility but never contribute to <code>all</code>'s exit code. Since <code>0.16</code> you can opt in with <code>pydeprecate all --gate=policy src/mypackage</code> (or <code>gate = ["policy"]</code> in <code>[tool.pydeprecate]</code>), which makes <code>all</code> exit <code>1</code> on the policy violations of that same scan; on <code>0.15</code> use the separate <code>policy</code> step below. Without that opt-in, only invalid argument mappings, misconfigured targets, inner-order properties, deprecated-to-deprecated chains, and expired wrappers make <code>all</code> exit <code>1</code>. This "advisory" treatment covers violation <em>counts</em> only — a policy <strong>configuration</strong> failure (the nearest <code>pyproject.toml</code> cannot be read or parsed, or a <code>[tool.pydeprecate.policy]</code> value is malformed) still exits <code>2</code> even inside <code>all</code>, printing <code>Cannot read &lt;path&gt;: &lt;err&gt;</code>, and that failure is checked before the chains check runs.</p>
+<p>To make the build fail on a policy violation on <code>0.15</code>, or to keep the policy gate apart from <code>all</code>, give <code>pydeprecate policy</code> its own CI step — its exit code is truthful (<code>0</code> clean, <code>1</code> violations, <code>2</code> a malformed rule argument):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-101-1" name="__codelineno-101-1" href="#__codelineno-101-1"></a><span class="c1"># reports policy violations, but the exit code ignores them</span>
 <a id="__codelineno-101-2" name="__codelineno-101-2" href="#__codelineno-101-2"></a>pydeprecate<span class="w"> </span>all<span class="w"> </span>src/mypackage
 <a id="__codelineno-101-3" name="__codelineno-101-3" href="#__codelineno-101-3"></a>
@@ -5114,6 +5142,10 @@
 <p><strong>Q:</strong> The pyDeprecate GitHub Action warns <code>the pyDeprecate report is not of layout version 1; ignoring it</code> and adds no gap annotations or job summary, although the CLI ran.</p>
 <p><strong>A:</strong> The action's runner reads only the layout version its own CLI writes (1 since 0.15); a report of another version comes from a different pyDeprecate than the action ref, typically with <code>install: false</code>. The step's exit code is still the CLI's, so the gate result is right; only the annotations and the summary are skipped. Pin the action to the release your job installs (<code>uses: Borda/pyDeprecate@v0.16.0</code>), or keep the default <code>install: true</code> so the action installs the CLI from its own ref.</p>
 <hr />
+<h2 id="why-does-a-pydeprecate-annotation-show-no-file-or-line">Why does a pyDeprecate annotation show no file or line?<a class="headerlink" href="#why-does-a-pydeprecate-annotation-show-no-file-or-line" title="Permanent link">🔗</a></h2>
+<p><strong>Q:</strong> The GitHub Action's annotation for a finding appears on the run summary instead of on a line of the pull request.</p>
+<p><strong>A:</strong> The finding has no source location the CLI can name: every finding from a <code>--static</code> run lacks one, as can a <code>deprecated_instance</code> data object (a wrapped value has no defining line), a class built at runtime, or code compiled from a string. Since 0.16 a finding with a source location is annotated with the file and the line of its wrapper's first decorator; a deprecated module is annotated on its file without a line. A file outside the repository checkout (the nearest directory holding <code>.git</code> at or above the job's working directory) is named by its absolute path, which GitHub cannot match to the pull request, so scan the package in the checkout rather than an installed copy.</p>
+<hr />
 <h2 id="why-did-the-github-action-skip-my-job-summary">Why did the GitHub Action skip my job summary?<a class="headerlink" href="#why-did-the-github-action-skip-my-job-summary" title="Permanent link">🔗</a></h2>
 <p><strong>Q:</strong> The action ran with <code>summary: true</code>, but the job summary is absent or warns that the gate wrote no pyDeprecate report, or that no pyDeprecate report is available, or another runner warning about the summary.</p>
 <p><strong>A:</strong> The summary is optional and never changes the gate's exit code. The action takes the table from the report the CLI writes with <code>--report-json</code>, and the CLI writes that report only when the scan ran to the end with exit <code>0</code> or <code>1</code>. "The gate wrote no pyDeprecate report" means the report could not be written; the cause is in the CLI's stderr just above the warning. A usage error (exit <code>2</code>) and a crashed scan (exit <code>3</code>, for example a package that fails to import) write no summary and no warning, because no scan finished; the step's error annotation names the exit code. "No pyDeprecate report is available" means the job runs a pyDeprecate older than <code>--report-json</code> with <code>install: false</code>: keep <code>install: true</code>, or upgrade the pyDeprecate your job installs. The same "no report is available" warning also appears when the runner could not create the temporary directory for the report (its preceding warning gives the OS error). Other warnings: "<code>summary: true</code> needs GITHUB_STEP_SUMMARY" means the job is not on a GitHub runner, and "could not write the job summary" shows the OS error; both are self-describing. "The gate's report holds no deprecation table" means the CLI could not render the table (the reason is on its stderr). "Could not read the pyDeprecate report" or "not of layout version" means the report file is corrupt or comes from a different pyDeprecate than the action's (for example <code>install: false</code> with another version); the preceding runner warning names the cause, and the gate result is unaffected.</p>
@@ -5145,7 +5177,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 13, 2026 09:57:31 UTC">2026-11-13</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 13, 2026 21:49:43 UTC">2026-11-13</span>
   </span>
 
     
