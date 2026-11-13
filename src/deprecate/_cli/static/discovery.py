@@ -8,7 +8,8 @@ from collections.abc import Iterator, Sequence
 from pathlib import Path
 from typing import NamedTuple, Optional, Union
 
-from deprecate._cli.report import _GapKind, _print_gap
+from deprecate._cli._pkg import _plain_dir_modules
+from deprecate._cli.report import _GapKind, _print_gap, _report_nested_files
 from deprecate._cli.static.model import _display
 from deprecate.audit._scan import _is_excluded
 
@@ -133,13 +134,6 @@ def _walk_namespace(
 
 def _plain_modules(directory: Path, exclude: Sequence[str]) -> Iterator[tuple[str, Optional[Path]]]:
     """Yield the top-level ``*.py`` modules of a plain directory, as the import scan of one does."""
-    for entry in sorted(directory.iterdir(), key=lambda ent: ent.name):
-        is_module = entry.is_file() and entry.suffix == ".py" and not entry.name.startswith("__")
-        if is_module and not _is_excluded(entry.stem, exclude):
-            yield entry.stem, entry
-    if any(not fpy.name.startswith("__") for fpy in directory.rglob("*.py") if fpy.parent != directory):
-        _print_gap(
-            _GapKind.NESTED_FILES,
-            "Skipping nested Python files in plain directory scan. Use an importable package layout with '__init__.py'"
-            " files, or scan an importable module/package path instead.",
-        )
+    for entry in _plain_dir_modules(directory, exclude):
+        yield entry.stem, entry
+    _report_nested_files(directory)

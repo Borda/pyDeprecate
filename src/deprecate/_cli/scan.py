@@ -15,17 +15,17 @@ from importlib.machinery import ModuleSpec, all_suffixes
 from pathlib import Path
 from typing import NamedTuple, Optional, Protocol, TypeVar
 
-from deprecate._cli._pkg import _safe_module_name, _select_child_package
+from deprecate._cli._pkg import _plain_dir_modules, _safe_module_name, _select_child_package
 from deprecate._cli.config import _Config, _ConfigFlag, _resolve_exclude, _source_label
 from deprecate._cli.report import (
     _RUN_RECORD,
     _GapKind,
     _print,
     _print_gap,
-    _print_skipped_modules,
     _record_options,
     _record_scan,
     _record_scanned_path,
+    _report_nested_files,
     _ScanRecord,
 )
 from deprecate._cli.static.discovery import _locate_static
@@ -389,12 +389,7 @@ def _bound_names(target: _ScanTarget, exclude: Sequence[str] = ()) -> dict[str, 
         return {target.import_name: target.location}
     if target.location is None or not target.location.is_dir():
         return {}
-    return {
-        entry.stem: entry.resolve()
-        for entry in target.location.iterdir()
-        if entry.is_file() and entry.suffix == ".py" and not entry.name.startswith("__")
-        if not _is_excluded(entry.stem, exclude)
-    }
+    return {entry.stem: entry.resolve() for entry in _plain_dir_modules(target.location, exclude)}
 
 
 def _shared_name(first: _Planned, second: _Planned) -> Optional[str]:
@@ -440,12 +435,8 @@ def _scan_directory(
     abs_path: Path = Path(path).resolve()
     results: list[DeprecationWrapperInfo] = []
 
-    for entry in sorted(abs_path.iterdir(), key=lambda ent: ent.name):
-        if not (entry.is_file() and entry.suffix == ".py" and not entry.name.startswith("__")):
-            continue
+    for entry in _plain_dir_modules(abs_path, exclude or []):
         module_name: str = entry.stem
-        if _is_excluded(module_name, exclude or []):
-            continue
         try:
             results.extend(
                 find_deprecation_wrappers(
@@ -464,16 +455,7 @@ def _scan_directory(
         except Exception as e:
             _print_gap(_GapKind.MODULE_NOT_AUDITED, f"{module_name}: could not scan: {e!r}")
 
-    nested_python_files_found: bool = any(
-        not fpy.name.startswith("__") for fpy in abs_path.rglob("*.py") if fpy.parent != abs_path
-    )
-
-    if nested_python_files_found:
-        _print_gap(
-            _GapKind.NESTED_FILES,
-            "Skipping nested Python files in plain directory scan. Use an importable package layout with '__init__.py'"
-            " files, or scan an importable module/package path instead.",
-        )
+    _report_nested_files(abs_path)
     return results
 
 
@@ -762,7 +744,8 @@ def _import_scan(
             )
         finally:
             # Unlike the `audit: skipped` warning, these lines survive the audited package's own warnings filters.
-            _print_skipped_modules(skipped_modules)
+            for module, reason in skipped_modules.items():
+                _print_gap(_GapKind.MODULE_NOT_AUDITED, f"{module}: {reason}")
     for module, reason in skipped_modules.items():
         target = next((target for target in covered if target == module or target.startswith(f"{module}.")), None)
         if target is not None:
@@ -829,7 +812,7 @@ def _static_scan(
     _print("Mode: static (source read with ast; nothing imported)")
     wrappers = _read_static(located, recursive=recursive, include_members=include_members, exclude=exclude[0])
     _record_scanned_path(path, recorded, user_provided=version_explicit)
-    scan = _ScanRecord(path, wrappers, recorded, static=True, import_root=located.import_root)
+    scan = _ScanRecord(path, wrappers, recorded, static=True)
     if record:
         _record_scan(scan)
     return scan
