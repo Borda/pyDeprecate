@@ -6,7 +6,6 @@ import json
 import sys
 import warnings
 from collections.abc import Callable, Iterator
-from contextlib import AbstractContextManager
 from pathlib import Path
 from typing import Optional
 from unittest.mock import ANY, MagicMock, patch
@@ -14,10 +13,6 @@ from unittest.mock import ANY, MagicMock, patch
 import pytest
 
 from deprecate._cli.commands import (
-    _chain_wrappers,
-    _check_wrappers,
-    _expiry_wrappers,
-    _policy_wrappers,
     _status_table,
     cmd_all,
     cmd_chains,
@@ -27,22 +22,16 @@ from deprecate._cli.commands import (
     cmd_status,
 )
 from deprecate._cli.config import _FROM_PYPROJECT, _POLICY_DEFAULTS, _ConfigFlag
-from deprecate._cli.report import _REPORT_SCHEMA, _build_report, _GapKind, _record_run, _ScanRecord
+from deprecate._cli.report import _REPORT_SCHEMA, _build_report, _GapKind, _record_run
 from deprecate._cli.scan import _ScanError
 from deprecate._types import DeprecationConfig, TargetMode
 from deprecate.audit import ChainType, DeprecationWrapperInfo, PolicyRule, TableStyle, validate_deprecation_policy
-from deprecate.audit._policy import _build_policy_spec
 from tests._helpers import write_pkg
-from tests.unittests.cli._helpers import _EXPIRED_FINDING, _MESSAGE_REQUIRED_FINDING, _POLICY_VIOLATION
+from tests.unittests.cli._helpers import _EXPIRED_FINDING, _MESSAGE_REQUIRED_FINDING, _POLICY_VIOLATION, _scanned
 
 _requires_packaging = pytest.mark.skipif(
     importlib.util.find_spec("packaging") is None, reason="requires packaging (pip install 'pyDeprecate[audit]')"
 )
-
-
-def _scanned(wrappers: list[DeprecationWrapperInfo]) -> AbstractContextManager[MagicMock]:
-    """Make the subcommands' scan prologue return *wrappers* without importing anything."""
-    return patch("deprecate._cli.commands._scan_for_command", return_value=_ScanRecord("some_module", wrappers, None))
 
 
 @pytest.fixture(autouse=True)
@@ -238,8 +227,10 @@ class TestCmdCheckScanning:
         property leaves its setter and deleter without a warning.
 
         """
-        assert _check_wrappers([info]) == 1
+        with _scanned([info]):
+            result = cmd_check(path="some_module")
         out = capsys.readouterr().out
+        assert result == 1
         assert header in out
         assert line in out
         assert "All deprecated wrappers look correct!" not in out
@@ -454,7 +445,8 @@ class TestCmdExpiry:
         degrades to an advisory skip naming the version it could not read.
         """
         mock_expiry.side_effect = ValueError("Invalid version: '2024.06-nightly'")
-        result = _expiry_wrappers([DeprecationWrapperInfo(module="mod", function="fn")], "2024.06-nightly")
+        with _scanned([DeprecationWrapperInfo(module="mod", function="fn")], "2024.06-nightly"):
+            result = cmd_expiry(path="some_module")
         assert result == 0
         assert "2024.06-nightly" in capsys.readouterr().err
 
@@ -509,13 +501,12 @@ class TestCmdExpiry:
         cmd_expiry(path="some_module", version="2.0")
         assert "expired" in capsys.readouterr().out.lower()
 
-    def test_pre_scanned_wrappers_expired_exits_one(self) -> None:
-        """_wrappers with an expired wrapper and matching version → returns 1."""
+    def test_overdue_wrapper_fails_the_gate(self) -> None:
+        """A scanned wrapper whose ``remove_in`` equals the current version fails the expiry gate with exit 1."""
         config = DeprecationConfig(deprecated_in="1.0", remove_in="2.0")
         wrapper = DeprecationWrapperInfo(module="mod", function="fn", deprecated_info=config)
-        with patch("deprecate._cli.scan.find_deprecation_wrappers") as mock_scan:
-            result = _expiry_wrappers([wrapper], "2.0")
-        mock_scan.assert_not_called()
+        with _scanned([wrapper], "2.0"):
+            result = cmd_expiry(path="some_module", version="2.0")
         assert result == 1
 
     def test_unparsable_remove_in_recorded_as_gap(self, capsys: pytest.CaptureFixture[str]) -> None:
@@ -531,8 +522,12 @@ class TestCmdExpiry:
             function="typo_fn",
             deprecated_info=DeprecationConfig(deprecated_in="1.0", remove_in="next-release"),
         )
-        with _record_run() as record, pytest.warns(UserWarning, match="unparsable `remove_in`"):
-            result = _expiry_wrappers([typo], "2.0")
+        with (
+            _record_run() as record,
+            _scanned([typo], "2.0"),
+            pytest.warns(UserWarning, match="unparsable `remove_in`"),
+        ):
+            result = cmd_expiry(path="some_module", version="2.0")
 
         ((kind, detail, _path, subject),) = record.gaps
         assert result == 0
@@ -559,8 +554,8 @@ class TestCmdExpiry:
             function="overdue_fn",
             deprecated_info=DeprecationConfig(deprecated_in="1.0", remove_in="2.0"),
         )
-        with _record_run() as record, pytest.warns(UserWarning, match="unparsable `remove_in`"):
-            result = _expiry_wrappers([typo, overdue], "2.0")
+        with _record_run() as record, _scanned([typo, overdue], "2.0"), pytest.warns(UserWarning, match="unparsable"):
+            result = cmd_expiry(path="some_module", version="2.0")
 
         assert result == 1
         assert [gap.kind for gap in record.gaps] == [_GapKind.REMOVE_IN_INVALID]
@@ -581,8 +576,8 @@ class TestCmdExpiry:
             function="unscheduled_fn",
             deprecated_info=DeprecationConfig(deprecated_in="1.0"),
         )
-        with _record_run() as record:
-            result = _expiry_wrappers([scheduled, unscheduled], "2.0")
+        with _record_run() as record, _scanned([scheduled, unscheduled], "2.0"):
+            result = cmd_expiry(path="some_module", version="2.0")
 
         assert result == 0
         assert record.gaps == []
@@ -599,19 +594,11 @@ class TestCmdExpiry:
             function="typo_fn",
             deprecated_info=DeprecationConfig(deprecated_in="1.0", remove_in="next-release"),
         )
-        with _record_run() as record:
-            result = _expiry_wrappers([typo], "not-a-version")
+        with _record_run() as record, _scanned([typo], "not-a-version"):
+            result = cmd_expiry(path="some_module")
 
         assert result == 0
         assert [gap.kind for gap in record.gaps] == [_GapKind.VERSION_INVALID]
-
-    def test_pre_scanned_wrappers_version_none_skips(self, capsys: pytest.CaptureFixture[str]) -> None:
-        """_wrappers provided but version=None → warns on stderr and returns 0."""
-        with patch("deprecate._cli.scan.find_deprecation_wrappers") as mock_scan:
-            result = _expiry_wrappers([], None)
-        mock_scan.assert_not_called()
-        assert result == 0
-        assert "version" in capsys.readouterr().err.lower()
 
     @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
     @patch("deprecate._cli.scan._resolve_package_version", return_value=None)
@@ -687,21 +674,6 @@ class TestCmdChains:
         cmd_chains(path="some_module")
         captured = capsys.readouterr()
         assert "stacked" in captured.out.lower()
-
-    def test_pre_scanned_wrappers_skips_scan(self) -> None:
-        """_wrappers provided → find_deprecation_wrappers not called; returns 0."""
-        with patch("deprecate._cli.scan.find_deprecation_wrappers") as mock_scan:
-            result = _chain_wrappers([_TARGET_CHAIN])
-        mock_scan.assert_not_called()
-        assert result == 1
-
-    def test_pre_scanned_wrappers_no_chains_exits_zero(self) -> None:
-        """_wrappers with no chain_type entries → returns 0."""
-        plain = DeprecationWrapperInfo(module="mod", function="fn")
-        with patch("deprecate._cli.scan.find_deprecation_wrappers") as mock_scan:
-            result = _chain_wrappers([plain])
-        mock_scan.assert_not_called()
-        assert result == 0
 
 
 # ---------------------------------------------------------------------------
@@ -1240,23 +1212,6 @@ class TestCmdPolicy:
         assert "[ERROR] Found deprecation policy violations:" in captured.out
         assert "[message-required]" in captured.out
         assert "advisory here" not in captured.out
-
-    @pytest.mark.parametrize("exit_zero", [False, True])
-    def test_advisory_rendering_leaves_exit_code_alone(
-        self, exit_zero: bool, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        """``advisory`` changes only how violations are printed; the exit code still follows ``exit_zero``.
-
-        ``all`` decides what to do with the policy result itself, so the advisory register must not quietly
-        turn into a second ``exit_zero`` — otherwise a future caller passing ``advisory=True`` would lose the
-        truthful exit 1 that ``all`` reads and ignores on purpose.
-        """
-        spec = _build_policy_spec(None, True)
-        result = _policy_wrappers([_POLICY_VIOLATION], spec, "Policy:", exit_zero=exit_zero, advisory=True)
-        captured = capsys.readouterr()
-        assert result == (0 if exit_zero else 1)
-        assert "[WARNING] Found deprecation policy violations:" in captured.out
-        assert "(advisory here — run `pydeprecate policy` to gate on it)" in captured.out
 
     def test_disabled_rules_pass_through(self) -> None:
         """Disabling both rules leaves nothing to report, even for a wrapper that breaks both of them.

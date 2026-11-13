@@ -32,7 +32,6 @@ from deprecate._cli.config import (
 )
 from deprecate._cli.findings import (
     _GATE_ORDER,
-    _exit_code,
     _gate_reasons,
     _GateReason,
     _level,
@@ -655,20 +654,6 @@ def _check_render(findings: list[_Finding]) -> None:
         _print("\nAll deprecated wrappers look correct!")
 
 
-def _check_wrappers(wrappers: list[DeprecationWrapperInfo], *, exit_zero: bool = False) -> int:
-    """Report the configuration findings of already-scanned wrappers and return the ``check`` exit code.
-
-    The evaluation half of :func:`cmd_check` for one wrapper list.
-
-    """
-    if not wrappers:
-        _print("No deprecated callables found.")
-        return 0
-    findings = _check_derive(wrappers)
-    _check_render(findings)
-    return _exit_code(findings, "check", exit_zero=exit_zero)
-
-
 def _run_check(record: _RunRecord, scanned: list[tuple[_PathPlan, _ScanRecord]]) -> None:
     """Derive the configuration findings of every scanned path and print them as one set of sections."""
     if not any(scan.wrappers for _, scan in scanned):
@@ -683,8 +668,8 @@ def _expiry_derive(
     """Record and return the active ``expired`` findings, or ``None`` when the check could not run (gap printed).
 
     A ``--static`` scan (*static*) checks the wrappers whose ``remove_in`` the source settled; a ``not statically
-    resolvable`` gap names each one it left out, printed only once the check has run — when it could not (no version,
-    an invalid one, no ``packaging``) it has already printed why, and a gap per wrapper would imply that the others were
+    resolvable`` gap names each one it left out, printed only once the check has run — when it could not (no version, an
+    invalid one, no ``packaging``) it has already printed why, and a gap per wrapper would imply that the others were
     checked.
 
     """
@@ -706,21 +691,6 @@ def _expiry_render(expired: Optional[list[_Finding]]) -> None:
         return
     _Reporter.expiry([finding.message for finding in expired])
     _print(f"\n{len(expired)} expired wrapper(s) found.")
-
-
-def _expiry_wrappers(
-    wrappers: list[DeprecationWrapperInfo], version: Optional[str], *, exit_zero: bool = False, static: bool = False
-) -> int:
-    """Report the already-scanned wrappers past their removal deadline and return the ``expiry`` exit code.
-
-    The evaluation half of :func:`cmd_expiry` for one wrapper list and version. *version* is never validated here: a
-    typed ``--version`` was validated before the scan, and an auto-detected one that is not PEP 440 is an advisory skip,
-    not a usage error. *static* marks wrappers read from source (``--static``), see :func:`_expiry_derive`.
-
-    """
-    expired = _expiry_derive(wrappers, version, static=static)
-    _expiry_render(expired)
-    return 0 if expired is None else _exit_code(expired, "expiry", exit_zero=exit_zero)
 
 
 def _run_expiry(record: _RunRecord, scanned: list[tuple[_PathPlan, _ScanRecord]]) -> None:
@@ -773,39 +743,6 @@ def _policy_render(violations: list[_Finding], *, advisory: bool) -> None:
         _print("(advisory here — run `pydeprecate policy` to gate on it)")
 
 
-def _policy_wrappers(
-    wrappers: list[DeprecationWrapperInfo],
-    spec: "_PolicySpec",
-    policy_header: str,
-    *,
-    exit_zero: bool = False,
-    advisory: bool = False,
-    findings: Optional[_PolicyFindings] = None,
-) -> int:
-    """Report the policy violations of already-scanned wrappers and return the ``policy`` exit code.
-
-    The evaluation half of :func:`cmd_policy` for one wrapper list.
-
-    Args:
-        wrappers: The scanned wrappers.
-        spec: The resolved policy rules.
-        policy_header: The ``Policy:`` line naming each rule value and its source.
-        exit_zero: Exit 0 even when violations are found.
-        advisory: Render violations as a yellow ``[WARNING]`` with a trailer pointing at the ``policy``
-            subcommand, instead of the red ``[ERROR]`` of a gating run. ``cmd_all`` reports policy violations
-            without failing on them unless ``--gate`` names ``policy``, and the output has to say so. Never inferred
-            from *exit_zero*, which downgrades the exit code without changing what the violations mean.
-        findings: How the rules evaluate the wrappers, see :func:`_policy_derive`.
-
-    """
-    _print(policy_header)
-    violations = _policy_derive(wrappers, spec, findings)
-    if violations is None:
-        return 0
-    _policy_render(violations, advisory=advisory)
-    return _exit_code(violations, "policy", exit_zero=exit_zero)
-
-
 def _run_policy(record: _RunRecord, scanned: list[tuple[_PathPlan, _ScanRecord]], *, in_all: bool) -> None:
     """Check every scanned path against its own policy rules and print the violations of all of them.
 
@@ -853,17 +790,6 @@ def _chain_render(chains: list[_Finding]) -> None:
         return
     _Reporter.chains(chains, error=True)
     _print(f"\n{len(chains)} deprecation chain(s) found.")
-
-
-def _chain_wrappers(wrappers: list[DeprecationWrapperInfo], *, exit_zero: bool = False) -> int:
-    """Report the deprecation chains among already-scanned wrappers and return the ``chains`` exit code.
-
-    The evaluation half of :func:`cmd_chains` for one wrapper list.
-
-    """
-    chains = _chain_derive(wrappers)
-    _chain_render(chains)
-    return _exit_code(chains, "chains", exit_zero=exit_zero)
 
 
 def _run_chains(record: _RunRecord, scanned: list[tuple[_PathPlan, _ScanRecord]]) -> None:

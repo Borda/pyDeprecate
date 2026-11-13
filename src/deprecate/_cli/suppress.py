@@ -187,14 +187,6 @@ class _Suppressor:
             return _BASELINE, finding.id
         return None
 
-    def unmatched_ignore(self) -> int:
-        """Return how many ignore entries matched no finding of the run."""
-        return len({entry.text for entry in self.ignore} - self.used_entries)
-
-    def unmatched_baseline(self, evaluated_rules: set[str], audited: Optional[Callable[[str], bool]] = None) -> int:
-        """Return how many baseline ids the run expected to match matched no finding — the stale entries."""
-        return len(self.evaluated_baseline(evaluated_rules, audited) - self.used_ids)
-
     def evaluated_baseline(
         self, evaluated_rules: set[str], audited: Optional[Callable[[str], bool]] = None
     ) -> set[str]:

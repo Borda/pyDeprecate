@@ -141,34 +141,12 @@ def _merge_reasons(per_path: Iterable[list[_GateReason]]) -> list[_GateReason]:
 def _verdict(reasons: list[_GateReason], *, exit_zero: bool = False) -> int:
     """Return the exit code of a gate that failed for *reasons*: 1 when there is any, 0 when none or ``exit_zero``.
 
+    The CLI never lets ``exit_zero`` meet strict mode. Usage errors (2) and scan or internal errors (3) never come from
+    here: they are decided before the scan or by the top-level handler of :func:`~deprecate._cli.cli`.
+
     Examples:
         >>> _verdict([_GateReason.GAPS]), _verdict([_GateReason.GAPS], exit_zero=True), _verdict([])
         (1, 0, 0)
 
     """
     return 1 if reasons and not exit_zero else 0
-
-
-def _exit_code(
-    findings: Iterable[_Finding],
-    subcommand: str,
-    *,
-    exit_zero: bool = False,
-    strict: bool = False,
-    gaps: int = 0,
-    gates: Iterable[str] = (),
-) -> int:
-    """Return the exit code a run of *subcommand* gives for *findings*: 1 when the gate failed, else 0.
-
-    The gate fails when any finding is an error in *subcommand* (with ``all``, also a finding of a check listed in
-    *gates*), or, in strict mode, when the run recorded at least one gap (a part of the audit that did not run).
-    ``exit_zero`` downgrades 1 to 0; the CLI never lets it meet ``strict``. Usage errors (2) and scan or internal errors
-    (3) never come from here: they are decided before the scan or by the top-level handler of
-    :func:`~deprecate._cli.cli`. A run over several paths takes :func:`_verdict` of the paths' merged reasons.
-
-    Examples:
-        >>> _exit_code([], "check"), _exit_code([], "check", strict=True, gaps=2), _exit_code([], "check", gaps=2)
-        (0, 1, 0)
-
-    """
-    return _verdict(_gate_reasons(findings, subcommand, strict=strict, gaps=gaps, gates=gates), exit_zero=exit_zero)
