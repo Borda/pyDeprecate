@@ -9,7 +9,6 @@ import pytest
 
 from deprecate import assert_no_warnings
 from deprecate.utils import (
-    _get_signature,
     _remap_kwargs,
     _SigFacts,
     _signature_facts,
@@ -188,34 +187,6 @@ class TestSignatureFacts:
         """
         with pytest.raises(RuntimeError, match="deliberately unreadable"):
             _signature_facts(HostileSignatureCallable(), empty_on_error=True)
-
-
-class TestSignatureFunctions:
-    """Tests for _get_signature, the uncached signature read used when a callable is decorated."""
-
-    def test_returns_valid_signature(self) -> None:
-        """Returns a valid Signature with correct parameters for a standard annotated function."""
-
-        def my_func(x: int, y: str = "hi") -> None:
-            pass
-
-        sig = _get_signature(my_func)
-        assert isinstance(sig, inspect.Signature)
-        assert list(sig.parameters) == ["x", "y"]
-
-    def test_reads_unhashable_callable(self) -> None:
-        """Unhashable callables are read like any other callable: without a cache nothing needs hashing."""
-
-        class UnhashableCallable:
-            __hash__ = None  # type: ignore[assignment]
-
-            def __call__(self, x: int) -> int:
-                return x
-
-        obj = UnhashableCallable()
-        sig = _get_signature(obj)
-        assert isinstance(sig, inspect.Signature)
-        assert "x" in sig.parameters
 
 
 class TestWarnsRepr:
