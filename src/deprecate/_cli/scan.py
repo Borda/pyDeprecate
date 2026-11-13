@@ -297,7 +297,13 @@ def _own_context(plan: _Planned, cover: _Planned, *, own_versions: bool) -> Opti
     return None
 
 
-def _select_plans(plans: Sequence[_PlanT], *, recursive: bool, own_versions: bool = False) -> Optional[list[_PlanT]]:
+def _select_plans(
+    plans: Sequence[_PlanT],
+    *,
+    recursive: bool,
+    own_versions: bool = False,
+    covered: Optional[dict[str, list[str]]] = None,
+) -> Optional[list[_PlanT]]:
     """Drop the paths another path's scan already audits, and refuse two paths that cannot share one process.
 
     Runs once every path is planned, before the first import, so a covering path's own resolved ``exclude`` decides
@@ -340,7 +346,20 @@ def _select_plans(plans: Sequence[_PlanT], *, recursive: bool, own_versions: boo
                     stderr=True,
                 )
                 return None
+    if covered is not None:
+        _collect_covered(kept, plans, covered, recursive=recursive)
     return kept
+
+
+def _collect_covered(
+    kept: Sequence[_PlanT], plans: Sequence[_PlanT], covered: dict[str, list[str]], *, recursive: bool
+) -> None:
+    """Record explicit target names folded into each covering scan."""
+    for cover in kept:
+        for plan in plans:
+            route = _walk_route(cover.target, plan.target) if _covers(cover, plan, recursive=recursive) else None
+            if route is not None:
+                covered.setdefault(cover.target.path, []).append(".".join(route[1]))
 
 
 def _covering_plan(plans: Sequence[_PlanT], index: int, *, recursive: bool) -> Optional[_PlanT]:
@@ -703,6 +722,7 @@ def _scan_for_command(
     resolve_version: bool = False,
     record: bool = True,
     static: bool = False,
+    covered: Sequence[str] = (),
 ) -> Optional[_ScanRecord]:
     """Run the scan prologue shared by every subcommand and return what it scanned.
 
@@ -725,6 +745,7 @@ def _scan_for_command(
             render instead, so a table that failed to render is not rebuilt from the scan for the report.
         static: Read the source with ``ast`` instead of importing it (``--static``): nothing from the scanned package is
             imported or executed, the version included (:func:`_static_scan`).
+        covered: Explicit module names folded into this scan whose import failures must remain scan errors.
 
     Returns:
         The recorded scan, or ``None`` after printing a usage error (the caller exits 2).
@@ -758,6 +779,7 @@ def _scan_for_command(
         resolve_version=resolve_version,
         record=record,
         record_version=run_record is not None and run_record.wants_report,
+        **({} if static else {"covered": covered}),
     )
 
 
@@ -773,6 +795,7 @@ def _import_scan(
     resolve_version: bool,
     record: bool,
     record_version: bool,
+    covered: Sequence[str] = (),
 ) -> Optional[_ScanRecord]:
     """Run the importing half of :func:`_scan_for_command`: version, header, scan, imported location, record.
 
@@ -797,6 +820,12 @@ def _import_scan(
         finally:
             # Unlike the `audit: skipped` warning, these lines survive the audited package's own warnings filters.
             _print_skipped_modules(skipped_modules)
+    for module, reason in skipped_modules.items():
+        target = next((target for target in covered if target == module or target.startswith(f"{module}.")), None)
+        if target is not None:
+            raise _ScanError(
+                f"importing {module!r} failed while scanning explicitly requested module {target!r}: {reason}"
+            )
     if scanned is None:
         return None
     wrappers, version, recorded_version = scanned

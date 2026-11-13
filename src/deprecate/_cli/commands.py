@@ -9,7 +9,7 @@ check's findings of all paths in one section and decides one exit code over all 
 import os
 from collections import Counter
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, NamedTuple, Optional, Protocol, Union
@@ -340,6 +340,8 @@ class _PathPlan:
     exclude: tuple[str, ...] = ()
     #: Whether the scan descends into submodules.
     recursive: bool = True
+    #: Explicit targets folded into this scan, in their importable spelling.
+    covered: tuple[str, ...] = ()
 
     @property
     def path(self) -> str:
@@ -417,7 +419,11 @@ def _plan_paths(paths: Sequence[str], options: _RunOptions) -> Optional[list[_Pa
         if plan is None:
             return None
         plans.append(plan)
-    return _select_plans(plans, recursive=options.recursive, own_versions=options.own_versions)
+    covered: dict[str, list[str]] = {}
+    selected = _select_plans(plans, recursive=options.recursive, own_versions=options.own_versions, covered=covered)
+    if selected is None:
+        return None
+    return [replace(plan, covered=tuple(covered.get(plan.path, ()))) for plan in selected]
 
 
 class _GateStart(NamedTuple):
@@ -482,6 +488,7 @@ def _scan_plans(
             resolve_version=resolve_version,
             record=record,
             static=options.static,
+            covered=plan.covered,
         )
         if scan is None:
             return None

@@ -2352,6 +2352,48 @@ class TestMultiPath:
         assert captured.out.count("Scanning:") == 1
         assert captured.err.count("scanning it once") == 1
 
+    @pytest.mark.parametrize("strict", [False, True])
+    @pytest.mark.parametrize("child_first", [False, True])
+    def test_covered_broken_module_retains_root_import_error(
+        self, strict: bool, child_first: bool, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """An explicitly named broken child remains a root import error when its parent covers it.
+
+        A recursive parent scan treats failed child imports as advisory gaps, but a caller who explicitly requests the
+        child must receive the same root import error regardless of path order or strict mode.
+
+        """
+        pkg = write_pkg(tmp_path, "coveredpkg", "")
+        (pkg / "broken.py").write_text("raise RuntimeError('broken import')\n")
+        monkeypatch.syspath_prepend(str(tmp_path))
+        paths = ["coveredpkg.broken", "coveredpkg"] if child_first else ["coveredpkg", "coveredpkg.broken"]
+        with (
+            pytest.warns(UserWarning, match="audit: skipped coveredpkg.broken"),
+            pytest.raises(_ScanError, match="broken import"),
+        ):
+            cmd_check(path=paths, strict=strict)
+
+    def test_covered_broken_ancestor_names_requested_module(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A covered target's error identifies the requested descendant when its ancestor fails.
+
+        A user may request a nested module while the parent walk fails before reaching it; the diagnostic should name
+        both the failed ancestor and the explicitly requested descendant.
+
+        """
+        pkg = write_pkg(tmp_path, "coveredancestor", "")
+        child = pkg / "broken"
+        child.mkdir()
+        (child / "__init__.py").write_text("raise RuntimeError('broken ancestor')\n")
+        (child / "nested.py").write_text("")
+        monkeypatch.syspath_prepend(str(tmp_path))
+        with (
+            pytest.warns(UserWarning, match="audit: skipped coveredancestor.broken"),
+            pytest.raises(_ScanError, match="explicitly requested module 'coveredancestor.broken.nested'"),
+        ):
+            cmd_check(path=["coveredancestor", "coveredancestor.broken.nested"])
+
     @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
     def test_covered_path_with_own_settings_exits_two(
         self, mock_find: MagicMock, tmp_path: Path, capsys: pytest.CaptureFixture[str]
