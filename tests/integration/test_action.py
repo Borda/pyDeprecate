@@ -23,6 +23,7 @@ from unittest import mock
 import pytest
 import yaml
 
+from deprecate._cli import argv as cli_argv
 from deprecate._cli import commands as cli_commands
 from deprecate._cli import report as cli_report
 
@@ -822,15 +823,24 @@ class TestActionSummary:
         assert "::warning title=pyDeprecate::the gate wrote no pyDeprecate report" in out
         assert "::error" not in out
 
-    @pytest.mark.parametrize("schema", [1, 2])
-    def test_reads_every_supported_layout_version(self, tmp_path: Path, schema: int) -> None:
-        """A schema-1 report (an older CLI kept with ``install: false``) and a schema-2 report are both read.
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            pytest.param({"schema": 1, "gaps": [], "table": "| a |"}, id="cli-0.15"),
+            pytest.param(
+                {"schema": 1, "mode": "import", "gaps": [], "table": "| a |", "findings": [], "suppressed": []},
+                id="cli-0.16",
+            ),
+        ],
+    )
+    def test_reads_reports_of_older_and_current_cli(self, tmp_path: Path, payload: dict) -> None:
+        """A 0.15 report (an older CLI kept with ``install: false``) and a 0.16 report are both read.
 
-        Schema 2 only adds keys, so the gaps and the table of an older CLI's report stay usable and its annotations
-        keep working until the job upgrades pyDeprecate.
+        Both are layout version 1: 0.16 only adds keys, so the gaps and the table of an older CLI's report stay usable
+        and its annotations keep working until the job upgrades pyDeprecate.
         """
         report_file = tmp_path / "report.json"
-        report_file.write_text(json.dumps({"schema": schema, "gaps": [], "table": "| a |"}), encoding="utf-8")
+        report_file.write_text(json.dumps(payload), encoding="utf-8")
         report = action_runner.read_report(report_file)
         assert report is not None
         assert report["table"] == "| a |"
@@ -842,17 +852,17 @@ class TestActionSummary:
             pytest.param(b"\xff\xfe\x00", "could not read the pyDeprecate report: ", id="not-utf8"),
             pytest.param(
                 json.dumps({"schema": action_runner.REPORT_SCHEMA + 1, "gaps": [], "table": "t"}).encode(),
-                "the pyDeprecate report is not of layout version 1 or 2; ignoring it",
+                "the pyDeprecate report is not of layout version 1; ignoring it",
                 id="other-layout-version",
             ),
             pytest.param(
                 json.dumps({"gaps": [], "table": "t"}).encode(),
-                "the pyDeprecate report is not of layout version 1 or 2; ignoring it",
+                "the pyDeprecate report is not of layout version 1; ignoring it",
                 id="no-layout-version",
             ),
             pytest.param(
                 b"[]",
-                "the pyDeprecate report is not of layout version 1 or 2; ignoring it",
+                "the pyDeprecate report is not of layout version 1; ignoring it",
                 id="not-an-object",
             ),
         ],
@@ -1369,7 +1379,10 @@ class TestActionOutputSafety:
         sarif = json.loads(Path(written["sarif-file"]).read_text(encoding="utf-8"))
         assert result.returncode == 1, result.stdout + result.stderr
         assert sarif["runs"][0]["results"][0]["ruleId"] == "expired"
-        assert json.loads(Path(written["report-json"]).read_text(encoding="utf-8"))["schema"] == 2
+        assert (
+            json.loads(Path(written["report-json"]).read_text(encoding="utf-8"))["schema"]
+            == action_runner.REPORT_SCHEMA
+        )
 
     @pytest.mark.subprocess
     def test_fail_on_gap_fails_the_step(self, tmp_path: Path) -> None:
@@ -1677,6 +1690,69 @@ class TestActionMetadata:
         hooks = yaml.safe_load(_HOOKS_YAML.read_text(encoding="utf-8"))
         hook_requirements = {dep for hook in hooks for dep in hook["additional_dependencies"]}
         assert hook_requirements == {f"pyDeprecate[{','.join(action_runner.INSTALL_EXTRAS)}]"}
+
+    @pytest.mark.parametrize(
+        "hook", [pytest.param(hook, id=hook["id"]) for hook in yaml.safe_load(_HOOKS_YAML.read_text(encoding="utf-8"))]
+    )
+    def test_precommit_hook_entry_is_a_cli_command(self, hook: dict[str, Any]) -> None:
+        """Every hook's ``entry`` is a command line the CLI accepts, naming the subcommand the hook id promises.
+
+        A hook whose entry the parser rejected (a flag on a subcommand that lacks it, such as ``--static`` on
+        ``check``) would fail every pre-commit run of every project that enabled it, with a usage error.
+        """
+        program, subcommand, *flags = shlex.split(hook["entry"])
+        parsed = cli_argv._parse_cli_args([subcommand, *flags])
+        assert parsed is not None
+        assert (program, parsed[0].function.__name__) == ("pydeprecate", f"cmd_{subcommand}")
+        assert hook["id"].removeprefix("pydeprecate-").split("-")[0] in (subcommand, "pydeprecate")
+        # the ``-static`` hook variants must request static mode, the others must not
+        assert bool(parsed[1].get("static")) is hook["id"].endswith("-static")
+
+    @pytest.mark.parametrize(
+        "hook",
+        [
+            pytest.param(hook, id=hook["id"])
+            for hook in yaml.safe_load(_HOOKS_YAML.read_text(encoding="utf-8"))
+            if "--static" in shlex.split(hook["entry"])
+        ],
+    )
+    def test_precommit_static_hook_shows_its_output(self, hook: dict[str, Any]) -> None:
+        """A hook running ``--static`` is ``verbose``, so pre-commit prints the gaps of a run that passes.
+
+        A static run prints a wrapper it cannot read from source as a ``not statically resolvable`` gap and still
+        exits ``0``. pre-commit prints a passing hook's output only when the hook is ``verbose``, so without that
+        setting the one signal that part of the package went unaudited would never reach a CI log.
+        """
+        assert hook.get("verbose") is True
+
+    @pytest.mark.parametrize(
+        "hook",
+        [
+            pytest.param(hook, id=hook["id"])
+            for hook in yaml.safe_load(_HOOKS_YAML.read_text(encoding="utf-8"))
+            if hook["id"].endswith("-static")
+        ],
+    )
+    @pytest.mark.parametrize(
+        ("path", "tags", "matches"),
+        [
+            pytest.param("src/pkg/module.py", {"file", "python"}, True, id="python-source"),
+            pytest.param("bin/tool", {"file", "python"}, True, id="extensionless-python-script"),
+            pytest.param("pyproject.toml", {"file", "toml"}, True, id="root-project-config"),
+            pytest.param("pkg/other.toml", {"file", "toml"}, True, id="other-toml"),
+            pytest.param("notes.txt", {"file", "text"}, False, id="unrelated-text"),
+        ],
+    )
+    def test_static_hook_filters_relevant_files(
+        self, hook: dict[str, Any], path: str, tags: set[str], matches: bool
+    ) -> None:
+        """Static hooks run when source or project settings change, but ignore unrelated files.
+
+        pre-commit combines type and filename filters, so a Python-only type filter would skip a policy or version
+        change made solely in pyproject.toml even if the filename pattern matched it.
+        """
+        assert "files" not in hook
+        assert bool(tags.intersection(hook["types_or"])) is matches, path
 
 
 class TestFindingAnnotations:

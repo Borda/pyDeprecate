@@ -5,6 +5,7 @@ from collections.abc import Callable
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import jsonschema
 import pytest
 
 from deprecate._cli.commands import (
@@ -177,6 +178,56 @@ class TestReportIssues:
         assert "\t- mod.fn: [x]" in out
 
 
+class TestReportSchema:
+    """Validate schema 1 reports from both legacy and current producers."""
+
+    def test_legacy_report_is_accepted(self) -> None:
+        """A 0.15 report omits fields added later without changing its schema version.
+
+        Consumers validating older audit results must still accept their original three-field layout and gap records.
+
+        """
+        schema = json.loads(
+            (Path(__file__).resolve().parents[3] / "docs/schemas/report-1.schema.json").read_text(encoding="utf-8")
+        )
+        report = {
+            "schema": 1,
+            "table": None,
+            "gaps": [{"kind": "packaging missing", "detail": "missing", "hint": "install"}],
+        }
+        jsonschema.validate(report, schema)
+
+    def test_present_gap_path_is_validated(self) -> None:
+        """A newer gap path, when present, must retain its documented type.
+
+        Legacy gaps omit the path, but consumers must reject malformed path values from newer producers.
+
+        """
+        schema = json.loads(
+            (Path(__file__).resolve().parents[3] / "docs/schemas/report-1.schema.json").read_text(encoding="utf-8")
+        )
+        report = {"schema": 1, "table": None, "gaps": [{"kind": "x", "detail": "x", "hint": "x", "path": 7}]}
+        with pytest.raises(jsonschema.ValidationError):
+            jsonschema.validate(report, schema)
+
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [pytest.param("mode", "unknown", id="invalid-mode"), pytest.param("exit_code", 2, id="invalid-exit-code")],
+    )
+    def test_present_new_fields_are_validated(self, field: str, value: object) -> None:
+        """Optional additions remain constrained when a producer includes them.
+
+        A malformed later field must not become valid merely because legacy reports may omit it.
+
+        """
+        schema = json.loads(
+            (Path(__file__).resolve().parents[3] / "docs/schemas/report-1.schema.json").read_text(encoding="utf-8")
+        )
+        report = {"schema": 1, "table": None, "gaps": [], field: value}
+        with pytest.raises(jsonschema.ValidationError):
+            jsonschema.validate(report, schema)
+
+
 class TestWriteReport:
     """Tests for the ``--report-json`` file written by ``_write_report``."""
 
@@ -262,7 +313,7 @@ def _located(function: str, source_file: str, rule: _Rule, check: _Check) -> _Fi
 
 
 class TestReportFindings:
-    """The ``findings`` array of the schema-2 report: levels per subcommand, order, de-duplication and locations."""
+    """The ``findings`` array of the report: levels per subcommand, order, de-duplication and locations."""
 
     def test_sorted_by_level_then_id(self, tmp_path: Path) -> None:
         """Errors come before warnings, and findings of one level are ordered by id.

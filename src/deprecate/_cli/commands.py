@@ -11,7 +11,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, NamedTuple, Optional, Union
+from typing import TYPE_CHECKING, Callable, NamedTuple, Optional, Protocol, Union
 
 from deprecate._cli._pkg import _safe_module_name
 from deprecate._cli.config import (
@@ -40,6 +40,7 @@ from deprecate._cli.findings import (
 )
 from deprecate._cli.report import (
     _ensure_run_record,
+    _gap_recorded,
     _GapKind,
     _join_tables,
     _print,
@@ -52,6 +53,8 @@ from deprecate._cli.report import (
     _ScanRecord,
 )
 from deprecate._cli.scan import _preflight_targets, _scan_for_command, _ScanTarget
+from deprecate._cli.static.checks import _report_unresolved, _resolved, _static_policy_findings
+from deprecate._cli.static.consts import _EXPIRY_KEYWORDS
 from deprecate._cli.suppress import _Suppressor
 from deprecate.audit import (
     DeprecationWrapperInfo,
@@ -66,10 +69,24 @@ from deprecate.audit._scan import _is_excluded
 from deprecate.audit._wrappers import _format_subject
 
 if TYPE_CHECKING:
-    from deprecate.audit._policy import _PolicySpec
+    from deprecate.audit._policy import _OnUnparsableVersion, _PolicySpec
 
 #: The ``path`` argument of every subcommand: one path, or several scanned in one run.
 _PathArg = Union[str, Sequence[str]]
+
+
+class _PolicyFindings(Protocol):
+    """How a ``policy`` run evaluates scanned wrappers: :func:`_policy_findings`, or the per-rule static variant."""
+
+    def __call__(
+        self,
+        wrappers: list[DeprecationWrapperInfo],
+        spec: "_PolicySpec",
+        /,
+        *,
+        on_unparsable: Optional["_OnUnparsableVersion"] = None,
+    ) -> list[_Finding]:
+        """Return the policy findings of *wrappers*, handing each version the grace rule skipped to *on_unparsable*."""
 
 
 def _do_expiry_prescanned(wrappers: list[DeprecationWrapperInfo], version: Optional[str]) -> Optional[list[_Finding]]:
@@ -121,13 +138,48 @@ def _do_expiry_prescanned(wrappers: list[DeprecationWrapperInfo], version: Optio
         return None
 
 
+#: Gap kind of each wrapper version field that a check skips when it is not PEP 440.
+_INVALID_VERSION_GAPS: dict[str, _GapKind] = {
+    "deprecated_in": _GapKind.DEPRECATED_IN_INVALID,
+    "remove_in": _GapKind.REMOVE_IN_INVALID,
+}
+
+
+def _invalid_version_subject(info: DeprecationWrapperInfo, field_name: str) -> str:
+    """Name the wrapper and its version *field_name* that is not PEP 440: the opening of every such gap's detail."""
+    value = getattr(info.deprecated_info, field_name)
+    return f"{_format_subject(info)} has `{field_name}` `{value}`, which is not a valid PEP 440 version string,"
+
+
 def _record_remove_in_gap(info: DeprecationWrapperInfo) -> None:
     """Record a wrapper whose ``remove_in`` is not PEP 440 as a gap: its removal deadline was never checked."""
     _print_gap(
         _GapKind.REMOVE_IN_INVALID,
-        f"{_format_subject(info)} has `remove_in` `{info.deprecated_info.remove_in}`, which is not a valid PEP 440 "
-        "version string, so its removal deadline was not checked.",
+        f"{_invalid_version_subject(info, 'remove_in')} so its removal deadline was not checked.",
     )
+
+
+def _record_grace_version_gap(info: DeprecationWrapperInfo, field_name: str) -> None:
+    """Record an invalid version or forward epoch change that left the grace window unchecked.
+
+    ``all`` runs the expiry check first on the same scan, and it already names a wrapper whose ``remove_in`` it skipped;
+    the policy pass then adds no second gap for it. When the expiry check did not run (no usable version), it named no
+    wrapper, so the policy pass records the gap itself.
+
+    """
+    if field_name == "epoch":
+        config = info.deprecated_info
+        _print_gap(
+            _GapKind.EPOCH_CHANGE,
+            f"{_format_subject(info)} spans `{config.deprecated_in}` to `{config.remove_in}`; "
+            "its `min-grace` grace window was not checked.",
+        )
+        return
+    kind = _INVALID_VERSION_GAPS[field_name]
+    subject = _invalid_version_subject(info, field_name)
+    if _gap_recorded(kind, subject):
+        return
+    _print_gap(kind, f"{subject} so its `{PolicyRule.MIN_GRACE.value}` grace window was not checked.")
 
 
 def _save_table(markdown: str, output: str) -> None:
@@ -159,7 +211,7 @@ def _skipped_policy_rules(spec: "_PolicySpec") -> list[str]:
 
 
 def _policy_violations_without_packaging(
-    wrappers: list[DeprecationWrapperInfo], spec: "_PolicySpec"
+    wrappers: list[DeprecationWrapperInfo], spec: "_PolicySpec", findings: Optional[_PolicyFindings] = None
 ) -> Optional[list[_Finding]]:
     """Handle a missing-``packaging`` failure from :func:`_policy_findings`.
 
@@ -170,6 +222,8 @@ def _policy_violations_without_packaging(
     Args:
         wrappers: Pre-scanned wrapper list to re-check for ``message_required`` alone.
         spec: The originally requested (unsatisfiable) policy configuration.
+        findings: The policy evaluation to re-run, :func:`_static_policy_findings` for a ``--static`` scan; ``None``
+            runs :func:`_policy_findings`, looked up at call time.
 
     Returns:
         The ``message_required``-only violations list, or ``None`` when ``message_required`` is disabled and there
@@ -186,7 +240,8 @@ def _policy_violations_without_packaging(
         return None
     # `message_required` needs no version parsing at all, so a spec with the grace-window rule switched off keeps
     # the version machinery — and with it the ImportError just handled — out of this second pass entirely.
-    return _policy_findings(wrappers, _build_policy_spec(None, True))
+    evaluate = findings if findings is not None else _policy_findings
+    return evaluate(wrappers, _build_policy_spec(None, True))
 
 
 #: The checks whose error findings fail each gate subcommand, as the report's ``options.gates`` lists them; ``all``
@@ -229,6 +284,8 @@ class _RunOptions:
     policy_flags: Optional[dict[str, _ConfigFlag]] = None
     #: Whether the subcommand gates on findings; ``status`` resolves no strict mode and no accepted findings.
     gating: bool = True
+    #: Read each path's source with ``ast`` instead of importing it (``--static``); ``expiry`` and ``policy`` only.
+    static: bool = False
 
 
 @dataclass(frozen=True)
@@ -276,7 +333,7 @@ def _plan_path(target: _ScanTarget, options: _RunOptions) -> Optional[_PathPlan]
     Returns:
         The plan, or ``None`` after printing a usage error (the caller exits 2): an unreadable ``pyproject.toml``, a
         malformed ``exclude``, ``strict``, ``ignore``, ``baseline``, ``gate`` or policy rule value, strict mode with
-        ``--exit-zero``, or a baseline file that is not a schema-2 report.
+        ``--exit-zero``, or a baseline file that cannot be read or is not a report with finding ids.
 
     """
     path = target.path
@@ -379,6 +436,7 @@ def _scan_plans(
             version_explicit=version is not None,
             resolve_version=resolve_version,
             record=record,
+            static=options.static,
         )
         if scan is None:
             return None
@@ -426,8 +484,7 @@ def _report_suppression(record: _RunRecord, plans: list[_PathPlan], subcommand: 
     A baseline id counts as stale only for a rule this subcommand evaluates and whose check actually ran on the path
     whose baseline holds it, in a module that path's scan audited (inside the scanned package, not excluded, imported),
     and only when no path matched it; it is reported once on stderr and never fails the run. Unused ignore entries —
-    matched on no path — are only counted for the report: an entry for a check that did not run is legitimately
-    unused.
+    matched on no path — are only counted for the report: an entry for a check that did not run is legitimately unused.
 
     """
     kinds = Counter({item.finding.id: item.kind for item in record.suppressed}.values())
@@ -457,10 +514,10 @@ def _report_suppression(record: _RunRecord, plans: list[_PathPlan], subcommand: 
     record.ignore_unmatched = len(entries - used_entries)
     record.baseline_unmatched = len(expected_ids - used_ids)
     if record.baseline_unmatched:
-        noun = "entry" if record.baseline_unmatched == 1 else "entries"
+        verb = "entry matches" if record.baseline_unmatched == 1 else "entries match"
         _print(
-            f"pydeprecate: {record.baseline_unmatched} baseline {noun} no longer match a finding;"
-            " regenerate the baseline.",
+            f"pydeprecate: {record.baseline_unmatched} baseline {verb} no finding of this run"
+            " (stale, or outside a narrowed scan); regenerate the baseline from a full-scope run.",
             stderr=True,
         )
 
@@ -548,10 +605,24 @@ def _run_check(record: _RunRecord, scanned: list[tuple[_PathPlan, _ScanRecord]])
     _check_render(_derive_each(record, scanned, lambda _plan, scan: _check_derive(scan.wrappers)) or [])
 
 
-def _expiry_derive(wrappers: list[DeprecationWrapperInfo], version: Optional[str]) -> Optional[list[_Finding]]:
-    """Record and return the active ``expired`` findings, or ``None`` when the check could not run (gap printed)."""
-    derived = _do_expiry_prescanned(wrappers, version)
-    return None if derived is None else _record_findings(derived)
+def _expiry_derive(
+    wrappers: list[DeprecationWrapperInfo], version: Optional[str], *, static: bool = False
+) -> Optional[list[_Finding]]:
+    """Record and return the active ``expired`` findings, or ``None`` when the check could not run (gap printed).
+
+    A ``--static`` scan (*static*) checks the wrappers whose ``remove_in`` the source settled; a ``not statically
+    resolvable`` gap names each one it left out, printed only once the check has run — when it could not (no version, an
+    invalid one, no ``packaging``) it has already printed why, and a gap per wrapper would imply that the others were
+    checked.
+
+    """
+    checked = _resolved(wrappers, _EXPIRY_KEYWORDS) if static else wrappers
+    derived = _do_expiry_prescanned(checked, version)
+    if derived is None:
+        return None
+    if static:
+        _report_unresolved(wrappers, _EXPIRY_KEYWORDS)
+    return _record_findings(derived)
 
 
 def _expiry_render(expired: Optional[list[_Finding]]) -> None:
@@ -565,32 +636,54 @@ def _expiry_render(expired: Optional[list[_Finding]]) -> None:
     _print(f"\n{len(expired)} expired wrapper(s) found.")
 
 
-def _expiry_wrappers(wrappers: list[DeprecationWrapperInfo], version: Optional[str], *, exit_zero: bool = False) -> int:
+def _expiry_wrappers(
+    wrappers: list[DeprecationWrapperInfo], version: Optional[str], *, exit_zero: bool = False, static: bool = False
+) -> int:
     """Report the already-scanned wrappers past their removal deadline and return the ``expiry`` exit code.
 
     The evaluation half of :func:`cmd_expiry` for one wrapper list and version. *version* is never validated here: a
     typed ``--version`` was validated before the scan, and an auto-detected one that is not PEP 440 is an advisory skip,
-    not a usage error.
+    not a usage error. *static* marks wrappers read from source (``--static``), see :func:`_expiry_derive`.
 
     """
-    expired = _expiry_derive(wrappers, version)
+    expired = _expiry_derive(wrappers, version, static=static)
     _expiry_render(expired)
     return 0 if expired is None else _exit_code(expired, "expiry", exit_zero=exit_zero)
 
 
 def _run_expiry(record: _RunRecord, scanned: list[tuple[_PathPlan, _ScanRecord]]) -> None:
     """Check every scanned path against its own version and print the expired wrappers of all of them."""
-    _expiry_render(_derive_each(record, scanned, lambda _plan, scan: _expiry_derive(scan.wrappers, scan.version)))
+    _expiry_render(
+        _derive_each(
+            record, scanned, lambda _plan, scan: _expiry_derive(scan.wrappers, scan.version, static=scan.static)
+        )
+    )
 
 
-def _policy_derive(wrappers: list[DeprecationWrapperInfo], spec: "_PolicySpec") -> Optional[list[_Finding]]:
-    """Record and return the active policy violations, or ``None`` when no rule could run (gap printed)."""
+def _policy_derive(
+    wrappers: list[DeprecationWrapperInfo], spec: "_PolicySpec", findings: Optional[_PolicyFindings] = None
+) -> Optional[list[_Finding]]:
+    """Record and return the active policy violations, or ``None`` when no rule could run (gap printed).
+
+    A wrapper the ``min-grace`` rule skips because its ``deprecated_in`` or ``remove_in`` is not PEP 440 is recorded as
+    a gap (:func:`_record_grace_version_gap`), as is a forward epoch change that cannot be measured; strict mode then
+    fails the run on it. An unset version is a deliberate choice and records nothing.
+
+    Args:
+        wrappers: The scanned wrappers of one path.
+        spec: The resolved policy rules.
+        findings: How the rules evaluate the wrappers; a ``--static`` scan runs each rule on the wrappers whose
+            settings for it resolved (:func:`~deprecate._cli.static.checks._static_policy_findings`). ``None`` runs
+            :func:`_policy_findings`, looked up at call time.
+
+    """
     try:
-        violations = _policy_findings(wrappers, spec)
+        evaluate = findings if findings is not None else _policy_findings
+        violations = evaluate(wrappers, spec, on_unparsable=_record_grace_version_gap)
     except ImportError as exc:
         if not _is_missing_packaging_import_error(exc):
             raise
-        fallback = _policy_violations_without_packaging(wrappers, spec)
+        fallback = _policy_violations_without_packaging(wrappers, spec, findings)
         if fallback is None:
             return None
         violations = fallback
@@ -615,6 +708,7 @@ def _policy_wrappers(
     *,
     exit_zero: bool = False,
     advisory: bool = False,
+    findings: Optional[_PolicyFindings] = None,
 ) -> int:
     """Report the policy violations of already-scanned wrappers and return the ``policy`` exit code.
 
@@ -629,10 +723,11 @@ def _policy_wrappers(
             subcommand, instead of the red ``[ERROR]`` of a gating run. ``cmd_all`` reports policy violations
             without failing on them unless ``--gate`` names ``policy``, and the output has to say so. Never inferred
             from *exit_zero*, which downgrades the exit code without changing what the violations mean.
+        findings: How the rules evaluate the wrappers, see :func:`_policy_derive`.
 
     """
     _print(policy_header)
-    violations = _policy_derive(wrappers, spec)
+    violations = _policy_derive(wrappers, spec, findings)
     if violations is None:
         return 0
     _policy_render(violations, advisory=advisory)
@@ -654,7 +749,7 @@ def _run_policy(record: _RunRecord, scanned: list[tuple[_PathPlan, _ScanRecord]]
         if plan.policy is None:
             continue
         _select_path(record, plan)
-        derived = _policy_derive(scan.wrappers, plan.policy[0])
+        derived = _policy_derive(scan.wrappers, plan.policy[0], _static_policy_findings if scan.static else None)
         if derived is None:
             continue
         if not in_all or _Check.POLICY.value in plan.gates:
@@ -741,12 +836,13 @@ def cmd_check(
         strict: Fail the run (exit 1) when any part of the audit did not run — a ``pydeprecate gap:`` line such as a
             module that could not be imported or a version that could not be resolved. Default: ``strict`` of
             ``[tool.pydeprecate]`` in the nearest ``pyproject.toml``, else off; ``--no-strict`` switches it off.
-            Cannot be combined with ``exit_zero``.
+            A typed ``--strict`` cannot be combined with ``exit_zero`` (usage error); a typed ``exit_zero`` overrides a
+            ``strict = true`` that only ``pyproject.toml`` sets, with a stderr note.
         ignore: Findings to accept without fixing them: entries ``module:symbol`` (every rule) or
             ``rule:module:symbol`` (one rule, or ``*``), each part an ``fnmatch`` glob, comma-separated and repeatable
             (``--ignore='pkg.legacy:old_api'``). Default: ``ignore`` of ``[tool.pydeprecate]``, else nothing;
             ``--ignore=`` switches the file's list off. Suppressed findings are not printed, counted or gated on.
-        baseline: A ``--report-json`` file (layout 2 or later) whose findings are accepted by id. Default: ``baseline``
+        baseline: A ``--report-json`` file (pyDeprecate 0.16+) whose findings are accepted by id. Default: ``baseline``
             of ``[tool.pydeprecate]`` (relative to that ``pyproject.toml``), else none; ``--baseline=`` switches it off.
 
     Returns:
@@ -780,6 +876,7 @@ def cmd_expiry(
     strict: _ConfigBool = _FROM_PYPROJECT,
     ignore: _ConfigList = _FROM_PYPROJECT,
     baseline: _ConfigFlag = _FROM_PYPROJECT,
+    static: bool = False,
 ) -> int:
     """Check for deprecated wrappers that have passed their scheduled removal version.
 
@@ -804,13 +901,17 @@ def cmd_expiry(
         strict: Fail the run (exit 1) when any part of the audit did not run — a ``pydeprecate gap:`` line such as a
             module that could not be imported or a version that could not be resolved. Default: ``strict`` of
             ``[tool.pydeprecate]`` in the nearest ``pyproject.toml``, else off; ``--no-strict`` switches it off.
-            Cannot be combined with ``exit_zero``.
+            A typed ``--strict`` cannot be combined with ``exit_zero`` (usage error); a typed ``exit_zero`` overrides a
+            ``strict = true`` that only ``pyproject.toml`` sets, with a stderr note.
         ignore: Findings to accept without fixing them: entries ``module:symbol`` (every rule) or
             ``rule:module:symbol`` (one rule, or ``*``), each part an ``fnmatch`` glob, comma-separated and repeatable
             (``--ignore='pkg.legacy:old_api'``). Default: ``ignore`` of ``[tool.pydeprecate]``, else nothing;
             ``--ignore=`` switches the file's list off. Suppressed findings are not printed, counted or gated on.
-        baseline: A ``--report-json`` file (layout 2 or later) whose findings are accepted by id. Default: ``baseline``
+        baseline: A ``--report-json`` file (pyDeprecate 0.16+) whose findings are accepted by id. Default: ``baseline``
             of ``[tool.pydeprecate]`` (relative to that ``pyproject.toml``), else none; ``--baseline=`` switches it off.
+        static: Read the source with ``ast`` instead of importing the package, for an environment without its
+            runtime dependencies (default False). Nothing from the package is imported or executed; a wrapper or
+            ``remove_in`` the source alone does not settle is a ``not statically resolvable`` gap, not a finding.
 
     Returns:
         0 on success, when the ``packaging`` library is unavailable, when no version could be resolved (the gap is
@@ -827,7 +928,7 @@ def cmd_expiry(
     err_code = _validate_user_version(version)
     if err_code is not None:
         return err_code
-    options = _RunOptions(recursive, exclude, include_members, exit_zero, strict, ignore, baseline)
+    options = _RunOptions(recursive, exclude, include_members, exit_zero, strict, ignore, baseline, static=static)
     with _ensure_run_record() as record:
         start = _start_gate(record, path, options)
         if start is None:
@@ -850,6 +951,7 @@ def cmd_policy(
     strict: _ConfigBool = _FROM_PYPROJECT,
     ignore: _ConfigList = _FROM_PYPROJECT,
     baseline: _ConfigFlag = _FROM_PYPROJECT,
+    static: bool = False,
 ) -> int:
     """Check deprecated wrappers against deprecation-governance policy rules.
 
@@ -861,6 +963,8 @@ def cmd_policy(
     comparison; ``message-required`` does not. When ``packaging`` is unavailable, ``min-grace`` is skipped with
     an advisory warning; ``message_required`` still runs and gates the exit code normally. The gate only fully
     no-ops (return 0 with a warning) when ``min-grace`` was requested and ``message_required`` is also disabled.
+    A wrapper whose ``deprecated_in`` or ``remove_in`` is set but not PEP 440 is skipped by ``min-grace`` and recorded
+    as a ``deprecated_in not PEP 440`` or ``remove_in not PEP 440`` gap, in import and ``--static`` mode alike.
 
     Each rule is resolved as flag > ``[tool.pydeprecate.policy]`` in the nearest ``pyproject.toml`` (the scanned
     directory or up to two levels above it) > built-in default, and the header names the source of each. The
@@ -890,13 +994,18 @@ def cmd_policy(
         strict: Fail the run (exit 1) when any part of the audit did not run — a ``pydeprecate gap:`` line such as a
             module that could not be imported or a version that could not be resolved. Default: ``strict`` of
             ``[tool.pydeprecate]`` in the nearest ``pyproject.toml``, else off; ``--no-strict`` switches it off.
-            Cannot be combined with ``exit_zero``.
+            A typed ``--strict`` cannot be combined with ``exit_zero`` (usage error); a typed ``exit_zero`` overrides a
+            ``strict = true`` that only ``pyproject.toml`` sets, with a stderr note.
         ignore: Findings to accept without fixing them: entries ``module:symbol`` (every rule) or
             ``rule:module:symbol`` (one rule, or ``*``), each part an ``fnmatch`` glob, comma-separated and repeatable
             (``--ignore='pkg.legacy:old_api'``). Default: ``ignore`` of ``[tool.pydeprecate]``, else nothing;
             ``--ignore=`` switches the file's list off. Suppressed findings are not printed, counted or gated on.
-        baseline: A ``--report-json`` file (layout 2 or later) whose findings are accepted by id. Default: ``baseline``
+        baseline: A ``--report-json`` file (pyDeprecate 0.16+) whose findings are accepted by id. Default: ``baseline``
             of ``[tool.pydeprecate]`` (relative to that ``pyproject.toml``), else none; ``--baseline=`` switches it off.
+        static: Read the source with ``ast`` instead of importing the package, for an environment without its
+            runtime dependencies (default False). Nothing from the package is imported or executed; each rule checks
+            the wrappers whose settings for it the source settles, and every other one is a ``not statically
+            resolvable`` gap, not a finding.
 
     Returns:
         0 on success, or when ``min-grace`` is skipped because ``packaging`` is unavailable and ``message_required``
@@ -912,7 +1021,15 @@ def cmd_policy(
     """
     policy_flags = {PolicyRule.MIN_GRACE.value: min_grace, PolicyRule.MESSAGE_REQUIRED.value: message_required}
     options = _RunOptions(
-        recursive, exclude, include_members, exit_zero, strict, ignore, baseline, policy_flags=policy_flags
+        recursive,
+        exclude,
+        include_members,
+        exit_zero,
+        strict,
+        ignore,
+        baseline,
+        policy_flags=policy_flags,
+        static=static,
     )
     with _ensure_run_record() as record:
         start = _start_gate(record, path, options)
@@ -955,12 +1072,13 @@ def cmd_chains(
         strict: Fail the run (exit 1) when any part of the audit did not run — a ``pydeprecate gap:`` line such as a
             module that could not be imported or a version that could not be resolved. Default: ``strict`` of
             ``[tool.pydeprecate]`` in the nearest ``pyproject.toml``, else off; ``--no-strict`` switches it off.
-            Cannot be combined with ``exit_zero``.
+            A typed ``--strict`` cannot be combined with ``exit_zero`` (usage error); a typed ``exit_zero`` overrides a
+            ``strict = true`` that only ``pyproject.toml`` sets, with a stderr note.
         ignore: Findings to accept without fixing them: entries ``module:symbol`` (every rule) or
             ``rule:module:symbol`` (one rule, or ``*``), each part an ``fnmatch`` glob, comma-separated and repeatable
             (``--ignore='pkg.legacy:old_api'``). Default: ``ignore`` of ``[tool.pydeprecate]``, else nothing;
             ``--ignore=`` switches the file's list off. Suppressed findings are not printed, counted or gated on.
-        baseline: A ``--report-json`` file (layout 2 or later) whose findings are accepted by id. Default: ``baseline``
+        baseline: A ``--report-json`` file (pyDeprecate 0.16+) whose findings are accepted by id. Default: ``baseline``
             of ``[tool.pydeprecate]`` (relative to that ``pyproject.toml``), else none; ``--baseline=`` switches it off.
 
     Returns:
@@ -1032,12 +1150,13 @@ def cmd_all(
         strict: Fail the run (exit 1) when any part of the audit did not run — a ``pydeprecate gap:`` line such as a
             module that could not be imported or a version that could not be resolved. Default: ``strict`` of
             ``[tool.pydeprecate]`` in the nearest ``pyproject.toml``, else off; ``--no-strict`` switches it off.
-            Cannot be combined with ``exit_zero``.
+            A typed ``--strict`` cannot be combined with ``exit_zero`` (usage error); a typed ``exit_zero`` overrides a
+            ``strict = true`` that only ``pyproject.toml`` sets, with a stderr note.
         ignore: Findings to accept without fixing them: entries ``module:symbol`` (every rule) or
             ``rule:module:symbol`` (one rule, or ``*``), each part an ``fnmatch`` glob, comma-separated and repeatable
             (``--ignore='pkg.legacy:old_api'``). Default: ``ignore`` of ``[tool.pydeprecate]``, else nothing;
             ``--ignore=`` switches the file's list off. Suppressed findings are not printed, counted or gated on.
-        baseline: A ``--report-json`` file (layout 2 or later) whose findings are accepted by id. Default: ``baseline``
+        baseline: A ``--report-json`` file (pyDeprecate 0.16+) whose findings are accepted by id. Default: ``baseline``
             of ``[tool.pydeprecate]`` (relative to that ``pyproject.toml``), else none; ``--baseline=`` switches it off.
         gate: Checks to gate on beyond ``check``, ``expiry`` and ``chains``, which always gate: one of ``check``,
             ``expiry``, ``policy``, ``chains`` or a comma-separated list (``--gate=policy``), or a list in a direct

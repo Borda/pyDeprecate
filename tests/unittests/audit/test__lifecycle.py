@@ -4,6 +4,7 @@ import importlib
 import importlib.metadata
 import importlib.util
 import types
+import warnings
 
 import pytest
 
@@ -301,6 +302,39 @@ class TestNormalizeVersionStringLocalSegment:
 
 class TestBatchExpiryUnparsableVersion:
     """An unparsable ``remove_in`` in a batch scan warns instead of being silently skipped."""
+
+    @_requires_packaging
+    def test_error_warning_filter_still_records_skipped_expiry(self) -> None:
+        """A CLI gap callback still records an invalid deadline when warnings are errors.
+
+        A scanned package may change the process warning filter before the expiry gate runs. The gate must still
+        collect the skipped wrapper so strict mode can reject the incomplete audit.
+        """
+        info = DeprecationWrapperInfo(function="pkg.broken", deprecated_info=DeprecationConfig(remove_in="invalid"))
+        skipped: list[DeprecationWrapperInfo] = []
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)
+            findings = _expiry_findings([info], "2.0", on_unparsable=skipped.append)
+        assert findings == []
+        assert skipped == [info]
+
+    @_requires_packaging
+    def test_custom_warning_hook_error_propagates(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """An unrelated failure from a custom warning hook is not mistaken for a warning filter.
+
+        An application can install its own warning handler, and an error in that handler must remain visible even
+        when the audit caller records skipped checks.
+        """
+        info = DeprecationWrapperInfo(function="pkg.broken", deprecated_info=DeprecationConfig(remove_in="invalid"))
+
+        def _failing_hook(*args: object, **kwargs: object) -> None:
+            raise UserWarning("warning hook failed")
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("always", UserWarning)
+            monkeypatch.setattr(warnings, "showwarning", _failing_hook)
+            with pytest.raises(UserWarning, match="warning hook failed"):
+                _expiry_findings([info], "2.0", on_unparsable=lambda _: None)
 
     @_requires_packaging
     def test_unparsable_remove_in_warns_and_is_not_expired(self) -> None:

@@ -42,7 +42,7 @@ ok
 
 </details>
 
-Prefer `@deprecated_class()` directly for classes, Enums, and dataclasses — same result, no dispatch notice, and it is required to reach class-only options such as `attrs_mapping`. The rest of this page uses that explicit form.
+Prefer `@deprecated_class()` directly for classes, Enums, and dataclasses — same result, no dispatch notice, and it is required to reach proxy-only options such as `attrs_mapping`. The rest of this page uses that explicit form.
 
 ## Class deprecation
 
@@ -154,7 +154,7 @@ Writes never warn: item writes and deletes (`DEFAULTS["lr"] = 0.01`, `del DEFAUL
 
 A `deprecated_instance` of a plain function can stand in for a method in a class body (`class Model: scale = deprecated_instance(legacy_scale, ...)`). Read through an instance, the proxy binds like the function it wraps: `Model().scale(2)` calls `legacy_scale(model, 2)` and warns on the call, against one `num_warns` budget shared by every instance. `Model().scale` is a bound method whose `__func__` is the proxy, so `inspect.signature` drops `self`; read through the class, `Model.scale` is the proxy itself, so `Model.scale(model, 2)` works too. Wrap the proxy in `staticmethod(...)` when class access should keep the function unbound. Proxies over data, classes, and non-function descriptors (`property`, `classmethod`, `staticmethod` objects) are returned as stored, never bound. Only a proxy over a function (or a `@deprecated` wrapper) is a descriptor, so `inspect.isroutine(proxy)` is `True` for it and stays `False` for proxies over data and classes.
 
-Deprecated proxies survive `copy.copy()` and `copy.deepcopy()` round-trips — the result is a proxy again, so the deprecation warning travels with the copied object and each copy keeps its own warning counter snapshotted from the original. `deprecated_instance` proxies wrapping plain objects (dicts, lists, custom objects) are also fully picklable. Note: a `deprecated_class` alias itself raises `PicklingError` in the common pattern where the decorated class name is replaced by the proxy — pickle cannot find the original class by reference. Use `copy.deepcopy` for class alias proxies instead of `pickle`. Instances of a class deprecated in place, exception and `OrderedDict` subclasses included, pickle and load as instances of the original class without a warning, unless the class defines its own `__reduce_ex__` (Enum members, for example).
+Deprecated proxies survive `copy.copy()` and `copy.deepcopy()` round-trips — the result is a proxy again, so the deprecation warning travels with the copied object and each copy keeps its own warning counter snapshotted from the original. A shallow copy of a proxy serving a replacement data object (see [Serving a replacement object](#serving-a-replacement-object)) tries to copy that object too, so top-level writes through a successful copy (`copy["key"] = value`) do not reach the original replacement. If copying the replacement raises, the proxy retains the shared replacement and writes can reach it. Nested mutable values stay shared after a shallow copy; `copy.deepcopy` can provide independence when the objects support deep copying. `deprecated_instance` proxies wrapping plain objects (dicts, lists, custom objects) are also fully picklable. Note: a `deprecated_class` alias itself raises `PicklingError` in the common pattern where the decorated class name is replaced by the proxy — pickle cannot find the original class by reference. Use `copy.deepcopy` for class alias proxies instead of `pickle`. Instances of a class deprecated in place, exception and `OrderedDict` subclasses included, pickle and load as instances of the original class without a warning, unless the class defines its own `__reduce_ex__` (Enum members, for example).
 
 ```python
 from deprecate import deprecated_instance
@@ -187,6 +187,72 @@ print(DEFAULTS["lr"])  # 0.001
 ```
 
 </details>
+
+### Serving a replacement object
+
+When the old name should already return the new values, pass the replacement as `target=`. Attribute, item, operator, and call access go to the replacement; the old name keeps warning until it is removed. When `skip_if` evaluates true, operations instead use the wrapped source without warning or forwarding. Use `name=` so the warning names the alias callers actually use. The built-in warning names a callable replacement only, so give a data replacement (a dict, a settings object) a `message_template` that names it: `%(target_name)s` and `%(target_path)s` render empty for a data replacement in the generic warning (mapped-attribute warnings do fill them), see [Customization](customization.md).
+
+```python
+from deprecate import deprecated_instance
+
+# NEW/FUTURE API — the retry settings that replaced `RETRY_DEFAULTS`
+RETRY_POLICY = {"timeout": 30, "retries": 5}
+
+# DEPRECATED API — the old name now serves the new settings and still warns
+RETRY_DEFAULTS = deprecated_instance(
+    {"timeout": 10, "retries": 3},
+    name="RETRY_DEFAULTS",
+    target=RETRY_POLICY,
+    deprecated_in="1.3",
+    remove_in="2.0",
+    message_template="`%(source_name)s` is deprecated since v%(deprecated_in)s; use `RETRY_POLICY` instead.",
+)
+
+print(RETRY_DEFAULTS["timeout"])  # warns: FutureWarning
+```
+
+<details>
+  <summary>Output: <code>RETRY_DEFAULTS["timeout"]</code></summary>
+
+```
+30
+```
+
+</details>
+
+Everything callers do with the old name follows the replacement: `isinstance` and hashing come from it, and writes through the old name land on it. The protocols the proxy offers are the combined set of the old object and the replacement, because `skip_if` can serve the old object: a function replaced by a dict still reports `callable(proxy)` as `True`, although calling the proxy raises `TypeError`. Keep the replacement the same type as the old object (or a subclass) unless the change of type is intended — a tuple constant replaced by a list stops being hashable as soon as the deprecation ships. `target=True`, `target=False`, `TargetMode.AUTO`, and a module raise `TypeError`; redirect a module with [`deprecated_module`](modules.md).
+
+`attrs_mapping` deprecates only the listed attribute spellings of an object, the same way it does on a class proxy. Every other attribute stays silent. The mapping covers attributes, not the keys of a mapping object:
+
+```python
+from deprecate import deprecated_instance
+
+
+# NEW/FUTURE API — the display settings spell the attribute `colour`
+class DisplaySettings:
+    colour = "teal"
+
+
+# DEPRECATED API — the `color` spelling still works but warns
+THEME = deprecated_instance(
+    DisplaySettings(), name="THEME", attrs_mapping={"color": "colour"}, deprecated_in="1.3", remove_in="2.0"
+)
+
+print(THEME.color)  # warns: FutureWarning
+print(THEME.colour)
+```
+
+<details>
+  <summary>Output: <code>THEME.color</code>, <code>THEME.colour</code></summary>
+
+```
+teal
+teal
+```
+
+</details>
+
+On a callable object, `args_mapping` renames keyword arguments, and a value renamed onto a positional-only parameter is passed positionally. Without a `target`, the call warns only when an old name is used; with a callable `target`, every call warns, because calling the old name is itself the deprecated use. On an object that is never called, `args_mapping` and `args_extra` cannot apply and emit a `UserWarning` (`TypeError` in v1.0).
 
 ## Enums and dataclasses
 
@@ -581,7 +647,7 @@ Three misconfiguration combinations are caught at decoration time and emit a `Us
 
 > Explicit configuration is never silently rewritten: auto-resolve fills in only an *omitted* `target`. If you need a blanket per-access warning *and* selective attribute renaming at the same time, stack two `deprecated_class()` layers — see [Nested proxy wrappers](#nested-proxy-wrappers) below.
 
-`TargetMode.ATTRS_REMAP` is a **proxy-only** mode, and `@deprecated(target=TargetMode.ATTRS_REMAP)` raises `TypeError` at decoration time for **every** source — function, method, property, **or class**. The front door does not expose `attrs_mapping` (it is class-only), so the mode could never redirect anything there; the error points to `deprecated_class(attrs_mapping=...)` as the correct API.
+`TargetMode.ATTRS_REMAP` is a **proxy-only** mode, and `@deprecated(target=TargetMode.ATTRS_REMAP)` raises `TypeError` at decoration time for **every** source — function, method, property, **or class**. The front door does not expose `attrs_mapping` (it belongs to the proxy factories), so the mode could never redirect anything there; the error points to `deprecated_class(attrs_mapping=...)` as the correct API (`deprecated_instance(obj, attrs_mapping=...)` for an object).
 
 ### Callable target with attribute redirection
 

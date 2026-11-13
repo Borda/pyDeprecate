@@ -19,6 +19,7 @@ Rule coverage under the default policy (``min_grace="0.3"``, ``message_required=
 | ``message_template_only_guidance`` | ``1.0``      | ``2.0``       | — (``message_template``-only)     |
 | ``warns_with_template_instance``   | ``1.0``      | ``2.0``       | — (instance with custom template) |
 | ``warns_without_template_instance``| ``1.0``      | ``2.0``       | ``message-required`` (instance)   |
+| ``replaced_without_template_instance``| ``1.0``   | ``2.0``       | ``message-required`` (replacement not named)|
 | ``short_minor_runway``             | ``1.0``      | ``1.1``       | ``min-grace`` (insufficient distance)|
 
 Each wrapper violates exactly one rule so a test can assert on a rule in isolation; a real-world wrapper
@@ -170,16 +171,21 @@ def message_template_only_guidance(x: int) -> int:
 
 
 #: Wrap an instance with no ``message_template`` at all — the ``deprecated_instance()`` dead end. A team wraps a
-#: soon-to-be-removed configuration object with ``deprecated_instance()`` but supplies no ``message_template`` —
-#: the only migration-guidance knob ``deprecated_instance()`` accepts, since it has no ``target`` or mapping
-#: argument. ``validate_deprecation_policy()`` flags this wrapper under the ``message-required`` rule, and the
-#: remedy text names only a custom ``message_template``.
+#: soon-to-be-removed configuration object with ``deprecated_instance()`` but supplies no ``message_template``,
+#: ``attrs_mapping`` or replacement. ``validate_deprecation_policy()`` flags this wrapper under the
+#: ``message-required`` rule, and the remedy text names what guides a data object (a custom ``message_template``,
+#: an ``attrs_mapping``), never an ``args_mapping``.
 warns_without_template_instance = deprecated_instance(NewCls(1.0), **_DEPRS_CASE_COMPLIANT_ARGS)
+
+#: Serve a replacement object under the old name with no ``message_template``. Callers already read the new
+#: object, but the warning has no name for a plain data replacement, so it still tells them nothing about what to
+#: migrate to. ``validate_deprecation_policy()`` flags this wrapper under the ``message-required`` rule.
+replaced_without_template_instance = deprecated_instance(NewCls(1.0), target=NewCls(2.0), **_DEPRS_CASE_COMPLIANT_ARGS)
 
 #: Wrap an instance with a custom ``message_template`` — violates no rule. A team wraps a soon-to-be-removed
 #: configuration object with ``deprecated_instance()`` and supplies a custom ``message_template`` naming the
 #: replacement. ``validate_deprecation_policy()`` reports no ``message-required`` violation for this wrapper:
-#: the template is the only guidance knob ``deprecated_instance()`` has, and it is set.
+#: the template spells out the migration, which is what a data object needs.
 warns_with_template_instance = deprecated_instance(
     NewCls(1.0), **_DEPRS_CASE_COMPLIANT_ARGS, message_template="use `NewCls` directly instead"
 )

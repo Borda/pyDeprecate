@@ -113,8 +113,25 @@ def _make_finding(
 
 
 def _misconfiguration(info: DeprecationWrapperInfo) -> str:
-    """Name the contradictory target configuration that makes *info* a ``misconfigured-target`` finding."""
+    """Name the contradictory target configuration that makes *info* a ``misconfigured-target`` finding.
+
+    Examples:
+        >>> from deprecate._types import DeprecationConfig
+        >>> config = DeprecationConfig(target=None, args_extra={"bias": 1}, misconfigured=True, call_options_inert=True)
+        >>> _misconfiguration(DeprecationWrapperInfo(module="pkg", function="OLD", deprecated_info=config))
+        '`args_extra` on a served object that is not callable'
+        >>> config = DeprecationConfig(target=TargetMode.ARGS_REMAP, args_mapping={}, misconfigured=True)
+        >>> _misconfiguration(DeprecationWrapperInfo(module="pkg", function="OLD", deprecated_info=config))
+        '`TargetMode.ARGS_REMAP` with an empty `args_mapping`'
+
+    """
     config = info.deprecated_info
+    if config.call_options_inert:
+        # Checked first: for an object that is never called the stored target reads as ``ARGS_REMAP`` (an
+        # ``args_mapping`` without a replacement), ``None`` (``args_extra`` alone) or the replacement itself, and none
+        # of the target-based labels below would name the real problem.
+        options = " and ".join(f"`{name}`" for name in ("args_mapping", "args_extra") if getattr(config, name))
+        return f"{options or 'call-time options'} on a served object that is not callable"
     if config.target is TargetMode.ARGS_REMAP:
         return "`TargetMode.ARGS_REMAP` with an empty `args_mapping`"
     for field_name in ("args_mapping", "attrs_mapping", "args_extra"):

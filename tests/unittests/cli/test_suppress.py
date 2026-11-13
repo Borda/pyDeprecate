@@ -147,48 +147,153 @@ class TestSuppressorMatch:
 
 
 class TestLoadBaseline:
-    """A baseline is a schema-2 report; its ids come from both the ``findings`` and the ``suppressed`` arrays."""
+    """A baseline is a report with a ``findings`` list; ids also come from its own baseline ``suppressed`` entries."""
 
-    def test_reads_ids_from_findings_and_suppressed(self, tmp_path: Path) -> None:
-        """Ids of active and suppressed findings are both accepted.
+    @pytest.mark.parametrize(
+        ("suppressed", "expected"),
+        [
+            pytest.param(
+                {"id": "chain:pkg:b", "suppressed_by": {"kind": "baseline", "entry": "chain:pkg:b"}},
+                frozenset({"expired:pkg:a", "chain:pkg:b"}),
+                id="baseline-suppressed-kept",
+            ),
+            pytest.param(
+                {"id": "chain:pkg:b", "suppressed_by": {"kind": "ignore", "entry": "pkg:*"}},
+                frozenset({"expired:pkg:a"}),
+                id="ignore-suppressed-dropped",
+            ),
+            pytest.param({"id": "chain:pkg:b"}, frozenset({"expired:pkg:a"}), id="no-suppressed-by-dropped"),
+            pytest.param(
+                {"id": "chain:pkg:b", "suppressed_by": "baseline"},
+                frozenset({"expired:pkg:a"}),
+                id="suppressed-by-not-object-dropped",
+            ),
+        ],
+    )
+    def test_reads_findings_and_baseline_suppressed_ids(
+        self, tmp_path: Path, suppressed: dict, expected: frozenset
+    ) -> None:
+        """Active ids are accepted, and a suppressed id only when the baseline itself suppressed it.
 
-        A baseline regenerated from a run that already used it lists the accepted findings under ``suppressed``; they
-        must stay accepted.
+        A baseline regenerated from a run that already used one lists the findings that baseline accepted under
+        ``suppressed``; they must stay accepted. A finding an ignore entry suppressed must not become a permanent
+        baseline entry, or deleting the ignore entry later would no longer bring the finding back.
 
         """
         path = _write_report(
             tmp_path / "baseline.json",
-            {"schema": 2, "findings": [{"id": "expired:pkg:a"}], "suppressed": [{"id": "chain:pkg:b"}]},
+            {"schema": 1, "findings": [{"id": "expired:pkg:a"}], "suppressed": [suppressed]},
         )
-        assert _load_baseline(path) == frozenset({"expired:pkg:a", "chain:pkg:b"})
+        assert _load_baseline(path) == expected
 
     @pytest.mark.parametrize(
         "payload",
         [
-            pytest.param({"schema": 1, "table": None, "gaps": []}, id="schema-1"),
-            pytest.param({"schema": "2", "findings": []}, id="schema-not-int"),
-            pytest.param({"schema": 2}, id="no-findings"),
+            pytest.param({"findings": []}, id="no-schema"),
+            pytest.param({"schema": "1", "findings": []}, id="schema-not-int"),
+            pytest.param({"schema": True, "findings": []}, id="schema-bool"),
+            pytest.param({"schema": 0, "findings": []}, id="schema-zero"),
             pytest.param([], id="not-an-object"),
         ],
     )
-    def test_rejects_non_schema_two_report(self, tmp_path: Path, payload: object) -> None:
-        """A file that is not a schema-2 report is refused with the regenerate hint.
+    def test_rejects_non_report(self, tmp_path: Path, payload: object) -> None:
+        """A JSON file that is not a pyDeprecate report is refused with the regenerate hint.
 
-        A schema-1 report has no ids, so it could never match a finding; accepting it would suppress nothing silently.
+        A baseline path pointing at some other JSON file (a coverage or lint report) must stop the run, never read as an
+        empty baseline.
 
         """
         path = _write_report(tmp_path / "baseline.json", payload)
-        with pytest.raises(ValueError, match="is not a pyDeprecate schema-2 report; regenerate it with --report-json"):
+        with pytest.raises(ValueError, match="is not a pyDeprecate report; regenerate it with --report-json"):
             _load_baseline(path)
 
-    def test_rejects_missing_file(self, tmp_path: Path) -> None:
-        """A baseline path that names no file is refused, naming the regenerate hint.
+    def test_rejects_report_without_findings(self, tmp_path: Path) -> None:
+        """A report with no ``findings`` list, written before pyDeprecate 0.16, is refused naming why.
 
-        A typo in the path must stop the run instead of running with an empty baseline.
+        A 0.15 report is layout version 1 too but holds no finding ids, so it could never match a finding; accepting it
+        would suppress nothing silently while the author believes the backlog is accepted.
 
         """
+        path = _write_report(tmp_path / "baseline.json", {"schema": 1, "table": None, "gaps": []})
+        with pytest.raises(
+            ValueError,
+            match=r"has no `findings` list \(a report written before pyDeprecate 0\.16\); regenerate it",
+        ):
+            _load_baseline(path)
+
+    @pytest.mark.parametrize(
+        ("payload", "detail"),
+        [
+            pytest.param({"findings": [], "suppressed": {}}, "(`suppressed` is not a list)", id="suppressed-object"),
+            pytest.param({"findings": [], "suppressed": None}, "(`suppressed` is not a list)", id="suppressed-null"),
+            pytest.param({"findings": [], "suppressed": 3}, "(`suppressed` is not a list)", id="suppressed-number"),
+            pytest.param({"findings": "expired:pkg:a"}, "(`findings` is not a list)", id="findings-string"),
+            pytest.param(
+                {"findings": ["expired:pkg:a"]},
+                "(`findings[0]` is not a finding with a string `id`)",
+                id="finding-not-object",
+            ),
+            pytest.param(
+                {"findings": [{"id": "expired:pkg:a"}, {"id": 42}]},
+                "(`findings[1]` is not a finding with a string `id`)",
+                id="finding-id-not-string",
+            ),
+            pytest.param(
+                {"findings": [], "suppressed": [{"suppressed_by": {"kind": "baseline", "entry": "x"}}]},
+                "(`suppressed[0]` is not a finding with a string `id`)",
+                id="suppressed-without-id",
+            ),
+        ],
+    )
+    def test_rejects_malformed_finding_arrays(self, tmp_path: Path, payload: dict, detail: str) -> None:
+        """A report whose finding arrays or records are malformed is refused, naming the first bad part.
+
+        A hand-edited or corrupted baseline must stop the run with a usage error: a record silently skipped would drop
+        an accepted finding, and a wrong type escaping as a crash would read as a broken package (exit 3).
+
+        """
+        path = _write_report(tmp_path / "baseline.json", {"schema": 1, **payload})
+        with pytest.raises(ValueError, match="regenerate it with --report-json") as err:
+            _load_baseline(path)
+        assert str(err.value).endswith(detail)
+
+    def test_rejects_deeply_nested_json(self, tmp_path: Path) -> None:
+        """A JSON document nested too deeply to parse is refused like any other unreadable report.
+
+        The parser gives up with a ``RecursionError``; it must surface as a usage error, never as a crash.
+
+        """
+        path = tmp_path / "baseline.json"
+        path.write_text("[" * 200_000, encoding="utf-8")
         with pytest.raises(ValueError, match="regenerate it with --report-json"):
-            _load_baseline(str(tmp_path / "missing.json"))
+            _load_baseline(str(path))
+
+    def test_missing_file_suggests_creating_it(self, tmp_path: Path) -> None:
+        """A baseline path that names no file says it cannot be read and suggests creating it with ``--report-json``.
+
+        A typo in the path, or a path relative to the wrong directory, must stop the run instead of running with an
+        empty baseline; telling the author to regenerate a report that was never there would send them the wrong way.
+
+        """
+        path = tmp_path / "missing.json"
+        with pytest.raises(ValueError, match="cannot be read \\(") as err:
+            _load_baseline(str(path))
+        assert str(err.value).startswith(f"Baseline {path} cannot be read (")
+        assert str(err.value).endswith("; create it with --report-json")
+
+    def test_unreadable_path_is_refused_without_create_hint(self, tmp_path: Path) -> None:
+        """A baseline path that exists but cannot be read as a file says so, without suggesting to create it.
+
+        A path pointing at a directory (or a file the job may not read) needs the path or permissions fixed; neither a
+        create nor a regenerate hint applies.
+
+        """
+        path = tmp_path / "baseline-dir"
+        path.mkdir()
+        with pytest.raises(ValueError, match="cannot be read \\(") as err:
+            _load_baseline(str(path))
+        assert "create it with" not in str(err.value)
+        assert "regenerate" not in str(err.value)
 
     def test_rejects_malformed_json(self, tmp_path: Path) -> None:
         """A baseline file that is not JSON is refused, naming the regenerate hint.
@@ -207,5 +312,5 @@ class TestLoadBaseline:
         A baseline written by a newer pyDeprecate must keep working for an older one in the same repository.
 
         """
-        path = _write_report(tmp_path / "baseline.json", {"schema": 3, "findings": [{"id": "expired:pkg:a"}]})
+        path = _write_report(tmp_path / "baseline.json", {"schema": 2, "findings": [{"id": "expired:pkg:a"}]})
         assert _load_baseline(path) == frozenset({"expired:pkg:a"})

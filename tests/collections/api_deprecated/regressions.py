@@ -4,7 +4,7 @@ import logging
 from collections import OrderedDict
 from dataclasses import dataclass, field
 from enum import Enum
-from functools import cached_property, partial
+from functools import cached_property, lru_cache, partial
 from types import SimpleNamespace
 from typing import Any, Callable, Optional
 from warnings import catch_warnings, simplefilter
@@ -35,6 +35,7 @@ from tests.collections.api_current.core import (
     partial_async_target,
     partial_new_cls_target,
     partial_target,
+    positional_default_keywords,
     positional_only_target,
     raw_signature_patched,
     state_echo,
@@ -733,6 +734,20 @@ shape_notify_wraps_chain = deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_ST
 shape_notify_positional_only = deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)(positional_only_target)
 
 
+#: ARGS_REMAP (``old_flag`` -> ``flag``) over a source taking a positional-only ``x`` plus ``**kwargs``.
+shape_remap_positional_default_keywords = deprecated(
+    target=TargetMode.ARGS_REMAP, args_mapping={"old_flag": "flag"}, **_DEPRS_CASE_STD_ARGS
+)(positional_default_keywords)
+
+
+@deprecated(target=positional_default_keywords, **_DEPRS_CASE_STD_ARGS, stream=None)
+def shape_forward_positional_default_keywords(
+    x: int = 1, /, flag: Optional[int] = None, **kwargs: object
+) -> tuple[int, Optional[int], dict[str, object]]:
+    """Source with the same signature as its forwarding target ``positional_default_keywords``."""
+    return void(x, flag, kwargs)
+
+
 @deprecated(target=TargetMode.ARGS_REMAP, args_mapping={"old": "new"}, **_DEPRS_CASE_STD_ARGS)
 def shape_remap_old_new(old: Optional[int] = None, new: Optional[int] = None) -> tuple[Optional[int], Optional[int]]:
     """Self-rename source (``old`` -> ``new``) that returns exactly what it received."""
@@ -1017,6 +1032,13 @@ def make_depr_module_raising_class(metaclass: type) -> Any:  # noqa: ANN401
     return deprecated_class(message_template=_SOURCE_PATH_TEMPLATE, **_DEPRS_CASE_STD_INF_ARGS)(
         make_module_raising_class(metaclass)
     )
+
+
+@lru_cache
+@deprecated(target=TargetMode.NOTIFY, **_DEPRS_CASE_STD_ARGS)
+def depr_notify_lru_cached(x: int) -> int:
+    """Warn-only deprecation under an outer ``functools.lru_cache``, whose wrapper copies the deprecation metadata."""
+    return x
 
 
 # ---------------------------------------------------------------------------

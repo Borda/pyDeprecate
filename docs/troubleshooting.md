@@ -45,7 +45,7 @@ from pydeprecate import deprecated  # wrong — no such module
 
 You have two ways to quiet it, and one alternative pattern for a different use case:
 
-- **Apply `@deprecated_class()` directly** — same result, and it skips the notice entirely. Prefer this for new code, and it is required to reach class-only knobs such as `attrs_mapping`.
+- **Apply `@deprecated_class()` directly** — same result, and it skips the notice entirely. Prefer this for new code, and it is required to reach proxy-only knobs such as `attrs_mapping`.
 - **Pass `stream=None`** — suppresses the notice (and every other deprecation notice from that decoration) while keeping `@deprecated` on the class.
 - **Decorate `__init__` instead of the class** — use this when you want a notice only at instantiation time while keeping the class name and identity untouched (no proxy involved).
 
@@ -2110,8 +2110,8 @@ print(f"Found {len(violations)} violations")
 <details><summary>Output: <code>f"Found {len(violations)} violations"</code></summary>
 
 ```
-Found 5 violations
-Found 3 violations
+Found 6 violations
+Found 4 violations
 ```
 
 </details>
@@ -2175,8 +2175,17 @@ Two fixes:
 
 - Run a local hook (`repo: local`, `language: system`, `entry: pydeprecate check`) so the scan uses your development environment — the recommended setup for any package with runtime dependencies.
 - Keep the remote hook and list your dependencies in `additional_dependencies`. The list replaces the hook's own, so start it with the hook's `"pyDeprecate[cli,audit]"` entry (pyDeprecate's `cli` and `audit` extras, which pip resolves to the hook's own checkout) and then append yours — without the `audit` extra, `packaging` is missing, so `expiry` and the `min-grace` policy rule are skipped with a warning instead of failing, and without `tomli` on Python 3.9–3.10 `[tool.pydeprecate]` settings are ignored.
+- For removal deadlines and policy rules only, use the import-free `pydeprecate-expiry-static` and `pydeprecate-policy-static` hooks, which need none of your dependencies (from `v0.16.0`).
 
 Both recipes are in the [audit guide](guide/audit.md#pre-commit-integration).
+
+______________________________________________________________________
+
+## Can pydeprecate audit a package whose dependencies are not installed?
+
+**Q:** Can pydeprecate audit a package whose dependencies are not installed?
+
+**A:** Yes, for removal deadlines and policy rules: `pydeprecate expiry --static` and `pydeprecate policy --static` (from `v0.16.0`; the `pydeprecate-expiry-static` and `pydeprecate-policy-static` pre-commit hooks) read your source with `ast` and import nothing from your package, so its dependencies, and even its own import-time code, never run. The scan checks recognized wrappers when the settings a rule needs are statically resolvable, including literals, module-level names bound once to literals, and settings splatted from a module-level dict literal. A wrapper the scan recognizes but the source alone does not settle is printed as a `pydeprecate gap: not statically resolvable: <file>:<line>: <reason>` line and does not change the exit code unless strict mode is on, so read those lines and spell the settings literally where you want them gated. Wrappers built in loops or through `getattr`, `importlib` or `exec`, or imported from outside the scanned package, are not seen and print no gap line. `check`, `chains`, `all` and `status` need the imported wrappers and have no static mode. See [Static mode](guide/cli.md#static-mode).
 
 ______________________________________________________________________
 
@@ -2277,7 +2286,7 @@ ______________________________________________________________________
 
 **Q:** `pydeprecate check src/mypackage` (or the GitHub Action) fails with exit code `3` and `pydeprecate: scan error: …` or `pydeprecate: internal error: …`. What does it mean?
 
-**A:** The audit did not run, so there are neither findings (exit `1`) nor a usage error (exit `2`). A **scan error** means the scanned package itself could not be imported: its `__init__` (or the module you named) raised, or its module-level code called `sys.exit()`. Install the package's runtime dependencies in the environment that runs the scan, as you would for its tests; a *submodule* that fails to import is only reported as a `pydeprecate gap: module not audited` line and keeps the exit code. An **internal error** is a bug in pyDeprecate; the message names the exception and the issue tracker to report it to. `--exit-zero` does not mask exit `3`, and no `--report-json` file is written. Before 0.15 both cases exited `1`, like findings.
+**A:** The audit did not run, so there are neither findings (exit `1`) nor a usage error (exit `2`). A **scan error** means the scanned package itself could not be imported: its `__init__` (or the module you named) raised, or its module-level code called `sys.exit()`. Install the package's runtime dependencies in the environment that runs the scan, as you would for its tests; a *submodule* that fails to import is only reported as a `pydeprecate gap: module not audited` line and keeps the exit code unless strict mode is on. An **internal error** is a bug in pyDeprecate; the message names the exception and the issue tracker to report it to. `--exit-zero` does not mask exit `3`, and no `--report-json` file is written. Before 0.15 both cases exited `1`, like findings.
 
 ______________________________________________________________________
 
@@ -2301,7 +2310,7 @@ ______________________________________________________________________
 
 **Q:** `pydeprecate all src/mypackage` prints `pydeprecate gap: module not audited: …` or `pydeprecate gap: version not resolved: …` and still exits `0`. How do I make such a run fail?
 
-**A:** Pass `--strict` (since 0.16), or set `strict = true` under `[tool.pydeprecate]` in `pyproject.toml`; in the GitHub Action set `fail-on-gap: true`. A strict run exits `1` when it recorded any gap, even with no finding, and prints `Strict mode: N gap(s) fail this run.` after the gap lines. Without it a gap is advisory: the part of the audit it names did not run, but the exit code only reflects what did run. Fix the cause the gap's hint names (usually a missing runtime dependency of the scanned package, or a version to pass with `--version`), or exclude a module you never want audited with `--exclude`. `--strict` cannot be combined with `--exit-zero` (exit `2`); use `--no-strict` to switch off a strict mode set in `pyproject.toml` for an advisory step.
+**A:** Pass `--strict` (since 0.16), or set `strict = true` under `[tool.pydeprecate]` in `pyproject.toml`; in the GitHub Action set `fail-on-gap: true`. A strict run exits `1` when it recorded any gap, even with no finding, and prints `Strict mode: N gap(s) fail this run.` after the gap lines. Without it a gap is advisory: the part of the audit it names did not run, but the exit code only reflects what did run. Fix the cause the gap's hint names (usually a missing runtime dependency of the scanned package, or a version to pass with `--version`), or exclude a module you never want audited with `--exclude`. A typed `--strict` cannot be combined with `--exit-zero` (exit `2`); `--exit-zero` alone, or `exit-zero: true` in the GitHub Action, switches off a `strict = true` from `pyproject.toml` for that run, and `--no-strict` does the same without `--exit-zero`. A `strict = true` in `pyproject.toml` is read only when a TOML parser is available: built in on Python 3.11+, the `[audit]` extra (`tomli`) on 3.9 and 3.10. Without one the setting is off (only a stderr advisory is printed) and gaps do not fail the run, so on those versions install the extra or pass `--strict` on the command line.
 
 ______________________________________________________________________
 
@@ -2309,7 +2318,7 @@ ______________________________________________________________________
 
 **Q:** The pyDeprecate GitHub Action warns `the pyDeprecate report is not of layout version 1; ignoring it` and adds no gap annotations or job summary, although the CLI ran.
 
-**A:** The action's runner is older than the CLI it ran: an action pinned to 0.15 or older reads only layout version 1, while pyDeprecate 0.16 and newer writes version 2 (`"schema": 2`, which adds per-finding records). This happens with `install: false` when the job installs a newer pyDeprecate than the action ref. The step's exit code is still the CLI's, so the gate result is right; only the annotations and the summary are skipped. Pin the action to the same release your job installs (`uses: Borda/pyDeprecate@v0.16.0`), or keep the default `install: true` so the action installs the CLI from its own ref. A 0.16 action reads both layout versions, so an older CLI kept with `install: false` still works with it.
+**A:** The action's runner reads only the layout version its own CLI writes (1 since 0.15); a report of another version comes from a different pyDeprecate than the action ref, typically with `install: false`. The step's exit code is still the CLI's, so the gate result is right; only the annotations and the summary are skipped. Pin the action to the release your job installs (`uses: Borda/pyDeprecate@v0.16.0`), or keep the default `install: true` so the action installs the CLI from its own ref.
 
 ______________________________________________________________________
 

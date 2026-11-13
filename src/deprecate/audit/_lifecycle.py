@@ -274,11 +274,16 @@ def _expiry_findings(
             # An unparsable ``remove_in`` (e.g. a typo) would make the wrapper permanently un-expirable and the
             # batch gate would never flag it. Warn per skip so the misconfiguration is visible rather than silent,
             # while the batch scan keeps going for the rest.
-            warnings.warn(
+            warning = UserWarning(
                 f"{_format_subject(info)} has an unparsable `remove_in` version `{remove_in}`; "
-                "its expiry cannot be checked until the version string is fixed.",
-                stacklevel=_caller_stacklevel(),
+                "its expiry cannot be checked until the version string is fixed."
             )
+            try:
+                warnings.warn(warning, stacklevel=_caller_stacklevel())
+            except UserWarning as ex:
+                # Only suppress this warning under an error filter; a custom warning hook's own failure propagates.
+                if on_unparsable is None or ex is not warning:
+                    raise
             if on_unparsable is not None:
                 on_unparsable(info)
             continue

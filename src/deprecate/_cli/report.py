@@ -42,14 +42,22 @@ class _GapKind(str, Enum):
     VERSION_UNRESOLVED = "version not resolved"
     #: The auto-detected package version is not a valid PEP 440 version, so removal deadlines were not checked.
     VERSION_INVALID = "version not PEP 440"
-    #: A wrapper's ``remove_in`` is not a valid PEP 440 version, so its removal deadline was not checked.
+    #: A wrapper's ``remove_in`` is not a valid PEP 440 version, so its removal deadline (``expiry``) or its grace
+    #: window (``policy``'s ``min-grace``) was not checked; ``all`` names each wrapper once.
     REMOVE_IN_INVALID = "remove_in not PEP 440"
+    #: A wrapper's ``deprecated_in`` is not a valid PEP 440 version, so its grace window (``min-grace``) was not
+    #: checked.
+    DEPRECATED_IN_INVALID = "deprecated_in not PEP 440"
+    #: A forward epoch change makes the grace window unmeasurable.
+    EPOCH_CHANGE = "epoch change"
     #: The ``packaging`` library is missing, so version-based checks were skipped.
     PACKAGING_MISSING = "packaging missing"
     #: A plain-directory scan left the Python files in its subdirectories out.
     NESTED_FILES = "nested files not audited"
     #: The scanned package's import name was already taken by a copy from another directory, so that copy was audited.
     OTHER_COPY = "other copy audited"
+    #: ``--static`` could not read a wrapper, or one of the settings a rule needs, from the source alone.
+    STATIC_UNRESOLVED = "not statically resolvable"
 
 
 #: Gap kind -> one-sentence remedy, the same for every occurrence.
@@ -60,12 +68,15 @@ _GAP_HINTS: dict[_GapKind, str] = {
     _GapKind.VERSION_UNRESOLVED: "install the scanned package in this environment or pass `--version X.Y`",
     _GapKind.VERSION_INVALID: "pass `--version X.Y` with a valid PEP 440 version",
     _GapKind.REMOVE_IN_INVALID: "set the wrapper's `remove_in` to a valid PEP 440 version such as `2.0`",
+    _GapKind.DEPRECATED_IN_INVALID: "set the wrapper's `deprecated_in` to a valid PEP 440 version such as `1.0`",
+    _GapKind.EPOCH_CHANGE: "use versions in the same epoch to make the grace window measurable",
     _GapKind.PACKAGING_MISSING: "install 'pyDeprecate[audit]' to enable version-based checks",
     _GapKind.NESTED_FILES: "scan an importable package (with `__init__.py` files) instead of a plain directory",
     _GapKind.OTHER_COPY: (
         "run the scan in an environment where the package is not already imported from elsewhere, such as the"
         " checkout's own virtual environment"
     ),
+    _GapKind.STATIC_UNRESOLVED: "run without `--static` for a full audit, or use literal version strings",
 }
 
 
@@ -95,6 +106,10 @@ class _ScanRecord:
     path: str
     wrappers: list[DeprecationWrapperInfo]
     version: Optional[str] = None
+    #: Read from source with ``ast`` (``--static``) rather than imported; the report table must not import it either.
+    static: bool = False
+    #: Directory holding the top-level package of a static scan, where its version is read from source.
+    import_root: Optional[Path] = None
 
 
 @dataclass
@@ -307,6 +322,22 @@ def _print_gap(kind: _GapKind, detail: str) -> None:
         record.gaps.append(_Gap(kind, detail, record.current_path))
 
 
+def _gap_recorded(kind: _GapKind, detail_prefix: str) -> bool:
+    """Tell whether the run already recorded a *kind* gap for the scan path in progress whose detail starts so.
+
+    Lets a second check that skips the same wrapper for the same reason (``all`` runs ``expiry`` and ``policy`` on one
+    scan) leave the gap the first check printed as the only one. Without an active run record nothing was recorded.
+
+    """
+    record = _RUN_RECORD.get()
+    if record is None:
+        return False
+    return any(
+        gap.kind is kind and gap.path == record.current_path and gap.detail.startswith(detail_prefix)
+        for gap in record.gaps
+    )
+
+
 def _print_skipped_modules(skipped: dict[str, str]) -> None:
     """Print one :attr:`_GapKind.MODULE_NOT_AUDITED` line per skipped module (``name: error repr``) to stderr."""
     for module_name, reason in skipped.items():
@@ -420,10 +451,10 @@ class _Reporter:
 # ---------------------------------------------------------------------------
 
 #: Version of the ``--report-json`` layout. Bumped only when a key is removed or renamed, or its meaning or type
-#: changes; adding a key does not bump it, and readers ignore keys they do not know. Schema 2 added per-finding records
-#: and the run's gate outcome; every schema-1 key (``schema``, ``table``, ``gaps[].kind/detail/hint``) keeps its type
-#: and meaning.
-_REPORT_SCHEMA = 2
+#: changes; adding a key does not bump it, and readers ignore keys they do not know. Per-finding records, the run's gate
+#: outcome and ``mode`` were added under schema 1, so every key a 0.15 report has (``schema``, ``table``,
+#: ``gaps[].kind/detail/hint``) keeps its type and meaning, and a 0.15 reader still accepts the report.
+_REPORT_SCHEMA = 1
 #: Default of each option the report lists, for a run that never resolved it (``status``, a usage error).
 _DEFAULT_OPTIONS: dict[str, Any] = {"strict": False, "exit_zero": False, "gates": [], "recursive": True, "exclude": []}
 
@@ -441,10 +472,18 @@ def _render_recorded_table(record: _RunRecord) -> Optional[str]:
     tables = []
     for scan in scans:
         module_name = _safe_module_name(scan.path)
-        version = scan.version if scan.version is not None else _resolve_package_version(module_name, path=scan.path)
+        if scan.version is not None:
+            version: Optional[str] = scan.version
+        else:
+            version = _resolve_package_version(
+                module_name, path=scan.path, allow_import=not scan.static, import_root=scan.import_root
+            )
+        # A static scan never imports the package: with no version found, no module name is passed either, or the table
+        # would auto-detect the version itself and import the package to read its `__version__`.
+        table_module = "" if scan.static and version is None else module_name
         try:
             resolved_version, parsed_version = _resolve_table_version(
-                module_name, current_version=version, version_explicit=False
+                table_module, current_version=version, version_explicit=False
             )
             markdown = _render_deprecation_table(scan.wrappers, resolved_version, parsed_version, TableStyle.COMPACT)
         except Exception as exc:  # a display artifact: it never fails the run, as in `cmd_all`
@@ -541,7 +580,8 @@ def _build_report(record: _RunRecord, exit_code: int) -> dict[str, Any]:
         "schema": _REPORT_SCHEMA,
         "tool": {"name": "pyDeprecate", "version": __about__.__version__},
         "command": record.command,
-        "mode": "import",
+        # how the gate read the package: "static" for a `--static` source read, else "import"
+        "mode": "static" if record.scan is not None and record.scan.static else "import",
         "paths": [scanned.path for scanned in record.scanned],
         "versions": [
             {"path": item.path, "package": item.package, "value": item.version, "source": item.version_source}

@@ -33,6 +33,8 @@ _VERSION = "version"
 _BOOL_LITERALS: dict[str, bool] = {"true": True, "false": False, "1": True, "0": False}
 #: Values of a ``pyproject.toml``-backed option that switch it off, as ``None`` does in a direct call.
 _OFF_LITERALS = frozenset({"none", "false"})
+#: Every spelling of the ``--static`` flag, after :func:`_normalize_options` respelled it.
+_STATIC_SPELLINGS = frozenset({"static", "no-static", "nostatic"})
 #: Metavar of each accumulating list option in ``--help``; any other one reads ``PATTERNS``.
 _LIST_METAVARS: dict[str, str] = {"gate": "CHECKS"}
 #: A version-shaped token, the stand-in for a PEP 440 parse when the ``packaging`` library is not installed.
@@ -159,7 +161,7 @@ def _cli_command(name: str) -> _CliCommand:
     Examples:
         >>> command = _cli_command("expiry")
         >>> command.takes_version, sorted(command.bool_params)
-        (True, ['exit_zero', 'include_members', 'recursive', 'strict'])
+        (True, ['exit_zero', 'include_members', 'recursive', 'static', 'strict'])
 
     """
     function = getattr(commands, f"cmd_{name}")
@@ -384,7 +386,16 @@ def _parse_cli_args(argv: Sequence[str]) -> Optional[tuple[_CliCommand, dict[str
     command = _cli_command(name)
     subparser = subparsers[name]
     options, operands = (rest[: rest.index("--")], rest[rest.index("--") + 1 :]) if "--" in rest else (rest, [])
-    namespace, extras = subparser.parse_known_intermixed_args(_normalize_options(options, command.bool_params))
+    normalized = _normalize_options(options, command.bool_params)
+    if "static" not in command.bool_params and any(
+        arg.startswith("--") and arg[2:].partition("=")[0] in _STATIC_SPELLINGS for arg in normalized
+    ):
+        # `check`, `chains`, `all` and `status` need the imported objects; refuse the flag, in any spelling, rather
+        # than ignore it, and name both its spellings so `--no-static` is not read as an accepted no-op
+        subparser.error(
+            f"--static, --no-static and --nostatic are supported by `expiry` and `policy` only, not `{name}`"
+        )
+    namespace, extras = subparser.parse_known_intermixed_args(normalized)
     if extras:
         subparser.error(f"unrecognized arguments: {' '.join(extras)}")
     kwargs = vars(namespace)

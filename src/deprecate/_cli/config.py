@@ -282,8 +282,10 @@ def _resolve_strict(strict: _ConfigBool, exit_zero: bool, config: _Config) -> Op
     """Resolve strict mode as flag > ``strict`` in ``[tool.pydeprecate]`` > off, printing any usage error.
 
     Strict mode fails a run that recorded any gap, and ``--exit-zero`` passes every run, so the two together would make
-    one of them a silent no-op; a strict mode switched on in ``pyproject.toml`` is switched off per run with
-    ``--no-strict``.
+    one of them a silent no-op. Typed side by side on one command line they are a usage error. A strict mode that only
+    ``pyproject.toml`` switched on is not something this run asked for, so a typed ``--exit-zero`` overrides it (with a
+    one-line stderr note): the GitHub Action runner appends ``--exit-zero`` to a project's own command line and could
+    not otherwise run an advisory step in a project that declares ``strict = true``.
 
     Args:
         strict: The ``--strict`` flag value, or :data:`_FROM_PYPROJECT` when it was not typed.
@@ -292,7 +294,7 @@ def _resolve_strict(strict: _ConfigBool, exit_zero: bool, config: _Config) -> Op
 
     Returns:
         Whether the run is strict, or ``None`` after printing a usage error (the caller exits 2): a value from the file
-        that is not a boolean, or strict mode together with ``--exit-zero``.
+        that is not a boolean, or a typed ``--strict`` together with ``--exit-zero``.
 
     """
     value, source = _resolve_setting(strict, config[0], _STRICT_KEY, False, config)
@@ -303,18 +305,18 @@ def _resolve_strict(strict: _ConfigBool, exit_zero: bool, config: _Config) -> Op
             stderr=True,
         )
         return None
-    if value and exit_zero:
-        if source == "flag":
-            remedy = "drop one of them"
-        else:
-            remedy = f"pass `--no-strict` to override `{_STRICT_KEY} = true` for this run"
+    if not (value and exit_zero):
+        return value
+    described = _describe_source(_STRICT_KEY, _CONFIG_TABLE_NAME, source)
+    if source == "flag":
         _print(
-            f"Strict mode (from {_describe_source(_STRICT_KEY, _CONFIG_TABLE_NAME, source)}) and `--exit-zero` "
-            f"contradict each other: strict mode fails a run on its gaps, `--exit-zero` passes every run; {remedy}.",
+            f"Strict mode (from {described}) and `--exit-zero` contradict each other: strict mode fails a run on its "
+            "gaps, `--exit-zero` passes every run; drop one of them.",
             stderr=True,
         )
         return None
-    return value
+    _print(f"Strict mode (from {described}) is disabled by `--exit-zero` for this run.", stderr=True)
+    return False
 
 
 def _split_patterns(raw: Union[str, Sequence[str]]) -> list[str]:
@@ -329,6 +331,34 @@ def _split_patterns(raw: Union[str, Sequence[str]]) -> list[str]:
     return [part.strip() for item in items for part in item.split(",") if part.strip()]
 
 
+def _reject_list_literal_ignore(raw_ignore: Union[str, Sequence[str]], source: str) -> bool:
+    """Print a usage error and return True when an ``ignore`` item is a Python list or tuple literal.
+
+    Checked on each item before the comma split, which would otherwise tear a literal into entries that each look merely
+    malformed (or, for one element, parse as an entry that matches nothing, leaving the finding unaccepted while the
+    author believes otherwise). Mirrors the guard :func:`_resolve_exclude` applies to ``--exclude``.
+
+    """
+    items = [raw_ignore] if isinstance(raw_ignore, str) else raw_ignore
+    literal = next((item for item in items if _is_list_literal(item)), None)
+    if literal is None:
+        return False
+    if source == "flag":
+        _print(
+            f"Invalid `--{_IGNORE_KEY}` value `{literal}`; pass comma-separated entries such as"
+            " `--ignore='expired:pkg.legacy:old_api,pkg.legacy:*'`, not a list.",
+            stderr=True,
+        )
+    else:
+        where = _describe_source(_IGNORE_KEY, _CONFIG_TABLE_NAME, source)
+        _print(
+            f"Invalid `{_IGNORE_KEY}` entry `{literal}` from {where}; expected one entry such as"
+            ' `"pkg.legacy:old_api"` per item, not a list.',
+            stderr=True,
+        )
+    return True
+
+
 def _resolve_suppressor(ignore: _ConfigList, baseline: _ConfigFlag, config: _Config) -> Optional[_Suppressor]:
     """Resolve the ignore entries and the baseline as flag > ``pyproject.toml`` > none, printing any usage error.
 
@@ -337,7 +367,8 @@ def _resolve_suppressor(ignore: _ConfigList, baseline: _ConfigFlag, config: _Con
 
     Returns:
         The run's suppressor, or ``None`` after printing a usage error (the caller exits 2): an ignore entry or list
-        that is malformed, a ``baseline`` value that is not a string, or a baseline file that is not a schema-2 report.
+        that is malformed (a Python list literal included), a ``baseline`` value that is not a string, or a baseline
+        file that cannot be read or is not a report with finding ids.
 
     """
     raw_ignore, ignore_source = _resolve_setting(ignore, config[0], _IGNORE_KEY, [], config)
@@ -348,6 +379,8 @@ def _resolve_suppressor(ignore: _ConfigList, baseline: _ConfigFlag, config: _Con
             ' `["pkg.legacy:old_api"]`.',
             stderr=True,
         )
+        return None
+    if _reject_list_literal_ignore(raw_ignore, ignore_source):
         return None
     raw_baseline, baseline_source = _resolve_setting(baseline, config[0], _BASELINE_KEY, None, config)
     if raw_baseline is not None and not isinstance(raw_baseline, str):

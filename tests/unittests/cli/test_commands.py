@@ -4,9 +4,11 @@ import importlib.util
 import inspect
 import json
 import sys
+import warnings
 from collections.abc import Callable, Iterator
 from contextlib import AbstractContextManager
 from pathlib import Path
+from typing import Optional
 from unittest.mock import ANY, MagicMock, patch
 
 import pytest
@@ -24,14 +26,18 @@ from deprecate._cli.commands import (
     cmd_policy,
     cmd_status,
 )
-from deprecate._cli.config import _FROM_PYPROJECT, _POLICY_DEFAULTS, _ConfigBool, _ConfigFlag
-from deprecate._cli.report import _GapKind, _record_run, _ScanRecord
+from deprecate._cli.config import _FROM_PYPROJECT, _POLICY_DEFAULTS, _ConfigFlag
+from deprecate._cli.report import _REPORT_SCHEMA, _build_report, _GapKind, _record_run, _ScanRecord
 from deprecate._cli.scan import _ScanError
 from deprecate._types import DeprecationConfig, TargetMode
 from deprecate.audit import ChainType, DeprecationWrapperInfo, PolicyRule, TableStyle, validate_deprecation_policy
 from deprecate.audit._policy import _build_policy_spec
 from tests._helpers import write_pkg
 from tests.unittests.cli._helpers import _EXPIRED_FINDING, _MESSAGE_REQUIRED_FINDING, _POLICY_VIOLATION
+
+_requires_packaging = pytest.mark.skipif(
+    importlib.util.find_spec("packaging") is None, reason="requires packaging (pip install 'pyDeprecate[audit]')"
+)
 
 
 def _scanned(wrappers: list[DeprecationWrapperInfo]) -> AbstractContextManager[MagicMock]:
@@ -1515,6 +1521,164 @@ class TestPolicyWithoutPackaging:
         assert "No deprecation policy violations found." not in captured.out
 
 
+# One wrapper that names its replacement, so `message-required` passes it; its versions are filled in per test.
+_VERSIONED_WRAPPER_INIT = """\
+from deprecate import deprecated
+
+
+def new_fn(x: int) -> int:
+    return x
+
+
+@deprecated(target=new_fn, {versions})
+def old_fn(x: int) -> int:
+    pass
+"""
+# Per mistyped version field: the wrapper's version keywords and the gap kind its skip is recorded as.
+_MISTYPED_VERSIONS = [
+    pytest.param('deprecated_in="1.0", remove_in="next-release"', "remove_in not PEP 440", id="remove_in"),
+    pytest.param('deprecated_in="first", remove_in="2.0"', "deprecated_in not PEP 440", id="deprecated_in"),
+]
+
+
+def _pkg_with_versions(tmp_path: Path, versions: str) -> Path:
+    """Create ``versionpkg`` holding one forwarding wrapper declared with the keyword arguments *versions*."""
+    return write_pkg(tmp_path, "versionpkg", _VERSIONED_WRAPPER_INIT.format(versions=versions))
+
+
+@_requires_packaging
+class TestPolicyVersionGaps:
+    """A version ``min-grace`` cannot parse is a gap of the ``policy`` run, so strict mode fails on it."""
+
+    @pytest.mark.parametrize(
+        ("strict", "exit_code"), [pytest.param(True, 1, id="strict"), pytest.param(False, 0, id="lax")]
+    )
+    @pytest.mark.parametrize("static", [False, True])
+    @pytest.mark.parametrize(("versions", "gap_kind"), _MISTYPED_VERSIONS)
+    def test_unparsable_version_is_a_gap(
+        self,
+        versions: str,
+        gap_kind: str,
+        static: bool,
+        strict: bool,
+        exit_code: int,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """A mistyped ``deprecated_in`` or ``remove_in`` records one gap; only a strict run fails, on that gap alone.
+
+        The wrapper names its replacement and breaks no rule, but ``min-grace`` cannot measure its grace window: the
+        audit layer only warns, and the audited package may silence that warning. ``policy --strict`` must not pass
+        this incomplete audit, whether the package is imported or read with ``--static``, and a lax run must report
+        the gap without failing.
+
+        """
+        pkg = _pkg_with_versions(tmp_path, versions)
+        field = gap_kind.split()[0]
+
+        with pytest.warns(UserWarning, match=f"unparsable `{field}`"):
+            result = cmd_policy(path=str(pkg), strict=strict, static=static)
+
+        captured = capsys.readouterr()
+        assert result == exit_code
+        assert captured.err.count(f"pydeprecate gap: {gap_kind}: ") == 1
+        assert "so its `min-grace` grace window was not checked." in captured.err
+        assert captured.err.count("Strict mode: 1 gap(s) fail this run.") == int(strict)
+        assert "No deprecation policy violations found." in captured.out
+
+    @pytest.mark.parametrize("static", [False, True])
+    @pytest.mark.parametrize(
+        ("versions", "kind"),
+        [
+            pytest.param('deprecated_in="first", remove_in="2.0"', "deprecated_in not PEP 440", id="invalid"),
+            pytest.param('deprecated_in="1.0", remove_in="1!2.0"', "epoch change", id="epoch"),
+        ],
+    )
+    def test_warning_errors_still_record_gaps(
+        self, versions: str, kind: str, static: bool, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Strict policy reports skipped checks even when warnings are errors.
+
+        An audited package can configure warning filters; both imported and static scans must complete and record
+        the unmeasurable grace window rather than letting that configuration abort the gate.
+
+        """
+        pkg = _pkg_with_versions(tmp_path, versions)
+        with warnings.catch_warnings(), _record_run() as record:
+            warnings.simplefilter("error", UserWarning)
+            result = cmd_policy(path=str(pkg), strict=True, static=static)
+
+        assert result == 1
+        assert [gap.kind.value for gap in record.gaps] == [kind]
+        assert f"pydeprecate gap: {kind}:" in capsys.readouterr().err
+
+    @pytest.mark.parametrize(
+        ("versions", "min_grace"),
+        [
+            pytest.param('deprecated_in="1.0"', _FROM_PYPROJECT, id="remove_in-unset"),
+            pytest.param('deprecated_in="1.0", remove_in="next-release"', None, id="grace-rule-off"),
+        ],
+    )
+    def test_skipped_version_check_records_no_gap(
+        self, versions: str, min_grace: _ConfigFlag, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A strict run passes when no version was skipped: one is deliberately unset, or ``min-grace`` is off.
+
+        A deprecation without a scheduled removal is a valid choice, not a gap; and with the grace-window rule
+        switched off no version is parsed at all, so a mistyped one cannot leave anything unchecked.
+
+        """
+        pkg = _pkg_with_versions(tmp_path, versions)
+
+        result = cmd_policy(path=str(pkg), strict=True, min_grace=min_grace)
+
+        captured = capsys.readouterr()
+        assert result == 0
+        assert "pydeprecate gap: " not in captured.err
+
+    @pytest.mark.parametrize(
+        ("version", "detail"),
+        [
+            pytest.param("1.5", "so its removal deadline was not checked.", id="expiry-ran"),
+            pytest.param(None, "so its `min-grace` grace window was not checked.", id="expiry-skipped"),
+        ],
+    )
+    def test_all_names_a_mistyped_removal_once(
+        self, version: Optional[str], detail: str, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """``all`` records one ``remove_in`` gap per wrapper, from whichever of its checks reached the wrapper first.
+
+        ``all`` runs ``expiry`` and then ``policy`` on one scan, and both skip a mistyped ``remove_in``. When the
+        expiry check ran it has already named the wrapper, and a second line would report one cause twice; when it
+        could not run (no version resolved) it named nobody, so the policy pass records the gap itself.
+
+        """
+        pkg = _pkg_with_versions(tmp_path, 'deprecated_in="1.0", remove_in="next-release"')
+
+        with pytest.warns(UserWarning, match="unparsable `remove_in`"):
+            cmd_all(path=str(pkg), version=version)
+
+        err = capsys.readouterr().err
+        assert err.count("pydeprecate gap: remove_in not PEP 440: ") == 1
+        assert detail in err
+
+    def test_all_names_a_mistyped_deprecation_version(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        """``all`` records a mistyped ``deprecated_in`` from its policy pass, the one check that reads that field.
+
+        The expiry check never looks at ``deprecated_in``, so nothing else names the wrapper; without the gap a strict
+        ``all`` would pass although the grace window was never measured.
+
+        """
+        pkg = _pkg_with_versions(tmp_path, 'deprecated_in="first", remove_in="2.0"')
+
+        with pytest.warns(UserWarning, match="unparsable `deprecated_in`"):
+            result = cmd_all(path=str(pkg), version="1.5", strict=True)
+
+        err = capsys.readouterr().err
+        assert result == 1
+        assert err.count("pydeprecate gap: deprecated_in not PEP 440: ") == 1
+
+
 # Two wrappers past their removal at version 2.0, defined in the package's `__init__`.
 _TWO_EXPIRED_INIT = """\
 from deprecate import deprecated
@@ -1543,6 +1707,18 @@ def _pkg_with_two_expired(tmp_path: Path, pyproject: str = "") -> Path:
     return pkg
 
 
+def _write_baseline(path: Path, ids: list[str]) -> Path:
+    """Write a baseline report at *path* accepting *ids*, in the report layout this pyDeprecate writes."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    report = {"schema": _REPORT_SCHEMA, "findings": [{"id": item} for item in ids]}
+    path.write_text(json.dumps(report), encoding="utf-8")
+    return path
+
+
+#: The ids of both findings of ``_TWO_EXPIRED_INIT`` at version 2.0.
+_TWO_EXPIRED_IDS = ["expired:mypkg:old_fn", "expired:mypkg:mid_fn"]
+
+
 class TestSuppression:
     """``--ignore`` and ``--baseline`` accept known findings: not printed, counted or gated on, but reported."""
 
@@ -1561,57 +1737,171 @@ class TestSuppression:
         assert "1 expired wrapper(s) found." in out
         assert "1 finding(s) suppressed (ignore: 1, baseline: 0)." in out
 
-    def test_all_suppressed_passes(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-        """With every finding accepted the gate passes and says nothing was found, plus the suppressed count.
+    def test_ignore_entry_survives_an_unrelated_alias(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        """An alias added next to a wrapper neither renames its finding nor breaks the ignore entry that matches it.
 
-        Suppressed findings must never fail the run, or the escape hatch would not let the gate go green.
+        A library adds ``a_mid_alias = mid_fn`` while a rename settles. The alias sorts before the wrapper's own name,
+        and it used to take over the finding id, so ``expired:mypkg:mid_fn`` silently stopped matching and an accepted
+        finding failed the gate again. The rows of the wrapper that has no alias read as before.
 
         """
-        pkg = _pkg_with_two_expired(tmp_path, '[tool.pydeprecate]\nignore = ["mypkg:*"]\n')
+        pkg = write_pkg(tmp_path, "mypkg", _TWO_EXPIRED_INIT + "\na_mid_alias = mid_fn\n")
+        result = cmd_expiry(str(pkg), version="2.0", ignore=["expired:mypkg:mid_fn"])
+        out = capsys.readouterr().out
+        assert result == 1
+        assert "mypkg.old_fn" in out
+        assert "mypkg.mid_fn" not in out
+        assert "mypkg.a_mid_alias" not in out
+        assert "1 finding(s) suppressed (ignore: 1, baseline: 0)." in out
+
+    def test_character_class_glob_entry_is_not_a_list_literal(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """An entry whose module glob starts with a character class is still an entry, not a rejected list literal.
+
+        ``[m]ypkg:old_fn`` reads like the start of a list to a casual eye but is not one; the guard that refuses
+        ``["a:b"]`` must keep accepting a glob that merely begins with ``[``.
+
+        """
+        pkg = _pkg_with_two_expired(tmp_path)
+        result = cmd_expiry(str(pkg), version="2.0", ignore=["[m]ypkg:old_fn"])
+        out = capsys.readouterr().out
+        assert result == 1
+        assert "mypkg.mid_fn" in out
+        assert "1 finding(s) suppressed (ignore: 1, baseline: 0)." in out
+
+    @pytest.mark.parametrize(
+        "ignore_value",
+        [pytest.param('["mypkg:*"]', id="list"), pytest.param('"mypkg:*"', id="single-string")],
+    )
+    def test_all_suppressed_passes(self, ignore_value: str, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        """With every finding accepted the gate passes and says nothing was found, plus the suppressed count.
+
+        Suppressed findings must never fail the run, or the escape hatch would not let the gate go green. A project
+        with one accepted pattern may write ``ignore`` as a single string rather than a one-item list.
+
+        """
+        pkg = _pkg_with_two_expired(tmp_path, f"[tool.pydeprecate]\nignore = {ignore_value}\n")
         result = cmd_expiry(str(pkg), version="2.0")
         out = capsys.readouterr().out
         assert result == 0
         assert "No expired deprecated wrappers found." in out
         assert "2 finding(s) suppressed (ignore: 2, baseline: 0)." in out
 
-    def test_empty_flag_switches_pyproject_list_off(self, tmp_path: Path) -> None:
-        """``--ignore=`` (an empty list) drops the ``pyproject.toml`` list for one run.
+    @pytest.mark.parametrize(
+        ("pyproject", "kwargs"),
+        [
+            pytest.param('[tool.pydeprecate]\nignore = ["mypkg:*"]\n', {"ignore": [""]}, id="ignore"),
+            pytest.param('[tool.pydeprecate]\nbaseline = "baseline.json"\n', {"baseline": ""}, id="baseline"),
+        ],
+    )
+    def test_empty_flag_switches_pyproject_setting_off(self, pyproject: str, kwargs: dict, tmp_path: Path) -> None:
+        """``--ignore=`` and ``--baseline=`` (empty values) drop the ``pyproject.toml`` setting for one run.
 
-        An audit step that must see every finding, accepted or not, overrides the project's list without editing it.
+        An audit step that must see every finding, accepted or not, overrides the project's ignore list or baseline
+        without editing it; both findings the setting would accept fail the gate again.
 
         """
-        pkg = _pkg_with_two_expired(tmp_path, '[tool.pydeprecate]\nignore = ["mypkg:*"]\n')
-        assert cmd_expiry(str(pkg), version="2.0", ignore=[""]) == 1
+        _write_baseline(tmp_path / "baseline.json", _TWO_EXPIRED_IDS)
+        pkg = _pkg_with_two_expired(tmp_path, pyproject)
+        assert cmd_expiry(str(pkg), version="2.0", **kwargs) == 1
 
-    def test_pyproject_baseline_is_relative_to_its_file(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    @pytest.mark.parametrize(
+        "baseline_root",
+        [pytest.param("", id="relative-to-pyproject"), pytest.param("{root}/", id="absolute")],
+    )
+    def test_pyproject_baseline_is_found(
+        self, baseline_root: str, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        """A ``baseline`` path in ``pyproject.toml`` resolves next to that file, whatever the working directory.
+        """A ``baseline`` path in ``pyproject.toml`` is found whatever the working directory: relative or absolute.
 
-        CI may run the gate from another directory; the committed baseline must still be found.
+        CI may run the gate from another directory; a committed baseline given relative to the ``pyproject.toml`` must
+        still be found, and so must one a CI job points at by its absolute path.
 
         """
-        baseline = {"schema": 2, "findings": [{"id": "expired:mypkg:old_fn"}, {"id": "expired:mypkg:mid_fn"}]}
-        (tmp_path / "ci").mkdir()
-        (tmp_path / "ci" / "baseline.json").write_text(json.dumps(baseline), encoding="utf-8")
-        pkg = _pkg_with_two_expired(tmp_path, '[tool.pydeprecate]\nbaseline = "ci/baseline.json"\n')
+        _write_baseline(tmp_path / "ci" / "baseline.json", _TWO_EXPIRED_IDS)
+        location = baseline_root.format(root=tmp_path.as_posix()) + "ci/baseline.json"
+        pkg = _pkg_with_two_expired(tmp_path, f"[tool.pydeprecate]\nbaseline = '{location}'\n")
         result = cmd_expiry(str(pkg), version="2.0")
         assert result == 0
         assert "2 finding(s) suppressed (ignore: 0, baseline: 2)." in capsys.readouterr().out
 
-    def test_stale_baseline_entry_is_reported(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-        """A baseline id that no longer matches a finding gets one stderr advisory and never fails the run.
+    def test_report_names_what_suppressed_each_finding(self, tmp_path: Path) -> None:
+        """The report tells an ignored finding from a baseline one and counts the entries of each that matched nothing.
 
-        After a wrapper is removed its baseline entry is dead weight; the advisory says to regenerate the baseline.
+        A team accepts one overdue removal by an ignore entry and another through its baseline, and both lists carry an
+        entry that no longer names anything. The report must say which mechanism accepted which finding, so a reviewer
+        knows where to remove it once fixed, and count the unused entries of each list.
 
         """
-        baseline = tmp_path / "baseline.json"
-        ids = ["expired:mypkg:old_fn", "expired:mypkg:mid_fn", "expired:mypkg:removed_fn"]
-        baseline.write_text(json.dumps({"schema": 2, "findings": [{"id": item} for item in ids]}), encoding="utf-8")
+        baseline = _write_baseline(tmp_path / "baseline.json", ["expired:mypkg:old_fn", "expired:mypkg:removed_fn"])
+        pkg = _pkg_with_two_expired(tmp_path)
+        ignore = ["expired:mypkg:mid_fn", "expired:mypkg:never_fn"]
+
+        with _record_run() as record:
+            record.command = "expiry"
+            result = cmd_expiry(str(pkg), version="2.0", ignore=ignore, baseline=str(baseline))
+        report = _build_report(record, result)
+
+        assert result == 0
+        assert {item["subject"]["symbol"]: item["suppressed_by"] for item in report["suppressed"]} == {
+            "mid_fn": {"kind": "ignore", "entry": "expired:mypkg:mid_fn"},
+            "old_fn": {"kind": "baseline", "entry": "expired:mypkg:old_fn"},
+        }
+        assert (report["summary"]["ignore_unmatched"], report["summary"]["baseline_unmatched"]) == (1, 1)
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            pytest.param(cmd_expiry, id="version-unresolved"),
+            pytest.param(cmd_check, id="rule-not-evaluated"),
+        ],
+    )
+    def test_baseline_ids_of_an_unchecked_rule_are_not_stale(
+        self, command: Callable[..., int], tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Baseline ids of a rule the run did not check are neither counted nor reported as unmatched.
+
+        The same baseline serves every gate. ``check`` never evaluates expiry, and an ``expiry`` run whose package
+        version cannot be resolved skips the comparison; in both the ``expired`` ids simply had no chance to match, and
+        calling them stale would push the team to regenerate a baseline that drops findings it still accepts.
+
+        """
+        baseline = _write_baseline(tmp_path / "baseline.json", ["expired:mypkg:old_fn", "expired:mypkg:removed_fn"])
+        pkg = _pkg_with_two_expired(tmp_path)
+
+        with _record_run() as record:
+            result = command(str(pkg), baseline=str(baseline))
+
+        assert result == 0
+        assert record.baseline_unmatched == 0
+        assert "baseline entr" not in capsys.readouterr().err
+
+    @pytest.mark.parametrize(
+        ("stale_ids", "count_phrase"),
+        [
+            pytest.param(["expired:mypkg:removed_fn"], "1 baseline entry matches", id="one"),
+            pytest.param(["expired:mypkg:removed_fn", "expired:mypkg:gone_fn"], "2 baseline entries match", id="two"),
+        ],
+    )
+    def test_stale_baseline_entry_is_reported(
+        self, stale_ids: list[str], count_phrase: str, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Baseline ids that match no finding get one stderr advisory, worded for their count, and never fail the run.
+
+        After a wrapper is removed its baseline entry is dead weight. The run cannot tell that apart from an id a
+        narrowed scan never reached, so the advisory names both causes and asks for a regeneration from a full-scope
+        run, never from the narrowed one that would drop accepted findings. One entry and several read as a sentence.
+
+        """
+        baseline = _write_baseline(tmp_path / "baseline.json", [*_TWO_EXPIRED_IDS, *stale_ids])
         pkg = _pkg_with_two_expired(tmp_path)
         result = cmd_expiry(str(pkg), version="2.0", baseline=str(baseline))
         assert result == 0
-        assert "1 baseline entry no longer match a finding; regenerate the baseline." in capsys.readouterr().err
+        assert (
+            f"pydeprecate: {count_phrase} no finding of this run (stale, or outside a narrowed scan); regenerate the"
+            " baseline from a full-scope run." in capsys.readouterr().err
+        )
 
     @pytest.mark.parametrize(
         ("pyproject", "kwargs", "message"),
@@ -1629,10 +1919,37 @@ class TestSuppression:
                 "", {"ignore": ["nonsense"]}, "Invalid ignore entry `nonsense` from `--ignore`", id="flag-entry"
             ),
             pytest.param(
+                "",
+                {"ignore": ['["expired:mypkg:old_fn"]']},
+                'Invalid `--ignore` value `["expired:mypkg:old_fn"]`; pass comma-separated entries',
+                id="flag-list-literal",
+            ),
+            pytest.param(
+                "",
+                {"ignore": ['["expired:mypkg:old_fn", "mypkg:mid_fn"]']},
+                'Invalid `--ignore` value `["expired:mypkg:old_fn", "mypkg:mid_fn"]`; pass comma-separated entries',
+                id="flag-two-element-list-literal",
+            ),
+            pytest.param(
+                "",
+                {"ignore": ["mypkg:old_fn", "('mypkg:mid_fn',)"]},
+                "Invalid `--ignore` value `('mypkg:mid_fn',)`; pass comma-separated entries",
+                id="flag-tuple-literal-after-valid-entry",
+            ),
+            pytest.param(
+                "[tool.pydeprecate]\nignore = ['[\"mypkg:old_fn\"]']\n",
+                {},
+                'Invalid `ignore` entry `["mypkg:old_fn"]` from `[tool.pydeprecate]` in ',
+                id="pyproject-list-literal-item",
+            ),
+            pytest.param(
                 "[tool.pydeprecate]\nbaseline = 3\n", {}, "Invalid `baseline` value `3`", id="baseline-not-a-path"
             ),
             pytest.param(
-                "", {"baseline": "missing.json"}, "is not a pyDeprecate schema-2 report", id="baseline-missing"
+                "",
+                {"baseline": "missing.json"},
+                "Baseline missing.json cannot be read (",
+                id="baseline-missing",
             ),
         ],
     )
@@ -1768,38 +2085,191 @@ class TestStrictMode:
         assert "Scanning:" not in captured.out
 
     @pytest.mark.parametrize(
-        ("pyproject", "strict", "remedy"),
+        "pyproject",
         [
-            pytest.param("", True, "drop one of them", id="flag"),
-            pytest.param(
-                "[tool.pydeprecate]\nstrict = true\n",
-                _FROM_PYPROJECT,
-                "pass `--no-strict` to override `strict = true` for this run",
-                id="pyproject",
-            ),
+            pytest.param("", id="no-pyproject"),
+            pytest.param("[tool.pydeprecate]\nstrict = true\n", id="pyproject-also-strict"),
         ],
     )
-    def test_exit_zero_contradiction_exits_two(
-        self,
-        pyproject: str,
-        strict: _ConfigBool,
-        remedy: str,
-        tmp_path: Path,
-        capsys: pytest.CaptureFixture[str],
+    def test_typed_strict_with_exit_zero_exits_two(
+        self, pyproject: str, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        """Strict mode together with ``--exit-zero`` is a usage error that names where strict mode came from.
+        """``--strict`` typed together with ``--exit-zero`` is a usage error naming the flag as the source of strict.
 
-        ``--exit-zero`` passes every run, so with strict mode one of the two would silently do nothing. When strict
-        mode comes from ``pyproject.toml`` the message points at ``--no-strict``, the per-run override.
+        ``--exit-zero`` passes every run, so with a strict mode the caller asked for on this very command line one of
+        the two would silently do nothing; the run refuses to start instead of picking one. A ``strict = true`` that
+        the file also holds changes nothing: the typed flag is what the caller meant.
 
         """
         pkg = _pkg_with_broken_submodule(tmp_path, pyproject)
-        result = cmd_check(str(pkg), exit_zero=True, strict=strict)
+        result = cmd_check(str(pkg), exit_zero=True, strict=True)
         captured = capsys.readouterr()
         assert result == 2
-        assert "and `--exit-zero` contradict each other" in captured.err
-        assert remedy in captured.err
+        assert "Strict mode (from `--strict`) and `--exit-zero` contradict each other" in captured.err
+        assert "drop one of them" in captured.err
         assert "Scanning:" not in captured.out
+
+    @pytest.mark.parametrize(("command", "kwargs"), _GATE_COMMANDS)
+    def test_exit_zero_overrides_pyproject_strict(
+        self, command: Callable[..., int], kwargs: dict, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A typed ``--exit-zero`` switches off a ``strict = true`` that only ``pyproject.toml`` set, with one note.
+
+        A project that declares ``strict = true`` for its local and pre-commit runs also has an advisory CI job whose
+        GitHub Action runner appends ``--exit-zero`` and nothing else. That job must report its gaps and pass rather
+        than exit 2, and the run says on stderr, once, that the file's strict mode was disabled.
+
+        """
+        pkg = _pkg_with_broken_submodule(tmp_path, "[tool.pydeprecate]\nstrict = true\n")
+        result = command(str(pkg), exit_zero=True, **kwargs)
+        err = capsys.readouterr().err
+        assert result == 0
+        assert err.count("Strict mode (from `[tool.pydeprecate]` in ") == 1
+        assert "is disabled by `--exit-zero` for this run." in err
+        assert "pydeprecate gap: module not audited: mypkg.broken" in err
+        assert "Strict mode:" not in err
+
+    def test_exit_zero_with_explicit_no_strict_prints_no_note(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """``--no-strict --exit-zero`` against a strict file is already unambiguous, so it prints no note.
+
+        The caller switched strict off themselves; saying the file's strict mode was disabled would be noise.
+
+        """
+        pkg = _pkg_with_broken_submodule(tmp_path, "[tool.pydeprecate]\nstrict = true\n")
+        result = cmd_check(str(pkg), exit_zero=True, strict=False)
+        err = capsys.readouterr().err
+        assert result == 0
+        assert "is disabled by" not in err
+
+
+#: A package a ``--static`` read cannot fully settle: the first wrapper's ``remove_in`` is an f-string (``min-grace``
+#: and ``expiry`` cannot read it) and the second's ``target`` is a subscript (``message-required`` cannot read it).
+_UNSETTLED_PKG = """\
+from deprecate import deprecated
+
+_MAJOR = 2
+_REPLACEMENTS = {"new": print}
+
+
+@deprecated(deprecated_in="1.0", remove_in=f"{_MAJOR}.0")
+def formatted_removal(x: int) -> int:
+    return x
+
+
+@deprecated(target=_REPLACEMENTS["new"], deprecated_in="1.0", remove_in="2.0")
+def looked_up_target(x: int) -> int:
+    return x
+"""
+_REMOVAL_GAP = "`remove_in` is `f'{_MAJOR}.0'`, not a literal"
+_TARGET_GAP = "`target` is `_REPLACEMENTS['new']`, not a literal or a name"
+
+
+class TestStaticUnsettledGaps:
+    """A ``--static`` gap names a wrapper "not checked" only when the rule that needs its setting ran on the others."""
+
+    @pytest.mark.parametrize(
+        ("version_line", "gap_kind"),
+        [
+            pytest.param("", "version not resolved", id="version-unresolved"),
+            pytest.param("__version__ = 'next'\n", "version not PEP 440", id="version-invalid"),
+        ],
+    )
+    def test_expiry_prints_no_unsettled_gap_when_version_unusable(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str], version_line: str, gap_kind: str
+    ) -> None:
+        """``expiry --static`` without a usable version skips the whole check and names no wrapper "not checked".
+
+        The package's source holds no ``__version__``, or one that is not PEP 440, and no ``--version`` is given, so
+        no removal deadline is compared with anything. The one gap saying so is the truth; an extra line per
+        unsettled wrapper would imply that the other wrappers were checked.
+
+        """
+        pkg = write_pkg(tmp_path, "unsettledpkg", version_line + _UNSETTLED_PKG)
+
+        result = cmd_expiry(path=str(pkg), static=True)
+
+        captured = capsys.readouterr()
+        assert result == 0
+        assert f"pydeprecate gap: {gap_kind}: " in captured.err
+        assert "not statically resolvable" not in captured.err
+
+    def test_expiry_prints_no_unsettled_gap_without_packaging(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """``expiry --static`` without ``packaging`` skips the check and names no wrapper "not checked".
+
+        A base-install hook cannot compare versions at all. It is told so once, with the install hint, rather than
+        also being told that one wrapper was left out of a comparison that never happened.
+
+        """
+        pkg = write_pkg(tmp_path, "unsettledpkg", _UNSETTLED_PKG)
+        monkeypatch.setitem(sys.modules, "packaging.version", None)
+
+        result = cmd_expiry(path=str(pkg), version="3.0", static=True)
+
+        captured = capsys.readouterr()
+        assert result == 0
+        assert "pydeprecate gap: packaging missing: " in captured.err
+        assert "not statically resolvable" not in captured.err
+
+    @_requires_packaging
+    def test_expiry_names_the_wrapper_it_left_out(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        """``expiry --static`` that ran names the one wrapper whose ``remove_in`` the source did not settle.
+
+        With a version to compare against, the wrapper with a literal ``remove_in`` is judged (and is expired at
+        ``3.0``) and the f-string one is the single gap, so the report stays complete once the check has run.
+
+        """
+        pkg = write_pkg(tmp_path, "unsettledpkg", _UNSETTLED_PKG)
+
+        result = cmd_expiry(path=str(pkg), version="3.0", static=True)
+
+        captured = capsys.readouterr()
+        assert result == 1
+        assert captured.err.count("pydeprecate gap: not statically resolvable: ") == 1
+        assert f"{_REMOVAL_GAP} (" in captured.err
+        assert "formatted_removal` not checked" in captured.err
+
+    @_requires_packaging
+    def test_policy_names_the_wrappers_each_rule_left_out(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """``policy --static`` with both rules running names the wrapper each of them left out.
+
+        ``min-grace`` cannot read the f-string ``remove_in`` and ``message-required`` cannot read the subscripted
+        ``target``; each rule ran on the wrapper it could read, so each unsettled setting is reported once.
+
+        """
+        pkg = write_pkg(tmp_path, "unsettledpkg", _UNSETTLED_PKG)
+
+        cmd_policy(path=str(pkg), static=True)
+
+        captured = capsys.readouterr()
+        assert _REMOVAL_GAP in captured.err
+        assert _TARGET_GAP in captured.err
+
+    def test_policy_prints_no_grace_gap_without_packaging(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """``policy --static`` without ``packaging`` names no wrapper "not checked" for the skipped ``min-grace``.
+
+        The grace-window rule is skipped for every wrapper, so the one that also had an unreadable ``remove_in`` is not
+        special. ``message-required`` still runs, gates the exit code and names the wrapper whose ``target`` it could
+        not read — the gap of a rule that ran stays, the gap of a rule that did not is gone.
+
+        """
+        pkg = write_pkg(tmp_path, "unsettledpkg", _UNSETTLED_PKG)
+        monkeypatch.setitem(sys.modules, "packaging.version", None)
+
+        result = cmd_policy(path=str(pkg), static=True)
+
+        captured = capsys.readouterr()
+        assert result == 1
+        assert "pydeprecate gap: packaging missing: " in captured.err
+        assert _TARGET_GAP in captured.err
+        assert _REMOVAL_GAP not in captured.err
 
 
 # ---------------------------------------------------------------------------
@@ -2056,12 +2526,6 @@ class TestAllGate:
         assert [call.args[0] for call in mock_find.call_args_list] == ["pkg_a", "pkg_b"]
 
 
-def _write_baseline(path: Path, ids: list[str]) -> Path:
-    """Write a schema-2 baseline report accepting the finding *ids*."""
-    path.write_text(json.dumps({"schema": 2, "findings": [{"id": item} for item in ids]}), encoding="utf-8")
-    return path
-
-
 @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
 class TestStaleBaselineScope:
     """A baseline id reads as stale only for a rule the run evaluated in a module the run audited."""
@@ -2089,7 +2553,7 @@ class TestStaleBaselineScope:
             result = cmd_expiry(path=str(pkg), version="3.0", baseline=str(baseline))
         assert result == 0
         assert run.baseline_unmatched == stale
-        assert ("no longer match a finding" in capsys.readouterr().err) is bool(stale)
+        assert ("no finding of this run" in capsys.readouterr().err) is bool(stale)
 
     def test_skipped_check_of_one_path_keeps_its_ids(self, tmp_path: Path) -> None:
         """Ids of a path whose expiry check was skipped stay expected-free, although another path ran the check.

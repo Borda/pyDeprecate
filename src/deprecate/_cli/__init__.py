@@ -13,6 +13,10 @@ Subcommands:
     all     — Run all four checks in a single scan pass.
     status  — Render a markdown deprecation table to stdout (and optionally save it to a file).
 
+``expiry`` and ``policy`` also take ``--static``: the scanned source is read with :mod:`ast` and nothing from the
+scanned package is imported or executed. Findings match the import-based scan; anything the source alone does not
+settle is reported as a ``pydeprecate gap: not statically resolvable:`` line instead of being skipped.
+
 The whole ``deprecate._cli`` package is internal and may change without notice; the public Python API
 for the same checks is :mod:`deprecate.audit`. This module stays import-light — the parser, the subcommands and the
 audit layer load only when :func:`cli` runs.
