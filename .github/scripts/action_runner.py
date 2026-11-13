@@ -9,9 +9,9 @@ interpolated into script text), and the script:
    ``uses:`` ref pins the version — the same binding the pre-commit hook manifest uses,
 3. runs ``python -m deprecate <subcommand> [path...] [args...] --report-json=<file>`` and returns its exit code
    unchanged (the ``path`` input holds one path per line),
-4. raises one annotation per finding (capped) and one warning annotation per kind of gap the CLI recorded in that
-   report, and optionally appends the report's deprecation table — the table of the very scan that gated — to the job
-   summary,
+4. raises one warning annotation per kind of gap the CLI recorded in that report, then one annotation per finding
+   within the slots GitHub's per-level annotation limit leaves, and optionally appends the report's deprecation table
+   — the table of the very scan that gated — to the job summary,
 5. publishes the step outputs (exit code, counts, the paths of a kept report copy and of the SARIF file) to
    ``GITHUB_OUTPUT``.
 
@@ -32,7 +32,8 @@ import signal
 import subprocess
 import sys
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
+from enum import Enum
 from pathlib import Path
 from typing import Any, NamedTuple
 
@@ -62,8 +63,16 @@ REPORT_SCHEMA = 1
 REPORT_SCHEMAS = (1,)
 #: Most gap details quoted in one warning annotation; the CLI log above it lists every one.
 GAP_DETAILS_SHOWN = 3
-#: Most findings annotated in one run; one notice counts the rest, which the log and the report list in full.
-FINDING_ANNOTATIONS_MAX = 50
+#: Workflow-command levels of the annotations the runner raises.
+ANNOTATION_LEVELS = ("error", "warning", "notice")
+#: Most annotations of one level that GitHub shows for one step; the rest are dropped, and its documentation does not
+#: say which. From actions/toolkit ``docs/problem-matchers.md``: "10 warning annotations, 10 error annotations, and 10
+#: notice annotations per step". The 50 annotations per job, summed over all its steps, are not tracked here. One notice
+#: counts the findings left out, which the log and the report list in full.
+ANNOTATIONS_PER_LEVEL = 10
+#: Warning slots the findings leave free for the two runner warnings that can follow them: the skipped job summary and
+#: a failed write of the step outputs. The annotations raised before the findings are counted exactly instead.
+_TRAILING_WARNING_SLOTS = 2
 #: Workflow-command level of each finding level of the report.
 FINDING_LEVELS = {"error": "error", "warning": "warning", "note": "notice"}
 #: Step outputs, in the order ``action.yml`` declares them.
@@ -89,11 +98,20 @@ _VERSION_QUERY = (
     "except m.PackageNotFoundError:\n"
     "    pass\n"
 )
-#: Program a child interpreter runs to tell whether the installed CLI takes ``--report-json`` (exit 0) or not.
-_REPORT_PROBE = "import deprecate._cli as cli\nraise SystemExit(0 if hasattr(cli, '_REPORT_OPTION') else 3)\n"
-#: Exit code of :data:`_REPORT_PROBE` for an importable CLI without ``--report-json``; any other failure is not one.
-#: It is the exit code of that separate ``python -c`` probe, unrelated to the CLI's own exit 3 for a crashed scan.
-_PROBE_UNSUPPORTED = 3
+#: Exit code of :data:`_CAPABILITY_PROBE` for an importable CLI without ``--report-json`` (and so without
+#: ``--report-sarif``, which came later); any other failure is not one. It is the exit code of that separate
+#: ``python -c`` probe, unrelated to the CLI's own exit 3 for a crashed scan.
+_PROBE_NO_REPORT = 3
+#: Exit code of :data:`_CAPABILITY_PROBE` for an importable CLI that takes ``--report-json`` but not ``--report-sarif``.
+_PROBE_NO_SARIF = 4
+#: Program a child interpreter runs to tell which report options the installed CLI takes: exit 0 for both,
+#: :data:`_PROBE_NO_SARIF` for ``--report-json`` alone, :data:`_PROBE_NO_REPORT` for neither.
+_CAPABILITY_PROBE = (
+    "import deprecate._cli as cli\n"
+    "if not hasattr(cli, '_REPORT_OPTION'):\n"
+    f"    raise SystemExit({_PROBE_NO_REPORT})\n"
+    f"raise SystemExit(0 if hasattr(cli, '_SARIF_OPTION') else {_PROBE_NO_SARIF})\n"
+)
 #: Exit code of a CLI run whose scanned package could not be imported or that failed internally.
 _CLI_CRASHED = 3
 
@@ -142,6 +160,17 @@ class ActionInputs:
     sarif: bool = False
 
 
+class CliSupport(Enum):
+    """The report options of the pyDeprecate CLI that the job's Python runs; each one arrived after the one before."""
+
+    #: Predates ``--report-json``: no report, so no gap annotations, job summary or SARIF file.
+    NO_REPORT = "no report option"
+    #: Takes ``--report-json`` but not ``--report-sarif``.
+    REPORT_ONLY = "report without SARIF"
+    #: Takes both.
+    REPORT_AND_SARIF = "report and SARIF"
+
+
 def escape_data(text: str) -> str:
     """Escape a workflow-command message so newlines or ``%`` in it cannot start or corrupt a command."""
     return text.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
@@ -152,8 +181,31 @@ def escape_property(text: str) -> str:
     return escape_data(text).replace(":", "%3A").replace(",", "%2C")
 
 
-def annotate(level: str, message: str) -> None:
-    """Print a GitHub ``error``/``warning``/``notice`` annotation titled ``pyDeprecate``."""
+@dataclass
+class AnnotationBudget:
+    """The annotations of each level the step may still raise before GitHub drops the rest.
+
+    One budget serves one run. :func:`annotate` spends it on every annotation raised before the findings, so the
+    findings, which come last, take only the slots that the gate error, the install and SARIF warnings and the gaps
+    left.
+
+    """
+
+    left: dict[str, int] = field(default_factory=lambda: dict.fromkeys(ANNOTATION_LEVELS, ANNOTATIONS_PER_LEVEL))
+
+    def spend(self, level: str) -> None:
+        """Count one annotation of ``level`` as raised."""
+        self.left[level] -= 1
+
+    def remaining(self, level: str) -> int:
+        """Return the slots of ``level`` still free; never negative, since a raised overflow is already lost."""
+        return max(self.left[level], 0)
+
+
+def annotate(level: str, message: str, budget: AnnotationBudget | None = None) -> None:
+    """Print a GitHub ``error``/``warning``/``notice`` annotation titled ``pyDeprecate``, counted in ``budget``."""
+    if budget is not None:
+        budget.spend(level)
     print(f"::{level} title=pyDeprecate::{escape_data(message)}", flush=True)
 
 
@@ -320,25 +372,30 @@ def installed_version(python: str) -> str | None:
     return version if result.returncode == 0 and version else None
 
 
-def report_supported(python: str) -> bool:
-    """Tell whether the pyDeprecate CLI that ``python`` runs writes ``--report-json`` reports.
+def cli_support(python: str) -> CliSupport:
+    """Tell which report options the pyDeprecate CLI that ``python`` runs takes: both, only ``--report-json``, or none.
 
     A capability probe rather than a version comparison: with ``install: false`` the job may have any release
-    installed, and comparing pre-release versions would need the ``packaging`` library this script cannot assume.
-    Only an importable CLI that lacks the option counts as unsupported. An interpreter that cannot start, or one
-    without pyDeprecate at all, counts as supporting it: the gate run then fails with the real reason, instead of a
-    warning blaming the pyDeprecate version.
+    installed, and comparing pre-release versions would need the ``packaging`` library this script cannot assume. One
+    child interpreter answers for both options. Only an importable CLI that lacks an option counts as lacking it. An
+    interpreter that cannot start, or one without pyDeprecate at all, counts as supporting both: the gate run then
+    fails with the real reason, instead of a warning blaming the pyDeprecate version.
 
     """
-    result = _child_output(python, _REPORT_PROBE)
-    return result is None or result.returncode != _PROBE_UNSUPPORTED
+    result = _child_output(python, _CAPABILITY_PROBE)
+    returncode = None if result is None else result.returncode
+    if returncode == _PROBE_NO_REPORT:
+        return CliSupport.NO_REPORT
+    if returncode == _PROBE_NO_SARIF:
+        return CliSupport.REPORT_ONLY
+    return CliSupport.REPORT_AND_SARIF
 
 
-def install_package(action_path: Path, python: str) -> int:
+def install_package(action_path: Path, python: str, budget: AnnotationBudget | None = None) -> int:
     """Install ``pyDeprecate[cli,audit]`` from the action checkout into the current interpreter; return pip's status.
 
     A pyDeprecate of another version that the job had installed before is reported once pip has replaced it, by
-    comparing the installed metadata versions before and after the install.
+    comparing the installed metadata versions before and after the install. Its annotations are counted in ``budget``.
 
     """
     before = installed_version(python)
@@ -355,6 +412,7 @@ def install_package(action_path: Path, python: str) -> int:
             "error",
             f"pip install of pyDeprecate failed (exit {pip.description}). If this Python has no pip (e.g. a uv venv)"
             " or is externally managed, install 'pyDeprecate[audit,cli]' in an earlier step and set `install: false`",
+            budget,
         )
         return pip.code
     after = installed_version(python)
@@ -363,12 +421,14 @@ def install_package(action_path: Path, python: str) -> int:
             "warning",
             "the version of the pyDeprecate installed from the action ref could not be read back, so a replaced"
             " install of another version cannot be ruled out; check the install log above",
+            budget,
         )
     elif before is not None and before != after:
         annotate(
             "warning",
             f"replaced the installed pyDeprecate {before} with {after} from the action ref for the rest of this"
             " job; pin the action to the release your project uses, or set `install: false`",
+            budget,
         )
     return pip.code
 
@@ -426,11 +486,13 @@ def read_report(report_file: Path) -> dict[str, Any] | None:
     return report
 
 
-def annotate_gaps(gaps: list[dict[str, Any]]) -> None:
+def annotate_gaps(gaps: list[dict[str, Any]], budget: AnnotationBudget | None = None) -> None:
     """Raise one warning annotation per kind of gap: its count, the CLI's hint and the first few details.
 
     A gap is a part of the audit that did not run although the gate passed; without an annotation the green step would
-    hide it. Kind, hint and detail are the CLI's own words, so this runner keeps no copy of them.
+    hide it. Kind, hint and detail are the CLI's own words, so this runner keeps no copy of them. Every kind is raised,
+    whatever ``budget`` has left: a gap is the signal a green run must not lose, so the findings annotated after the
+    gaps give way instead.
 
     """
     by_kind: dict[str, list[dict[str, Any]]] = {}
@@ -442,34 +504,59 @@ def annotate_gaps(gaps: list[dict[str, Any]]) -> None:
         lines = [f"{kind} ({len(group)}): {group[0].get('hint', '')}", *details]
         if details and more > 0:
             lines.append(f"... and {more} more in the log above")
-        annotate("warning", "\n".join(lines))
+        annotate("warning", "\n".join(lines), budget)
 
 
-def annotate_findings(findings: list[dict[str, Any]]) -> None:
-    """Raise one annotation per finding of a report, errors first, at most :data:`FINDING_ANNOTATIONS_MAX`.
+def _finding_command(finding: dict[str, Any]) -> str:
+    """Build the workflow command of one finding: its level, the file and line when the report has them, the rule."""
+    properties = []
+    location = finding.get("location")
+    if isinstance(location, dict) and location.get("file"):
+        properties.append(f"file={escape_property(str(location['file']))}")
+        if isinstance(location.get("line"), int):
+            properties.append(f"line={location['line']}")
+    properties.append(f"title={escape_property('pyDeprecate ' + str(finding.get('rule', '')))}")
+    level = FINDING_LEVELS[finding["level"]]
+    return f"::{level} {','.join(properties)}::{escape_data(str(finding.get('message', '')))}"
 
-    Each annotation carries the finding's file and line when the report has them, so it lands on the line of the
-    deprecated wrapper in the pull request; the rest are counted in one notice.
+
+def _findings_within(findings: list[dict[str, Any]], budget: AnnotationBudget) -> tuple[list[dict[str, Any]], int]:
+    """Pick the findings to annotate within ``budget``, errors first, and count the ones left out.
+
+    Each level has its own slots. The warning slots keep :data:`_TRAILING_WARNING_SLOTS` free, and when anything is left
+    out the notice that counts it takes one notice slot, so a full notice level gives up its last finding for it.
 
     """
-    ordered = sorted(
-        (finding for finding in findings if finding.get("level") in FINDING_LEVELS),
-        key=lambda finding: list(FINDING_LEVELS).index(finding["level"]),
-    )
-    for finding in ordered[:FINDING_ANNOTATIONS_MAX]:
-        properties = []
-        location = finding.get("location")
-        if isinstance(location, dict) and location.get("file"):
-            properties.append(f"file={escape_property(str(location['file']))}")
-            if isinstance(location.get("line"), int):
-                properties.append(f"line={location['line']}")
-        rule = str(finding.get("rule", ""))
-        properties.append(f"title={escape_property('pyDeprecate ' + rule)}")
-        level = FINDING_LEVELS[finding["level"]]
-        print(f"::{level} {','.join(properties)}::{escape_data(str(finding.get('message', '')))}", flush=True)
-    hidden = len(ordered) - FINDING_ANNOTATIONS_MAX
+    by_level: dict[str, list[dict[str, Any]]] = {level: [] for level in ANNOTATION_LEVELS}
+    for finding in findings:
+        if finding.get("level") in FINDING_LEVELS:
+            by_level[FINDING_LEVELS[finding["level"]]].append(finding)
+    room = {level: budget.remaining(level) for level in ANNOTATION_LEVELS}
+    room["warning"] = max(room["warning"] - _TRAILING_WARNING_SLOTS, 0)
+    shown = {level: group[: room[level]] for level, group in by_level.items()}
+    hidden = sum(len(group) for group in by_level.values()) - sum(len(group) for group in shown.values())
+    if hidden and shown["notice"] and len(shown["notice"]) >= room["notice"]:
+        shown["notice"].pop()
+        hidden += 1
+    return [finding for level in ANNOTATION_LEVELS for finding in shown[level]], hidden
+
+
+def annotate_findings(findings: list[dict[str, Any]], budget: AnnotationBudget | None = None) -> None:
+    """Raise one annotation per finding of a report, errors first, as far as the slots left in ``budget`` reach.
+
+    Each annotation carries the finding's file and line when the report has them, so it lands on the line of the
+    deprecated wrapper in the pull request. The findings that no slot is left for are counted in one notice, which names
+    exactly the ones hidden; the log and the report list them all. Call it after the annotations that must not be
+    crowded out (the gate error, the gaps), so that ``budget`` has already counted them.
+
+    """
+    budget = AnnotationBudget() if budget is None else budget
+    shown, hidden = _findings_within(findings, budget)
+    for finding in shown:
+        budget.spend(FINDING_LEVELS[finding["level"]])
+        print(_finding_command(finding), flush=True)
     if hidden > 0:
-        annotate("notice", f"{hidden} more findings; see the log or the report")
+        annotate("notice", f"{hidden} more findings; see the log or the report", budget)
 
 
 def write_outputs(env: dict[str, str], outputs: dict[str, str]) -> None:
@@ -489,25 +576,25 @@ def write_outputs(env: dict[str, str], outputs: dict[str, str]) -> None:
         annotate("warning", f"could not write the step outputs: {err}")
 
 
-def outputs_directory(env: dict[str, str], inputs: ActionInputs) -> Path | None:
+def outputs_directory(env: dict[str, str], inputs: ActionInputs, budget: AnnotationBudget | None = None) -> Path | None:
     """Create the directory that keeps the report copy and the SARIF file for later steps, or ``None``.
 
     Created only when something reads it: step outputs (``GITHUB_OUTPUT`` set) or the ``sarif`` input. It lives in
     ``RUNNER_TEMP``, which the runner empties at the end of the job; without ``RUNNER_TEMP`` the path outputs stay
-    empty.
+    empty. Its warnings are counted in ``budget``.
 
     """
     if not (inputs.sarif or env.get("GITHUB_OUTPUT")):
         return None
     runner_temp = env.get("RUNNER_TEMP")
     if not runner_temp:
-        annotate("warning", "RUNNER_TEMP is not set, so the `report-json` and `sarif-file` outputs stay empty")
+        annotate("warning", "RUNNER_TEMP is not set, so the `report-json` and `sarif-file` outputs stay empty", budget)
         return None
     directory = Path(runner_temp) / f"pydeprecate-outputs-{secrets.token_hex(4)}"
     try:
         directory.mkdir()
     except OSError as err:
-        annotate("warning", f"could not create the outputs directory ({err}); the path outputs stay empty")
+        annotate("warning", f"could not create the outputs directory ({err}); the path outputs stay empty", budget)
         return None
     return directory
 
@@ -551,20 +638,33 @@ def _run_action(env: dict[str, str], outputs: dict[str, str]) -> int:
         annotate("error", str(err))
         return 2
     python = sys.executable
+    budget = AnnotationBudget()
     if inputs.install:
-        code = install_package(Path(env.get("GITHUB_ACTION_PATH", Path(__file__).resolve().parents[2])), python)
+        action_path = Path(env.get("GITHUB_ACTION_PATH", Path(__file__).resolve().parents[2]))
+        code = install_package(action_path, python, budget)
         if code != 0:
             return code
-    # just installed from the action's own ref, the CLI takes `--report-json`; only an older one kept with
-    # `install: false` may not
-    if not inputs.install and not report_supported(python):
-        annotate(
-            "warning",
-            "the installed pyDeprecate predates `--report-json`, so gaps are not annotated, no job summary is"
-            f" written{_SARIF_SKIPPED if inputs.sarif else ''}; keep `install: true` or upgrade the pyDeprecate"
-            " this job installs",
-        )
-        return run_gate(inputs, python, None, env, outputs)
+    else:
+        # just installed from the action's own ref, the CLI takes both report options; only an older one kept with
+        # `install: false` may lack one
+        support = cli_support(python)
+        if support is CliSupport.NO_REPORT:
+            annotate(
+                "warning",
+                "the installed pyDeprecate predates `--report-json`, so gaps are not annotated, no job summary is"
+                f" written{_SARIF_SKIPPED if inputs.sarif else ''}; keep `install: true` or upgrade the pyDeprecate"
+                " this job installs",
+            )
+            return run_gate(inputs, python, None, env, outputs)
+        if support is CliSupport.REPORT_ONLY and inputs.sarif:
+            # passing `--report-sarif` would fail the gate with a usage error (exit 2); the report still works
+            annotate(
+                "warning",
+                f"the installed pyDeprecate predates `--report-sarif`{_SARIF_SKIPPED}; keep `install: true` or"
+                " upgrade the pyDeprecate this job installs",
+                budget,
+            )
+            inputs = replace(inputs, sarif=False)
     try:
         # a private directory removed on exit, so no report outlives the step or lands in the checkout
         scratch = tempfile.TemporaryDirectory(prefix="pydeprecate-", dir=env.get("RUNNER_TEMP") or None)
@@ -576,17 +676,25 @@ def _run_action(env: dict[str, str], outputs: dict[str, str]) -> int:
         return run_gate(inputs, python, None, env, outputs)
     with scratch as scratch_dir:
         # never created here: only a CLI run that completed writes it, so a missing file means no report
-        return run_gate(inputs, python, Path(scratch_dir) / REPORT_FILENAME, env, outputs)
+        return run_gate(inputs, python, Path(scratch_dir) / REPORT_FILENAME, env, outputs, budget)
 
 
 def publish_report(
-    report: dict[str, Any], report_file: Path, kept: Path | None, sarif_file: Path | None, outputs: dict[str, str]
+    report: dict[str, Any],
+    report_file: Path,
+    kept: Path | None,
+    sarif_file: Path | None,
+    outputs: dict[str, str],
+    budget: AnnotationBudget | None = None,
 ) -> None:
-    """Annotate the report's findings and gaps, and fill the count and path outputs from it and the kept files."""
-    findings = report.get("findings")
-    if isinstance(findings, list):
-        annotate_findings([finding for finding in findings if isinstance(finding, dict)])
-    annotate_gaps([gap for gap in report.get("gaps") or [] if isinstance(gap, dict)])
+    """Annotate the report's gaps and findings, and fill the count and path outputs from it and the kept files.
+
+    The gaps come first: each is a warning that a green run must not lose, while the findings, annotated last, take
+    the slots of ``budget`` that the gate error and the gaps left.
+
+    """
+    budget = AnnotationBudget() if budget is None else budget
+    annotate_gaps([gap for gap in report.get("gaps") or [] if isinstance(gap, dict)], budget)
     summary = report.get("summary")
     if isinstance(summary, dict):
         for name in SUMMARY_OUTPUTS:
@@ -596,9 +704,12 @@ def publish_report(
         try:
             outputs["report-json"] = str(shutil.copy(report_file, kept / REPORT_FILENAME))
         except OSError as err:
-            annotate("warning", f"could not keep a copy of the report for later steps: {err}")
+            annotate("warning", f"could not keep a copy of the report for later steps: {err}", budget)
     if sarif_file is not None and sarif_file.is_file():
         outputs["sarif-file"] = str(sarif_file)
+    findings = report.get("findings")
+    if isinstance(findings, list):
+        annotate_findings([finding for finding in findings if isinstance(finding, dict)], budget)
 
 
 def run_gate(
@@ -607,10 +718,16 @@ def run_gate(
     report_file: Path | None,
     env: dict[str, str],
     outputs: dict[str, str] | None = None,
+    budget: AnnotationBudget | None = None,
 ) -> int:
-    """Run the gate, annotate its findings and gaps, with ``summary`` append its table, and fill the step *outputs*."""
+    """Run the gate, annotate its gaps and findings, with ``summary`` append its table, and fill the step *outputs*.
+
+    ``budget`` counts the annotations the step has raised so far; the gate error is counted in it before the findings.
+
+    """
     outputs = {} if outputs is None else outputs
-    kept = outputs_directory(env, inputs) if report_file is not None else None
+    budget = AnnotationBudget() if budget is None else budget
+    kept = outputs_directory(env, inputs, budget) if report_file is not None else None
     sarif_file = kept / SARIF_FILENAME if kept is not None and inputs.sarif else None
     try:
         returncode = run_cli(build_cli_argv(inputs, python, report_file, sarif_file))
@@ -619,9 +736,9 @@ def run_gate(
         return 1
     gate = exit_status(returncode)
     if gate.code == _CLI_CRASHED:
-        annotate("error", f"pydeprecate {inputs.subcommand} exited 3 (scan or internal error; see the log)")
+        annotate("error", f"pydeprecate {inputs.subcommand} exited 3 (scan or internal error; see the log)", budget)
     elif gate.code != 0:
-        annotate("error", f"pydeprecate {inputs.subcommand} exited {gate.description}")
+        annotate("error", f"pydeprecate {inputs.subcommand} exited {gate.description}", budget)
     if report_file is None:
         if inputs.summary:
             annotate("warning", "no pyDeprecate report is available; skipping the job summary")
@@ -635,7 +752,7 @@ def run_gate(
         skipped = " and the job summary is skipped" if inputs.summary else ""
         annotate("warning", f"the gate wrote no pyDeprecate report, so its gaps are not annotated{skipped}")
         return gate.code
-    publish_report(report, report_file, kept, sarif_file, outputs)
+    publish_report(report, report_file, kept, sarif_file, outputs, budget)
     if inputs.summary:
         table = report.get("table")
         if isinstance(table, str):

@@ -118,6 +118,17 @@ def old_fn(x: int) -> int:
 """
 
 
+def _expired_init(count: int) -> str:
+    """Return the source of a package with ``count`` wrappers, all past their removal at version 2.0."""
+    header = "from deprecate import deprecated\n\n\ndef new_fn(x: int) -> int:\n    return x\n"
+    wrapper = (
+        '\n\n@deprecated(target=new_fn, deprecated_in="1.0", remove_in="1.5")\n'
+        "def old_fn{index}(x: int) -> int:\n"
+        "    pass\n"
+    )
+    return header + "".join(wrapper.format(index=index) for index in range(count))
+
+
 def _finding_record(index: int, level: str = "error") -> dict[str, object]:
     """Build a report finding numbered *index* at *level*, located in a file whose name holds ``:`` and ``,``."""
     return {
@@ -290,6 +301,11 @@ class TestActionInputs:
                 id="fail-on-gap-status",
             ),
             pytest.param(
+                {"subcommand": "status", "sarif": "true"},
+                "input `sarif` has no effect on `status`",
+                id="sarif-status",
+            ),
+            pytest.param(
                 {"fail_on_gap": "true", "exit_zero": "true"},
                 "inputs `fail-on-gap` and `exit-zero` contradict each other",
                 id="fail-on-gap-exit-zero",
@@ -357,6 +373,8 @@ class TestActionInputs:
             pytest.param("install", "1", "install", True, id="install-one"),
             pytest.param("summary", "True", "summary", True, id="summary-mixed-true"),
             pytest.param("summary", "0", "summary", False, id="summary-zero"),
+            pytest.param("sarif", "True", "sarif", True, id="sarif-mixed-true"),
+            pytest.param("sarif", "0", "sarif", False, id="sarif-zero"),
         ],
     )
     def test_reads_documented_value_spellings(self, name: str, raw: str, field: str, expected: object) -> None:
@@ -388,6 +406,7 @@ class TestActionInputs:
             pytest.param("install", "2", id="install-two"),
             pytest.param("summary", "on", id="summary-on"),
             pytest.param("summary", "truee", id="summary-typo"),
+            pytest.param("sarif", "yes", id="sarif-yes"),
             pytest.param("exit-zero", "-1", id="exit-zero-negative"),
         ],
     )
@@ -1069,7 +1088,7 @@ class TestActionSummary:
         _set_action_env(
             monkeypatch, subcommand="check", path="tests.collections.chains", install="false", summary=str(summary)
         )
-        monkeypatch.setattr(action_runner, "report_supported", lambda python: False)
+        monkeypatch.setattr(action_runner, "cli_support", lambda python: action_runner.CliSupport.NO_REPORT)
         code = action_runner.main()
         out = capsys.readouterr().out
         assert code == 0
@@ -1086,39 +1105,110 @@ class TestActionSummary:
         """
         _use_repo_checkout(monkeypatch)
         _set_action_env(monkeypatch, subcommand="check", path="tests.collections.chains", install="false", sarif="true")
-        monkeypatch.setattr(action_runner, "report_supported", lambda python: False)
+        monkeypatch.setattr(action_runner, "cli_support", lambda python: action_runner.CliSupport.NO_REPORT)
         code = action_runner.main()
         assert code == 0
         assert "the `sarif` input is skipped (the `sarif-file` output stays empty)" in capsys.readouterr().out
 
     @pytest.mark.subprocess
+    @pytest.mark.parametrize("sarif", [True, False])
+    def test_cli_without_sarif_option_gates_without_it(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], sarif: bool
+    ) -> None:
+        """A CLI that writes ``--report-json`` but not ``--report-sarif`` is never handed the SARIF option.
+
+        A job sets ``install: false`` and keeps pyDeprecate 0.15, which has the report option but not the SARIF one. The
+        action used to pass ``--report-sarif`` anyway, so the CLI exited 2 with an unrecognised argument and the gate
+        failed before any scan. Now the gate runs with the report alone; with ``sarif`` on, one warning says the input
+        is skipped and the ``sarif-file`` output stays empty, with ``sarif`` off nothing changes and nothing is said.
+        """
+        _use_repo_checkout(monkeypatch)
+        _set_action_env(
+            monkeypatch, subcommand="check", path="tests.collections.chains", install="false", sarif=str(sarif)
+        )
+        output_file = tmp_path / "github_output"
+        monkeypatch.setenv("GITHUB_OUTPUT", str(output_file))
+        monkeypatch.setenv("RUNNER_TEMP", str(tmp_path))
+        monkeypatch.setattr(action_runner, "cli_support", lambda python: action_runner.CliSupport.REPORT_ONLY)
+        run_cli = action_runner.run_cli
+        argvs: list[list[str]] = []
+
+        def _spy_run_cli(argv: list[str]) -> int:
+            argvs.append(argv)
+            return run_cli(argv)
+
+        monkeypatch.setattr(action_runner, "run_cli", _spy_run_cli)
+        code = action_runner.main()
+        out = capsys.readouterr().out
+        written = dict(line.split("=", 1) for line in output_file.read_text(encoding="utf-8").splitlines())
+        assert code == 0
+        assert [arg for arg in argvs[0] if arg.startswith("--report-sarif")] == []
+        assert any(arg.startswith("--report-json=") for arg in argvs[0])
+        assert ("::warning title=pyDeprecate::the installed pyDeprecate predates `--report-sarif`" in out) is sarif
+        assert ("the `sarif` input is skipped (the `sarif-file` output stays empty)" in out) is sarif
+        assert written["sarif-file"] == ""
+        assert written["report-json"] != ""
+
+    @pytest.mark.subprocess
     @pytest.mark.parametrize(
-        ("program", "supported"),
+        ("program", "support"),
         [
-            pytest.param("raise SystemExit(3)", False, id="option-absent"),
-            pytest.param("import deprecate_not_installed_xyz", True, id="package-missing"),
+            pytest.param("raise SystemExit(3)", "NO_REPORT", id="report-option-absent"),
+            pytest.param("raise SystemExit(4)", "REPORT_ONLY", id="sarif-option-absent"),
+            pytest.param("raise SystemExit(0)", "REPORT_AND_SARIF", id="both-options-present"),
+            pytest.param("import deprecate_not_installed_xyz", "REPORT_AND_SARIF", id="package-missing"),
         ],
     )
-    def test_probe_blames_the_version_only_when_option_is_absent(
-        self, monkeypatch: pytest.MonkeyPatch, program: str, supported: bool
+    def test_probe_blames_the_version_only_when_an_option_is_absent(
+        self, monkeypatch: pytest.MonkeyPatch, program: str, support: str
     ) -> None:
-        """Only an importable CLI without the option counts as too old; a missing package is left to the gate.
+        """Only an importable CLI without an option counts as too old; a missing package is left to the gate.
 
         A job sets ``install: false`` but never installed pyDeprecate. Warning that it "predates ``--report-json``"
         would point at the wrong fix; the gate run fails with the real ``ModuleNotFoundError`` instead.
         """
-        monkeypatch.setattr(action_runner, "_REPORT_PROBE", program)
-        assert action_runner.report_supported(sys.executable) is supported
+        monkeypatch.setattr(action_runner, "_CAPABILITY_PROBE", program)
+        assert action_runner.cli_support(sys.executable) is action_runner.CliSupport[support]
 
     @pytest.mark.subprocess
-    def test_probe_finds_report_option_in_checkout(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """The capability probe answers yes for the pyDeprecate of this checkout.
+    @pytest.mark.parametrize(
+        ("options", "support"),
+        [
+            pytest.param("", "NO_REPORT", id="pre-report-cli"),
+            pytest.param('_REPORT_OPTION = "--report-json"\n', "REPORT_ONLY", id="release-0.15"),
+            pytest.param(
+                '_REPORT_OPTION = "--report-json"\n_SARIF_OPTION = "--report-sarif"\n',
+                "REPORT_AND_SARIF",
+                id="current-cli",
+            ),
+        ],
+    )
+    def test_probe_reads_the_options_of_the_installed_cli(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, options: str, support: str
+    ) -> None:
+        """The real probe program tells a stand-in ``deprecate._cli`` of each release apart.
 
-        A probe that looked for the wrong name would silently turn off gap annotations and the summary for every
-        user of the action.
+        The probe looks for the CLI's own option constants. Pointing the child interpreter at a package that defines
+        only some of them shows that a 0.15 CLI, which has the report option but not the SARIF one, is told apart from
+        both an older CLI and the current one.
+        """
+        cli_dir = tmp_path / "stand_in" / "deprecate" / "_cli"
+        cli_dir.mkdir(parents=True)
+        (cli_dir.parent / "__init__.py").write_text("", encoding="utf-8")
+        (cli_dir / "__init__.py").write_text(options, encoding="utf-8")
+        monkeypatch.setenv("PYTHONPATH", str(tmp_path / "stand_in"))
+        monkeypatch.chdir(tmp_path)
+        assert action_runner.cli_support(sys.executable) is action_runner.CliSupport[support]
+
+    @pytest.mark.subprocess
+    def test_probe_finds_report_options_in_checkout(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """The capability probe answers yes for both options in the pyDeprecate of this checkout.
+
+        A probe that looked for a wrong name would silently turn off gap annotations, the summary or the SARIF file
+        for every user of the action.
         """
         _use_repo_checkout(monkeypatch)
-        assert action_runner.report_supported(sys.executable) is True
+        assert action_runner.cli_support(sys.executable) is action_runner.CliSupport.REPORT_AND_SARIF
 
 
 class TestActionOutputSafety:
@@ -1327,6 +1417,25 @@ class TestActionOutputSafety:
         )
 
     @pytest.mark.subprocess
+    def test_gate_error_keeps_an_error_slot(self, tmp_path: Path) -> None:
+        """A failing gate with more error findings than slots still raises its own exit-code error.
+
+        GitHub shows ten error annotations per step. A package with twelve expired wrappers makes the gate exit 1, and
+        the error that names the exit code must stay among the ten, so only nine findings are annotated and the notice
+        counts the three that are left.
+        """
+        pkg = tmp_path / "vpkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text(_expired_init(action_runner.ANNOTATIONS_PER_LEVEL + 2), encoding="utf-8")
+        env = _runner_env(tmp_path, subcommand="expiry", path="vpkg", args="--version 2.0")
+        result = _run_runner(env, cwd=tmp_path)
+        errors = [line for line in result.stdout.splitlines() if line.startswith("::error ")]
+        assert result.returncode == 1, result.stdout + result.stderr
+        assert "::error title=pyDeprecate::pydeprecate expiry exited 1" in errors
+        assert len(errors) == action_runner.ANNOTATIONS_PER_LEVEL
+        assert "::notice title=pyDeprecate::3 more findings; see the log or the report" in result.stdout
+
+    @pytest.mark.subprocess
     @pytest.mark.parametrize(
         ("inputs", "exit_code", "expected"),
         [
@@ -1383,6 +1492,36 @@ class TestActionOutputSafety:
             json.loads(Path(written["report-json"]).read_text(encoding="utf-8"))["schema"]
             == action_runner.REPORT_SCHEMA
         )
+
+    @pytest.mark.subprocess
+    @pytest.mark.parametrize(
+        ("args", "exit_code"),
+        [
+            pytest.param("--verison 2.0", 2, id="usage-error"),
+            pytest.param("", 3, id="crashed-scan"),
+        ],
+    )
+    def test_sarif_file_stays_empty_without_a_report(self, tmp_path: Path, args: str, exit_code: int) -> None:
+        """A run that exits 2 or 3 publishes no SARIF file and no report copy, although ``sarif`` is on.
+
+        A later ``upload-sarif`` step reads ``steps.<id>.outputs.sarif-file``; after a typo in ``args`` (exit 2) or a
+        package that cannot be imported (exit 3) there is nothing to upload, so the output must be the empty string
+        that the step's ``if:`` condition tests for, never a path to a file that does not exist.
+        """
+        pkg = tmp_path / "brokenpkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text("raise RuntimeError('broken on import')\n", encoding="utf-8")
+        output_file = tmp_path / "github_output"
+        env = {
+            **_runner_env(tmp_path, subcommand="check", path="brokenpkg", args=args, sarif="true"),
+            "GITHUB_OUTPUT": str(output_file),
+        }
+        result = _run_runner(env, cwd=tmp_path)
+        written = dict(line.split("=", 1) for line in output_file.read_text(encoding="utf-8").splitlines())
+        assert result.returncode == exit_code, result.stdout + result.stderr
+        assert written["exit-code"] == str(exit_code)
+        assert written["sarif-file"] == ""
+        assert written["report-json"] == ""
 
     @pytest.mark.subprocess
     def test_fail_on_gap_fails_the_step(self, tmp_path: Path) -> None:
@@ -1759,16 +1898,48 @@ class TestFindingAnnotations:
     """``annotate_findings`` turns report findings into workflow-command annotations, capped and escaped."""
 
     def test_capped_with_a_notice_for_the_rest(self, capsys: pytest.CaptureFixture[str]) -> None:
-        """More than the cap of findings give the cap of annotations and one notice counting the rest.
+        """More error findings than a step has error slots give one annotation per slot and a notice for the rest.
 
-        A package with hundreds of expired wrappers must not flood the pull request; the log and report keep them all.
+        A package with hundreds of expired wrappers must not flood the pull request, and GitHub drops every error
+        annotation past ten per step anyway; the notice counts what was left out, and the log and report keep them all.
         """
         action_runner.annotate_findings(
-            [_finding_record(index) for index in range(action_runner.FINDING_ANNOTATIONS_MAX + 1)]
+            [_finding_record(index) for index in range(action_runner.ANNOTATIONS_PER_LEVEL + 1)]
         )
         lines = capsys.readouterr().out.splitlines()
-        assert len([line for line in lines if line.startswith("::error ")]) == action_runner.FINDING_ANNOTATIONS_MAX
+        assert len([line for line in lines if line.startswith("::error ")]) == action_runner.ANNOTATIONS_PER_LEVEL
         assert lines[-1] == "::notice title=pyDeprecate::1 more findings; see the log or the report"
+
+    def test_gaps_keep_their_warning_slots(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        """Warning findings never crowd out the gap warning of a run whose gate passed.
+
+        A green run with a gap is the one case where the warning is the only signal that part of the audit did not run.
+        Twelve warning findings come with one gap: the gap is raised first, then seven findings fill the warning slots
+        (ten, less the gap and the two kept for the runner's own warnings), and the notice counts the other five.
+        """
+        report = {
+            "gaps": [{"kind": "module not audited", "detail": "pkg.mod: ImportError()", "hint": "install deps"}],
+            "findings": [_finding_record(index, "warning") for index in range(action_runner.ANNOTATIONS_PER_LEVEL + 2)],
+        }
+        action_runner.publish_report(report, tmp_path / "report.json", None, None, {})
+        lines = capsys.readouterr().out.splitlines()
+        warnings = [line for line in lines if line.startswith("::warning ")]
+        assert lines[0].startswith("::warning title=pyDeprecate::module not audited (1): install deps")
+        assert len(warnings) == action_runner.ANNOTATIONS_PER_LEVEL - 2
+        assert lines[-1] == "::notice title=pyDeprecate::5 more findings; see the log or the report"
+
+    def test_notice_counts_in_a_notice_slot(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """The notice that counts the hidden findings is itself a notice annotation, so it takes one of the ten slots.
+
+        Eleven note findings would fill all ten notice slots on their own; the last one gives way, so the step raises
+        nine of them and a notice that counts the two left, ten notice annotations in all.
+        """
+        action_runner.annotate_findings(
+            [_finding_record(index, "note") for index in range(action_runner.ANNOTATIONS_PER_LEVEL + 1)]
+        )
+        notices = [line for line in capsys.readouterr().out.splitlines() if line.startswith("::notice ")]
+        assert len(notices) == action_runner.ANNOTATIONS_PER_LEVEL
+        assert notices[-1] == "::notice title=pyDeprecate::2 more findings; see the log or the report"
 
     def test_errors_first_and_properties_escaped(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Errors are annotated before warnings, and ``:``/``,`` in a file name are escaped as property values.
@@ -1780,6 +1951,84 @@ class TestFindingAnnotations:
         assert lines == [
             "::error file=src/a%3Ab%2Cc.py,line=3,title=pyDeprecate expired::finding 2",
             "::warning file=src/a%3Ab%2Cc.py,line=2,title=pyDeprecate expired::finding 1",
+        ]
+
+    @pytest.mark.parametrize(
+        ("level", "annotation", "count"),
+        [
+            pytest.param("error", "error", action_runner.ANNOTATIONS_PER_LEVEL, id="error"),
+            pytest.param(
+                "warning",
+                "warning",
+                action_runner.ANNOTATIONS_PER_LEVEL - action_runner._TRAILING_WARNING_SLOTS,
+                id="warning",
+            ),
+            pytest.param("note", "notice", action_runner.ANNOTATIONS_PER_LEVEL, id="note"),
+        ],
+    )
+    def test_findings_that_fill_the_slots_exactly_raise_no_notice(
+        self, capsys: pytest.CaptureFixture[str], level: str, annotation: str, count: int
+    ) -> None:
+        """As many findings as a level has slots are all annotated, and nothing is left for a notice to count.
+
+        The cap must not trip one finding early: ten errors or notes, or eight warnings (ten, less the two slots kept
+        for the runner's own warnings), are each raised in full, and the step adds no "more findings" notice.
+        """
+        action_runner.annotate_findings([_finding_record(index, level) for index in range(count)])
+        lines = capsys.readouterr().out.splitlines()
+        assert [line.split(" ", 1)[0] for line in lines] == [f"::{annotation}"] * count
+        assert not [line for line in lines if "more findings" in line]
+
+    def test_levels_are_capped_one_by_one(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """Findings of every level overflow at once: each level keeps its own slots, and one notice counts them all.
+
+        Twelve errors, warnings and notes give ten errors, eight warnings (ten, less the two kept for the runner's own
+        warnings) and nine notes, since the notice that counts the hidden findings takes the tenth notice slot. The
+        notice counts two errors, four warnings and three notes: nine findings.
+        """
+        findings = [
+            _finding_record(index, level)
+            for level in ("error", "warning", "note")
+            for index in range(action_runner.ANNOTATIONS_PER_LEVEL + 2)
+        ]
+        action_runner.annotate_findings(findings)
+        lines = capsys.readouterr().out.splitlines()
+        assert [line.split(" ", 1)[0] for line in lines] == ["::error"] * 10 + ["::warning"] * 8 + ["::notice"] * 10
+        assert lines[-1] == "::notice title=pyDeprecate::9 more findings; see the log or the report"
+
+    @pytest.mark.parametrize(
+        ("text", "escaped"),
+        [
+            pytest.param("50% done", "50%25 done", id="percent"),
+            pytest.param("carriage\rreturn", "carriage%0Dreturn", id="carriage-return"),
+            pytest.param("line one\nline two", "line one%0Aline two", id="newline"),
+            pytest.param("src/a:b.py", "src/a%3Ab.py", id="colon-escaped-once"),
+            pytest.param("src/a,b.py", "src/a%2Cb.py", id="comma"),
+            pytest.param("a%3Ab", "a%253Ab", id="encoded-text-stays-literal"),
+        ],
+    )
+    def test_property_value_is_escaped(self, text: str, escaped: str) -> None:
+        """A property value escapes ``%``, CR and LF like a message, plus ``:`` and ``,``, with ``%`` handled first.
+
+        A file name or rule is the part of an annotation that ends at ``,`` or ``:``. Escaping ``:`` before ``%`` would
+        turn the ``%3A`` it writes into ``%253A``, which the runner reads back as the text ``%3A`` instead of a colon.
+        """
+        assert action_runner.escape_property(text) == escaped
+
+    def test_file_and_title_of_a_finding_cannot_start_a_command(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """A file name or rule holding ``%``, CR, LF, ``:`` or ``,`` stays inside its own property of one annotation.
+
+        A scanned package names its own files and rules; a name with a line break and ``::error::`` in it must not
+        start a second workflow command that the step's log would then run.
+        """
+        finding = {
+            **_finding_record(1),
+            "rule": "bad,rule\n::error::injected",
+            "location": {"file": "a%b\r\nc.py", "line": 4},
+        }
+        action_runner.annotate_findings([finding])
+        assert capsys.readouterr().out.splitlines() == [
+            "::error file=a%25b%0D%0Ac.py,line=4,title=pyDeprecate bad%2Crule%0A%3A%3Aerror%3A%3Ainjected::finding 1"
         ]
 
     def test_unlocated_finding_has_no_file(self, capsys: pytest.CaptureFixture[str]) -> None:

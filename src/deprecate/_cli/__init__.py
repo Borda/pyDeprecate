@@ -31,6 +31,7 @@ from deprecate import __about__
 #: The GitHub Action probes for this name to tell whether the installed CLI writes reports.
 _REPORT_OPTION = "--report-json"
 #: Option of every gate subcommand naming the SARIF 2.1.0 file of the run; ``cli`` handles it itself.
+#: The GitHub Action probes for this name too, to skip its ``sarif`` input on an installed CLI that lacks the option.
 _SARIF_OPTION = "--report-sarif"
 #: Exit code of a run that crashed: the scanned package could not be imported, or the CLI itself failed. Distinct
 #: from 1 (findings) and 2 (usage error), and never downgraded by ``--exit-zero``.
