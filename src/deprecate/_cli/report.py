@@ -2,9 +2,10 @@
 
 import importlib.util
 import json
+import os
 import sys
-from collections.abc import Iterator
-from contextlib import contextmanager
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager, suppress
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from enum import Enum
@@ -593,6 +594,15 @@ def _report_findings_with_sources(record: _RunRecord) -> list[tuple[dict[str, An
     return [(_report_finding(finding, level, path), finding.source_file) for level, finding, path in ordered]
 
 
+def _run_mode(record: _RunRecord) -> str:
+    """Return how the run's gate read the package: ``static`` for a ``--static`` source read, else ``import``.
+
+    Both the ``--report-json`` and the ``--report-sarif`` file name the mode of the same run with this value.
+
+    """
+    return "static" if record.scan is not None and record.scan.static else "import"
+
+
 def _build_report(record: _RunRecord, exit_code: int) -> dict[str, Any]:
     """Return the ``--report-json`` document of the run (layout :data:`_REPORT_SCHEMA`)."""
     findings = _report_findings(record)
@@ -602,8 +612,7 @@ def _build_report(record: _RunRecord, exit_code: int) -> dict[str, Any]:
         "schema": _REPORT_SCHEMA,
         "tool": {"name": "pyDeprecate", "version": __about__.__version__},
         "command": record.command,
-        # how the gate read the package: "static" for a `--static` source read, else "import"
-        "mode": "static" if record.scan is not None and record.scan.static else "import",
+        "mode": _run_mode(record),
         "paths": [scanned.path for scanned in record.scanned],
         "versions": [
             {"path": item.path, "package": item.package, "value": item.version, "source": item.version_source}
@@ -641,10 +650,35 @@ def _write_report(path: str, record: _RunRecord, exit_code: int = 0) -> None:
         exit_code: The process exit code of the run, 0 or 1 (the report is never written for 2 or 3).
 
     """
-    report = _build_report(record, exit_code)
+    _write_json_file(path, lambda: _build_report(record, exit_code), "JSON report")
+
+
+def _write_json_file(path: str, build: Callable[[], dict[str, Any]], label: str) -> None:
+    """Write the JSON document *build* returns to *path*; any failure only prints an advisory and never raises.
+
+    The document is built and encoded to UTF-8 before the file is touched, so a failing build or a string UTF-8 cannot
+    encode (a lone surrogate) leaves no empty or partial file behind for a CI step to publish. The bytes go to a
+    temporary sibling that then replaces *path* in one step, so a write failing midway (a full disk) leaves *path*
+    as it was, never truncated; the temporary file is removed on failure.
+
+    Args:
+        path: File to write; missing parent directories are created.
+        build: Returns the document; called inside the guard, so its ``OSError`` or ``ValueError`` is reported too.
+        label: What the file is, for the advisory: ``JSON report`` or ``SARIF report``.
+
+    """
     out_path = Path(path)
+    temp_path: Optional[Path] = None
     try:
+        data = (json.dumps(build(), indent=2, ensure_ascii=False) + "\n").encode("utf-8")
         out_path.parent.mkdir(parents=True, exist_ok=True)
-        out_path.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    except OSError as err:
-        _print(f"Could not write the JSON report {out_path}: {err}", stderr=True)
+        # a sibling, so the replace is a rename within one directory; the random part keeps concurrent writers apart
+        temp_path = out_path.with_name(f".{out_path.name}.{os.getpid()}-{os.urandom(4).hex()}.tmp")
+        with open(temp_path, "xb") as stream:
+            stream.write(data)
+        os.replace(temp_path, out_path)
+    except (OSError, ValueError) as err:  # UnicodeEncodeError and a circular-reference error are ValueErrors
+        _print(f"Could not write the {label} {out_path}: {err}", stderr=True)
+        if temp_path is not None:
+            with suppress(OSError):  # absent when `open` itself failed
+                temp_path.unlink()

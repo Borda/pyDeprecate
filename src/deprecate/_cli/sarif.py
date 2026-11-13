@@ -3,11 +3,11 @@
 The file holds one run built from the same run record as ``--report-json``: one result per active finding of every
 scanned path (each naming its path), one rule per check rule the subcommand evaluates, the gaps as tool notifications.
 Suppressed findings are left out; a finding whose wrapper has no source file is kept without a location and counted in
-``run.properties.unlocated``.
+``run.properties.unlocated``; a run whose results all lack a location (any ``--static`` run with findings) says so on
+stderr.
 
 """
 
-import json
 import sys
 from pathlib import Path, PurePath
 from typing import Any, Optional
@@ -15,7 +15,13 @@ from urllib.parse import quote
 
 from deprecate import __about__
 from deprecate._cli.findings import _level
-from deprecate._cli.report import _report_findings_with_sources, _report_suppressed, _RunRecord
+from deprecate._cli.report import (
+    _report_findings_with_sources,
+    _report_suppressed,
+    _run_mode,
+    _RunRecord,
+    _write_json_file,
+)
 from deprecate.audit._findings import _Rule
 
 #: The SARIF version written and the JSON schema it validates against.
@@ -136,6 +142,35 @@ def _sarif_result(finding: dict[str, Any], source: Optional[str], rule_index: in
     return result
 
 
+def _print_advisories(total: int, unlocated: int, mode: str) -> None:
+    """Print on stderr what keeps GitHub code scanning from showing the run's results; the file is written as built.
+
+    Args:
+        total: Number of results in the run.
+        unlocated: Results without a location, which code scanning does not display.
+        mode: The run's mode, ``static`` or ``import``; a ``--static`` scan records no source location at all.
+
+    """
+    if total > _RESULTS_LIMIT:
+        print(
+            f"pydeprecate: the SARIF run holds {total} results, more than the {_RESULTS_LIMIT} GitHub code"
+            " scanning accepts; narrow the scan or accept known findings with --ignore or --baseline.",
+            file=sys.stderr,
+        )
+    if total and unlocated == total:
+        # with every result unlocated, an upload shows nothing while the gate may still fail: say so instead
+        cause = (
+            ", as a --static scan records none; run without --static to see them there"
+            if mode == "static"
+            else ", so it shows none of them"
+        )
+        print(
+            f"pydeprecate: none of the run's {total} SARIF result(s) has a source location; GitHub code scanning"
+            f" displays only located results{cause}.",
+            file=sys.stderr,
+        )
+
+
 def _build_sarif(record: _RunRecord, exit_code: int, root: Optional[Path] = None) -> dict[str, Any]:
     """Return the SARIF 2.1.0 document of the run.
 
@@ -149,16 +184,15 @@ def _build_sarif(record: _RunRecord, exit_code: int, root: Optional[Path] = None
     command = record.command or ""
     # a rule's default level is its highest in the run: `--gate` raises a rule to an error for the paths it names
     gates = frozenset().union(*record.gates_by_path.values())
-    rules = [rule for rule in _Rule if _level(rule, command, gates) is not None]
+    # every rule the subcommand evaluates, in `_Rule` order, with its level there; the others have no level
+    rule_levels = {rule: level for rule in _Rule if (level := _level(rule, command, gates)) is not None}
+    rules = list(rule_levels)
     rule_index = {rule.value: index for index, rule in enumerate(rules)}
     findings = _report_findings_with_sources(record)
     results = [_sarif_result(finding, source, rule_index[finding["rule"]], base) for finding, source in findings]
-    if len(results) > _RESULTS_LIMIT:
-        print(
-            f"pydeprecate: the SARIF run holds {len(results)} results, more than the {_RESULTS_LIMIT} GitHub code"
-            " scanning accepts; narrow the scan or accept known findings with --ignore or --baseline.",
-            file=sys.stderr,
-        )
+    unlocated = sum(1 for _, source in findings if source is None)
+    mode = _run_mode(record)
+    _print_advisories(len(results), unlocated, mode)
     return {
         "$schema": _SARIF_SCHEMA,
         "version": _SARIF_VERSION,
@@ -175,7 +209,7 @@ def _build_sarif(record: _RunRecord, exit_code: int, root: Optional[Path] = None
                                 "name": _rule_name(rule),
                                 "shortDescription": {"text": _RULE_TEXT[rule][0]},
                                 "fullDescription": {"text": _RULE_TEXT[rule][1]},
-                                "defaultConfiguration": {"level": _level(rule, command, gates).value},  # type: ignore[union-attr]
+                                "defaultConfiguration": {"level": rule_levels[rule].value},
                             }
                             for rule in rules
                         ],
@@ -195,8 +229,8 @@ def _build_sarif(record: _RunRecord, exit_code: int, root: Optional[Path] = None
                 ],
                 "properties": {
                     "suppressed": len(_report_suppressed(record)),
-                    "unlocated": sum(1 for _, source in findings if source is None),
-                    "mode": "import",
+                    "unlocated": unlocated,
+                    "mode": mode,
                     "paths": [scanned.path for scanned in record.scanned],
                 },
             }
@@ -213,10 +247,4 @@ def _write_sarif(path: str, record: _RunRecord, exit_code: int) -> None:
         exit_code: The process exit code (0 or 1; the file is never written for 2 or 3).
 
     """
-    out_path = Path(path)
-    try:
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-        document = _build_sarif(record, exit_code)
-        out_path.write_text(json.dumps(document, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    except OSError as err:
-        print(f"Could not write the SARIF report {out_path}: {err}", file=sys.stderr)
+    _write_json_file(path, lambda: _build_sarif(record, exit_code), "SARIF report")

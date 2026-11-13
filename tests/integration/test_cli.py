@@ -1574,6 +1574,44 @@ class TestCliReportFindings:
         assert result.returncode == exit_code
         assert not sarif.exists()
 
+    def test_report_sarif_not_written_on_crash(self, tmp_path: Path) -> None:
+        """A package that fails to import exits 3 and writes no SARIF file.
+
+        Nothing was audited; an empty SARIF upload would close every open alert in code scanning as if fixed.
+
+        """
+        pkg = _make_pkg(tmp_path, name="brokenpkg", content="raise RuntimeError('broken on import')\n")
+        sarif = tmp_path / "out.sarif"
+        result = _run_cli("check", str(pkg), f"--report-sarif={sarif}", cwd=tmp_path)
+        assert result.returncode == 3, result.stdout + result.stderr
+        assert not sarif.exists()
+
+    def test_unwritable_report_sarif_keeps_exit_code(self, tmp_path: Path) -> None:
+        """A SARIF path that cannot be written prints an advisory and keeps the gate's own exit code.
+
+        The SARIF file is a by-product for code scanning; its failure must not turn a passing gate red.
+
+        """
+        pkg = _make_pkg(tmp_path)
+        result = _run_cli("check", str(pkg), f"--report-sarif={tmp_path}", cwd=tmp_path)
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "Could not write the SARIF report" in result.stderr
+
+    def test_report_sarif_of_two_paths_names_each_path(self, tmp_path: Path) -> None:
+        """``expiry pkg_a pkg_b`` lists both paths in ``run.properties.paths`` and gives the result its own path.
+
+        A monorepo uploads one SARIF file for every package it audits; each alert must say which package it came from.
+
+        """
+        pkg_a = _make_pkg(tmp_path, name="pkg_a")
+        pkg_b = _make_pkg(tmp_path, name="pkg_b", content=_MYPKG_INIT_MULTI_DIGIT_MINOR)
+        sarif = tmp_path / "out.sarif"
+        result = _run_cli("expiry", str(pkg_a), str(pkg_b), "--version=2.0", f"--report-sarif={sarif}", cwd=tmp_path)
+        run = json.loads(sarif.read_text(encoding="utf-8"))["runs"][0]
+        assert result.returncode == 1, result.stdout + result.stderr
+        assert run["properties"]["paths"] == [str(pkg_a), str(pkg_b)]
+        assert [(res["ruleId"], res["properties"]["path"]) for res in run["results"]] == [("expired", str(pkg_b))]
+
     def test_strict_gap_is_the_gate_reason(self, tmp_path: Path) -> None:
         """A strict run that fails only on a gap records ``gaps`` as the reason, and the gap carries its path.
 

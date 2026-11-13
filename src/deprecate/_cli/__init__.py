@@ -70,7 +70,10 @@ def cli() -> None:
     Every subcommand also takes ``--report-json PATH``: once the subcommand ran with exit code 0 or 1, the run's
     machine-readable record is written there — the deprecation table of the very scan that gated and every gap, each
     with its kind, detail and hint (see :func:`~deprecate._cli.report._write_report`). A usage error (exit 2) writes no
-    report, and a failure to write one never changes the exit code.
+    report, and a failure to write one never changes the exit code. Every subcommand but ``status`` also takes
+    ``--report-sarif PATH``: the run's active findings as a SARIF 2.1.0 file for code scanning (see
+    :func:`~deprecate._cli.sarif._write_sarif`), written under the same rule — only on exit code 0 or 1, and a failure
+    to write it never changes the exit code.
 
     """
     from deprecate._cli.argv import _ensure_utf8_streams, _parse_cli_args

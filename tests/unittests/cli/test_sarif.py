@@ -3,10 +3,19 @@
 import json
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Optional
+from unittest import mock
 
 import pytest
 
-from deprecate._cli.report import _Gap, _GapKind, _RunRecord, _ScannedPath, _SuppressedFinding
+from deprecate._cli.report import (
+    _build_report,
+    _Gap,
+    _GapKind,
+    _RunRecord,
+    _ScannedPath,
+    _ScanRecord,
+    _SuppressedFinding,
+)
 from deprecate._cli.sarif import _artifact_location, _build_sarif, _rule_name, _write_sarif
 from deprecate.audit import DeprecationWrapperInfo
 from deprecate.audit._findings import _Check, _Finding, _make_finding, _Rule
@@ -144,6 +153,89 @@ class TestSarifDocument:
             }
         ]
 
+    @pytest.mark.parametrize(
+        ("scan", "mode"),
+        [
+            pytest.param(_ScanRecord("src/pkg", [], "1.0", static=True), "static", id="static-scan"),
+            pytest.param(_ScanRecord("src/pkg", [], "1.0"), "import", id="import-scan"),
+            pytest.param(None, "import", id="no-recorded-scan"),
+        ],
+    )
+    def test_mode_matches_the_json_report(self, tmp_path: Path, scan: Optional[_ScanRecord], mode: str) -> None:
+        """``run.properties.mode`` names how the gate read the package, exactly as the JSON report's ``mode`` does.
+
+        ``policy --static --report-json=r.json --report-sarif=r.sarif`` writes both files from one source-only scan;
+        a SARIF file claiming an import-mode scan would contradict the report written next to it. A run that recorded
+        no scan, such as ``all``, read the package by importing it.
+
+        """
+        record = _record("policy", scan=scan, table="| pkg |")
+        sarif_mode = _run(_build_sarif(record, 0, root=tmp_path))["properties"]["mode"]
+        assert (sarif_mode, _build_report(record, 0)["mode"]) == (mode, mode)
+
+    @pytest.mark.parametrize(
+        ("static", "advice"),
+        [
+            pytest.param(True, "as a --static scan records none; run without --static to see them there", id="static"),
+            pytest.param(False, "displays only located results, so it shows none of them", id="import"),
+        ],
+    )
+    def test_run_with_only_unlocated_results_warns(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str], static: bool, advice: str
+    ) -> None:
+        """A run whose every result lacks a location says on stderr that code scanning will show none of them.
+
+        ``expiry --static --report-sarif=out.sarif`` fails the gate on an expired wrapper, yet the static source read
+        records no source location, so the uploaded file shows no alert; the advisory names ``--static`` as the
+        cause. An import run of only ``deprecated_instance`` findings gets the same notice without that remedy.
+
+        """
+        finding = _finding(_Rule.EXPIRED, "old_fn", None, line=None, check=_Check.EXPIRY)
+        record = _record("expiry", finding, scan=_ScanRecord("src/pkg", [], "1.0", static=static), table="| pkg |")
+        run = _run(_build_sarif(record, 1, root=tmp_path))
+        err = capsys.readouterr().err
+        assert run["properties"]["unlocated"] == 1
+        assert "none of the run's 1 SARIF result(s) has a source location; GitHub code scanning" in err
+        assert advice in err
+
+    def test_run_with_one_located_result_stays_quiet(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        """No advisory when at least one result has a location code scanning can display.
+
+        An import run that mixes a ``deprecated_instance`` finding with a located wrapper uploads an alert GitHub
+        shows; a notice there would be noise in every CI log.
+
+        """
+        unlocated = _finding(_Rule.EXPIRED, "OLD_CONFIG", None, line=None, check=_Check.EXPIRY)
+        located = _finding(_Rule.EXPIRED, "old_fn", str(tmp_path / "pkg.py"), check=_Check.EXPIRY)
+        _build_sarif(_record("expiry", unlocated, located), 1, root=tmp_path)
+        assert capsys.readouterr().err == ""
+
+    def test_results_over_the_limit_are_written_with_an_advisory(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A run over the code-scanning result limit keeps every result and says on stderr that GitHub rejects it.
+
+        GitHub code scanning refuses a run with more than 25,000 results; the limit is lowered here so two results
+        cross it. Dropping results silently would hide findings, so all are written and the user is told to narrow.
+
+        """
+        monkeypatch.setattr("deprecate._cli.sarif._RESULTS_LIMIT", 1)
+        first = _finding(_Rule.NO_EFFECT, "a_fn", str(tmp_path / "pkg.py"))
+        second = _finding(_Rule.NO_EFFECT, "b_fn", str(tmp_path / "pkg.py"))
+        run = _run(_build_sarif(_record("check", first, second), 0, root=tmp_path))
+        assert len(run["results"]) == 2
+        assert "the SARIF run holds 2 results, more than the 1 GitHub code scanning accepts" in capsys.readouterr().err
+
+    def test_run_without_results_stays_quiet(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        """A clean ``--static`` run has no result to locate, so it prints no advisory.
+
+        A passing gate must not leave a warning-looking line in the CI log.
+
+        """
+        record = _record("expiry", scan=_ScanRecord("src/pkg", [], "1.0", static=True), table="| pkg |")
+        _build_sarif(record, 0, root=tmp_path)
+        assert capsys.readouterr().err == ""
+
     def test_written_file_is_utf8_json(self, tmp_path: Path) -> None:
         """``_write_sarif`` writes the document as UTF-8 JSON, creating missing parent directories.
 
@@ -153,6 +245,92 @@ class TestSarifDocument:
         target = tmp_path / "out" / "report.sarif"
         _write_sarif(str(target), _record("check"), 0)
         assert json.loads(target.read_text(encoding="utf-8"))["version"] == "2.1.0"
+
+
+class TestWriteSarifFailure:
+    """``_write_sarif`` turns every failure into a stderr advisory and leaves no partial file for CI to upload."""
+
+    @mock.patch("deprecate._cli.sarif._build_sarif", autospec=True, side_effect=ValueError("bad value"))
+    def test_build_error_is_an_advisory(
+        self, mock_build: mock.MagicMock, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A ``ValueError`` while building the document prints the advisory and raises nothing.
+
+        ``cli()`` writes the SARIF file after the gate ran; an exception escaping here would turn a decided exit code
+        into a traceback.
+
+        """
+        target = tmp_path / "report.sarif"
+        _write_sarif(str(target), _record("check"), 1)
+        mock_build.assert_called_once()
+        assert f"Could not write the SARIF report {target}: bad value" in capsys.readouterr().err
+        assert not target.exists()
+
+    def test_unencodable_message_leaves_no_file(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        """A finding text with a lone surrogate cannot be UTF-8 encoded: advisory, and no empty file is created.
+
+        A symbol name decoded with ``surrogateescape`` reaches the message as is. Writing such text used to truncate the
+        target first and then fail, leaving a 0-byte file the GitHub Action would still publish for upload.
+
+        """
+        target = tmp_path / "report.sarif"
+        finding = _finding(_Rule.NO_EFFECT, "old_\udcff", str(tmp_path / "pkg.py"))
+        _write_sarif(str(target), _record("check", finding), 0)
+        assert "Could not write the SARIF report" in capsys.readouterr().err
+        assert not target.exists()
+
+    def test_unwritable_target_is_an_advisory(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        """A target whose parent is a file cannot be written; the ``OSError`` becomes the advisory.
+
+        A CI step passing a wrong output path must still keep the gate's own exit code.
+
+        """
+        blocker = tmp_path / "blocker"
+        blocker.write_text("", encoding="utf-8")
+        _write_sarif(str(blocker / "report.sarif"), _record("check"), 0)
+        assert "Could not write the SARIF report" in capsys.readouterr().err
+
+    @mock.patch("deprecate._cli.report.os.replace", autospec=True, side_effect=OSError("disk full"))
+    def test_failed_write_keeps_the_previous_file(
+        self, mock_replace: mock.MagicMock, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A write failing before the file is complete leaves the previous file intact and no temporary file behind.
+
+        The GitHub Action publishes the SARIF path whenever the file exists; a truncated or half-written file there
+        would reach ``upload-sarif`` as corrupt JSON. The document goes to a temporary sibling replaced in one step.
+
+        """
+        target = tmp_path / "report.sarif"
+        target.write_text("previous run\n", encoding="utf-8")
+        _write_sarif(str(target), _record("check"), 0)
+        mock_replace.assert_called_once()
+        assert "Could not write the SARIF report" in capsys.readouterr().err
+        assert target.read_text(encoding="utf-8") == "previous run\n"
+        assert sorted(tmp_path.iterdir()) == [target]
+
+    def test_non_ascii_text_round_trips_as_utf8(self, tmp_path: Path) -> None:
+        """A non-ASCII symbol is written as UTF-8 text, not as ASCII escapes, and reads back unchanged.
+
+        Code scanning shows the message to people; a package with accented or CJK names must read the same in the alert.
+
+        """
+        target = tmp_path / "report.sarif"
+        finding = _finding(_Rule.NO_EFFECT, "café_fn", str(tmp_path / "pkg.py"))
+        _write_sarif(str(target), _record("check", finding), 0)
+        assert "café_fn message".encode() in target.read_bytes()
+        assert _run(json.loads(target.read_bytes()))["results"][0]["message"] == {"text": "café_fn message"}
+
+    def test_rewrite_replaces_the_file_and_leaves_no_temporary(self, tmp_path: Path) -> None:
+        """Writing over an earlier SARIF file replaces it whole, and only the target remains in the directory.
+
+        A re-run in the same CI workspace must not accumulate temporary siblings next to the uploaded file.
+
+        """
+        target = tmp_path / "report.sarif"
+        target.write_text("previous run\n", encoding="utf-8")
+        _write_sarif(str(target), _record("check"), 0)
+        assert json.loads(target.read_bytes())["version"] == "2.1.0"
+        assert sorted(tmp_path.iterdir()) == [target]
 
 
 class TestArtifactLocation:
@@ -190,6 +368,30 @@ class TestArtifactLocation:
                 PureWindowsPath("C:\\\\repo"),
                 {"uri": "file:///D:/other/pkg.py"},
                 id="windows-outside",
+            ),
+            pytest.param(
+                PureWindowsPath("C:\\repo\\src\\pkg.py"),
+                PureWindowsPath("C:\\repo"),
+                {"uri": "src/pkg.py", "uriBaseId": "%SRCROOT%"},
+                id="windows-single-backslash",
+            ),
+            pytest.param(
+                PureWindowsPath("\\\\server\\share\\repo\\src\\pkg.py"),
+                PureWindowsPath("\\\\server\\share\\repo"),
+                {"uri": "src/pkg.py", "uriBaseId": "%SRCROOT%"},
+                id="windows-unc-under-root",
+            ),
+            pytest.param(
+                PurePosixPath("/repo/src/模块/über.py"),
+                PurePosixPath("/repo"),
+                {"uri": "src/%E6%A8%A1%E5%9D%97/%C3%BCber.py", "uriBaseId": "%SRCROOT%"},
+                id="non-ascii-utf8-percent-encoded",
+            ),
+            pytest.param(
+                PurePosixPath("/repo/100%/pkg.py"),
+                PurePosixPath("/repo"),
+                {"uri": "100%25/pkg.py", "uriBaseId": "%SRCROOT%"},
+                id="literal-percent-escaped",
             ),
         ],
     )
