@@ -48,6 +48,8 @@ class _GapKind(str, Enum):
     #: A wrapper's ``deprecated_in`` is not a valid PEP 440 version, so its grace window (``min-grace``) was not
     #: checked.
     DEPRECATED_IN_INVALID = "deprecated_in not PEP 440"
+    #: A forward epoch change makes the grace window unmeasurable.
+    EPOCH_CHANGE = "epoch change"
     #: The ``packaging`` library is missing, so version-based checks were skipped.
     PACKAGING_MISSING = "packaging missing"
     #: A plain-directory scan left the Python files in its subdirectories out.
@@ -67,6 +69,7 @@ _GAP_HINTS: dict[_GapKind, str] = {
     _GapKind.VERSION_INVALID: "pass `--version X.Y` with a valid PEP 440 version",
     _GapKind.REMOVE_IN_INVALID: "set the wrapper's `remove_in` to a valid PEP 440 version such as `2.0`",
     _GapKind.DEPRECATED_IN_INVALID: "set the wrapper's `deprecated_in` to a valid PEP 440 version such as `1.0`",
+    _GapKind.EPOCH_CHANGE: "use versions in the same epoch to make the grace window measurable",
     _GapKind.PACKAGING_MISSING: "install 'pyDeprecate[audit]' to enable version-based checks",
     _GapKind.NESTED_FILES: "scan an importable package (with `__init__.py` files) instead of a plain directory",
     _GapKind.OTHER_COPY: (

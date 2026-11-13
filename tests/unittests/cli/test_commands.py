@@ -4,6 +4,7 @@ import importlib.util
 import inspect
 import json
 import sys
+import warnings
 from collections.abc import Callable, Iterator
 from contextlib import AbstractContextManager
 from pathlib import Path
@@ -1584,6 +1585,32 @@ class TestPolicyVersionGaps:
         assert "so its `min-grace` grace window was not checked." in captured.err
         assert captured.err.count("Strict mode: 1 gap(s) fail this run.") == int(strict)
         assert "No deprecation policy violations found." in captured.out
+
+    @pytest.mark.parametrize("static", [False, True])
+    @pytest.mark.parametrize(
+        ("versions", "kind"),
+        [
+            pytest.param('deprecated_in="first", remove_in="2.0"', "deprecated_in not PEP 440", id="invalid"),
+            pytest.param('deprecated_in="1.0", remove_in="1!2.0"', "epoch change", id="epoch"),
+        ],
+    )
+    def test_warning_errors_still_record_gaps(
+        self, versions: str, kind: str, static: bool, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Strict policy reports skipped checks even when warnings are errors.
+
+        An audited package can configure warning filters; both imported and static scans must complete and record
+        the unmeasurable grace window rather than letting that configuration abort the gate.
+
+        """
+        pkg = _pkg_with_versions(tmp_path, versions)
+        with warnings.catch_warnings(), _record_run() as record:
+            warnings.simplefilter("error", UserWarning)
+            result = cmd_policy(path=str(pkg), strict=True, static=static)
+
+        assert result == 1
+        assert [gap.kind.value for gap in record.gaps] == [kind]
+        assert f"pydeprecate gap: {kind}:" in capsys.readouterr().err
 
     @pytest.mark.parametrize(
         ("versions", "min_grace"),

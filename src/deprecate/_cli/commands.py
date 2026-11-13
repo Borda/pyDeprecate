@@ -134,13 +134,21 @@ def _record_remove_in_gap(info: DeprecationWrapperInfo) -> None:
 
 
 def _record_grace_version_gap(info: DeprecationWrapperInfo, field_name: str) -> None:
-    """Record a wrapper whose *field_name* is not PEP 440 as a gap: its ``min-grace`` window was never checked.
+    """Record an invalid version or forward epoch change that left the grace window unchecked.
 
     ``all`` runs the expiry check first on the same scan, and it already names a wrapper whose ``remove_in`` it skipped;
     the policy pass then adds no second gap for it. When the expiry check did not run (no usable version), it named no
     wrapper, so the policy pass records the gap itself.
 
     """
+    if field_name == "epoch":
+        config = info.deprecated_info
+        _print_gap(
+            _GapKind.EPOCH_CHANGE,
+            f"{_format_subject(info)} spans `{config.deprecated_in}` to `{config.remove_in}`; "
+            "its `min-grace` grace window was not checked.",
+        )
+        return
     kind = _INVALID_VERSION_GAPS[field_name]
     subject = _invalid_version_subject(info, field_name)
     if _gap_recorded(kind, subject):
@@ -622,7 +630,7 @@ def _policy_wrappers(
     The evaluation half of :func:`cmd_policy`, which ``cmd_all`` runs on the wrappers of its single scan.
 
     A wrapper the ``min-grace`` rule skips because its ``deprecated_in`` or ``remove_in`` is not PEP 440 is recorded
-    as a gap (:func:`_record_grace_version_gap`): the audit layer only warns, and the audited package can silence that.
+    as a gap (:func:`_record_grace_version_gap`), as is a forward epoch change that cannot be measured.
     Strict mode then fails the run on it. An unset version is a deliberate choice and records nothing.
 
     Args:

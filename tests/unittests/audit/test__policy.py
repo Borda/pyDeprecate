@@ -3,6 +3,7 @@
 import importlib.util
 import sys
 import types
+import warnings
 from collections.abc import Callable
 from typing import Any, NoReturn, Optional
 from unittest.mock import MagicMock
@@ -814,6 +815,25 @@ class TestUnparsableVersionCallback:
     """``on_unparsable`` hears about every version the grace-window rule skipped, and about nothing else."""
 
     @_requires_packaging
+    def test_custom_warning_hook_failure_propagates(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A failure from an application warning hook remains visible during a policy scan.
+
+        A configured gap callback must not turn a separate error from a custom warning handler into a successful scan.
+        """
+        info = DeprecationWrapperInfo(
+            module="pkg", function="typo", deprecated_info=DeprecationConfig(deprecated_in="bad", remove_in="2.0")
+        )
+
+        def _failing_hook(*args: object, **kwargs: object) -> None:
+            raise UserWarning("warning hook failed")
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("always", UserWarning)
+            monkeypatch.setattr(warnings, "showwarning", _failing_hook)
+            with pytest.raises(UserWarning, match="warning hook failed"):
+                _policy_findings([info], _build_policy_spec("0.3", False), on_unparsable=lambda *_: None)
+
+    @_requires_packaging
     @pytest.mark.parametrize(
         ("config", "field_name"),
         [
@@ -830,7 +850,7 @@ class TestUnparsableVersionCallback:
         ],
     )
     def test_skipped_field_reaches_the_callback(self, config: DeprecationConfig, field_name: str) -> None:
-        """A version field that is set but not PEP 440 is handed to the callback with its name, after the warning.
+        """A version field that is set but not PEP 440 is handed to the callback with its name, before the warning.
 
         The warning alone can be silenced by the audited package, so a caller that must not lose the skip (the CLI's
         strict gate) records it from the callback instead; it needs to know which field to point the user at.
@@ -844,6 +864,21 @@ class TestUnparsableVersionCallback:
 
         assert findings == []
         on_unparsable.assert_called_once_with(info, field_name)
+
+    @_requires_packaging
+    def test_forward_epoch_reaches_callback(self) -> None:
+        """A forward epoch change reports the skipped grace check to the callback.
+
+        The CLI relies on the callback to report checks that cannot measure a window across version epochs.
+
+        """
+        info = DeprecationWrapperInfo(
+            module="pkg", function="epoch", deprecated_info=DeprecationConfig(deprecated_in="1.0", remove_in="1!2.0")
+        )
+        callback = MagicMock()
+        with pytest.warns(UserWarning, match="epoch"):
+            _policy_findings([info], _build_policy_spec("0.3", False), on_unparsable=callback)
+        callback.assert_called_once_with(info, "epoch")
 
     @pytest.mark.parametrize(
         ("config", "min_grace"),
