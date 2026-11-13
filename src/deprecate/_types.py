@@ -474,8 +474,7 @@ class _CallFacts:
         source_keyword_overflow: The source's POSITIONAL_ONLY names when it also declares ``**kwargs``, otherwise
             empty.  A caller keyword with one of these names binds to ``**kwargs``, never to the positional slot, so
             a rewritten call hands it on as a keyword.
-        target_all_param_names: Every parameter name of a callable target; ``None`` derives the names from the
-            target on each forwarded call.
+        target_all_param_names: Every parameter name of a callable target; empty for a mode or unreadable target.
         target_accepts_var_positional: ``True`` when the target declares ``*args``.
         target_accepts_var_keyword: ``True`` when the target declares ``**kwargs``.
         target_positional_only: Names of the target's POSITIONAL_ONLY parameters.
@@ -484,7 +483,7 @@ class _CallFacts:
         target_positional_names: The target's leading positional parameter names, up to its ``*args`` or its first
             keyword-only parameter, which a surplus ``*args`` tail is forwarded after; ``None`` when the target
             signature could not be read at decoration (the forwarded call then raises
-            :attr:`target_signature_error`), or when the facts were built by hand (the call reads the target).
+            :attr:`target_signature_error`).
         source_defaults: Each source parameter that has a default, mapped to that default, in declaration order.  Left
             out of equality and the hash, so the record stays hashable whatever the default values are.
         target_signature_error: The ``TypeError`` or ``ValueError`` that reading a callable target's signature raised
@@ -502,7 +501,7 @@ class _CallFacts:
     source_positional_only: frozenset[str] = frozenset()
     source_positional_only_order: tuple[str, ...] = ()
     source_keyword_overflow: frozenset[str] = frozenset()
-    target_all_param_names: Optional[frozenset[str]] = None
+    target_all_param_names: frozenset[str] = frozenset()
     target_accepts_var_positional: bool = False
     target_accepts_var_keyword: bool = False
     target_positional_only: frozenset[str] = frozenset()
@@ -620,9 +619,6 @@ class _CallPlan:
         resolved_kwargs: Final kwargs after positional-to-keyword conversion, defaults injection, ``args_mapping``
             remap, and ``args_extra`` merge when the wrapper rewrites the call.  On a :attr:`verbatim` plan nothing is
             converted, so this holds the caller's keyword arguments unchanged.
-        reason_argument: Subset of ``args_mapping`` whose old-arg names appeared in the caller's kwargs.  Non-empty
-            value means the argument-rename warning fired (or was suppressed by ``num_warns`` quota).  Empty when the
-            warning reason was callable-deprecation or when no rename was triggered.
         target_func: Resolved target callable when forwarding is required, or ``None`` when the source body should be
             invoked instead.  ``None`` for :attr:`TargetMode.NOTIFY` and :attr:`TargetMode.ARGS_REMAP`; a validated
             callable when the user passed a forwarding target.
@@ -640,7 +636,6 @@ class _CallPlan:
     short_circuit: bool
     original_kwargs: dict[str, Any]
     resolved_kwargs: dict[str, Any]
-    reason_argument: dict[str, Optional[str]] = field(default_factory=dict)
     target_func: Optional[Callable[..., Any]] = None
     verbatim: bool = False
     keyword_overflow: dict[str, Any] = field(default_factory=dict)

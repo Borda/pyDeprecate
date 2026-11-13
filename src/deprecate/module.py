@@ -161,7 +161,7 @@ def _emit_module_warning(
         should_warn = False
         if state.warned_calls < num_warns:
             with state.lock:
-                should_warn = _consume_warn_budget(state, num_warns, reason_callable=True, reason_argument={})
+                should_warn = _consume_warn_budget(state, num_warns, reason_callable=True)
         if not should_warn:
             return
     if stream is not None:

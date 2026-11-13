@@ -49,28 +49,29 @@ class DeprecatedError(RuntimeError):
     """
 
 
-def _env_as_exceptions(environ: Optional[dict] = None) -> bool:
+def _env_as_exceptions() -> bool:
     """Read the initial global switch value from the environment.
-
-    Args:
-        environ: Mapping to read instead of :data:`os.environ`, for tests.
 
     Returns:
         ``True`` when the variable is set to a recognised truthy word, else ``False``.
 
     Examples:
-        >>> _env_as_exceptions({"DEPRECATE_AS_EXCEPTIONS": "1"})
+        >>> from unittest.mock import patch
+        >>> with patch.dict(os.environ, {"DEPRECATE_AS_EXCEPTIONS": "1"}):
+        ...     _env_as_exceptions()
         True
-        >>> _env_as_exceptions({"DEPRECATE_AS_EXCEPTIONS": "ON"})
+        >>> with patch.dict(os.environ, {"DEPRECATE_AS_EXCEPTIONS": "ON"}):
+        ...     _env_as_exceptions()
         True
-        >>> _env_as_exceptions({"DEPRECATE_AS_EXCEPTIONS": "maybe"})
+        >>> with patch.dict(os.environ, {"DEPRECATE_AS_EXCEPTIONS": "maybe"}):
+        ...     _env_as_exceptions()
         False
-        >>> _env_as_exceptions({})
+        >>> with patch.dict(os.environ, {}, clear=True):
+        ...     _env_as_exceptions()
         False
 
     """
-    env = os.environ if environ is None else environ
-    return env.get(_ENV_VAR, "").strip().lower() in _TRUTHY
+    return os.environ.get(_ENV_VAR, "").strip().lower() in _TRUTHY
 
 
 #: Import-time snapshot of the environment, used to seed ``deprecate.AS_EXCEPTIONS`` and as the fallback for

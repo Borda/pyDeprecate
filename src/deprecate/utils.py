@@ -20,6 +20,7 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 
 """
 
+import dataclasses
 import inspect
 import warnings
 from collections.abc import Generator, Mapping
@@ -67,7 +68,7 @@ def get_func_arguments_types_defaults(func: Callable) -> list[tuple[str, Any, An
         - Excludes *args and **kwargs (use inspect.getfullargspec for those)
 
     """
-    func_default_params = _get_signature(func).parameters
+    func_default_params = inspect.signature(func).parameters
     func_arg_type_val = []
     for arg in func_default_params:
         param = func_default_params[arg]
@@ -78,17 +79,6 @@ def get_func_arguments_types_defaults(func: Callable) -> list[tuple[str, Any, An
             continue
         func_arg_type_val.append((arg, param.annotation, param.default))
     return func_arg_type_val
-
-
-def _get_signature(func: Callable) -> inspect.Signature:
-    """Read the signature of a callable with :func:`inspect.signature`, without caching it.
-
-    Read when a callable is decorated (through :func:`_signature_facts`) and by the audit helpers, never on a
-    deprecated call: the wrapper keeps the facts it needs.  No cache holds the callable, so reading its signature never
-    keeps it alive.
-
-    """
-    return inspect.signature(func)
 
 
 #: Parameter kinds that can be filled by a positional argument, in the order a signature declares them.
@@ -130,8 +120,7 @@ class _SigFacts:
 def _signature_facts(obj: Callable[..., Any], *, empty_on_error: bool = False) -> _SigFacts:
     """Read the signature of a callable once and return every fact the decorator and the proxy need from it.
 
-    A class reports its constructor parameters without ``self``, as :func:`inspect.signature` does.  The signature
-    is read through :func:`_get_signature`.
+    A class reports its constructor parameters without ``self``, as :func:`inspect.signature` does.
 
     Args:
         obj: The callable to inspect.
@@ -155,7 +144,7 @@ def _signature_facts(obj: Callable[..., Any], *, empty_on_error: bool = False) -
 
     """
     try:
-        params = list(_get_signature(obj).parameters.values())
+        params = list(inspect.signature(obj).parameters.values())
     except (TypeError, ValueError):
         if not empty_on_error:
             raise
@@ -184,8 +173,6 @@ def _is_dataclass_target(cls: Any) -> bool:  # noqa: ANN401
     ``attrs_mapping`` → ``args_mapping`` expansion.
 
     """
-    import dataclasses
-
     return isinstance(cls, type) and dataclasses.is_dataclass(cls)
 
 
