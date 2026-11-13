@@ -21,6 +21,7 @@ from deprecate._frames import _caller_stacklevel
 from deprecate._types import DeprecationConfig, TargetMode, _has_deprecation_meta, get_deprecation_config
 from deprecate.deprecation import deprecated
 from deprecate.proxy import _DeprecatedProxy
+from deprecate.proxy.core import _static_type_view
 from deprecate.utils import get_func_arguments_types_defaults
 
 
@@ -444,6 +445,8 @@ def _scan_module_meta(mod: Any) -> DeprecationWrapperInfo:  # noqa: ANN401
     )
 
 
+# Validation only inspects the wrapper, so its type checks must not run a user's ``skip_if`` condition.
+@_static_type_view
 def validate_deprecation_wrapper(func: Union[Callable, types.ModuleType]) -> DeprecationWrapperInfo:
     """Validate a deprecated callable or module wrapper and return structured metadata.
 

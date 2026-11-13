@@ -29,6 +29,7 @@ from deprecate.audit._wrappers import (
     validate_deprecation_wrapper,
 )
 from deprecate.proxy import _DeprecatedProxy
+from deprecate.proxy.core import _static_type_view
 
 
 # Note: Proxy objects are discoverable via the generic ``_has_deprecation_meta(obj)`` gate (no ``callable(obj)``
@@ -212,18 +213,6 @@ def _member_has_deprecation_meta(obj: Any) -> bool:  # noqa: ANN401
     return any(_has_deprecation_meta(c) for c in _descriptor_underlying_callables(obj))
 
 
-def _member_is_deprecated(obj: Any, pep702_message: Optional[str]) -> bool:  # noqa: ANN401
-    """Return whether a class member carries either deprecation marker, so a private member stays in the scan.
-
-    Args:
-        obj: The raw class member (possibly a descriptor).
-        pep702_message: The member's own PEP 702 message, already looked up by the caller, or ``None`` when it has
-            none or the scan did not opt in to PEP 702.
-
-    """
-    return _member_has_deprecation_meta(obj) or pep702_message is not None
-
-
 def _scan_class_member(
     obj: Any,  # noqa: ANN401
     module_name: str,
@@ -347,7 +336,11 @@ def _scan_class(
         pep702_message = _descriptor_pep702_message(obj) if attr_name in pep702_names else None
         if pep702_message is not None and _member_defined_in_other_package(obj, module_name):
             pep702_message = None
-        if attr_name.startswith("_") and attr_name != "__init__" and not _member_is_deprecated(obj, pep702_message):
+        if (
+            attr_name.startswith("_")
+            and attr_name != "__init__"
+            and not (_member_has_deprecation_meta(obj) or pep702_message is not None)
+        ):
             continue
         qualified = f"{cls_name}.{attr_name}"
         result = _scan_class_member(obj, module_name, qualified, attr_name)
@@ -653,6 +646,8 @@ def _walk_submodules(package: Any, exclude: Sequence[str]) -> Iterator[Any]:  # 
             yield from _walk_submodules(submod, exclude)
 
 
+# Scanning only inspects proxies, so their type checks must not run a user's ``skip_if`` condition.
+@_static_type_view
 def find_deprecation_wrappers(
     module: Union[Any, str],  # noqa: ANN401
     recursive: bool = True,

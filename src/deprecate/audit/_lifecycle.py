@@ -13,6 +13,7 @@ import importlib
 import re
 import warnings
 from collections.abc import Callable, Sequence
+from functools import partial
 from typing import TYPE_CHECKING, Any, Optional, Union
 
 if TYPE_CHECKING:
@@ -241,6 +242,33 @@ def _check_expiry_for_callables(results: list[DeprecationWrapperInfo], current_v
     return [finding.message for finding in _expiry_findings(results, current_version)]
 
 
+def _warn_version_skip(message: str, callback: Optional[Callable[[], None]]) -> None:
+    """Record a skipped version check before warning, swallowing only its own warning when recorded.
+
+    A warning promoted to an error is suppressed only when a callback recorded the gap. Failures from a custom
+    warning hook propagate, while the gap remains recorded.
+
+    Examples:
+        >>> import warnings
+        >>> skipped = []
+        >>> with warnings.catch_warnings():
+        ...     warnings.simplefilter("error", UserWarning)
+        ...     _warn_version_skip("invalid version", partial(skipped.append, "gap"))
+        >>> skipped
+        ['gap']
+
+    """
+    if callback is not None:
+        callback()
+    warning = UserWarning(message)
+    try:
+        warnings.warn(warning, stacklevel=_caller_stacklevel())
+    except UserWarning as ex:
+        # Suppress only this warning under an error filter, never a custom warning hook's own failure.
+        if callback is None or ex is not warning:
+            raise
+
+
 def _expiry_findings(
     results: list[DeprecationWrapperInfo],
     current_version: str,
@@ -254,7 +282,7 @@ def _expiry_findings(
     Args:
         results: Pre-scanned wrapper info list.
         current_version: Current package version string for comparison (PEP 440).
-        on_unparsable: Called with each wrapper skipped for an unparsable ``remove_in``, after its warning, so a
+        on_unparsable: Called with each wrapper skipped for an unparsable ``remove_in``, before its warning, so a
             caller can record the skip on a channel the audited package cannot silence (the CLI records a gap).
 
     Raises:
@@ -274,18 +302,12 @@ def _expiry_findings(
             # An unparsable ``remove_in`` (e.g. a typo) would make the wrapper permanently un-expirable and the
             # batch gate would never flag it. Warn per skip so the misconfiguration is visible rather than silent,
             # while the batch scan keeps going for the rest.
-            warning = UserWarning(
+            message = (
                 f"{_format_subject(info)} has an unparsable `remove_in` version `{remove_in}`; "
                 "its expiry cannot be checked until the version string is fixed."
             )
-            try:
-                warnings.warn(warning, stacklevel=_caller_stacklevel())
-            except UserWarning as ex:
-                # Only suppress this warning under an error filter; a custom warning hook's own failure propagates.
-                if on_unparsable is None or ex is not warning:
-                    raise
-            if on_unparsable is not None:
-                on_unparsable(info)
+            callback = partial(on_unparsable, info) if on_unparsable is not None else None
+            _warn_version_skip(message, callback)
             continue
         if current_ver >= remove_ver:
             message = (

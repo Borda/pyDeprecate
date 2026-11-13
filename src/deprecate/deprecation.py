@@ -345,8 +345,7 @@ def deprecated(
                     docstring_style=docstring_style,
                 ),
             )
-        # Non-class source from here — the decoration-time guard lives in ``_dispatch.py``
-        # alongside ``_reject_bare_decorator``, the sibling guard this dispatcher also uses.
+        # Select the plain-object or bare-decorator error here; the strict callable path owns the source checks.
         _reject_non_callable_source(source, target)
         # ``_is_static`` is an internal parameter of ``deprecated_callable``'s ``packing``,
         # intentionally omitted from its public return annotation (hence the call-arg ignore).

@@ -4,17 +4,17 @@ import importlib.util
 import json
 import os
 import sys
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from contextlib import contextmanager, suppress
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path, PurePath
-from typing import Any, NamedTuple, Optional
+from typing import Any, NamedTuple, Optional, TypeVar
 
 from deprecate import __about__
 from deprecate._cli._pkg import _safe_module_name
-from deprecate._cli.findings import _GATE_ORDER, _LEVEL_RANK, _GateReason, _Level, _level
+from deprecate._cli.findings import _LEVEL_RANK, _GateReason, _Level, _level
 from deprecate._cli.suppress import _Suppressor
 from deprecate.audit import DeprecationWrapperInfo, TableStyle
 from deprecate.audit._findings import _Finding, _Rule
@@ -113,8 +113,6 @@ class _ScanRecord:
     version: Optional[str] = None
     #: Read from source with ``ast`` (``--static``) rather than imported; the report table must not import it either.
     static: bool = False
-    #: Directory holding the top-level package of a static scan, where its version is read from source.
-    import_root: Optional[Path] = None
     #: Serializable check results and output from an isolated importing scan, if this scan ran in a worker.
     worker: Optional[dict[str, Any]] = None
 
@@ -256,14 +254,12 @@ def _record_scanned_path(path: str, version: Optional[str], *, user_provided: bo
 def _merge_option(name: str, current: Any, value: Any) -> Any:  # noqa: ANN401
     """Return the run-level value of option *name* after one more path resolved it to *value*.
 
-    ``strict`` is on when any path is strict, ``gates`` is the union in report order and ``exclude`` the union in path
-    order; any other option keeps the latest value.
+    ``strict`` is on when any path is strict and ``exclude`` is the union in path order; any other option keeps the
+    latest value.
 
     Examples:
         >>> _merge_option("strict", True, False), _merge_option("exclude", ["a"], ["b", "a"])
         (True, ['a', 'b'])
-        >>> _merge_option("gates", ["chains"], ["policy"])
-        ['policy', 'chains']
 
     """
     if current is None:
@@ -272,8 +268,6 @@ def _merge_option(name: str, current: Any, value: Any) -> Any:  # noqa: ANN401
         return bool(current or value)
     if name == "exclude":
         return [*current, *(item for item in value if item not in current)]
-    if name == "gates":
-        return [check for check in _GATE_ORDER if check in current or check in value]
     return value
 
 
@@ -364,10 +358,21 @@ def _gap_recorded(kind: _GapKind, detail_prefix: str) -> bool:
     )
 
 
-def _print_skipped_modules(skipped: dict[str, str]) -> None:
-    """Print one :attr:`_GapKind.MODULE_NOT_AUDITED` line per skipped module (``name: error repr``) to stderr."""
-    for module_name, reason in skipped.items():
-        _print_gap(_GapKind.MODULE_NOT_AUDITED, f"{module_name}: {reason}")
+def _report_nested_files(directory: Path) -> None:
+    """Report the Python files below a plain directory that its top-level scan leaves unaudited.
+
+    Examples:
+        >>> from tempfile import TemporaryDirectory
+        >>> with TemporaryDirectory() as root:
+        ...     _report_nested_files(Path(root))
+
+    """
+    if any(not fpy.name.startswith("__") for fpy in directory.rglob("*.py") if fpy.parent != directory):
+        _print_gap(
+            _GapKind.NESTED_FILES,
+            "Skipping nested Python files in plain directory scan. Use an importable package layout with '__init__.py'"
+            " files, or scan an importable module/package path instead.",
+        )
 
 
 def _print(msg: str, *, stderr: bool = False) -> None:
@@ -416,29 +421,25 @@ class _Reporter:
     """Print each kind of finding as a section: a ``[ERROR]``/``[WARNING]`` header line, then one line per finding."""
 
     @staticmethod
-    def _render_table(plain_prefix: str, findings: list[_Finding]) -> None:
-        """Print a section of ``module.function: detail`` lines under its header line."""
+    def _render_table(plain_prefix: str, messages: Iterable[str]) -> None:
+        """Print a section of finding rows or whole messages under its header line."""
         _print(f"\n{plain_prefix}")
-        for finding in findings:
-            _print(f"\t- {finding.module}.{finding.symbol}: {_row_detail(finding)}")
+        for message in messages:
+            _print(f"\t- {message}")
 
     @staticmethod
     def chains(findings: list[_Finding], *, error: bool = False) -> None:
         """Report deprecated-to-deprecated forwarding chains; ``error=True`` reports them as ``[ERROR]``."""
         prefix = "[ERROR]" if error else "[WARNING]"
-        _Reporter._render_table(f"{prefix} {_SECTION_HEADERS[_Rule.CHAIN]}", findings)
-
-    @staticmethod
-    def _render_message_table(plain_prefix: str, messages: list[str]) -> None:
-        """Print a section of whole-message lines under its header line, shared by the expiry and policy reports."""
-        _print(f"\n{plain_prefix}")
-        for msg in messages:
-            _print(f"\t- {msg}")
+        _Reporter._render_table(
+            f"{prefix} {_SECTION_HEADERS[_Rule.CHAIN]}",
+            (f"{finding.module}.{finding.symbol}: {_row_detail(finding)}" for finding in findings),
+        )
 
     @staticmethod
     def expiry(expired: list[str]) -> None:
         """Report deprecated wrappers that have passed their ``remove_in`` deadline."""
-        _Reporter._render_message_table("[ERROR] Found expired deprecated wrappers:", expired)
+        _Reporter._render_table("[ERROR] Found expired deprecated wrappers:", expired)
 
     @staticmethod
     def policy(violations: list[str], *, advisory: bool = False) -> None:
@@ -449,7 +450,7 @@ class _Reporter:
 
         """
         prefix = "[WARNING]" if advisory else "[ERROR]"
-        _Reporter._render_message_table(f"{prefix} Found deprecation policy violations:", violations)
+        _Reporter._render_table(f"{prefix} Found deprecation policy violations:", violations)
 
     @staticmethod
     def issues(findings: list[_Finding], *, error_on_chains: bool = False) -> bool:
@@ -468,7 +469,10 @@ class _Reporter:
             if rule is _Rule.CHAIN:
                 _Reporter.chains(rows, error=error_on_chains)
             else:
-                _Reporter._render_table(_SECTION_HEADERS[rule], rows)
+                _Reporter._render_table(
+                    _SECTION_HEADERS[rule],
+                    (f"{finding.module}.{finding.symbol}: {_row_detail(finding)}" for finding in rows),
+                )
         return printed
 
 
@@ -598,48 +602,57 @@ def _report_finding(finding: _Finding, level: _Level, path: Optional[str], root:
     }
 
 
-def _report_suppressed(record: _RunRecord, root: Path) -> list[dict[str, Any]]:
-    """Return the run's suppressed findings, one per id, each with what suppressed it, sorted like the findings."""
-    best: dict[str, tuple[_Level, _SuppressedFinding]] = {}
-    for item in record.suppressed:
-        level = _level(item.finding.rule, record.command or "", record.gates_by_path.get(item.path, frozenset()))
-        if level is None:
-            continue
-        kept = best.get(item.finding.id)
-        if kept is None or _LEVEL_RANK[level] < _LEVEL_RANK[kept[0]]:
-            best[item.finding.id] = (level, item)
-    ordered = sorted(best.values(), key=lambda pair: (_LEVEL_RANK[pair[0]], pair[1].finding.id))
-    return [
-        {
-            **_report_finding(item.finding, level, item.path, root),
-            "suppressed_by": {"kind": item.kind, "entry": item.entry},
-        }
-        for level, item in ordered
-    ]
+_ReportItem = TypeVar("_ReportItem")
 
 
-def _report_findings(record: _RunRecord, root: Path) -> list[dict[str, Any]]:
-    """Return the run's findings, one per id at its highest level in the subcommand, sorted by ``(level, id)``.
+def _best_findings(
+    record: _RunRecord, items: Iterable[tuple[_Finding, Optional[str], _ReportItem]]
+) -> list[tuple[_Level, _Finding, Optional[str], _ReportItem]]:
+    """Select each id's first finding at its highest level, carrying its caller's data, sorted by level and id.
 
-    ``all`` derives a ``chain`` finding in its ``check`` pass and again in its ``chains`` pass; the two are one record,
-    at the higher level. Findings the subcommand does not evaluate are left out. Locations are relative to *root*.
+    Examples:
+        >>> from deprecate.audit._findings import _Check
+        >>> finding = _Finding(_Rule.MIN_GRACE, _Check.POLICY, "pkg", "old", "function", "old", "window")
+        >>> record = _RunRecord(command="all", gates_by_path={"strict": frozenset({"policy"})})
+        >>> items = [(finding, None, "first"), (finding, "strict", "gated"), (finding, "strict", "tie")]
+        >>> [(level.value, item) for level, _, _, item in _best_findings(record, items)]
+        [('error', 'gated')]
 
     """
-    return [finding for finding, _ in _report_findings_with_sources(record, root)]
-
-
-def _report_findings_with_sources(record: _RunRecord, root: Path) -> list[tuple[dict[str, Any], Optional[str]]]:
-    """Return :func:`_report_findings` paired with each finding's absolute source file (``None`` when unlocated)."""
-    best: dict[str, tuple[_Level, _Finding, Optional[str]]] = {}
-    for finding, path in zip(record.findings, record.finding_paths):
+    best: dict[str, tuple[_Level, _Finding, Optional[str], _ReportItem]] = {}
+    for finding, path, item in items:
         level = _level(finding.rule, record.command or "", record.gates_by_path.get(path, frozenset()))
         if level is None:
             continue
         kept = best.get(finding.id)
         if kept is None or _LEVEL_RANK[level] < _LEVEL_RANK[kept[0]]:
-            best[finding.id] = (level, finding, path)
-    ordered = sorted(best.values(), key=lambda item: (_LEVEL_RANK[item[0]], item[1].id))
-    return [(_report_finding(finding, level, path, root), finding.source_file) for level, finding, path in ordered]
+            best[finding.id] = (level, finding, path, item)
+    return sorted(best.values(), key=lambda item: (_LEVEL_RANK[item[0]], item[1].id))
+
+
+def _report_suppressed(record: _RunRecord, root: Path) -> list[dict[str, Any]]:
+    """Return the run's suppressed findings, one per id, each with what suppressed it, sorted like the findings."""
+    ordered = _best_findings(record, ((item.finding, item.path, item) for item in record.suppressed))
+    return [
+        {
+            **_report_finding(finding, level, path, root),
+            "suppressed_by": {"kind": item.kind, "entry": item.entry},
+        }
+        for level, finding, path, item in ordered
+    ]
+
+
+def _report_findings_with_sources(record: _RunRecord, root: Path) -> list[tuple[dict[str, Any], Optional[str]]]:
+    """Return each highest-level finding paired with its absolute source file (``None`` when unlocated).
+
+    ``all`` derives a ``chain`` finding in its ``check`` pass and again in its ``chains`` pass; the two are one record,
+    at the higher level. Findings the subcommand does not evaluate are left out. Locations are relative to *root*.
+
+    """
+    ordered = _best_findings(
+        record, ((finding, path, finding.source_file) for finding, path in zip(record.findings, record.finding_paths))
+    )
+    return [(_report_finding(finding, level, path, root), source) for level, finding, path, source in ordered]
 
 
 def _run_mode(record: _RunRecord) -> str:
@@ -654,7 +667,7 @@ def _run_mode(record: _RunRecord) -> str:
 def _build_report(record: _RunRecord, exit_code: int) -> dict[str, Any]:
     """Return the ``--report-json`` document of the run (layout :data:`_REPORT_SCHEMA`)."""
     root = _location_root()
-    findings = _report_findings(record, root)
+    findings = [finding for finding, _ in _report_findings_with_sources(record, root)]
     suppressed = _report_suppressed(record, root)
     levels = [finding["level"] for finding in findings]
     return {

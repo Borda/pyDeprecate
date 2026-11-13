@@ -10,6 +10,7 @@ import time
 import traceback
 import warnings
 from collections.abc import Iterator
+from dataclasses import replace
 from typing import Any, Callable, Optional, Union, cast
 from unittest import mock
 
@@ -33,11 +34,11 @@ from deprecate._dispatch import (
     _split_positional_only_kwargs,
     _target_signature_facts,
     _update_kwargs_with_args,
-    _update_kwargs_with_defaults,
     _var_positional_source_call,
     _WrapperContext,
 )
 from deprecate._types import DeprecationConfig, _CallFacts, _CallPlan, _DeprecatedCallable, _WrapperState
+from deprecate.messaging import deprecation_warning
 from deprecate.utils import _signature_facts
 from tests._helpers import captured_warnings
 from tests.collections.api_current.core import (
@@ -162,12 +163,17 @@ def test_call_plan_rejects_surplus_positionals() -> None:
 
 def test_class_target_uses_call_signature_for_validation() -> None:
     """Class targets validate against metaclass __call__ when not forwarding __init__."""
-    target_callable = _prepare_target_call(call_signature_source, KeywordCallTarget, {"value": "red"})
-    assert target_callable is KeywordCallTarget
+    facts = _build_call_facts(call_signature_source, KeywordCallTarget, None)
+    _prepare_target_call(
+        call_signature_source,
+        {"value": "red"},
+        target_arg_names=facts.target_all_param_names,
+        accepts_var_keyword=facts.target_accepts_var_keyword,
+    )
 
 
-class TestUpdateKwargsWithDefaults:
-    """Tests for _update_kwargs_with_defaults — fills missing kwargs with the target function's default values."""
+class TestSourceDefaultsMerging:
+    """Source defaults fill missing arguments without overwriting caller values."""
 
     def test_fills_missing_defaults(self) -> None:
         """All defaulted params that are absent from kwargs are added with their default values."""
@@ -175,7 +181,7 @@ class TestUpdateKwargsWithDefaults:
         def my_func(a: int = 1, b: int = 2, c: int = 3) -> None:
             pass
 
-        result = _update_kwargs_with_defaults(_signature_facts(my_func).defaults, {})
+        result = _merge_source_defaults(_signature_facts(my_func).defaults, my_func, {}, None)
         assert result == {"a": 1, "b": 2, "c": 3}
 
     def test_provided_kwargs_override_defaults(self) -> None:
@@ -184,7 +190,7 @@ class TestUpdateKwargsWithDefaults:
         def my_func(a: int = 1, b: int = 2, c: int = 3) -> None:
             pass
 
-        result = _update_kwargs_with_defaults(_signature_facts(my_func).defaults, {"b": 20})
+        result = _merge_source_defaults(_signature_facts(my_func).defaults, my_func, {"b": 20}, None)
         assert result == {"a": 1, "b": 20, "c": 3}
 
     def test_params_without_defaults_not_included(self) -> None:
@@ -193,7 +199,7 @@ class TestUpdateKwargsWithDefaults:
         def my_func(required: int, optional: int = 5) -> None:
             pass
 
-        result = _update_kwargs_with_defaults(_signature_facts(my_func).defaults, {})
+        result = _merge_source_defaults(_signature_facts(my_func).defaults, my_func, {}, None)
         assert result == {"optional": 5}
         assert "required" not in result
 
@@ -203,7 +209,7 @@ class TestUpdateKwargsWithDefaults:
         def my_func(a: int, b: str) -> None:
             pass
 
-        result = _update_kwargs_with_defaults(_signature_facts(my_func).defaults, {"a": 7})
+        result = _merge_source_defaults(_signature_facts(my_func).defaults, my_func, {"a": 7}, None)
         assert result == {"a": 7}
 
 
@@ -927,7 +933,6 @@ class TestTargetFactsPrecompute:
         with pytest.raises(TypeError, match="not accepted by target"):
             _prepare_target_call(
                 _tgt,
-                _tgt,
                 {"c": 1},
                 target_arg_names=frozenset({"a", "b"}),
                 accepts_var_positional=False,
@@ -1069,12 +1074,13 @@ def test_callable_target_round_trip_returns_target_func() -> None:
     """Callable target with matching kwargs returns ``short_circuit=False`` and the resolved ``target_func``."""
     cfg = DeprecationConfig(deprecated_in="1.0", remove_in="2.0", name="src", target=double_value)
     ctx = _make_context(double_value, cfg, double_value)
-    plan = _build_call_plan(ctx, (), {"x": 3})
+    ctx = replace(ctx, stream=deprecation_warning)
+    with pytest.warns(FutureWarning, match="double_value"):
+        plan = _build_call_plan(ctx, (), {"x": 3})
 
     assert plan.short_circuit is False
     assert plan.target_func is double_value
     assert plan.resolved_kwargs == {"x": 3}
-    assert plan.reason_argument == {}
 
 
 @pytest.mark.parametrize(
@@ -1185,11 +1191,13 @@ def test_args_remap_migrated_caller_short_circuits() -> None:
         deprecated_in="1.0", remove_in="2.0", name="src", target=TargetMode.ARGS_REMAP, args_mapping={"old_x": "x"}
     )
     ctx = _make_context(identity_value, cfg, TargetMode.ARGS_REMAP)
-    plan = _build_call_plan(ctx, (), {"x": 7})  # caller already migrated — uses new name
+    ctx = replace(ctx, stream=deprecation_warning)
+    with captured_warnings() as caught:
+        plan = _build_call_plan(ctx, (), {"x": 7})  # caller already migrated — uses new name
+    assert caught == []
 
     assert plan.short_circuit is True
     assert plan.target_func is None
-    assert plan.reason_argument == {}
     assert plan.resolved_kwargs == {"x": 7}
 
 
@@ -1202,12 +1210,12 @@ def test_notify_mode_returns_none_target_func() -> None:
     """:attr:`TargetMode.NOTIFY` never resolves a target; the wrapper must execute the source body."""
     cfg = DeprecationConfig(deprecated_in="1.0", remove_in="2.0", name="src", target=TargetMode.NOTIFY)
     ctx = _make_context(identity_value, cfg, TargetMode.NOTIFY)
-    plan = _build_call_plan(ctx, (), {"x": 5})
+    ctx = replace(ctx, stream=deprecation_warning)
+    with pytest.warns(FutureWarning, match="identity_value"):
+        plan = _build_call_plan(ctx, (), {"x": 5})
 
     assert plan.short_circuit is False
     assert plan.target_func is None
-    # NOTIFY always treats every call as a callable-deprecation reason — no per-arg reason fires.
-    assert plan.reason_argument == {}
 
 
 # ---------------------------------------------------------------------------
@@ -1341,17 +1349,48 @@ def test_source_is_stacked_skips_positional_conversion() -> None:
     assert result == 8.0, "Stacked wrapper must compute compute_power(2.0, scale=3.0) == 8.0"
 
 
-def test_surplus_reorder_reads_target_slots_for_hand_built_facts() -> None:
-    """Hand-built facts without slot names make the surplus reorder read the slots from the target.
+def test_forward_defaults_recovers_after_transient_signature_error() -> None:
+    """Preserve call-time recovery when the separate target signature reads disagree.
 
-    A wrapper always precomputes ``target_positional_names`` at decoration, but a context built by hand (as in the
-    ``routine.py`` example, or by a caller reusing the dispatch helpers) carries an empty :class:`_CallFacts`.  The
-    reorder must then read the target's own signature instead of treating it as having no positional slots: ``a``
-    moves back to positional form so the surplus tail can follow it into ``*extras``.
+    A callable exposes a dynamic signature that is readable for call facts, fails for forward-default precomputation,
+    and recovers before the first call. No signature error was stored in the facts, so the defaults merge must still
+    derive its facts at call time and retain the source's shared default.
+    """
 
+    class ChangingSignatureTarget:
+        __name__ = "target"
+
+        def __init__(self) -> None:
+            self.reads = 0
+
+        @property
+        def __signature__(self) -> inspect.Signature:
+            self.reads += 1
+            if self.reads == 2:
+                raise ValueError("temporarily unreadable")
+            return inspect.signature(fn_shared_default_target)
+
+        def __call__(self, x: int, level: int = 2) -> int:
+            return x * level
+
+    target = ChangingSignatureTarget()
+    wrapper = deprecated(target=target, deprecated_in="1.0", remove_in="2.0", stream=None, args_mapping={"old_x": "x"})(
+        source_sharing_level_default
+    )
+
+    assert target.reads == 2
+    assert wrapper(x=3) == 3
+    assert target.reads == 3
+
+
+def test_surplus_reorder_uses_precomputed_target_slots() -> None:
+    """Reorder named arguments before the surplus tail using decoration-time facts.
+
+    A source with ``*args`` forwards its named argument and surplus positionals to a compatible target. The cached
+    slot names put ``a`` before the surplus values so they reach ``*extras`` without a duplicate binding.
     """
     cfg = DeprecationConfig(deprecated_in="1.0", remove_in="2.0", name="src", target=var_positional_target)
-    ctx = _make_context(var_positional_target, cfg, var_positional_target, facts=_CallFacts())
+    ctx = _make_context(var_positional_target, cfg, var_positional_target)
 
     pos_args, kw_args = _reorder_kwargs_for_surplus(ctx, var_positional_target, (5, 6), {"a": 1})
 
@@ -1523,13 +1562,13 @@ def _guarded_reentry_error(ctx: _WrapperContext) -> str:
     handle = _enter_cycle_guard(ctx)
     with pytest.raises(RuntimeError) as err:
         _enter_cycle_guard(ctx)
-    _exit_cycle_guard(ctx, handle)
+    _exit_cycle_guard(handle)
     return str(err.value)
 
 
 def _guard_value_after_exit(ctx: _WrapperContext) -> Optional[tuple[_CycleEntry, ...]]:
     """Enter and exit the cycle guard of ``ctx`` once, then return what the guard's context variable holds."""
-    _exit_cycle_guard(ctx, _enter_cycle_guard(ctx))
+    _exit_cycle_guard(_enter_cycle_guard(ctx))
     return _cycle_detection.get()
 
 
@@ -1537,7 +1576,7 @@ def _context_copied_inside_guard(ctx: _WrapperContext) -> contextvars.Context:
     """Enter the cycle guard of ``ctx``, copy the current context while the call is in flight, then exit."""
     handle = _enter_cycle_guard(ctx)
     copied = contextvars.copy_context()
-    _exit_cycle_guard(ctx, handle)
+    _exit_cycle_guard(handle)
     return copied
 
 
@@ -1546,8 +1585,8 @@ def _chain_with_inner_inside_outer(outer: _WrapperContext, inner: _WrapperContex
     outer_handle = _enter_cycle_guard(outer)
     inner_handle = _enter_cycle_guard(inner)
     chain = tuple(entry.source_id for entry in cast(tuple[_CycleEntry, ...], _cycle_detection.get()))
-    _exit_cycle_guard(inner, inner_handle)
-    _exit_cycle_guard(outer, outer_handle)
+    _exit_cycle_guard(inner_handle)
+    _exit_cycle_guard(outer_handle)
     return chain
 
 
@@ -1556,7 +1595,7 @@ async def _hold_guard_across_task_switch(ctx: _WrapperContext) -> set[int]:
     handle = _enter_cycle_guard(ctx)
     await asyncio.sleep(0)
     active = {entry.source_id for entry in cast(tuple[_CycleEntry, ...], _cycle_detection.get())}
-    _exit_cycle_guard(ctx, handle)
+    _exit_cycle_guard(handle)
     return active
 
 
@@ -1906,7 +1945,6 @@ class TestUserFacingTypeErrors:
         with pytest.raises(TypeError, match=expected):
             _prepare_target_call(
                 _src,
-                _tgt,
                 {"c": 1},
                 target_arg_names=frozenset(),
                 accepts_var_positional=True,

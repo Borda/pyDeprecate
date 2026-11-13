@@ -170,7 +170,6 @@ def _validate_callable_mode(
     args_mapping: Optional[Mapping[str, Optional[str]]] = None,
     args_extra: Optional[dict[str, Any]] = None,
     *,
-    emit: bool = True,
     factory: str = "@deprecated",
 ) -> bool:
     """Validate :class:`~deprecate._types.TargetMode` against supplied configuration and emit misconfig warnings.
@@ -188,9 +187,6 @@ def _validate_callable_mode(
             provided.
         args_extra: The ``args_extra`` dict supplied to :func:`~deprecate.deprecated`, or ``None`` when not
             provided.
-        emit: Whether to warn about each misconfiguration found.  Pass ``False`` to only report it through the
-            return value.  The warning points at the first frame outside the ``deprecate`` package — the
-            decorator application site.  Defaults to ``True``.
         factory: How the warning names the API that was configured.  Defaults to ``"@deprecated"``;
             :func:`~deprecate.proxy.deprecated_instance` passes its own name.
 
@@ -198,13 +194,13 @@ def _validate_callable_mode(
         ``True`` if any misconfiguration was detected, ``False`` if the configuration is valid.
 
     Examples:
-        >>> _validate_callable_mode(TargetMode.ARGS_REMAP, "my_func", args_mapping=None, emit=False)
+        >>> _validate_callable_mode(TargetMode.ARGS_REMAP, "my_func", args_mapping=None)
         True
-        >>> _validate_callable_mode(TargetMode.NOTIFY, "my_func", args_mapping={"old": "new"}, emit=False)
+        >>> _validate_callable_mode(TargetMode.NOTIFY, "my_func", args_mapping={"old": "new"})
         True
-        >>> _validate_callable_mode(TargetMode.NOTIFY, "my_func", args_extra={"bias": 1}, emit=False)
+        >>> _validate_callable_mode(TargetMode.NOTIFY, "my_func", args_extra={"bias": 1})
         True
-        >>> _validate_callable_mode(TargetMode.NOTIFY, "my_func", emit=False)
+        >>> _validate_callable_mode(TargetMode.NOTIFY, "my_func")
         False
 
     """
@@ -228,9 +224,8 @@ def _validate_callable_mode(
             "`args_extra`. Use a callable target to forward with extra arguments. "
             f"This will be `TypeError` in `{_MAJOR_BREAK_VERSION}`."
         )
-    if emit:
-        for msg in messages:
-            warnings.warn(msg, UserWarning, stacklevel=_caller_stacklevel())
+    for msg in messages:
+        warnings.warn(msg, UserWarning, stacklevel=_caller_stacklevel())
     return bool(messages)
 
 
@@ -278,7 +273,6 @@ def _validate_proxy_mode(
     args_mapping: Optional[Mapping[str, Optional[str]]] = None,
     args_extra: Optional[dict[str, Any]] = None,
     *,
-    emit: bool = True,
     factory: str = "deprecated_class",
     active_callable: bool = True,
 ) -> bool:
@@ -300,8 +294,6 @@ def _validate_proxy_mode(
         args_extra: The ``args_extra`` dict, forwarded here so we can detect the
             ``ATTRS_REMAP + args_extra`` combination — ``ATTRS_REMAP`` governs attribute access only and
             does not honour call-time kwarg injection.
-        emit: Whether to warn about each misconfiguration found.  Pass ``False`` to only report it through the
-            return value.  Defaults to ``True``.
         factory: Name of the factory the warning cites.  Defaults to ``"deprecated_class"``;
             :func:`~deprecate.proxy.deprecated_instance` passes its own name.
         active_callable: Whether the object the proxy serves (the replacement when one is set) can be called.
@@ -315,32 +307,32 @@ def _validate_proxy_mode(
     Examples:
         >>> # Explicit NOTIFY + attrs_mapping is contradictory — only TargetMode.AUTO (the factory
         >>> # default, i.e. an omitted ``target``) auto-resolves a mapping to ATTRS_REMAP.
-        >>> _validate_proxy_mode(TargetMode.NOTIFY, "Cls", attrs_mapping={"a": "b"}, emit=False)
+        >>> _validate_proxy_mode(TargetMode.NOTIFY, "Cls", attrs_mapping={"a": "b"})
         True
-        >>> _validate_proxy_mode(TargetMode.ATTRS_REMAP, "Cls", attrs_mapping=None, emit=False)
+        >>> _validate_proxy_mode(TargetMode.ATTRS_REMAP, "Cls", attrs_mapping=None)
         True
-        >>> _validate_proxy_mode(TargetMode.ATTRS_REMAP, "Cls", attrs_mapping={}, emit=False)
+        >>> _validate_proxy_mode(TargetMode.ATTRS_REMAP, "Cls", attrs_mapping={})
         True
-        >>> _validate_proxy_mode(TargetMode.ATTRS_REMAP, "Cls", attrs_mapping={"a": "b"}, emit=False)
+        >>> _validate_proxy_mode(TargetMode.ATTRS_REMAP, "Cls", attrs_mapping={"a": "b"})
         False
         >>> _validate_proxy_mode(
         ...     TargetMode.ARGS_REMAP, "Cls",
-        ...     args_mapping={"old": "new"}, attrs_mapping={"a": "b"}, emit=False,
+        ...     args_mapping={"old": "new"}, attrs_mapping={"a": "b"},
         ... )
         True
         >>> _validate_proxy_mode(
         ...     TargetMode.ATTRS_REMAP, "Cls",
-        ...     args_mapping={"old": "new"}, attrs_mapping={"a": "b"}, emit=False,
+        ...     args_mapping={"old": "new"}, attrs_mapping={"a": "b"},
         ... )
         True
         >>> _validate_proxy_mode(
         ...     TargetMode.ATTRS_REMAP, "Cls",
-        ...     attrs_mapping={"a": "b"}, args_extra={"bias": 1}, emit=False,
+        ...     attrs_mapping={"a": "b"}, args_extra={"bias": 1},
         ... )
         True
         >>> _validate_proxy_mode(
         ...     TargetMode.ARGS_REMAP, "settings", args_mapping={"old": "new"},
-        ...     factory="deprecated_instance", active_callable=False, emit=False,
+        ...     factory="deprecated_instance", active_callable=False,
         ... )
         True
 
@@ -397,20 +389,21 @@ def _validate_proxy_mode(
             "An empty mapping has no effect — remove it or add deprecated attribute names. "
             f"This will be `TypeError` in `{_MAJOR_BREAK_VERSION}`."
         )
-    if emit:
-        for msg in messages:
-            warnings.warn(msg, UserWarning, stacklevel=_caller_stacklevel())
+    for msg in messages:
+        warnings.warn(msg, UserWarning, stacklevel=_caller_stacklevel())
     return bool(messages)
 
 
 def _reject_bare_decorator(source: Any) -> None:  # noqa: ANN401
-    """Raise a clear ``TypeError`` when ``@deprecated`` was applied without parentheses.
+    """Reject bare-decorator misuse, functools wrappers and nameless callable sources with curated errors.
 
     Bare ``@deprecated`` makes Python call ``deprecated(source)`` — binding the decorated object to
     ``target`` — and return the ``packing`` decorator; the first real call then arrives in ``packing`` with
     the *call argument* as ``source`` (e.g. ``old(5)`` → ``packing(5)``).  A non-callable, non-descriptor
     ``source`` therefore signals the missing-parentheses mistake, so raise here instead of leaking a downstream
     ``AttributeError: 'int' object has no attribute '__name__'``.
+
+    A callable instance without ``__name__`` instead receives the plain-object guidance shared by both entry points.
 
     Args:
         source: The object ``packing`` received as its decoration target.
@@ -424,6 +417,8 @@ def _reject_bare_decorator(source: Any) -> None:  # noqa: ANN401
             f"`{type(source).__name__}` as the decoration target, which usually means `@deprecated` "
             f"was used without arguments."
         )
+    if callable(source) and not hasattr(source, "__name__"):
+        raise TypeError(_PLAIN_OBJECT_REJECT)
 
 
 # Descriptor source types the callable path handles via ``_packing_descriptor`` even though some are
@@ -444,8 +439,7 @@ _FUNCTOOLS_WRAPPER_SOURCE_TYPES = (partial, partialmethod, singledispatchmethod)
 def _reject_functools_wrapper_source(source: Any) -> None:  # noqa: ANN401
     """Raise ``TypeError`` when *source* is a ``functools.partial``, ``partialmethod`` or ``singledispatchmethod``.
 
-    Runs first in both decoration-time guards (:func:`_reject_bare_decorator` for ``deprecated_callable``, and
-    :func:`_reject_non_callable_source` for the ``@deprecated`` front door), so every entry point gives the same
+    Runs in the strict decoration-time guard (:func:`_reject_bare_decorator`), so every entry point gives the same
     advice instead of "use ``deprecated_instance``", "must be called with parentheses", or a late
     ``AttributeError``. The message names the wrapper type and the workaround: wrap it in a plain ``def``. Its
     subject is "pyDeprecate", not ``@deprecated``, because the ``deprecated_callable`` guard raises it too.
@@ -467,13 +461,12 @@ def _reject_functools_wrapper_source(source: Any) -> None:  # noqa: ANN401
 
 
 def _reject_non_callable_source(source: Any, target: Any) -> None:  # noqa: ANN401
-    """Raise ``TypeError`` for a non-callable, or callable-without-``__name__``, decoration source.
+    """Select the front-door error for a non-callable decoration source.
 
-    Third dispatch bucket: a non-callable object, or a callable instance lacking ``__name__`` (a hand-written
-    ``__call__`` object), would crash downstream at ``source.__name__``. Reject up front with actionable
-    guidance. ``functools`` wrapper kinds (``partial``, ``partialmethod``, ``singledispatchmethod``) are rejected
-    first with their own message (:func:`_reject_functools_wrapper_source`). Descriptors are exempt — the callable
-    path handles them via ``_packing_descriptor`` even though some are neither ``callable`` nor carry ``__name__``.
+    A plain non-callable object would crash downstream at ``source.__name__``. Reject it with actionable guidance.
+    ``functools`` wrapper kinds and nameless callables reach the strict guard, which rejects them once with their
+    own messages. Descriptors are exempt — the callable path handles them via ``_packing_descriptor`` even though
+    some are neither ``callable`` nor carry ``__name__``.
 
     Disambiguates two look-alike shapes: a bare ``@deprecated`` (no parens) binds the user's callable to
     ``target`` and this call arrives with the call ARGUMENT as ``source`` — a callable ``target`` that is
@@ -487,31 +480,31 @@ def _reject_non_callable_source(source: Any, target: Any) -> None:  # noqa: ANN4
             bare-decorator misuse case.
 
     Raises:
-        TypeError: When ``source`` is neither a descriptor, nor a named callable.
+        TypeError: When ``source`` is neither a descriptor, functools wrapper, nor callable.
 
     """
-    _reject_functools_wrapper_source(source)
-    if not isinstance(source, _DESCRIPTOR_SOURCE_TYPES) and (not callable(source) or not hasattr(source, "__name__")):
+    if not isinstance(source, (*_DESCRIPTOR_SOURCE_TYPES, *_FUNCTOOLS_WRAPPER_SOURCE_TYPES)) and not callable(source):
         if callable(target) and not isinstance(target, TargetMode):
             _reject_bare_decorator(source)  # raises the missing-parentheses TypeError
         raise TypeError(_PLAIN_OBJECT_REJECT)
 
 
-def _find_class_body_qualname(max_depth: int = 10) -> str:
+#: Parent frames :func:`_find_class_body_qualname` inspects at most (safety bound against unbounded walks).
+_CLASS_BODY_MAX_DEPTH = 10
+
+
+def _find_class_body_qualname() -> str:
     """Return the ``__qualname__`` of the nearest enclosing class body on the call stack.
 
-    Python populates ``__qualname__`` (alongside ``__module__``) in the class-body execution namespace at
-    class-definition time.  A fixed :func:`sys._getframe` depth is fragile — descriptor-decorated methods
-    (``@property``/``@classmethod``/``@staticmethod`` under ``@deprecated``) insert extra ``_packing_descriptor``
-    and ``packing`` frames, so the class body sits deeper than the plain-callable case.  This bounded walk
-    searches upward for the first frame whose locals carry both ``__qualname__`` and ``__module__`` (the
-    signature of a class body) instead of assuming a single layout, and returns ``""`` when none is found.
-
-    Args:
-        max_depth: Maximum number of parent frames to inspect (safety bound against unbounded walks).
+    Python populates ``__qualname__`` (alongside ``__module__``) in the class-body execution namespace at class-
+    definition time.  A fixed :func:`sys._getframe` depth is fragile — descriptor-decorated methods
+    (``@property``/``@classmethod``/``@staticmethod`` under ``@deprecated``) insert extra ``_packing_descriptor`` and
+    ``packing`` frames, so the class body sits deeper than the plain-callable case.  This bounded walk searches upward
+    for the first frame whose locals carry both ``__qualname__`` and ``__module__`` (the signature of a class body)
+    instead of assuming a single layout, and returns ``""`` when none is found.
 
     """
-    for depth in range(1, max_depth + 1):
+    for depth in range(1, _CLASS_BODY_MAX_DEPTH + 1):
         try:
             frame = sys._getframe(depth)
         except ValueError:

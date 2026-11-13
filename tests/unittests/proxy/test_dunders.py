@@ -64,6 +64,23 @@ from tests.unittests.proxy._helpers import (
 class TestOperatorForwarding:
     """Type-level operator, conversion, and context-manager dunders forward to the active object."""
 
+    @pytest.mark.parametrize("skip", [True, False])
+    @pytest.mark.parametrize("stacked", [True, False])
+    def test_skip_selects_proxy_operand(self, skip: bool, stacked: bool) -> None:
+        """Use a skipped proxy's source as the right-hand operand.
+
+        Adding two deprecated numeric objects must use the same value as adding either to an ordinary integer.
+        A silent outer proxy must preserve the inner proxy's current skip decision.
+        """
+        inner = deprecated_instance(10, target=20, skip_if=skip, **_DEPRS_CASE_STD_ARGS)
+        operand = deprecated_instance(inner, skip_if=True, **_DEPRS_CASE_STD_ARGS) if stacked else inner
+        left = deprecated_instance(1, **_DEPRS_CASE_STD_ARGS)
+        with pytest.warns(FutureWarning, match="was deprecated") as caught:
+            result = left + operand  # type: ignore[operator]
+
+        assert result == (11 if skip else 21)
+        assert len(caught) == 1
+
     @pytest.mark.parametrize(
         ("op", "expected"),
         [

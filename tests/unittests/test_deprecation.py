@@ -28,6 +28,28 @@ from tests.collections.pep702 import stacked_callable
 
 
 @pytest.mark.parametrize(
+    "decorator",
+    [pytest.param(deprecated, id="front-door"), pytest.param(deprecated_callable, id="strict")],
+)
+def test_nameless_callable_has_curated_error(decorator: Callable) -> None:
+    """Reject a callable instance with the plain-object migration guidance.
+
+    A user passes an instance implementing ``__call__`` without ``__name__`` to either decorator. Decoration
+    must explain how to deprecate an instance rather than fail later while reading function metadata.
+    """
+
+    class NamelessCallable:
+        def __call__(self) -> None:
+            pass
+
+    with pytest.raises(TypeError) as exc_info:
+        decorator(deprecated_in="1.0", remove_in="2.0", stream=None)(NamelessCallable())
+    assert str(exc_info.value) == (
+        "cannot deprecate a plain object with `@deprecated` — use `deprecated_instance(obj, ...)`"
+    )
+
+
+@pytest.mark.parametrize(
     ("source", "kind"),
     [
         pytest.param(partialmethod_of_double, "functools.partialmethod", id="non-callable-wrapper"),

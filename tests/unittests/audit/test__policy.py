@@ -823,6 +823,7 @@ class TestUnparsableVersionCallback:
         info = DeprecationWrapperInfo(
             module="pkg", function="typo", deprecated_info=DeprecationConfig(deprecated_in="bad", remove_in="2.0")
         )
+        callback = MagicMock()
 
         def _failing_hook(*args: object, **kwargs: object) -> None:
             raise UserWarning("warning hook failed")
@@ -831,7 +832,8 @@ class TestUnparsableVersionCallback:
             warnings.simplefilter("always", UserWarning)
             monkeypatch.setattr(warnings, "showwarning", _failing_hook)
             with pytest.raises(UserWarning, match="warning hook failed"):
-                _policy_findings([info], _build_policy_spec("0.3", False), on_unparsable=lambda *_: None)
+                _policy_findings([info], _build_policy_spec("0.3", False), on_unparsable=callback)
+        callback.assert_called_once_with(info, "deprecated_in")
 
     @_requires_packaging
     @pytest.mark.parametrize(

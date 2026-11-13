@@ -12,7 +12,8 @@ from typing import Any, Callable, Optional
 import pytest
 
 from deprecate import TargetMode
-from deprecate._cli.static.checks import _policy_keywords, _report_unresolved, _resolved, _static_policy_findings
+from deprecate._cli.report import _record_run
+from deprecate._cli.static.checks import _report_unresolved, _resolved, _static_policy_findings
 from deprecate._cli.static.consts import _GUIDANCE_KEYWORDS
 from deprecate._cli.static.discovery import _locate_static, _StaticSource
 from deprecate._cli.static.model import _StaticTarget
@@ -194,7 +195,7 @@ class TestCollectionParity:
             warnings.simplefilter("ignore")
             imported = {f.symbol for f in _expiry_findings(find_deprecation_wrappers(module, False), "99.0")}
         wrappers = _read_module(module)
-        _report_unresolved(wrappers, ("remove_in",))
+        _report_unresolved(wrappers, {"expired": ("remove_in",)})
         static = {f.symbol for f in _expiry_findings(_resolved(wrappers, ("remove_in",)), "99.0")}
         err = capsys.readouterr().err
         partial_line = _line_of(module, "= partial(deprecated")
@@ -215,7 +216,7 @@ class TestCollectionParity:
 
         """
         wrappers = _read_module("tests.collections.static_forms")
-        _report_unresolved(wrappers, ("remove_in", "target"))
+        _report_unresolved(wrappers, {"expired": ("remove_in",), "message-required": ("target",)})
         err = capsys.readouterr().err
         assert "`remove_in` is `REMOVAL`, not a literal" in err
         assert "`remove_in` is `f'{_MAJOR}.0'`, not a literal" in err
@@ -467,7 +468,6 @@ class TestTargetSemantics:
         wrappers = _read_package(_write(tmp_path, {"__init__.py": source}))
         findings = _static_policy_findings(wrappers, _build_policy_spec("0.3", True))
         assert [f.rule.value for f in findings] == ["min-grace"]
-        assert set(_policy_keywords(_build_policy_spec("0.3", True))) >= set(_GUIDANCE_KEYWORDS)
 
     def test_instance_replacement_matches_import_scan(self, probe_package: Callable[..., Path]) -> None:
         """A data replacement given to ``deprecated_instance`` is judged by ``message-required`` as at runtime.
@@ -1042,17 +1042,26 @@ class TestResolvedSettings:
             pytest.param("0.3", True, ("deprecated_in", "remove_in", *_GUIDANCE_KEYWORDS), id="both"),
             pytest.param(None, True, _GUIDANCE_KEYWORDS, id="guidance-only"),
             pytest.param("0.3", False, ("deprecated_in", "remove_in"), id="grace-only"),
+            pytest.param(None, False, (), id="disabled"),
         ],
     )
-    def test_policy_keywords_follow_enabled_rules(
-        self, grace: Optional[str], message_required: bool, expected: tuple[str, ...]
+    def test_only_enabled_rules_report_unsettled_settings(
+        self, tmp_path: Path, grace: Optional[str], message_required: bool, expected: tuple[str, ...]
     ) -> None:
         """Only the settings an enabled rule reads can make a wrapper a gap for ``policy``.
 
         A version held in a variable must not be reported when ``min-grace`` is switched off.
 
         """
-        assert _policy_keywords(_build_policy_spec(grace, message_required)) == expected
+        source = (
+            "from deprecate import deprecated\n\n"
+            "@deprecated(deprecated_in=VERSION, remove_in=VERSION, target=TARGET['x'], args_mapping=MAPPING, "
+            "attrs_mapping=MAPPING, message_template=MESSAGE)\ndef old(): pass\n"
+        )
+        wrappers = _read_package(_write(tmp_path, {"__init__.py": source}))
+        with _record_run() as record:
+            _static_policy_findings(wrappers, _build_policy_spec(grace, message_required))
+        assert [gap.detail.split("`")[1] for gap in record.gaps] == list(expected)
 
     def test_literal_dict_splat_resolves(self, tmp_path: Path) -> None:
         """Settings splatted from a module-level dict literal are read, as the project's own collections spell them.
@@ -1107,7 +1116,9 @@ class TestResolvedSettings:
         """
         source = f"from deprecate import deprecated\n\n{body}\ndef old(a=0):\n    return a\n"
         wrappers = _read_package(_write(tmp_path, {"__init__.py": source}))
-        _report_unresolved(wrappers, ("deprecated_in", "remove_in", *_GUIDANCE_KEYWORDS))
+        _report_unresolved(
+            wrappers, {"min-grace": ("deprecated_in", "remove_in"), "message-required": _GUIDANCE_KEYWORDS}
+        )
         assert reason in capsys.readouterr().err
 
 
@@ -1583,7 +1594,7 @@ class TestNoSilentMiss:
 
         """
         wrappers = _read_package(_write(tmp_path, {"__init__.py": "", **files}))
-        _report_unresolved(wrappers, ("remove_in", *_GUIDANCE_KEYWORDS))
+        _report_unresolved(wrappers, {"expired": ("remove_in",), "message-required": _GUIDANCE_KEYWORDS})
         assert gap in capsys.readouterr().err
 
     @pytest.mark.parametrize(
@@ -1645,7 +1656,9 @@ class TestNoSilentMiss:
 
         """
         wrappers = _read_package(_write(tmp_path, {"__init__.py": "", **files}))
-        _report_unresolved(wrappers, ("deprecated_in", "remove_in", *_GUIDANCE_KEYWORDS))
+        _report_unresolved(
+            wrappers, {"min-grace": ("deprecated_in", "remove_in"), "message-required": _GUIDANCE_KEYWORDS}
+        )
         assert "not statically resolvable" not in capsys.readouterr().err
 
     @pytest.mark.parametrize(
@@ -1844,7 +1857,7 @@ class TestDynamicSourceBindings:
             "@deprecated(target=Settings.target, deprecated_in='1.0', remove_in='2.0')\ndef old(): pass\n"
         )
         wrappers = _read_package(_write(tmp_path, {"__init__.py": source}))
-        _report_unresolved(wrappers, _GUIDANCE_KEYWORDS)
+        _report_unresolved(wrappers, {"message-required": _GUIDANCE_KEYWORDS})
         assert "target" in capsys.readouterr().err
 
     def test_factory_rebound_through_globals_is_a_gap(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -1857,7 +1870,7 @@ class TestDynamicSourceBindings:
             "@deprecated(deprecated_in='1.0', remove_in='2.0')\ndef old(): pass\n"
         )
         wrappers = _read_package(_write(tmp_path, {"__init__.py": source}))
-        _report_unresolved(wrappers, ("remove_in",))
+        _report_unresolved(wrappers, {"expired": ("remove_in",)})
         assert _expiry_ids(wrappers) == []
         assert "not statically resolvable" in capsys.readouterr().err
 

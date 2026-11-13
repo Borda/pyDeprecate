@@ -326,6 +326,7 @@ class TestBatchExpiryUnparsableVersion:
         when the audit caller records skipped checks.
         """
         info = DeprecationWrapperInfo(function="pkg.broken", deprecated_info=DeprecationConfig(remove_in="invalid"))
+        skipped: list[DeprecationWrapperInfo] = []
 
         def _failing_hook(*args: object, **kwargs: object) -> None:
             raise UserWarning("warning hook failed")
@@ -334,7 +335,8 @@ class TestBatchExpiryUnparsableVersion:
             warnings.simplefilter("always", UserWarning)
             monkeypatch.setattr(warnings, "showwarning", _failing_hook)
             with pytest.raises(UserWarning, match="warning hook failed"):
-                _expiry_findings([info], "2.0", on_unparsable=lambda _: None)
+                _expiry_findings([info], "2.0", on_unparsable=skipped.append)
+        assert skipped == [info]
 
     @_requires_packaging
     def test_unparsable_remove_in_warns_and_is_not_expired(self) -> None:
@@ -354,13 +356,13 @@ class TestBatchExpiryUnparsableVersion:
         assert expired == []
 
     @_requires_packaging
-    def test_on_unparsable_called_once_per_skipped_wrapper_after_its_warning(self) -> None:
-        """The ``on_unparsable`` callback fires once per unparsable ``remove_in``, in scan order, after its warning.
+    def test_on_unparsable_called_once_per_skipped_wrapper_before_its_warning(self) -> None:
+        """The ``on_unparsable`` callback fires once per unparsable ``remove_in``, in scan order, before its warning.
 
         The CLI hands in a callback that records a gap on a channel the audited package cannot silence, so it must
         see exactly the wrappers that were skipped: never a wrapper with a parsable ``remove_in`` (expired or not) or
-        with no ``remove_in`` at all. Each call follows the warning of that same wrapper, so the gap lands after the
-        warning on the output and the second skip is reported after the first.
+        with no ``remove_in`` at all. Each call precedes the warning of that same wrapper, so even a failing warning
+        hook cannot prevent recording the gap and the second skip is reported after the first.
         """
         broken_real = validate_deprecation_wrapper(make_malformed_remove_in_wrapper())
         broken_info = DeprecationWrapperInfo(
@@ -381,8 +383,7 @@ class TestBatchExpiryUnparsableVersion:
                 results, "2.0", on_unparsable=lambda info: calls.append((info.function, len(warned)))
             )
 
-        # each callback ran right after its own warning: one warning seen at the first call, two at the second
-        assert calls == [(broken_real.function, 1), ("pkg.broken", 2)]
+        assert calls == [(broken_real.function, 0), ("pkg.broken", 1)]
         assert [finding.symbol for finding in expired] == ["pkg.due"]  # the skips are not findings
 
 

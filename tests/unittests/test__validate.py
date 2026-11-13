@@ -652,7 +652,7 @@ class TestFromLegacyErrors:
         must describe that input, not an internal helper, so it stays accurate however the private resolver is named.
         """
         with pytest.raises(TypeError, match="^Legacy `target` accepts only None, True, or False; got "):
-            _resolve_legacy_target(cast(bool, bad_value), emit=False)
+            _resolve_legacy_target(cast(bool, bad_value))
 
 
 class TestTargetModeValidate:
@@ -660,26 +660,29 @@ class TestTargetModeValidate:
 
     def test_args_remap_without_mapping_returns_true(self) -> None:
         """ARGS_REMAP with no args_mapping is misconfigured; returns True."""
-        assert _validate_callable_mode(TargetMode.ARGS_REMAP, "fn", args_mapping=None, emit=False) is True
+        with pytest.warns(UserWarning, match="args_mapping"):
+            assert _validate_callable_mode(TargetMode.ARGS_REMAP, "fn", args_mapping=None) is True
 
     def test_notify_with_args_mapping_returns_true(self) -> None:
         """NOTIFY with args_mapping is misconfigured; returns True."""
-        assert _validate_callable_mode(TargetMode.NOTIFY, "fn", args_mapping={"old": "new"}, emit=False) is True
+        with pytest.warns(UserWarning, match="args_mapping"):
+            assert _validate_callable_mode(TargetMode.NOTIFY, "fn", args_mapping={"old": "new"}) is True
 
     def test_notify_with_args_extra_returns_true(self) -> None:
         """NOTIFY with args_extra is misconfigured; returns True."""
-        assert _validate_callable_mode(TargetMode.NOTIFY, "fn", args_extra={"bias": 1}, emit=False) is True
+        with pytest.warns(UserWarning, match="args_extra"):
+            assert _validate_callable_mode(TargetMode.NOTIFY, "fn", args_extra={"bias": 1}) is True
 
     def test_valid_notify_returns_false(self) -> None:
         """NOTIFY with no extra kwargs is valid; returns False."""
-        assert _validate_callable_mode(TargetMode.NOTIFY, "fn", emit=False) is False
+        assert _validate_callable_mode(TargetMode.NOTIFY, "fn") is False
 
     def test_valid_args_remap_returns_false(self) -> None:
         """ARGS_REMAP with args_mapping is valid; returns False."""
-        assert _validate_callable_mode(TargetMode.ARGS_REMAP, "fn", args_mapping={"old": "new"}, emit=False) is False
+        assert _validate_callable_mode(TargetMode.ARGS_REMAP, "fn", args_mapping={"old": "new"}) is False
 
     def test_misconfig_emits_user_warning(self) -> None:
-        """_validate emits UserWarning when misconfigured (emit=True, the default)."""
+        """_validate emits UserWarning when misconfigured ."""
         with pytest.warns(UserWarning, match="args_mapping"):
             _validate_callable_mode(TargetMode.NOTIFY, "my_fn", args_mapping={"old": "new"})
 
