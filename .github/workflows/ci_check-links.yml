@@ -38,6 +38,7 @@ jobs:
         with:
           # default args: "--verbose --no-progress './**/*.md' './**/*.html' './**/*.rst'"
           # TODO: drop exclude for stable docs (incl. stable/limitations.html) after the next release
+          # the `pkg.py` file URIs are illustrative SARIF locations outside a repository (a doctest and unit tests)
           args: |
             --verbose
             --no-progress
@@ -58,6 +59,7 @@ jobs:
             --exclude http://127.0.0.1
             --exclude file://.*demo-sphinx.*
             --exclude file://.*demo-mkdocs.*
+            --exclude '^file[:]///(elsewhere|other|D[:]/other)/pkg\.py$'
             --exclude '^https[:]//borda[/]$'
             --exclude 'https://borda\.github\.io/pyDeprecate/stable/limitations\.html'
             --exclude '^[hH]ttps://github\.com/\$(\.git)?$'
