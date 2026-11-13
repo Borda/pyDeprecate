@@ -16,7 +16,7 @@ import sys
 import types
 from typing import Any, Callable
 
-from deprecate.proxy.core import _DeprecatedProxy, _register_protocol_forward
+from deprecate.proxy.core import _DeprecatedProxy, _innermost_active, _proxy_sources, _register_protocol_forward
 
 __all__: list[str] = []
 
@@ -55,23 +55,17 @@ def _held_by(owner: Any) -> list[Any]:  # noqa: ANN401
     """List *owner* and the objects it references directly, looking one level into an instance ``__dict__``.
 
     Depending on the Python version, :func:`gc.get_referents` reports an instance's attribute values directly or through
-    its ``__dict__``, so both shapes are expanded. A deprecation proxy is followed down its ``__wrapped__`` chain, so
-    the object at the bottom of any stack of proxies counts as held by the outermost one.
+    its ``__dict__``, so both shapes are expanded. A deprecation proxy is followed down its source chain, so the object
+    at the bottom of any stack of proxies counts as held by the outermost one.
 
     """
     held: list[Any] = []
-    seen: set[int] = set()
-    while id(owner) not in seen:
-        seen.add(id(owner))
+    for owner in _proxy_sources(owner):
         held.append(owner)
         for ref in gc.get_referents(owner):
             held.append(ref)
             if type(ref) is dict:
                 held.extend(ref.values())
-        if not isinstance(owner, _DeprecatedProxy):
-            break
-        # Read the slot directly: attribute access through the proxy would warn.
-        owner = object.__getattribute__(owner, "__wrapped__")
     return held
 
 
@@ -202,9 +196,7 @@ for _method in (__enter__, __exit__, __aenter__, __aexit__, __aiter__, __anext__
 
 def _unwrap_operand(value: Any) -> Any:  # noqa: ANN401
     """Return the active object behind a proxy operand, leaving non-proxy operands untouched."""
-    if isinstance(value, _DeprecatedProxy):
-        return _DeprecatedProxy._get_static_attr_owner(value)
-    return value
+    return _innermost_active(value)
 
 
 def _make_binary_forward(op_name: str, *, warn: bool) -> Callable[..., Any]:

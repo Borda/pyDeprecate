@@ -19,6 +19,7 @@ from deprecate._types import DeprecationProxy, TargetMode, get_deprecation_confi
 from deprecate.docstring.inject import _update_docstring_with_deprecation
 from deprecate.messaging import _resolve_message_template_alias, deprecation_warning
 from deprecate.proxy.core import _DeprecatedProxy, _proxy_type_for, _ProxySpec, _register_class_instance_reducer
+from deprecate.proxy.resolve import _get_static_attr_owner
 
 __all__ = ["deprecated_class", "deprecated_instance"]
 
@@ -326,13 +327,7 @@ def deprecated_class(
         else:
             cls_name = cls.__name__
         if stream is not None and not deprecated_in and not message_template:
-            warnings.warn(
-                f"`@deprecated_class` on `{cls_name}` has no `deprecated_in` set."
-                " Deprecation notices and generated documentation will omit the `deprecated_in` version."
-                " Pass `deprecated_in` for a meaningful deprecation notice.",
-                UserWarning,
-                stacklevel=_caller_stacklevel(),
-            )
+            _warn_missing_deprecated_in(f"`@deprecated_class` on `{cls_name}`")
         proxy = _DeprecatedProxy(
             obj=cls,
             spec=_ProxySpec(
@@ -496,13 +491,7 @@ def deprecated_instance(
     _reject_instance_target(target)
     resolved_name = name or type(obj).__name__
     if stream is not None and not deprecated_in and not message_template:
-        warnings.warn(
-            f"`deprecated_instance()` on `{resolved_name}` has no `deprecated_in` set."
-            " Deprecation notices and generated documentation will omit the `deprecated_in` version."
-            " Pass `deprecated_in` for a meaningful deprecation notice.",
-            UserWarning,
-            stacklevel=_caller_stacklevel(),
-        )
+        _warn_missing_deprecated_in(f"`deprecated_instance()` on `{resolved_name}`")
     return _proxy_type_for(obj)(
         obj=obj,
         spec=_ProxySpec(
@@ -521,6 +510,27 @@ def deprecated_instance(
             args_extra=args_extra,
             factory="deprecated_instance",
         ),
+    )
+
+
+def _warn_missing_deprecated_in(label: str) -> None:
+    """Warn that a factory's deprecation notice lacks a version.
+
+    Examples:
+        >>> import warnings
+        >>> with warnings.catch_warnings(record=True) as caught:
+        ...     warnings.simplefilter("always")
+        ...     _warn_missing_deprecated_in("example")
+        >>> str(caught[0].message).startswith("example has no `deprecated_in` set.")
+        True
+
+    """
+    warnings.warn(
+        f"{label} has no `deprecated_in` set."
+        " Deprecation notices and generated documentation will omit the `deprecated_in` version."
+        " Pass `deprecated_in` for a meaningful deprecation notice.",
+        UserWarning,
+        stacklevel=_caller_stacklevel(),
     )
 
 
@@ -572,13 +582,15 @@ def _reject_instance_target(target: Any) -> None:  # noqa: ANN401
 
     """
     _reject_auto_target(target, "deprecated_instance", "object")
-    if isinstance(target, bool):
+    # Validation follows configured replacements without evaluating their runtime skip conditions.
+    owner = _get_static_attr_owner(_DeprecatedProxy, target)
+    if isinstance(owner, bool):
         raise TypeError(
             f"`deprecated_instance(target={target})` is not supported: a `bool` is neither a replacement object nor a"
             " `TargetMode`. Omit `target` to keep serving the wrapped object, or to replace a `bool` constant wrap"
             " the new value itself: `deprecated_instance(NEW_VALUE, name='OLD_NAME', ...)`."
         )
-    if isinstance(target, types.ModuleType):
+    if isinstance(owner, types.ModuleType):
         raise TypeError(
             f"`deprecated_instance(target=<module {target.__name__!r}>)` is not supported: redirect a module with"
             " `deprecated_module(target=...)` instead."
