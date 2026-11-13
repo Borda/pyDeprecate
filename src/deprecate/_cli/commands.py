@@ -251,6 +251,7 @@ _GATES: dict[str, list[str]] = {
     "expiry": ["expiry"],
     "policy": ["policy"],
     "chains": ["chains"],
+    # the checks `all` always gates on; `--gate` adds to them and never removes one
     "all": ["check", "expiry", "chains"],
 }
 

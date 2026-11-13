@@ -368,7 +368,8 @@ def _parse_cli_args(argv: Sequence[str]) -> Optional[tuple[_CliCommand, dict[str
     subcommand's own parser runs ``parse_intermixed_args``, which binds every path correctly with options between them,
     also on Python 3.9. Arguments after a ``--`` separator are paths only, never options; they are bound here, since
     ``parse_known_intermixed_args`` on Python 3.9 still parses options after it. With exactly two positionals on
-    ``expiry``, ``all`` or ``status``, a second one that is a version and no path is the deprecated positional version.
+    ``expiry``, ``all`` or ``status``, a second one that is a version and no path is the deprecated positional version,
+    unless the line has a ``--`` separator with operands after it: those are paths, so nothing binds as a version.
 
     Returns:
         The subcommand, its keyword arguments (only those typed; ``path`` as a list) and the
@@ -401,7 +402,9 @@ def _parse_cli_args(argv: Sequence[str]) -> Optional[tuple[_CliCommand, dict[str
     kwargs = vars(namespace)
     if operands:
         kwargs[_PATH] = [*kwargs.get(_PATH, []), *operands]
-    _bind_legacy_version(command, kwargs, subparser)
+    else:
+        # an operand after `--` is a path whatever it looks like, so only a line without one has a legacy version
+        _bind_legacy_version(command, kwargs, subparser)
     report_path = kwargs.pop("report_json")
     sarif_path = kwargs.pop("report_sarif", None)
     return command, kwargs, _ReportTargets(report_path, sarif_path)

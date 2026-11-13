@@ -63,8 +63,8 @@ def cli() -> None:
     (``--exit-zero=false``) or as the next argument, and is negated with ``--no-<flag>`` or ``--no<flag>``. Every
     positional is a path, and several paths are audited in one run with one exit code; with exactly two positionals,
     ``expiry``, ``all`` and ``status`` still read a second one that names no path and parses as a version as the
-    deprecated positional version. Direct calls to the ``cmd_*`` functions keep their signatures, including the internal
-    ``_*`` parameters, which are never command-line options.
+    deprecated positional version, never one given after a ``--`` separator. Direct calls to the ``cmd_*`` functions
+    keep their signatures, including the internal ``_*`` parameters, which are never command-line options.
 
     Every subcommand also takes ``--report-json PATH``: once the subcommand ran with exit code 0 or 1, the run's
     machine-readable record is written there — the deprecation table of the very scan that gated and every gap, each

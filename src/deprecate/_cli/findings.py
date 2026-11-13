@@ -62,8 +62,6 @@ _RULE_CHECKS: dict[_Rule, _Check] = {
     _Rule.MIN_GRACE: _Check.POLICY,
     _Rule.MESSAGE_REQUIRED: _Check.POLICY,
 }
-#: The checks ``all`` always gates on; ``--gate`` adds to them and never removes one.
-_ALL_GATES = frozenset({_Check.CHECK.value, _Check.EXPIRY.value, _Check.CHAINS.value})
 #: Every check ``--gate`` may name, in the order the report lists ``options.gates``.
 _GATE_ORDER = tuple(check.value for check in _Check)
 

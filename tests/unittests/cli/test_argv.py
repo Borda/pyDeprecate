@@ -288,10 +288,17 @@ class TestParseCliArgs:
             pytest.param(["check", "--", "--exit-zero"], {"path": ["--exit-zero"]}, id="option-spelling-is-a-path"),
             pytest.param(
                 ["status", "--recursive=0", "--", "pkg", "0.2"],
-                {"path": ["pkg"], "version": "0.2", "recursive": False},
-                id="both-operands",
+                {"path": ["pkg", "0.2"], "recursive": False},
+                id="version-shaped-operands-are-paths",
             ),
-            pytest.param(["status", "pkg", "--", "0.2"], {"path": ["pkg"], "version": "0.2"}, id="version-operand"),
+            pytest.param(
+                ["status", "pkg", "--", "0.2"], {"path": ["pkg", "0.2"]}, id="version-shaped-operand-is-a-path"
+            ),
+            pytest.param(
+                ["status", "--version=9.0", "pkg", "--", "v2"],
+                {"path": ["pkg", "v2"], "version": "9.0"},
+                id="typed-version-and-version-shaped-operand",
+            ),
             # without the separator "--report-json" alone is a usage error (expects a value), so parsing proves it
             # was taken as an operand
             pytest.param(["check", "--", "--report-json"], {"path": ["--report-json"]}, id="report-option-is-a-path"),
@@ -306,6 +313,8 @@ class TestParseCliArgs:
 
         ``parse_known_intermixed_args`` on Python 3.9 still parsed ``check -- --exit-zero`` as the ``--exit-zero`` flag,
         scanning ``.`` with the gate disabled, while newer Pythons took it as the path; both now read it as the path.
+        An operand after the separator is a path whatever it looks like, so a version-shaped one is never the legacy
+        positional version, and ``--version`` stays the only way to give one.
 
         """
         parsed = _parse_cli_args(argv)
@@ -360,9 +369,6 @@ class TestParseCliArgs:
                 "are supported by `expiry` and `policy` only, not `status`",
                 id="static-false-on-status",
             ),
-            pytest.param(
-                ["status", "--version=9.0", "pkg", "--", "v2"], "the version was given twice", id="twice-after-sep"
-            ),
         ],
     )
     def test_usage_error_exits_two(self, argv: list[str], message: str, capsys: pytest.CaptureFixture[str]) -> None:
@@ -390,6 +396,7 @@ class TestLegacyPositionalVersion:
             pytest.param(["expiry", "pkg", "v2"], "v2", id="expiry-v-prefix"),
             pytest.param(["status", "pkg", "1.0.0rc1"], "1.0.0rc1", id="status-pre-release"),
             pytest.param(["all", "--no-recursive", "pkg", "0.10"], "0.10", id="all-trailing-zero"),
+            pytest.param(["expiry", "pkg", "2.0", "--"], "2.0", id="separator-with-nothing-after"),
         ],
     )
     def test_version_shaped_second_positional_is_the_version(
@@ -428,6 +435,30 @@ class TestLegacyPositionalVersion:
         parsed = _parse_cli_args(["all", "pkg_a", second])
         assert parsed is not None
         assert parsed[1] == {"path": ["pkg_a", second]}
+        assert "deprecated" not in capsys.readouterr().err
+
+    @pytest.mark.parametrize(
+        ("argv", "paths"),
+        [
+            pytest.param(["expiry", "--", "pkg", "2.0"], ["pkg", "2.0"], id="both-after-separator"),
+            pytest.param(["all", "pkg", "--", "v2"], ["pkg", "v2"], id="version-after-separator"),
+            pytest.param(["expiry", "--", "2.0", "pkg"], ["2.0", "pkg"], id="version-first-after-separator"),
+        ],
+    )
+    def test_operand_after_separator_is_never_the_version(
+        self, argv: list[str], paths: list[str], capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """``expiry -- pkg 2.0`` scans ``2.0`` as a second path; it is not bound as the legacy positional version.
+
+        A script protects a path that starts with a dash by writing it after ``--``, where every token is a path by
+        definition. A directory named like a release, or a version-shaped token meant as a path, must reach the scan
+        as a path and be reported as missing if it is, instead of silently turning into a ``--version`` the user never
+        typed and printing a deprecation notice for it.
+
+        """
+        parsed = _parse_cli_args(argv)
+        assert parsed is not None
+        assert parsed[1] == {"path": paths}
         assert "deprecated" not in capsys.readouterr().err
 
     def test_existing_directory_named_like_a_version_is_a_path(
