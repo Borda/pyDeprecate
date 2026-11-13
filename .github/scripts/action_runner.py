@@ -683,7 +683,6 @@ def publish_report(
     report: dict[str, Any],
     report_file: Path,
     kept: Path | None,
-    sarif_file: Path | None,
     outputs: dict[str, str],
     budget: AnnotationBudget | None = None,
 ) -> None:
@@ -705,8 +704,6 @@ def publish_report(
             outputs["report-json"] = str(shutil.copy(report_file, kept / REPORT_FILENAME))
         except OSError as err:
             annotate("warning", f"could not keep a copy of the report for later steps: {err}", budget)
-    if sarif_file is not None and sarif_file.is_file():
-        outputs["sarif-file"] = str(sarif_file)
     findings = report.get("findings")
     if isinstance(findings, list):
         annotate_findings([finding for finding in findings if isinstance(finding, dict)], budget)
@@ -739,12 +736,12 @@ def run_gate(
         annotate("error", f"pydeprecate {inputs.subcommand} exited 3 (scan or internal error; see the log)", budget)
     elif gate.code != 0:
         annotate("error", f"pydeprecate {inputs.subcommand} exited {gate.description}", budget)
-    if report_file is None:
-        if inputs.summary:
+    if report_file is None or gate.code in (2, _CLI_CRASHED):
+        if report_file is None and inputs.summary:
             annotate("warning", "no pyDeprecate report is available; skipping the job summary")
         return gate.code
-    if gate.code in (2, _CLI_CRASHED):  # a usage error or a crash wrote no report, so there are no gaps to miss
-        return gate.code
+    if sarif_file is not None and sarif_file.is_file():
+        outputs["sarif-file"] = str(sarif_file)
     report = read_report(report_file)
     if report is None:
         # a crash, or a report the CLI could not write (its reason is on stderr); a green step must not hide that
@@ -752,7 +749,7 @@ def run_gate(
         skipped = " and the job summary is skipped" if inputs.summary else ""
         annotate("warning", f"the gate wrote no pyDeprecate report, so its gaps are not annotated{skipped}")
         return gate.code
-    publish_report(report, report_file, kept, sarif_file, outputs, budget)
+    publish_report(report, report_file, kept, outputs, budget)
     if inputs.summary:
         table = report.get("table")
         if isinstance(table, str):

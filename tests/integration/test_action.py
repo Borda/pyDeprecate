@@ -1170,6 +1170,7 @@ class TestActionSummary:
         monkeypatch.setattr(action_runner, "_CAPABILITY_PROBE", program)
         assert action_runner.cli_support(sys.executable) is action_runner.CliSupport[support]
 
+    @pytest.mark.without_coverage
     @pytest.mark.subprocess
     @pytest.mark.parametrize(
         ("options", "support"),
@@ -1492,6 +1493,32 @@ class TestActionOutputSafety:
             json.loads(Path(written["report-json"]).read_text(encoding="utf-8"))["schema"]
             == action_runner.REPORT_SCHEMA
         )
+
+    @pytest.mark.subprocess
+    def test_sarif_is_published_when_json_report_cannot_be_written(self, tmp_path: Path) -> None:
+        """Publish a successful SARIF report even when the separate JSON report cannot be written.
+
+        A filesystem error prevents the JSON report from being created while the SARIF destination remains writable.
+        The later upload step still needs the SARIF path, although JSON-derived counts and annotations are unavailable.
+        """
+        report_path = tmp_path / "report.json"
+        report_path.mkdir()
+        inputs = action_runner.ActionInputs(
+            subcommand="check",
+            paths=("tests.collections.chains",),
+            args=(),
+            exit_zero=False,
+            fail_on_gap=False,
+            install=False,
+            summary=False,
+            sarif=True,
+        )
+        outputs: dict[str, str] = {}
+        code = action_runner.run_gate(inputs, sys.executable, report_path, {"RUNNER_TEMP": str(tmp_path)}, outputs)
+        assert code == 0
+        assert json.loads(Path(outputs["sarif-file"]).read_text(encoding="utf-8"))["version"] == "2.1.0"
+        assert "report-json" not in outputs
+        assert "findings" not in outputs
 
     @pytest.mark.subprocess
     @pytest.mark.parametrize(
@@ -1921,7 +1948,7 @@ class TestFindingAnnotations:
             "gaps": [{"kind": "module not audited", "detail": "pkg.mod: ImportError()", "hint": "install deps"}],
             "findings": [_finding_record(index, "warning") for index in range(action_runner.ANNOTATIONS_PER_LEVEL + 2)],
         }
-        action_runner.publish_report(report, tmp_path / "report.json", None, None, {})
+        action_runner.publish_report(report, tmp_path / "report.json", None, {})
         lines = capsys.readouterr().out.splitlines()
         warnings = [line for line in lines if line.startswith("::warning ")]
         assert lines[0].startswith("::warning title=pyDeprecate::module not audited (1): install deps")
