@@ -69,15 +69,15 @@ def _load_toml(path: str, *, strict: bool = False) -> dict[str, Any]:
         return {}
 
 
-def _version_from_dynamic(pkg_name: str, scan_path: str, pyproject_dir: str) -> Optional[str]:
-    """Import *pkg_name* and return its ``__version__``, or ``None`` on any failure.
+def _version_from_dynamic(module_name: str, scan_path: str, pyproject_dir: str) -> Optional[str]:
+    """Import *module_name*'s top-level package and return its ``__version__``, or ``None`` on any failure.
 
     Adds candidate import roots (scan dir, its parent, pyproject dir, ``src/``
     sub-dir) to ``sys.path`` before importing, then restores the original
     ``sys.path`` unconditionally via ``finally``.
 
     Args:
-        pkg_name: Importable package name declared in ``[project].name``.
+        module_name: Importable module name being scanned, distinct from the distribution's ``[project].name``.
         scan_path: File-system path originally passed to the CLI (used to
             locate the package root).
         pyproject_dir: Directory containing the ``pyproject.toml`` file.
@@ -94,7 +94,7 @@ def _version_from_dynamic(pkg_name: str, scan_path: str, pyproject_dir: str) -> 
             added.append(root)
             sys.path.insert(0, root)
     try:
-        module = importlib.import_module(pkg_name)
+        module = importlib.import_module(module_name.split(".")[0])
         version = getattr(module, "__version__", None)
         return version if isinstance(version, str) else None
     except Exception:
@@ -525,7 +525,7 @@ def _version_from_toml(
         scan_path: Original file-system path passed to the CLI (forwarded to
             :func:`_version_from_dynamic` for import-root resolution).
         allow_import: Import the package for a dynamic version; ``False`` reads its source instead.
-        module_name: Module name being scanned, whose top-level package the source read looks in.
+        module_name: Module name being scanned, whose top-level package provides the dynamic version.
         import_root: Directory holding the top-level package, for the source read.
 
     Returns:
@@ -546,9 +546,8 @@ def _version_from_toml(
         if not allow_import:
             toml_dir = Path(toml_path).parent
             return _version_from_source(module_name, import_root, toml_data=data, toml_dir=toml_dir)
-        pkg_name = project.get("name")
-        if isinstance(pkg_name, str) and pkg_name:
-            return _version_from_dynamic(pkg_name, scan_path, os.path.dirname(toml_path))
+        if _is_dotted_name(module_name):
+            return _version_from_dynamic(module_name, scan_path, os.path.dirname(toml_path))
 
     return None
 
@@ -593,7 +592,7 @@ def _read_pyproject_version(
     Args:
         path: File-system path to start the upward search from.
         allow_import: Import the package for a dynamic version; ``False`` reads its source instead.
-        module_name: Module name being scanned, for the source read of a dynamic version.
+        module_name: Module name being scanned, for resolving a dynamic version.
         import_root: Directory holding the top-level package, for the source read of a dynamic version.
 
     Returns:
@@ -645,7 +644,8 @@ def _resolve_package_version(
 
     1. ``[project].version`` in the nearest ``pyproject.toml`` above *path* that has a ``[project]`` table (reflects
        local development checkouts whose version may differ from the installed dist; a ``dynamic`` version imports
-       ``[project].name``). That table owns the version: when it yields none, an ancestor's file is not consulted.
+       the top-level package of *module_name*). That table owns the version: when it yields none, an ancestor's file
+       is not consulted.
     2. ``importlib.metadata.version`` of the full module name, then its top-level import package. A dotted
        component can have its own distribution and version, distinct from another package sharing its namespace.
     3. The same lookup for the distribution that provides the top-level import package, as the import name
@@ -685,9 +685,10 @@ def _resolve_package_version(
         if local_ver is not None:
             return local_ver
     top_level = module_name.split(".")[0]
-    with suppress(Exception):
-        # Python 3.9's metadata reader normalizes hyphens but leaves dots unchanged.
-        return importlib.metadata.version(module_name.replace(".", "-"))
+    own_dist = _own_distribution(module_name)
+    if own_dist is not None:
+        with suppress(Exception):
+            return importlib.metadata.version(own_dist)
     if module_name != top_level:
         with suppress(Exception):
             return importlib.metadata.version(top_level)

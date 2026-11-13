@@ -9,18 +9,17 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 
 import enum
 import types
-import warnings
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from functools import partial
 from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 
 if TYPE_CHECKING:
     from packaging.version import Version
 
-from deprecate._frames import _caller_stacklevel
 from deprecate._types import DeprecationConfig, TargetMode
-from deprecate.audit._findings import _Check, _Finding, _make_finding, _Rule
-from deprecate.audit._lifecycle import _parse_version
+from deprecate.audit._findings import _MESSAGE_REQUIRED_SLUG, _MIN_GRACE_SLUG, _Check, _Finding, _make_finding, _Rule
+from deprecate.audit._lifecycle import _parse_version, _warn_version_skip
 from deprecate.audit._scan import find_deprecation_wrappers
 from deprecate.audit._wrappers import DeprecationWrapperInfo, _ApiType, _format_subject
 from deprecate.module import _build_module_warn_msg
@@ -54,8 +53,8 @@ class PolicyRule(str, enum.Enum):
 
     """
 
-    MIN_GRACE = "min-grace"
-    MESSAGE_REQUIRED = "message-required"
+    MIN_GRACE = _MIN_GRACE_SLUG
+    MESSAGE_REQUIRED = _MESSAGE_REQUIRED_SLUG
 
 
 class VersionBump(str, enum.Enum):
@@ -268,15 +267,7 @@ def _warn_policy_skip(
     message: str, info: DeprecationWrapperInfo, reason: str, callback: Optional[_OnUnparsableVersion]
 ) -> None:
     """Record a skipped check and emit its warning without allowing warning filters to abort a recorded scan."""
-    if callback is not None:
-        callback(info, reason)
-    warning = UserWarning(message)
-    try:
-        warnings.warn(warning, stacklevel=_caller_stacklevel())
-    except UserWarning as ex:
-        # Suppress only this warning under an error filter, never a custom warning hook's own failure.
-        if callback is None or ex is not warning:
-            raise
+    _warn_version_skip(message, partial(callback, info, reason) if callback is not None else None)
 
 
 def _parse_policy_version(
@@ -597,8 +588,8 @@ def _policy_violations_for_wrapper(
 def _check_policy_for_callables(results: list[DeprecationWrapperInfo], spec: _PolicySpec) -> list[str]:
     """Apply the policy rules to pre-scanned wrapper results.
 
-    Shared implementation used by :func:`validate_deprecation_policy` and the CLI's single-scan path, keeping
-    the violation-message format in one place.
+    Message-list adapter used by :func:`~deprecate.audit.validate_deprecation_policy`; the CLI consumes
+    :func:`~deprecate.audit._policy._policy_findings` directly.
 
     Version parsing is lazy: a version string is only turned into a :class:`~packaging.version.Version` when
     the grace-window rule reads it. A policy that runs ``message_required`` alone therefore needs no

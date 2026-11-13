@@ -12,7 +12,7 @@ import enum
 from collections.abc import Iterable
 from typing import Optional
 
-from deprecate.audit._findings import _Check, _Finding, _Rule
+from deprecate.audit._findings import _RULE_CHECKS, _Check, _Finding, _Rule
 
 
 class _Level(str, enum.Enum):
@@ -49,19 +49,6 @@ _LEVELS: dict[_Rule, dict[str, _Level]] = {
     _Rule.MIN_GRACE: {"policy": _E, "all": _W},
     _Rule.MESSAGE_REQUIRED: {"policy": _E, "all": _W},
 }
-#: The check that owns each rule — the subcommand whose level the rule takes in ``all`` when ``--gate`` names it.
-_RULE_CHECKS: dict[_Rule, _Check] = {
-    _Rule.INVALID_ARGS: _Check.CHECK,
-    _Rule.MISCONFIGURED_TARGET: _Check.CHECK,
-    _Rule.INNER_ORDER_PROPERTY: _Check.CHECK,
-    _Rule.IDENTITY_MAPPING: _Check.CHECK,
-    _Rule.NO_EFFECT: _Check.CHECK,
-    _Rule.POSITIONAL_ONLY_MAPPING: _Check.CHECK,
-    _Rule.CHAIN: _Check.CHAINS,
-    _Rule.EXPIRED: _Check.EXPIRY,
-    _Rule.MIN_GRACE: _Check.POLICY,
-    _Rule.MESSAGE_REQUIRED: _Check.POLICY,
-}
 #: Every check ``--gate`` may name, in the order the report lists ``options.gates``.
 _GATE_ORDER = tuple(check.value for check in _Check)
 
@@ -85,24 +72,6 @@ def _level(rule: _Rule, subcommand: str, gates: Iterable[str] = ()) -> Optional[
     return _LEVELS[rule].get(owner, level) if owner in gates else level
 
 
-def _gate_levels(findings: Iterable[_Finding], subcommand: str, gates: Iterable[str] = ()) -> dict[str, _Level]:
-    """Return the level of every evaluated finding by its id, one entry per id at its highest level.
-
-    ``all`` derives a ``chain`` finding in both its ``check`` and its ``chains`` pass; the two collapse into one, at the
-    level ``chains`` gives it.
-
-    """
-    gated = frozenset(gates)
-    levels: dict[str, _Level] = {}
-    for finding in findings:
-        level = _level(finding.rule, subcommand, gated)
-        if level is None:
-            continue
-        if levels.get(finding.id) is not _E:
-            levels[finding.id] = level
-    return levels
-
-
 def _gate_reasons(
     findings: Iterable[_Finding],
     subcommand: str,
@@ -119,7 +88,8 @@ def _gate_reasons(
 
     """
     reasons = []
-    if _E in _gate_levels(findings, subcommand, gates).values():
+    gated = frozenset(gates)
+    if any(_level(finding.rule, subcommand, gated) is _E for finding in findings):
         reasons.append(_GateReason.FINDINGS)
     if strict and gaps > 0:
         reasons.append(_GateReason.GAPS)
