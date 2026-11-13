@@ -5,9 +5,10 @@ import inspect
 import io
 import sys
 from collections.abc import Callable
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Optional
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -18,6 +19,7 @@ from deprecate._cli.argv import (
     _parse_bool,
     _parse_cli_args,
     _parse_switchable,
+    _parses_as_version,
 )
 from deprecate._cli.commands import cmd_all, cmd_chains, cmd_check, cmd_expiry, cmd_policy
 
@@ -164,16 +166,17 @@ class TestCliCommand:
     @pytest.mark.parametrize(
         ("name", "expected"),
         [
-            pytest.param("check", ("path",), id="check"),
-            pytest.param("policy", ("path",), id="policy"),
-            pytest.param("expiry", ("path", "version"), id="expiry"),
-            pytest.param("all", ("path", "version"), id="all"),
-            pytest.param("status", ("path", "version"), id="status"),
+            pytest.param("check", False, id="check"),
+            pytest.param("policy", False, id="policy"),
+            pytest.param("chains", False, id="chains"),
+            pytest.param("expiry", True, id="expiry"),
+            pytest.param("all", True, id="all"),
+            pytest.param("status", True, id="status"),
         ],
     )
-    def test_positionals(self, name: str, expected: tuple[str, ...]) -> None:
-        """Only the path and, where the subcommand compares against one, the version are positional operands."""
-        assert _cli_command(name).positionals == expected
+    def test_takes_version(self, name: str, expected: bool) -> None:
+        """Only the subcommands that compare against a version accept the legacy positional version."""
+        assert _cli_command(name).takes_version is expected
 
     @pytest.mark.parametrize("name", ["check", "expiry", "policy", "chains", "all", "status"])
     def test_every_parameter_is_an_option(self, name: str) -> None:
@@ -213,33 +216,49 @@ class TestParseCliArgs:
     @pytest.mark.parametrize(
         ("argv", "expected_command", "expected_kwargs"),
         [
-            pytest.param(["check", "pkg"], cmd_check, {"path": "pkg"}, id="path-only"),
-            pytest.param(["pkg", "--exit-zero"], cmd_check, {"path": "pkg", "exit_zero": True}, id="implicit-check"),
+            pytest.param(["check", "pkg"], cmd_check, {"path": ["pkg"]}, id="path-only"),
+            pytest.param(["pkg", "--exit-zero"], cmd_check, {"path": ["pkg"], "exit_zero": True}, id="implicit-check"),
             pytest.param(
                 ["expiry", "pkg", "--no-recursive", "0.10"],
                 cmd_expiry,
-                {"path": "pkg", "version": "0.10", "recursive": False},
+                {"path": ["pkg"], "version": "0.10", "recursive": False},
                 id="flag-between-positionals",
             ),
             pytest.param(
                 ["policy", "--min-grace=None", "pkg", "--message_required", "0"],
                 cmd_policy,
-                {"path": "pkg", "min_grace": None, "message_required": False},
+                {"path": ["pkg"], "min_grace": None, "message_required": False},
                 id="policy-rules",
             ),
             pytest.param(["all"], cmd_all, {}, id="nothing-typed"),
             pytest.param(
                 ["expiry", "pkg", "--ignore", "a:b,c:d", "--ignore=e:f"],
                 cmd_expiry,
-                {"path": "pkg", "ignore": ["a:b,c:d", "e:f"]},
+                {"path": ["pkg"], "ignore": ["a:b,c:d", "e:f"]},
                 id="ignore-repeated",
             ),
-            pytest.param(["check", "pkg", "--ignore="], cmd_check, {"path": "pkg", "ignore": [""]}, id="ignore-empty"),
+            pytest.param(
+                ["check", "pkg", "--ignore="], cmd_check, {"path": ["pkg"], "ignore": [""]}, id="ignore-empty"
+            ),
             pytest.param(
                 ["chains", "pkg", "--baseline", "b.json"],
                 cmd_chains,
-                {"path": "pkg", "baseline": "b.json"},
+                {"path": ["pkg"], "baseline": "b.json"},
                 id="baseline",
+            ),
+            pytest.param(["all", "pkg", "--gate=policy"], cmd_all, {"path": ["pkg"], "gate": ["policy"]}, id="gate"),
+            pytest.param(
+                ["all", "pkg_a", "--exit-zero", "pkg_b", "pkg_c"],
+                cmd_all,
+                {"path": ["pkg_a", "pkg_b", "pkg_c"], "exit_zero": True},
+                id="several-paths",
+            ),
+            pytest.param(["check", "pkg", "2.0"], cmd_check, {"path": ["pkg", "2.0"]}, id="no-version-to-take"),
+            pytest.param(
+                ["expiry", "pkg_a", "pkg_b", "2.0"],
+                cmd_expiry,
+                {"path": ["pkg_a", "pkg_b", "2.0"]},
+                id="three-positionals-are-paths",
             ),
         ],
     )
@@ -254,31 +273,39 @@ class TestParseCliArgs:
         """
         parsed = _parse_cli_args(argv)
         assert parsed is not None
-        command, kwargs, report_path = parsed
-        assert (command.function, kwargs, report_path) == (expected_command, expected_kwargs, None)
+        command, kwargs, reports = parsed
+        assert (command.function, kwargs, reports) == (expected_command, expected_kwargs, (None, None))
 
     def test_report_option_is_split_off(self) -> None:
         """``--report-json`` is the CLI's own option and never reaches the ``cmd_*`` function."""
         parsed = _parse_cli_args(["status", "pkg", "--report_json=out/r.json"])
         assert parsed is not None
-        assert (parsed[1], parsed[2]) == ({"path": "pkg"}, "out/r.json")
+        assert (parsed[1], parsed[2]) == ({"path": ["pkg"]}, ("out/r.json", None))
 
     @pytest.mark.parametrize(
         ("argv", "expected_kwargs"),
         [
-            pytest.param(["check", "--", "--exit-zero"], {"path": "--exit-zero"}, id="option-spelling-is-a-path"),
+            pytest.param(["check", "--", "--exit-zero"], {"path": ["--exit-zero"]}, id="option-spelling-is-a-path"),
             pytest.param(
                 ["status", "--recursive=0", "--", "pkg", "0.2"],
-                {"path": "pkg", "version": "0.2", "recursive": False},
-                id="both-operands",
+                {"path": ["pkg", "0.2"], "recursive": False},
+                id="version-shaped-operands-are-paths",
             ),
-            pytest.param(["status", "pkg", "--", "0.2"], {"path": "pkg", "version": "0.2"}, id="version-operand"),
+            pytest.param(
+                ["status", "pkg", "--", "0.2"], {"path": ["pkg", "0.2"]}, id="version-shaped-operand-is-a-path"
+            ),
+            pytest.param(
+                ["status", "--version=9.0", "pkg", "--", "v2"],
+                {"path": ["pkg", "v2"], "version": "9.0"},
+                id="typed-version-and-version-shaped-operand",
+            ),
             # without the separator "--report-json" alone is a usage error (expects a value), so parsing proves it
             # was taken as an operand
-            pytest.param(["check", "--", "--report-json"], {"path": "--report-json"}, id="report-option-is-a-path"),
+            pytest.param(["check", "--", "--report-json"], {"path": ["--report-json"]}, id="report-option-is-a-path"),
             pytest.param(
-                ["check", "--", "--report-json=out.json"], {"path": "--report-json=out.json"}, id="report-assignment"
+                ["check", "--", "--report-json=out.json"], {"path": ["--report-json=out.json"]}, id="report-assignment"
             ),
+            pytest.param(["check", "pkg_a", "--", "pkg_b"], {"path": ["pkg_a", "pkg_b"]}, id="paths-on-both-sides"),
         ],
     )
     def test_separator_ends_options(self, argv: list[str], expected_kwargs: dict[str, object]) -> None:
@@ -286,24 +313,27 @@ class TestParseCliArgs:
 
         ``parse_known_intermixed_args`` on Python 3.9 still parsed ``check -- --exit-zero`` as the ``--exit-zero`` flag,
         scanning ``.`` with the gate disabled, while newer Pythons took it as the path; both now read it as the path.
+        An operand after the separator is a path whatever it looks like, so a version-shaped one is never the legacy
+        positional version, and ``--version`` stays the only way to give one.
 
         """
         parsed = _parse_cli_args(argv)
         assert parsed is not None
         assert parsed[1] == expected_kwargs
 
-    def test_unknown_option_value_gets_no_path_hint(self, capsys: pytest.CaptureFixture[str]) -> None:
-        """The value of a mistyped option is not called a second path.
+    def test_unknown_option_is_named_before_any_path(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """A mistyped option fails the parse by its own name, whatever the token after it binds to.
 
-        In ``check pkg --verison 2.0`` the ``2.0`` belongs to the unknown ``--verison``, so telling the user to pass one
-        path per run points at the wrong mistake.
+        In ``check pkg --verison 2.0`` the ``2.0`` meant for the unknown ``--verison`` reads as one more path, but the
+        run never gets that far: the unknown option alone is the usage error, so the user sees the typo, not a complaint
+        about a path called ``2.0``.
 
         """
         with pytest.raises(SystemExit):
             _parse_cli_args(["check", "pkg", "--verison", "2.0"])
         err = capsys.readouterr().err
-        assert "unrecognized arguments: --verison 2.0" in err
-        assert "one path per run" not in err
+        assert "unrecognized arguments: --verison" in err
+        assert "No such path" not in err
 
     def test_empty_command_line_prints_help(self, capsys: pytest.CaptureFixture[str]) -> None:
         """A bare ``pydeprecate`` prints the subcommand list and runs nothing."""
@@ -313,14 +343,12 @@ class TestParseCliArgs:
     @pytest.mark.parametrize(
         ("argv", "message"),
         [
-            pytest.param(["check", "pkg_a", "pkg_b"], "pass one path per run", id="second-path"),
             pytest.param(["check", "pkg", "--exit"], "unrecognized arguments: --exit", id="no-abbreviation"),
             pytest.param(["check", "pkg", "--exit-zero=yes"], "expects True or False", id="bad-bool"),
             pytest.param(["check", "pkg", "--no-exit-zero=1"], "ignored explicit argument", id="negation-value"),
             pytest.param(["check", "pkg", "--report-json"], "expected one argument", id="report-without-path"),
             pytest.param(["check", "pkg", "--report-json="], "expects a file path", id="report-empty-path"),
             pytest.param(["expiry", "pkg", "0.1", "--version=9.0"], "the version was given twice", id="version-twice"),
-            pytest.param(["check", "--", "pkg_a", "pkg_b"], "pass one path per run", id="operands-after-separator"),
             pytest.param(
                 ["check", "pkg", "--static"],
                 "are supported by `expiry` and `policy` only, not `check`",
@@ -356,6 +384,118 @@ class TestParseCliArgs:
             _parse_cli_args(argv)
         assert exc_info.value.code == 2
         assert message in capsys.readouterr().err
+
+
+class TestLegacyPositionalVersion:
+    """The second positional of ``expiry``, ``all`` and ``status`` is the deprecated version only when it is no path."""
+
+    @pytest.mark.parametrize(
+        ("argv", "version"),
+        [
+            pytest.param(["expiry", "pkg", "2.0"], "2.0", id="expiry-release"),
+            pytest.param(["expiry", "pkg", "v2"], "v2", id="expiry-v-prefix"),
+            pytest.param(["status", "pkg", "1.0.0rc1"], "1.0.0rc1", id="status-pre-release"),
+            pytest.param(["all", "--no-recursive", "pkg", "0.10"], "0.10", id="all-trailing-zero"),
+            pytest.param(["expiry", "pkg", "2.0", "--"], "2.0", id="separator-with-nothing-after"),
+        ],
+    )
+    def test_version_shaped_second_positional_is_the_version(
+        self, argv: list[str], version: str, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """``expiry pkg 2.0`` keeps meaning version 2.0, with a notice that names ``--version`` and removal at 1.0.
+
+        CI scripts written before several paths were accepted pass the version as the second positional. It names no
+        path and no module and parses as PEP 440, so it is still the version, and the run says how to spell it from now.
+
+        """
+        parsed = _parse_cli_args(argv)
+        assert parsed is not None
+        err = capsys.readouterr().err
+        assert (parsed[1]["path"], parsed[1]["version"]) == (["pkg"], version)
+        assert f"pass `--version {version}` instead" in err
+        assert "will stop working in 1.0" in err
+
+    @pytest.mark.parametrize(
+        "second",
+        [
+            pytest.param("json", id="findable-module"),
+            pytest.param("pkg_b", id="missing-path-stays-a-path"),
+            pytest.param("src/pkg_b", id="mistyped-directory"),
+        ],
+    )
+    def test_second_positional_that_is_no_version_is_a_path(
+        self, second: str, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A second positional that is a module or no version at all is a second path, never a version.
+
+        ``all pkg_a pkg_b`` scans two packages; a typo in the second one must reach the scan as a path, so the run
+        reports it as no such path instead of comparing against a version called ``pkg_b``.
+
+        """
+        parsed = _parse_cli_args(["all", "pkg_a", second])
+        assert parsed is not None
+        assert parsed[1] == {"path": ["pkg_a", second]}
+        assert "deprecated" not in capsys.readouterr().err
+
+    @pytest.mark.parametrize(
+        ("argv", "paths"),
+        [
+            pytest.param(["expiry", "--", "pkg", "2.0"], ["pkg", "2.0"], id="both-after-separator"),
+            pytest.param(["all", "pkg", "--", "v2"], ["pkg", "v2"], id="version-after-separator"),
+            pytest.param(["expiry", "--", "2.0", "pkg"], ["2.0", "pkg"], id="version-first-after-separator"),
+        ],
+    )
+    def test_operand_after_separator_is_never_the_version(
+        self, argv: list[str], paths: list[str], capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """``expiry -- pkg 2.0`` scans ``2.0`` as a second path; it is not bound as the legacy positional version.
+
+        A script protects a path that starts with a dash by writing it after ``--``, where every token is a path by
+        definition. A directory named like a release, or a version-shaped token meant as a path, must reach the scan
+        as a path and be reported as missing if it is, instead of silently turning into a ``--version`` the user never
+        typed and printing a deprecation notice for it.
+
+        """
+        parsed = _parse_cli_args(argv)
+        assert parsed is not None
+        assert parsed[1] == {"path": paths}
+        assert "deprecated" not in capsys.readouterr().err
+
+    def test_existing_directory_named_like_a_version_is_a_path(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A directory called ``2.0`` in the working directory is scanned, not read as the version.
+
+        A monorepo may keep release branches checked out as directories named after the release. The path that exists
+        wins over the version spelling.
+
+        """
+        (tmp_path / "2.0").mkdir()
+        monkeypatch.chdir(tmp_path)
+        parsed = _parse_cli_args(["status", "pkg", "2.0"])
+        assert parsed is not None
+        assert parsed[1] == {"path": ["pkg", "2.0"]}
+        assert "deprecated" not in capsys.readouterr().err
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            pytest.param("2.0", True, id="release"),
+            pytest.param("v2", True, id="v-prefix"),
+            pytest.param("1.0.0rc1", True, id="pre-release"),
+            pytest.param("src/pkg_b", False, id="path"),
+            pytest.param("pkg_b", False, id="name"),
+        ],
+    )
+    def test_version_shape_stands_in_without_packaging(self, text: str, expected: bool) -> None:
+        """Without ``packaging`` a version-shaped token still counts as a version, and a name or path does not.
+
+        A base install has no PEP 440 parser, yet ``expiry pkg 2.0`` must keep its meaning there too; only tokens that
+        start like a release number qualify.
+
+        """
+        with patch("deprecate._cli.argv._parse_version", side_effect=ImportError("No module named 'packaging'")):
+            assert _parses_as_version(text) is expected
 
 
 class _NoneEncodingStream:

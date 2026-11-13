@@ -112,7 +112,7 @@ class TestSuppressorMatch:
         finding = _finding(_Rule.EXPIRED)
         suppressor = _Suppressor(ignore=_parse_ignore(["pkg.mod:old_fn"], "test"), baseline=frozenset({finding.id}))
         suppressor.match(finding)
-        assert suppressor.unmatched_baseline({"expired"}) == 0
+        assert suppressor.evaluated_baseline({"expired"}) - suppressor.used_ids == set()
 
     @pytest.mark.parametrize(
         ("symbol", "expected"),
@@ -130,8 +130,8 @@ class TestSuppressorMatch:
         suppressor = _Suppressor(baseline=frozenset({"expired:pkg.mod:old_fn"}))
         assert suppressor.match(_finding(_Rule.EXPIRED, symbol=symbol)) == expected
 
-    def test_unmatched_entries_are_counted(self) -> None:
-        """Ignore entries and baseline ids that matched nothing are counted, baseline ids only for evaluated rules.
+    def test_unmatched_entries_are_left_over(self) -> None:
+        """Ignore entries and baseline ids that matched nothing are left over, baseline ids only for evaluated rules.
 
         A stale baseline entry for an expiry finding is reported only when the expiry check ran; an unused ignore
         entry is counted for the report.
@@ -142,8 +142,8 @@ class TestSuppressorMatch:
             baseline=frozenset({"expired:pkg.x:a", "chain:pkg.y:b"}),
         )
         suppressor.match(_finding(_Rule.EXPIRED))
-        assert suppressor.unmatched_ignore() == 1
-        assert suppressor.unmatched_baseline({"expired"}) == 1
+        assert {entry.text for entry in suppressor.ignore} - suppressor.used_entries == {"pkg.other:gone"}
+        assert suppressor.evaluated_baseline({"expired"}) - suppressor.used_ids == {"expired:pkg.x:a"}
 
 
 class TestLoadBaseline:

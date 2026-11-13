@@ -1,8 +1,10 @@
 """Command-line parsing for the CLI: UTF-8 streams and the ``argparse`` parser of every subcommand.
 
 The parser is built from the ``cmd_*`` signatures, so a subcommand's options and its direct-call keyword arguments are
-one list: ``path`` (and ``version`` where the subcommand takes it) are positional and every other parameter is a
-``--flag``. Option values stay strings; only boolean flags are converted, from ``true``/``false``/``1``/``0``.
+one list: ``path`` is positional and takes any number of paths, and every other parameter is a ``--flag``. Option values
+stay strings; only boolean flags are converted, from ``true``/``false``/``1``/``0``. The legacy positional version of
+``expiry``, ``all`` and ``status`` (``expiry pkg 2.0``) is recognised after parsing and deprecated in favour of
+``--version``.
 
 """
 
@@ -12,23 +14,31 @@ import inspect
 import re
 import sys
 from collections.abc import Callable, Sequence
+from pathlib import Path
 from typing import Any, NamedTuple, Optional
 
-from deprecate._cli import _REPORT_OPTION, commands
+from deprecate._cli import _REPORT_OPTION, _SARIF_OPTION, commands
 from deprecate._cli.config import _ConfigBool, _ConfigFlag, _ConfigList
+from deprecate._cli.report import _print
+from deprecate._cli.scan import _top_level_findable
+from deprecate.audit._lifecycle import _parse_version
 
 #: The subcommands, in the order ``--help`` lists them; each runs the ``cmd_<name>`` function of :mod:`commands`.
 _SUBCOMMANDS = ("check", "expiry", "policy", "chains", "all", "status")
-#: Parameters taken as positional operands, in this order, by every subcommand that has them.
-_POSITIONALS = ("path", "version")
+#: The parameter every subcommand takes as its positional operands: any number of paths.
+_PATH = "path"
+#: The parameter the legacy second positional binds to, on the subcommands that compare against a version.
+_VERSION = "version"
 #: Spellings accepted as a boolean flag's value, keyed by lower-cased text.
 _BOOL_LITERALS: dict[str, bool] = {"true": True, "false": False, "1": True, "0": False}
 #: Values of a ``pyproject.toml``-backed option that switch it off, as ``None`` does in a direct call.
 _OFF_LITERALS = frozenset({"none", "false"})
-#: Namespace attribute of the positional version, kept apart from ``--version`` so that giving both is caught.
-_VERSION_OPERAND = "version_operand"
 #: Every spelling of the ``--static`` flag, after :func:`_normalize_options` respelled it.
 _STATIC_SPELLINGS = frozenset({"static", "no-static", "nostatic"})
+#: Metavar of each accumulating list option in ``--help``; any other one reads ``PATTERNS``.
+_LIST_METAVARS: dict[str, str] = {"gate": "CHECKS"}
+#: A version-shaped token, the stand-in for a PEP 440 parse when the ``packaging`` library is not installed.
+_VERSION_SHAPE = re.compile(r"[vV]?\d[0-9A-Za-z.!+_-]*")
 
 
 def _ensure_utf8_streams() -> None:
@@ -97,33 +107,68 @@ def _parse_file_path(text: str) -> str:
     return text
 
 
-def _positional_dest(name: str) -> str:
-    """Return the namespace attribute a positional operand is parsed into: ``path`` as is, the version apart."""
-    return _VERSION_OPERAND if name == "version" else name
+def _parses_as_version(text: str) -> bool:
+    """Tell whether *text* is a PEP 440 version, silently: a parse failure prints nothing.
+
+    Without the ``packaging`` library a version-shaped token (``2.0``, ``v2``, ``1.0.0rc1``) counts as one.
+
+    Examples:
+        >>> _parses_as_version("1.0.0rc1"), _parses_as_version("src/pkg_b")
+        (True, False)
+
+    """
+    try:
+        _parse_version(text)
+    except ImportError:
+        return _VERSION_SHAPE.fullmatch(text) is not None
+    except ValueError:
+        return False
+    return True
+
+
+def _is_legacy_version(text: str) -> bool:
+    """Tell whether the second positional of ``expiry``, ``all`` or ``status`` is the deprecated positional version.
+
+    It is when it names no existing path and no findable module and it parses as a PEP 440 version, so
+    ``expiry pkg 2.0`` keeps working while a mistyped second path is still reported as no such path.
+
+    Examples:
+        >>> _is_legacy_version("2.0"), _is_legacy_version("json")
+        (True, False)
+
+    """
+    return not Path(text).exists() and not _top_level_findable(text) and _parses_as_version(text)
+
+
+class _ReportTargets(NamedTuple):
+    """The files ``cli()`` writes after the subcommand: the ``--report-json`` and the ``--report-sarif`` file."""
+
+    json: Optional[str]
+    sarif: Optional[str]
 
 
 class _CliCommand(NamedTuple):
-    """A subcommand as the parser sees it: its function, its positional operands and its boolean flags."""
+    """A subcommand as the parser sees it: its function, whether it takes a version, and its boolean flags."""
 
     function: Callable[..., int]
-    positionals: tuple[str, ...]
+    takes_version: bool
     bool_params: frozenset[str]
 
 
 def _cli_command(name: str) -> _CliCommand:
-    """Describe the ``cmd_<name>`` function: which parameters are positional and which are boolean flags.
+    """Describe the ``cmd_<name>`` function: whether it takes a version and which parameters are boolean flags.
 
     Examples:
         >>> command = _cli_command("expiry")
-        >>> command.positionals, sorted(command.bool_params)
-        (('path', 'version'), ['exit_zero', 'include_members', 'recursive', 'static', 'strict'])
+        >>> command.takes_version, sorted(command.bool_params)
+        (True, ['exit_zero', 'include_members', 'recursive', 'static', 'strict'])
 
     """
     function = getattr(commands, f"cmd_{name}")
     params = inspect.signature(function).parameters
     return _CliCommand(
         function,
-        tuple(param for param in _POSITIONALS if param in params),
+        _VERSION in params,
         frozenset(param_name for param_name, param in params.items() if param.annotation in (bool, _ConfigBool)),
     )
 
@@ -170,16 +215,9 @@ def _add_subcommand(subparsers: Any, name: str) -> argparse.ArgumentParser:  # n
         formatter_class=argparse.RawDescriptionHelpFormatter,
         allow_abbrev=False,
     )
-    for positional in command.positionals:
-        parser.add_argument(
-            _positional_dest(positional),
-            nargs="?",
-            metavar=positional,
-            default=argparse.SUPPRESS,
-            help=helps.get(positional),
-        )
+    parser.add_argument(_PATH, nargs="*", metavar=_PATH, default=argparse.SUPPRESS, help=helps.get(_PATH))
     for param_name, param in inspect.signature(command.function).parameters.items():
-        if param_name == "path":
+        if param_name == _PATH:
             continue
         flag = _flag(param_name)
         if param_name in command.bool_params:
@@ -211,7 +249,7 @@ def _add_subcommand(subparsers: Any, name: str) -> argparse.ArgumentParser:  # n
                 f"--{flag}",
                 dest=param_name,
                 action="append",
-                metavar="PATTERNS",
+                metavar=_LIST_METAVARS.get(param_name, "PATTERNS"),
                 default=argparse.SUPPRESS,
                 help=helps.get(param_name),
             )
@@ -232,6 +270,15 @@ def _add_subcommand(subparsers: Any, name: str) -> argparse.ArgumentParser:  # n
         default=None,
         help="Write the run's machine-readable record (deprecation table and gaps) to FILE on exit 0 or 1.",
     )
+    if name != "status":  # `status` gates on nothing, so it has no findings to report as SARIF
+        parser.add_argument(
+            _SARIF_OPTION,
+            dest="report_sarif",
+            type=_parse_file_path,
+            metavar="FILE",
+            default=None,
+            help="Write the run's findings as a SARIF 2.1.0 file to FILE on exit 0 or 1, for code-scanning tools.",
+        )
     return parser
 
 
@@ -294,17 +341,40 @@ def _normalize_options(argv: Sequence[str], bool_params: frozenset[str]) -> list
     return result
 
 
-def _parse_cli_args(argv: Sequence[str]) -> Optional[tuple[_CliCommand, dict[str, Any], Optional[str]]]:
-    """Parse the command line into the subcommand to run, its keyword arguments and the ``--report-json`` path.
+def _bind_legacy_version(command: _CliCommand, kwargs: dict[str, Any], subparser: argparse.ArgumentParser) -> None:
+    """Move a legacy positional version (``expiry pkg 2.0``) from the paths to ``version``, with a deprecation notice.
+
+    Only exactly two positionals of a subcommand that takes a version qualify, and only when the second one is a version
+    and no path (:func:`_is_legacy_version`). Giving the version that way and as ``--version`` too exits 2.
+
+    """
+    paths = kwargs.get(_PATH, [])
+    if not command.takes_version or len(paths) != 2 or not _is_legacy_version(paths[1]):
+        return
+    if _VERSION in kwargs:
+        subparser.error("the version was given twice, as an argument and as `--version`; pass it once")
+    kwargs[_VERSION] = paths.pop()
+    _print(
+        f"pydeprecate: passing the version as a second positional argument is deprecated and will stop working in 1.0;"
+        f" pass `--version {kwargs[_VERSION]}` instead.",
+        stderr=True,
+    )
+
+
+def _parse_cli_args(argv: Sequence[str]) -> Optional[tuple[_CliCommand, dict[str, Any], _ReportTargets]]:
+    """Parse the command line into the subcommand to run, its keyword arguments and the report files to write.
 
     A first argument that names no subcommand selects ``check``, so ``pydeprecate src/pkg`` checks ``src/pkg``. The
-    subcommand's own parser runs ``parse_intermixed_args``, which binds the path and version positionals correctly
-    with options between them, also on Python 3.9. Arguments after a ``--`` separator are operands only, never options;
-    they are bound here, since ``parse_known_intermixed_args`` on Python 3.9 still parses options after it.
+    subcommand's own parser runs ``parse_intermixed_args``, which binds every path correctly with options between them,
+    also on Python 3.9. Arguments after a ``--`` separator are paths only, never options; they are bound here, since
+    ``parse_known_intermixed_args`` on Python 3.9 still parses options after it. With exactly two positionals on
+    ``expiry``, ``all`` or ``status``, a second one that is a version and no path is the deprecated positional version,
+    unless the line has a ``--`` separator with operands after it: those are paths, so nothing binds as a version.
 
     Returns:
-        The subcommand, its keyword arguments (only those typed) and the report path, or ``None`` after printing the
-        help for an empty command line. ``--help`` and every usage error exit through argparse (0 and 2).
+        The subcommand, its keyword arguments (only those typed; ``path`` as a list) and the
+        ``--report-json``/``--report-sarif`` paths, or ``None`` after printing the help for an empty command line.
+        ``--help`` and every usage error exit through argparse (0 and 2).
 
     """
     parser, subparsers = _build_parser()
@@ -327,20 +397,14 @@ def _parse_cli_args(argv: Sequence[str]) -> Optional[tuple[_CliCommand, dict[str
             f"--static, --no-static and --nostatic are supported by `expiry` and `policy` only, not `{name}`"
         )
     namespace, extras = subparser.parse_known_intermixed_args(normalized)
-    kwargs = vars(namespace)
-    for operand in operands:
-        free = [_positional_dest(name) for name in command.positionals if _positional_dest(name) not in kwargs]
-        if free:
-            kwargs[free[0]] = operand
-        else:
-            extras.append(operand)
     if extras:
-        # an extra positional is a second path; one that follows an unknown option is likely that option's value
-        hint = "" if any(extra.startswith("-") for extra in extras) else "; pass one path per run"
-        subparser.error(f"unrecognized arguments: {' '.join(extras)}{hint}")
-    if _VERSION_OPERAND in kwargs:
-        if "version" in kwargs:
-            subparser.error("the version was given twice, as an argument and as `--version`; pass it once")
-        kwargs["version"] = kwargs.pop(_VERSION_OPERAND)
+        subparser.error(f"unrecognized arguments: {' '.join(extras)}")
+    kwargs = vars(namespace)
+    if operands:
+        kwargs[_PATH] = [*kwargs.get(_PATH, []), *operands]
+    else:
+        # an operand after `--` is a path whatever it looks like, so only a line without one has a legacy version
+        _bind_legacy_version(command, kwargs, subparser)
     report_path = kwargs.pop("report_json")
-    return command, kwargs, report_path
+    sarif_path = kwargs.pop("report_sarif", None)
+    return command, kwargs, _ReportTargets(report_path, sarif_path)

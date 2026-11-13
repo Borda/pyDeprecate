@@ -831,8 +831,11 @@ class TestDiscovery:
         assert f"module not audited: {_PKG}.broken: could not read its source" in capsys.readouterr().err
 
     @pytest.mark.parametrize(
-        ("lister", "blocked"),
-        [pytest.param("scandir", "", id="package-root"), pytest.param("listdir", "sub", id="subpackage")],
+        ("lister", "blocked", "modules"),
+        [
+            pytest.param("scandir", "", f"{_PKG}.*", id="package-root"),
+            pytest.param("listdir", "sub", f"{_PKG}.sub", id="subpackage"),
+        ],
     )
     def test_unlistable_directory_is_a_gap(
         self,
@@ -841,17 +844,21 @@ class TestDiscovery:
         capsys: pytest.CaptureFixture[str],
         lister: str,
         blocked: str,
+        modules: str,
     ) -> None:
-        """A package directory the walk cannot list prints a ``module not audited`` gap naming it.
+        """A package directory the walk cannot list prints a ``module not audited`` gap naming its modules and itself.
 
         A directory without read permission once looked like a package with no submodules, so every wrapper below it
         passed the audit unseen; the gap names the directory and the error, while the rest of the tree is still read.
+        The detail opens with the module names left out, as the import scan's does (``<package>.*`` when only the
+        submodules are missing), so a baseline id under them is not taken for a stale one.
 
         """
         pkg = _write(tmp_path, {"__init__.py": "", "sub/__init__.py": "", "m.py": ""})
         monkeypatch.setattr(os, lister, _refusing(getattr(os, lister), pkg / blocked))
         _read_package(pkg)
-        assert f"module not audited: submodules of {pkg / blocked} not listed" in capsys.readouterr().err
+        expected = f"module not audited: {modules}: submodules of {pkg / blocked} not listed"
+        assert expected in capsys.readouterr().err
 
     def test_module_without_source_is_a_gap(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         """A compiled extension module with no ``.py`` beside it is reported, since its wrappers cannot be read.

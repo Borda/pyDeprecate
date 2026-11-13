@@ -8,20 +8,12 @@ from unittest.mock import MagicMock, patch
 import jsonschema
 import pytest
 
-from deprecate._cli.commands import (
-    _chain_wrappers,
-    _check_wrappers,
-    _expiry_wrappers,
-    _policy_wrappers,
-    cmd_check,
-    cmd_expiry,
-)
+from deprecate._cli.commands import cmd_all, cmd_chains, cmd_check, cmd_expiry, cmd_policy
 from deprecate._cli.report import _Gap, _GapKind, _print, _Reporter, _RunRecord, _ScanRecord, _write_report
 from deprecate._types import DeprecationConfig, TargetMode
 from deprecate.audit import ChainType, DeprecationWrapperInfo
 from deprecate.audit._findings import _Check, _Finding, _make_finding, _Rule, _wrapper_findings
-from deprecate.audit._policy import _build_policy_spec
-from tests.unittests.cli._helpers import _EXPIRED_FINDING, _EXPIRED_MSG
+from tests.unittests.cli._helpers import _EXPIRED_FINDING, _EXPIRED_MSG, _scanned
 
 # ---------------------------------------------------------------------------
 # Chain and expiry reporters
@@ -265,6 +257,25 @@ class TestWriteReport:
         assert [gap["kind"] for gap in report["gaps"]] == [_GapKind.PACKAGING_MISSING.value]
         assert "Could not render the deprecation table for the JSON report: boom" in capsys.readouterr().err
 
+    def test_unrendered_table_of_one_path_keeps_its_heading(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Over several paths, a table that fails to render leaves a note under its heading; the other keeps its own.
+
+        A ``check`` run over two packages builds the report table from both scans. When the first package's table
+        raises, the second must not be written bare as if it were the only package: a job summary built from the
+        report would show an unlabelled table and hide that one package is missing.
+        """
+        report_file = tmp_path / "report.json"
+        record = _RunRecord(scans=[_ScanRecord("pkg_a", [], "1.0"), _ScanRecord("pkg_b", [], "1.0")])
+        with patch("deprecate._cli.report._render_deprecation_table", side_effect=[RuntimeError("boom"), "| B |"]):
+            _write_report(str(report_file), record)
+        report = json.loads(report_file.read_text(encoding="utf-8"))
+        assert report["table"] == (
+            "### pkg_a\n\n_The deprecation table could not be rendered: boom_\n\n### pkg_b\n\n| B |"
+        )
+        assert "Could not render the deprecation table for the JSON report: boom" in capsys.readouterr().err
+
 
 class TestPlainOutput:
     """Every message goes through built-in ``print`` to the stream it belongs on."""
@@ -486,7 +497,7 @@ _GOLDEN_EXPIRY = (
     "2 expired wrapper(s) found.\n"
 )
 _GOLDEN_POLICY = (
-    "Policy: x\n"
+    "Policy: min-grace=None (flag)  message-required=True (built-in)\n"
     "\n"
     "[ERROR] Found deprecation policy violations:\n"
     "\t- [message-required] Callable `pkg.quiet` warns without naming a replacement; configure a"
@@ -498,8 +509,12 @@ _GOLDEN_POLICY = (
     "\n"
     "2 policy violation(s) found.\n"
 )
+# ``all`` prints every check in turn; the policy section is advisory there, with a trailer pointing at ``policy``.
 _GOLDEN_POLICY_ADVISORY = (
-    "Policy: x\n"
+    "\n"
+    "All deprecated wrappers look correct!\n"
+    "No expired deprecated wrappers found.\n"
+    "Policy: min-grace=0.3 (built-in)  message-required=True (built-in)\n"
     "\n"
     "[WARNING] Found deprecation policy violations:\n"
     "\t- [message-required] Callable `pkg.quiet` warns without naming a replacement; configure a"
@@ -511,49 +526,55 @@ _GOLDEN_POLICY_ADVISORY = (
     "\n"
     "2 policy violation(s) found.\n"
     "(advisory here — run `pydeprecate policy` to gate on it)\n"
+    "No deprecation chains found.\n"
 )
 
 
 def _render_check() -> int:
-    """Render the ``check`` sections of :data:`_EVERY_SECTION`."""
-    return _check_wrappers(_EVERY_SECTION)
+    """Run ``check`` on a scan of :data:`_EVERY_SECTION` and return its exit code."""
+    with _scanned(_EVERY_SECTION):
+        return cmd_check(path="some_module")
 
 
 def _render_chains() -> int:
-    """Render the ``chains`` section of :data:`_EVERY_SECTION`."""
-    return _chain_wrappers(_EVERY_SECTION)
+    """Run ``chains`` on a scan of :data:`_EVERY_SECTION` and return its exit code."""
+    with _scanned(_EVERY_SECTION):
+        return cmd_chains(path="some_module")
 
 
 def _render_expiry() -> int:
-    """Render the expiry section of :data:`_TWO_EXPIRED` at version 2.0."""
-    return _expiry_wrappers(_TWO_EXPIRED, "2.0")
+    """Run ``expiry`` on a scan of :data:`_TWO_EXPIRED` at version 2.0 and return its exit code."""
+    with _scanned(_TWO_EXPIRED, "2.0"):
+        return cmd_expiry(path="some_module", version="2.0")
 
 
 def _render_policy() -> int:
-    """Render the gating policy section of :data:`_TWO_SILENT`."""
-    return _policy_wrappers(_TWO_SILENT, _build_policy_spec(None, True), "Policy: x")
+    """Run ``policy`` with only ``message-required`` on a scan of :data:`_TWO_SILENT` and return its exit code."""
+    with _scanned(_TWO_SILENT):
+        return cmd_policy(path="some_module", min_grace=None)
 
 
 def _render_policy_advisory() -> int:
-    """Render the advisory policy section of :data:`_TWO_SILENT`, as ``all`` does."""
-    return _policy_wrappers(_TWO_SILENT, _build_policy_spec(None, True), "Policy: x", advisory=True)
+    """Run ``all`` on a scan of :data:`_TWO_SILENT` at version 2.0, its table left out, and return its exit code."""
+    with _scanned(_TWO_SILENT, "2.0"), patch("deprecate._cli.commands._status_table", return_value=""):
+        return cmd_all(path="some_module", version="2.0")
 
 
 class TestConsoleGolden:
     """The full console text of each check section, pinned byte for byte: order, headers, rows and count lines."""
 
     @pytest.mark.parametrize(
-        ("render", "expected"),
+        ("render", "exit_code", "expected"),
         [
-            pytest.param(_render_check, _GOLDEN_CHECK, id="check"),
-            pytest.param(_render_chains, _GOLDEN_CHAINS, id="chains"),
-            pytest.param(_render_expiry, _GOLDEN_EXPIRY, id="expiry"),
-            pytest.param(_render_policy, _GOLDEN_POLICY, id="policy"),
-            pytest.param(_render_policy_advisory, _GOLDEN_POLICY_ADVISORY, id="policy-advisory"),
+            pytest.param(_render_check, 1, _GOLDEN_CHECK, id="check"),
+            pytest.param(_render_chains, 1, _GOLDEN_CHAINS, id="chains"),
+            pytest.param(_render_expiry, 1, _GOLDEN_EXPIRY, id="expiry"),
+            pytest.param(_render_policy, 1, _GOLDEN_POLICY, id="policy"),
+            pytest.param(_render_policy_advisory, 0, _GOLDEN_POLICY_ADVISORY, id="policy-advisory"),
         ],
     )
     def test_stdout_is_unchanged(
-        self, render: Callable[[], int], expected: str, capsys: pytest.CaptureFixture[str]
+        self, render: Callable[[], int], exit_code: int, expected: str, capsys: pytest.CaptureFixture[str]
     ) -> None:
         """Every section prints exactly the pinned text, so a refactor of the rendering cannot drift silently.
 
@@ -561,5 +582,5 @@ class TestConsoleGolden:
         the existing tests only checked by substring.
 
         """
-        assert render() == 1
+        assert render() == exit_code
         assert capsys.readouterr().out == expected

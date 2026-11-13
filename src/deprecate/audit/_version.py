@@ -600,12 +600,37 @@ def _read_pyproject_version(
         Version string or ``None`` when the nearest ``[project]`` table yields none, or none is found within 2 levels.
 
     """
-    for toml_path in _iter_pyproject_paths(path):
-        version = _version_from_toml(
-            toml_path, path, allow_import=allow_import, module_name=module_name, import_root=import_root
-        )
-        if not isinstance(version, _NotAProject):
-            return version
+    toml_path = _project_file(path)
+    if toml_path is None:
+        return None
+    version = _version_from_toml(
+        toml_path, path, allow_import=allow_import, module_name=module_name, import_root=import_root
+    )
+    return None if isinstance(version, _NotAProject) else version
+
+
+def _project_file(path: str) -> Optional[str]:
+    """Return the nearest ``pyproject.toml`` up to 2 levels above *path* that has a ``[project]`` table, if any.
+
+    That file owns the version of the package at *path* (:func:`_read_pyproject_version`); a ``pyproject.toml`` holding
+    only tool settings says nothing about the version and is skipped. Nothing is imported.
+
+    """
+    return next((toml_path for toml_path in _iter_pyproject_paths(path) if _load_toml(toml_path).get("project")), None)
+
+
+def _own_distribution(module_name: str) -> Optional[str]:
+    """Return the installed distribution named after the dotted *module_name* itself, if there is one.
+
+    The resolver's step 2 (:func:`_resolve_package_version`) reads this distribution first, so a component such as
+    ``pkg.component`` released as ``pkg-component`` has a version of its own, distinct from ``pkg``'s. Only installed
+    metadata is read; nothing is imported.
+
+    """
+    distribution = module_name.replace(".", "-")
+    with suppress(Exception):
+        importlib.metadata.version(distribution)
+        return distribution
     return None
 
 
@@ -737,29 +762,40 @@ def _is_package_dir(pth: Path) -> bool:
     return (pth / "__init__.py").exists()
 
 
+def _import_root(path: str) -> Optional[Path]:
+    """Return the directory a scan of *path* puts first on ``sys.path``, or ``None`` for an importable module name.
+
+    A package directory (containing ``__init__.py``) gives its parent, so the package name resolves as an importable
+    module; a directory with packages in its ``src/`` gives that ``src/``; any other directory gives itself.
+
+    """
+    abs_path = Path(path).resolve()
+    if not abs_path.is_dir():
+        return None
+    if _is_package_dir(abs_path):
+        return abs_path.parent
+    src_dir = abs_path / "src"
+    in_src = src_dir.is_dir() and any(c.is_dir() and _is_package_dir(c) for c in src_dir.iterdir())
+    return src_dir if in_src else abs_path
+
+
 @contextmanager
 def _managed_sys_path(path: str) -> Generator[None, None, None]:
     """Context manager that prepends the import root to ``sys.path`` and restores it after scanning.
 
     For package directories (containing ``__init__.py``), inserts the parent directory so the package name resolves as
-    an importable module. For plain directories, inserts the directory itself. Importable module name strings are passed
-    through unchanged.
+    an importable module. For plain directories, inserts the directory itself (see :func:`_import_root`). Importable
+    module name strings are passed through unchanged.
 
     Warning:
         Not thread-safe. ``sys.path`` is a process-global list; concurrent use from multiple threads will corrupt
         the restored state. Each scan should run in a dedicated process or be serialized via a lock.
 
     """
-    abs_path: Path = Path(path).resolve()
+    import_root = _import_root(path)
     original = list(sys.path)
-    if abs_path.is_dir():
-        if _is_package_dir(abs_path):
-            import_root = str(abs_path.parent)
-        else:
-            src_dir = abs_path / "src"
-            in_src = src_dir.is_dir() and any(c.is_dir() and _is_package_dir(c) for c in src_dir.iterdir())
-            import_root = str(src_dir) if in_src else str(abs_path)
-        sys.path.insert(0, import_root)
+    if import_root is not None:
+        sys.path.insert(0, str(import_root))
     try:
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=DeprecationWarning, module="deprecate.*")

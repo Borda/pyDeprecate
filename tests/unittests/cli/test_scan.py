@@ -10,7 +10,43 @@ from unittest.mock import patch
 import pytest
 
 from deprecate._cli.config import _FROM_PYPROJECT
-from deprecate._cli.scan import _foreign_copy, _scan_for_command, _scan_path
+from deprecate._cli.scan import (
+    _foreign_copy,
+    _scan_for_command,
+    _scan_path,
+    _walk_reaches,
+)
+from tests._helpers import write_pkg
+
+
+class TestWalkReaches:
+    """Tests for ``_walk_reaches`` — whether a package's recursive scan imports a submodule, read from disk."""
+
+    @pytest.mark.parametrize(
+        ("parts", "expected"),
+        [
+            pytest.param(["sub", "deep"], True, id="package-chain"),
+            pytest.param(["sub", "leaf"], True, id="module-file"),
+            pytest.param(["data", "inner"], False, id="plain-directory-between"),
+            pytest.param(["sub", "nosuch"], False, id="missing-leaf"),
+            pytest.param(["sub", "leaf", "deeper"], False, id="below-module-file"),
+            pytest.param([], False, id="no-parts"),
+        ],
+    )
+    def test_reaches_only_through_packages(self, parts: list[str], expected: bool, tmp_path: Path) -> None:
+        """Only a chain of package directories ending in a package or module file is imported by the walk.
+
+        A run drops a path as already audited by its parent package's scan only when that scan's walk imports it; the
+        walk enters directories with ``__init__.py`` only, so ``data/inner`` under a plain ``data`` directory, a name
+        that does not exist and anything below a module file are never imported.
+
+        """
+        write_pkg(tmp_path, "sub", "")
+        write_pkg(tmp_path / "sub", "deep", "")
+        (tmp_path / "sub" / "leaf.py").write_text("")
+        (tmp_path / "data").mkdir()
+        write_pkg(tmp_path / "data", "inner", "")
+        assert _walk_reaches(tmp_path, parts) is expected
 
 
 class TestScanPath:

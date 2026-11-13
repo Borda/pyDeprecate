@@ -18,12 +18,31 @@ def _unresolved(info: DeprecationWrapperInfo) -> Mapping[str, str]:
     return info.unresolved if isinstance(info, _StaticWrapperInfo) else {}
 
 
-def _report_unresolved(wrappers: Sequence[DeprecationWrapperInfo], keywords: Sequence[str]) -> None:
+def _report_unresolved(
+    wrappers: Sequence[DeprecationWrapperInfo],
+    keywords: Sequence[str],
+    *,
+    rule_keywords: Optional[Mapping[str, Sequence[str]]] = None,
+) -> None:
     """Print one ``not statically resolvable`` gap per wrapper and unsettled reason among *keywords*."""
     for info in wrappers:
         details = dict.fromkeys(_unresolved(info)[key] for key in keywords if key in _unresolved(info))
         for detail in details:
-            _print_gap(_GapKind.STATIC_UNRESOLVED, f"{detail} ({_format_subject(info)} not checked)")
+            rules = (
+                frozenset(
+                    rule
+                    for rule, keys in rule_keywords.items()
+                    if any(_unresolved(info).get(key) == detail for key in keys)
+                )
+                if rule_keywords is not None
+                else None
+            )
+            _print_gap(
+                _GapKind.STATIC_UNRESOLVED,
+                f"{detail} ({_format_subject(info)} not checked)",
+                subject=(info.module, info.function),
+                rules=rules,
+            )
 
 
 def _resolved(wrappers: Sequence[DeprecationWrapperInfo], keywords: Sequence[str]) -> list[DeprecationWrapperInfo]:
@@ -65,6 +84,11 @@ def _static_policy_findings(
         )
     if spec.message_required:
         findings += _policy_findings(_resolved(wrappers, _GUIDANCE_KEYWORDS), replace(spec, grace=None))
-    _report_unresolved(wrappers, _policy_keywords(spec))
+    rule_keywords: dict[str, Sequence[str]] = {}
+    if spec.grace is not None:
+        rule_keywords[_Rule.MIN_GRACE.value] = _GRACE_KEYWORDS
+    if spec.message_required:
+        rule_keywords[_Rule.MESSAGE_REQUIRED.value] = _GUIDANCE_KEYWORDS
+    _report_unresolved(wrappers, _policy_keywords(spec), rule_keywords=rule_keywords)
     order = {(info.module, info.function): index for index, info in enumerate(wrappers)}
     return sorted(findings, key=lambda f: (order.get((f.module, f.symbol), 0), f.rule is _Rule.MESSAGE_REQUIRED))

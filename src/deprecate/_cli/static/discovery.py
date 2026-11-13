@@ -57,16 +57,18 @@ def _locate_static(path: str, package_dir: Optional[Path]) -> Union[_StaticSourc
     return f"{path!r} has no Python source for `--static` to read."
 
 
-def _package_entries(pkg_dir: Path) -> Iterator[tuple[str, bool]]:
+def _package_entries(pkg_dir: Path, package: str) -> Iterator[tuple[str, bool]]:
     """Yield ``(name, is_package)`` for the submodules of a package directory, as :func:`pkgutil.iter_modules` does.
 
-    A directory that cannot be listed is a ``module not audited`` gap rather than a package with no submodules.
+    A directory that cannot be listed is a ``module not audited`` gap rather than a package with no submodules. Its
+    detail opens with the module names left out, as the import scan's does: ``<package>.*`` for the submodules of
+    *package*, ``<package>.<dir>`` for a subdirectory that may hold a package.
 
     """
     try:
         filenames = sorted(entry.name for entry in os.scandir(pkg_dir))
     except OSError as err:
-        _print_gap(_GapKind.MODULE_NOT_AUDITED, f"submodules of {_display(pkg_dir)} not listed: {err}")
+        _print_gap(_GapKind.MODULE_NOT_AUDITED, f"{package}.*: submodules of {_display(pkg_dir)} not listed: {err}")
         return
     yielded: set[str] = set()
     for filename in filenames:
@@ -79,7 +81,9 @@ def _package_entries(pkg_dir: Path) -> Iterator[tuple[str, bool]]:
                 is_package = any(inspect.getmodulename(sub) == "__init__" for sub in os.listdir(pkg_dir / filename))
             except OSError as err:
                 sub_dir = _display(pkg_dir / filename)
-                _print_gap(_GapKind.MODULE_NOT_AUDITED, f"submodules of {sub_dir} not listed: {err}")
+                _print_gap(
+                    _GapKind.MODULE_NOT_AUDITED, f"{package}.{filename}: submodules of {sub_dir} not listed: {err}"
+                )
                 continue
             if not is_package:
                 continue
@@ -97,7 +101,7 @@ def _walk_package(
         yield name, pkg_dir / "__init__.py" if (pkg_dir / "__init__.py").is_file() else None
     if not recursive:
         return
-    for sub, is_package in _package_entries(pkg_dir):
+    for sub, is_package in _package_entries(pkg_dir, name):
         modname = f"{name}.{sub}"
         if _is_excluded(modname, exclude):
             continue

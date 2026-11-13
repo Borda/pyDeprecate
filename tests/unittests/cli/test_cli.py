@@ -213,7 +213,7 @@ class TestCliBoolFlags:
             cli()
         assert exc_info.value.code == 0
         bound = _called_with(cmd_check, mock_check)
-        assert bound["path"] == "some_module"
+        assert bound["path"] == ["some_module"]
         assert {key: bound[key] for key in expected} == expected
 
     @pytest.mark.parametrize(
@@ -241,7 +241,7 @@ class TestCliBoolFlags:
             cli()
         assert exc_info.value.code == 0
         bound = _called_with(cmd_expiry, mock_expiry)
-        assert (bound["path"], bound["exit_zero"], bound["version"]) == ("some_module", expected, None)
+        assert (bound["path"], bound["exit_zero"], bound["version"]) == (["some_module"], expected, None)
 
     @pytest.mark.parametrize(
         ("argv", "expected"),
@@ -270,7 +270,7 @@ class TestCliBoolFlags:
             cli()
         assert exc_info.value.code == 0
         bound = _called_with(cmd_policy, mock_policy)
-        assert (bound["path"], bound["message_required"]) == ("some_module", expected)
+        assert (bound["path"], bound["message_required"]) == (["some_module"], expected)
 
     @pytest.mark.parametrize(
         ("subcommand", "command", "argv", "expected"),
@@ -320,7 +320,7 @@ class TestCliBoolFlags:
             cli()
         assert exc_info.value.code == 0
         bound = _called_with(command, mock_command)
-        assert {key: bound[key] for key in ("path", *expected)} == {"path": "some_module", **expected}
+        assert {key: bound[key] for key in ("path", *expected)} == {"path": ["some_module"], **expected}
 
     def test_status_include_members_before_path(self) -> None:
         """The ``status`` subcommand's ``--no-include-members`` flag is normalized like the shared flags.
@@ -336,7 +336,7 @@ class TestCliBoolFlags:
         ):
             cli()
         bound = _called_with(cmd_status, mock_status)
-        assert (bound["path"], bound["include_members"]) == ("some_module", False)
+        assert (bound["path"], bound["include_members"]) == (["some_module"], False)
 
     @pytest.mark.parametrize(
         ("argv", "message"),
@@ -362,18 +362,22 @@ class TestCliBoolFlags:
         mock_check.assert_not_called()
         assert message in capsys.readouterr().err
 
-    @pytest.mark.parametrize("subcommand", ["check", "chains"])
+    @pytest.mark.parametrize(
+        ("subcommand", "command"),
+        [pytest.param("check", cmd_check, id="check"), pytest.param("chains", cmd_chains, id="chains")],
+    )
     @pytest.mark.parametrize(
         "flags",
         [pytest.param((), id="defaults"), pytest.param(("--no-recursive", "--no-exit-zero"), id="explicit-booleans")],
     )
-    def test_extra_path_rejected_before_dispatch(
-        self, subcommand: str, flags: tuple[str, ...], capsys: pytest.CaptureFixture[str]
+    def test_second_path_never_binds_to_an_option(
+        self, subcommand: str, command: Callable[..., int], flags: tuple[str, ...]
     ) -> None:
-        """Explicit boolean flags never let a second path bind to a different option.
+        """A second path is a second scan root, never the value of another option.
 
-        Both flags are already bound, so Fire used to put pkg_b into exclude and dispatched the command.
-        The CLI must reject that invocation without calling the command or scanning pkg_a.
+        Fire used to put ``pkg_b`` into ``exclude`` once the explicit boolean flags were bound, and a later parser
+        refused it as an extra argument. Since several paths are scanned in one run, both reach the subcommand as
+        paths and ``exclude`` keeps deferring to ``pyproject.toml``.
 
         """
         with (
@@ -382,9 +386,9 @@ class TestCliBoolFlags:
             pytest.raises(SystemExit) as exc_info,
         ):
             cli()
-        assert exc_info.value.code == 2
-        mock_command.assert_not_called()
-        assert "one path per run" in capsys.readouterr().err
+        bound = _called_with(command, mock_command)
+        assert exc_info.value.code == 0
+        assert (bound["path"], bound["exclude"]) == (["pkg_a", "pkg_b"], _FROM_PYPROJECT)
 
 
 class TestAllPolicyAdvisory:

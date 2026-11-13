@@ -9,6 +9,7 @@ printed, counted or gated on; the report lists them under ``suppressed``.
 """
 
 import json
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from fnmatch import fnmatchcase
 from pathlib import Path
@@ -186,10 +187,24 @@ class _Suppressor:
             return _BASELINE, finding.id
         return None
 
-    def unmatched_ignore(self) -> int:
-        """Return how many ignore entries matched no finding of the run."""
-        return len({entry.text for entry in self.ignore} - self.used_entries)
+    def evaluated_baseline(
+        self, evaluated_rules: set[str], audited: Optional[Callable[[str], bool]] = None
+    ) -> set[str]:
+        """Return the baseline ids a finding was expected to match: of a rule the run evaluated, in a module it audited.
 
-    def unmatched_baseline(self, evaluated_rules: set[str]) -> int:
-        """Return how many baseline ids of a rule the run evaluated matched no finding — the stale entries."""
-        return sum(1 for item in self.baseline - self.used_ids if item.split(":", 1)[0] in evaluated_rules)
+        An id (``rule:module:symbol``) of a module the run did not audit — outside the scanned package, excluded, or
+        one that failed to import — is not expected, so a baseline shared by several packages or a module that could
+        not be imported never reads as stale. Without *audited* every module counts as audited.
+
+        Examples:
+            >>> suppressor = _Suppressor(baseline=frozenset({"expired:pkg.a:f", "expired:other:g", "chain:pkg.a:h"}))
+            >>> sorted(suppressor.evaluated_baseline({"expired"}, lambda module: module.startswith("pkg")))
+            ['expired:pkg.a:f']
+
+        """
+        expected = set()
+        for item in self.baseline:
+            rule, _, rest = item.partition(":")
+            if rule in evaluated_rules and (audited is None or audited(rest.split(":", 1)[0])):
+                expected.add(item)
+        return expected

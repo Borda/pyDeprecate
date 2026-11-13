@@ -6,7 +6,6 @@ import json
 import sys
 import warnings
 from collections.abc import Callable, Iterator
-from contextlib import AbstractContextManager
 from pathlib import Path
 from typing import Optional
 from unittest.mock import ANY, MagicMock, patch
@@ -14,10 +13,6 @@ from unittest.mock import ANY, MagicMock, patch
 import pytest
 
 from deprecate._cli.commands import (
-    _chain_wrappers,
-    _check_wrappers,
-    _expiry_wrappers,
-    _policy_wrappers,
     _status_table,
     cmd_all,
     cmd_chains,
@@ -31,18 +26,12 @@ from deprecate._cli.report import _REPORT_SCHEMA, _build_report, _GapKind, _reco
 from deprecate._cli.scan import _ScanError
 from deprecate._types import DeprecationConfig, TargetMode
 from deprecate.audit import ChainType, DeprecationWrapperInfo, PolicyRule, TableStyle, validate_deprecation_policy
-from deprecate.audit._policy import _build_policy_spec
 from tests._helpers import write_pkg
-from tests.unittests.cli._helpers import _EXPIRED_FINDING, _MESSAGE_REQUIRED_FINDING, _POLICY_VIOLATION
+from tests.unittests.cli._helpers import _EXPIRED_FINDING, _MESSAGE_REQUIRED_FINDING, _POLICY_VIOLATION, _scanned
 
 _requires_packaging = pytest.mark.skipif(
     importlib.util.find_spec("packaging") is None, reason="requires packaging (pip install 'pyDeprecate[audit]')"
 )
-
-
-def _scanned(wrappers: list[DeprecationWrapperInfo]) -> AbstractContextManager[MagicMock]:
-    """Make the subcommands' scan prologue return *wrappers* without importing anything."""
-    return patch("deprecate._cli.commands._scan_for_command", return_value=_ScanRecord("some_module", wrappers, None))
 
 
 @pytest.fixture(autouse=True)
@@ -238,8 +227,10 @@ class TestCmdCheckScanning:
         property leaves its setter and deleter without a warning.
 
         """
-        assert _check_wrappers([info]) == 1
+        with _scanned([info]):
+            result = cmd_check(path="some_module")
         out = capsys.readouterr().out
+        assert result == 1
         assert header in out
         assert line in out
         assert "All deprecated wrappers look correct!" not in out
@@ -454,7 +445,8 @@ class TestCmdExpiry:
         degrades to an advisory skip naming the version it could not read.
         """
         mock_expiry.side_effect = ValueError("Invalid version: '2024.06-nightly'")
-        result = _expiry_wrappers([DeprecationWrapperInfo(module="mod", function="fn")], "2024.06-nightly")
+        with _scanned([DeprecationWrapperInfo(module="mod", function="fn")], "2024.06-nightly"):
+            result = cmd_expiry(path="some_module")
         assert result == 0
         assert "2024.06-nightly" in capsys.readouterr().err
 
@@ -509,13 +501,12 @@ class TestCmdExpiry:
         cmd_expiry(path="some_module", version="2.0")
         assert "expired" in capsys.readouterr().out.lower()
 
-    def test_pre_scanned_wrappers_expired_exits_one(self) -> None:
-        """_wrappers with an expired wrapper and matching version → returns 1."""
+    def test_overdue_wrapper_fails_the_gate(self) -> None:
+        """A scanned wrapper whose ``remove_in`` equals the current version fails the expiry gate with exit 1."""
         config = DeprecationConfig(deprecated_in="1.0", remove_in="2.0")
         wrapper = DeprecationWrapperInfo(module="mod", function="fn", deprecated_info=config)
-        with patch("deprecate._cli.scan.find_deprecation_wrappers") as mock_scan:
-            result = _expiry_wrappers([wrapper], "2.0")
-        mock_scan.assert_not_called()
+        with _scanned([wrapper], "2.0"):
+            result = cmd_expiry(path="some_module", version="2.0")
         assert result == 1
 
     def test_unparsable_remove_in_recorded_as_gap(self, capsys: pytest.CaptureFixture[str]) -> None:
@@ -531,14 +522,19 @@ class TestCmdExpiry:
             function="typo_fn",
             deprecated_info=DeprecationConfig(deprecated_in="1.0", remove_in="next-release"),
         )
-        with _record_run() as record, pytest.warns(UserWarning, match="unparsable `remove_in`"):
-            result = _expiry_wrappers([typo], "2.0")
+        with (
+            _record_run() as record,
+            _scanned([typo], "2.0"),
+            pytest.warns(UserWarning, match="unparsable `remove_in`"),
+        ):
+            result = cmd_expiry(path="some_module", version="2.0")
 
-        ((kind, detail, _path),) = record.gaps
+        (gap,) = record.gaps
         assert result == 0
-        assert kind == _GapKind.REMOVE_IN_INVALID
-        assert "typo_fn" in detail
-        assert "next-release" in detail
+        assert gap.kind == _GapKind.REMOVE_IN_INVALID
+        assert gap.subject == ("mod", "typo_fn")
+        assert "typo_fn" in gap.detail
+        assert "next-release" in gap.detail
         assert "pydeprecate gap: remove_in not PEP 440: " in capsys.readouterr().err
 
     def test_unparsable_remove_in_keeps_expired_exit_code(self) -> None:
@@ -558,8 +554,8 @@ class TestCmdExpiry:
             function="overdue_fn",
             deprecated_info=DeprecationConfig(deprecated_in="1.0", remove_in="2.0"),
         )
-        with _record_run() as record, pytest.warns(UserWarning, match="unparsable `remove_in`"):
-            result = _expiry_wrappers([typo, overdue], "2.0")
+        with _record_run() as record, _scanned([typo, overdue], "2.0"), pytest.warns(UserWarning, match="unparsable"):
+            result = cmd_expiry(path="some_module", version="2.0")
 
         assert result == 1
         assert [gap.kind for gap in record.gaps] == [_GapKind.REMOVE_IN_INVALID]
@@ -580,8 +576,8 @@ class TestCmdExpiry:
             function="unscheduled_fn",
             deprecated_info=DeprecationConfig(deprecated_in="1.0"),
         )
-        with _record_run() as record:
-            result = _expiry_wrappers([scheduled, unscheduled], "2.0")
+        with _record_run() as record, _scanned([scheduled, unscheduled], "2.0"):
+            result = cmd_expiry(path="some_module", version="2.0")
 
         assert result == 0
         assert record.gaps == []
@@ -598,19 +594,11 @@ class TestCmdExpiry:
             function="typo_fn",
             deprecated_info=DeprecationConfig(deprecated_in="1.0", remove_in="next-release"),
         )
-        with _record_run() as record:
-            result = _expiry_wrappers([typo], "not-a-version")
+        with _record_run() as record, _scanned([typo], "not-a-version"):
+            result = cmd_expiry(path="some_module")
 
         assert result == 0
         assert [gap.kind for gap in record.gaps] == [_GapKind.VERSION_INVALID]
-
-    def test_pre_scanned_wrappers_version_none_skips(self, capsys: pytest.CaptureFixture[str]) -> None:
-        """_wrappers provided but version=None → warns on stderr and returns 0."""
-        with patch("deprecate._cli.scan.find_deprecation_wrappers") as mock_scan:
-            result = _expiry_wrappers([], None)
-        mock_scan.assert_not_called()
-        assert result == 0
-        assert "version" in capsys.readouterr().err.lower()
 
     @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
     @patch("deprecate._cli.scan._resolve_package_version", return_value=None)
@@ -686,21 +674,6 @@ class TestCmdChains:
         cmd_chains(path="some_module")
         captured = capsys.readouterr()
         assert "stacked" in captured.out.lower()
-
-    def test_pre_scanned_wrappers_skips_scan(self) -> None:
-        """_wrappers provided → find_deprecation_wrappers not called; returns 0."""
-        with patch("deprecate._cli.scan.find_deprecation_wrappers") as mock_scan:
-            result = _chain_wrappers([_TARGET_CHAIN])
-        mock_scan.assert_not_called()
-        assert result == 1
-
-    def test_pre_scanned_wrappers_no_chains_exits_zero(self) -> None:
-        """_wrappers with no chain_type entries → returns 0."""
-        plain = DeprecationWrapperInfo(module="mod", function="fn")
-        with patch("deprecate._cli.scan.find_deprecation_wrappers") as mock_scan:
-            result = _chain_wrappers([plain])
-        mock_scan.assert_not_called()
-        assert result == 0
 
 
 # ---------------------------------------------------------------------------
@@ -1239,23 +1212,6 @@ class TestCmdPolicy:
         assert "[ERROR] Found deprecation policy violations:" in captured.out
         assert "[message-required]" in captured.out
         assert "advisory here" not in captured.out
-
-    @pytest.mark.parametrize("exit_zero", [False, True])
-    def test_advisory_rendering_leaves_exit_code_alone(
-        self, exit_zero: bool, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        """``advisory`` changes only how violations are printed; the exit code still follows ``exit_zero``.
-
-        ``all`` decides what to do with the policy result itself, so the advisory register must not quietly
-        turn into a second ``exit_zero`` — otherwise a future caller passing ``advisory=True`` would lose the
-        truthful exit 1 that ``all`` reads and ignores on purpose.
-        """
-        spec = _build_policy_spec(None, True)
-        result = _policy_wrappers([_POLICY_VIOLATION], spec, "Policy:", exit_zero=exit_zero, advisory=True)
-        captured = capsys.readouterr()
-        assert result == (0 if exit_zero else 1)
-        assert "[WARNING] Found deprecation policy violations:" in captured.out
-        assert "(advisory here — run `pydeprecate policy` to gate on it)" in captured.out
 
     def test_disabled_rules_pass_through(self) -> None:
         """Disabling both rules leaves nothing to report, even for a wrapper that breaks both of them.
@@ -2270,3 +2226,818 @@ class TestStaticUnsettledGaps:
         assert "pydeprecate gap: packaging missing: " in captured.err
         assert _TARGET_GAP in captured.err
         assert _REMOVAL_GAP not in captured.err
+
+
+# ---------------------------------------------------------------------------
+# Several paths in one run, and `all --gate`
+# ---------------------------------------------------------------------------
+
+_PACKAGING_AVAILABLE = importlib.util.find_spec("packaging") is not None
+# One wrapper scheduled for removal in 2.0, so whether it is expired depends on the version of its own package.
+_REMOVED_IN_TWO = """\
+from deprecate import deprecated
+
+
+def new_fn(x: int) -> int:
+    return x
+
+
+@deprecated(target=new_fn, deprecated_in="1.0", remove_in="2.0")
+def old_fn(x: int) -> int:
+    pass
+"""
+
+
+def _project(root: Path, name: str, *, pyproject: str = "", body: str = "", broken: bool = False) -> Path:
+    """Create a project directory *root* holding package *name*, optionally a ``pyproject.toml`` and a broken module."""
+    root.mkdir(parents=True)
+    pkg = write_pkg(root, name, body)
+    if broken:
+        (pkg / "broken.py").write_text(_BROKEN_SUBMODULE)
+    if pyproject:
+        (root / "pyproject.toml").write_text(pyproject)
+    return pkg
+
+
+#: A ``[tool.pydeprecate]`` table that leaves the top-level ``util`` module out of a plain-directory scan.
+_EXCLUDE_UTIL = '[tool.pydeprecate]\nexclude = ["util"]\n'
+
+
+def _plain_dir(root: Path, main: str, pyproject: str) -> Path:
+    """Create the plain directory *root* holding ``util.py``, ``<main>.py`` and a ``pyproject.toml`` of *pyproject*."""
+    root.mkdir()
+    (root / "util.py").write_text("")
+    (root / f"{main}.py").write_text("")
+    (root / "pyproject.toml").write_text(pyproject)
+    return root
+
+
+class TestMultiPath:
+    """Several paths in one run: one preflight before any import, one scan each, one exit code over all of them."""
+
+    @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
+    def test_each_path_expires_against_its_own_version(self, tmp_path: Path) -> None:
+        """Two packages of a monorepo released at different versions are each checked against their own version.
+
+        ``pkg_a`` is at 1.0 and ``pkg_b`` at 3.0, and both carry a wrapper scheduled for removal in 2.0. Only the one in
+        ``pkg_b`` is overdue; a run that took the first package's version for both would miss it.
+
+        """
+        pkg_a = _project(tmp_path / "a", "pkg_a", pyproject='[project]\nversion = "1.0"\n', body=_REMOVED_IN_TWO)
+        pkg_b = _project(tmp_path / "b", "pkg_b", pyproject='[project]\nversion = "3.0"\n', body=_REMOVED_IN_TWO)
+        with _record_run() as run:
+            result = cmd_expiry(path=[str(pkg_a), str(pkg_b)])
+        assert result == 1
+        assert [(finding.id, path) for finding, path in zip(run.findings, run.finding_paths)] == [
+            ("expired:pkg_b:old_fn", str(pkg_b))
+        ]
+        assert [(item.package, item.version) for item in run.scanned] == [("pkg_a", "1.0"), ("pkg_b", "3.0")]
+
+    @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
+    def test_malformed_config_of_second_path_stops_before_first_scan(
+        self, mock_find: MagicMock, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A broken ``pyproject.toml`` of the second path exits 2 before the first path is imported.
+
+        Scanning the first package and then failing on the second would leave a half-audited run that a CI log could
+        mistake for a pass; every path's configuration is read before the first import.
+
+        """
+        pkg_a = _project(tmp_path / "a", "pkg_a")
+        pkg_b = _project(tmp_path / "b", "pkg_b", pyproject="[tool.pydeprecate\nexclude = oops\n")
+        result = cmd_check(path=[str(pkg_a), str(pkg_b)])
+        captured = capsys.readouterr()
+        assert result == 2
+        assert "Cannot read" in captured.err
+        assert "Scanning:" not in captured.out
+        mock_find.assert_not_called()
+
+    @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
+    def test_same_import_name_from_two_places_exits_two(
+        self, mock_find: MagicMock, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Two checkouts of ``mypkg`` cannot share one run: the second scan would get the first copy.
+
+        Both directories import as ``mypkg``, and ``sys.modules`` keeps the first one imported, so the second scan would
+        audit the wrong files while reporting them under the second path.
+
+        """
+        first = _project(tmp_path / "x", "mypkg")
+        second = _project(tmp_path / "y", "mypkg")
+        result = cmd_check(path=[str(first), str(second)])
+        assert result == 2
+        assert f"{first} and {second} both import as mypkg; scan them in separate runs" in capsys.readouterr().err
+        mock_find.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "second",
+        [pytest.param("{pkg}", id="same-path"), pytest.param("{pkg}/sub", id="own-subpackage")],
+    )
+    @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
+    def test_covered_path_is_scanned_once(
+        self, mock_find: MagicMock, second: str, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A path given twice, or a package together with its own subpackage, is scanned once with one note.
+
+        A pre-commit ``args`` list and the hook's own default can name the same package twice; the recursive scan of a
+        package already covers its subpackages, so a second scan would only duplicate every finding.
+
+        """
+        pkg = _project(tmp_path / "a", "mypkg")
+        write_pkg(pkg, "sub", "")
+        result = cmd_check(path=[str(pkg), second.format(pkg=pkg)])
+        captured = capsys.readouterr()
+        assert result == 0
+        assert mock_find.call_count == 1
+        assert captured.out.count("Scanning:") == 1
+        assert captured.err.count("scanning it once") == 1
+
+    @pytest.mark.parametrize("dynamic", [False, True])
+    @pytest.mark.parametrize("via_bridge", [False, True])
+    def test_expiry_refreshes_modules_bound_to_an_earlier_path(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, via_bridge: bool, dynamic: bool
+    ) -> None:
+        """A later package uses its own dependency even if it or an intermediary was imported earlier.
+
+        The first checkout supplies a later removal version. The second checkout supplies an expired version. A target
+        or an installed intermediary imported during the first scan must not retain the first checkout's binding.
+
+        """
+        first = tmp_path / "first"
+        second = tmp_path / "second"
+        site = tmp_path / "site"
+        site.mkdir()
+        first.mkdir()
+        second.mkdir()
+        (first / "scan_common.py").write_text('REMOVE_IN = "4.0"\n')
+        (second / "scan_common.py").write_text('REMOVE_IN = "2.0"\n')
+        (site / "scan_bridge.py").write_text("from scan_common import REMOVE_IN\n")
+        source = "scan_bridge" if via_bridge else "scan_common"
+        body = f"from {source} import REMOVE_IN\n" + _REMOVED_IN_TWO.replace('remove_in="2.0"', "remove_in=REMOVE_IN")
+        beta = write_pkg(second, "scan_beta", body)
+        imported = "scan_bridge" if via_bridge else "scan_beta"
+        alpha_body = f"import importlib\nimportlib.import_module({imported!r})\n" if dynamic else f"import {imported}\n"
+        alpha = write_pkg(first, "scan_alpha", alpha_body)
+        monkeypatch.syspath_prepend(str(site))
+        monkeypatch.syspath_prepend(str(second))
+
+        assert cmd_expiry(path=[str(alpha), str(beta)], version="3.0") == 1
+
+    def test_persistent_import_path_initializes_per_scan_process(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A package available on the persistent import path is initialized in each isolated scan process.
+
+        A later module imports the first package from the same persistent path. Each scan runs in a fresh interpreter,
+        so package initialization and its externally visible side effects occur once per process.
+
+        """
+        counter = tmp_path / "count.txt"
+        body = (
+            f"from pathlib import Path\np = Path({str(counter)!r})\n"
+            'p.write_text(str(int(p.read_text()) + 1) if p.exists() else "1")\n'
+        )
+        alpha = write_pkg(tmp_path, "persistent_alpha", body)
+        (tmp_path / "persistent_gamma.py").write_text("import persistent_alpha\n")
+        monkeypatch.syspath_prepend(str(tmp_path))
+
+        assert cmd_check(path=[str(alpha), "persistent_gamma"]) == 0
+        assert counter.read_text() == "2"
+
+    def test_excluded_leaf_is_not_covered_by_discarded_intermediate(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A discarded intermediate cannot hide an explicitly requested leaf excluded by the retained parent.
+
+        The parent project excludes the leaf, while dotted paths have no project-specific exclusions. The intermediate
+        is covered by the parent, but it is not itself scanned and therefore cannot cover the explicitly named leaf.
+
+        """
+        pkg = write_pkg(tmp_path, "coveragepkg", "")
+        sub = write_pkg(pkg, "sub", "")
+        write_pkg(sub, "leaf", _REMOVED_IN_TWO)
+        (pkg / "pyproject.toml").write_text('[tool.pydeprecate]\nexclude = ["coveragepkg.sub.leaf"]\n')
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.syspath_prepend(str(tmp_path))
+
+        with _record_run() as run:
+            result = cmd_check(path=[str(pkg), "coveragepkg.sub", "coveragepkg.sub.leaf"])
+
+        assert result == 0
+        assert [scan.path for scan in run.scans] == [str(pkg), "coveragepkg.sub.leaf"]
+        assert capsys.readouterr().err.count("scanning it once") == 1
+
+    @pytest.mark.parametrize("strict", [False, True])
+    @pytest.mark.parametrize("child_first", [False, True])
+    def test_covered_broken_module_retains_root_import_error(
+        self, strict: bool, child_first: bool, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """An explicitly named broken child remains a root import error when its parent covers it.
+
+        A recursive parent scan treats failed child imports as advisory gaps, but a caller who explicitly requests the
+        child must receive the same root import error regardless of path order or strict mode.
+
+        """
+        pkg = write_pkg(tmp_path, "coveredpkg", "")
+        (pkg / "broken.py").write_text("raise RuntimeError('broken import')\n")
+        monkeypatch.syspath_prepend(str(tmp_path))
+        paths = ["coveredpkg.broken", "coveredpkg"] if child_first else ["coveredpkg", "coveredpkg.broken"]
+        with (
+            pytest.warns(UserWarning, match="audit: skipped coveredpkg.broken"),
+            pytest.raises(_ScanError, match="broken import"),
+        ):
+            cmd_check(path=paths, strict=strict)
+
+    def test_covered_broken_ancestor_names_requested_module(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A covered target's error identifies the requested descendant when its ancestor fails.
+
+        A user may request a nested module while the parent walk fails before reaching it; the diagnostic should name
+        both the failed ancestor and the explicitly requested descendant.
+
+        """
+        pkg = write_pkg(tmp_path, "coveredancestor", "")
+        child = pkg / "broken"
+        child.mkdir()
+        (child / "__init__.py").write_text("raise RuntimeError('broken ancestor')\n")
+        (child / "nested.py").write_text("")
+        monkeypatch.syspath_prepend(str(tmp_path))
+        with (
+            pytest.warns(UserWarning, match="audit: skipped coveredancestor.broken"),
+            pytest.raises(_ScanError, match="explicitly requested module 'coveredancestor.broken.nested'"),
+        ):
+            cmd_check(path=["coveredancestor", "coveredancestor.broken.nested"])
+
+    @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
+    def test_covered_path_with_own_settings_exits_two(
+        self, mock_find: MagicMock, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A subpackage with its own ``[tool.pydeprecate]`` settings cannot be folded into its parent's scan.
+
+        The parent's recursive scan already audits the subpackage, but with the parent's settings; dropping the
+        subpackage's own ``strict`` or ``ignore`` silently would gate it differently from what its owner configured.
+
+        """
+        pkg = _project(tmp_path / "a", "mypkg", pyproject="[tool.pydeprecate]\nexclude = []\n")
+        sub = write_pkg(pkg, "sub", "")
+        (sub / "pyproject.toml").write_text("[tool.pydeprecate]\nstrict = true\n")
+        result = cmd_check(path=[str(pkg), str(sub)])
+        assert result == 2
+        assert "has its own `[tool.pydeprecate]` settings" in capsys.readouterr().err
+        mock_find.assert_not_called()
+
+    @pytest.mark.parametrize(
+        ("covered", "exclude"),
+        [
+            pytest.param("data/sub", _FROM_PYPROJECT, id="under-plain-directory"),
+            pytest.param("sub", "mypkg.sub", id="excluded-by-cover"),
+        ],
+    )
+    def test_subpackage_the_walk_skips_keeps_own_scan(
+        self,
+        covered: str,
+        exclude: _ConfigFlag,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """A subpackage the package's recursive walk never imports is scanned on its own instead of being dropped.
+
+        The walk enters only package directories and skips what the package's ``exclude`` names, so ``data/sub`` under
+        a ``data`` directory without ``__init__.py``, or a subpackage the package excludes, would be audited zero times
+        if the run dropped it as covered while its stderr note claimed the opposite.
+
+        """
+        pkg = _project(tmp_path / "a", "mypkg")
+        write_pkg(pkg, "sub", "")
+        (pkg / "data").mkdir()
+        write_pkg(pkg / "data", "sub", "")
+        with _record_run() as run:
+            result = cmd_check(path=[str(pkg), str(pkg / covered)], exclude=exclude)
+        captured = capsys.readouterr()
+        assert result == 0
+        assert [scan.path for scan in run.scans] == [str(pkg), str(pkg / covered)]
+        assert captured.out.count("Scanning:") == 2
+        assert "already audited" not in captured.err
+
+    def test_missing_submodule_beside_its_package_exits_two(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """``pkg pkg.nosuch`` reports the misspelt submodule instead of folding it into the package's scan.
+
+        Listed alone, ``pkg.nosuch`` exits 2 as no importable module. Next to its parent package it was dropped as
+        already audited, so a typo in a CI command line passed with exit 0 and audited nothing it named.
+
+        """
+        write_pkg(tmp_path, "parentpkg", "")
+        monkeypatch.syspath_prepend(str(tmp_path))
+        result = cmd_check(path=["parentpkg", "parentpkg.nosuch"])
+        captured = capsys.readouterr()
+        assert result == 2
+        assert "No such path or importable module: 'parentpkg.nosuch'" in captured.err
+        assert "already audited" not in captured.err
+
+    @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
+    @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
+    def test_src_layout_subpackage_inherits_root_settings(
+        self, mock_find: MagicMock, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A subpackage of a src-layout package is folded into the package's scan, not refused for settings it lacks.
+
+        The only ``pyproject.toml`` sits at the repository root, two levels above ``src/mypkg`` but three above
+        ``src/mypkg/sub``, so the subpackage's own lookup finds no settings and no version. Both are the root
+        project's, which the package's scan applies to the subpackage anyway.
+
+        """
+        root_pyproject = '[project]\nversion = "1.0"\n\n[tool.pydeprecate]\nexclude = []\n'
+        pkg = _project(tmp_path / "repo" / "src", "mypkg")
+        (tmp_path / "repo" / "pyproject.toml").write_text(root_pyproject)
+        write_pkg(pkg, "sub", "")
+        result = cmd_expiry(path=[str(pkg), str(pkg / "sub")])
+        captured = capsys.readouterr()
+        assert result == 0
+        assert mock_find.call_count == 1
+        assert captured.err.count("scanning it once") == 1
+
+    @pytest.mark.parametrize(
+        ("command", "kwargs", "expected", "scans"),
+        [
+            pytest.param(cmd_expiry, {}, 2, 0, id="expiry-auto-version"),
+            pytest.param(cmd_status, {}, 2, 0, id="status-auto-version"),
+            pytest.param(cmd_expiry, {"version": "3.0"}, 0, 1, id="expiry-typed-version"),
+            pytest.param(cmd_check, {}, 0, 1, id="check-uses-no-version"),
+        ],
+    )
+    @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
+    def test_nested_project_keeps_its_own_version(
+        self,
+        mock_find: MagicMock,
+        command: Callable[..., int],
+        kwargs: dict[str, str],
+        expected: int,
+        scans: int,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """A subpackage released as its own project is not judged at its parent's version, nor silently dropped.
+
+        ``mypkg`` is at 1.0 and ``mypkg/component`` has its own ``[project]`` at 3.0, without settings of its own. A
+        run that auto-detects each path's version refuses to fold the component into the parent's scan, which would
+        check it against 1.0; a typed version, or a check without a version, loses nothing by scanning it once.
+
+        """
+        pkg = _project(tmp_path / "repo", "mypkg", pyproject='[project]\nversion = "1.0"\n')
+        component = write_pkg(pkg, "component", "")
+        (component / "pyproject.toml").write_text('[project]\nversion = "3.0"\n')
+        result = command(path=[str(pkg), str(component)], **kwargs)
+        err = capsys.readouterr().err
+        assert result == expected
+        assert ("has its own version" in err) is (expected == 2)
+        assert mock_find.call_count == scans
+
+    @pytest.mark.parametrize(
+        ("distribution", "expected"),
+        [pytest.param("ownpkg-component", 2, id="own-distribution"), pytest.param("other-dist", 0, id="none")],
+    )
+    @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
+    def test_dotted_component_with_own_distribution_is_refused(
+        self,
+        mock_find: MagicMock,
+        distribution: str,
+        expected: int,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """``pkg pkg.component`` is refused when ``pkg.component`` is installed as a distribution of its own.
+
+        The version resolver reads the ``pkg-component`` distribution first for the dotted name, so scanned alone the
+        component is checked against its own release; folded into ``pkg``'s scan it would be checked against ``pkg``'s.
+
+        """
+        pkg = write_pkg(tmp_path, "ownpkg", "")
+        write_pkg(pkg, "component", "")
+        dist_info = tmp_path / f"{distribution.replace('-', '_')}-3.0.dist-info"
+        dist_info.mkdir()
+        (dist_info / "METADATA").write_text(f"Metadata-Version: 2.1\nName: {distribution}\nVersion: 3.0\n")
+        monkeypatch.syspath_prepend(str(tmp_path))
+        result = cmd_expiry(path=["ownpkg", "ownpkg.component"])
+        err = capsys.readouterr().err
+        assert result == expected
+        assert ("has its own version (from the distribution 'ownpkg-component')" in err) is (expected == 2)
+
+    @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
+    @pytest.mark.parametrize(
+        "order",
+        [
+            pytest.param(("c/src/gamma", "b/common"), id="checkout-sibling-first"),
+            pytest.param(("b/common", "c/src/gamma"), id="checkout-sibling-last"),
+            pytest.param(("g/gamma", "b/common"), id="installed-copy-first"),
+            pytest.param(("b/common", "g/gamma"), id="installed-copy-last"),
+        ],
+    )
+    def test_verdict_does_not_depend_on_path_order(
+        self,
+        order: tuple[str, str],
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """A package that imports ``common`` and a checkout of ``common`` give the same verdict in either order.
+
+        ``gamma`` imports ``common`` from its own checkout (``c/src``) or from an installed copy (``site``), and the
+        checkout ``b/common`` holds an expired wrapper. One interpreter runs both scans, so the copy one scan imported
+        must not be handed to the other: the expired wrapper is found, and no other copy is audited, in both orders.
+
+        """
+        _project(tmp_path / "c" / "src", "gamma", pyproject='[project]\nversion = "1.0"\n', body="import common\n")
+        write_pkg(tmp_path / "c" / "src", "common", "")
+        _project(tmp_path / "g", "gamma", pyproject='[project]\nversion = "1.0"\n', body="import common\n")
+        (tmp_path / "site").mkdir()
+        write_pkg(tmp_path / "site", "common", "")
+        _project(tmp_path / "b", "common", pyproject='[project]\nversion = "3.0"\n', body=_REMOVED_IN_TWO)
+        monkeypatch.syspath_prepend(str(tmp_path / "site"))
+        with _record_run() as run:
+            result = cmd_expiry(path=[str(tmp_path / order[0]), str(tmp_path / order[1])])
+        assert result == 1
+        assert [finding.id for finding in run.findings] == ["expired:common:old_fn"]
+        assert "other copy audited" not in capsys.readouterr().err
+
+    @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
+    def test_plain_directories_sharing_a_file_name_exit_two(
+        self, mock_find: MagicMock, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Two plain directories that each hold ``util.py`` cannot share a run.
+
+        A plain directory imports its top-level files by bare name, so the second directory's ``util`` would resolve to
+        the first one's module from ``sys.modules`` and its own wrappers would never be audited.
+
+        """
+        for name in ("da", "db"):
+            (tmp_path / name).mkdir()
+            (tmp_path / name / "util.py").write_text("")
+        result = cmd_check(path=[str(tmp_path / "da"), str(tmp_path / "db")])
+        assert result == 2
+        assert "both import as util; scan them in separate runs" in capsys.readouterr().err
+        mock_find.assert_not_called()
+
+    @pytest.mark.parametrize(
+        ("exclude", "pyproject_a", "pyproject_b", "scans"),
+        [
+            pytest.param("util", "", "", 2, id="flag"),
+            pytest.param(_FROM_PYPROJECT, _EXCLUDE_UTIL, _EXCLUDE_UTIL, 2, id="both-pyprojects"),
+            pytest.param(_FROM_PYPROJECT, _EXCLUDE_UTIL, "", 3, id="one-pyproject"),
+        ],
+    )
+    def test_excluded_shared_file_name_does_not_collide(
+        self,
+        exclude: _ConfigFlag,
+        pyproject_a: str,
+        pyproject_b: str,
+        scans: int,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Two plain directories that both hold ``util.py`` share a run once ``util`` is left out of a scan.
+
+        A directory scan imports only the files its ``exclude`` keeps, so a ``util`` that at most one of the two scans
+        imports binds no name twice; refusing the run anyway blocked a valid combined audit of the other modules.
+
+        """
+        first = _plain_dir(tmp_path / "da", "a_main", pyproject_a)
+        second = _plain_dir(tmp_path / "db", "b_main", pyproject_b)
+        counter = tmp_path / "imports.txt"
+        body = f"from pathlib import Path\np = Path({str(counter)!r})\nwith p.open('a') as f: f.write('x')\n"
+        (first / "a_main.py").write_text(body)
+        (first / "util.py").write_text(body)
+        (second / "b_main.py").write_text(body)
+        (second / "util.py").write_text(body)
+        result = cmd_check(path=[str(first), str(second)], exclude=exclude)
+        assert result == 0
+        assert "both import as" not in capsys.readouterr().err
+        assert len(counter.read_text()) == scans
+
+    def test_excluded_helper_imported_by_siblings_resolves_per_path(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Each directory's scanned module imports its own excluded ``helper``, not the one the other path loaded.
+
+        Both script directories exclude ``helper.py``, so the run accepts them together, but a scanned sibling in each
+        still imports ``helper``. The second directory's ``b_main`` needs a name only its own ``helper`` defines; handed
+        the first directory's copy, it would fail to import and go unaudited.
+
+        """
+        (tmp_path / "da").mkdir()
+        (tmp_path / "db").mkdir()
+        (tmp_path / "da" / "helper.py").write_text("")
+        (tmp_path / "da" / "a_main.py").write_text("import helper\n")
+        (tmp_path / "db" / "helper.py").write_text("def new_fn(x: int) -> int:\n    return x\n")
+        (tmp_path / "db" / "b_main.py").write_text("from helper import new_fn\n")
+        result = cmd_check(path=[str(tmp_path / "da"), str(tmp_path / "db")], exclude="helper")
+        assert result == 0
+        assert "module not audited" not in capsys.readouterr().err
+
+    @pytest.mark.parametrize(
+        ("broken", "expected"),
+        [pytest.param("a", 1, id="gap-of-strict-path-fails"), pytest.param("b", 0, id="gap-of-other-path-passes")],
+    )
+    @pytest.mark.filterwarnings("ignore:audit. skipped pkg_.\\.broken:UserWarning")
+    def test_strict_mode_applies_per_path(
+        self, broken: str, expected: int, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """``strict = true`` in one package's ``pyproject.toml`` fails the run on that package's gaps only.
+
+        In a monorepo one team may have opted into strict audits while another has not. An unimportable module of the
+        strict package fails the run; the same gap in the other package is reported and leaves the exit code alone.
+
+        """
+        pkg_a = _project(tmp_path / "a", "pkg_a", pyproject="[tool.pydeprecate]\nstrict = true\n", broken=broken == "a")
+        pkg_b = _project(tmp_path / "b", "pkg_b", broken=broken == "b")
+        result = cmd_check(path=[str(pkg_a), str(pkg_b)])
+        err = capsys.readouterr().err
+        assert result == expected
+        assert "pydeprecate gap: module not audited:" in err
+
+    @pytest.mark.parametrize(
+        ("select", "scanned"),
+        [
+            pytest.param(lambda pkg_a, pkg_b: pkg_a, ["pkg_a"], id="one-path"),
+            pytest.param(lambda pkg_a, pkg_b: [pkg_a, str(pkg_b)], ["pkg_a", "pkg_b"], id="mixed-list"),
+        ],
+    )
+    def test_pathlib_paths_are_scanned(
+        self, select: Callable[[Path, Path], object], scanned: list[str], tmp_path: Path
+    ) -> None:
+        """A direct call may pass ``pathlib.Path`` objects, alone or in a list beside strings, as it passes strings.
+
+        ``deprecate._cli`` documents direct ``cmd_*`` calls, and a script building its paths with ``pathlib`` once
+        crashed with ``TypeError: 'PosixPath' object is not iterable`` instead of scanning the package it named.
+
+        """
+        pkg_a = _project(tmp_path / "a", "pkg_a")
+        pkg_b = _project(tmp_path / "b", "pkg_b")
+        with _record_run() as run:
+            result = cmd_check(path=select(pkg_a, pkg_b))  # type: ignore[arg-type]
+        assert result == 0
+        assert [path.package for path in run.scanned] == scanned
+
+    @patch("deprecate._cli.commands._worker_scan")
+    def test_unrendered_table_keeps_its_heading(self, mock_worker: MagicMock, tmp_path: Path) -> None:
+        """``all`` over two packages saves a note under the heading of a table it could not render.
+
+        The first package's table raises, the second renders. The ``--output`` file and the run's table (the report's
+        ``table`` and the Action's job summary) must keep both headings, or the surviving table would read as the only
+        package of the run and the missing one would not show.
+
+        """
+        pkg_a = _project(tmp_path / "a", "pkg_a")
+        pkg_b = _project(tmp_path / "b", "pkg_b")
+        out_file = tmp_path / "DEPRECATIONS.md"
+        phases = {name: {"stdout": "", "stderr": ""} for name in ("expiry", "policy", "chains", "table")}
+        payload = {"wrapper_count": 0, "checks": {"expiry": [], "policy": [], "chains": []}, "phases": phases}
+        mock_worker.side_effect = [
+            _ScanRecord(str(pkg_a), [], "1.0", worker={**payload, "table": None, "table_error": "boom"}),
+            _ScanRecord(str(pkg_b), [], "1.0", worker={**payload, "table": _ALL_TABLE, "table_error": None}),
+        ]
+        with _record_run() as run:
+            result = cmd_all(path=[str(pkg_a), str(pkg_b)], version="1.0", output=str(out_file))
+        expected = f"### pkg_a\n\n_The deprecation table could not be rendered: boom_\n\n### pkg_b\n\n{_ALL_TABLE}"
+        assert result == 0
+        assert run.table == expected
+        assert out_file.read_text(encoding="utf-8") == expected
+
+
+class TestAllGate:
+    """``all --gate``: the listed checks gate ``all`` exactly as their own subcommand does."""
+
+    @pytest.mark.parametrize(
+        ("gate", "expected", "header", "trailer"),
+        [
+            pytest.param(_FROM_PYPROJECT, 0, "[WARNING] Found deprecation policy violations:", True, id="advisory"),
+            pytest.param(["policy"], 1, "[ERROR] Found deprecation policy violations:", False, id="gated"),
+            pytest.param(["check,policy"], 1, "[ERROR] Found deprecation policy violations:", False, id="with-default"),
+        ],
+    )
+    @patch("deprecate._cli.commands._status_table", return_value="")
+    @patch("deprecate._cli.commands._expiry_findings", return_value=[])
+    def test_policy_gate_turns_violations_into_errors(
+        self,
+        mock_expiry: MagicMock,
+        mock_status: MagicMock,
+        gate: object,
+        expected: int,
+        header: str,
+        trailer: bool,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """With ``policy`` gated, ``all`` fails on a policy violation and prints it as an error without the trailer.
+
+        One ``pydeprecate all --gate=policy`` step replaces an ``all`` step plus a ``policy`` step, scanning once; the
+        output must then stop calling the violation advisory.
+
+        """
+        with _scanned([_POLICY_VIOLATION]), _record_run() as run:
+            result = cmd_all(path="some_module", version="1.0", gate=gate)  # type: ignore[arg-type]
+        out = capsys.readouterr().out
+        assert result == expected
+        assert header in out
+        assert ("(advisory here" in out) is trailer
+        assert ("policy" in run.options["gates"]) is not trailer
+
+    @pytest.mark.parametrize(
+        ("gate", "pyproject", "message"),
+        [
+            pytest.param(["bogus"], "", "Invalid `gate` value `bogus` from `--gate`", id="unknown-flag-value"),
+            pytest.param(
+                _FROM_PYPROJECT, "[tool.pydeprecate]\ngate = true\n", "Invalid `gate` value `True`", id="type"
+            ),
+            pytest.param(_FROM_PYPROJECT, '[tool.pydeprecate]\ngate = ["lint"]\n', "`lint`", id="unknown-in-file"),
+        ],
+    )
+    @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
+    def test_malformed_gate_exits_two(
+        self,
+        mock_find: MagicMock,
+        gate: object,
+        pyproject: str,
+        message: str,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """An unknown check or a non-list ``gate`` value is a usage error before anything is scanned.
+
+        An unknown name such as ``lint``, or a misspelt ``policy``, would otherwise gate on nothing new while the author
+        believes the policy is enforced.
+
+        """
+        pkg = _project(tmp_path / "a", "mypkg", pyproject=pyproject)
+        result = cmd_all(path=str(pkg), version="1.0", gate=gate)  # type: ignore[arg-type]
+        assert result == 2
+        assert message in capsys.readouterr().err
+        mock_find.assert_not_called()
+
+    def test_one_scan_per_path(self, tmp_path: Path) -> None:
+        """``all --gate=policy`` over two packages imports each once and gates on both from those scans.
+
+        The gate replaces a separate ``policy`` run, so the policy check must reuse the scan the other checks used
+        instead of importing every package a second time.
+
+        """
+        counter_a = tmp_path / "a-count"
+        counter_b = tmp_path / "b-count"
+        instrument = (
+            "from pathlib import Path\n"
+            "def __dir__():\n"
+            "    with Path(COUNTER).open('a') as stream: stream.write('x')\n"
+            "    return list(globals())\n"
+        )
+        wrapper = _REMOVED_IN_TWO.replace('remove_in="2.0"', 'remove_in="1.0"')
+        pkg_a = _project(tmp_path / "a", "pkg_a", body=f"COUNTER = {str(counter_a)!r}\n" + instrument + wrapper)
+        pkg_b = _project(tmp_path / "b", "pkg_b", body=f"COUNTER = {str(counter_b)!r}\n" + instrument + wrapper)
+        result = cmd_all(path=[str(pkg_a), str(pkg_b)], version="1.0", gate=["policy"])
+        assert result == 1
+        assert counter_a.read_text() == "x"
+        assert counter_b.read_text() == "x"
+
+
+def _pkg_with_files(pkg: Path, files: dict[str, str]) -> Path:
+    """Create the package directory *pkg* holding *files* (file name -> source) and return it."""
+    pkg.mkdir(parents=True)
+    for name, source in files.items():
+        (pkg / name).write_text(source)
+    return pkg
+
+
+@pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
+class TestStaleBaselineScope:
+    """A baseline id reads as stale only for a rule the run evaluated in a module the run audited."""
+
+    @pytest.mark.parametrize(
+        ("extra_id", "stale"),
+        [
+            pytest.param("expired:pkg_a:removed_fn", 1, id="gone-from-audited-module"),
+            pytest.param("expired:pkg_a.broken:gone_fn", 0, id="module-failed-to-import"),
+            pytest.param("expired:other_pkg:old_fn", 0, id="package-not-scanned"),
+        ],
+    )
+    def test_only_audited_modules_count(
+        self, extra_id: str, stale: int, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """An id of a module that failed to import, or of a package the run did not scan, is not stale.
+
+        A monorepo shares one baseline across per-package runs, and a module missing a runtime dependency is not
+        audited; telling the user to regenerate would drop accepted ids that the next full run fails on again.
+
+        """
+        pkg = _project(tmp_path / "a", "pkg_a", body=_REMOVED_IN_TWO, broken=True)
+        baseline = _write_baseline(tmp_path / "baseline.json", ["expired:pkg_a:old_fn", extra_id])
+        with _record_run() as run:
+            result = cmd_expiry(path=str(pkg), version="3.0", baseline=str(baseline))
+        assert result == 0
+        assert run.baseline_unmatched == stale
+        assert ("no finding of this run" in capsys.readouterr().err) is bool(stale)
+
+    @patch("deprecate.audit._scan._walk_submodules", side_effect=OSError("unreadable package directory"))
+    def test_ids_below_a_stopped_walk_are_not_stale(self, mock_walk: MagicMock, tmp_path: Path) -> None:
+        """Ids of the submodules a stopped walk left unaudited are not stale, while an id of the package itself is.
+
+        A recursive walk that stops early (an unreadable package directory) records ``pkg_a.*``: the package was
+        audited, its submodules were not. An accepted ``pkg_a.sub`` finding had no chance to match and must not be
+        called stale, but an id of ``pkg_a`` that matched nothing is still a stale entry worth reporting.
+
+        """
+        pkg = _project(tmp_path / "a", "pkg_a", body=_REMOVED_IN_TWO)
+        ids = ["expired:pkg_a:old_fn", "expired:pkg_a.sub:gone_fn", "expired:pkg_a:removed_fn"]
+        baseline = _write_baseline(tmp_path / "baseline.json", ids)
+        with pytest.warns(UserWarning, match="stopped early"), _record_run() as run:
+            result = cmd_expiry(path=str(pkg), version="3.0", baseline=str(baseline))
+        assert result == 0
+        assert [gap.detail.split(":", 1)[0] for gap in run.gaps] == ["pkg_a.*"]
+        assert run.baseline_unmatched == 1
+
+    @pytest.mark.filterwarnings("ignore:.*unparsable:UserWarning")
+    @pytest.mark.filterwarnings("ignore:.*epoch change:UserWarning")
+    @pytest.mark.parametrize(
+        ("files", "command", "kwargs", "ids", "stale"),
+        [
+            pytest.param(
+                {"__init__.py": _VERSIONED_WRAPPER_INIT.format(versions='deprecated_in="1.0", remove_in="next"')},
+                cmd_expiry,
+                {"version": "2.0"},
+                ["expired:gappkg:old_fn"],
+                0,
+                id="remove_in-not-pep440",
+            ),
+            pytest.param(
+                {"__init__.py": _VERSIONED_WRAPPER_INIT.format(versions='deprecated_in="first", remove_in="2.0"')},
+                cmd_policy,
+                {},
+                ["min-grace:gappkg:old_fn", "message-required:gappkg:old_fn"],
+                1,
+                id="deprecated_in-not-pep440",
+            ),
+            pytest.param(
+                {"__init__.py": _VERSIONED_WRAPPER_INIT.format(versions='deprecated_in="1.0", remove_in="1!2.0"')},
+                cmd_policy,
+                {},
+                ["min-grace:gappkg:old_fn", "message-required:gappkg:old_fn"],
+                1,
+                id="epoch-change",
+            ),
+            pytest.param(
+                {"__init__.py": _UNSETTLED_PKG},
+                cmd_expiry,
+                {"version": "3.0", "static": True},
+                ["expired:gappkg:formatted_removal", "expired:gappkg:looked_up_target"],
+                0,
+                id="static-unsettled-setting",
+            ),
+            pytest.param(
+                {"__init__.py": "", "a.py": "from .b import old\n", "b.py": "from .a import old\n"},
+                cmd_expiry,
+                {"version": "3.0", "static": True},
+                ["expired:gappkg.a:old"],
+                0,
+                id="static-binding-in-an-import-cycle",
+            ),
+        ],
+    )
+    def test_ids_of_a_wrapper_a_gap_skipped_are_not_stale(
+        self,
+        files: dict[str, str],
+        command: Callable[..., int],
+        kwargs: dict,
+        ids: list[str],
+        stale: int,
+        tmp_path: Path,
+    ) -> None:
+        """An id of a rule a gap skipped for its wrapper is not stale, while an id of a rule that ran on it still is.
+
+        A wrapper whose ``remove_in`` or ``deprecated_in`` is not PEP 440, whose grace window spans an epoch change, or
+        whose setting or binding ``--static`` cannot read from the source is left out of the rule that needs it; the
+        run names it in a gap. Its accepted finding had no chance to match, so telling the team to regenerate the
+        baseline would drop an id the next run fails on again. ``message-required`` still runs on a wrapper whose
+        version is mistyped, so its unmatched id stays stale.
+
+        """
+        pkg = _pkg_with_files(tmp_path / "gappkg", files)
+        baseline = _write_baseline(tmp_path / "baseline.json", ids)
+        with _record_run() as run:
+            result = command(path=str(pkg), baseline=str(baseline), **kwargs)
+        assert result == 0
+        assert run.baseline_unmatched == stale
+
+    def test_skipped_check_of_one_path_keeps_its_ids(self, tmp_path: Path) -> None:
+        """Ids of a path whose expiry check was skipped stay expected-free, although another path ran the check.
+
+        ``pkg_a`` has no resolvable version, so its expiry check is skipped; ``pkg_b`` at 3.0 runs it. The shared
+        baseline's ``pkg_a`` id must not be counted as stale through ``pkg_b``'s copy of the same baseline.
+
+        """
+        pkg_a = _project(tmp_path / "a", "pkg_a", body=_REMOVED_IN_TWO)
+        pkg_b = _project(tmp_path / "b", "pkg_b", pyproject='[project]\nversion = "3.0"\n', body=_REMOVED_IN_TWO)
+        baseline = _write_baseline(tmp_path / "baseline.json", ["expired:pkg_a:old_fn", "expired:pkg_b:old_fn"])
+        with _record_run() as run:
+            result = cmd_expiry(path=[str(pkg_a), str(pkg_b)], baseline=str(baseline))
+        assert result == 0
+        assert run.baseline_unmatched == 0

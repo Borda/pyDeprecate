@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional, Union
 
 from deprecate._cli._pkg import _ConfigReadError, _read_pydeprecate_config
+from deprecate._cli.findings import _GATE_ORDER
 from deprecate._cli.report import _is_package_available, _print
 from deprecate._cli.suppress import _load_baseline, _parse_ignore, _Suppressor
 from deprecate.audit import PolicyRule
@@ -113,8 +114,9 @@ _POLICY_KEY = "policy"
 _STRICT_KEY = "strict"
 _IGNORE_KEY = "ignore"
 _BASELINE_KEY = "baseline"
+_GATE_KEY = "gate"
 #: The keys of ``[tool.pydeprecate]`` the CLI reads, in the order the advisories name them.
-_CONFIG_KEYS = (_EXCLUDE_KEY, _STRICT_KEY, _IGNORE_KEY, _BASELINE_KEY, _POLICY_KEY)
+_CONFIG_KEYS = (_EXCLUDE_KEY, _STRICT_KEY, _IGNORE_KEY, _BASELINE_KEY, _GATE_KEY, _POLICY_KEY)
 
 
 def _warn_unknown_keys(table: dict[str, Any], known: Sequence[str], table_name: str, toml_path: Optional[str]) -> None:
@@ -402,6 +404,42 @@ def _resolve_suppressor(ignore: _ConfigList, baseline: _ConfigFlag, config: _Con
         _print(str(err), stderr=True)
         return None
     return _Suppressor(ignore=entries, baseline=baseline_ids)
+
+
+def _resolve_gate(gate: _ConfigList, config: _Config) -> Optional[frozenset[str]]:
+    """Resolve the checks ``all`` gates on beyond its defaults as flag > ``gate`` in ``[tool.pydeprecate]`` > none.
+
+    The checks ``all`` always gates on (``check``, ``expiry``, ``chains``) may be listed too and change nothing; today
+    only ``policy`` turns violations ``all`` would report as warnings into errors. ``--gate=`` switches the file's list
+    off for one run.
+
+    Args:
+        gate: The ``--gate`` values (each comma-separated), or :data:`_FROM_PYPROJECT` when it was not typed.
+        config: The already-loaded ``[tool.pydeprecate]`` configuration.
+
+    Returns:
+        The named checks, or ``None`` after printing a usage error (the caller exits 2): a value from the file that is
+        not a string or a list of strings, or a check name other than ``check``, ``expiry``, ``policy`` or ``chains``.
+
+    """
+    raw, source = _resolve_setting(gate, config[0], _GATE_KEY, [], config)
+    origin = _describe_source(_GATE_KEY, _CONFIG_TABLE_NAME, source)
+    expected = ", ".join(f"`{check}`" for check in _GATE_ORDER)
+    if not isinstance(raw, (str, list, tuple)) or not all(isinstance(item, str) for item in raw):
+        _print(
+            f'Invalid `{_GATE_KEY}` value `{raw}` from {origin}; expected a list of checks such as `["policy"]`.',
+            stderr=True,
+        )
+        return None
+    checks = _split_patterns(raw)
+    unknown = [check for check in checks if check not in _GATE_ORDER]
+    if unknown:
+        _print(
+            f"Invalid `{_GATE_KEY}` value `{unknown[0]}` from {origin}; expected a comma-separated list of {expected}.",
+            stderr=True,
+        )
+        return None
+    return frozenset(checks)
 
 
 def _resolve_policy_spec(

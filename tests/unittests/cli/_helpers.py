@@ -1,5 +1,10 @@
 """Shared wrapper fixtures and expected messages for the :mod:`deprecate._cli` unit tests."""
 
+from contextlib import AbstractContextManager
+from typing import Optional
+from unittest.mock import MagicMock, patch
+
+from deprecate._cli.report import _ScanRecord
 from deprecate._types import DeprecationConfig, TargetMode
 from deprecate.audit import DeprecationWrapperInfo
 from deprecate.audit._findings import _Check, _make_finding, _Rule
@@ -25,3 +30,12 @@ _MESSAGE_REQUIRED_FINDING = _make_finding(
     _Check.POLICY,
     "[message-required] Callable `mod.warn_only_fn` warns without naming a replacement",
 )
+
+
+def _scanned(
+    wrappers: list[DeprecationWrapperInfo], version: Optional[str] = None
+) -> AbstractContextManager[MagicMock]:
+    """Make the subcommands' scan prologue return *wrappers*, scanned at *version*, without importing anything."""
+    return patch(
+        "deprecate._cli.commands._scan_for_command", return_value=_ScanRecord("some_module", wrappers, version)
+    )

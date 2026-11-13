@@ -776,7 +776,6 @@ class TestCliPreCommitArgs:
     @pytest.mark.parametrize(
         ("args", "flag"),
         [
-            pytest.param(("{a}", "{b}"), "one path per run", id="second-path-rejected-before-binding"),
             pytest.param(("-r", "{b}"), "--recursive", id="short-flag-swallows-path"),
             pytest.param(("{a}", "--exit-zero=yes"), "--exit-zero", id="non-bool-value"),
         ],
@@ -784,9 +783,7 @@ class TestCliPreCommitArgs:
     def test_non_bool_value_exits_two(self, tmp_path: Path, args: tuple[str, ...], flag: str) -> None:
         """A stray token reaching a boolean flag exits 2 without scanning anything.
 
-        The second path used to bind to ``recursive`` and the run exited 0 having scanned one package; a hook
-        listing several packages in ``args`` needs one hook entry per package. Short ``-r <path>`` and a
-        non-boolean ``--exit-zero=yes`` must also fail before any scan output, so a hook never
+        Short ``-r <path>`` and a non-boolean ``--exit-zero=yes`` must fail before any scan output, so a hook never
         reports a pass or findings for a run it should have rejected.
 
         """
@@ -800,18 +797,18 @@ class TestCliPreCommitArgs:
 
     @pytest.mark.parametrize("subcommand", ["check", "chains"])
     def test_explicit_flags_do_not_hide_second_path(self, tmp_path: Path, subcommand: str) -> None:
-        """Two package paths remain a usage error when both boolean options are explicit.
+        """Two package paths after explicit boolean options are both scanned, and the second one's error fails the run.
 
         A hook listing two packages must not treat the second package as an exclusion after Fire skips the
-        already-bound recursive and exit-zero slots. Reject the invocation before importing either package.
+        already-bound recursive and exit-zero slots; since several paths are accepted, both are audited.
 
         """
         pkg_a = _make_pkg(tmp_path, name="pkg_a")
         pkg_b = _make_pkg(tmp_path, name="pkg_b", content=_MYPKG_INIT_INVALID)
         result = _run_cli(subcommand, "--no-recursive", "--no-exit-zero", str(pkg_a), str(pkg_b), cwd=tmp_path)
-        assert result.returncode == 2, result
-        assert "Scanning:" not in result.stdout
-        assert "nonexistent" not in result.stdout
+        assert result.returncode == (1 if subcommand == "check" else 0), result
+        assert result.stdout.count("Scanning:") == 2
+        assert ("nonexistent" in result.stdout) is (subcommand == "check")
 
     @pytest.mark.parametrize("option", ["--no-wrappers", "--no_wrappers", "-no-wrappers"])
     def test_negated_private_option_does_not_skip_scan(self, tmp_path: Path, option: str) -> None:
@@ -1537,6 +1534,84 @@ class TestCliReportFindings:
         assert "mypkg.old_fn" in result.stdout
         assert "mypkg.mid_fn" not in result.stdout
 
+    def test_report_sarif_lists_active_findings(self, tmp_path: Path) -> None:
+        """``--report-sarif`` writes one SARIF result per active finding, located relative to the working directory.
+
+        CI uploads the file to code scanning, which needs a ``%SRCROOT%``-relative location to show each alert.
+
+        """
+        pkg = _make_pkg(tmp_path, content=_MYPKG_INIT_TWO_EXPIRED)
+        sarif = tmp_path / "out.sarif"
+        result = _run_cli("expiry", str(pkg), "--version=2.0", f"--report-sarif={sarif}", cwd=tmp_path)
+        run = json.loads(sarif.read_text(encoding="utf-8"))["runs"][0]
+        assert result.returncode == 1, result.stderr
+        assert [res["partialFingerprints"]["pydeprecateFindingId/v1"] for res in run["results"]] == [
+            "expired:mypkg:mid_fn",
+            "expired:mypkg:old_fn",
+        ]
+        assert {res["locations"][0]["physicalLocation"]["artifactLocation"]["uri"] for res in run["results"]} == {
+            "mypkg/__init__.py"
+        }
+
+    @pytest.mark.parametrize(
+        ("args", "exit_code"),
+        [
+            pytest.param(("status",), 2, id="status-has-no-sarif"),
+            pytest.param(("expiry", "--verison=2.0"), 2, id="usage-error"),
+        ],
+    )
+    def test_report_sarif_not_written_on_usage_error(
+        self, tmp_path: Path, args: tuple[str, ...], exit_code: int
+    ) -> None:
+        """A usage error writes no SARIF file, and ``status`` refuses the option as unknown.
+
+        Code scanning must never receive a file from a run that scanned nothing.
+
+        """
+        pkg = _make_pkg(tmp_path)
+        sarif = tmp_path / "out.sarif"
+        result = _run_cli(args[0], str(pkg), *args[1:], f"--report-sarif={sarif}", cwd=tmp_path)
+        assert result.returncode == exit_code
+        assert not sarif.exists()
+
+    def test_report_sarif_not_written_on_crash(self, tmp_path: Path) -> None:
+        """A package that fails to import exits 3 and writes no SARIF file.
+
+        Nothing was audited; an empty SARIF upload would close every open alert in code scanning as if fixed.
+
+        """
+        pkg = _make_pkg(tmp_path, name="brokenpkg", content="raise RuntimeError('broken on import')\n")
+        sarif = tmp_path / "out.sarif"
+        result = _run_cli("check", str(pkg), f"--report-sarif={sarif}", cwd=tmp_path)
+        assert result.returncode == 3, result.stdout + result.stderr
+        assert not sarif.exists()
+
+    def test_unwritable_report_sarif_keeps_exit_code(self, tmp_path: Path) -> None:
+        """A SARIF path that cannot be written prints an advisory and keeps the gate's own exit code.
+
+        The SARIF file is a by-product for code scanning; its failure must not turn a passing gate red.
+
+        """
+        pkg = _make_pkg(tmp_path)
+        result = _run_cli("check", str(pkg), f"--report-sarif={tmp_path}", cwd=tmp_path)
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "Could not write the SARIF report" in result.stderr
+
+    def test_report_sarif_of_two_paths_names_each_path(self, tmp_path: Path) -> None:
+        """``expiry pkg_a pkg_b`` lists both paths in ``run.properties.paths`` and gives the result its own path.
+
+        A monorepo uploads one SARIF file for every package it audits; each alert must say which package it came from.
+
+        """
+        pkg_a = _make_pkg(tmp_path, name="pkg_a")
+        pkg_b = _make_pkg(tmp_path, name="pkg_b", content=_MYPKG_INIT_MULTI_DIGIT_MINOR)
+        sarif = tmp_path / "out.sarif"
+        result = _run_cli("expiry", str(pkg_a), str(pkg_b), "--version=2.0", f"--report-sarif={sarif}", cwd=tmp_path)
+        run = json.loads(sarif.read_text(encoding="utf-8"))["runs"][0]
+        assert result.returncode == 1, result.stdout + result.stderr
+        assert run["properties"]["paths"] == [str(pkg_a), str(pkg_b)]
+        assert [(res["ruleId"], res["properties"]["path"]) for res in run["results"]] == [("expired", str(pkg_b))]
+
     def test_strict_gap_is_the_gate_reason(self, tmp_path: Path) -> None:
         """A strict run that fails only on a gap records ``gaps`` as the reason, and the gap carries its path.
 
@@ -1557,6 +1632,59 @@ class TestCliReportFindings:
 @pytest.mark.subprocess
 class TestCliReportJson:
     """``--report-json PATH`` writes one machine-readable record of the run: the status table and every gap."""
+
+    def test_report_does_not_reimport_an_earlier_unversioned_package(self, tmp_path: Path) -> None:
+        """Rendering a report uses the completed scans without importing their packages again.
+
+        A package parsing its own arguments imports during its scan, when CLI arguments are hidden. A later scan
+        releases that package from the module cache; report generation must not import it with CLI arguments visible.
+        """
+        first_root = tmp_path / "first"
+        second_root = tmp_path / "second"
+        first_root.mkdir()
+        second_root.mkdir()
+        first = _make_pkg(
+            first_root, name="report_first", content="import argparse\nargparse.ArgumentParser().parse_args()\n"
+        )
+        second = _make_pkg(second_root, name="report_second", content="")
+        report = tmp_path / "report.json"
+        result = _run_cli("check", str(first), str(second), f"--report-json={report}", cwd=tmp_path)
+        assert result.returncode == 0, result.stderr
+        assert json.loads(report.read_text(encoding="utf-8"))["paths"] == [str(first), str(second)]
+
+    def test_static_baseline_counts_only_rules_that_ran(self, tmp_path: Path) -> None:
+        """An unresolved removal version must not hide a stale guidance-rule baseline entry.
+
+        Static policy can evaluate migration guidance even when a computed removal version prevents its grace check.
+        The baseline entry for the evaluated guidance rule is stale; the grace entry remains unevaluated.
+        """
+        pkg = _make_pkg(
+            tmp_path,
+            name="static_baseline",
+            content=(
+                "from deprecate import deprecated\nMAJOR = 2\ndef new(): pass\n"
+                '@deprecated(target=new, deprecated_in="1.0", remove_in=f"{MAJOR}.0")\ndef old(): pass\n'
+            ),
+        )
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text(
+            json.dumps(
+                {
+                    "schema": 1,
+                    "findings": [
+                        {"id": "message-required:static_baseline:old"},
+                        {"id": "min-grace:static_baseline:old"},
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        report = tmp_path / "report.json"
+        result = _run_cli(
+            "policy", str(pkg), "--static", f"--baseline={baseline}", f"--report-json={report}", cwd=tmp_path
+        )
+        assert result.returncode == 0, result.stderr
+        assert json.loads(report.read_text(encoding="utf-8"))["summary"]["baseline_unmatched"] == 1
 
     @pytest.mark.parametrize(
         ("subcommand", "args", "exit_code"),
@@ -1984,3 +2112,205 @@ class TestCliStatic:
         assert "[min-grace] Callable `heavypkg.warn_only`" in result.stdout
         assert "message-required" not in result.stdout.split("Policy:", 1)[1].split("\n", 1)[1]
         assert not (pkg / "IMPORTED").exists()
+
+
+@pytest.mark.subprocess
+class TestCliMultiPath:
+    """Several paths in one run: one exit code, one report listing every path, one table per package."""
+
+    @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
+    def test_expired_wrapper_of_second_path_fails_the_run(self, tmp_path: Path) -> None:
+        """``all pkg_a pkg_b`` exits 1 when only ``pkg_b`` holds an expired wrapper, and the finding names ``pkg_b``.
+
+        A monorepo audits all its packages in one CI step; the step must fail for the one overdue removal, the report
+        must list both scanned paths, and the finding must point at the package it came from.
+
+        """
+        pkg_a = _make_pkg(tmp_path, name="pkg_a")
+        pkg_b = _make_pkg(tmp_path, name="pkg_b", content=_MYPKG_INIT_MULTI_DIGIT_MINOR)
+        report = tmp_path / "report.json"
+        result = _run_cli(
+            "all", str(pkg_a), str(pkg_b), "--version=2.0", f"--report-json={report}", env=_cli_env(COLUMNS="500")
+        )
+        data = json.loads(report.read_text(encoding="utf-8"))
+        assert result.returncode == 1, result.stdout + result.stderr
+        assert data["paths"] == [str(pkg_a), str(pkg_b)]
+        assert [item["package"] for item in data["versions"]] == ["pkg_a", "pkg_b"]
+        assert [(finding["id"], finding["path"]) for finding in data["findings"] if finding["level"] == "error"] == [
+            ("expired:pkg_b:old_fn", str(pkg_b))
+        ]
+        assert data["table"].count("### ") == 2
+        assert result.stdout.count("### pkg_") == 2
+        assert "applies to every path" in result.stdout
+        jsonschema.validate(data, json.loads(_REPORT_SCHEMA_FILE.read_text(encoding="utf-8")))
+
+    @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
+    def test_isolated_reports_apply_suppression_to_serializable_findings(self, tmp_path: Path) -> None:
+        """Separate scan results retain report tables and globally applied suppression with non-picklable targets.
+
+        Each package uses a lambda replacement, which cannot be pickled. The first finding is ignored while the second
+        remains active, so the combined report must keep the right counts, paths and both package tables.
+
+        """
+        body = _MYPKG_INIT.replace("target=new_fn", "target=lambda x: x").replace('remove_in="9.0"', 'remove_in="2.0"')
+        first = _make_pkg(tmp_path, name="worker_a", content=body)
+        second = _make_pkg(tmp_path, name="worker_b", content=body)
+        report = tmp_path / "report.json"
+        result = _run_cli(
+            "expiry",
+            str(first),
+            str(second),
+            "--version=3.0",
+            "--ignore=expired:worker_a:old_fn",
+            f"--report-json={report}",
+            cwd=tmp_path,
+        )
+        data = json.loads(report.read_text(encoding="utf-8"))
+        assert result.returncode == 1, result.stderr
+        assert [item["id"] for item in data["findings"]] == ["expired:worker_b:old_fn"]
+        assert [item["id"] for item in data["suppressed"]] == ["expired:worker_a:old_fn"]
+        assert data["paths"] == [str(first), str(second)]
+        assert data["table"].count("### ") == 2
+        jsonschema.validate(data, json.loads(_REPORT_SCHEMA_FILE.read_text(encoding="utf-8")))
+
+    def test_isolated_scan_supports_binary_and_file_descriptor_streams(self, tmp_path: Path) -> None:
+        """Imported packages may use binary streams and file descriptors in single- and multi-path scans.
+
+        Packages sometimes write subprocess diagnostics using ``sys.stdout.buffer`` or ``os.write`` on a standard
+        stream. Both scan modes must complete and preserve the order of each stream's emitted messages.
+
+        """
+        body = (
+            "import os, sys\n"
+            "sys.stdout.buffer.write(b'OUT-BUFFER\\n'); sys.stdout.flush()\n"
+            "os.write(sys.stdout.fileno(), b'OUT-FD\\n')\n"
+            "sys.stderr.buffer.write(b'ERR-BUFFER\\n'); sys.stderr.flush()\n"
+            "os.write(sys.stderr.fileno(), b'ERR-FD\\n')\n"
+        )
+        first = _make_pkg(tmp_path, name="stream_first", content=body)
+        second = _make_pkg(tmp_path, name="stream_second", content="")
+        single = _run_cli("check", str(first), cwd=tmp_path)
+        multi = _run_cli("check", str(first), str(second), cwd=tmp_path)
+
+        assert single.returncode == 0, single.stderr
+        assert multi.returncode == 0, multi.stderr
+        assert single.stdout.index("OUT-BUFFER") < single.stdout.index("OUT-FD")
+        assert multi.stdout.index("OUT-BUFFER") < multi.stdout.index("OUT-FD")
+        assert single.stderr.index("ERR-BUFFER") < single.stderr.index("ERR-FD")
+        assert multi.stderr.index("ERR-BUFFER") < multi.stderr.index("ERR-FD")
+
+    def test_isolated_scan_replaces_invalid_diagnostic_bytes(self, tmp_path: Path) -> None:
+        """Keep scanning and write the report when imported code emits invalid UTF-8 on file descriptors.
+
+        Native code can write arbitrary bytes directly to the worker's stdout and stderr, bypassing Python's text
+        streams. Those diagnostics must not prevent the successful worker response from being read.
+
+        """
+        first = _make_pkg(
+            tmp_path,
+            name="binary_diagnostic",
+            content="import os\nos.write(1, b'out\\xff')\nos.write(2, b'err\\xff')\n",
+        )
+        second = _make_pkg(tmp_path, name="binary_second", content="")
+        report = tmp_path / "report.json"
+        result = _run_cli("check", str(first), str(second), f"--report-json={report}", cwd=tmp_path)
+        assert result.returncode == 0, result.stderr
+        assert "out\ufffd" in result.stdout
+        assert "err\ufffd" in result.stderr
+        assert json.loads(report.read_text(encoding="utf-8"))["paths"] == [str(first), str(second)]
+
+    def test_isolated_scan_does_not_wait_for_background_descendant(self, tmp_path: Path) -> None:
+        """Finish an audit while an imported package's background process still holds its standard streams.
+
+        A library may start a long-lived child during import. The worker can finish its scan without waiting for
+        that unrelated process to close inherited output handles.
+
+        """
+        release = tmp_path / "release-child"
+        child = (
+            f"import pathlib, time\np = pathlib.Path({str(release)!r})\n"
+            "deadline = time.monotonic() + 60\nwhile not p.exists() and time.monotonic() < deadline: time.sleep(0.1)\n"
+        )
+        body = f"import subprocess, sys\nsubprocess.Popen([sys.executable, '-c', {child!r}])\n"
+        first = _make_pkg(tmp_path, name="background_diagnostic", content=body)
+        second = _make_pkg(tmp_path, name="background_second", content="")
+        report = tmp_path / "report.json"
+        try:
+            result = subprocess.run(
+                [sys.executable, "-m", "deprecate", "check", str(first), str(second), f"--report-json={report}"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                env=_cli_env(),
+                cwd=tmp_path,
+                timeout=15,
+                check=False,
+            )
+        finally:
+            release.touch()
+        assert result.returncode == 0, result.stderr
+        assert json.loads(report.read_text(encoding="utf-8"))["paths"] == [str(first), str(second)]
+
+    def test_isolated_scan_failure_keeps_exit_and_report_contract(self, tmp_path: Path) -> None:
+        """A broken second scan exits 3 and leaves no report despite the first successful scan.
+
+        A package can raise during import after another package was scanned. The worker must propagate that failure as
+        a scan error without manufacturing a successful aggregate report.
+
+        """
+        first = _make_pkg(tmp_path, name="worker_good", content="")
+        second = _make_pkg(tmp_path, name="worker_broken", content="raise RuntimeError('worker broke')\n")
+        report = tmp_path / "report.json"
+        result = _run_cli("check", str(first), str(second), f"--report-json={report}", cwd=tmp_path)
+        assert result.returncode == 3
+        assert "scan error" in result.stderr
+        assert "worker broke" in result.stderr
+        assert "Traceback" not in result.stderr
+        assert not report.exists()
+
+    def test_single_path_report_keeps_schema_one_table(self, tmp_path: Path) -> None:
+        """One path keeps the table of schema 1: no package heading, in the report or on the console.
+
+        Readers of schema-1 reports use ``table`` verbatim as the table of the one scanned package.
+
+        """
+        pkg = _make_pkg(tmp_path)
+        report = tmp_path / "report.json"
+        result = _run_cli("all", str(pkg), "--version=2.0", f"--report-json={report}", env=_cli_env(COLUMNS="500"))
+        data = json.loads(report.read_text(encoding="utf-8"))
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "### " not in data["table"]
+        assert "### " not in result.stdout
+
+    def test_policy_gate_fails_all_from_one_run(self, tmp_path: Path) -> None:
+        """``all --gate=policy`` fails on a policy violation that plain ``all`` only reports.
+
+        The gate replaces a second ``policy`` step: the report then lists ``policy`` among the gates and the violation
+        as an error.
+
+        """
+        pkg = _make_pkg(tmp_path, content=_MYPKG_INIT_AGGRESSIVE)
+        report = tmp_path / "report.json"
+        plain = _run_cli("all", str(pkg), "--version=0.5", env=_cli_env(COLUMNS="500"))
+        gated = _run_cli(
+            "all", str(pkg), "--version=0.5", "--gate=policy", f"--report-json={report}", env=_cli_env(COLUMNS="500")
+        )
+        data = json.loads(report.read_text(encoding="utf-8"))
+        assert (plain.returncode, gated.returncode) == (0, 1), gated.stdout + gated.stderr
+        assert "[ERROR] Found deprecation policy violations:" in gated.stdout
+        assert "advisory here" not in gated.stdout
+        assert "policy" in data["options"]["gates"]
+        assert {finding["level"] for finding in data["findings"] if finding["check"] == "policy"} == {"error"}
+
+    def test_legacy_positional_version_warns(self, tmp_path: Path) -> None:
+        """``expiry <pkg> 9.0`` still compares against 9.0 and says the positional form goes away at 1.0.
+
+        Existing CI scripts keep working through the deprecation window, and the notice tells their authors the
+        replacement spelling.
+
+        """
+        pkg = _make_pkg(tmp_path)
+        result = _run_cli("expiry", str(pkg), "9.0", env=_cli_env(COLUMNS="500"))
+        assert result.returncode == (1 if _PACKAGING_AVAILABLE else 0), result.stdout + result.stderr
+        assert "Version: 9.0 (user-provided)" in result.stdout
+        assert "pass `--version 9.0` instead" in result.stderr

@@ -2,7 +2,15 @@
 
 import pytest
 
-from deprecate._cli.findings import _exit_code, _gate_levels, _Level, _level
+from deprecate._cli.findings import (
+    _gate_levels,
+    _gate_reasons,
+    _GateReason,
+    _Level,
+    _level,
+    _merge_reasons,
+    _verdict,
+)
 from deprecate.audit import DeprecationWrapperInfo
 from deprecate.audit._findings import _Check, _Finding, _make_finding, _Rule
 
@@ -44,8 +52,22 @@ class TestLevel:
         assert levels == expected
 
 
+def _gate_code(
+    findings: list[_Finding],
+    subcommand: str,
+    *,
+    exit_zero: bool = False,
+    strict: bool = False,
+    gaps: int = 0,
+    gates: tuple[str, ...] = (),
+) -> int:
+    """Return the exit code one path's gate gives *findings*, composed as ``_finish_gate`` composes it."""
+    reasons = _gate_reasons(findings, subcommand, strict=strict, gaps=gaps, gates=gates)
+    return _verdict(_merge_reasons([reasons]), exit_zero=exit_zero)
+
+
 class TestExitCode:
-    """``_exit_code`` is 1 when any evaluated finding is an error, unless ``exit_zero`` downgrades it."""
+    """The gate exits 1 when any evaluated finding is an error, unless ``exit_zero`` downgrades it."""
 
     @pytest.mark.parametrize(
         ("rules", "subcommand", "exit_zero", "expected"),
@@ -62,7 +84,7 @@ class TestExitCode:
     def test_truth_table(self, rules: tuple[_Rule, ...], subcommand: str, exit_zero: bool, expected: int) -> None:
         """Findings × subcommand × ``exit_zero`` give the documented exit code."""
         findings = [_finding(rule) for rule in rules]
-        assert _exit_code(findings, subcommand, exit_zero=exit_zero) == expected
+        assert _gate_code(findings, subcommand, exit_zero=exit_zero) == expected
 
     @pytest.mark.parametrize(
         ("rules", "strict", "gaps", "exit_zero", "expected"),
@@ -86,7 +108,7 @@ class TestExitCode:
 
         """
         findings = [_finding(rule) for rule in rules]
-        assert _exit_code(findings, "check", exit_zero=exit_zero, strict=strict, gaps=gaps) == expected
+        assert _gate_code(findings, "check", exit_zero=exit_zero, strict=strict, gaps=gaps) == expected
 
     def test_all_keeps_the_error_of_a_duplicated_chain(self) -> None:
         """``all`` sees a chain twice, a warning from ``check`` and an error from ``chains``; it stays an error.
@@ -97,4 +119,45 @@ class TestExitCode:
         """
         findings = [_finding(_Rule.CHAIN, _Check.CHAINS), _finding(_Rule.CHAIN, _Check.CHECK)]
         assert _gate_levels(findings, "all") == {"chain:pkg:old_fn": _Level.ERROR}
-        assert _exit_code(findings, "all") == 1
+        assert _gate_code(findings, "all") == 1
+
+
+class TestGates:
+    """``all --gate``: a listed check gates ``all`` as its own subcommand does, never more."""
+
+    @pytest.mark.parametrize(
+        ("rule", "gates", "expected"),
+        [
+            pytest.param(_Rule.MIN_GRACE, (), _Level.WARNING, id="policy-advisory"),
+            pytest.param(_Rule.MESSAGE_REQUIRED, ("policy",), _Level.ERROR, id="policy-gated"),
+            pytest.param(_Rule.IDENTITY_MAPPING, ("check",), _Level.WARNING, id="check-warning-stays-warning"),
+            pytest.param(_Rule.CHAIN, (), _Level.ERROR, id="chain-always-gated"),
+        ],
+    )
+    def test_level_in_all(self, rule: _Rule, gates: tuple[str, ...], expected: _Level) -> None:
+        """A gated check's rules take the level of that check's own subcommand; warnings of ``check`` stay warnings.
+
+        ``--gate=check`` names a check ``all`` already gates on, so it must change nothing — only ``policy`` moves.
+
+        """
+        assert _level(rule, "all", gates) is expected
+
+    def test_gate_never_changes_other_subcommands(self) -> None:
+        """``--gate`` exists only on ``all``; the level map of every other subcommand ignores it."""
+        assert _level(_Rule.MIN_GRACE, "check", ("policy",)) is None
+
+    def test_gated_policy_fails_all(self) -> None:
+        """A policy violation fails ``all`` only when the run gates on ``policy``.
+
+        The same finding passes an ungated run, so the gate list is the only switch between advisory and blocking.
+
+        """
+        findings = [_finding(_Rule.MESSAGE_REQUIRED, _Check.POLICY)]
+        assert (_gate_code(findings, "all"), _gate_code(findings, "all", gates=("policy",))) == (0, 1)
+
+    def test_merged_reasons_keep_report_order(self) -> None:
+        """A run over several paths fails for every reason any path failed for, findings before gaps."""
+        assert _merge_reasons([[_GateReason.GAPS], [], [_GateReason.FINDINGS]]) == [
+            _GateReason.FINDINGS,
+            _GateReason.GAPS,
+        ]

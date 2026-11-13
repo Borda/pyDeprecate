@@ -2065,9 +2065,9 @@ ______________________________________________________________________
 
 **Q:** `pydeprecate all src/mypackage` prints a *Deprecation Policy Violations* table, but the command exits `0` and my CI step passes. Is the exit code wrong?
 
-**A:** No — that is deliberate. The policy defaults (`min_grace="0.3"`, `message_required=True`) encode *a* release convention, not a universal rule, so `all` runs the policy check in **advisory** mode: violations are printed for visibility but never contribute to `all`'s exit code. Only invalid argument mappings, misconfigured targets, inner-order properties, deprecated-to-deprecated chains, and expired wrappers make `all` exit `1`. This "advisory" treatment covers violation *counts* only — a policy **configuration** failure (the nearest `pyproject.toml` cannot be read or parsed, or a `[tool.pydeprecate.policy]` value is malformed) still exits `2` even inside `all`, printing `Cannot read <path>: <err>`, and that failure is checked before the chains check runs.
+**A:** No — that is deliberate. The policy defaults (`min_grace="0.3"`, `message_required=True`) encode *a* release convention, not a universal rule, so `all` runs the policy check in **advisory** mode by default: violations are printed for visibility but never contribute to `all`'s exit code. Since `0.16` you can opt in with `pydeprecate all --gate=policy src/mypackage` (or `gate = ["policy"]` in `[tool.pydeprecate]`), which makes `all` exit `1` on the policy violations of that same scan; on `0.15` use the separate `policy` step below. Without that opt-in, only invalid argument mappings, misconfigured targets, inner-order properties, deprecated-to-deprecated chains, and expired wrappers make `all` exit `1`. This "advisory" treatment covers violation *counts* only — a policy **configuration** failure (the nearest `pyproject.toml` cannot be read or parsed, or a `[tool.pydeprecate.policy]` value is malformed) still exits `2` even inside `all`, printing `Cannot read <path>: <err>`, and that failure is checked before the chains check runs.
 
-To make the build fail on a policy violation, give `pydeprecate policy` its own CI step — its exit code is truthful (`0` clean, `1` violations, `2` a malformed rule argument):
+To make the build fail on a policy violation on `0.15`, or to keep the policy gate apart from `all`, give `pydeprecate policy` its own CI step — its exit code is truthful (`0` clean, `1` violations, `2` a malformed rule argument):
 
 ```bash
 # reports policy violations, but the exit code ignores them
@@ -2319,6 +2319,14 @@ ______________________________________________________________________
 **Q:** The pyDeprecate GitHub Action warns `the pyDeprecate report is not of layout version 1; ignoring it` and adds no gap annotations or job summary, although the CLI ran.
 
 **A:** The action's runner reads only the layout version its own CLI writes (1 since 0.15); a report of another version comes from a different pyDeprecate than the action ref, typically with `install: false`. The step's exit code is still the CLI's, so the gate result is right; only the annotations and the summary are skipped. Pin the action to the release your job installs (`uses: Borda/pyDeprecate@v0.16.0`), or keep the default `install: true` so the action installs the CLI from its own ref.
+
+______________________________________________________________________
+
+## Why does a pyDeprecate annotation show no file or line?
+
+**Q:** The GitHub Action's annotation for a finding appears on the run summary instead of on a line of the pull request.
+
+**A:** The finding has no source location the CLI can name: every finding from a `--static` run lacks one, as can a `deprecated_instance` data object (a wrapped value has no defining line), a class built at runtime, or code compiled from a string. Since 0.16 a finding with a source location is annotated with the file and the line of its wrapper's first decorator; a deprecated module is annotated on its file without a line. A file outside the repository checkout (the nearest directory holding `.git` at or above the job's working directory) is named by its absolute path, which GitHub cannot match to the pull request, so scan the package in the checkout rather than an installed copy.
 
 ______________________________________________________________________
 

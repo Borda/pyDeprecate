@@ -2,9 +2,10 @@
 
 import importlib.util
 import json
+import os
 import sys
-from collections.abc import Iterator
-from contextlib import contextmanager
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager, suppress
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from enum import Enum
@@ -13,12 +14,11 @@ from typing import Any, NamedTuple, Optional
 
 from deprecate import __about__
 from deprecate._cli._pkg import _safe_module_name
-from deprecate._cli.findings import _LEVEL_RANK, _GateReason, _Level, _level
+from deprecate._cli.findings import _GATE_ORDER, _LEVEL_RANK, _GateReason, _Level, _level
 from deprecate._cli.suppress import _Suppressor
 from deprecate.audit import DeprecationWrapperInfo, TableStyle
 from deprecate.audit._findings import _Finding, _Rule
 from deprecate.audit._report import _render_deprecation_table, _resolve_table_version
-from deprecate.audit._version import _resolve_package_version
 
 
 def _is_package_available(name: str) -> bool:
@@ -86,6 +86,11 @@ class _Gap(NamedTuple):
     kind: _GapKind
     detail: str
     path: Optional[str] = None
+    #: ``(module, symbol)`` of the one wrapper the gap left unchecked, as its finding ids name it; ``None`` for a gap
+    #: that names no single wrapper. Never written to the report.
+    subject: Optional[tuple[str, str]] = None
+    #: Rules skipped for this subject, or ``None`` when the gap kind supplies the rules.
+    rules: Optional[frozenset[str]] = None
 
 
 class _SuppressedFinding(NamedTuple):
@@ -110,6 +115,8 @@ class _ScanRecord:
     static: bool = False
     #: Directory holding the top-level package of a static scan, where its version is read from source.
     import_root: Optional[Path] = None
+    #: Serializable check results and output from an isolated importing scan, if this scan ran in a worker.
+    worker: Optional[dict[str, Any]] = None
 
 
 @dataclass
@@ -128,8 +135,13 @@ class _RunRecord:
     """What one CLI run did: its gaps and findings, and its rendered table or its scan for ``--report-json``."""
 
     gaps: list[_Gap] = field(default_factory=list)
+    #: The run's deprecation table: the one table of a single path, else every path's table under its package heading.
     table: Optional[str] = None
+    #: The last scan a gate recorded; :attr:`scans` holds every one of a run over several paths.
     scan: Optional[_ScanRecord] = None
+    scans: list[_ScanRecord] = field(default_factory=list)
+    #: Each table the run rendered, with the package it belongs to, in path order; :attr:`table` joins them.
+    tables: list[tuple[str, str]] = field(default_factory=list)
     #: Every finding the run's checks derived; ``all`` computes its exit code from those of its sub-checks.
     findings: list[_Finding] = field(default_factory=list)
     #: The scan path each entry of :attr:`findings` came from, index for index.
@@ -154,6 +166,8 @@ class _RunRecord:
     #: Ignore entries that matched no finding, and baseline ids of an evaluated rule that matched none.
     ignore_unmatched: int = 0
     baseline_unmatched: int = 0
+    #: The checks ``--gate`` added for each scan path (``all`` only); a finding's level in the report follows its path.
+    gates_by_path: dict[Optional[str], frozenset[str]] = field(default_factory=dict)
 
 
 #: The record of the current CLI run while :func:`_record_run` is active.
@@ -201,10 +215,11 @@ def _run_active() -> bool:
 
 
 def _record_scan(scan: _ScanRecord) -> None:
-    """Keep the scan a standalone gate ran; ``all`` and ``status`` record their rendered table instead."""
+    """Keep a scan a standalone gate ran; ``all`` and ``status`` record their rendered table instead."""
     record = _RUN_RECORD.get()
     if record is not None:
         record.scan = scan
+        record.scans.append(scan)
 
 
 def _record_findings(findings: list[_Finding]) -> list[_Finding]:
@@ -238,32 +253,99 @@ def _record_scanned_path(path: str, version: Optional[str], *, user_provided: bo
     record.scanned.append(_ScannedPath(path, _safe_module_name(path), version, source))
 
 
+def _merge_option(name: str, current: Any, value: Any) -> Any:  # noqa: ANN401
+    """Return the run-level value of option *name* after one more path resolved it to *value*.
+
+    ``strict`` is on when any path is strict, ``gates`` is the union in report order and ``exclude`` the union in path
+    order; any other option keeps the latest value.
+
+    Examples:
+        >>> _merge_option("strict", True, False), _merge_option("exclude", ["a"], ["b", "a"])
+        (True, ['a', 'b'])
+        >>> _merge_option("gates", ["chains"], ["policy"])
+        ['policy', 'chains']
+
+    """
+    if current is None:
+        return value
+    if name == "strict":
+        return bool(current or value)
+    if name == "exclude":
+        return [*current, *(item for item in value if item not in current)]
+    if name == "gates":
+        return [check for check in _GATE_ORDER if check in current or check in value]
+    return value
+
+
 def _record_options(**options: Any) -> None:  # noqa: ANN401
-    """Merge resolved options into the run's ``options``, as the report lists them."""
+    """Merge resolved options into the run's ``options``, as the report lists them, across every scanned path."""
+    record = _RUN_RECORD.get()
+    if record is None:
+        return
+    for name, value in options.items():
+        record.options[name] = _merge_option(name, record.options.get(name), value)
+
+
+def _join_tables(tables: list[tuple[str, str]]) -> Optional[str]:
+    """Join the deprecation tables of a run: one path's table as it is, several each under a ``### <package>`` heading.
+
+    Examples:
+        >>> _join_tables([("pkg", "| A |")]), _join_tables([])
+        ('| A |', None)
+        >>> print(_join_tables([("pkg_a", "| A |"), ("pkg_b", "| B |")]))
+        ### pkg_a
+        <BLANKLINE>
+        | A |
+        <BLANKLINE>
+        ### pkg_b
+        <BLANKLINE>
+        | B |
+
+    """
+    if len(tables) <= 1:
+        return tables[0][1] if tables else None
+    return "\n\n".join(f"### {package}\n\n{markdown}" for package, markdown in tables)
+
+
+def _unrendered_table(error: Exception) -> str:
+    """Return the note that takes the place of a table that could not be rendered in a run over several paths.
+
+    The package keeps its ``### <package>`` heading with this note under it, so the tables of the other packages stay
+    labelled and the missing one shows.
+
+    Examples:
+        >>> _unrendered_table(RuntimeError("boom"))
+        '_The deprecation table could not be rendered: boom_'
+
+    """
+    return f"_The deprecation table could not be rendered: {error}_"
+
+
+def _record_table(markdown: str, package: str = "") -> None:
+    """Keep a deprecation table the run rendered (``status``, and ``all`` through it), one per scanned path."""
     record = _RUN_RECORD.get()
     if record is not None:
-        record.options.update(options)
+        record.tables.append((package, markdown))
+        record.table = _join_tables(record.tables)
 
 
-def _record_table(markdown: str) -> None:
-    """Keep the deprecation table the run rendered (``status``, and ``all`` through it)."""
-    record = _RUN_RECORD.get()
-    if record is not None:
-        record.table = markdown
-
-
-def _print_gap(kind: _GapKind, detail: str) -> None:
+def _print_gap(
+    kind: _GapKind, detail: str, *, subject: Optional[tuple[str, str]] = None, rules: Optional[frozenset[str]] = None
+) -> None:
     """Print one gap line ``pydeprecate gap: <kind>: <detail>`` to stderr, unwrapped, and record it for the run.
 
     Args:
         kind: What part of the audit did not run.
         detail: The human-readable message following the kind; it may continue on further lines.
+        subject: ``(module, symbol)`` of the one wrapper the gap left unchecked, so a baseline id of that wrapper is not
+            taken for a stale one; ``None`` when the gap names no single wrapper.
+        rules: Rules this particular gap skipped, or ``None`` to use the rules associated with its kind.
 
     """
     print(f"pydeprecate gap: {kind.value}: {detail}", file=sys.stderr, flush=True)
     record = _RUN_RECORD.get()
     if record is not None:
-        record.gaps.append(_Gap(kind, detail, record.current_path))
+        record.gaps.append(_Gap(kind, detail, record.current_path, subject, rules))
 
 
 def _gap_recorded(kind: _GapKind, detail_prefix: str) -> bool:
@@ -401,52 +483,101 @@ class _Reporter:
 _REPORT_SCHEMA = 1
 #: Default of each option the report lists, for a run that never resolved it (``status``, a usage error).
 _DEFAULT_OPTIONS: dict[str, Any] = {"strict": False, "exit_zero": False, "gates": [], "recursive": True, "exclude": []}
+#: Environment variable naming the checkout directory of a GitHub Actions job; locates the repository without ``.git``.
+_WORKSPACE_ENV = "GITHUB_WORKSPACE"
 
 
 def _render_recorded_table(record: _RunRecord) -> Optional[str]:
     """Return the run's deprecation table: the one it rendered, else one built from its recorded scan.
 
-    A gate that never resolved a version (``check``, ``policy``, ``chains``) gets the table ``status`` would print: the
-    version is auto-detected, as there. A table that cannot be rendered is reported on stderr and left out.
+    The scan records the auto-detected version for gates that need a report. A table that cannot be rendered is reported
+    on stderr and left out; over several paths its package keeps its heading, with a note in place of the table.
 
     """
-    if record.table is not None or record.scan is None:
+    scans = record.scans or ([record.scan] if record.scan is not None else [])
+    if record.table is not None or not scans:
         return record.table
-    scan = record.scan
-    module_name = _safe_module_name(scan.path)
-    if scan.version is not None:
-        version: Optional[str] = scan.version
-    else:
-        version = _resolve_package_version(
-            module_name, path=scan.path, allow_import=not scan.static, import_root=scan.import_root
-        )
-    # A static scan never imports the package: with no version found, no module name is passed either, or the table
-    # would auto-detect the version itself and import the package to read its `__version__`.
-    table_module = "" if scan.static and version is None else module_name
-    try:
-        resolved_version, parsed_version = _resolve_table_version(
-            table_module, current_version=version, version_explicit=False
-        )
-        return _render_deprecation_table(scan.wrappers, resolved_version, parsed_version, TableStyle.COMPACT)
-    except Exception as exc:  # a display artifact: it never fails the run, as in `cmd_all`
-        _print(f"Could not render the deprecation table for the JSON report: {exc}", stderr=True)
-        return None
+    tables = []
+    for scan in scans:
+        module_name = _safe_module_name(scan.path)
+        if scan.worker is not None:
+            phase = scan.worker["phases"]["table"]
+            sys.stderr.write(phase["stderr"])
+            markdown = scan.worker["table"]
+            if markdown is not None:
+                tables.append((module_name, markdown))
+            elif len(scans) > 1:
+                tables.append((module_name, _unrendered_table(RuntimeError("worker table unavailable"))))
+            continue
+        version = scan.version
+        # An unresolved recorded version is final; resolving it again could re-import an earlier scan's package.
+        table_module = "" if version is None else module_name
+        try:
+            resolved_version, parsed_version = _resolve_table_version(
+                table_module, current_version=version, version_explicit=False
+            )
+            markdown = _render_deprecation_table(scan.wrappers, resolved_version, parsed_version, TableStyle.COMPACT)
+        except Exception as exc:  # a display artifact: it never fails the run, as in `cmd_all`
+            _print(f"Could not render the deprecation table for the JSON report: {exc}", stderr=True)
+            if len(scans) == 1:
+                continue
+            markdown = _unrendered_table(exc)  # the heading stays, so the tables around it stay labelled
+        tables.append((module_name, markdown))
+    return _join_tables(tables)
 
 
-def _report_location(finding: _Finding) -> Optional[dict[str, Any]]:
-    """Return where *finding*'s wrapper is defined: a POSIX path relative to the working directory when under it."""
+def _find_location_root(cwd: Path, workspace: Optional[str]) -> Path:
+    """Return the repository root that report and SARIF locations are relative to, for a run in directory *cwd*.
+
+    That is the nearest directory at or above *cwd* holding a ``.git`` entry (a directory, or the file of a worktree or
+    submodule); without one, the *workspace* directory (``GITHUB_WORKSPACE``) when it is absolute and *cwd* lies in it;
+    else *cwd* itself. GitHub resolves relative code-scanning and annotation paths against the repository root, so a
+    run started in a sub-directory of the checkout still names every file as the repository does.
+
+    Args:
+        cwd: The directory the CLI runs in.
+        workspace: The value of ``GITHUB_WORKSPACE``, ``None`` or empty outside GitHub Actions.
+
+    Examples:
+        >>> import tempfile
+        >>> with tempfile.TemporaryDirectory() as tmp:
+        ...     repo = Path(tmp).resolve()
+        ...     (repo / ".git").mkdir()
+        ...     (repo / "src").mkdir()
+        ...     _find_location_root(repo / "src", None) == repo
+        True
+
+    """
+    for directory in (cwd, *cwd.parents):
+        # `os.path.exists` never raises: an unreadable ancestor counts as holding no `.git`
+        if os.path.exists(directory / ".git"):
+            return directory
+    if workspace:
+        workspace_dir = Path(workspace)
+        if workspace_dir.is_absolute() and cwd.is_relative_to(workspace_dir):
+            return workspace_dir
+    return cwd
+
+
+def _location_root() -> Path:
+    """Return the repository root of the working directory: the base of every report and SARIF location of the run."""
+    return _find_location_root(Path.cwd(), os.environ.get(_WORKSPACE_ENV))
+
+
+def _report_location(finding: _Finding, root: Path) -> Optional[dict[str, Any]]:
+    """Return where *finding*'s wrapper is defined: a POSIX path relative to the repository *root* when under it."""
     if finding.source_file is None:
         return None
     source = Path(finding.source_file)
     try:
-        file_name = source.relative_to(Path.cwd()).as_posix()
+        file_name = source.relative_to(root).as_posix()
     except ValueError:
         file_name = PurePath(source).as_posix()
     return {"file": file_name, "line": finding.source_line}
 
 
-def _report_finding(finding: _Finding, level: _Level, path: Optional[str]) -> dict[str, Any]:
-    """Return the report record of one finding at the level it has in this run."""
+def _report_finding(finding: _Finding, level: _Level, path: Optional[str], root: Path) -> dict[str, Any]:
+    """Return the report record of one finding at the level it has in this run, located relative to *root*."""
     return {
         "id": finding.id,
         "rule": finding.rule.value,
@@ -462,16 +593,16 @@ def _report_finding(finding: _Finding, level: _Level, path: Optional[str]) -> di
         },
         "deprecated_in": finding.deprecated_in,
         "remove_in": finding.remove_in,
-        "location": _report_location(finding),
+        "location": _report_location(finding, root),
         "path": path,
     }
 
 
-def _report_suppressed(record: _RunRecord) -> list[dict[str, Any]]:
+def _report_suppressed(record: _RunRecord, root: Path) -> list[dict[str, Any]]:
     """Return the run's suppressed findings, one per id, each with what suppressed it, sorted like the findings."""
     best: dict[str, tuple[_Level, _SuppressedFinding]] = {}
     for item in record.suppressed:
-        level = _level(item.finding.rule, record.command or "")
+        level = _level(item.finding.rule, record.command or "", record.gates_by_path.get(item.path, frozenset()))
         if level is None:
             continue
         kept = best.get(item.finding.id)
@@ -480,43 +611,57 @@ def _report_suppressed(record: _RunRecord) -> list[dict[str, Any]]:
     ordered = sorted(best.values(), key=lambda pair: (_LEVEL_RANK[pair[0]], pair[1].finding.id))
     return [
         {
-            **_report_finding(item.finding, level, item.path),
+            **_report_finding(item.finding, level, item.path, root),
             "suppressed_by": {"kind": item.kind, "entry": item.entry},
         }
         for level, item in ordered
     ]
 
 
-def _report_findings(record: _RunRecord) -> list[dict[str, Any]]:
+def _report_findings(record: _RunRecord, root: Path) -> list[dict[str, Any]]:
     """Return the run's findings, one per id at its highest level in the subcommand, sorted by ``(level, id)``.
 
     ``all`` derives a ``chain`` finding in its ``check`` pass and again in its ``chains`` pass; the two are one record,
-    at the higher level. Findings the subcommand does not evaluate are left out.
+    at the higher level. Findings the subcommand does not evaluate are left out. Locations are relative to *root*.
 
     """
+    return [finding for finding, _ in _report_findings_with_sources(record, root)]
+
+
+def _report_findings_with_sources(record: _RunRecord, root: Path) -> list[tuple[dict[str, Any], Optional[str]]]:
+    """Return :func:`_report_findings` paired with each finding's absolute source file (``None`` when unlocated)."""
     best: dict[str, tuple[_Level, _Finding, Optional[str]]] = {}
     for finding, path in zip(record.findings, record.finding_paths):
-        level = _level(finding.rule, record.command or "")
+        level = _level(finding.rule, record.command or "", record.gates_by_path.get(path, frozenset()))
         if level is None:
             continue
         kept = best.get(finding.id)
         if kept is None or _LEVEL_RANK[level] < _LEVEL_RANK[kept[0]]:
             best[finding.id] = (level, finding, path)
     ordered = sorted(best.values(), key=lambda item: (_LEVEL_RANK[item[0]], item[1].id))
-    return [_report_finding(finding, level, path) for level, finding, path in ordered]
+    return [(_report_finding(finding, level, path, root), finding.source_file) for level, finding, path in ordered]
+
+
+def _run_mode(record: _RunRecord) -> str:
+    """Return how the run's gate read the package: ``static`` for a ``--static`` source read, else ``import``.
+
+    Both the ``--report-json`` and the ``--report-sarif`` file name the mode of the same run with this value.
+
+    """
+    return "static" if record.scan is not None and record.scan.static else "import"
 
 
 def _build_report(record: _RunRecord, exit_code: int) -> dict[str, Any]:
     """Return the ``--report-json`` document of the run (layout :data:`_REPORT_SCHEMA`)."""
-    findings = _report_findings(record)
-    suppressed = _report_suppressed(record)
+    root = _location_root()
+    findings = _report_findings(record, root)
+    suppressed = _report_suppressed(record, root)
     levels = [finding["level"] for finding in findings]
     return {
         "schema": _REPORT_SCHEMA,
         "tool": {"name": "pyDeprecate", "version": __about__.__version__},
         "command": record.command,
-        # how the gate read the package: "static" for a `--static` source read, else "import"
-        "mode": "static" if record.scan is not None and record.scan.static else "import",
+        "mode": _run_mode(record),
         "paths": [scanned.path for scanned in record.scanned],
         "versions": [
             {"path": item.path, "package": item.package, "value": item.version, "source": item.version_source}
@@ -554,10 +699,35 @@ def _write_report(path: str, record: _RunRecord, exit_code: int = 0) -> None:
         exit_code: The process exit code of the run, 0 or 1 (the report is never written for 2 or 3).
 
     """
-    report = _build_report(record, exit_code)
+    _write_json_file(path, lambda: _build_report(record, exit_code), "JSON report")
+
+
+def _write_json_file(path: str, build: Callable[[], dict[str, Any]], label: str) -> None:
+    """Write the JSON document *build* returns to *path*; any failure only prints an advisory and never raises.
+
+    The document is built and encoded to UTF-8 before the file is touched, so a failing build or a string UTF-8 cannot
+    encode (a lone surrogate) leaves no empty or partial file behind for a CI step to publish. The bytes go to a
+    temporary sibling that then replaces *path* in one step, so a write failing midway (a full disk) leaves *path*
+    as it was, never truncated; the temporary file is removed on failure.
+
+    Args:
+        path: File to write; missing parent directories are created.
+        build: Returns the document; called inside the guard, so its ``OSError`` or ``ValueError`` is reported too.
+        label: What the file is, for the advisory: ``JSON report`` or ``SARIF report``.
+
+    """
     out_path = Path(path)
+    temp_path: Optional[Path] = None
     try:
+        data = (json.dumps(build(), indent=2, ensure_ascii=False) + "\n").encode("utf-8")
         out_path.parent.mkdir(parents=True, exist_ok=True)
-        out_path.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    except OSError as err:
-        _print(f"Could not write the JSON report {out_path}: {err}", stderr=True)
+        # a sibling, so the replace is a rename within one directory; the random part keeps concurrent writers apart
+        temp_path = out_path.with_name(f".{out_path.name}.{os.getpid()}-{os.urandom(4).hex()}.tmp")
+        with open(temp_path, "xb") as stream:
+            stream.write(data)
+        os.replace(temp_path, out_path)
+    except (OSError, ValueError) as err:  # UnicodeEncodeError and a circular-reference error are ValueErrors
+        _print(f"Could not write the {label} {out_path}: {err}", stderr=True)
+        if temp_path is not None:
+            with suppress(OSError):  # absent when `open` itself failed
+                temp_path.unlink()
