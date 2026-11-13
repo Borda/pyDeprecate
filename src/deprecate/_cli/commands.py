@@ -55,7 +55,7 @@ from deprecate._cli.report import (
     _ScanRecord,
     _unrendered_table,
 )
-from deprecate._cli.scan import _preflight_targets, _scan_for_command, _ScanTarget, _select_plans
+from deprecate._cli.scan import _ImportIsolation, _preflight_targets, _scan_for_command, _ScanTarget, _select_plans
 from deprecate._cli.static.checks import _report_unresolved, _resolved, _static_policy_findings
 from deprecate._cli.static.consts import _EXPIRY_KEYWORDS
 from deprecate._cli.suppress import _Suppressor
@@ -456,7 +456,9 @@ def _scan_plans(
 ) -> Optional[list[tuple[_PathPlan, _ScanRecord]]]:
     """Scan every planned path in turn, each with its own settings and, with *resolve_version*, its own version.
 
-    A typed *version* applies to every path, and a run over several paths says so before the first scan header.
+    A typed *version* applies to every path, and a run over several paths says so before the first scan header. Before
+    each importing scan, the modules an earlier path's scan imported that this path must not reuse are dropped
+    (:class:`_ImportIsolation`), so the order of the paths never changes what each one audits.
 
     Returns:
         Each plan with its scan, or ``None`` after printing a usage error found only while importing (exit 2).
@@ -464,8 +466,12 @@ def _scan_plans(
     """
     if version is not None and len(plans) > 1:
         _print(f"Version: {version} (user-provided) applies to every path.")
+    # a static scan imports nothing, so it cannot reuse another path's modules
+    isolation = None if options.static else _ImportIsolation()
     scanned = []
     for plan in plans:
+        if isolation is not None:
+            isolation.release_stale(plan.target)
         scan = _scan_for_command(
             plan.path,
             recursive=options.recursive,

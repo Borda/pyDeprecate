@@ -2555,6 +2555,43 @@ class TestMultiPath:
         assert result == expected
         assert ("has its own version (from the distribution 'ownpkg-component')" in err) is (expected == 2)
 
+    @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
+    @pytest.mark.parametrize(
+        "order",
+        [
+            pytest.param(("c/src/gamma", "b/common"), id="checkout-sibling-first"),
+            pytest.param(("b/common", "c/src/gamma"), id="checkout-sibling-last"),
+            pytest.param(("g/gamma", "b/common"), id="installed-copy-first"),
+            pytest.param(("b/common", "g/gamma"), id="installed-copy-last"),
+        ],
+    )
+    def test_verdict_does_not_depend_on_path_order(
+        self,
+        order: tuple[str, str],
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """A package that imports ``common`` and a checkout of ``common`` give the same verdict in either order.
+
+        ``gamma`` imports ``common`` from its own checkout (``c/src``) or from an installed copy (``site``), and the
+        checkout ``b/common`` holds an expired wrapper. One interpreter runs both scans, so the copy one scan imported
+        must not be handed to the other: the expired wrapper is found, and no other copy is audited, in both orders.
+
+        """
+        _project(tmp_path / "c" / "src", "gamma", pyproject='[project]\nversion = "1.0"\n', body="import common\n")
+        write_pkg(tmp_path / "c" / "src", "common", "")
+        _project(tmp_path / "g", "gamma", pyproject='[project]\nversion = "1.0"\n', body="import common\n")
+        (tmp_path / "site").mkdir()
+        write_pkg(tmp_path / "site", "common", "")
+        _project(tmp_path / "b", "common", pyproject='[project]\nversion = "3.0"\n', body=_REMOVED_IN_TWO)
+        monkeypatch.syspath_prepend(str(tmp_path / "site"))
+        with _record_run() as run:
+            result = cmd_expiry(path=[str(tmp_path / order[0]), str(tmp_path / order[1])])
+        assert result == 1
+        assert [finding.id for finding in run.findings] == ["expired:common:old_fn"]
+        assert "other copy audited" not in capsys.readouterr().err
+
     @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
     def test_plain_directories_sharing_a_file_name_exit_two(
         self, mock_find: MagicMock, tmp_path: Path, capsys: pytest.CaptureFixture[str]
@@ -2604,6 +2641,26 @@ class TestMultiPath:
         assert result == 0
         assert "both import as" not in capsys.readouterr().err
         assert mock_find.call_count == scans
+
+    def test_excluded_helper_imported_by_siblings_resolves_per_path(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Each directory's scanned module imports its own excluded ``helper``, not the one the other path loaded.
+
+        Both script directories exclude ``helper.py``, so the run accepts them together, but a scanned sibling in each
+        still imports ``helper``. The second directory's ``b_main`` needs a name only its own ``helper`` defines; handed
+        the first directory's copy, it would fail to import and go unaudited.
+
+        """
+        (tmp_path / "da").mkdir()
+        (tmp_path / "db").mkdir()
+        (tmp_path / "da" / "helper.py").write_text("")
+        (tmp_path / "da" / "a_main.py").write_text("import helper\n")
+        (tmp_path / "db" / "helper.py").write_text("def new_fn(x: int) -> int:\n    return x\n")
+        (tmp_path / "db" / "b_main.py").write_text("from helper import new_fn\n")
+        result = cmd_check(path=[str(tmp_path / "da"), str(tmp_path / "db")], exclude="helper")
+        assert result == 0
+        assert "module not audited" not in capsys.readouterr().err
 
     @pytest.mark.parametrize(
         ("broken", "expected"),

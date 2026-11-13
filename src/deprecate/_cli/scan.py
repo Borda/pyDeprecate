@@ -33,6 +33,7 @@ from deprecate._cli.static.rows import _read_static
 from deprecate.audit import DeprecationWrapperInfo, find_deprecation_wrappers
 from deprecate.audit._scan import _collect_skipped_modules, _is_excluded
 from deprecate.audit._version import (
+    _import_root,
     _is_package_dir,
     _managed_sys_path,
     _own_distribution,
@@ -304,8 +305,8 @@ def _select_plans(plans: Sequence[_PlanT], *, recursive: bool, own_versions: boo
     imports (:func:`_covers`), is scanned once, with one stderr note per dropped path; a covered path with settings or,
     with *own_versions*, a version of its own (:func:`_own_context`) is refused, since they would be silently dropped.
     Two paths whose scans bind the same top-level import name from different places (a package name, or the bare name
-    of a plain directory's top-level file) cannot share one process: ``sys.modules`` would hand the second scan the
-    first copy.
+    of a plain directory's top-level file) are refused too: both would report their wrappers under the same module
+    names, so no finding, baseline id or report entry could tell the two copies apart.
 
     Returns:
         The plans to scan, in path order, or ``None`` after printing a usage error (the caller exits 2).
@@ -539,6 +540,68 @@ def _foreign_copy(source: Path) -> Optional[str]:
     if not locations or source.resolve() in locations:
         return None
     return str(locations[0])
+
+
+def _top_level_modules() -> frozenset[str]:
+    """Return the names of the top-level modules imported so far."""
+    return frozenset(name for name in list(sys.modules) if "." not in name)
+
+
+def _forget_module(name: str) -> None:
+    """Drop the top-level module *name* and all its submodules from ``sys.modules``, so a later import reloads them."""
+    for key in [key for key in list(sys.modules) if key == name or key.startswith(f"{name}.")]:
+        del sys.modules[key]
+
+
+def _is_within(location: Path, root: Path) -> bool:
+    """Tell whether *location* is the directory *root* or lies below it."""
+    return location == root or root in location.parents
+
+
+class _ImportIsolation:
+    """Keep each path of a run from auditing a module that another path's scan imported.
+
+    Every path of a run is scanned in one interpreter, and an import gets whatever copy of a name ``sys.modules`` holds:
+    the ``common`` package one path's scan imported from its own checkout would be handed to the next path, which holds
+    its own ``common``, and the verdict would depend on the order of the paths. Before each scan, :meth:`release_stale`
+    drops what this run imported that the path must not reuse, with every submodule, so the path imports what it would
+    import if scanned alone. A module imported before the run started (the CLI's own ``deprecate``, the standard
+    library) is never dropped, so a run over one path drops nothing.
+
+    """
+
+    def __init__(self) -> None:
+        #: Top-level modules already imported when the run started.
+        self._preloaded = _top_level_modules()
+        #: Import roots of the paths released for so far, in path order.
+        self._roots: list[Path] = []
+
+    def release_stale(self, target: _ScanTarget) -> None:
+        """Before the scan of *target*, drop every module this run imported that the scan must not reuse.
+
+        A module is stale when *target* would import that name from its own source (a name it binds, or a package or
+        module file in its import root) and the loaded copy comes from elsewhere, or when *target* has no source of its
+        own for it and the loaded copy comes from an earlier path's import root rather than *target*'s.
+
+        """
+        root = _import_root(target.path)
+        bound = _bound_names(target)
+        for name in sorted(_top_level_modules() - self._preloaded):
+            if self._is_stale(name, root, bound):
+                _forget_module(name)
+        if root is not None:
+            self._roots.append(root)
+
+    def _is_stale(self, name: str, root: Optional[Path], bound: dict[str, Optional[Path]]) -> bool:
+        """Tell whether the loaded module *name* is not the copy a scan with import *root* binding *bound* would get."""
+        source = bound.get(name) or (_module_source(root, name) if root is not None else None)
+        if source is not None:
+            return _foreign_copy(source) is not None
+        return any(
+            _is_within(location, earlier) and not (root is not None and _is_within(location, root))
+            for location in _module_locations(sys.modules.get(name))
+            for earlier in self._roots
+        )
 
 
 def _imported_location(path: str, package_dir: Optional[Path]) -> Optional[str]:

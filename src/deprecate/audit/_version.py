@@ -762,29 +762,40 @@ def _is_package_dir(pth: Path) -> bool:
     return (pth / "__init__.py").exists()
 
 
+def _import_root(path: str) -> Optional[Path]:
+    """Return the directory a scan of *path* puts first on ``sys.path``, or ``None`` for an importable module name.
+
+    A package directory (containing ``__init__.py``) gives its parent, so the package name resolves as an importable
+    module; a directory with packages in its ``src/`` gives that ``src/``; any other directory gives itself.
+
+    """
+    abs_path = Path(path).resolve()
+    if not abs_path.is_dir():
+        return None
+    if _is_package_dir(abs_path):
+        return abs_path.parent
+    src_dir = abs_path / "src"
+    in_src = src_dir.is_dir() and any(c.is_dir() and _is_package_dir(c) for c in src_dir.iterdir())
+    return src_dir if in_src else abs_path
+
+
 @contextmanager
 def _managed_sys_path(path: str) -> Generator[None, None, None]:
     """Context manager that prepends the import root to ``sys.path`` and restores it after scanning.
 
     For package directories (containing ``__init__.py``), inserts the parent directory so the package name resolves as
-    an importable module. For plain directories, inserts the directory itself. Importable module name strings are passed
-    through unchanged.
+    an importable module. For plain directories, inserts the directory itself (see :func:`_import_root`). Importable
+    module name strings are passed through unchanged.
 
     Warning:
         Not thread-safe. ``sys.path`` is a process-global list; concurrent use from multiple threads will corrupt
         the restored state. Each scan should run in a dedicated process or be serialized via a lock.
 
     """
-    abs_path: Path = Path(path).resolve()
+    import_root = _import_root(path)
     original = list(sys.path)
-    if abs_path.is_dir():
-        if _is_package_dir(abs_path):
-            import_root = str(abs_path.parent)
-        else:
-            src_dir = abs_path / "src"
-            in_src = src_dir.is_dir() and any(c.is_dir() and _is_package_dir(c) for c in src_dir.iterdir())
-            import_root = str(src_dir) if in_src else str(abs_path)
-        sys.path.insert(0, import_root)
+    if import_root is not None:
+        sys.path.insert(0, str(import_root))
     try:
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=DeprecationWarning, module="deprecate.*")
