@@ -165,6 +165,22 @@ class TestCollectionParity:
         expected = [(i.function, i.api_type) for i in imported if i.function != "partial_built"]
         assert [(info.function, info.api_type) for info in static] == expected
 
+    def test_source_locations_match_import_scan(self) -> None:
+        """Each static row names the file and first line the import scan records for the same wrapper.
+
+        ``expiry --static --report-sarif`` uploads results GitHub code scanning only shows with a location, and a
+        report's ``location`` is what a reviewer clicks; a static read that dropped or shifted it would leave a static
+        CI gate with alerts nobody can place. A wrapper the source cannot place gives ``None`` in both modes.
+
+        """
+        module = "tests.collections.static_forms"
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            imported = find_deprecation_wrappers(module, recursive=False)
+        static = _read_module(module)
+        expected = [(i.function, i.source_file, i.source_line) for i in imported if i.function != "partial_built"]
+        assert [(info.function, info.source_file, info.source_line) for info in static] == expected
+
     def test_every_missing_finding_has_its_gap(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Each import-scan finding the static read lacks is named by a gap, and no other finding is missing.
 
@@ -1097,6 +1113,64 @@ class TestResolvedSettings:
 
 class TestShapeParity:
     """Less common shapes yield the rows and policy findings of the import scan."""
+
+    def test_source_locations_match_per_shape(self, probe_package: Callable[..., Path]) -> None:
+        """Every wrapper shape gets the file and first line the import scan records, or no location in both modes.
+
+        A package mixing a deprecated module, decorated and call-form functions, a lambda, decorated and call-form
+        classes, a ``deprecated_instance`` and deprecated property and classmethod members is read both ways. A
+        report or SARIF result from ``--static`` must point at the line an import run points at, so a baseline or a
+        code-scanning alert does not move when a CI job switches modes.
+
+        """
+        pkg = probe_package(
+            {
+                "__init__.py": """
+                from deprecate import deprecated, deprecated_class, deprecated_instance, deprecated_module
+
+                deprecated_module(__name__, deprecated_in="1.0", remove_in="2.0")
+
+                def new_fn(x):
+                    return x
+
+                @deprecated(target=new_fn, deprecated_in="1.0", remove_in="2.0")
+                def decorated(x):
+                    pass
+
+                def plain(x):
+                    return x
+
+                called = deprecated(target=new_fn, deprecated_in="1.0", remove_in="2.0")(plain)
+                lam = deprecated(target=None, deprecated_in="1.0", remove_in="2.0")(lambda x: x)
+
+                class NewThing:
+                    pass
+
+                @deprecated_class(target=NewThing, deprecated_in="1.0", remove_in="2.0")
+                class OldThing:
+                    pass
+
+                OldAlias = deprecated_class(target=NewThing, deprecated_in="1.0", remove_in="2.0")(NewThing)
+                CONFIG = deprecated_instance({"a": 1}, deprecated_in="1.0", remove_in="2.0")
+
+                class Holder:
+                    @property
+                    @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
+                    def prop(self):
+                        return 1
+
+                    @classmethod
+                    @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
+                    def cm(cls):
+                        return 1
+            """
+            }
+        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            imported = [(i.function, i.source_file, i.source_line) for i in find_deprecation_wrappers(_PKG)]
+        static = [(i.function, i.source_file, i.source_line) for i in _read_package(pkg)]
+        assert static == imported
 
     @pytest.mark.parametrize(
         "files",

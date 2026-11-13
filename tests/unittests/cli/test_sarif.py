@@ -185,21 +185,14 @@ class TestSarifDocument:
         sarif_mode = _run(_build_sarif(record, 0, root=tmp_path))["properties"]["mode"]
         assert (sarif_mode, _build_report(record, 0)["mode"]) == (mode, mode)
 
-    @pytest.mark.parametrize(
-        ("static", "advice"),
-        [
-            pytest.param(True, "as a --static scan records none; run without --static to see them there", id="static"),
-            pytest.param(False, "displays only located results, so it shows none of them", id="import"),
-        ],
-    )
+    @pytest.mark.parametrize("static", [True, False])
     def test_run_with_only_unlocated_results_warns(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str], static: bool, advice: str
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str], static: bool
     ) -> None:
         """A run whose every result lacks a location says on stderr that code scanning will show none of them.
 
-        ``expiry --static --report-sarif=out.sarif`` fails the gate on an expired wrapper, yet the static source read
-        records no source location, so the uploaded file shows no alert; the advisory names ``--static`` as the
-        cause. An import run of only ``deprecated_instance`` findings gets the same notice without that remedy.
+        A run of only ``deprecated_instance`` findings fails the gate, yet a wrapped value has no source line, so the
+        uploaded file shows no alert. Static and import runs place wrappers alike, so the notice names no mode.
 
         """
         finding = _finding(_Rule.EXPIRED, "old_fn", None, line=None, check=_Check.EXPIRY)
@@ -208,7 +201,8 @@ class TestSarifDocument:
         err = capsys.readouterr().err
         assert run["properties"]["unlocated"] == 1
         assert "none of the run's 1 SARIF result(s) has a source location; GitHub code scanning" in err
-        assert advice in err
+        assert "displays only located results, so it shows none of them" in err
+        assert "--static" not in err
 
     def test_run_with_one_located_result_stays_quiet(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         """No advisory when at least one result has a location code scanning can display.

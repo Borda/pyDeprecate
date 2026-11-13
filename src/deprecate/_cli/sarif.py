@@ -3,8 +3,8 @@
 The file holds one run built from the same run record as ``--report-json``: one result per active finding of every
 scanned path (each naming its path), one rule per check rule the subcommand evaluates, the gaps as tool notifications.
 Suppressed findings are left out; a finding whose wrapper has no source file is kept without a location and counted in
-``run.properties.unlocated``; a run whose results all lack a location (any ``--static`` run with findings) says so on
-stderr.
+``run.properties.unlocated``; a run whose results all lack a location (only ``deprecated_instance`` findings, for
+example) says so on stderr.
 
 """
 
@@ -159,14 +159,13 @@ def _is_outside(result: dict[str, Any]) -> bool:
     return "uriBaseId" not in locations[0]["physicalLocation"]["artifactLocation"]
 
 
-def _print_advisories(total: int, *, unlocated: int, outside: int, mode: str, root: Path) -> None:
+def _print_advisories(total: int, *, unlocated: int, outside: int, root: Path) -> None:
     """Print on stderr what keeps GitHub code scanning from showing the run's results; the file is written as built.
 
     Args:
         total: Number of results in the run.
         unlocated: Results without a location, which code scanning does not display.
         outside: Results located outside *root*, by an absolute ``file`` URI no repository file matches.
-        mode: The run's mode, ``static`` or ``import``; a ``--static`` scan records no source location at all.
         root: The repository root relative locations resolve against.
 
     """
@@ -185,14 +184,9 @@ def _print_advisories(total: int, *, unlocated: int, outside: int, mode: str, ro
         )
     if total and unlocated == total:
         # with every result unlocated, an upload shows nothing while the gate may still fail: say so instead
-        cause = (
-            ", as a --static scan records none; run without --static to see them there"
-            if mode == "static"
-            else ", so it shows none of them"
-        )
         print(
             f"pydeprecate: none of the run's {total} SARIF result(s) has a source location; GitHub code scanning"
-            f" displays only located results{cause}.",
+            " displays only located results, so it shows none of them.",
             file=sys.stderr,
         )
 
@@ -220,7 +214,7 @@ def _build_sarif(record: _RunRecord, exit_code: int, root: Optional[Path] = None
     unlocated = sum(1 for _, source in findings if source is None)
     outside = sum(1 for result in results if _is_outside(result))
     mode = _run_mode(record)
-    _print_advisories(len(results), unlocated=unlocated, outside=outside, mode=mode, root=base)
+    _print_advisories(len(results), unlocated=unlocated, outside=outside, root=base)
     return {
         "$schema": _SARIF_SCHEMA,
         "version": _SARIF_VERSION,

@@ -25,6 +25,8 @@ def _row(module: str, function: str, wrapper: _SourceWrapper) -> _StaticWrapperI
         deprecated_info=config,
         api_type=wrapper.api_type,
         unresolved=dict(wrapper.unresolved),
+        source_file=wrapper.source_file,
+        source_line=wrapper.source_line,
     )
 
 
