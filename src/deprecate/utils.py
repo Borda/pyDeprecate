@@ -428,7 +428,8 @@ def _partial_chain(obj: Any) -> tuple[partial, ...]:  # noqa: ANN401
 
     """
     layers: list[partial] = []
-    while isinstance(obj, partial) and len(layers) < _MAX_PARTIAL_DEPTH:
+    # ``type(obj)``, not ``isinstance``: a proxy's ``__class__`` evaluates its ``skip_if``, which naming must not do.
+    while issubclass(type(obj), partial) and len(layers) < _MAX_PARTIAL_DEPTH:
         layers.append(obj)
         obj = obj.func
     return tuple(layers)

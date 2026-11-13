@@ -29,6 +29,7 @@ from deprecate.audit._wrappers import (
     validate_deprecation_wrapper,
 )
 from deprecate.proxy import _DeprecatedProxy
+from deprecate.proxy.core import _static_type_view
 
 
 # Note: Proxy objects are discoverable via the generic ``_has_deprecation_meta(obj)`` gate (no ``callable(obj)``
@@ -645,6 +646,8 @@ def _walk_submodules(package: Any, exclude: Sequence[str]) -> Iterator[Any]:  # 
             yield from _walk_submodules(submod, exclude)
 
 
+# Scanning only inspects proxies, so their type checks must not run a user's ``skip_if`` condition.
+@_static_type_view
 def find_deprecation_wrappers(
     module: Union[Any, str],  # noqa: ANN401
     recursive: bool = True,

@@ -12,6 +12,7 @@ import pytest
 
 import tests.collections.api_current.core as targets_module
 import tests.collections.api_deprecated.core as col
+import tests.collections.conditional as conditional_module
 import tests.collections.misconfigured as clean_module
 import tests.collections.pep702 as pep702_module
 from deprecate import (
@@ -72,6 +73,35 @@ class TestFindDeprecationWrappersWarningBudget:
         # Budget should be untouched — scanning must not consume it
         with pytest.warns(FutureWarning):
             proxy.get("x")  # triggers __getattr__ → _warn() → should still fire
+
+
+class TestScanSkipCondition:
+    """Auditing a conditional proxy must not evaluate its ``skip_if``."""
+
+    def test_raising_condition_keeps_wrapper_in_scan(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Report a proxy whose ``skip_if`` raises outside the running application.
+
+        A CI job audits a package whose legacy settings object is skipped only inside a live app, so the condition
+        raises anywhere else. The scan must still list the wrapper instead of failing on a condition it never needs.
+        """
+        monkeypatch.setitem(conditional_module.APP_CONTEXT, "available", False)
+
+        found = find_deprecation_wrappers(conditional_module)
+
+        assert {info.function for info in found} == {"app_settings", "counted_settings"}
+
+    def test_scan_and_validation_never_evaluate_condition(self) -> None:
+        """Leave a counting ``skip_if`` untouched through a module scan and a single-wrapper validation.
+
+        Type checks the audit runs on a proxy (``isinstance``, ``inspect.isclass``) consult its ``__class__``. While
+        auditing, that lookup must read the configuration statically, so no user condition runs during a scan.
+        """
+        conditional_module.SKIP_CALLS.clear()
+
+        find_deprecation_wrappers(conditional_module)
+        validate_deprecation_wrapper(conditional_module.counted_settings)
+
+        assert conditional_module.SKIP_CALLS == []
 
 
 class TestFindDeprecationWrappersPep702:

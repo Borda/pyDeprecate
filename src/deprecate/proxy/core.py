@@ -10,14 +10,16 @@ allocated as a cached subclass carrying only the ones its wrapped object support
 import contextlib
 import copy
 import copyreg
+import functools
 import importlib
 import inspect
 import sys
 import threading
 import types
 from collections.abc import Iterator
+from contextvars import ContextVar
 from dataclasses import dataclass, replace
-from typing import TYPE_CHECKING, Any, Callable, Optional, SupportsIndex, Union, cast
+from typing import TYPE_CHECKING, Any, Callable, Optional, SupportsIndex, TypeVar, Union, cast
 
 from deprecate._dispatch import _merge_keyword_overflow, _split_positional_only_kwargs, _take_keyword_overflow
 from deprecate._fatal import DeprecatedError, _resolve_as_exception
@@ -1175,7 +1177,8 @@ class _DeprecatedProxy:
         transparency is provided by ``__instancecheck__``/``__subclasscheck__`` instead.
 
         """
-        active = _innermost_active(self)
+        # An audit reads the configuration statically, so it never runs a user's ``skip_if`` condition.
+        active = _get_static_attr_owner(_DeprecatedProxy, self) if _STATIC_TYPE_VIEW.get() else _innermost_active(self)
         if issubclass(type(active), _DeprecatedProxy) or isinstance(active, type):
             return type(self)
         return type(active)
@@ -1410,6 +1413,37 @@ def _proxy_sources(obj: Any) -> Iterator[Any]:  # noqa: ANN401
             obj = object.__getattribute__(obj, "_DeprecatedProxy__config").obj
         except AttributeError:
             break
+
+
+#: ``True`` while an audit reads proxies: ``__class__`` then follows the configured targets and never runs ``skip_if``.
+_STATIC_TYPE_VIEW: ContextVar[bool] = ContextVar("_STATIC_TYPE_VIEW", default=False)
+
+
+_AuditFn = TypeVar("_AuditFn", bound=Callable[..., Any])
+
+
+def _static_type_view(func: _AuditFn) -> _AuditFn:
+    """Keep proxy type checks inside *func* from evaluating ``skip_if``, for audits that must not run user code.
+
+    A plain wrapper defined in this package, not :func:`contextlib.contextmanager`: its frame belongs to ``deprecate``,
+    so a warning raised inside *func* still points at the caller of *func*.
+
+    Examples:
+        >>> read_view = _static_type_view(_STATIC_TYPE_VIEW.get)
+        >>> read_view(), _STATIC_TYPE_VIEW.get()
+        (True, False)
+
+    """
+
+    @functools.wraps(func)
+    def wrapper(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+        token = _STATIC_TYPE_VIEW.set(True)
+        try:
+            return func(*args, **kwargs)
+        finally:
+            _STATIC_TYPE_VIEW.reset(token)
+
+    return cast(_AuditFn, wrapper)
 
 
 def _innermost_active(obj: Any) -> Any:  # noqa: ANN401

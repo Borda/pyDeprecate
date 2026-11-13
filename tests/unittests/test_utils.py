@@ -9,6 +9,7 @@ import pytest
 
 from deprecate import assert_no_warnings
 from deprecate.utils import (
+    _partial_chain,
     _remap_kwargs,
     _SigFacts,
     _signature_facts,
@@ -22,6 +23,7 @@ from tests.collections.api_current.core import (
     RequiredPositionalOnlyTarget,
     every_parameter_kind_target,
 )
+from tests.collections.conditional import SKIP_CALLS, counted_settings
 from tests.collections.streams import UnintrospectableStream
 
 #: Not callable, so ``inspect.signature`` raises ``TypeError`` for it.
@@ -29,6 +31,23 @@ _NON_CALLABLE = cast(Callable[..., Any], 42)
 
 #: ``args_mapping`` with one rename and one drop (``None``) entry, shared by the ``_remap_kwargs`` tests.
 _RENAME_AND_DROP = {"old": "new", "gone": None}
+
+
+class TestPartialChain:
+    """Unwrapping ``functools.partial`` layers for warning display names."""
+
+    def test_proxy_is_not_a_partial_without_evaluating_skip(self) -> None:
+        """Classify a conditional proxy as no partial without running its ``skip_if``.
+
+        A warning that names a proxy target unwraps partial layers first. Asking a proxy whether it is a partial
+        through ``isinstance`` would read its ``__class__``, which evaluates the user's condition on every warning.
+        """
+        SKIP_CALLS.clear()
+
+        layers = _partial_chain(counted_settings)
+
+        assert layers == ()
+        assert SKIP_CALLS == []
 
 
 class TestRemapKwargs:
