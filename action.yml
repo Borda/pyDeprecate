@@ -36,6 +36,13 @@ inputs:
     description: Report findings without failing the step (passes `--exit-zero`); not valid with `status`.
     required: false
     default: "false"
+  fail-on-gap:
+    description: >-
+      Fail the step when any part of the audit did not run (passes `--strict`), such as a module that could not be
+      imported or a version that could not be resolved; not valid with `exit-zero` or `status`. Needs pyDeprecate 0.16
+      or newer: with `install: false` an older CLI rejects the option with exit code `2`.
+    required: false
+    default: "false"
   install:
     description: >-
       Install `pyDeprecate[cli,audit]` from the action ref into the current Python. Set to `false` when the job
@@ -60,6 +67,7 @@ runs:
         PYDEPRECATE_ACTION_PATH: ${{ inputs.path }}
         PYDEPRECATE_ACTION_ARGS: ${{ inputs.args }}
         PYDEPRECATE_ACTION_EXIT_ZERO: ${{ inputs.exit-zero }}
+        PYDEPRECATE_ACTION_FAIL_ON_GAP: ${{ inputs.fail-on-gap }}
         PYDEPRECATE_ACTION_INSTALL: ${{ inputs.install }}
         PYDEPRECATE_ACTION_SUMMARY: ${{ inputs.summary }}
       run: |

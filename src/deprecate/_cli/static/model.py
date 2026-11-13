@@ -118,6 +118,9 @@ class _SourceWrapper:
     api_type: str
     config: DeprecationConfig
     unresolved: dict[str, str] = field(default_factory=dict)
+    #: The ``__name__`` the import scan reads off the wrapper: the name of the decorated ``def``; ``None`` where the
+    #: source does not settle it, so such a wrapper never owns a canonical binding.
+    own_name: Optional[str] = None
 
 
 @dataclass(eq=False)

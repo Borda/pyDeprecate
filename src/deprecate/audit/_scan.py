@@ -25,6 +25,7 @@ from deprecate.audit._wrappers import (
     DeprecationWrapperInfo,
     _classify_wrapper_api_type,
     _scan_module_meta,
+    _source_location,
     validate_deprecation_wrapper,
 )
 from deprecate.proxy import _DeprecatedProxy
@@ -152,11 +153,14 @@ def _pep702_row(
     ``None`` on every pyDeprecate row.
 
     """
+    source_file, source_line = _source_location(obj)
     info = DeprecationWrapperInfo(
         module=module_name,
         function=qualified_name,
         deprecated_info=DeprecationConfig(name=qualified_name.rsplit(".", 1)[-1]),
         pep702_message=message,
+        source_file=source_file,
+        source_line=source_line,
     )
     api_type = _classify_wrapper_api_type(obj, info, member_name=member_name, descriptor_kind=_descriptor_kind(obj))
     return replace(info, api_type=api_type)
@@ -439,6 +443,39 @@ def _claim_class_members(cls: Any, name: str, seen: set[int], canonical: frozens
     return True
 
 
+def _wrapper_own_name(obj: Any) -> Optional[str]:  # noqa: ANN401
+    """Return the name a deprecated wrapper reports as its own (``__name__``), or ``None`` when it has no reliable one.
+
+    ``functools.wraps`` keeps the decorated function's name on a ``@deprecated`` wrapper, so the binding that carries it
+    is the one a reader expects the finding to name. A proxy (:class:`~deprecate.proxy._DeprecatedProxy`) answers
+    ``__name__`` from the object it wraps or forwards to, which is not its own, so it has none; neither does an object
+    without a string ``__name__``.
+
+    """
+    if isinstance(obj, _DeprecatedProxy):
+        return None
+    name = getattr(obj, "__name__", None)
+    return name if isinstance(name, str) else None
+
+
+def _canonical_wrapper_ids(members: Sequence[tuple[str, Any]]) -> frozenset[int]:
+    """Return the ``id`` of every deprecated wrapper that has a public binding named like itself.
+
+    A wrapper kept under a second public name (``old = new``-style aliases) is otherwise reported under whichever name
+    sorts first, so adding an unrelated alias would rename its finding id. The binding named like the wrapper wins; a
+    wrapper without one (a private ``__name__``, a proxy) is not in the set and keeps the first name scanned.
+
+    """
+    return frozenset(
+        id(obj)
+        for name, obj in members
+        if not name.startswith("_")
+        and not inspect.ismodule(obj)
+        and _has_deprecation_meta(obj)
+        and name == _wrapper_own_name(obj)
+    )
+
+
 def _scan_module_member(
     obj: Any,  # noqa: ANN401
     *,
@@ -449,11 +486,16 @@ def _scan_module_member(
     seen: set[int],
     include_pep702: bool = False,
     canonical_classes: frozenset[int] = frozenset(),
+    canonical_wrappers: frozenset[int] = frozenset(),
 ) -> list[DeprecationWrapperInfo]:
     """Scan one module member for deprecated wrappers or nested class members."""
     if name.startswith("_") or inspect.ismodule(obj):
         return []
     if _has_deprecation_meta(obj):
+        # An alias of a wrapper that is also bound under its own name leaves it to that binding, so the row (and the
+        # finding id built from it) never depends on which alias sorts first.
+        if id(obj) in canonical_wrappers and name != _wrapper_own_name(obj):
+            return []
         if not _claim_wrapper(obj, mod_name, attribute_to_defining_module, seen):
             return []
         result = _scan_callable(obj, mod_name, name)
@@ -514,6 +556,7 @@ def _scan_module(
     canonical_classes = frozenset(
         id(obj) for name, obj in members if not name.startswith("_") and inspect.isclass(obj) and name == obj.__name__
     )
+    canonical_wrappers = _canonical_wrapper_ids(members)
     for name, obj in members:
         results.extend(
             _scan_module_member(
@@ -525,6 +568,7 @@ def _scan_module(
                 seen=seen,
                 include_pep702=include_pep702,
                 canonical_classes=canonical_classes,
+                canonical_wrappers=canonical_wrappers,
             )
         )
     return results
@@ -625,6 +669,10 @@ def find_deprecation_wrappers(
     configuration is meaningful.
     Returns comprehensive information about each deprecated wrapper including validation results that help identify
     misconfigured wrappers.
+
+    A wrapper bound under several public names in one module is reported once, under the binding named like the wrapper
+    (its ``__name__``), so an unrelated alias never renames its row; when no binding carries that name (a private
+    ``__name__``, a deprecated class or instance proxy) the first public name in alphabetical order reports it.
 
     Args:
         module: A Python module or package to scan for deprecated wrappers. Can be:

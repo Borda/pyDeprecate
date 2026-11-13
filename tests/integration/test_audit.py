@@ -369,6 +369,20 @@ class TestFindDeprecatedWrappers:
         assert len(results) > 0
         assert all(isinstance(r, DeprecationWrapperInfo) for r in results)
 
+    def test_rows_are_located_in_their_defining_file(self) -> None:
+        """Every row of a scanned module is located in an existing file, except data objects, which have none.
+
+        CI annotations and code-scanning results need a file and line for each finding. A wrapper defined elsewhere and
+        imported into the scanned module is located where it is defined; a ``deprecated_instance`` row is not located.
+
+        """
+        rows = find_deprecation_wrappers("tests.collections.api_deprecated.core", recursive=False)
+        located = [row for row in rows if row.api_type != "data"]
+        assert located
+        assert all(row.source_file is not None and Path(row.source_file).is_file() for row in located)
+        assert all(row.source_line is not None and row.source_line > 0 for row in located)
+        assert {(row.source_file, row.source_line) for row in rows if row.api_type == "data"} == {(None, None)}
+
     def test_reexported_wrappers_counted_once(self) -> None:
         """A wrapper re-exported through a package ``__init__`` is reported once, not per importing module.
 

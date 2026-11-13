@@ -378,6 +378,7 @@ class _ModuleAnalyzer:
             route = _TargetRoute.CALLABLE if kind is _Factory.DEPRECATED else _TargetRoute.CALLABLE_STRICT
             api_type = _member_api_type(attr, descriptor) if attr is not None else _callable_api_type
             found = self._finish(settings, route, api_type, proxy=False)
+            found.own_name = node.name
         return found
 
     def _replaced_by_outer(self, outer: Sequence[ast.expr], factory: ast.expr) -> bool:
@@ -548,7 +549,33 @@ class _ModuleAnalyzer:
         route, api_type, proxy, module = self._wrapped_route(kind, value.args[0], shadow)
         if attr is not None:
             api_type = _member_api_type(attr, None)
-        return replace(self._finish(settings, route, api_type, proxy=proxy), module=module)
+        own_name = self._callable_name(value.args[0], shadow) if proxy is not True else None
+        if route is _TargetRoute.UNKNOWN_FRONT and own_name is not None:
+            route, proxy = _TargetRoute.CALLABLE, False
+        return replace(self._finish(settings, route, api_type, proxy=proxy), module=module, own_name=own_name)
+
+    def _callable_name(self, obj: ast.expr, shadow: Mapping[str, list]) -> Optional[str]:
+        """Resolve the original name copied by a callable wrapper when its preceding bindings settle it."""
+        if isinstance(obj, ast.Lambda):
+            return "<lambda>"
+        seen: set[str] = set()
+        while isinstance(obj, ast.Name) and obj.id not in seen:
+            seen.add(obj.id)
+            events = shadow.get(obj.id, []) if obj.id in shadow else self.scope.get(obj.id, [])
+            prior = [
+                event
+                for event in events
+                if isinstance(event.value, (ast.expr, ast.stmt)) and event.value.lineno < obj.lineno
+            ]
+            if len(prior) != 1 or any(event.value is None for event in events):
+                return None
+            event = prior[0]
+            if event.kind == "def" and isinstance(event.value, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                return event.value.name
+            if event.kind != "assign" or not isinstance(event.value, ast.Name):
+                return None
+            obj = event.value
+        return None
 
     def _wrapped_route(
         self, kind: _Factory, obj: ast.expr, shadow: Mapping[str, list]

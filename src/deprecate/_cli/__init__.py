@@ -47,9 +47,10 @@ def cli() -> None:
     subcommand exits 3 with ``pydeprecate: internal error: <type>: <message>`` and where to report it (the type prefix
     keeps the line meaningful when the exception carries no message); neither writes a report. Every submodule the scan
     skipped because importing it raised gets one ``pydeprecate gap: module not audited: <module>: <error>`` line on
-    stderr at the end of the run, whatever warnings filters the audited package installs; every other advisory about a
+    stderr right after the scan, whatever warnings filters the audited package installs; every other advisory about a
     part of the audit that did not run (unresolved version, missing ``packaging``, unscanned files) is printed as an
-    unwrapped stderr line starting with ``pydeprecate gap: <kind>:`` as well.
+    unwrapped stderr line starting with ``pydeprecate gap: <kind>:`` as well. With ``--strict`` (``check``, ``expiry``,
+    ``policy``, ``chains``, ``all``) any such gap fails the run with exit 1.
 
     A path whose name collides with a subcommand (``check``, ``expiry``, ``policy``, ``chains``, ``all``, ``status``) is
     treated as that subcommand by the implicit-``check`` shim. Scan such a path explicitly, e.g. ``pydeprecate check
@@ -69,9 +70,8 @@ def cli() -> None:
 
     """
     from deprecate._cli.argv import _ensure_utf8_streams, _parse_cli_args
-    from deprecate._cli.report import _print, _print_skipped_modules, _record_run, _run_active, _write_report
+    from deprecate._cli.report import _print, _record_run, _run_active, _write_report
     from deprecate._cli.scan import _ScanError
-    from deprecate.audit._scan import _collect_skipped_modules
 
     _ensure_utf8_streams()
     parsed = _parse_cli_args(sys.argv[1:])
@@ -82,7 +82,9 @@ def cli() -> None:
         # an audited package whose import runs the CLI again sees the outer `sys.argv`; only the outermost run may
         # write the report, or the nested run's report would pass for the outer scan's
         report_path = None
-    with _record_run() as run_record, _collect_skipped_modules() as skipped_modules:
+    with _record_run() as run_record:
+        run_record.command = command.function.__name__.replace("cmd_", "", 1)
+        run_record.wants_report = report_path is not None
         try:
             exit_code = command.function(**kwargs)
         except _ScanError as exc:
@@ -93,10 +95,7 @@ def cli() -> None:
             _print(f"pydeprecate: internal error: {type(exc).__name__}: {exc}", stderr=True)
             _print(f"  please report this at {_ISSUES}", stderr=True)
             exit_code = _CRASH_EXIT
-        finally:
-            # Unlike the `audit: skipped` warning, these lines survive the audited package's own warnings filters.
-            _print_skipped_modules(skipped_modules)
-    # written after the skipped-module gaps are recorded, and never for a usage error (exit 2): nothing was scanned
+    # never written for a usage error (exit 2): nothing was scanned
     if report_path is not None and exit_code in (0, 1):
-        _write_report(report_path, run_record)
+        _write_report(report_path, run_record, exit_code)
     sys.exit(exit_code)

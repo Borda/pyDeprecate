@@ -15,7 +15,7 @@ from collections.abc import Callable, Sequence
 from typing import Any, NamedTuple, Optional
 
 from deprecate._cli import _REPORT_OPTION, commands
-from deprecate._cli.config import _ConfigBool, _ConfigFlag
+from deprecate._cli.config import _ConfigBool, _ConfigFlag, _ConfigList
 
 #: The subcommands, in the order ``--help`` lists them; each runs the ``cmd_<name>`` function of :mod:`commands`.
 _SUBCOMMANDS = ("check", "expiry", "policy", "chains", "all", "status")
@@ -116,7 +116,7 @@ def _cli_command(name: str) -> _CliCommand:
     Examples:
         >>> command = _cli_command("expiry")
         >>> command.positionals, sorted(command.bool_params)
-        (('path', 'version'), ['exit_zero', 'include_members', 'recursive', 'static'])
+        (('path', 'version'), ['exit_zero', 'include_members', 'recursive', 'static', 'strict'])
 
     """
     function = getattr(commands, f"cmd_{name}")
@@ -203,6 +203,17 @@ def _add_subcommand(subparsers: Any, name: str) -> argparse.ArgumentParser:  # n
             # the older `--no<flag>` spelling (Fire's) keeps working for existing command lines, unlisted in --help
             parser.add_argument(
                 f"--no{flag}", dest=param_name, action="store_false", default=argparse.SUPPRESS, help=argparse.SUPPRESS
+            )
+            continue
+        if param.annotation is _ConfigList:
+            # repeatable, each value comma-separated; `--flag=` alone gives an empty list that switches the file off
+            parser.add_argument(
+                f"--{flag}",
+                dest=param_name,
+                action="append",
+                metavar="PATTERNS",
+                default=argparse.SUPPRESS,
+                help=helps.get(param_name),
             )
             continue
         parser.add_argument(

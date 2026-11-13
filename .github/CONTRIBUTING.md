@@ -334,19 +334,20 @@ pyDeprecate/
 │   │   ├── commands.py         # Subcommands: check, expiry, policy, chains, all, status
 │   │   ├── config.py           # [tool.pydeprecate] pyproject.toml config and flag-default resolution
 │   │   ├── findings.py         # Level of each finding per subcommand and the one exit-code function
-│   │   ├── report.py           # _print() and the plain-text _Reporter finding sections
+│   │   ├── report.py           # _print(), the _Reporter finding sections and the --report-json writer
 │   │   ├── scan.py             # Path scanning: package, plain directory or module name -> wrappers
-│   │   └── static/             # --static: read wrappers from source with ast, importing nothing
-│   │       ├── __init__.py     # What static mode reads and reports; imports go to the defining submodule, no re-exports
-│   │       ├── analyzer.py     # One module's wrappers: factory calls and decorators in a parsed module body
-│   │       ├── checks.py       # The checks' view of static rows: settings a rule needs, gaps, policy findings
-│   │       ├── consts.py       # Fixed names and tables: recognized factories, routes, limits
-│   │       ├── discovery.py    # Locate the source: package directory, namespace package or module file
-│   │       ├── model.py        # Values the reader builds: wrappers, per-module facts, one read setting
-│   │       ├── reader.py       # A tree of modules: parse once, follow imports and star exports, merge bases
-│   │       ├── rows.py         # Rows handed to the checks, named and ordered as the import scan does
-│   │       ├── scope.py        # How a source binds names: factory aliases, scope events, rebinding
-│   │       └── targets.py      # Turn a `target` expression into what the factory of its route stores
+│   │   ├── static/             # --static: read wrappers from source with ast, importing nothing
+│   │   │   ├── __init__.py     # What static mode reads and reports; imports go to the defining submodule, no re-exports
+│   │   │   ├── analyzer.py     # One module's wrappers: factory calls and decorators in a parsed module body
+│   │   │   ├── checks.py       # The checks' view of static rows: settings a rule needs, gaps, policy findings
+│   │   │   ├── consts.py       # Fixed names and tables: recognized factories, routes, limits
+│   │   │   ├── discovery.py    # Locate the source: package directory, namespace package or module file
+│   │   │   ├── model.py        # Values the reader builds: wrappers, per-module facts, one read setting
+│   │   │   ├── reader.py       # A tree of modules: parse once, follow imports and star exports, merge bases
+│   │   │   ├── rows.py         # Rows handed to the checks, named and ordered as the import scan does
+│   │   │   ├── scope.py        # How a source binds names: factory aliases, scope events, rebinding
+│   │   │   └── targets.py      # Turn a `target` expression into what the factory of its route stores
+│   │   └── suppress.py         # Ignore entries and the --baseline report that accept known findings
 │   ├── _types.py               # Shared type definitions: DeprecationConfig, _ProxyConfig
 │   ├── deprecation.py          # Front door: deprecated() dispatcher (functions/methods -> routine, classes -> proxy)
 │   ├── routine.py              # Function/method decorator: deprecated_callable() (strict) + packing descriptors
@@ -392,6 +393,7 @@ pyDeprecate/
 │   ├── brand.md, changelog.md  # Brand guide; changelog page
 │   ├── llms.txt                # Authoritative agent contract; llms-full.txt is the condensed context
 │   ├── robots.txt              # AI crawler access policy
+│   ├── schemas/                # JSON Schema of the CLI's `--report-json` file (report-1.schema.json)
 │   ├── mkdocs_hooks.py         # MkDocs build hooks (Markdown mirrors, sitemap)
 │   ├── overrides/              # Jinja2 templates: main.html (JSON-LD), mike_redirect.html
 │   ├── stylesheets/            # Site CSS

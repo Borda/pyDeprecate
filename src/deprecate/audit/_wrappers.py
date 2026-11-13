@@ -9,11 +9,12 @@ Copyright (C) 2020-2026 Jiri Borovec <6035284+Borda@users.noreply.github.com>
 """
 
 import inspect
+import os
 import types
 import warnings
 from dataclasses import dataclass, field, is_dataclass
 from enum import Enum
-from functools import wraps
+from functools import cached_property, wraps
 from typing import Any, Callable, Optional, Union
 
 from deprecate._frames import _caller_stacklevel
@@ -125,6 +126,13 @@ class DeprecationWrapperInfo:
             deprecated only with ``warnings.deprecated``/``typing_extensions.deprecated``, the message that decorator
             recorded on ``__deprecated__`` — a string, possibly empty. It is the only metadata such an object carries,
             so ``deprecated_info`` holds no versions or target and ``empty_deprecated_in`` is ``True``.
+        source_file: Absolute path of the file that defines the deprecated object, or ``None`` when it has none: a
+            :func:`~deprecate.proxy.deprecated_instance` data object, a class built at runtime (a functional ``Enum``
+            or a ``type()`` call), or a function compiled from a string. A class built by ``exec`` in a namespace named
+            after a real module may be attributed to that module's file (Python 3.13+). For a deprecated module it is
+            the module's file.
+        source_line: First line of the definition — the line of its first decorator — or ``None`` with no
+            ``source_file`` and for a deprecated module. Neither field takes part in equality or ``repr``.
 
     Example:
         >>> info = DeprecationWrapperInfo(
@@ -158,6 +166,8 @@ class DeprecationWrapperInfo:
     args_mapping_positional_only: list[str] = field(default_factory=list)
     inner_order_property: bool = False
     pep702_message: Optional[str] = field(repr=False, default=None)
+    source_file: Optional[str] = field(default=None, repr=False, compare=False)
+    source_line: Optional[int] = field(default=None, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         """Derive ``empty_deprecated_in`` from ``deprecated_info`` and keep ``api_type`` a plain string."""
@@ -316,6 +326,75 @@ def _validate_args_mapping(
     return invalid_args, identity_args_mapping, all_identity
 
 
+def _definition_of(obj: Any) -> Any:  # noqa: ANN401
+    """Return the class or function whose source defines the deprecated *obj*, or ``None`` when there is none."""
+    if isinstance(obj, _DeprecatedProxy):
+        # a `deprecated_class` proxy is defined by its class, which lies beneath any further proxy stacked over it; a
+        # `deprecated_instance` object, callable or not, is bound by an assignment that nothing records, so the
+        # function it wraps is not where it was deprecated
+        source: Any = obj
+        while isinstance(source, _DeprecatedProxy):
+            source = source.wrapped
+        return source if inspect.isclass(source) else None
+    target: Any = obj
+    if isinstance(target, property):
+        target = target.fget
+    elif isinstance(target, cached_property):
+        target = target.func
+    if isinstance(target, (classmethod, staticmethod)):
+        target = target.__func__
+    if inspect.isclass(target):
+        return target
+    # `__wrapped__` leads out of an outer decorator (``functools.lru_cache``, ``functools.wraps``) to the function it
+    # wraps, but stops at a proxy: reading through a `deprecated_instance` proxy would reach the object behind it
+    unwrapped = inspect.unwrap(target, stop=lambda wrapper: isinstance(wrapper, _DeprecatedProxy))
+    if isinstance(unwrapped, _DeprecatedProxy):
+        return _definition_of(unwrapped)
+    if inspect.isfunction(unwrapped) or inspect.ismethod(unwrapped) or inspect.isclass(unwrapped):
+        return unwrapped
+    return None
+
+
+def _source_location(obj: Any) -> tuple[Optional[str], Optional[int]]:  # noqa: ANN401
+    """Return the absolute file and first line that define the deprecated *obj*; never raises.
+
+    A function's line is ``co_firstlineno`` of the undecorated function, which is the line of its first decorator;
+    ``__wrapped__`` leads there, also from behind an outer decorator such as :func:`functools.lru_cache`. A
+    class (also behind a :func:`~deprecate.proxy.deprecated_class` proxy) uses its own ``__firstlineno__`` where Python
+    sets it (3.13+) and :func:`inspect.getsourcelines` before. A :func:`~deprecate.proxy.deprecated_instance` object, a
+    class built at runtime (a functional ``Enum`` or a ``type()`` call), a function compiled from a string
+    (``<string>``) and anything :mod:`inspect` cannot place give ``(None, None)``. A class built by ``exec`` in a
+    namespace named after a real module is placed by that module's file instead (Python 3.13+): its own
+    ``__firstlineno__`` and ``__module__`` are all the lookup reads.
+
+    Examples:
+        >>> path, line = _source_location(_source_location)
+        >>> path.endswith("_wrappers.py"), line > 0
+        (True, True)
+        >>> _source_location(object())
+        (None, None)
+
+    """
+    try:
+        definition = _definition_of(obj)
+        if inspect.isclass(definition):
+            file_name = inspect.getsourcefile(definition)
+            # the class's own attribute only: an inherited one (Python 3.13+ sets it per ``class`` statement) belongs to
+            # a base, so a functional ``Enum`` or a ``type()`` call would be placed at its base's file and line
+            line = vars(definition).get("__firstlineno__") or inspect.getsourcelines(definition)[1]
+        elif definition is not None and hasattr(definition, "__code__"):
+            file_name, line = definition.__code__.co_filename, definition.__code__.co_firstlineno
+        else:
+            return None, None
+    except Exception:
+        # the location is optional metadata: whatever `inspect` or a hostile class raises (an unreadable or edited
+        # source file, a metaclass that refuses an attribute), it must never fail the audit that asked for it
+        return None, None
+    if not file_name or file_name.startswith("<"):
+        return None, None
+    return os.path.abspath(file_name), line
+
+
 def _scan_module_meta(mod: Any) -> DeprecationWrapperInfo:  # noqa: ANN401
     """Build :class:`~deprecate.audit.DeprecationWrapperInfo` for a deprecated module.
 
@@ -341,6 +420,7 @@ def _scan_module_meta(mod: Any) -> DeprecationWrapperInfo:  # noqa: ANN401
     # and may trigger the module's own __getattr__ before __spec__ is in __dict__.
     _raw_name = mod.__dict__.get("__name__")
     mod_name: str = _raw_name if _raw_name is not None else str(mod)
+    module_file = mod.__dict__.get("__file__")
     # A module has no callable name — its identity lives entirely in ``module``. Leave ``function``
     # empty (never a ``"(module)"`` sentinel): ``_format_report_symbol`` then renders just the module
     # name, and ``_subject_noun`` picks the ``Module`` noun from ``api_type``, so no ``(module)`` label
@@ -360,6 +440,7 @@ def _scan_module_meta(mod: Any) -> DeprecationWrapperInfo:  # noqa: ANN401
         api_type=_ApiType.MODULE,
         args_mapping_auto_expanded=[],
         args_mapping_positional_only=[],
+        source_file=os.path.abspath(module_file) if isinstance(module_file, str) else None,
     )
 
 
@@ -483,6 +564,7 @@ def validate_deprecation_wrapper(func: Union[Callable, types.ModuleType]) -> Dep
     )
 
     function = dep_info.name or getattr(func, "__name__", str(func))
+    source_file, source_line = _source_location(func)
 
     return DeprecationWrapperInfo(
         function=function,
@@ -497,6 +579,8 @@ def validate_deprecation_wrapper(func: Union[Callable, types.ModuleType]) -> Dep
         chain_type=chain_type,
         args_mapping_auto_expanded=list(getattr(dep_info, "args_mapping_auto_expanded", ())),
         args_mapping_positional_only=list(getattr(dep_info, "args_mapping_positional_only", ())),
+        source_file=source_file,
+        source_line=source_line,
     )
 
 

@@ -8,11 +8,14 @@ import sys
 from pathlib import Path
 from typing import Optional
 
+import jsonschema
 import pytest
 
 from tests._helpers import write_pkg
 
 _SRC_DIR = str(Path(__file__).resolve().parent.parent.parent / "src")
+#: The JSON Schema the docs ship for the ``--report-json`` file of layout version 1.
+_REPORT_SCHEMA_FILE = Path(__file__).resolve().parent.parent.parent / "docs" / "schemas" / "report-1.schema.json"
 _PACKAGING_AVAILABLE = importlib.util.find_spec("packaging") is not None
 _MYPKG_INIT = """\
 from deprecate import deprecated
@@ -1410,6 +1413,147 @@ class TestCliAttachedBoolLiterals:
         assert "expects True or False" in result.stderr
 
 
+# Package with two wrappers past their removal at 2.0, both defined in its `__init__`.
+_MYPKG_INIT_TWO_EXPIRED = """\
+from deprecate import deprecated
+
+
+def new_fn(x: int) -> int:
+    return x
+
+
+@deprecated(target=new_fn, deprecated_in="1.0", remove_in="1.5")
+def old_fn(x: int) -> int:
+    pass
+
+
+@deprecated(target=new_fn, deprecated_in="1.0", remove_in="1.8")
+def mid_fn(x: int) -> int:
+    pass
+"""
+
+
+@pytest.mark.subprocess
+@pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="expiry needs the packaging library")
+class TestCliReportFindings:
+    """Per-finding records and the gate outcome the ``--report-json`` file gained in 0.16, and its shipped schema."""
+
+    def test_expired_findings_are_recorded_with_stable_ids(self, tmp_path: Path) -> None:
+        """Each expired wrapper is one finding whose id, message and location match what the console printed.
+
+        A CI tool turns the report into annotations and a baseline. It needs one record per finding with an id that
+        survives message rewording, the exact console text, and the file and line of the wrapper.
+
+        """
+        pkg = _make_pkg(tmp_path, content=_MYPKG_INIT_TWO_EXPIRED)
+        report = tmp_path / "report.json"
+        result = _run_cli("expiry", str(pkg), "--version=2.0", f"--report-json={report}", cwd=tmp_path)
+        data = json.loads(report.read_text(encoding="utf-8"))
+        findings = data["findings"]
+        assert result.returncode == 1, result.stderr
+        assert [finding["id"] for finding in findings] == ["expired:mypkg:mid_fn", "expired:mypkg:old_fn"]
+        assert all(f"\t- {finding['message']}" in result.stdout for finding in findings)
+        assert {finding["location"]["file"] for finding in findings} == {"mypkg/__init__.py"}
+        assert {finding["level"] for finding in findings} == {"error"}
+        assert data["gate"] == {"failed": True, "reasons": ["findings"]}
+        assert data["exit_code"] == 1
+        assert data["summary"]["errors"] == 2
+
+    @pytest.mark.parametrize(
+        ("subcommand", "args", "exit_code"),
+        [
+            pytest.param("check", (), 0, id="check"),
+            pytest.param("expiry", ("--version=2.0",), 1, id="expiry"),
+            pytest.param("policy", (), 0, id="policy"),
+            pytest.param("chains", (), 0, id="chains"),
+            pytest.param("all", ("--version=2.0",), 1, id="all"),
+            pytest.param("status", ("--version=2.0",), 0, id="status"),
+        ],
+    )
+    def test_report_validates_against_shipped_schema(
+        self, tmp_path: Path, subcommand: str, args: tuple[str, ...], exit_code: int
+    ) -> None:
+        """Every subcommand writes a report the shipped JSON Schema accepts, naming the command, path and version.
+
+        Consumers validate the file against ``docs/schemas/report-1.schema.json`` before trusting it; a writer that
+        drifted from the documented layout would be rejected by every such consumer.
+
+        """
+        pkg = _make_pkg(tmp_path, content=_MYPKG_INIT_TWO_EXPIRED)
+        report = tmp_path / "report.json"
+        result = _run_cli(subcommand, str(pkg), *args, f"--report-json={report}", cwd=tmp_path)
+        data = json.loads(report.read_text(encoding="utf-8"))
+        jsonschema.validate(data, json.loads(_REPORT_SCHEMA_FILE.read_text(encoding="utf-8")))
+        assert result.returncode == exit_code, result.stderr
+        assert (data["command"], data["paths"], data["exit_code"]) == (subcommand, [str(pkg)], exit_code)
+        assert data["versions"][0]["package"] == "mypkg"
+
+    def test_baseline_round_trip(self, tmp_path: Path) -> None:
+        """A report taken as baseline passes the next run, and a newly expired wrapper still fails it.
+
+        A team adopts the gate on a codebase with a backlog: run 1 records it, run 2 passes against that baseline and
+        lists the accepted findings as suppressed, run 3 fails only on the wrapper added since.
+
+        """
+        pkg = _make_pkg(tmp_path, content=_MYPKG_INIT_TWO_EXPIRED)
+        baseline = tmp_path / "baseline.json"
+        report = tmp_path / "report.json"
+        first = _run_cli("expiry", str(pkg), "--version=2.0", f"--report-json={baseline}", cwd=tmp_path)
+        second = _run_cli(
+            "expiry", str(pkg), "--version=2.0", f"--baseline={baseline}", f"--report-json={report}", cwd=tmp_path
+        )
+        accepted = json.loads(report.read_text(encoding="utf-8"))
+        (pkg / "__init__.py").write_text(
+            _MYPKG_INIT_TWO_EXPIRED
+            + '\n\n@deprecated(target=new_fn, deprecated_in="1.0", remove_in="1.9")\ndef new_old_fn(x: int) -> int:\n'
+            "    pass\n"
+        )
+        third = _run_cli("expiry", str(pkg), "--version=2.0", f"--baseline={baseline}", cwd=tmp_path)
+        assert (first.returncode, second.returncode, third.returncode) == (1, 0, 1)
+        assert [item["suppressed_by"]["kind"] for item in accepted["suppressed"]] == ["baseline", "baseline"]
+        assert accepted["summary"]["suppressed"] == 2
+        assert "mypkg.new_old_fn" in third.stdout
+        assert "mypkg.old_fn" not in third.stdout
+
+    def test_ignored_finding_is_not_carried_into_baseline(self, tmp_path: Path) -> None:
+        """A report taken as baseline keeps no finding an ignore entry suppressed in the run that wrote it.
+
+        A team ignores one overdue wrapper for a sprint and records the rest as its baseline. Once the ignore entry is
+        deleted, the wrapper must fail the gate again instead of staying accepted forever through the baseline.
+
+        """
+        pkg = _make_pkg(tmp_path, content=_MYPKG_INIT_TWO_EXPIRED)
+        baseline = tmp_path / "baseline.json"
+        _run_cli(
+            "expiry",
+            str(pkg),
+            "--version=2.0",
+            "--ignore=expired:mypkg:old_fn",
+            f"--report-json={baseline}",
+            cwd=tmp_path,
+        )
+        result = _run_cli("expiry", str(pkg), "--version=2.0", f"--baseline={baseline}", cwd=tmp_path)
+        assert result.returncode == 1, result.stderr
+        assert "mypkg.old_fn" in result.stdout
+        assert "mypkg.mid_fn" not in result.stdout
+
+    def test_strict_gap_is_the_gate_reason(self, tmp_path: Path) -> None:
+        """A strict run that fails only on a gap records ``gaps`` as the reason, and the gap carries its path.
+
+        CI tooling tells a failing audit from an incomplete one by ``gate.reasons``, without a separate exit code.
+
+        """
+        pkg = _make_pkg(tmp_path)
+        (pkg / "broken.py").write_text("raise RuntimeError('boom')\n")
+        report = tmp_path / "report.json"
+        result = _run_cli("check", str(pkg), "--strict", f"--report-json={report}", cwd=tmp_path)
+        data = json.loads(report.read_text(encoding="utf-8"))
+        assert result.returncode == 1, result.stderr
+        assert data["gate"] == {"failed": True, "reasons": ["gaps"]}
+        assert data["options"]["strict"] is True
+        assert [gap["path"] for gap in data["gaps"]] == [str(pkg)]
+
+
 @pytest.mark.subprocess
 class TestCliReportJson:
     """``--report-json PATH`` writes one machine-readable record of the run: the status table and every gap."""
@@ -1514,8 +1658,8 @@ class TestCliReportJson:
     def test_records_skipped_submodule_gap(self, tmp_path: Path) -> None:
         """A submodule that fails to import is recorded as a ``module not audited`` gap naming the module.
 
-        These gaps are printed only after the subcommand returns, so the report must be written after them, or the
-        most common gap of all would be missing from it.
+        The scan records each skipped submodule as a gap right after it, so the report, written once the subcommand
+        returns, holds the most common gap of all.
 
         """
         pkg = _make_pkg(tmp_path)
@@ -1525,6 +1669,71 @@ class TestCliReportJson:
         gaps = json.loads(report.read_text(encoding="utf-8"))["gaps"]
         assert [gap["kind"] for gap in gaps] == ["module not audited"]
         assert gaps[0]["detail"].startswith("mypkg.broken: ")
+
+    def test_strict_gap_fails_the_run_and_its_report(self, tmp_path: Path) -> None:
+        """With ``--strict`` a skipped submodule exits 1, and the report is written with that gap.
+
+        A CI gate pinned to ``--strict`` runs in an environment missing one submodule's dependency. The process must
+        fail, say why on stderr, and still leave the report behind (exit 1 writes it), so the job can show the gap.
+
+        """
+        pkg = _make_pkg(tmp_path)
+        (pkg / "broken.py").write_text("raise RuntimeError('boom')\n")
+        report = tmp_path / "report.json"
+        result = _run_cli("check", str(pkg), "--strict", f"--report-json={report}", cwd=tmp_path)
+        gaps = json.loads(report.read_text(encoding="utf-8"))["gaps"]
+        assert result.returncode == 1, result.stdout + result.stderr
+        assert "Strict mode: 1 gap(s) fail this run." in result.stderr
+        assert [gap["kind"] for gap in gaps] == ["module not audited"]
+
+    def test_strict_with_exit_zero_exits_two_without_report(self, tmp_path: Path) -> None:
+        """``--strict --exit-zero`` is a usage error: exit 2, nothing scanned, no report written.
+
+        The two flags cancel each other out, so the run refuses to start rather than pick one silently.
+
+        """
+        pkg = _make_pkg(tmp_path)
+        report = tmp_path / "report.json"
+        result = _run_cli("check", str(pkg), "--strict", "--exit-zero", f"--report-json={report}", cwd=tmp_path)
+        assert result.returncode == 2
+        assert "contradict each other" in result.stderr
+        assert not report.exists()
+
+    def test_exit_zero_overrides_strict_from_pyproject(self, tmp_path: Path) -> None:
+        """``--exit-zero`` against ``strict = true`` in ``pyproject.toml`` passes and records the run as not strict.
+
+        The GitHub Action runner appends ``--exit-zero`` to an advisory step and nothing else, in a project whose
+        ``pyproject.toml`` already declares ``strict = true`` for its local gate. The step must exit 0, say once that
+        the file's strict mode was disabled, still print the gap, and write a report whose ``options`` show what ran.
+
+        """
+        pkg = _make_pkg(tmp_path)
+        (pkg / "broken.py").write_text("raise RuntimeError('boom')\n")
+        (tmp_path / "pyproject.toml").write_text("[tool.pydeprecate]\nstrict = true\n")
+        report = tmp_path / "report.json"
+        result = _run_cli("check", str(pkg), "--exit-zero", f"--report-json={report}", cwd=tmp_path)
+        options = json.loads(report.read_text(encoding="utf-8"))["options"]
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert result.stderr.count("is disabled by `--exit-zero` for this run.") == 1
+        assert "pydeprecate gap: module not audited: mypkg.broken" in result.stderr
+        assert (options["strict"], options["exit_zero"]) == (False, True)
+
+    def test_ignore_list_literal_exits_two_before_scanning(self, tmp_path: Path) -> None:
+        """``--ignore`` given a Python list literal is a usage error: exit 2, nothing scanned, no report written.
+
+        A Fire-era command line such as ``--ignore='["expired:mypkg:old_fn", "mypkg:mid_fn"]'`` reaches argparse as one
+        string holding commas. Split on them it would read as two malformed entries at best, so the run refuses it
+        with the same advice as ``--exclude`` instead of letting the author believe the findings are accepted.
+
+        """
+        pkg = _make_pkg(tmp_path)
+        report = tmp_path / "report.json"
+        literal = '["expired:mypkg:old_fn", "mypkg:mid_fn"]'
+        result = _run_cli("check", str(pkg), f"--ignore={literal}", f"--report-json={report}", cwd=tmp_path)
+        assert result.returncode == 2
+        assert f"Invalid `--ignore` value `{literal}`; pass comma-separated entries" in result.stderr
+        assert "Scanning:" not in result.stdout
+        assert not report.exists()
 
     def test_clean_scan_records_no_gap(self, tmp_path: Path) -> None:
         """A fully audited package records an empty gap list, so consumers can tell "no gaps" from "unknown".

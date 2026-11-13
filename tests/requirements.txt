@@ -9,6 +9,7 @@ phmdoctest >=1.4.0
 typing_extensions  # PEP 702 stacking regression tests
 packaging  # required for version-comparison audit tests
 pyyaml >=6.0.3  # parses action.yml and .pre-commit-hooks.yaml in the GitHub Action tests
+jsonschema >=4.0.0  # validates --report-json files against docs/schemas/report-1.schema.json (Draft 2020-12 needs 4.0)
 
 # Docs extensions
 griffe  # for MKDocs

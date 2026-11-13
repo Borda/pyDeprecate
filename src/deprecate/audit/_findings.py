@@ -57,6 +57,8 @@ class _Finding:
         details: Rule-specific items, such as the invalid argument names or the chain kind.
         deprecated_in: The wrapper's ``deprecated_in``, ``None`` when empty.
         remove_in: The wrapper's ``remove_in``, ``None`` when empty.
+        source_file: Absolute path of the file defining the wrapper, ``None`` when it cannot be located.
+        source_line: First line of the wrapper's definition, ``None`` when unknown.
 
     """
 
@@ -70,6 +72,8 @@ class _Finding:
     details: tuple[str, ...] = ()
     deprecated_in: Optional[str] = None
     remove_in: Optional[str] = None
+    source_file: Optional[str] = None
+    source_line: Optional[int] = None
 
     @property
     def id(self) -> str:
@@ -103,6 +107,8 @@ def _make_finding(
         details=details,
         deprecated_in=config.deprecated_in or None,
         remove_in=config.remove_in or None,
+        source_file=info.source_file,
+        source_line=info.source_line,
     )
 
 

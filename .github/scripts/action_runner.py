@@ -43,13 +43,17 @@ INPUT_DEFAULTS = {
     "path": "",
     "args": "",
     "exit-zero": "false",
+    "fail-on-gap": "false",
     "install": "true",
     "summary": "false",
 }
 #: Name of the report file inside the runner's private temporary directory.
 REPORT_FILENAME = "report.json"
-#: Layout version of the CLI's ``--report-json`` file that this runner reads.
+#: Layout version of the CLI's ``--report-json`` file that the CLI of this ref writes.
 REPORT_SCHEMA = 1
+#: Layout versions this runner reads. New keys never bump the layout, so a 0.15 CLI kept with ``install: false`` writes
+#: the same version 1, and the gaps and table this runner reads keep their meaning in it.
+REPORT_SCHEMAS = (1,)
 #: Most gap details quoted in one warning annotation; the CLI log above it lists every one.
 GAP_DETAILS_SHOWN = 3
 
@@ -113,6 +117,7 @@ class ActionInputs:
     path: str
     args: tuple[str, ...]
     exit_zero: bool
+    fail_on_gap: bool
     install: bool
     summary: bool
 
@@ -201,26 +206,37 @@ def read_inputs(env: dict[str, str]) -> ActionInputs:
         path=path,
         args=args,
         exit_zero=_parse_bool("exit-zero", _input(env, "exit-zero")),
+        fail_on_gap=_parse_bool("fail-on-gap", _input(env, "fail-on-gap")),
         install=_parse_bool("install", _input(env, "install")),
         summary=_parse_bool("summary", _input(env, "summary")),
     )
     if inputs.exit_zero and inputs.subcommand == "status":
         raise ValueError("input `exit-zero` has no effect on `status`, which never fails on findings")
+    if inputs.fail_on_gap and inputs.subcommand == "status":
+        raise ValueError("input `fail-on-gap` has no effect on `status`, which never fails")
+    if inputs.fail_on_gap and inputs.exit_zero:
+        raise ValueError(
+            "inputs `fail-on-gap` and `exit-zero` contradict each other: `fail-on-gap` fails the step on a gap,"
+            " `exit-zero` passes every run; set only one of them"
+        )
     return inputs
 
 
 def build_cli_argv(inputs: ActionInputs, python: str, report_file: Path | None = None) -> list[str]:
     """Build the ``python -m deprecate`` command line for the gate run, writing its report to ``report_file``.
 
-    The runner's own options follow ``args``. :func:`read_inputs` has already refused the ``args`` tokens that would
-    break that — a ``--`` separator, which makes the CLI read everything after it as positionals, a help flag, and any
-    ``--report-json`` spelling — so the CLI always receives ``--exit-zero`` and the report option as written here.
+    The runner's own options (``--strict`` for ``fail-on-gap``, ``--exit-zero``, the report) follow ``args``.
+    :func:`read_inputs` has already refused the ``args`` tokens that would break that — a ``--`` separator, which makes
+    the CLI read everything after it as positionals, a help flag, and any ``--report-json`` spelling — so the CLI always
+    receives ``--exit-zero`` and the report option as written here.
 
     """
     argv = [python, "-m", "deprecate", inputs.subcommand]
     if inputs.path:
         argv.append(inputs.path)
     argv.extend(inputs.args)
+    if inputs.fail_on_gap:
+        argv.append("--strict")
     if inputs.exit_zero:
         argv.append("--exit-zero")
     if report_file is not None:
@@ -361,8 +377,9 @@ def read_report(report_file: Path) -> dict[str, Any] | None:
     except (OSError, ValueError) as err:
         annotate("warning", f"could not read the pyDeprecate report: {err}")
         return None
-    if not isinstance(report, dict) or report.get("schema") != REPORT_SCHEMA:
-        annotate("warning", f"the pyDeprecate report is not of layout version {REPORT_SCHEMA}; ignoring it")
+    if not isinstance(report, dict) or report.get("schema") not in REPORT_SCHEMAS:
+        versions = " or ".join(str(schema) for schema in REPORT_SCHEMAS)
+        annotate("warning", f"the pyDeprecate report is not of layout version {versions}; ignoring it")
         return None
     return report
 

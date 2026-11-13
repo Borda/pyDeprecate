@@ -35,13 +35,21 @@ def _module_rows(
     rows: list[DeprecationWrapperInfo] = []
     if facts.module_wrapper is not None:
         rows.append(_row(module, "", facts.module_wrapper))
-    for name in sorted(facts.bindings):
-        if name.startswith("_"):
-            continue
-        value, cycle = reader.resolve(facts.bindings[name])
+    resolved = {
+        name: reader.resolve(facts.bindings[name]) for name in sorted(facts.bindings) if not name.startswith("_")
+    }
+    # a wrapper kept under a second public name is reported under the binding named like itself, as the import scan does
+    canonical = {
+        id(value)
+        for name, (value, _) in resolved.items()
+        if isinstance(value, _SourceWrapper) and value.proxy is False and name == value.own_name
+    }
+    for name, (value, cycle) in resolved.items():
         if cycle:
             _print_gap(_GapKind.STATIC_UNRESOLVED, f"{module}.{name}: {_CYCLE}")
         elif isinstance(value, _SourceWrapper):
+            if id(value) in canonical and name != value.own_name:
+                continue
             rows.extend(_wrapper_rows(module, name, value, attribute=attribute, seen=seen))
         elif isinstance(value, _PlainClass) and include_members and value.module == module:
             unaudited: list[str] = []

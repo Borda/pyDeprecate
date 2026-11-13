@@ -64,6 +64,30 @@ class TestExitCode:
         findings = [_finding(rule) for rule in rules]
         assert _exit_code(findings, subcommand, exit_zero=exit_zero) == expected
 
+    @pytest.mark.parametrize(
+        ("rules", "strict", "gaps", "exit_zero", "expected"),
+        [
+            pytest.param((), True, 1, False, 1, id="strict-gap-fails"),
+            pytest.param((), True, 0, False, 0, id="strict-no-gap-passes"),
+            pytest.param((), False, 3, False, 0, id="gap-without-strict-passes"),
+            pytest.param((_Rule.NO_EFFECT,), True, 2, False, 1, id="strict-gap-with-warning-fails"),
+            pytest.param((_Rule.MISCONFIGURED_TARGET,), True, 0, False, 1, id="strict-error-without-gap-fails"),
+            pytest.param((), True, 1, True, 0, id="strict-gap-exit-zero"),
+        ],
+    )
+    def test_strict_counts_gaps(
+        self, rules: tuple[_Rule, ...], strict: bool, gaps: int, exit_zero: bool, expected: int
+    ) -> None:
+        """In strict mode a recorded gap fails the run as an error finding would; without it gaps never count.
+
+        A CI gate on a package whose submodule failed to import audited only part of it. Strict mode turns that partial
+        audit into a failure while a clean run still passes, and the errors of a run fail it whether or not it is
+        strict.
+
+        """
+        findings = [_finding(rule) for rule in rules]
+        assert _exit_code(findings, "check", exit_zero=exit_zero, strict=strict, gaps=gaps) == expected
+
     def test_all_keeps_the_error_of_a_duplicated_chain(self) -> None:
         """``all`` sees a chain twice, a warning from ``check`` and an error from ``chains``; it stays an error.
 

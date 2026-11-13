@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Optional, Union
 
 from deprecate._cli._pkg import _ConfigReadError, _read_pydeprecate_config
 from deprecate._cli.report import _is_package_available, _print
+from deprecate._cli.suppress import _load_baseline, _parse_ignore, _Suppressor
 from deprecate.audit import PolicyRule
 from deprecate.audit._lifecycle import _parse_version
 from deprecate.audit._policy import (
@@ -93,6 +94,10 @@ _ConfigFlag = Union[str, int, float, bool, None, Sequence[str], _FromPyproject]
 #: the wider :data:`_ConfigFlag` it marks the parameter as a boolean flag for the parser
 #: (:func:`deprecate._cli.argv._cli_command`).
 _ConfigBool = Union[bool, _FromPyproject]
+#: A list option that ``pyproject.toml`` may set: patterns from a repeatable, comma-separated flag (a list of strings),
+#: or :data:`_FROM_PYPROJECT` when omitted. Marks the parameter as an accumulating option for the parser
+#: (:func:`deprecate._cli.argv._add_subcommand`).
+_ConfigList = Union[Sequence[str], str, _FromPyproject]
 #: A loaded ``[tool.pydeprecate]`` table (known keys only) and the ``pyproject.toml`` it came from.
 _Config = tuple[dict[str, Any], Optional[str]]
 #: Built-in value per policy rule, used when neither a flag nor ``[tool.pydeprecate.policy]`` sets it — the same
@@ -105,6 +110,11 @@ _CONFIG_TABLE_NAME = "[tool.pydeprecate]"
 _POLICY_TABLE_NAME = "[tool.pydeprecate.policy]"
 _EXCLUDE_KEY = "exclude"
 _POLICY_KEY = "policy"
+_STRICT_KEY = "strict"
+_IGNORE_KEY = "ignore"
+_BASELINE_KEY = "baseline"
+#: The keys of ``[tool.pydeprecate]`` the CLI reads, in the order the advisories name them.
+_CONFIG_KEYS = (_EXCLUDE_KEY, _STRICT_KEY, _IGNORE_KEY, _BASELINE_KEY, _POLICY_KEY)
 
 
 def _warn_unknown_keys(table: dict[str, Any], known: Sequence[str], table_name: str, toml_path: Optional[str]) -> None:
@@ -133,17 +143,20 @@ def _load_pydeprecate_config(path: str) -> Optional[_Config]:
         path: The ``path`` argument of the subcommand.
 
     Returns:
-        The known keys of the table (``exclude`` and the known keys of ``policy``) and the ``pyproject.toml``
-        they came from, or ``({}, None)``; ``None`` after printing a usage error (the caller exits 2).
+        The known keys of the table (``exclude``, ``strict`` and the known keys of ``policy``) and the
+        ``pyproject.toml`` they came from, or ``({}, None)``; ``None`` after printing a usage error (the caller exits
+        2).
 
     """
     if not Path(path).exists():
         return {}, None
     if not (_is_package_available("tomllib") or _is_package_available("tomli")):
         if next(_iter_pyproject_paths(path), None) is not None:
+            keys = ", ".join(f"`{key}`" for key in _CONFIG_KEYS)
             _print(
                 f"A `pyproject.toml` is within reach of `{path}` but no TOML parser is installed, so any "
-                f"`{_CONFIG_TABLE_NAME}` section is ignored.\nInstall one with: `pip install 'pyDeprecate[audit]'`",
+                f"`{_CONFIG_TABLE_NAME}` section ({keys}) is ignored.\n"
+                "Install one with: `pip install 'pyDeprecate[audit]'`",
                 stderr=True,
             )
         return {}, None
@@ -152,10 +165,8 @@ def _load_pydeprecate_config(path: str) -> Optional[_Config]:
     except _ConfigReadError as err:
         _print(str(err), stderr=True)
         return None
-    _warn_unknown_keys(table, (_EXCLUDE_KEY, _POLICY_KEY), _CONFIG_TABLE_NAME, toml_path)
-    config: dict[str, Any] = {}
-    if _EXCLUDE_KEY in table:
-        config[_EXCLUDE_KEY] = table[_EXCLUDE_KEY]
+    _warn_unknown_keys(table, _CONFIG_KEYS, _CONFIG_TABLE_NAME, toml_path)
+    config: dict[str, Any] = {key: table[key] for key in _CONFIG_KEYS if key in table and key != _POLICY_KEY}
     policy = table.get(_POLICY_KEY)
     if isinstance(policy, dict):
         _warn_unknown_keys(policy, list(_POLICY_DEFAULTS), _POLICY_TABLE_NAME, toml_path)
@@ -263,6 +274,134 @@ def _resolve_exclude(
         )
         return None
     return patterns, source
+
+
+def _resolve_strict(strict: _ConfigBool, exit_zero: bool, config: _Config) -> Optional[bool]:
+    """Resolve strict mode as flag > ``strict`` in ``[tool.pydeprecate]`` > off, printing any usage error.
+
+    Strict mode fails a run that recorded any gap, and ``--exit-zero`` passes every run, so the two together would make
+    one of them a silent no-op. Typed side by side on one command line they are a usage error. A strict mode that only
+    ``pyproject.toml`` switched on is not something this run asked for, so a typed ``--exit-zero`` overrides it (with a
+    one-line stderr note): the GitHub Action runner appends ``--exit-zero`` to a project's own command line and could
+    not otherwise run an advisory step in a project that declares ``strict = true``.
+
+    Args:
+        strict: The ``--strict`` flag value, or :data:`_FROM_PYPROJECT` when it was not typed.
+        exit_zero: Whether ``--exit-zero`` was given.
+        config: The already-loaded ``[tool.pydeprecate]`` configuration.
+
+    Returns:
+        Whether the run is strict, or ``None`` after printing a usage error (the caller exits 2): a value from the file
+        that is not a boolean, or a typed ``--strict`` together with ``--exit-zero``.
+
+    """
+    value, source = _resolve_setting(strict, config[0], _STRICT_KEY, False, config)
+    if not isinstance(value, bool):
+        _print(
+            f"Invalid `{_STRICT_KEY}` value `{value}` from {_describe_source(_STRICT_KEY, _CONFIG_TABLE_NAME, source)};"
+            " expected `true` or `false`.",
+            stderr=True,
+        )
+        return None
+    if not (value and exit_zero):
+        return value
+    described = _describe_source(_STRICT_KEY, _CONFIG_TABLE_NAME, source)
+    if source == "flag":
+        _print(
+            f"Strict mode (from {described}) and `--exit-zero` contradict each other: strict mode fails a run on its "
+            "gaps, `--exit-zero` passes every run; drop one of them.",
+            stderr=True,
+        )
+        return None
+    _print(f"Strict mode (from {described}) is disabled by `--exit-zero` for this run.", stderr=True)
+    return False
+
+
+def _split_patterns(raw: Union[str, Sequence[str]]) -> list[str]:
+    """Split one comma-separated string, or each item of a list, into its non-empty stripped patterns.
+
+    Examples:
+        >>> _split_patterns(["a:b, c:d", ""]), _split_patterns("")
+        (['a:b', 'c:d'], [])
+
+    """
+    items = [raw] if isinstance(raw, str) else list(raw)
+    return [part.strip() for item in items for part in item.split(",") if part.strip()]
+
+
+def _reject_list_literal_ignore(raw_ignore: Union[str, Sequence[str]], source: str) -> bool:
+    """Print a usage error and return True when an ``ignore`` item is a Python list or tuple literal.
+
+    Checked on each item before the comma split, which would otherwise tear a literal into entries that each look merely
+    malformed (or, for one element, parse as an entry that matches nothing, leaving the finding unaccepted while the
+    author believes otherwise). Mirrors the guard :func:`_resolve_exclude` applies to ``--exclude``.
+
+    """
+    items = [raw_ignore] if isinstance(raw_ignore, str) else raw_ignore
+    literal = next((item for item in items if _is_list_literal(item)), None)
+    if literal is None:
+        return False
+    if source == "flag":
+        _print(
+            f"Invalid `--{_IGNORE_KEY}` value `{literal}`; pass comma-separated entries such as"
+            " `--ignore='expired:pkg.legacy:old_api,pkg.legacy:*'`, not a list.",
+            stderr=True,
+        )
+    else:
+        where = _describe_source(_IGNORE_KEY, _CONFIG_TABLE_NAME, source)
+        _print(
+            f"Invalid `{_IGNORE_KEY}` entry `{literal}` from {where}; expected one entry such as"
+            ' `"pkg.legacy:old_api"` per item, not a list.',
+            stderr=True,
+        )
+    return True
+
+
+def _resolve_suppressor(ignore: _ConfigList, baseline: _ConfigFlag, config: _Config) -> Optional[_Suppressor]:
+    """Resolve the ignore entries and the baseline as flag > ``pyproject.toml`` > none, printing any usage error.
+
+    A flag replaces the file's value; ``--ignore=`` and ``--baseline=`` switch the file's value off for one run. A
+    ``baseline`` path in ``pyproject.toml`` is relative to that file's directory.
+
+    Returns:
+        The run's suppressor, or ``None`` after printing a usage error (the caller exits 2): an ignore entry or list
+        that is malformed (a Python list literal included), a ``baseline`` value that is not a string, or a baseline
+        file that cannot be read or is not a report with finding ids.
+
+    """
+    raw_ignore, ignore_source = _resolve_setting(ignore, config[0], _IGNORE_KEY, [], config)
+    if not isinstance(raw_ignore, (str, list, tuple)) or not all(isinstance(item, str) for item in raw_ignore):
+        _print(
+            f"Invalid `{_IGNORE_KEY}` value `{raw_ignore}` from "
+            f"{_describe_source(_IGNORE_KEY, _CONFIG_TABLE_NAME, ignore_source)}; expected a list of entries such as"
+            ' `["pkg.legacy:old_api"]`.',
+            stderr=True,
+        )
+        return None
+    if _reject_list_literal_ignore(raw_ignore, ignore_source):
+        return None
+    raw_baseline, baseline_source = _resolve_setting(baseline, config[0], _BASELINE_KEY, None, config)
+    if raw_baseline is not None and not isinstance(raw_baseline, str):
+        _print(
+            f"Invalid `{_BASELINE_KEY}` value `{raw_baseline}` from "
+            f"{_describe_source(_BASELINE_KEY, _CONFIG_TABLE_NAME, baseline_source)}; expected a file path.",
+            stderr=True,
+        )
+        return None
+    try:
+        entries = _parse_ignore(
+            _split_patterns(raw_ignore), _describe_source(_IGNORE_KEY, _CONFIG_TABLE_NAME, ignore_source)
+        )
+        baseline_ids: frozenset[str] = frozenset()
+        if raw_baseline:
+            baseline_path = Path(raw_baseline)
+            if baseline_source not in ("flag", "built-in") and not baseline_path.is_absolute():
+                baseline_path = Path(baseline_source).parent / baseline_path
+            baseline_ids = _load_baseline(str(baseline_path))
+    except ValueError as err:
+        _print(str(err), stderr=True)
+        return None
+    return _Suppressor(ignore=entries, baseline=baseline_ids)
 
 
 def _resolve_policy_spec(

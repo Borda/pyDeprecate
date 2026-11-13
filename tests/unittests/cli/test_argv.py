@@ -19,7 +19,7 @@ from deprecate._cli.argv import (
     _parse_cli_args,
     _parse_switchable,
 )
-from deprecate._cli.commands import cmd_all, cmd_check, cmd_expiry, cmd_policy
+from deprecate._cli.commands import cmd_all, cmd_chains, cmd_check, cmd_expiry, cmd_policy
 
 _CHECK_BOOL_PARAMS = frozenset({"exit_zero", "recursive"})
 
@@ -140,13 +140,15 @@ class TestCliCommand:
     @pytest.mark.parametrize(
         ("name", "expected"),
         [
-            pytest.param("check", {"exit_zero", "include_members", "recursive"}, id="check"),
-            pytest.param("expiry", {"exit_zero", "include_members", "recursive", "static"}, id="expiry"),
+            pytest.param("check", {"exit_zero", "include_members", "recursive", "strict"}, id="check"),
+            pytest.param("expiry", {"exit_zero", "include_members", "recursive", "static", "strict"}, id="expiry"),
             pytest.param(
-                "policy", {"exit_zero", "include_members", "message_required", "recursive", "static"}, id="policy"
+                "policy",
+                {"exit_zero", "include_members", "message_required", "recursive", "static", "strict"},
+                id="policy",
             ),
-            pytest.param("chains", {"exit_zero", "include_members", "recursive"}, id="chains"),
-            pytest.param("all", {"exit_zero", "include_members", "recursive"}, id="all"),
+            pytest.param("chains", {"exit_zero", "include_members", "recursive", "strict"}, id="chains"),
+            pytest.param("all", {"exit_zero", "include_members", "recursive", "strict"}, id="all"),
             pytest.param("status", {"include_members", "recursive"}, id="status"),
         ],
     )
@@ -226,6 +228,19 @@ class TestParseCliArgs:
                 id="policy-rules",
             ),
             pytest.param(["all"], cmd_all, {}, id="nothing-typed"),
+            pytest.param(
+                ["expiry", "pkg", "--ignore", "a:b,c:d", "--ignore=e:f"],
+                cmd_expiry,
+                {"path": "pkg", "ignore": ["a:b,c:d", "e:f"]},
+                id="ignore-repeated",
+            ),
+            pytest.param(["check", "pkg", "--ignore="], cmd_check, {"path": "pkg", "ignore": [""]}, id="ignore-empty"),
+            pytest.param(
+                ["chains", "pkg", "--baseline", "b.json"],
+                cmd_chains,
+                {"path": "pkg", "baseline": "b.json"},
+                id="baseline",
+            ),
         ],
     )
     def test_binds_typed_options_only(
