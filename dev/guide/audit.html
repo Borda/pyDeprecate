@@ -100,7 +100,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-04-21",
-  "dateModified": "2026-11-12"
+  "dateModified": "2026-11-13"
 }
 </script>
 
@@ -2019,6 +2019,7 @@
 <li><code>empty_deprecated_in</code> — <code>True</code> when <code>deprecated_in</code> is absent or empty; useful in CI to surface wrappers with no version annotation</li>
 <li><code>api_type</code> — inferred API kind for report generation (e.g. <code>callable</code>, <code>args</code>, <code>class</code>, <code>dataclass attributes</code>, <code>class method</code>); excluded from <code>repr()</code> to keep snapshot tests stable</li>
 <li><code>pep702_message</code> — <code>None</code> for every pyDeprecate wrapper; on a row that <code>find_deprecation_wrappers(..., include_pep702=True)</code> reports for a symbol deprecated only with <code>warnings.deprecated</code>, the decorator's message (a string, possibly empty) — such rows have no versions, so <code>empty_deprecated_in</code> is <code>True</code> (see <a href="#pep-702-only-deprecations">PEP 702-only deprecations</a>); excluded from <code>repr()</code></li>
+<li><code>source_file</code>, <code>source_line</code> — since 0.16, where the deprecated object is defined: the absolute file and the line of its first decorator (the outermost one, such as a <code>functools.lru_cache</code> above <code>@deprecated</code>; a class's <code>class</code> line or its decorator, a function's outermost <code>@</code> line). <code>None</code> for a <code>deprecated_instance</code> data object, for a class built at runtime (a functional <code>Enum</code> or a <code>type()</code> call) and for a function compiled from a string (a class built by <code>exec</code> in a namespace named after a real module may be attributed to that module's file on Python 3.13+); a deprecated module has its file but no line. Neither field takes part in equality or <code>repr()</code>, so existing comparisons are unchanged</li>
 </ul>
 <div class="admonition note">
 <p class="admonition-title"><code>DeprecationConfig</code> cache fields leave in v1.0</p>
@@ -2306,10 +2307,11 @@
 <ul>
 <li>Class members decorated with <code>@deprecated</code> (e.g. an <code>__init__</code> wrapped by <code>deprecated_class</code> delegation) are included by default (<code>include_members=True</code>) — pass <code>include_members=False</code> to restrict the scan to module-level callables.</li>
 <li>Callables without <code>remove_in</code> are skipped — notice-only deprecations are allowed.</li>
-<li>Invalid version formats in <code>remove_in</code> are skipped with a <code>UserWarning</code> naming the callable and the unparsable version (the CLI prints a <code>remove_in not PEP 440</code> gap line instead), so the expiry of that callable is not checked.</li>
+<li>Invalid version formats in <code>remove_in</code> are skipped with a <code>UserWarning</code> naming the callable and the unparsable version (the CLI prints a <code>remove_in not PEP 440</code> gap line instead), so the expiry of that callable is not checked; <code>pydeprecate policy</code> likewise prints a <code>remove_in not PEP 440</code> or <code>deprecated_in not PEP 440</code> gap for a version its <code>min-grace</code> rule could not parse, which fails a <code>--strict</code> run.</li>
 <li>PEP 440 versioning is used for comparison (e.g. <code>"2.0.0" &gt; "1.9.5"</code>).</li>
 <li>Pre-release versions are handled correctly (e.g. <code>"1.5.0a1" &lt; "1.5.0"</code>).</li>
 </ul>
+<p>To accept a removal that has to wait — a symbol a downstream release still needs — without excluding its whole module, use the CLI's ignore list or a baseline report; see <a href="cli.html#accepting-known-findings">Accepting known findings</a>. The Python API has no such filter: it returns every finding, and your code decides what to keep.</p>
 <h3 id="pytest-integration-for-expiry-enforcement">pytest integration for expiry enforcement<a class="headerlink" href="#pytest-integration-for-expiry-enforcement" title="Permanent link">🔗</a></h3>
 <p>Wire expiry checks into your test suite so zombie code is caught before any tests run. The session-scoped autouse fixture pattern below prevents the suite from starting at all if expired deprecations are present.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
@@ -2694,11 +2696,11 @@
 </tr>
 <tr>
 <td><code>1</code></td>
-<td>Hard error found: invalid arg mappings, chains, expired wrappers, or policy violations under <code>policy</code></td>
+<td>Hard error found: invalid arg mappings, chains, expired wrappers, or policy violations under <code>policy</code>; with <code>--strict</code>, also any gap</td>
 </tr>
 <tr>
 <td><code>2</code></td>
-<td>A malformed setting: <code>--exclude</code>, or for <code>policy</code> a rule value, from a flag or from <code>[tool.pydeprecate]</code></td>
+<td>A malformed setting: <code>--exclude</code>, <code>strict</code>, or for <code>policy</code> a rule value, from a flag or from <code>[tool.pydeprecate]</code>; a typed <code>--strict</code> with <code>--exit-zero</code></td>
 </tr>
 <tr>
 <td><code>3</code></td>
@@ -2761,6 +2763,11 @@
 <td>Extra CLI flags, split with shell-style quoting, e.g. <code>--exclude='mypackage.tests,*._legacy*' --version 2.0</code>. Backslashes are escape characters, so quote Windows paths or use <code>/</code>.</td>
 </tr>
 <tr>
+<td><code>fail-on-gap</code></td>
+<td><code>false</code></td>
+<td>Fail the step when any part of the audit did not run (<code>--strict</code>, since 0.16), such as a module that could not be imported; not valid with <code>exit-zero</code> or <code>status</code>; <code>exit-zero: true</code> also switches off a <code>strict = true</code> from <code>pyproject.toml</code>, so an advisory step passes. With <code>install: false</code> and an older pyDeprecate the CLI rejects the option with exit code <code>2</code>.</td>
+</tr>
+<tr>
 <td><code>exit-zero</code></td>
 <td><code>false</code></td>
 <td>Report findings without failing the step (<code>--exit-zero</code>); not valid with <code>status</code>.</td>
@@ -2777,7 +2784,7 @@
 </tr>
 </tbody>
 </table>
-<p>The step finishes with the CLI's own exit code (see the table above; <code>3</code> gets an error annotation naming a scan or internal error), with three exceptions of its own: a <code>path</code> starting with <code>-</code> exits <code>2</code>, a failed <code>pip install</code> (<code>install: true</code>) returns pip's exit code, and a CLI process that cannot be started returns <code>1</code>. The action has no static input; to audit without importing the package, pass <code>--static</code> through <code>args</code> with <code>subcommand: expiry</code> or <code>policy</code> (see <a href="cli.html#static-mode">Static mode</a>). A failing run adds an error annotation to the pull request's checks. The CLI has no "fail on warning" mode: advisory findings such as identity mappings never fail the step, and <code>exit-zero: true</code> turns hard errors into reports while you clear a backlog.</p>
+<p>The step finishes with the CLI's own exit code (see the table above; <code>3</code> gets an error annotation naming a scan or internal error), with three exceptions of its own: a <code>path</code> starting with <code>-</code> exits <code>2</code>, a failed <code>pip install</code> (<code>install: true</code>) returns pip's exit code, and a CLI process that cannot be started returns <code>1</code>. The action has no static input; to audit without importing the package, pass <code>--static</code> through <code>args</code> with <code>subcommand: expiry</code> or <code>policy</code> (see <a href="cli.html#static-mode">Static mode</a>). A failing run adds an error annotation to the pull request's checks. The CLI has no "fail on warning" mode: advisory findings such as identity mappings never fail the step, and <code>exit-zero: true</code> turns hard errors into reports while you clear a backlog. <code>fail-on-gap: true</code> makes an incomplete audit fail the step: every gap the run annotates then also fails it.</p>
 <p><strong>The <code>uses:</code> ref pins the pyDeprecate version.</strong> With the default <code>install: true</code> the action installs pyDeprecate from the same commit as the action itself, so <code>@v0.15.0</code> audits with 0.15.0. That install replaces whatever pyDeprecate version your job already had, for every later step too, and the action warns when it does. Pin the action to the release your project depends on, or install <code>pyDeprecate[audit,cli]</code> yourself and set <code>install: false</code>. Set <code>install: false</code> as well where <code>pip</code> is unavailable, such as a uv-managed virtual environment.</p>
 <div class="admonition warning">
 <p class="admonition-title">A green run can still have gaps</p>
@@ -3184,7 +3191,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 12, 2026 20:20:52 UTC">2026-11-12</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 13, 2026 09:57:31 UTC">2026-11-13</span>
   </span>
 
     

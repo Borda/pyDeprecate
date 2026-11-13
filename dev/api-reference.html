@@ -5306,6 +5306,9 @@ mistake it for a :class:<code>Warning</code> subclass.  The message is the same 
 configuration is meaningful.
 Returns comprehensive information about each deprecated wrapper including validation results that help identify
 misconfigured wrappers.</p>
+<p>A wrapper bound under several public names in one module is reported once, under the binding named like the wrapper
+(its <code>__name__</code>), so an unrelated alias never renames its row; when no binding carries that name (a private
+<code>__name__</code>, a deprecated class or instance proxy) the first public name in alphabetical order reports it.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -7008,6 +7011,33 @@ write/delete gap.  <code>False</code> for outer-order properties, non-property w
 deprecated only with <code>warnings.deprecated</code>/<code>typing_extensions.deprecated</code>, the message that decorator
 recorded on <code>__deprecated__</code> — a string, possibly empty. It is the only metadata such an object carries,
 so <code>deprecated_info</code> holds no versions or target and <code>empty_deprecated_in</code> is <code>True</code>.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="deprecate.audit.DeprecationWrapperInfo.source_file">source_file</span></code></td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="str">str</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Absolute path of the file that defines the deprecated object, or <code>None</code> when it has none: a
+:func:<code>~deprecate.proxy.deprecated_instance</code> data object, a class built at runtime (a functional <code>Enum</code>
+or a <code>type()</code> call), or a function compiled from a string. A class built by <code>exec</code> in a namespace named
+after a real module may be attributed to that module's file (Python 3.13+). For a deprecated module it is
+the module's file.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="deprecate.audit.DeprecationWrapperInfo.source_line">source_line</span></code></td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="int">int</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>First line of the definition — the line of its first decorator — or <code>None</code> with no
+<code>source_file</code> and for a deprecated module. Neither field takes part in equality or <code>repr</code>.</p>
               </div>
             </td>
           </tr>
