@@ -504,25 +504,36 @@ def _worker_scan(
     # The worker must load the same pyDeprecate source as this process before restoring the caller's import path.
     package_root = str(Path(__file__).resolve().parents[2])
     env["PYTHONPATH"] = os.pathsep.join([package_root, *(os.fspath(path) for path in sys.path)])
-    with tempfile.TemporaryDirectory(prefix="pydeprecate-scan-") as directory:
+    # File-backed output lets the worker finish even when imported code starts a child that inherits its streams.
+    with (
+        tempfile.TemporaryDirectory(prefix="pydeprecate-scan-") as directory,
+        tempfile.TemporaryFile() as stdout,
+        tempfile.TemporaryFile() as stderr,
+    ):
         response_path = Path(directory) / "response.json"
         process = subprocess.run(  # noqa: S603 -- fixed interpreter and internal worker module
             [sys.executable, "-m", "deprecate._cli._worker", str(response_path)],
             input=json.dumps(request),
             text=True,
-            capture_output=True,
+            encoding="utf-8",
+            stdout=stdout,
+            stderr=stderr,
             env=env,
             check=False,
         )
+        stdout.seek(0)
+        stderr.seek(0)
+        stdout_text = stdout.read().decode("utf-8", errors="replace")
+        stderr_text = stderr.read().decode("utf-8", errors="replace")
         if process.returncode != 0:
-            raise _ScanError(f"isolated scan of {plan.path!r} failed: {process.stderr.strip() or process.returncode}")
+            raise _ScanError(f"isolated scan of {plan.path!r} failed: {stderr_text.strip() or process.returncode}")
         try:
             payload = json.loads(response_path.read_text(encoding="utf-8"))
         except (OSError, ValueError) as exc:
             raise _ScanError(f"isolated scan of {plan.path!r} returned an invalid response: {exc}") from exc
     phase = payload["phases"]["scan"]
-    sys.stdout.write(phase["stdout"] + process.stdout)
-    sys.stderr.write(phase["stderr"] + process.stderr)
+    sys.stdout.write(phase["stdout"] + stdout_text)
+    sys.stderr.write(phase["stderr"] + stderr_text)
     if payload["status"] == "usage":
         return None
     if payload["status"] == "scan-error":
@@ -805,8 +816,8 @@ def _expiry_derive(
     """Record and return the active ``expired`` findings, or ``None`` when the check could not run (gap printed).
 
     A ``--static`` scan (*static*) checks the wrappers whose ``remove_in`` the source settled; a ``not statically
-    resolvable`` gap names each one it left out, printed only once the check has run — when it could not (no version,
-    an invalid one, no ``packaging``) it has already printed why, and a gap per wrapper would imply that the others were
+    resolvable`` gap names each one it left out, printed only once the check has run — when it could not (no version, an
+    invalid one, no ``packaging``) it has already printed why, and a gap per wrapper would imply that the others were
     checked.
 
     """

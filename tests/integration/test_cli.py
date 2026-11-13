@@ -2199,6 +2199,58 @@ class TestCliMultiPath:
         assert single.stderr.index("ERR-BUFFER") < single.stderr.index("ERR-FD")
         assert multi.stderr.index("ERR-BUFFER") < multi.stderr.index("ERR-FD")
 
+    def test_isolated_scan_replaces_invalid_diagnostic_bytes(self, tmp_path: Path) -> None:
+        """Keep scanning and write the report when imported code emits invalid UTF-8 on file descriptors.
+
+        Native code can write arbitrary bytes directly to the worker's stdout and stderr, bypassing Python's text
+        streams. Those diagnostics must not prevent the successful worker response from being read.
+
+        """
+        first = _make_pkg(
+            tmp_path,
+            name="binary_diagnostic",
+            content="import os\nos.write(1, b'out\\xff')\nos.write(2, b'err\\xff')\n",
+        )
+        second = _make_pkg(tmp_path, name="binary_second", content="")
+        report = tmp_path / "report.json"
+        result = _run_cli("check", str(first), str(second), f"--report-json={report}", cwd=tmp_path)
+        assert result.returncode == 0, result.stderr
+        assert "out\ufffd" in result.stdout
+        assert "err\ufffd" in result.stderr
+        assert json.loads(report.read_text(encoding="utf-8"))["paths"] == [str(first), str(second)]
+
+    def test_isolated_scan_does_not_wait_for_background_descendant(self, tmp_path: Path) -> None:
+        """Finish an audit while an imported package's background process still holds its standard streams.
+
+        A library may start a long-lived child during import. The worker can finish its scan without waiting for
+        that unrelated process to close inherited output handles.
+
+        """
+        release = tmp_path / "release-child"
+        child = (
+            f"import pathlib, time\np = pathlib.Path({str(release)!r})\n"
+            "deadline = time.monotonic() + 60\nwhile not p.exists() and time.monotonic() < deadline: time.sleep(0.1)\n"
+        )
+        body = f"import subprocess, sys\nsubprocess.Popen([sys.executable, '-c', {child!r}])\n"
+        first = _make_pkg(tmp_path, name="background_diagnostic", content=body)
+        second = _make_pkg(tmp_path, name="background_second", content="")
+        report = tmp_path / "report.json"
+        try:
+            result = subprocess.run(
+                [sys.executable, "-m", "deprecate", "check", str(first), str(second), f"--report-json={report}"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                env=_cli_env(),
+                cwd=tmp_path,
+                timeout=15,
+                check=False,
+            )
+        finally:
+            release.touch()
+        assert result.returncode == 0, result.stderr
+        assert json.loads(report.read_text(encoding="utf-8"))["paths"] == [str(first), str(second)]
+
     def test_isolated_scan_failure_keeps_exit_and_report_contract(self, tmp_path: Path) -> None:
         """A broken second scan exits 3 and leaves no report despite the first successful scan.
 
