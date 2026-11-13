@@ -566,6 +566,24 @@ class TestBindingIdentity:
                 id="no-binding-named-like-the-wrapper-takes-the-alphabetically-first",
             ),
             pytest.param(
+                "def zeta(x):\n    return x\n\nzeta = deprecated(deprecated_in='1.0', remove_in='2.0')(zeta)\n"
+                "alpha = zeta\n",
+                ["zeta"],
+                id="expression-wrapper-canonical-binding",
+            ),
+            pytest.param(
+                "def zeta(x):\n    return x\n\nsource = zeta\nzeta = deprecated(deprecated_in='1.0', "
+                "remove_in='2.0')(source)\nalpha = zeta\n",
+                ["zeta"],
+                id="expression-wrapper-aliased-source",
+            ),
+            pytest.param(
+                "class API:\n    def zeta(self):\n        return 1\n\n"
+                "    zeta = deprecated(deprecated_in='1.0', remove_in='2.0')(zeta)\n    alpha = zeta\n",
+                ["API.alpha", "API.zeta"],
+                id="expression-wrapper-class-members",
+            ),
+            pytest.param(
                 "class Base:\n    @deprecated(deprecated_in='1.0', remove_in='2.0')\n    def old(self):\n"
                 "        return 1\n\nclass Sub(Base):\n    pass\n",
                 ["Base.old", "Sub.old"],
