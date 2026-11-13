@@ -17,6 +17,7 @@ from deprecate.proxy import deprecated_class, deprecated_instance
 from deprecate.proxy.core import _DeprecatedProxy, _proxy_call_global, _ProxySpec
 from tests._helpers import captured_warnings
 from tests.collections.api_current.core import ColorEnum, NewDataClass, SomeTargetClass, WithInjected, base_sum_kwargs
+from tests.collections.api_current.forwarding import keyword_overflow_target
 from tests.collections.api_deprecated.core import (
     _DEPRS_CASE_STD_ARGS,
     MappedColorEnum,
@@ -29,6 +30,7 @@ from tests.collections.api_deprecated.forwarding import (
     ProxyArgsRemapForArgWarnMessage,
     ProxyCallableWithArgsMapping,
     ProxyClassWithArgsExtra,
+    keyword_overflow_source,
 )
 from tests.collections.api_deprecated.regressions import (
     make_deprecated_class_attrs_skip_if_true,
@@ -52,6 +54,38 @@ def _positional_default_echo(x: int = 1, /, **kwargs: object) -> tuple[int, dict
 def _positional_pair(a: int = 0, b: int = 0, /) -> tuple[int, int]:
     """Return both positional-only parameters, showing which value reached ``a``."""
     return a, b
+
+
+class TestMappedCallReconstruction:
+    """Source keyword binding survives copying and serialization of mapped proxies."""
+
+    @pytest.mark.parametrize(
+        "duplicate",
+        [
+            pytest.param(lambda obj: obj, id="original"),
+            pytest.param(copy.copy, id="copy"),
+            pytest.param(copy.deepcopy, id="deepcopy"),
+            pytest.param(lambda obj: pickle.loads(pickle.dumps(obj)), id="pickle"),  # noqa: S301
+        ],
+    )
+    def test_keyword_overflow_collision_raises(self, duplicate: Callable[[Any], Any]) -> None:
+        """Reject a renamed argument colliding with a source keyword after a round trip.
+
+        A legacy callable accepts a positional-only name inside arbitrary options. A mapped alias sends a second
+        argument to that name on the replacement; serialization must preserve the duplicate-keyword error.
+        """
+        proxy = deprecated_instance(
+            keyword_overflow_source,
+            target=keyword_overflow_target,
+            args_mapping={"a": "x"},
+            deprecated_in="0.1",
+            remove_in="0.5",
+            stream=None,
+        )
+        restored = duplicate(proxy)
+
+        with pytest.raises(TypeError, match="multiple values for keyword argument 'x'"):
+            restored(a=1, x=99)
 
 
 class _PositionalDefaultRecord(tuple):
@@ -230,7 +264,7 @@ class TestArgsMapping:
         because the dict-comprehension last-write-wins in the proxy's ``args_mapping`` rename (now
         ``deprecate.utils._remap_kwargs``) caused the ``old_key→new_key`` rename to overwrite the explicit
         ``new_key=6`` entry.
-        This path exercises ``_proxy_call_args_remap`` (no callable target, ARGS_REMAP mode).
+        This path exercises ``_proxy_call_mapped`` in ARGS_REMAP mode without a callable target.
         """
         with pytest.warns(FutureWarning), pytest.warns(UserWarning, match=r"`old_key` is ignored"):
             instance = ProxyArgsRemapForArgWarnMessage(new_key=6, old_key=5)  # type: ignore[call-arg]
@@ -560,7 +594,7 @@ class TestProxyArgsMappingBehavior:
 
         A fresh proxy with ``target=SomeTargetClass`` and ``args_mapping={"old_key": "new_key"}`` is
         instantiated with ``old_key=5, new_key=6``; the remapped ``old_key→new_key=5`` must not
-        overwrite the explicitly passed ``new_key=6``. Exercises ``_proxy_call_callable_with_mapping``.
+        overwrite the explicitly passed ``new_key=6``. Exercises ``_proxy_call_mapped`` with a callable target.
         """
         proxy = _DeprecatedProxy(
             obj=SomeTargetClass,
@@ -584,7 +618,7 @@ class TestProxyArgsMappingBehavior:
         because the dict-comprehension last-write-wins in the proxy's ``args_mapping`` rename (now
         ``deprecate.utils._remap_kwargs``) caused the ``old_key→new_key`` rename to overwrite the explicit
         ``new_key=6`` entry.
-        Exercises ``_proxy_call_callable_with_mapping`` (has a callable target, not ARGS_REMAP mode).
+        Exercises ``_proxy_call_mapped`` with a callable target rather than ARGS_REMAP mode.
         """
         proxy = _DeprecatedProxy(
             obj=SomeTargetClass,

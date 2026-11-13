@@ -138,12 +138,11 @@ class TestProxyWarnBehavior:
         assert caught[0].filename.endswith("test_core_warnings.py")
 
     def test_warn_filename_points_to_caller_on_args_remap_path(self) -> None:
-        """_proxy_call_args_remap path attributes FutureWarning to the caller's frame.
+        """Mapped calls in ARGS_REMAP mode attribute FutureWarning to the caller's frame.
 
         When a proxy with TargetMode.ARGS_REMAP receives a deprecated kwarg, it routes
-        through ``_proxy_call_args_remap``. The extra call frame introduced by the helper
-        must be compensated by ``_extra_frames=1`` so the warning attributes to this test
-        file rather than ``proxy.py``.
+        through ``_proxy_call_mapped``. Warning stacklevel calculation must account for the helper's frame so the
+        warning attributes to this test file.
 
         """
         with captured_warnings() as caught:
@@ -153,12 +152,11 @@ class TestProxyWarnBehavior:
         assert future_warnings[0].filename.endswith("test_core_warnings.py")
 
     def test_warn_filename_points_to_caller_on_callable_with_mapping_path(self) -> None:
-        """_proxy_call_callable_with_mapping path attributes FutureWarning to the caller's frame.
+        """Mapped calls to a callable target attribute FutureWarning to the caller's frame.
 
         When a proxy with a callable target and args_mapping receives a deprecated kwarg,
-        it routes through ``_proxy_call_callable_with_mapping``. The extra call frame must
-        be compensated by ``_extra_frames=1`` so the warning attributes to this test file
-        rather than ``proxy.py``.
+        it routes through ``_proxy_call_mapped``. Warning stacklevel calculation must account for the helper's frame
+        so the warning attributes to this test file.
 
         """
         with captured_warnings() as caught:

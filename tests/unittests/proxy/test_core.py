@@ -20,6 +20,7 @@ from deprecate.proxy import deprecated_class, deprecated_instance
 from deprecate.proxy.core import (
     _BindingDeprecatedProxy,
     _DeprecatedProxy,
+    _innermost_active,
     _ProxySpec,
     _reconstruct_proxy,
     _restore_pep702_marker,
@@ -1020,6 +1021,8 @@ class TestProxyCopyPickle:
         (routing back into ``__getattr__`` must not recurse into the ``_cfg`` property again).
         """
         blank = _DeprecatedProxy.__new__(_DeprecatedProxy)
+        assert blank.__class__ is _DeprecatedProxy
+        assert not isinstance(blank, list)
         with pytest.raises(AttributeError):
             _ = blank.anything
 
@@ -1126,6 +1129,83 @@ class TestProxyCopyPickle:
 
 class TestProxySubclassing:
     """PEP 560 subclassing of deprecated class aliases via ``__mro_entries__``."""
+
+    @pytest.mark.parametrize("skip", [True, False])
+    @pytest.mark.parametrize("stacked", [True, False])
+    def test_skip_selects_source_base(self, skip: bool, stacked: bool) -> None:
+        """Select the same class for construction, subclassing and structural checks.
+
+        A conditional class alias must derive from its source while skipped, including when another silent proxy
+        wraps it. Turning deprecation back on selects the replacement for every class operation.
+        """
+        inner = deprecated_class(target=NewCls, skip_if=skip, **_DEPRS_CASE_STD_ARGS)(SubclassableBase)
+        alias = deprecated_class(skip_if=True, **_DEPRS_CASE_STD_ARGS)(inner) if stacked else inner
+        expected = SubclassableBase if skip else NewCls
+        with captured_warnings() as caught:
+
+            class Child(alias):  # type: ignore[misc,valid-type]
+                """Mechanical subclass exercising PEP 560 base resolution."""
+
+        assert Child.__bases__ == (expected,)
+        assert isinstance(object.__new__(expected), alias)
+        assert issubclass(expected, alias)
+        assert len(caught) == (0 if skip or stacked else 1)
+
+    @pytest.mark.parametrize("skip", [True, False])
+    @pytest.mark.parametrize("stacked", [True, False])
+    def test_skip_selects_instance_class(self, skip: bool, stacked: bool) -> None:
+        """Report the type of the source while a replacement proxy is skipped.
+
+        Structural consumers must recognize the same list or tuple that item reads serve, even through a silent
+        outer proxy. Type probes must neither warn nor consume a warning budget.
+        """
+        inner = deprecated_instance([1, 2], target=(9, 9), skip_if=skip, **_DEPRS_CASE_STD_ARGS)
+        proxy = deprecated_instance(inner, skip_if=True, **_DEPRS_CASE_STD_ARGS) if stacked else inner
+        with captured_warnings() as caught:
+            is_list, is_tuple = isinstance(proxy, list), isinstance(proxy, tuple)
+
+        assert (is_list, is_tuple) == (skip, not skip)
+        assert not caught
+
+    def test_replacement_stack_checks_each_skip_once(self) -> None:
+        """Resolve a replacement proxy using one decision per layer.
+
+        A nested conditional replacement may change its skip decision on each call. Classifying it as a replacement
+        must not evaluate that condition before the runtime walk reaches the replacement itself.
+        """
+        calls: list[bool] = []
+
+        def _skip() -> bool:
+            """Record evaluation of the mechanical condition."""
+            calls.append(True)
+            return True
+
+        inner = deprecated_instance(10, target=20, skip_if=_skip, **_DEPRS_CASE_STD_ARGS)
+        outer = deprecated_instance(1, target=inner, **_DEPRS_CASE_STD_ARGS)
+        assert not calls
+
+        assert _innermost_active(outer) == 10
+        assert calls == [True]
+
+    def test_subclass_base_and_warning_share_skip_decision(self) -> None:
+        """Choose a base and deliver its warning using the same skip decision.
+
+        A condition that alternates after each evaluation must not warn about the replacement while selecting the
+        source as the base. Subclass creation consumes just its initial live decision.
+        """
+        decisions = iter([False, True])
+
+        def _skip() -> bool:
+            """Return the next mechanical skip decision."""
+            return next(decisions)
+
+        alias = deprecated_class(target=NewCls, skip_if=_skip, **_DEPRS_CASE_STD_ARGS)(SubclassableBase)
+
+        with pytest.warns(FutureWarning, match="was deprecated"):
+            entries = alias.__mro_entries__(())
+
+        assert entries == (NewCls,)
+        assert next(decisions) is True
 
     def test_subclass_derives_from_active_class(self) -> None:
         """``class Child(DeprecatedAlias)`` transparently subclasses the wrapped class and inherits its behaviour.
