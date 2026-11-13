@@ -3,22 +3,7 @@
   "title": "pyDeprecate --report-json, layout version 1",
   "description": "The machine-readable record of one pydeprecate CLI run. Readers must ignore keys they do not know: adding a key never bumps `schema`.",
   "type": "object",
-  "required": [
-    "schema",
-    "tool",
-    "command",
-    "mode",
-    "paths",
-    "versions",
-    "options",
-    "gate",
-    "exit_code",
-    "table",
-    "gaps",
-    "findings",
-    "suppressed",
-    "summary"
-  ],
+  "required": ["schema", "table", "gaps"],
   "properties": {
     "schema": { "const": 1 },
     "tool": {
@@ -70,7 +55,7 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["kind", "detail", "hint", "path"],
+        "required": ["kind", "detail", "hint"],
         "properties": {
           "kind": { "type": "string" },
           "detail": { "type": "string" },
