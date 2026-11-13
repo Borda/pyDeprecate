@@ -23,7 +23,11 @@ def _report_unresolved(wrappers: Sequence[DeprecationWrapperInfo], keywords: Seq
     for info in wrappers:
         details = dict.fromkeys(_unresolved(info)[key] for key in keywords if key in _unresolved(info))
         for detail in details:
-            _print_gap(_GapKind.STATIC_UNRESOLVED, f"{detail} ({_format_subject(info)} not checked)")
+            _print_gap(
+                _GapKind.STATIC_UNRESOLVED,
+                f"{detail} ({_format_subject(info)} not checked)",
+                subject=(info.module, info.function),
+            )
 
 
 def _resolved(wrappers: Sequence[DeprecationWrapperInfo], keywords: Sequence[str]) -> list[DeprecationWrapperInfo]:

@@ -6,6 +6,7 @@ check's findings of all paths in one section and decides one exit code over all 
 
 """
 
+import os
 from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -40,6 +41,7 @@ from deprecate._cli.findings import (
 )
 from deprecate._cli.report import (
     _ensure_run_record,
+    _Gap,
     _gap_recorded,
     _GapKind,
     _join_tables,
@@ -51,6 +53,7 @@ from deprecate._cli.report import (
     _Reporter,
     _RunRecord,
     _ScanRecord,
+    _unrendered_table,
 )
 from deprecate._cli.scan import _preflight_targets, _scan_for_command, _ScanTarget
 from deprecate._cli.static.checks import _report_unresolved, _resolved, _static_policy_findings
@@ -71,8 +74,9 @@ from deprecate.audit._wrappers import _format_subject
 if TYPE_CHECKING:
     from deprecate.audit._policy import _OnUnparsableVersion, _PolicySpec
 
-#: The ``path`` argument of every subcommand: one path, or several scanned in one run.
-_PathArg = Union[str, Sequence[str]]
+#: The ``path`` argument of every subcommand: one path, or several scanned in one run; a direct call may pass a
+#: :class:`pathlib.Path` (or any ``os.PathLike``) wherever a string is accepted.
+_PathArg = Union[str, "os.PathLike[str]", Sequence[Union[str, "os.PathLike[str]"]]]
 
 
 class _PolicyFindings(Protocol):
@@ -156,6 +160,7 @@ def _record_remove_in_gap(info: DeprecationWrapperInfo) -> None:
     _print_gap(
         _GapKind.REMOVE_IN_INVALID,
         f"{_invalid_version_subject(info, 'remove_in')} so its removal deadline was not checked.",
+        subject=(info.module, info.function),
     )
 
 
@@ -173,13 +178,18 @@ def _record_grace_version_gap(info: DeprecationWrapperInfo, field_name: str) -> 
             _GapKind.EPOCH_CHANGE,
             f"{_format_subject(info)} spans `{config.deprecated_in}` to `{config.remove_in}`; "
             "its `min-grace` grace window was not checked.",
+            subject=(info.module, info.function),
         )
         return
     kind = _INVALID_VERSION_GAPS[field_name]
     subject = _invalid_version_subject(info, field_name)
     if _gap_recorded(kind, subject):
         return
-    _print_gap(kind, f"{subject} so its `{PolicyRule.MIN_GRACE.value}` grace window was not checked.")
+    _print_gap(
+        kind,
+        f"{subject} so its `{PolicyRule.MIN_GRACE.value}` grace window was not checked.",
+        subject=(info.module, info.function),
+    )
 
 
 def _save_table(markdown: str, output: str) -> None:
@@ -259,13 +269,36 @@ _GATES: dict[str, list[str]] = {
 def _as_paths(path: _PathArg) -> list[str]:
     """Return the paths of a run: *path* itself, or each path it lists; an empty list scans ``.`` as no path does.
 
+    A :class:`pathlib.Path` (any ``os.PathLike``) is one path, alone or in a list, and is returned as its string.
+
     Examples:
         >>> _as_paths("src/pkg"), _as_paths(["pkg_a", "pkg_b"]), _as_paths([])
         (['src/pkg'], ['pkg_a', 'pkg_b'], ['.'])
+        >>> _as_paths(Path("pkg_a")), _as_paths((Path("pkg_a"), "pkg_b"))
+        (['pkg_a'], ['pkg_a', 'pkg_b'])
 
     """
-    paths = [path] if isinstance(path, str) else list(path)
-    return paths or ["."]
+    if isinstance(path, (str, os.PathLike)):
+        return [os.fspath(path)]
+    return [os.fspath(item) for item in path] or ["."]
+
+
+def _covers(name: str, module: str) -> bool:
+    """Tell whether the not-audited *name* of a ``module not audited`` gap covers *module*.
+
+    A module name covers itself and its submodules; ``<package>.*``, the mark of a submodule walk that stopped early,
+    covers only the submodules, since the package itself was audited.
+
+    Examples:
+        >>> _covers("pkg", "pkg"), _covers("pkg", "pkg.sub"), _covers("pkg", "pkgx")
+        (True, True, False)
+        >>> _covers("pkg.*", "pkg.sub.deep"), _covers("pkg.*", "pkg"), _covers("pkg.*", "pkgx.sub")
+        (True, False, False)
+
+    """
+    if name.endswith(".*"):
+        return module.startswith(name[:-1])
+    return module == name or module.startswith(f"{name}.")
 
 
 @dataclass(frozen=True)
@@ -314,10 +347,11 @@ class _PathPlan:
     def audits(self, module: str, *, not_audited: frozenset[str] = frozenset()) -> bool:
         """Tell whether this path's scan audited *module*: inside its scope, not excluded, and imported.
 
-        *not_audited* holds the modules the scan reported as not audited (an import failure), with their submodules.
+        *not_audited* holds the modules the scan reported as not audited (an import failure), with their submodules, and
+        ``<package>.*`` for a submodule walk that stopped early, covering the submodules but not the package.
 
         """
-        if any(module == name or module.startswith(f"{name}.") for name in not_audited):
+        if any(_covers(name, module) for name in not_audited):
             return False
         if _is_excluded(module, self.exclude):
             return False
@@ -477,15 +511,41 @@ _SKIPPED_RULES: dict[_GapKind, frozenset[str]] = {
     _GapKind.VERSION_INVALID: frozenset({_Rule.EXPIRED.value}),
     _GapKind.PACKAGING_MISSING: frozenset({_Rule.EXPIRED.value, _Rule.MIN_GRACE.value}),
 }
+#: Gap kinds after which a check skipped one wrapper, and the rules whose baseline ids of that wrapper it would have
+#: matched; a wrapper or setting ``--static`` could not read from the source keeps every rule of it from matching.
+_SKIPPED_WRAPPER_RULES: dict[_GapKind, frozenset[str]] = {
+    _GapKind.REMOVE_IN_INVALID: frozenset({_Rule.EXPIRED.value, _Rule.MIN_GRACE.value}),
+    _GapKind.DEPRECATED_IN_INVALID: frozenset({_Rule.MIN_GRACE.value}),
+    _GapKind.EPOCH_CHANGE: frozenset({_Rule.MIN_GRACE.value}),
+    _GapKind.STATIC_UNRESOLVED: frozenset(rule.value for rule in _Rule),
+}
+
+
+def _skipped_wrapper_ids(gaps: list[_Gap]) -> set[str]:
+    """Return the finding ids the gaps naming one wrapper kept from being derived: each skipped rule of that wrapper.
+
+    Examples:
+        >>> grace = _Gap(_GapKind.DEPRECATED_IN_INVALID, "...", subject=("pkg", "old"))
+        >>> _skipped_wrapper_ids([grace, _Gap(_GapKind.VERSION_UNRESOLVED, "...")])
+        {'min-grace:pkg:old'}
+
+    """
+    return {
+        f"{rule}:{gap.subject[0]}:{gap.subject[1]}"
+        for gap in gaps
+        if gap.subject is not None
+        for rule in _SKIPPED_WRAPPER_RULES.get(gap.kind, ())
+    }
 
 
 def _report_suppression(record: _RunRecord, plans: list[_PathPlan], subcommand: str) -> None:
     """Say how many findings the ignore lists and baselines suppressed, and count the entries that matched none.
 
     A baseline id counts as stale only for a rule this subcommand evaluates and whose check actually ran on the path
-    whose baseline holds it, in a module that path's scan audited (inside the scanned package, not excluded, imported),
-    and only when no path matched it; it is reported once on stderr and never fails the run. Unused ignore entries —
-    matched on no path — are only counted for the report: an entry for a check that did not run is legitimately unused.
+    whose baseline holds it and on its wrapper (no gap such as ``remove_in not PEP 440`` names the wrapper), in a module
+    that path's scan audited (inside the scanned package, not excluded, imported), and only when no path matched it; it
+    is reported once on stderr and never fails the run. Unused ignore entries — matched on no path — are only counted
+    for the report: an entry for a check that did not run is legitimately unused.
 
     """
     kinds = Counter({item.finding.id: item.kind for item in record.suppressed}.values())
@@ -510,7 +570,7 @@ def _report_suppression(record: _RunRecord, plans: list[_PathPlan], subcommand: 
         used_entries |= plan.suppressor.used_entries
         expected_ids |= plan.suppressor.evaluated_baseline(
             evaluated - skipped, partial(plan.audits, not_audited=not_audited)
-        )
+        ) - _skipped_wrapper_ids(own_gaps)
         used_ids |= plan.suppressor.used_ids
     record.ignore_unmatched = len(entries - used_entries)
     record.baseline_unmatched = len(expected_ids - used_ids)
@@ -612,8 +672,8 @@ def _expiry_derive(
     """Record and return the active ``expired`` findings, or ``None`` when the check could not run (gap printed).
 
     A ``--static`` scan (*static*) checks the wrappers whose ``remove_in`` the source settled; a ``not statically
-    resolvable`` gap names each one it left out, printed only once the check has run — when it could not (no version, an
-    invalid one, no ``packaging``) it has already printed why, and a gap per wrapper would imply that the others were
+    resolvable`` gap names each one it left out, printed only once the check has run — when it could not (no version,
+    an invalid one, no ``packaging``) it has already printed why, and a gap per wrapper would imply that the others were
     checked.
 
     """
@@ -1220,7 +1280,8 @@ def _append_tables(
 
     The tables are display artifacts: a table-rendering failure must never change the exit code the gates produced.
     Each is recorded as it is rendered and the ``--output`` file is saved from that record, so a failure to write the
-    file is told apart from one to render.
+    file is told apart from one to render. Over several paths a table that cannot be rendered is recorded as a note
+    under its package heading, so the saved tables stay labelled and the missing one shows.
 
     """
     headed = len(scanned) > 1
@@ -1236,6 +1297,8 @@ def _append_tables(
             )
         except Exception as exc:
             _print(f"Could not render the deprecation table: {exc}", stderr=True)
+            if headed:
+                _record_table(_unrendered_table(exc), _safe_module_name(plan.path))
     if output is not None and run_record.table is not None:
         try:
             _save_table(run_record.table, output)

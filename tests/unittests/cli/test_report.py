@@ -265,6 +265,25 @@ class TestWriteReport:
         assert [gap["kind"] for gap in report["gaps"]] == [_GapKind.PACKAGING_MISSING.value]
         assert "Could not render the deprecation table for the JSON report: boom" in capsys.readouterr().err
 
+    def test_unrendered_table_of_one_path_keeps_its_heading(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Over several paths, a table that fails to render leaves a note under its heading; the other keeps its own.
+
+        A ``check`` run over two packages builds the report table from both scans. When the first package's table
+        raises, the second must not be written bare as if it were the only package: a job summary built from the
+        report would show an unlabelled table and hide that one package is missing.
+        """
+        report_file = tmp_path / "report.json"
+        record = _RunRecord(scans=[_ScanRecord("pkg_a", [], "1.0"), _ScanRecord("pkg_b", [], "1.0")])
+        with patch("deprecate._cli.report._render_deprecation_table", side_effect=[RuntimeError("boom"), "| B |"]):
+            _write_report(str(report_file), record)
+        report = json.loads(report_file.read_text(encoding="utf-8"))
+        assert report["table"] == (
+            "### pkg_a\n\n_The deprecation table could not be rendered: boom_\n\n### pkg_b\n\n| B |"
+        )
+        assert "Could not render the deprecation table for the JSON report: boom" in capsys.readouterr().err
+
 
 class TestPlainOutput:
     """Every message goes through built-in ``print`` to the stream it belongs on."""

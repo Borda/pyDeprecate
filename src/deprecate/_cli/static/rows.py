@@ -46,7 +46,7 @@ def _module_rows(
     }
     for name, (value, cycle) in resolved.items():
         if cycle:
-            _print_gap(_GapKind.STATIC_UNRESOLVED, f"{module}.{name}: {_CYCLE}")
+            _print_gap(_GapKind.STATIC_UNRESOLVED, f"{module}.{name}: {_CYCLE}", subject=(module, name))
         elif isinstance(value, _SourceWrapper):
             if id(value) in canonical and name != value.own_name:
                 continue
@@ -73,6 +73,7 @@ def _wrapper_rows(
             _GapKind.STATIC_UNRESOLVED,
             f"{module}.{name}: wraps an object imported from `{value.module}` that the source does not show"
             " to be a class or a function, so its row cannot be attributed",
+            subject=(module, name),
         )
         return []
     if (attribute and value.proxy is False and foreign) or id(value) in seen:

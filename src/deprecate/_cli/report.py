@@ -86,6 +86,9 @@ class _Gap(NamedTuple):
     kind: _GapKind
     detail: str
     path: Optional[str] = None
+    #: ``(module, symbol)`` of the one wrapper the gap left unchecked, as its finding ids name it; ``None`` for a gap
+    #: that names no single wrapper. Never written to the report.
+    subject: Optional[tuple[str, str]] = None
 
 
 class _SuppressedFinding(NamedTuple):
@@ -300,6 +303,20 @@ def _join_tables(tables: list[tuple[str, str]]) -> Optional[str]:
     return "\n\n".join(f"### {package}\n\n{markdown}" for package, markdown in tables)
 
 
+def _unrendered_table(error: Exception) -> str:
+    """Return the note that takes the place of a table that could not be rendered in a run over several paths.
+
+    The package keeps its ``### <package>`` heading with this note under it, so the tables of the other packages stay
+    labelled and the missing one shows.
+
+    Examples:
+        >>> _unrendered_table(RuntimeError("boom"))
+        '_The deprecation table could not be rendered: boom_'
+
+    """
+    return f"_The deprecation table could not be rendered: {error}_"
+
+
 def _record_table(markdown: str, package: str = "") -> None:
     """Keep a deprecation table the run rendered (``status``, and ``all`` through it), one per scanned path."""
     record = _RUN_RECORD.get()
@@ -308,18 +325,20 @@ def _record_table(markdown: str, package: str = "") -> None:
         record.table = _join_tables(record.tables)
 
 
-def _print_gap(kind: _GapKind, detail: str) -> None:
+def _print_gap(kind: _GapKind, detail: str, *, subject: Optional[tuple[str, str]] = None) -> None:
     """Print one gap line ``pydeprecate gap: <kind>: <detail>`` to stderr, unwrapped, and record it for the run.
 
     Args:
         kind: What part of the audit did not run.
         detail: The human-readable message following the kind; it may continue on further lines.
+        subject: ``(module, symbol)`` of the one wrapper the gap left unchecked, so a baseline id of that wrapper is not
+            taken for a stale one; ``None`` when the gap names no single wrapper.
 
     """
     print(f"pydeprecate gap: {kind.value}: {detail}", file=sys.stderr, flush=True)
     record = _RUN_RECORD.get()
     if record is not None:
-        record.gaps.append(_Gap(kind, detail, record.current_path))
+        record.gaps.append(_Gap(kind, detail, record.current_path, subject))
 
 
 def _gap_recorded(kind: _GapKind, detail_prefix: str) -> bool:
@@ -463,7 +482,8 @@ def _render_recorded_table(record: _RunRecord) -> Optional[str]:
     """Return the run's deprecation table: the one it rendered, else one built from its recorded scan.
 
     A gate that never resolved a version (``check``, ``policy``, ``chains``) gets the table ``status`` would print: the
-    version is auto-detected, as there. A table that cannot be rendered is reported on stderr and left out.
+    version is auto-detected, as there. A table that cannot be rendered is reported on stderr and left out; over several
+    paths its package keeps its heading, with a note in place of the table.
 
     """
     scans = record.scans or ([record.scan] if record.scan is not None else [])
@@ -488,7 +508,9 @@ def _render_recorded_table(record: _RunRecord) -> Optional[str]:
             markdown = _render_deprecation_table(scan.wrappers, resolved_version, parsed_version, TableStyle.COMPACT)
         except Exception as exc:  # a display artifact: it never fails the run, as in `cmd_all`
             _print(f"Could not render the deprecation table for the JSON report: {exc}", stderr=True)
-            continue
+            if len(scans) == 1:
+                continue
+            markdown = _unrendered_table(exc)  # the heading stays, so the tables around it stay labelled
         tables.append((module_name, markdown))
     return _join_tables(tables)
 

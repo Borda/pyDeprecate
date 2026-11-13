@@ -534,9 +534,10 @@ class TestCmdExpiry:
         with _record_run() as record, pytest.warns(UserWarning, match="unparsable `remove_in`"):
             result = _expiry_wrappers([typo], "2.0")
 
-        ((kind, detail, _path),) = record.gaps
+        ((kind, detail, _path, subject),) = record.gaps
         assert result == 0
         assert kind == _GapKind.REMOVE_IN_INVALID
+        assert subject == ("mod", "typo_fn")
         assert "typo_fn" in detail
         assert "next-release" in detail
         assert "pydeprecate gap: remove_in not PEP 440: " in capsys.readouterr().err
@@ -2440,6 +2441,52 @@ class TestMultiPath:
         assert result == expected
         assert "pydeprecate gap: module not audited:" in err
 
+    @pytest.mark.parametrize(
+        ("select", "scanned"),
+        [
+            pytest.param(lambda pkg_a, pkg_b: pkg_a, ["pkg_a"], id="one-path"),
+            pytest.param(lambda pkg_a, pkg_b: [pkg_a, str(pkg_b)], ["pkg_a", "pkg_b"], id="mixed-list"),
+        ],
+    )
+    @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
+    def test_pathlib_paths_are_scanned(
+        self, mock_find: MagicMock, select: Callable[[Path, Path], object], scanned: list[str], tmp_path: Path
+    ) -> None:
+        """A direct call may pass ``pathlib.Path`` objects, alone or in a list beside strings, as it passes strings.
+
+        ``deprecate._cli`` documents direct ``cmd_*`` calls, and a script building its paths with ``pathlib`` once
+        crashed with ``TypeError: 'PosixPath' object is not iterable`` instead of scanning the package it named.
+
+        """
+        pkg_a = _project(tmp_path / "a", "pkg_a")
+        pkg_b = _project(tmp_path / "b", "pkg_b")
+        result = cmd_check(path=select(pkg_a, pkg_b))  # type: ignore[arg-type]
+        assert result == 0
+        assert [call.args[0] for call in mock_find.call_args_list] == scanned
+
+    @patch("deprecate._cli.commands._render_deprecation_table", side_effect=[RuntimeError("boom"), _ALL_TABLE])
+    @patch("deprecate._cli.commands._expiry_findings", return_value=[])
+    @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
+    def test_unrendered_table_keeps_its_heading(
+        self, mock_find: MagicMock, mock_expiry: MagicMock, mock_render: MagicMock, tmp_path: Path
+    ) -> None:
+        """``all`` over two packages saves a note under the heading of a table it could not render.
+
+        The first package's table raises, the second renders. The ``--output`` file and the run's table (the report's
+        ``table`` and the Action's job summary) must keep both headings, or the surviving table would read as the only
+        package of the run and the missing one would not show.
+
+        """
+        pkg_a = _project(tmp_path / "a", "pkg_a")
+        pkg_b = _project(tmp_path / "b", "pkg_b")
+        out_file = tmp_path / "DEPRECATIONS.md"
+        with _record_run() as run:
+            result = cmd_all(path=[str(pkg_a), str(pkg_b)], version="1.0", output=str(out_file))
+        expected = f"### pkg_a\n\n_The deprecation table could not be rendered: boom_\n\n### pkg_b\n\n{_ALL_TABLE}"
+        assert result == 0
+        assert run.table == expected
+        assert out_file.read_text(encoding="utf-8") == expected
+
 
 class TestAllGate:
     """``all --gate``: the listed checks gate ``all`` exactly as their own subcommand does."""
@@ -2526,6 +2573,14 @@ class TestAllGate:
         assert [call.args[0] for call in mock_find.call_args_list] == ["pkg_a", "pkg_b"]
 
 
+def _pkg_with_files(pkg: Path, files: dict[str, str]) -> Path:
+    """Create the package directory *pkg* holding *files* (file name -> source) and return it."""
+    pkg.mkdir(parents=True)
+    for name, source in files.items():
+        (pkg / name).write_text(source)
+    return pkg
+
+
 @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
 class TestStaleBaselineScope:
     """A baseline id reads as stale only for a rule the run evaluated in a module the run audited."""
@@ -2554,6 +2609,96 @@ class TestStaleBaselineScope:
         assert result == 0
         assert run.baseline_unmatched == stale
         assert ("no finding of this run" in capsys.readouterr().err) is bool(stale)
+
+    @patch("deprecate.audit._scan._walk_submodules", side_effect=OSError("unreadable package directory"))
+    def test_ids_below_a_stopped_walk_are_not_stale(self, mock_walk: MagicMock, tmp_path: Path) -> None:
+        """Ids of the submodules a stopped walk left unaudited are not stale, while an id of the package itself is.
+
+        A recursive walk that stops early (an unreadable package directory) records ``pkg_a.*``: the package was
+        audited, its submodules were not. An accepted ``pkg_a.sub`` finding had no chance to match and must not be
+        called stale, but an id of ``pkg_a`` that matched nothing is still a stale entry worth reporting.
+
+        """
+        pkg = _project(tmp_path / "a", "pkg_a", body=_REMOVED_IN_TWO)
+        ids = ["expired:pkg_a:old_fn", "expired:pkg_a.sub:gone_fn", "expired:pkg_a:removed_fn"]
+        baseline = _write_baseline(tmp_path / "baseline.json", ids)
+        with pytest.warns(UserWarning, match="stopped early"), _record_run() as run:
+            result = cmd_expiry(path=str(pkg), version="3.0", baseline=str(baseline))
+        assert result == 0
+        assert [gap.detail.split(":", 1)[0] for gap in run.gaps] == ["pkg_a.*"]
+        assert run.baseline_unmatched == 1
+
+    @pytest.mark.filterwarnings("ignore:.*unparsable:UserWarning")
+    @pytest.mark.filterwarnings("ignore:.*epoch change:UserWarning")
+    @pytest.mark.parametrize(
+        ("files", "command", "kwargs", "ids", "stale"),
+        [
+            pytest.param(
+                {"__init__.py": _VERSIONED_WRAPPER_INIT.format(versions='deprecated_in="1.0", remove_in="next"')},
+                cmd_expiry,
+                {"version": "2.0"},
+                ["expired:gappkg:old_fn"],
+                0,
+                id="remove_in-not-pep440",
+            ),
+            pytest.param(
+                {"__init__.py": _VERSIONED_WRAPPER_INIT.format(versions='deprecated_in="first", remove_in="2.0"')},
+                cmd_policy,
+                {},
+                ["min-grace:gappkg:old_fn", "message-required:gappkg:old_fn"],
+                1,
+                id="deprecated_in-not-pep440",
+            ),
+            pytest.param(
+                {"__init__.py": _VERSIONED_WRAPPER_INIT.format(versions='deprecated_in="1.0", remove_in="1!2.0"')},
+                cmd_policy,
+                {},
+                ["min-grace:gappkg:old_fn", "message-required:gappkg:old_fn"],
+                1,
+                id="epoch-change",
+            ),
+            pytest.param(
+                {"__init__.py": _UNSETTLED_PKG},
+                cmd_expiry,
+                {"version": "3.0", "static": True},
+                ["expired:gappkg:formatted_removal", "expired:gappkg:looked_up_target"],
+                0,
+                id="static-unsettled-setting",
+            ),
+            pytest.param(
+                {"__init__.py": "", "a.py": "from .b import old\n", "b.py": "from .a import old\n"},
+                cmd_expiry,
+                {"version": "3.0", "static": True},
+                ["expired:gappkg.a:old"],
+                0,
+                id="static-binding-in-an-import-cycle",
+            ),
+        ],
+    )
+    def test_ids_of_a_wrapper_a_gap_skipped_are_not_stale(
+        self,
+        files: dict[str, str],
+        command: Callable[..., int],
+        kwargs: dict,
+        ids: list[str],
+        stale: int,
+        tmp_path: Path,
+    ) -> None:
+        """An id of a rule a gap skipped for its wrapper is not stale, while an id of a rule that ran on it still is.
+
+        A wrapper whose ``remove_in`` or ``deprecated_in`` is not PEP 440, whose grace window spans an epoch change, or
+        whose setting or binding ``--static`` cannot read from the source is left out of the rule that needs it; the
+        run names it in a gap. Its accepted finding had no chance to match, so telling the team to regenerate the
+        baseline would drop an id the next run fails on again. ``message-required`` still runs on a wrapper whose
+        version is mistyped, so its unmatched id stays stale.
+
+        """
+        pkg = _pkg_with_files(tmp_path / "gappkg", files)
+        baseline = _write_baseline(tmp_path / "baseline.json", ids)
+        with _record_run() as run:
+            result = command(path=str(pkg), baseline=str(baseline), **kwargs)
+        assert result == 0
+        assert run.baseline_unmatched == stale
 
     def test_skipped_check_of_one_path_keeps_its_ids(self, tmp_path: Path) -> None:
         """Ids of a path whose expiry check was skipped stay expected-free, although another path ran the check.
