@@ -12,89 +12,11 @@ import pytest
 from deprecate._cli.config import _FROM_PYPROJECT
 from deprecate._cli.scan import (
     _foreign_copy,
-    _ImportIsolation,
     _scan_for_command,
     _scan_path,
-    _ScanTarget,
     _walk_reaches,
 )
 from tests._helpers import write_pkg
-
-#: The top-level name the import-isolation tests put in ``sys.modules``; no real module has it.
-_ISOLATED_NAME = "isolation_fixture_common"
-
-
-def _loaded_from(root: Path) -> types.ModuleType:
-    """Return a stand-in for the package ``_ISOLATED_NAME`` as if it had been imported from *root*."""
-    module = types.ModuleType(_ISOLATED_NAME)
-    module.__file__ = str(root / _ISOLATED_NAME / "__init__.py")
-    module.__path__ = [str(root / _ISOLATED_NAME)]
-    return module
-
-
-def _package_target(root: Path, name: str) -> _ScanTarget:
-    """Create the package *name* under *root* and return the target a run would plan for its directory."""
-    root.mkdir(parents=True, exist_ok=True)
-    pkg = write_pkg(root, name, "").resolve()
-    return _ScanTarget(str(pkg), name, name, pkg)
-
-
-class TestImportIsolation:
-    """Tests for ``_ImportIsolation`` — dropping a module another path's scan imported before the next scan."""
-
-    @pytest.mark.parametrize(
-        ("loaded_root", "released"),
-        [pytest.param("a", True, id="other-checkout"), pytest.param("b", False, id="own-checkout")],
-    )
-    def test_bound_name_from_elsewhere_is_released(
-        self, loaded_root: str, released: bool, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """A path's own package name loaded from another checkout during the run is dropped before the path's scan.
-
-        An earlier path's code imported ``common`` from its checkout ``a``; the next path is the checkout ``b`` of
-        ``common`` itself. Its scan must import ``b``'s copy, and a copy already loaded from ``b`` is kept as it is.
-
-        """
-        target = _package_target(tmp_path / "b", _ISOLATED_NAME)
-        isolation = _ImportIsolation()
-        monkeypatch.setitem(sys.modules, _ISOLATED_NAME, _loaded_from(tmp_path / loaded_root))
-        isolation.release_stale(target)
-        assert (_ISOLATED_NAME not in sys.modules) is released
-
-    @pytest.mark.parametrize(
-        ("loaded_root", "released"),
-        [pytest.param("a", True, id="earlier-path-root"), pytest.param("site", False, id="environment")],
-    )
-    def test_borrowed_name_is_released_only_from_an_earlier_path(
-        self, loaded_root: str, released: bool, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """A name the next path does not hold is dropped only when an earlier path's checkout provided it.
-
-        Scanned alone, the path ``g`` could not import a module that only the earlier path ``a`` provides, so that copy
-        is dropped; a copy from the installed environment is what ``g`` would import anyway and stays.
-
-        """
-        first = _package_target(tmp_path / "a", "alpha")
-        second = _package_target(tmp_path / "g", "gamma")
-        isolation = _ImportIsolation()
-        isolation.release_stale(first)
-        monkeypatch.setitem(sys.modules, _ISOLATED_NAME, _loaded_from(tmp_path / loaded_root))
-        isolation.release_stale(second)
-        assert (_ISOLATED_NAME not in sys.modules) is released
-
-    def test_module_imported_before_the_run_is_kept(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        """A module loaded before the run started is never dropped, even when the path holds its own copy.
-
-        The CLI's own ``deprecate`` or a standard-library module is loaded before any scan; dropping it would make the
-        CLI re-import itself mid-run. The scan reports such a copy as ``other copy audited`` instead.
-
-        """
-        target = _package_target(tmp_path / "b", _ISOLATED_NAME)
-        loaded = _loaded_from(tmp_path / "a")
-        monkeypatch.setitem(sys.modules, _ISOLATED_NAME, loaded)
-        isolation = _ImportIsolation()
-        isolation.release_stale(target)
-        assert sys.modules[_ISOLATED_NAME] is loaded
 
 
 class TestWalkReaches:

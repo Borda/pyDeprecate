@@ -6,7 +6,11 @@ check's findings of all paths in one section and decides one exit code over all 
 
 """
 
+import json
 import os
+import subprocess
+import sys
+import tempfile
 from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
@@ -28,6 +32,7 @@ from deprecate._cli.config import (
     _resolve_policy_spec,
     _resolve_strict,
     _resolve_suppressor,
+    _source_label,
     _validate_user_version,
 )
 from deprecate._cli.findings import (
@@ -39,6 +44,7 @@ from deprecate._cli.findings import (
     _verdict,
 )
 from deprecate._cli.report import (
+    _RUN_RECORD,
     _ensure_run_record,
     _Gap,
     _gap_recorded,
@@ -48,13 +54,21 @@ from deprecate._cli.report import (
     _print_gap,
     _record_findings,
     _record_options,
+    _record_scan,
+    _record_scanned_path,
     _record_table,
     _Reporter,
     _RunRecord,
     _ScanRecord,
     _unrendered_table,
 )
-from deprecate._cli.scan import _ImportIsolation, _preflight_targets, _scan_for_command, _ScanTarget, _select_plans
+from deprecate._cli.scan import (
+    _preflight_targets,
+    _scan_for_command,
+    _ScanError,
+    _ScanTarget,
+    _select_plans,
+)
 from deprecate._cli.static.checks import _report_unresolved, _resolved, _static_policy_findings
 from deprecate._cli.static.consts import _EXPIRY_KEYWORDS
 from deprecate._cli.suppress import _Suppressor
@@ -451,6 +465,82 @@ def _start_gate(record: _RunRecord, path: _PathArg, options: _RunOptions) -> Opt
     return _GateStart(record, len(record.findings), len(record.gaps), plans)
 
 
+def _worker_scan(
+    plan: _PathPlan,
+    options: _RunOptions,
+    *,
+    command: str,
+    style: str,
+    version: Optional[str],
+    resolve_version: bool,
+    record: bool,
+) -> Optional[_ScanRecord]:
+    """Scan and derive one path in a fresh interpreter, returning only serializable results."""
+    resolved = _resolve_exclude(plan.path, options.exclude, plan.config)
+    if resolved is None:
+        return None
+    active = _RUN_RECORD.get()
+    policy = None
+    if plan.policy is not None:
+        spec = plan.policy[0]
+        grace = None if spec.grace is None else {spec.grace.unit.value: spec.grace.count}
+        policy = {"grace": grace, "message": spec.message_required}
+    request = {
+        "sys_path": list(sys.path),
+        "command": command,
+        "path": plan.path,
+        "exclude": resolved[0],
+        "exclude_source": _source_label(resolved[1]),
+        "wants_report": bool(active and active.wants_report),
+        "recursive": options.recursive,
+        "include_members": options.include_members,
+        "version": version,
+        "resolve_version": resolve_version,
+        "covered": list(plan.covered),
+        "style": style,
+        "policy": policy,
+    }
+    env = os.environ.copy()
+    # The worker must load the same pyDeprecate source as this process before restoring the caller's import path.
+    package_root = str(Path(__file__).resolve().parents[2])
+    env["PYTHONPATH"] = os.pathsep.join([package_root, *(os.fspath(path) for path in sys.path)])
+    with tempfile.TemporaryDirectory(prefix="pydeprecate-scan-") as directory:
+        response_path = Path(directory) / "response.json"
+        process = subprocess.run(  # noqa: S603 -- fixed interpreter and internal worker module
+            [sys.executable, "-m", "deprecate._cli._worker", str(response_path)],
+            input=json.dumps(request),
+            text=True,
+            capture_output=True,
+            env=env,
+            check=False,
+        )
+        if process.returncode != 0:
+            raise _ScanError(f"isolated scan of {plan.path!r} failed: {process.stderr.strip() or process.returncode}")
+        try:
+            payload = json.loads(response_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            raise _ScanError(f"isolated scan of {plan.path!r} returned an invalid response: {exc}") from exc
+    phase = payload["phases"]["scan"]
+    sys.stdout.write(phase["stdout"] + process.stdout)
+    sys.stderr.write(phase["stderr"] + process.stderr)
+    if payload["status"] == "usage":
+        return None
+    if payload["status"] == "scan-error":
+        raise _ScanError(payload["message"])
+    scan = _ScanRecord(plan.path, [], payload["version"], worker=payload)
+    if active is not None:
+        active.current_path = plan.path
+        _record_scanned_path(plan.path, scan.version, user_provided=version is not None)
+        _record_options(recursive=options.recursive, exclude=list(plan.exclude))
+        for gap in payload["gaps"]:
+            subject = None if gap["subject"] is None else tuple(gap["subject"])
+            rules = None if gap["rules"] is None else frozenset(gap["rules"])
+            active.gaps.append(_Gap(_GapKind(gap["kind"]), gap["detail"], gap["path"], subject, rules))
+        if record:
+            _record_scan(scan)
+    return scan
+
+
 def _scan_plans(
     plans: list[_PathPlan],
     options: _RunOptions,
@@ -458,12 +548,14 @@ def _scan_plans(
     version: Optional[str] = None,
     resolve_version: bool = False,
     record: bool = True,
+    command: str = "check",
+    style: str = "compact",
 ) -> Optional[list[tuple[_PathPlan, _ScanRecord]]]:
     """Scan every planned path in turn, each with its own settings and, with *resolve_version*, its own version.
 
     A typed *version* applies to every path, and a run over several paths says so before the first scan header. Before
-    each importing scan, the modules an earlier path's scan imported that this path must not reuse are dropped
-    (:class:`_ImportIsolation`), so the order of the paths never changes what each one audits.
+    each importing scan in a multi-path run, a fresh interpreter prevents modules imported by an earlier scan from
+    supplying stale bindings. A single-path scan keeps the current interpreter; static scans import nothing.
 
     Returns:
         Each plan with its scan, or ``None`` after printing a usage error found only while importing (exit 2).
@@ -471,12 +563,22 @@ def _scan_plans(
     """
     if version is not None and len(plans) > 1:
         _print(f"Version: {version} (user-provided) applies to every path.")
-    # a static scan imports nothing, so it cannot reuse another path's modules
-    isolation = None if options.static else _ImportIsolation()
     scanned = []
     for plan in plans:
-        if isolation is not None:
-            isolation.release_stale(plan.target)
+        if len(plans) > 1 and not options.static:
+            scan = _worker_scan(
+                plan,
+                options,
+                command=command,
+                style=style,
+                version=version,
+                resolve_version=resolve_version,
+                record=record,
+            )
+            if scan is None:
+                return None
+            scanned.append((plan, scan))
+            continue
         scan = _scan_for_command(
             plan.path,
             recursive=options.recursive,
@@ -551,7 +653,7 @@ def _skipped_wrapper_ids(gaps: list[_Gap]) -> set[str]:
         f"{rule}:{gap.subject[0]}:{gap.subject[1]}"
         for gap in gaps
         if gap.subject is not None
-        for rule in _SKIPPED_WRAPPER_RULES.get(gap.kind, ())
+        for rule in (gap.rules if gap.rules is not None else _SKIPPED_WRAPPER_RULES.get(gap.kind, ()))
     }
 
 
@@ -648,6 +750,25 @@ def _finish_gate(start: _GateStart, subcommand: str, *, exit_zero: bool) -> int:
 # ---------------------------------------------------------------------------
 
 
+def _worker_findings(scan: _ScanRecord, check: str) -> Optional[list[_Finding]]:
+    """Record a worker's derived findings using the parent run's suppression state."""
+    if scan.worker is None:
+        raise ValueError("worker findings requested for a non-worker scan")
+    phase = scan.worker["phases"][check]
+    sys.stdout.write(phase["stdout"])
+    sys.stderr.write(phase["stderr"])
+    raw = scan.worker["checks"][check]
+    if raw is None:
+        return None
+    findings = []
+    for item in raw:
+        item["rule"] = _Rule(item["rule"])
+        item["check"] = _Check(item["check"])
+        item["details"] = tuple(item["details"])
+        findings.append(_Finding(**item))
+    return _record_findings(findings)
+
+
 def _check_derive(wrappers: list[DeprecationWrapperInfo]) -> list[_Finding]:
     """Record and return the active configuration findings of already-scanned wrappers."""
     return _record_findings([finding for info in wrappers for finding in _wrapper_findings(info)])
@@ -663,10 +784,19 @@ def _check_render(findings: list[_Finding]) -> None:
 
 def _run_check(record: _RunRecord, scanned: list[tuple[_PathPlan, _ScanRecord]]) -> None:
     """Derive the configuration findings of every scanned path and print them as one set of sections."""
-    if not any(scan.wrappers for _, scan in scanned):
+    if not any(scan.worker["wrapper_count"] if scan.worker is not None else scan.wrappers for _, scan in scanned):
         _print("No deprecated callables found.")
         return
-    _check_render(_derive_each(record, scanned, lambda _plan, scan: _check_derive(scan.wrappers)) or [])
+    _check_render(
+        _derive_each(
+            record,
+            scanned,
+            lambda _plan, scan: (
+                _worker_findings(scan, "check") if scan.worker is not None else _check_derive(scan.wrappers)
+            ),
+        )
+        or []
+    )
 
 
 def _expiry_derive(
@@ -675,8 +805,8 @@ def _expiry_derive(
     """Record and return the active ``expired`` findings, or ``None`` when the check could not run (gap printed).
 
     A ``--static`` scan (*static*) checks the wrappers whose ``remove_in`` the source settled; a ``not statically
-    resolvable`` gap names each one it left out, printed only once the check has run — when it could not (no version, an
-    invalid one, no ``packaging``) it has already printed why, and a gap per wrapper would imply that the others were
+    resolvable`` gap names each one it left out, printed only once the check has run — when it could not (no version,
+    an invalid one, no ``packaging``) it has already printed why, and a gap per wrapper would imply that the others were
     checked.
 
     """
@@ -685,7 +815,7 @@ def _expiry_derive(
     if derived is None:
         return None
     if static:
-        _report_unresolved(wrappers, _EXPIRY_KEYWORDS)
+        _report_unresolved(wrappers, _EXPIRY_KEYWORDS, rule_keywords={_Rule.EXPIRED.value: _EXPIRY_KEYWORDS})
     return _record_findings(derived)
 
 
@@ -704,7 +834,13 @@ def _run_expiry(record: _RunRecord, scanned: list[tuple[_PathPlan, _ScanRecord]]
     """Check every scanned path against its own version and print the expired wrappers of all of them."""
     _expiry_render(
         _derive_each(
-            record, scanned, lambda _plan, scan: _expiry_derive(scan.wrappers, scan.version, static=scan.static)
+            record,
+            scanned,
+            lambda _plan, scan: (
+                _worker_findings(scan, "expiry")
+                if scan.worker is not None
+                else _expiry_derive(scan.wrappers, scan.version, static=scan.static)
+            ),
         )
     )
 
@@ -765,7 +901,11 @@ def _run_policy(record: _RunRecord, scanned: list[tuple[_PathPlan, _ScanRecord]]
         if plan.policy is None:
             continue
         _select_path(record, plan)
-        derived = _policy_derive(scan.wrappers, plan.policy[0], _static_policy_findings if scan.static else None)
+        derived = (
+            _worker_findings(scan, "policy")
+            if scan.worker is not None
+            else _policy_derive(scan.wrappers, plan.policy[0], _static_policy_findings if scan.static else None)
+        )
         if derived is None:
             continue
         if not in_all or _Check.POLICY.value in plan.gates:
@@ -801,7 +941,16 @@ def _chain_render(chains: list[_Finding]) -> None:
 
 def _run_chains(record: _RunRecord, scanned: list[tuple[_PathPlan, _ScanRecord]]) -> None:
     """Derive the deprecation chains of every scanned path and print them as one section."""
-    _chain_render(_derive_each(record, scanned, lambda _plan, scan: _chain_derive(scan.wrappers)) or [])
+    _chain_render(
+        _derive_each(
+            record,
+            scanned,
+            lambda _plan, scan: (
+                _worker_findings(scan, "chains") if scan.worker is not None else _chain_derive(scan.wrappers)
+            ),
+        )
+        or []
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -864,7 +1013,7 @@ def cmd_check(
         start = _start_gate(record, path, options)
         if start is None:
             return 2
-        scanned = _scan_plans(start.plans, options)
+        scanned = _scan_plans(start.plans, options, command="check")
         if scanned is None:
             return 2
         _run_check(record, scanned)
@@ -948,7 +1097,7 @@ def cmd_expiry(
         start = _start_gate(record, path, options)
         if start is None:
             return 2
-        scanned = _scan_plans(start.plans, options, version=version, resolve_version=True)
+        scanned = _scan_plans(start.plans, options, version=version, resolve_version=True, command="expiry")
         if scanned is None:
             return 2
         _run_expiry(record, scanned)
@@ -1050,7 +1199,7 @@ def cmd_policy(
         start = _start_gate(record, path, options)
         if start is None:
             return 2
-        scanned = _scan_plans(start.plans, options)
+        scanned = _scan_plans(start.plans, options, command="policy")
         if scanned is None:
             return 2
         _run_policy(record, scanned, in_all=False)
@@ -1111,7 +1260,7 @@ def cmd_chains(
         if start is None:
             return 2
         # every wrapper, not only chains: the run record needs them all for its table; the chain filter is below
-        scanned = _scan_plans(start.plans, options)
+        scanned = _scan_plans(start.plans, options, command="chains")
         if scanned is None:
             return 2
         _run_chains(record, scanned)
@@ -1215,7 +1364,7 @@ def cmd_all(
         start = _start_gate(run_record, path, options)
         if start is None:
             return 2
-        scanned = _scan_plans(start.plans, options, version=version, resolve_version=True, record=False)
+        scanned = _scan_plans(start.plans, options, version=version, resolve_version=True, record=False, command="all")
         if scanned is None:
             return 2
         # The checks record their findings and the exit code of ``all`` is computed once below from those findings and
@@ -1250,8 +1399,8 @@ def _append_tables(
     headed = len(scanned) > 1
     for plan, scan in scanned:
         try:
-            _status_table(
-                scan.wrappers,
+            _scan_table(
+                scan,
                 plan.path,
                 scan.version,
                 style=TableStyle("compact"),
@@ -1323,14 +1472,16 @@ def cmd_status(
     plans = _plan_paths(_as_paths(path), options)
     if plans is None:
         return 2
-    scanned = _scan_plans(plans, options, version=version, resolve_version=True, record=False)
+    scanned = _scan_plans(
+        plans, options, version=version, resolve_version=True, record=False, command="status", style=style
+    )
     if scanned is None:
         return 2
     tables = [
         (
             _safe_module_name(plan.path),
-            _status_table(
-                scan.wrappers,
+            _scan_table(
+                scan,
                 plan.path,
                 scan.version,
                 style=table_style,
@@ -1344,6 +1495,32 @@ def cmd_status(
     if output is not None and markdown is not None:
         _save_table(markdown, output)
     return 0
+
+
+def _scan_table(
+    scan: _ScanRecord,
+    path: str,
+    version: Optional[str],
+    *,
+    style: TableStyle,
+    version_explicit: bool,
+    heading: bool = False,
+) -> str:
+    """Print and record a scan's table, using the worker-rendered table when the scan was isolated."""
+    if scan.worker is None:
+        return _status_table(
+            scan.wrappers, path, version, style=style, version_explicit=version_explicit, heading=heading
+        )
+    phase = scan.worker["phases"]["table"]
+    sys.stderr.write(phase["stderr"])
+    if scan.worker["table_error"] is not None:
+        raise RuntimeError(scan.worker["table_error"])
+    markdown = scan.worker["table"]
+    _record_table(markdown, _safe_module_name(path))
+    if heading:
+        _print(f"### {_safe_module_name(path)}\n")
+    _print(markdown)
+    return markdown
 
 
 def _status_table(

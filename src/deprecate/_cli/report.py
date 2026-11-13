@@ -19,7 +19,6 @@ from deprecate._cli.suppress import _Suppressor
 from deprecate.audit import DeprecationWrapperInfo, TableStyle
 from deprecate.audit._findings import _Finding, _Rule
 from deprecate.audit._report import _render_deprecation_table, _resolve_table_version
-from deprecate.audit._version import _resolve_package_version
 
 
 def _is_package_available(name: str) -> bool:
@@ -90,6 +89,8 @@ class _Gap(NamedTuple):
     #: ``(module, symbol)`` of the one wrapper the gap left unchecked, as its finding ids name it; ``None`` for a gap
     #: that names no single wrapper. Never written to the report.
     subject: Optional[tuple[str, str]] = None
+    #: Rules skipped for this subject, or ``None`` when the gap kind supplies the rules.
+    rules: Optional[frozenset[str]] = None
 
 
 class _SuppressedFinding(NamedTuple):
@@ -114,6 +115,8 @@ class _ScanRecord:
     static: bool = False
     #: Directory holding the top-level package of a static scan, where its version is read from source.
     import_root: Optional[Path] = None
+    #: Serializable check results and output from an isolated importing scan, if this scan ran in a worker.
+    worker: Optional[dict[str, Any]] = None
 
 
 @dataclass
@@ -326,7 +329,9 @@ def _record_table(markdown: str, package: str = "") -> None:
         record.table = _join_tables(record.tables)
 
 
-def _print_gap(kind: _GapKind, detail: str, *, subject: Optional[tuple[str, str]] = None) -> None:
+def _print_gap(
+    kind: _GapKind, detail: str, *, subject: Optional[tuple[str, str]] = None, rules: Optional[frozenset[str]] = None
+) -> None:
     """Print one gap line ``pydeprecate gap: <kind>: <detail>`` to stderr, unwrapped, and record it for the run.
 
     Args:
@@ -334,12 +339,13 @@ def _print_gap(kind: _GapKind, detail: str, *, subject: Optional[tuple[str, str]
         detail: The human-readable message following the kind; it may continue on further lines.
         subject: ``(module, symbol)`` of the one wrapper the gap left unchecked, so a baseline id of that wrapper is not
             taken for a stale one; ``None`` when the gap names no single wrapper.
+        rules: Rules this particular gap skipped, or ``None`` to use the rules associated with its kind.
 
     """
     print(f"pydeprecate gap: {kind.value}: {detail}", file=sys.stderr, flush=True)
     record = _RUN_RECORD.get()
     if record is not None:
-        record.gaps.append(_Gap(kind, detail, record.current_path, subject))
+        record.gaps.append(_Gap(kind, detail, record.current_path, subject, rules))
 
 
 def _gap_recorded(kind: _GapKind, detail_prefix: str) -> bool:
@@ -484,9 +490,8 @@ _WORKSPACE_ENV = "GITHUB_WORKSPACE"
 def _render_recorded_table(record: _RunRecord) -> Optional[str]:
     """Return the run's deprecation table: the one it rendered, else one built from its recorded scan.
 
-    A gate that never resolved a version (``check``, ``policy``, ``chains``) gets the table ``status`` would print: the
-    version is auto-detected, as there. A table that cannot be rendered is reported on stderr and left out; over several
-    paths its package keeps its heading, with a note in place of the table.
+    The scan records the auto-detected version for gates that need a report. A table that cannot be rendered is reported
+    on stderr and left out; over several paths its package keeps its heading, with a note in place of the table.
 
     """
     scans = record.scans or ([record.scan] if record.scan is not None else [])
@@ -495,15 +500,18 @@ def _render_recorded_table(record: _RunRecord) -> Optional[str]:
     tables = []
     for scan in scans:
         module_name = _safe_module_name(scan.path)
-        if scan.version is not None:
-            version: Optional[str] = scan.version
-        else:
-            version = _resolve_package_version(
-                module_name, path=scan.path, allow_import=not scan.static, import_root=scan.import_root
-            )
-        # A static scan never imports the package: with no version found, no module name is passed either, or the table
-        # would auto-detect the version itself and import the package to read its `__version__`.
-        table_module = "" if scan.static and version is None else module_name
+        if scan.worker is not None:
+            phase = scan.worker["phases"]["table"]
+            sys.stderr.write(phase["stderr"])
+            markdown = scan.worker["table"]
+            if markdown is not None:
+                tables.append((module_name, markdown))
+            elif len(scans) > 1:
+                tables.append((module_name, _unrendered_table(RuntimeError("worker table unavailable"))))
+            continue
+        version = scan.version
+        # An unresolved recorded version is final; resolving it again could re-import an earlier scan's package.
+        table_module = "" if version is None else module_name
         try:
             resolved_version, parsed_version = _resolve_table_version(
                 table_module, current_version=version, version_explicit=False

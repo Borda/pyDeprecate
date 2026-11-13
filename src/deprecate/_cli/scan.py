@@ -33,7 +33,6 @@ from deprecate._cli.static.rows import _read_static
 from deprecate.audit import DeprecationWrapperInfo, find_deprecation_wrappers
 from deprecate.audit._scan import _collect_skipped_modules, _is_excluded
 from deprecate.audit._version import (
-    _import_root,
     _is_package_dir,
     _managed_sys_path,
     _own_distribution,
@@ -318,25 +317,31 @@ def _select_plans(
         The plans to scan, in path order, or ``None`` after printing a usage error (the caller exits 2).
 
     """
-    kept = []
+    # Coverage is not transitive when paths have different exclusions: a discarded intermediate cannot cover a leaf.
+    kept_indexes = {index for index in range(len(plans)) if _covering_plan(plans, index, recursive=recursive) is None}
     for index, plan in enumerate(plans):
-        cover = _covering_plan(plans, index, recursive=recursive)
-        own = None if cover is None else _own_context(plan, cover, own_versions=own_versions)
-        if cover is None:
-            kept.append(plan)
-        elif own is not None:
+        if index not in kept_indexes and not any(
+            _covers(plans[pos], plan, recursive=recursive) for pos in kept_indexes
+        ):
+            kept_indexes.add(index)
+    kept = [plan for index, plan in enumerate(plans) if index in kept_indexes]
+    for index, plan in enumerate(plans):
+        if index in kept_indexes:
+            continue
+        cover = next(candidate for candidate in kept if _covers(candidate, plan, recursive=recursive))
+        own = _own_context(plan, cover, own_versions=own_versions)
+        if own is not None:
             _print(
                 f"{plan.target.path!r} {own}, but the scan of {cover.target.path!r} already audits it with those of"
                 " its own path; scan it in a separate run.",
                 stderr=True,
             )
             return None
-        else:
-            _print(
-                f"pydeprecate: {plan.target.path!r} is already audited by the scan of {cover.target.path!r};"
-                " scanning it once.",
-                stderr=True,
-            )
+        _print(
+            f"pydeprecate: {plan.target.path!r} is already audited by the scan of {cover.target.path!r};"
+            " scanning it once.",
+            stderr=True,
+        )
     for index, plan in enumerate(kept):
         for other in kept[:index]:
             name = _shared_name(other, plan)
@@ -559,68 +564,6 @@ def _foreign_copy(source: Path) -> Optional[str]:
     if not locations or source.resolve() in locations:
         return None
     return str(locations[0])
-
-
-def _top_level_modules() -> frozenset[str]:
-    """Return the names of the top-level modules imported so far."""
-    return frozenset(name for name in list(sys.modules) if "." not in name)
-
-
-def _forget_module(name: str) -> None:
-    """Drop the top-level module *name* and all its submodules from ``sys.modules``, so a later import reloads them."""
-    for key in [key for key in list(sys.modules) if key == name or key.startswith(f"{name}.")]:
-        del sys.modules[key]
-
-
-def _is_within(location: Path, root: Path) -> bool:
-    """Tell whether *location* is the directory *root* or lies below it."""
-    return location == root or root in location.parents
-
-
-class _ImportIsolation:
-    """Keep each path of a run from auditing a module that another path's scan imported.
-
-    Every path of a run is scanned in one interpreter, and an import gets whatever copy of a name ``sys.modules`` holds:
-    the ``common`` package one path's scan imported from its own checkout would be handed to the next path, which holds
-    its own ``common``, and the verdict would depend on the order of the paths. Before each scan, :meth:`release_stale`
-    drops what this run imported that the path must not reuse, with every submodule, so the path imports what it would
-    import if scanned alone. A module imported before the run started (the CLI's own ``deprecate``, the standard
-    library) is never dropped, so a run over one path drops nothing.
-
-    """
-
-    def __init__(self) -> None:
-        #: Top-level modules already imported when the run started.
-        self._preloaded = _top_level_modules()
-        #: Import roots of the paths released for so far, in path order.
-        self._roots: list[Path] = []
-
-    def release_stale(self, target: _ScanTarget) -> None:
-        """Before the scan of *target*, drop every module this run imported that the scan must not reuse.
-
-        A module is stale when *target* would import that name from its own source (a name it binds, or a package or
-        module file in its import root) and the loaded copy comes from elsewhere, or when *target* has no source of its
-        own for it and the loaded copy comes from an earlier path's import root rather than *target*'s.
-
-        """
-        root = _import_root(target.path)
-        bound = _bound_names(target)
-        for name in sorted(_top_level_modules() - self._preloaded):
-            if self._is_stale(name, root, bound):
-                _forget_module(name)
-        if root is not None:
-            self._roots.append(root)
-
-    def _is_stale(self, name: str, root: Optional[Path], bound: dict[str, Optional[Path]]) -> bool:
-        """Tell whether the loaded module *name* is not the copy a scan with import *root* binding *bound* would get."""
-        source = bound.get(name) or (_module_source(root, name) if root is not None else None)
-        if source is not None:
-            return _foreign_copy(source) is not None
-        return any(
-            _is_within(location, earlier) and not (root is not None and _is_within(location, root))
-            for location in _module_locations(sys.modules.get(name))
-            for earlier in self._roots
-        )
 
 
 def _imported_location(path: str, package_dir: Optional[Path]) -> Optional[str]:

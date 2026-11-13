@@ -1633,6 +1633,59 @@ class TestCliReportFindings:
 class TestCliReportJson:
     """``--report-json PATH`` writes one machine-readable record of the run: the status table and every gap."""
 
+    def test_report_does_not_reimport_an_earlier_unversioned_package(self, tmp_path: Path) -> None:
+        """Rendering a report uses the completed scans without importing their packages again.
+
+        A package parsing its own arguments imports during its scan, when CLI arguments are hidden. A later scan
+        releases that package from the module cache; report generation must not import it with CLI arguments visible.
+        """
+        first_root = tmp_path / "first"
+        second_root = tmp_path / "second"
+        first_root.mkdir()
+        second_root.mkdir()
+        first = _make_pkg(
+            first_root, name="report_first", content="import argparse\nargparse.ArgumentParser().parse_args()\n"
+        )
+        second = _make_pkg(second_root, name="report_second", content="")
+        report = tmp_path / "report.json"
+        result = _run_cli("check", str(first), str(second), f"--report-json={report}", cwd=tmp_path)
+        assert result.returncode == 0, result.stderr
+        assert json.loads(report.read_text(encoding="utf-8"))["paths"] == [str(first), str(second)]
+
+    def test_static_baseline_counts_only_rules_that_ran(self, tmp_path: Path) -> None:
+        """An unresolved removal version must not hide a stale guidance-rule baseline entry.
+
+        Static policy can evaluate migration guidance even when a computed removal version prevents its grace check.
+        The baseline entry for the evaluated guidance rule is stale; the grace entry remains unevaluated.
+        """
+        pkg = _make_pkg(
+            tmp_path,
+            name="static_baseline",
+            content=(
+                "from deprecate import deprecated\nMAJOR = 2\ndef new(): pass\n"
+                '@deprecated(target=new, deprecated_in="1.0", remove_in=f"{MAJOR}.0")\ndef old(): pass\n'
+            ),
+        )
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text(
+            json.dumps(
+                {
+                    "schema": 1,
+                    "findings": [
+                        {"id": "message-required:static_baseline:old"},
+                        {"id": "min-grace:static_baseline:old"},
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        report = tmp_path / "report.json"
+        result = _run_cli(
+            "policy", str(pkg), "--static", f"--baseline={baseline}", f"--report-json={report}", cwd=tmp_path
+        )
+        assert result.returncode == 0, result.stderr
+        assert json.loads(report.read_text(encoding="utf-8"))["summary"]["baseline_unmatched"] == 1
+
     @pytest.mark.parametrize(
         ("subcommand", "args", "exit_code"),
         [
@@ -2090,6 +2143,78 @@ class TestCliMultiPath:
         assert result.stdout.count("### pkg_") == 2
         assert "applies to every path" in result.stdout
         jsonschema.validate(data, json.loads(_REPORT_SCHEMA_FILE.read_text(encoding="utf-8")))
+
+    @pytest.mark.skipif(not _PACKAGING_AVAILABLE, reason="requires packaging (pip install 'pyDeprecate[audit]')")
+    def test_isolated_reports_apply_suppression_to_serializable_findings(self, tmp_path: Path) -> None:
+        """Separate scan results retain report tables and globally applied suppression with non-picklable targets.
+
+        Each package uses a lambda replacement, which cannot be pickled. The first finding is ignored while the second
+        remains active, so the combined report must keep the right counts, paths and both package tables.
+
+        """
+        body = _MYPKG_INIT.replace("target=new_fn", "target=lambda x: x").replace('remove_in="9.0"', 'remove_in="2.0"')
+        first = _make_pkg(tmp_path, name="worker_a", content=body)
+        second = _make_pkg(tmp_path, name="worker_b", content=body)
+        report = tmp_path / "report.json"
+        result = _run_cli(
+            "expiry",
+            str(first),
+            str(second),
+            "--version=3.0",
+            "--ignore=expired:worker_a:old_fn",
+            f"--report-json={report}",
+            cwd=tmp_path,
+        )
+        data = json.loads(report.read_text(encoding="utf-8"))
+        assert result.returncode == 1, result.stderr
+        assert [item["id"] for item in data["findings"]] == ["expired:worker_b:old_fn"]
+        assert [item["id"] for item in data["suppressed"]] == ["expired:worker_a:old_fn"]
+        assert data["paths"] == [str(first), str(second)]
+        assert data["table"].count("### ") == 2
+        jsonschema.validate(data, json.loads(_REPORT_SCHEMA_FILE.read_text(encoding="utf-8")))
+
+    def test_isolated_scan_supports_binary_and_file_descriptor_streams(self, tmp_path: Path) -> None:
+        """Imported packages may use binary streams and file descriptors in single- and multi-path scans.
+
+        Packages sometimes write subprocess diagnostics using ``sys.stdout.buffer`` or ``os.write`` on a standard
+        stream. Both scan modes must complete and preserve the order of each stream's emitted messages.
+
+        """
+        body = (
+            "import os, sys\n"
+            "sys.stdout.buffer.write(b'OUT-BUFFER\\n'); sys.stdout.flush()\n"
+            "os.write(sys.stdout.fileno(), b'OUT-FD\\n')\n"
+            "sys.stderr.buffer.write(b'ERR-BUFFER\\n'); sys.stderr.flush()\n"
+            "os.write(sys.stderr.fileno(), b'ERR-FD\\n')\n"
+        )
+        first = _make_pkg(tmp_path, name="stream_first", content=body)
+        second = _make_pkg(tmp_path, name="stream_second", content="")
+        single = _run_cli("check", str(first), cwd=tmp_path)
+        multi = _run_cli("check", str(first), str(second), cwd=tmp_path)
+
+        assert single.returncode == 0, single.stderr
+        assert multi.returncode == 0, multi.stderr
+        assert single.stdout.index("OUT-BUFFER") < single.stdout.index("OUT-FD")
+        assert multi.stdout.index("OUT-BUFFER") < multi.stdout.index("OUT-FD")
+        assert single.stderr.index("ERR-BUFFER") < single.stderr.index("ERR-FD")
+        assert multi.stderr.index("ERR-BUFFER") < multi.stderr.index("ERR-FD")
+
+    def test_isolated_scan_failure_keeps_exit_and_report_contract(self, tmp_path: Path) -> None:
+        """A broken second scan exits 3 and leaves no report despite the first successful scan.
+
+        A package can raise during import after another package was scanned. The worker must propagate that failure as
+        a scan error without manufacturing a successful aggregate report.
+
+        """
+        first = _make_pkg(tmp_path, name="worker_good", content="")
+        second = _make_pkg(tmp_path, name="worker_broken", content="raise RuntimeError('worker broke')\n")
+        report = tmp_path / "report.json"
+        result = _run_cli("check", str(first), str(second), f"--report-json={report}", cwd=tmp_path)
+        assert result.returncode == 3
+        assert "scan error" in result.stderr
+        assert "worker broke" in result.stderr
+        assert "Traceback" not in result.stderr
+        assert not report.exists()
 
     def test_single_path_report_keeps_schema_one_table(self, tmp_path: Path) -> None:
         """One path keeps the table of schema 1: no package heading, in the report or on the console.

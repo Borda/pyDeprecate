@@ -22,7 +22,7 @@ from deprecate._cli.commands import (
     cmd_status,
 )
 from deprecate._cli.config import _FROM_PYPROJECT, _POLICY_DEFAULTS, _ConfigFlag
-from deprecate._cli.report import _REPORT_SCHEMA, _build_report, _GapKind, _record_run
+from deprecate._cli.report import _REPORT_SCHEMA, _build_report, _GapKind, _record_run, _ScanRecord
 from deprecate._cli.scan import _ScanError
 from deprecate._types import DeprecationConfig, TargetMode
 from deprecate.audit import ChainType, DeprecationWrapperInfo, PolicyRule, TableStyle, validate_deprecation_policy
@@ -529,12 +529,12 @@ class TestCmdExpiry:
         ):
             result = cmd_expiry(path="some_module", version="2.0")
 
-        ((kind, detail, _path, subject),) = record.gaps
+        (gap,) = record.gaps
         assert result == 0
-        assert kind == _GapKind.REMOVE_IN_INVALID
-        assert subject == ("mod", "typo_fn")
-        assert "typo_fn" in detail
-        assert "next-release" in detail
+        assert gap.kind == _GapKind.REMOVE_IN_INVALID
+        assert gap.subject == ("mod", "typo_fn")
+        assert "typo_fn" in gap.detail
+        assert "next-release" in gap.detail
         assert "pydeprecate gap: remove_in not PEP 440: " in capsys.readouterr().err
 
     def test_unparsable_remove_in_keeps_expired_exit_code(self) -> None:
@@ -2352,6 +2352,81 @@ class TestMultiPath:
         assert captured.out.count("Scanning:") == 1
         assert captured.err.count("scanning it once") == 1
 
+    @pytest.mark.parametrize("dynamic", [False, True])
+    @pytest.mark.parametrize("via_bridge", [False, True])
+    def test_expiry_refreshes_modules_bound_to_an_earlier_path(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, via_bridge: bool, dynamic: bool
+    ) -> None:
+        """A later package uses its own dependency even if it or an intermediary was imported earlier.
+
+        The first checkout supplies a later removal version. The second checkout supplies an expired version. A target
+        or an installed intermediary imported during the first scan must not retain the first checkout's binding.
+
+        """
+        first = tmp_path / "first"
+        second = tmp_path / "second"
+        site = tmp_path / "site"
+        site.mkdir()
+        first.mkdir()
+        second.mkdir()
+        (first / "scan_common.py").write_text('REMOVE_IN = "4.0"\n')
+        (second / "scan_common.py").write_text('REMOVE_IN = "2.0"\n')
+        (site / "scan_bridge.py").write_text("from scan_common import REMOVE_IN\n")
+        source = "scan_bridge" if via_bridge else "scan_common"
+        body = f"from {source} import REMOVE_IN\n" + _REMOVED_IN_TWO.replace('remove_in="2.0"', "remove_in=REMOVE_IN")
+        beta = write_pkg(second, "scan_beta", body)
+        imported = "scan_bridge" if via_bridge else "scan_beta"
+        alpha_body = f"import importlib\nimportlib.import_module({imported!r})\n" if dynamic else f"import {imported}\n"
+        alpha = write_pkg(first, "scan_alpha", alpha_body)
+        monkeypatch.syspath_prepend(str(site))
+        monkeypatch.syspath_prepend(str(second))
+
+        assert cmd_expiry(path=[str(alpha), str(beta)], version="3.0") == 1
+
+    def test_persistent_import_path_initializes_per_scan_process(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A package available on the persistent import path is initialized in each isolated scan process.
+
+        A later module imports the first package from the same persistent path. Each scan runs in a fresh interpreter,
+        so package initialization and its externally visible side effects occur once per process.
+
+        """
+        counter = tmp_path / "count.txt"
+        body = (
+            f"from pathlib import Path\np = Path({str(counter)!r})\n"
+            'p.write_text(str(int(p.read_text()) + 1) if p.exists() else "1")\n'
+        )
+        alpha = write_pkg(tmp_path, "persistent_alpha", body)
+        (tmp_path / "persistent_gamma.py").write_text("import persistent_alpha\n")
+        monkeypatch.syspath_prepend(str(tmp_path))
+
+        assert cmd_check(path=[str(alpha), "persistent_gamma"]) == 0
+        assert counter.read_text() == "2"
+
+    def test_excluded_leaf_is_not_covered_by_discarded_intermediate(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A discarded intermediate cannot hide an explicitly requested leaf excluded by the retained parent.
+
+        The parent project excludes the leaf, while dotted paths have no project-specific exclusions. The intermediate
+        is covered by the parent, but it is not itself scanned and therefore cannot cover the explicitly named leaf.
+
+        """
+        pkg = write_pkg(tmp_path, "coveragepkg", "")
+        sub = write_pkg(pkg, "sub", "")
+        write_pkg(sub, "leaf", _REMOVED_IN_TWO)
+        (pkg / "pyproject.toml").write_text('[tool.pydeprecate]\nexclude = ["coveragepkg.sub.leaf"]\n')
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.syspath_prepend(str(tmp_path))
+
+        with _record_run() as run:
+            result = cmd_check(path=[str(pkg), "coveragepkg.sub", "coveragepkg.sub.leaf"])
+
+        assert result == 0
+        assert [scan.path for scan in run.scans] == [str(pkg), "coveragepkg.sub.leaf"]
+        assert capsys.readouterr().err.count("scanning it once") == 1
+
     @pytest.mark.parametrize("strict", [False, True])
     @pytest.mark.parametrize("child_first", [False, True])
     def test_covered_broken_module_retains_root_import_error(
@@ -2419,10 +2494,8 @@ class TestMultiPath:
             pytest.param("sub", "mypkg.sub", id="excluded-by-cover"),
         ],
     )
-    @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
     def test_subpackage_the_walk_skips_keeps_own_scan(
         self,
-        mock_find: MagicMock,
         covered: str,
         exclude: _ConfigFlag,
         tmp_path: Path,
@@ -2439,10 +2512,11 @@ class TestMultiPath:
         write_pkg(pkg, "sub", "")
         (pkg / "data").mkdir()
         write_pkg(pkg / "data", "sub", "")
-        result = cmd_check(path=[str(pkg), str(pkg / covered)], exclude=exclude)
+        with _record_run() as run:
+            result = cmd_check(path=[str(pkg), str(pkg / covered)], exclude=exclude)
         captured = capsys.readouterr()
         assert result == 0
-        assert mock_find.call_count == 2
+        assert [scan.path for scan in run.scans] == [str(pkg), str(pkg / covered)]
         assert captured.out.count("Scanning:") == 2
         assert "already audited" not in captured.err
 
@@ -2615,10 +2689,8 @@ class TestMultiPath:
             pytest.param(_FROM_PYPROJECT, _EXCLUDE_UTIL, "", 3, id="one-pyproject"),
         ],
     )
-    @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
     def test_excluded_shared_file_name_does_not_collide(
         self,
-        mock_find: MagicMock,
         exclude: _ConfigFlag,
         pyproject_a: str,
         pyproject_b: str,
@@ -2634,10 +2706,16 @@ class TestMultiPath:
         """
         first = _plain_dir(tmp_path / "da", "a_main", pyproject_a)
         second = _plain_dir(tmp_path / "db", "b_main", pyproject_b)
+        counter = tmp_path / "imports.txt"
+        body = f"from pathlib import Path\np = Path({str(counter)!r})\nwith p.open('a') as f: f.write('x')\n"
+        (first / "a_main.py").write_text(body)
+        (first / "util.py").write_text(body)
+        (second / "b_main.py").write_text(body)
+        (second / "util.py").write_text(body)
         result = cmd_check(path=[str(first), str(second)], exclude=exclude)
         assert result == 0
         assert "both import as" not in capsys.readouterr().err
-        assert mock_find.call_count == scans
+        assert len(counter.read_text()) == scans
 
     def test_excluded_helper_imported_by_siblings_resolves_per_path(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
@@ -2687,9 +2765,8 @@ class TestMultiPath:
             pytest.param(lambda pkg_a, pkg_b: [pkg_a, str(pkg_b)], ["pkg_a", "pkg_b"], id="mixed-list"),
         ],
     )
-    @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
     def test_pathlib_paths_are_scanned(
-        self, mock_find: MagicMock, select: Callable[[Path, Path], object], scanned: list[str], tmp_path: Path
+        self, select: Callable[[Path, Path], object], scanned: list[str], tmp_path: Path
     ) -> None:
         """A direct call may pass ``pathlib.Path`` objects, alone or in a list beside strings, as it passes strings.
 
@@ -2699,16 +2776,13 @@ class TestMultiPath:
         """
         pkg_a = _project(tmp_path / "a", "pkg_a")
         pkg_b = _project(tmp_path / "b", "pkg_b")
-        result = cmd_check(path=select(pkg_a, pkg_b))  # type: ignore[arg-type]
+        with _record_run() as run:
+            result = cmd_check(path=select(pkg_a, pkg_b))  # type: ignore[arg-type]
         assert result == 0
-        assert [call.args[0] for call in mock_find.call_args_list] == scanned
+        assert [path.package for path in run.scanned] == scanned
 
-    @patch("deprecate._cli.commands._render_deprecation_table", side_effect=[RuntimeError("boom"), _ALL_TABLE])
-    @patch("deprecate._cli.commands._expiry_findings", return_value=[])
-    @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[])
-    def test_unrendered_table_keeps_its_heading(
-        self, mock_find: MagicMock, mock_expiry: MagicMock, mock_render: MagicMock, tmp_path: Path
-    ) -> None:
+    @patch("deprecate._cli.commands._worker_scan")
+    def test_unrendered_table_keeps_its_heading(self, mock_worker: MagicMock, tmp_path: Path) -> None:
         """``all`` over two packages saves a note under the heading of a table it could not render.
 
         The first package's table raises, the second renders. The ``--output`` file and the run's table (the report's
@@ -2719,6 +2793,12 @@ class TestMultiPath:
         pkg_a = _project(tmp_path / "a", "pkg_a")
         pkg_b = _project(tmp_path / "b", "pkg_b")
         out_file = tmp_path / "DEPRECATIONS.md"
+        phases = {name: {"stdout": "", "stderr": ""} for name in ("expiry", "policy", "chains", "table")}
+        payload = {"wrapper_count": 0, "checks": {"expiry": [], "policy": [], "chains": []}, "phases": phases}
+        mock_worker.side_effect = [
+            _ScanRecord(str(pkg_a), [], "1.0", worker={**payload, "table": None, "table_error": "boom"}),
+            _ScanRecord(str(pkg_b), [], "1.0", worker={**payload, "table": _ALL_TABLE, "table_error": None}),
+        ]
         with _record_run() as run:
             result = cmd_all(path=[str(pkg_a), str(pkg_b)], version="1.0", output=str(out_file))
         expected = f"### pkg_a\n\n_The deprecation table could not be rendered: boom_\n\n### pkg_b\n\n{_ALL_TABLE}"
@@ -2796,20 +2876,28 @@ class TestAllGate:
         assert message in capsys.readouterr().err
         mock_find.assert_not_called()
 
-    @patch("deprecate._cli.commands._status_table", return_value="")
-    @patch("deprecate._cli.scan.find_deprecation_wrappers", return_value=[_POLICY_VIOLATION])
-    def test_one_scan_per_path(self, mock_find: MagicMock, mock_status: MagicMock, tmp_path: Path) -> None:
+    def test_one_scan_per_path(self, tmp_path: Path) -> None:
         """``all --gate=policy`` over two packages imports each once and gates on both from those scans.
 
         The gate replaces a separate ``policy`` run, so the policy check must reuse the scan the other checks used
         instead of importing every package a second time.
 
         """
-        pkg_a = _project(tmp_path / "a", "pkg_a")
-        pkg_b = _project(tmp_path / "b", "pkg_b")
+        counter_a = tmp_path / "a-count"
+        counter_b = tmp_path / "b-count"
+        instrument = (
+            "from pathlib import Path\n"
+            "def __dir__():\n"
+            "    with Path(COUNTER).open('a') as stream: stream.write('x')\n"
+            "    return list(globals())\n"
+        )
+        wrapper = _REMOVED_IN_TWO.replace('remove_in="2.0"', 'remove_in="1.0"')
+        pkg_a = _project(tmp_path / "a", "pkg_a", body=f"COUNTER = {str(counter_a)!r}\n" + instrument + wrapper)
+        pkg_b = _project(tmp_path / "b", "pkg_b", body=f"COUNTER = {str(counter_b)!r}\n" + instrument + wrapper)
         result = cmd_all(path=[str(pkg_a), str(pkg_b)], version="1.0", gate=["policy"])
         assert result == 1
-        assert [call.args[0] for call in mock_find.call_args_list] == ["pkg_a", "pkg_b"]
+        assert counter_a.read_text() == "x"
+        assert counter_b.read_text() == "x"
 
 
 def _pkg_with_files(pkg: Path, files: dict[str, str]) -> Path:

@@ -539,7 +539,7 @@ On GitHub Actions, use the ready-made step instead: the [GitHub Action](#github-
 
 #### Monorepo: several packages in one run
 
-Pass every package to the same command — `pydeprecate all --gate=policy packages/core/src/core packages/cli/src/cli` (since 0.16). Each package is scanned with its own `[tool.pydeprecate]` settings and its own version from the `pyproject.toml` nearest to it, the findings of all packages print in one set of sections, each package gets its own table under a `### <package>` heading, and one exit code covers them all. Every path is checked before the first import, so a typo or a broken `pyproject.toml` in any package fails the run with exit `2` before anything is scanned (only a missing submodule of an importable package (`pkg.nosuch`) is found when its own path is reached). Two packages that import under the same top-level name cannot share a run; scan them in separate runs. See [Several paths in one run](cli.md#several-paths-in-one-run).
+Pass every package to the same command — `pydeprecate all --gate=policy packages/core/src/core packages/cli/src/cli` (since 0.16). Each package is scanned with its own `[tool.pydeprecate]` settings and its own version from the `pyproject.toml` nearest to it, the findings of all packages print in one set of sections, each package gets its own table under a `### <package>` heading, and one exit code covers them all. Every path is checked before the first import, so a typo or a broken `pyproject.toml` in any package fails the run with exit `2` before anything is scanned (only a missing submodule of an importable package (`pkg.nosuch`) is found when its own path is reached). Two packages that import under the same top-level name cannot share a run; scan them in separate runs. When more than one path remains after deduplication, import-mode scans run in separate Python worker processes, so a shared import can initialize once in each worker. A single retained path runs in the calling process, and `--static` reads source without importing it or starting these workers. See [Several paths in one run](cli.md#several-paths-in-one-run).
 
 ## Detecting Deprecation Chains
 
@@ -903,12 +903,13 @@ The step publishes outputs for later steps; give it an `id` to read them:
 | `report-json`                                          | Path of a copy of the run's `--report-json` file, kept in `RUNNER_TEMP` until the job ends.                                     |
 | `sarif-file`                                           | Path of the SARIF file when `sarif: true`; empty otherwise.                                                                     |
 
-[SARIF](cli.md#sarif-for-code-scanning) is the format GitHub code scanning reads, so uploading it shows each finding as an alert on the wrapper's line instead of only a failed job. Upload the findings to GitHub code scanning with `sarif: true` and the `upload-sarif` action, run even when the gate failed. The upload fails with a read-only `GITHUB_TOKEN`: give the job `security-events: write`, and keep `contents: read` for the checkout.
+[SARIF](cli.md#sarif-for-code-scanning) is the format GitHub code scanning reads, so uploading it shows each finding as an alert on the wrapper's line instead of only a failed job. Upload the findings to GitHub code scanning with `sarif: true` and the `upload-sarif` action, run even when the gate failed. The upload fails with a read-only `GITHUB_TOKEN`: give the job `security-events: write`, keep `contents: read` for the checkout, and add `actions: read` for a private repository.
 
 ```yaml
 permissions:
   contents: read
   security-events: write
+  actions: read  # required for private repositories
 ```
 
 ```yaml

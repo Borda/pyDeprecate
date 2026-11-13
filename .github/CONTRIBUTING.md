@@ -330,6 +330,7 @@ pyDeprecate/
 │   ├── _cli/                   # Internal CLI package (public Python API is deprecate.audit)
 │   │   ├── __init__.py         # cli() entry point (import-light): runs the parsed subcommand, exit 3 on a crash
 │   │   ├── _pkg.py             # [tool.pydeprecate] config reading, package-directory and module-name helpers
+│   │   ├── _worker.py          # Isolated per-path scan and result generation
 │   │   ├── argv.py             # UTF-8 streams and the argparse parser built from the cmd_* signatures
 │   │   ├── commands.py         # Subcommands: check, expiry, policy, chains, all, status
 │   │   ├── config.py           # [tool.pydeprecate] pyproject.toml config and flag-default resolution
