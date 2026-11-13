@@ -32,6 +32,24 @@ from tests._helpers import write_pkg
 class TestResolvePackageVersion:
     """Tests for _resolve_package_version() — one resolution chain for every CLI subcommand and the audit API."""
 
+    @pytest.mark.usefixtures("_clean_sys_modules")
+    @pytest.mark.parametrize("layout", ["flat", "src"])
+    def test_dynamic_checkout_precedes_stale_distribution(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, layout: str
+    ) -> None:
+        """Read the checkout version using the import name when its distribution has a different name.
+
+        An editable install can retain old distribution metadata after the checkout version changes. A dynamic
+        project must read its local package before that metadata, even when the distribution is not importable.
+        """
+        (tmp_path / "pyproject.toml").write_text('[project]\nname = "checkout-distribution"\ndynamic = ["version"]\n')
+        root = tmp_path / "src" if layout == "src" else tmp_path
+        root.mkdir(exist_ok=True)
+        pkg = write_pkg(root, "checkout_import", '__version__ = "3.4.5"\n')
+        monkeypatch.setattr(importlib.metadata, "version", MagicMock(return_value="1.0"))
+
+        assert _resolve_package_version("checkout_import", path=str(pkg)) == "3.4.5"
+
     def test_module_name_ignores_cwd_pyproject(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """A module *name* that is not an existing path must not trigger the cwd pyproject.toml walk-up.
 
@@ -274,16 +292,16 @@ class TestVersionFromToml:
         """A ``dynamic = ["version"]`` project resolves the version by importing the named package.
 
         Build backends often declare the version dynamic and compute it at build time; the auditor reproduces that
-        by importing ``[project].name`` and reading ``__version__``.
+        by importing the scanned module's top-level package and reading ``__version__``.
 
         """
         write_pkg(tmp_path, "tomldynpkg", '__version__ = "5.6.7"\n')
         toml = tmp_path / "pyproject.toml"
         toml.write_text('[project]\nname = "tomldynpkg"\ndynamic = ["version"]\n')
-        assert _version_from_toml(str(toml), str(tmp_path)) == "5.6.7"
+        assert _version_from_toml(str(toml), str(tmp_path), module_name="tomldynpkg") == "5.6.7"
 
-    def test_dynamic_without_name_returns_none(self, tmp_path: Path) -> None:
-        """A dynamic-version project missing ``[project].name`` cannot be imported and yields ``None``.
+    def test_dynamic_without_module_name_returns_none(self, tmp_path: Path) -> None:
+        """A dynamic-version project without a scanned module name cannot be imported and yields ``None``.
 
         The project table is there, so the answer is an unresolved version (``None``), not the no-project marker.
 

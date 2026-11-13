@@ -16,6 +16,9 @@ from typing import Optional
 from deprecate._types import TargetMode
 from deprecate.audit._wrappers import DeprecationWrapperInfo, _format_subject
 
+_MIN_GRACE_SLUG = "min-grace"
+_MESSAGE_REQUIRED_SLUG = "message-required"
+
 
 class _Rule(str, enum.Enum):
     """What a finding is about; the value is the slug a report shows."""
@@ -29,8 +32,8 @@ class _Rule(str, enum.Enum):
     CHAIN = "chain"
     EXPIRED = "expired"
     #: The two policy rules keep the slugs of :class:`~deprecate.audit.PolicyRule`.
-    MIN_GRACE = "min-grace"
-    MESSAGE_REQUIRED = "message-required"
+    MIN_GRACE = _MIN_GRACE_SLUG
+    MESSAGE_REQUIRED = _MESSAGE_REQUIRED_SLUG
 
 
 class _Check(str, enum.Enum):
@@ -40,6 +43,21 @@ class _Check(str, enum.Enum):
     EXPIRY = "expiry"
     POLICY = "policy"
     CHAINS = "chains"
+
+
+#: The check that owns each rule, shared by audit findings and CLI gates.
+_RULE_CHECKS: dict[_Rule, _Check] = {
+    _Rule.INVALID_ARGS: _Check.CHECK,
+    _Rule.MISCONFIGURED_TARGET: _Check.CHECK,
+    _Rule.INNER_ORDER_PROPERTY: _Check.CHECK,
+    _Rule.IDENTITY_MAPPING: _Check.CHECK,
+    _Rule.NO_EFFECT: _Check.CHECK,
+    _Rule.POSITIONAL_ONLY_MAPPING: _Check.CHECK,
+    _Rule.CHAIN: _Check.CHAINS,
+    _Rule.EXPIRED: _Check.EXPIRY,
+    _Rule.MIN_GRACE: _Check.POLICY,
+    _Rule.MESSAGE_REQUIRED: _Check.POLICY,
+}
 
 
 @dataclass(frozen=True)
