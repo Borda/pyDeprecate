@@ -1,7 +1,7 @@
 """The rules' view of static rows: which settings the source settled, and the policy findings over those rows.
 
-Shared by the public validators in :mod:`deprecate.audit` and the CLI's checks layer in :mod:`deprecate._cli.static`;
-nothing here prints. A rule judges only the rows whose settings it reads were settled by the source.
+Shared by the public validators in :mod:`deprecate.audit` and the CLI's checks layer; nothing here prints. A rule judges
+only the rows whose settings it reads were settled by the source.
 
 """
 

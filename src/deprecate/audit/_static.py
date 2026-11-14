@@ -10,10 +10,57 @@ import os
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Union
+from typing import TYPE_CHECKING, Optional, Union
 
+from deprecate._gaps import _FoundGap
 from deprecate.audit._scan import _is_excluded
 from deprecate.audit._wrappers import DeprecationWrapperInfo, _format_subject
+
+if TYPE_CHECKING:
+    from deprecate._static.discovery import _StaticSource
+
+
+@dataclass(frozen=True)
+class _StaticScan:
+    """Keep located source, detected version, rows and structured gaps for static scan clients."""
+
+    source: "_StaticSource"
+    version: Optional[str]
+    wrappers: list[DeprecationWrapperInfo]
+    gaps: list[_FoundGap]
+
+
+def _scan_static_source(
+    path: Union[str, os.PathLike[str]],
+    package_dir: Optional[Path],
+    *,
+    recursive: bool,
+    include_members: bool,
+    exclude: Optional[Sequence[str]],
+    version_name: Optional[str] = None,
+) -> _StaticScan:
+    """Locate and read source with its import-free version, raising ValueError for location errors.
+
+    *version_name* is the module name the version lookup starts from; ``None`` uses the located source's name. The CLI
+    passes the importable name it derives from the path, so a package directory nested in another package resolves its
+    version as the import scan does.
+
+    """
+    # Source analysis is paid only by static callers, never by runtime decorators or import-based audits.
+    from deprecate._static.discovery import _locate_static
+    from deprecate._static.rows import _read_static
+    from deprecate.audit._version import _resolve_package_version
+
+    path_text = os.fspath(path)
+    source = _locate_static(path_text, package_dir)
+    if isinstance(source, str):
+        raise ValueError(source)
+    existing = path_text if Path(path_text).exists() else None
+    version = _resolve_package_version(
+        version_name or source.name, path=existing, allow_import=False, import_root=source.import_root
+    )
+    wrappers, gaps = _read_static(source, recursive=recursive, include_members=include_members, exclude=exclude or ())
+    return _StaticScan(source, version, wrappers, gaps)
 
 
 @dataclass(frozen=True)
@@ -81,28 +128,16 @@ def find_deprecation_wrappers_static(
         (['old'], ())
 
     """
-    # Source analysis is paid only by static callers, never by runtime decorators or import-based audits.
     from deprecate._static.checks import _unresolved
-    from deprecate._static.discovery import _locate_static
-    from deprecate._static.rows import _read_static
-    from deprecate.audit._version import _resolve_package_version
 
-    path_text = os.fspath(path)
-    source = _locate_static(path_text, None)
-    if isinstance(source, str):
-        raise ValueError(source)
-    existing = path_text if Path(path_text).exists() else None
-    version = _resolve_package_version(source.name, path=existing, allow_import=False, import_root=source.import_root)
-    wrappers, found_gaps = _read_static(
-        source, recursive=recursive, include_members=include_members, exclude=exclude or ()
-    )
-    gaps = [f"{gap.kind.value}: {gap.detail}" for gap in found_gaps]
-    for info in wrappers:
+    scan = _scan_static_source(path, None, recursive=recursive, include_members=include_members, exclude=exclude)
+    gaps = [f"{gap.kind.value}: {gap.detail}" for gap in scan.gaps]
+    for info in scan.wrappers:
         gaps.extend(
             f"not statically resolvable: {detail} ({_format_subject(info)} not checked)"
             for detail in dict.fromkeys(_unresolved(info).values())
         )
-    return StaticScanResult(tuple(wrappers), tuple(gaps), version)
+    return StaticScanResult(tuple(scan.wrappers), tuple(gaps), scan.version)
 
 
 def _static_result_rows(
