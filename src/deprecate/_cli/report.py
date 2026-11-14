@@ -8,7 +8,6 @@ from collections.abc import Callable, Iterable, Iterator
 from contextlib import contextmanager, suppress
 from contextvars import ContextVar
 from dataclasses import dataclass, field
-from enum import Enum
 from pathlib import Path, PurePath
 from typing import Any, NamedTuple, Optional, TypeVar
 
@@ -16,6 +15,7 @@ from deprecate import __about__
 from deprecate._cli._pkg import _safe_module_name
 from deprecate._cli.findings import _LEVEL_RANK, _GateReason, _Level, _level
 from deprecate._cli.suppress import _Suppressor
+from deprecate._gaps import _FoundGap, _GapKind, _nested_files_gap
 from deprecate.audit import DeprecationWrapperInfo, TableStyle
 from deprecate.audit._findings import _Finding, _Rule
 from deprecate.audit._report import _render_deprecation_table, _resolve_table_version
@@ -24,40 +24,6 @@ from deprecate.audit._report import _render_deprecation_table, _resolve_table_ve
 def _is_package_available(name: str) -> bool:
     """Return True if *name* is importable without actually importing it."""
     return importlib.util.find_spec(name) is not None
-
-
-class _GapKind(str, Enum):
-    """A part of the audit that did not run although the scan itself passed.
-
-    Each gap is printed as an unwrapped stderr line ``pydeprecate gap: <kind>: <detail>`` — plain ``print``, independent
-    of the warnings filters the audited package may install — and recorded for ``--report-json`` with its hint from
-    :data:`_GAP_HINTS`.
-
-    """
-
-    #: A module the scan could not import (or whose module-level code exited), so none of its wrappers were audited;
-    #: also ``<package>.*`` when a recursive walk of a package stopped early, leaving its submodules unaudited.
-    MODULE_NOT_AUDITED = "module not audited"
-    #: The package version could not be resolved, so removal deadlines were not checked.
-    VERSION_UNRESOLVED = "version not resolved"
-    #: The auto-detected package version is not a valid PEP 440 version, so removal deadlines were not checked.
-    VERSION_INVALID = "version not PEP 440"
-    #: A wrapper's ``remove_in`` is not a valid PEP 440 version, so its removal deadline (``expiry``) or its grace
-    #: window (``policy``'s ``min-grace``) was not checked; ``all`` names each wrapper once.
-    REMOVE_IN_INVALID = "remove_in not PEP 440"
-    #: A wrapper's ``deprecated_in`` is not a valid PEP 440 version, so its grace window (``min-grace``) was not
-    #: checked.
-    DEPRECATED_IN_INVALID = "deprecated_in not PEP 440"
-    #: A forward epoch change makes the grace window unmeasurable.
-    EPOCH_CHANGE = "epoch change"
-    #: The ``packaging`` library is missing, so version-based checks were skipped.
-    PACKAGING_MISSING = "packaging missing"
-    #: A plain-directory scan left the Python files in its subdirectories out.
-    NESTED_FILES = "nested files not audited"
-    #: The scanned package's import name was already taken by a copy from another directory, so that copy was audited.
-    OTHER_COPY = "other copy audited"
-    #: ``--static`` could not read a wrapper, or one of the settings a rule needs, from the source alone.
-    STATIC_UNRESOLVED = "not statically resolvable"
 
 
 #: Gap kind -> one-sentence remedy, the same for every occurrence.
@@ -342,6 +308,12 @@ def _print_gap(
         record.gaps.append(_Gap(kind, detail, record.current_path, subject, rules))
 
 
+def _print_found_gaps(gaps: Iterable[_FoundGap]) -> None:
+    """Print and record discovered gaps in encounter order for the current scan path."""
+    for gap in gaps:
+        _print_gap(gap.kind, gap.detail, subject=gap.subject, rules=gap.rules)
+
+
 def _gap_recorded(kind: _GapKind, detail_prefix: str) -> bool:
     """Tell whether the run already recorded a *kind* gap for the scan path in progress whose detail starts so.
 
@@ -367,12 +339,9 @@ def _report_nested_files(directory: Path) -> None:
         ...     _report_nested_files(Path(root))
 
     """
-    if any(not fpy.name.startswith("__") for fpy in directory.rglob("*.py") if fpy.parent != directory):
-        _print_gap(
-            _GapKind.NESTED_FILES,
-            "Skipping nested Python files in plain directory scan. Use an importable package layout with '__init__.py'"
-            " files, or scan an importable module/package path instead.",
-        )
+    gap = _nested_files_gap(directory)
+    if gap is not None:
+        _print_found_gaps((gap,))
 
 
 def _print(msg: str, *, stderr: bool = False) -> None:

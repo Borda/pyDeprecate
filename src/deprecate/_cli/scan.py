@@ -19,8 +19,8 @@ from deprecate._cli._pkg import _plain_dir_modules, _safe_module_name, _select_c
 from deprecate._cli.config import _Config, _ConfigFlag, _resolve_exclude, _source_label
 from deprecate._cli.report import (
     _RUN_RECORD,
-    _GapKind,
     _print,
+    _print_found_gaps,
     _print_gap,
     _record_options,
     _record_scan,
@@ -30,6 +30,7 @@ from deprecate._cli.report import (
 )
 from deprecate._cli.static.discovery import _locate_static
 from deprecate._cli.static.rows import _read_static
+from deprecate._gaps import _GapKind
 from deprecate.audit import DeprecationWrapperInfo, find_deprecation_wrappers
 from deprecate.audit._scan import _collect_skipped_modules, _is_excluded
 from deprecate.audit._version import (
@@ -810,7 +811,8 @@ def _static_scan(
             version = recorded
     _print_scan_header(path, version, user_provided=version_explicit, exclude=exclude)
     _print("Mode: static (source read with ast; nothing imported)")
-    wrappers = _read_static(located, recursive=recursive, include_members=include_members, exclude=exclude[0])
+    wrappers, gaps = _read_static(located, recursive=recursive, include_members=include_members, exclude=exclude[0])
+    _print_found_gaps(gaps)
     _record_scanned_path(path, recorded, user_provided=version_explicit)
     scan = _ScanRecord(path, wrappers, recorded, static=True)
     if record:

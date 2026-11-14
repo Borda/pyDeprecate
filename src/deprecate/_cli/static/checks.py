@@ -4,9 +4,10 @@ from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from typing import Optional
 
-from deprecate._cli.report import _GapKind, _print_gap
+from deprecate._cli.report import _print_gap
 from deprecate._cli.static.consts import _GRACE_KEYWORDS, _GUIDANCE_KEYWORDS
 from deprecate._cli.static.model import _StaticWrapperInfo
+from deprecate._gaps import _GapKind
 from deprecate.audit import DeprecationWrapperInfo
 from deprecate.audit._findings import _Finding, _Rule
 from deprecate.audit._policy import _OnUnparsableVersion, _policy_findings, _PolicySpec

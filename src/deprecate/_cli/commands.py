@@ -48,7 +48,6 @@ from deprecate._cli.report import (
     _ensure_run_record,
     _Gap,
     _gap_recorded,
-    _GapKind,
     _join_tables,
     _print,
     _print_gap,
@@ -72,6 +71,7 @@ from deprecate._cli.scan import (
 from deprecate._cli.static.checks import _report_unresolved, _resolved, _static_policy_findings
 from deprecate._cli.static.consts import _EXPIRY_KEYWORDS
 from deprecate._cli.suppress import _Suppressor
+from deprecate._gaps import _GapKind
 from deprecate.audit import (
     DeprecationWrapperInfo,
     PolicyRule,

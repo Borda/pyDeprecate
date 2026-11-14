@@ -9,8 +9,8 @@ from pathlib import Path
 from typing import NamedTuple, Optional, Union
 
 from deprecate._cli._pkg import _plain_dir_modules
-from deprecate._cli.report import _GapKind, _print_gap, _report_nested_files
 from deprecate._cli.static.model import _display
+from deprecate._gaps import _FoundGap, _GapKind, _nested_files_gap
 from deprecate.audit._scan import _is_excluded
 
 
@@ -58,7 +58,7 @@ def _locate_static(path: str, package_dir: Optional[Path]) -> Union[_StaticSourc
     return f"{path!r} has no Python source for `--static` to read."
 
 
-def _package_entries(pkg_dir: Path, package: str) -> Iterator[tuple[str, bool]]:
+def _package_entries(pkg_dir: Path, package: str, gaps: list[_FoundGap]) -> Iterator[tuple[str, bool]]:
     """Yield ``(name, is_package)`` for the submodules of a package directory, as :func:`pkgutil.iter_modules` does.
 
     A directory that cannot be listed is a ``module not audited`` gap rather than a package with no submodules. Its
@@ -69,7 +69,9 @@ def _package_entries(pkg_dir: Path, package: str) -> Iterator[tuple[str, bool]]:
     try:
         filenames = sorted(entry.name for entry in os.scandir(pkg_dir))
     except OSError as err:
-        _print_gap(_GapKind.MODULE_NOT_AUDITED, f"{package}.*: submodules of {_display(pkg_dir)} not listed: {err}")
+        gaps.append(
+            _FoundGap(_GapKind.MODULE_NOT_AUDITED, f"{package}.*: submodules of {_display(pkg_dir)} not listed: {err}")
+        )
         return
     yielded: set[str] = set()
     for filename in filenames:
@@ -82,8 +84,10 @@ def _package_entries(pkg_dir: Path, package: str) -> Iterator[tuple[str, bool]]:
                 is_package = any(inspect.getmodulename(sub) == "__init__" for sub in os.listdir(pkg_dir / filename))
             except OSError as err:
                 sub_dir = _display(pkg_dir / filename)
-                _print_gap(
-                    _GapKind.MODULE_NOT_AUDITED, f"{package}.{filename}: submodules of {sub_dir} not listed: {err}"
+                gaps.append(
+                    _FoundGap(
+                        _GapKind.MODULE_NOT_AUDITED, f"{package}.{filename}: submodules of {sub_dir} not listed: {err}"
+                    )
                 )
                 continue
             if not is_package:
@@ -95,28 +99,28 @@ def _package_entries(pkg_dir: Path, package: str) -> Iterator[tuple[str, bool]]:
 
 
 def _walk_package(
-    pkg_dir: Path, name: str, *, recursive: bool, exclude: Sequence[str], top: bool = True
+    pkg_dir: Path, name: str, gaps: list[_FoundGap], *, recursive: bool, exclude: Sequence[str], top: bool = True
 ) -> Iterator[tuple[str, Optional[Path]]]:
     """Yield ``(module name, source file or None)`` for a package and, when *recursive*, its submodules depth-first."""
     if top:
         yield name, pkg_dir / "__init__.py" if (pkg_dir / "__init__.py").is_file() else None
     if not recursive:
         return
-    for sub, is_package in _package_entries(pkg_dir, name):
+    for sub, is_package in _package_entries(pkg_dir, name, gaps):
         modname = f"{name}.{sub}"
         if _is_excluded(modname, exclude):
             continue
         if is_package:
             init = pkg_dir / sub / "__init__.py"
             yield modname, init if init.is_file() else None
-            yield from _walk_package(pkg_dir / sub, modname, recursive=True, exclude=exclude, top=False)
+            yield from _walk_package(pkg_dir / sub, modname, gaps, recursive=True, exclude=exclude, top=False)
         else:
             source = pkg_dir / f"{sub}.py"
             yield modname, source if source.is_file() else None
 
 
 def _walk_namespace(
-    portions: Sequence[Path], name: str, *, recursive: bool, exclude: Sequence[str]
+    portions: Sequence[Path], name: str, gaps: list[_FoundGap], *, recursive: bool, exclude: Sequence[str]
 ) -> Iterator[tuple[str, Optional[Path]]]:
     """Yield the submodules of a namespace package across its directories, as the import scan walks ``__path__``.
 
@@ -126,14 +130,18 @@ def _walk_namespace(
     """
     claimed: set[str] = set()
     for portion in portions:
-        found = list(_walk_package(portion, name, recursive=recursive, exclude=exclude, top=False))
+        found = list(_walk_package(portion, name, gaps, recursive=recursive, exclude=exclude, top=False))
         children = {module[len(name) + 1 :].split(".")[0] for module, _ in found}
         yield from (entry for entry in found if entry[0][len(name) + 1 :].split(".")[0] not in claimed)
         claimed |= children
 
 
-def _plain_modules(directory: Path, exclude: Sequence[str]) -> Iterator[tuple[str, Optional[Path]]]:
+def _plain_modules(
+    directory: Path, exclude: Sequence[str], gaps: list[_FoundGap]
+) -> Iterator[tuple[str, Optional[Path]]]:
     """Yield the top-level ``*.py`` modules of a plain directory, as the import scan of one does."""
     for entry in _plain_dir_modules(directory, exclude):
         yield entry.stem, entry
-    _report_nested_files(directory)
+    gap = _nested_files_gap(directory)
+    if gap is not None:
+        gaps.append(gap)
