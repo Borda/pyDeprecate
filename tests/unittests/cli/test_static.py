@@ -16,7 +16,7 @@ from deprecate._cli.static.checks import _report_unresolved, _static_policy_find
 from deprecate._gaps import _GapKind
 from deprecate._static.checks import _resolved
 from deprecate._static.consts import _GUIDANCE_KEYWORDS
-from deprecate.audit import DeprecationWrapperInfo, find_deprecation_wrappers
+from deprecate.audit import DeprecationWrapperInfo, _version, find_deprecation_wrappers
 from deprecate.audit._lifecycle import _expiry_findings
 from deprecate.audit._policy import _build_policy_spec, _policy_findings
 from tests.unittests.static._helpers import (
@@ -36,6 +36,28 @@ from tests.unittests.static._helpers import (
 from tests.unittests.static._helpers import probe_package as probe_package
 
 _GUIDANCE_ONLY = _build_policy_spec(None, True)
+
+
+@pytest.mark.parametrize("command", ["policy", "expiry"])
+def test_static_cli_skips_unused_version_lookup(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, command: str) -> None:
+    """Avoid version discovery when a static CLI command cannot use the result.
+
+    Policy without a report and expiry with an explicit version should not enumerate installed distributions.
+    """
+    source = tmp_path / "sample.py"
+    source.write_text("value = 1\n")
+
+    def _unexpected_lookup(*args: object, **kwargs: object) -> None:
+        raise AssertionError("unused version lookup")
+
+    monkeypatch.setattr(_version, "_resolve_package_version", _unexpected_lookup)
+    args = ["pydeprecate", command, str(tmp_path), "--static", "--exit-zero"]
+    if command == "expiry":
+        args += ["--version", "2.0"]
+    monkeypatch.setattr(sys, "argv", args)
+    with pytest.raises(SystemExit) as exited:
+        cli()
+    assert exited.value.code == 0
 
 
 _IMPORTED_TARGET_USE = (

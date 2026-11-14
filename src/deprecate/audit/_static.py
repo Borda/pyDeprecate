@@ -38,6 +38,7 @@ def _scan_static_source(
     include_members: bool,
     exclude: Optional[Sequence[str]],
     version_name: Optional[str] = None,
+    resolve_version: bool = True,
 ) -> _StaticScan:
     """Locate and read source with its import-free version, raising ValueError for location errors.
 
@@ -56,8 +57,12 @@ def _scan_static_source(
     if isinstance(source, str):
         raise ValueError(source)
     existing = path_text if Path(path_text).exists() else None
-    version = _resolve_package_version(
-        version_name or source.name, path=existing, allow_import=False, import_root=source.import_root
+    version = (
+        _resolve_package_version(
+            version_name or source.name, path=existing, allow_import=False, import_root=source.import_root
+        )
+        if resolve_version
+        else None
     )
     wrappers, gaps = _read_static(source, recursive=recursive, include_members=include_members, exclude=exclude or ())
     return _StaticScan(source, version, wrappers, gaps)
@@ -145,5 +150,8 @@ def _static_result_rows(
 ) -> list[DeprecationWrapperInfo]:
     """Reject changed discovery options and apply module exclusions to an already completed scan."""
     if not recursive or not include_members:
-        raise ValueError("recursive and include_members were fixed when the static scan ran; pass them to the scan.")
+        raise ValueError(
+            "recursive and include_members were fixed when the static scan ran; "
+            "set them in find_deprecation_wrappers_static."
+        )
     return [info for info in result.wrappers if not _is_excluded(info.module, exclude or ())]

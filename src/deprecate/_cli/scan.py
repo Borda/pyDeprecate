@@ -805,6 +805,7 @@ def _static_scan(
             include_members=include_members,
             exclude=exclude[0],
             version_name=_safe_module_name(path),
+            resolve_version=version is None and (resolve_version or record_version),
         )
     except ValueError as err:
         _print(str(err), stderr=True)
