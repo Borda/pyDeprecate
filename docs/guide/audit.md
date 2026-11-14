@@ -37,7 +37,7 @@ Four things go wrong with deprecations in practice: a `remove_in` deadline passe
 
 ## Scanning from Python without importing
 
-Use `deprecate.audit.find_deprecation_wrappers_static()` (since 0.16, unreleased) when dependencies are missing from the audit environment, a docs build must not execute package initialization, or an isolated script needs source-only discovery. It reads Python source with `ast` without importing or executing the scanned package.
+Use `deprecate.audit.find_deprecation_wrappers_static()` (since 0.16) when dependencies are missing from the audit environment, a docs build must not execute package initialization, or an isolated script needs source-only discovery. It reads Python source with `ast` without importing or executing the scanned package.
 
 Pass a package directory, a Python module file, a plain directory, or a top-level module name. Dotted module names are refused because locating them would import their parents. Package submodules are read recursively by default; plain directories include only top-level Python files. Set `recursive`, `include_members`, and module-name `exclude` globs on the scan itself.
 

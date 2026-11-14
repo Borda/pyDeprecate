@@ -1576,7 +1576,7 @@ Deprecations are only as good as the hygiene around them. The `deprecate.audit` 
 >
 > **Renamed in v0.6**: `find_deprecated_callables` → `find_deprecation_wrappers`, `validate_deprecated_callable` → `validate_deprecation_wrapper`, `DeprecatedCallableInfo` → `DeprecationWrapperInfo`. The old names are still exported for backwards compatibility but will be removed in v1.0.
 
-For source-only audits in Python, `deprecate.audit.find_deprecation_wrappers_static(path)` returns a frozen `StaticScanResult` (since 0.16, unreleased) accepted by expiry, policy, and table generation. It imports nothing from the scanned package. Always inspect `.gaps`: rows are approximations with non-executable stand-in targets. See [scanning from Python without importing](https://borda.github.io/pyDeprecate/dev/guide/audit.html#scanning-from-python-without-importing) for a runnable example and the shared CLI `--static` limitations.
+For source-only audits in Python, `deprecate.audit.find_deprecation_wrappers_static(path)` returns a frozen `StaticScanResult` (since 0.16) accepted by expiry, policy, and table generation. It imports nothing from the scanned package. Always inspect `.gaps`: rows are approximations with non-executable stand-in targets. See [scanning from Python without importing](https://borda.github.io/pyDeprecate/dev/guide/audit.html#scanning-from-python-without-importing) for a runnable example and the shared CLI `--static` limitations.
 
 ### Validating Wrapper Configuration
 

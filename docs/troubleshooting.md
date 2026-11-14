@@ -2191,7 +2191,7 @@ ______________________________________________________________________
 
 ## How do I audit deprecations without importing my package?
 
-Call `deprecate.audit.find_deprecation_wrappers_static(path)` (since 0.16, unreleased) to read source with `ast` without importing or executing the scanned package. Pass its frozen `StaticScanResult` directly to `validate_deprecation_expiry`, `validate_deprecation_policy`, or `generate_deprecation_table`; always inspect `.gaps` for incomplete coverage, even when `.wrappers` is empty, and never call a row's stand-in target (it raises `TypeError`).
+Call `deprecate.audit.find_deprecation_wrappers_static(path)` (since 0.16) to read source with `ast` without importing or executing the scanned package. Pass its frozen `StaticScanResult` directly to `validate_deprecation_expiry`, `validate_deprecation_policy`, or `generate_deprecation_table`; always inspect `.gaps` for incomplete coverage, even when `.wrappers` is empty, and never call a row's stand-in target (it raises `TypeError`).
 
 This suits missing dependencies, docs builds, and isolated audit scripts. Supply `current_version` to expiry when `.version` is `None`; otherwise expiry raises `ImportError`. The result shares the [CLI `--static` blind spots](guide/cli.md#static-mode): dynamic forms can remain invisible without a gap. See the [runnable Python example](guide/audit.md#scanning-from-python-without-importing) and [limitations](limitations.md#audit-tooling).
 

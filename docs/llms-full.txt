@@ -37,8 +37,8 @@ The repository includes a separate `pydeprecate` coding-agent plugin in `plugins
 | Detect POSITIONAL_ONLY-remap incompatibilities | `validate_mapping_compatibility` |
 | Check one wrapper's configuration | `validate_deprecation_wrapper` → `DeprecationWrapperInfo` |
 | Discover wrappers | `find_deprecation_wrappers` → `list[DeprecationWrapperInfo]` |
-| Discover wrappers without importing | `deprecate.audit.find_deprecation_wrappers_static(path, recursive=True, include_members=True, exclude=None)` → `StaticScanResult` (since 0.16, unreleased) |
-| Hold a source-only audit snapshot | `deprecate.audit.StaticScanResult` (since 0.16, unreleased), frozen: `wrappers` (tuple), `gaps` (ordered `"<kind>: <detail>"` strings), `version` (string or `None`) |
+| Discover wrappers without importing | `deprecate.audit.find_deprecation_wrappers_static(path, recursive=True, include_members=True, exclude=None)` → `StaticScanResult` (since 0.16) |
+| Hold a source-only audit snapshot | `deprecate.audit.StaticScanResult` (since 0.16), frozen: `wrappers` (tuple), `gaps` (ordered `"<kind>: <detail>"` strings), `version` (string or `None`) |
 | Generate a markdown deprecation table | `generate_deprecation_table` (styles: `TableStyle`; status labels: `DeprecationStatus`) |
 | Legacy audit names, deprecated since v0.6, removed in v1.0 — never write them | `DeprecatedCallableInfo`, `find_deprecated_callables`, `validate_deprecated_callable` |
 
@@ -199,7 +199,7 @@ deprecated_module(
 
 ### CI audit
 
-When a package import fails or must not run, use `deprecate.audit.find_deprecation_wrappers_static(path)` (since 0.16, unreleased). It reads source with `ast` without importing the scanned package and returns a frozen `StaticScanResult`. Paths accept a package directory, Python module file, plain directory, or top-level module name, never a dotted name. Read `.gaps`, then pass the result to `validate_deprecation_expiry`, `validate_deprecation_policy`, or `generate_deprecation_table` without another scan. Expiry and table generation default to `.version`; pass `current_version="2.0"` when it is missing (expiry otherwise raises `ImportError`, tables show unknown status). Each policy rule checks only resolved settings. Set `recursive` and `include_members` on discovery; consumers reject `False` for either on a completed result. The [CLI static blind spots](https://borda.github.io/pyDeprecate/dev/guide/cli.html#static-mode) apply, including invisible forms without a gap; synthetic targets raise `TypeError` when called.
+When a package import fails or must not run, use `deprecate.audit.find_deprecation_wrappers_static(path)` (since 0.16). It reads source with `ast` without importing the scanned package and returns a frozen `StaticScanResult`. Paths accept a package directory, Python module file, plain directory, or top-level module name, never a dotted name. Read `.gaps`, then pass the result to `validate_deprecation_expiry`, `validate_deprecation_policy`, or `generate_deprecation_table` without another scan. Expiry and table generation default to `.version`; pass `current_version="2.0"` when it is missing (expiry otherwise raises `ImportError`, tables show unknown status). Each policy rule checks only resolved settings. Set `recursive` and `include_members` on discovery; consumers reject `False` for either on a completed result. The [CLI static blind spots](https://borda.github.io/pyDeprecate/dev/guide/cli.html#static-mode) apply, including invisible forms without a gap; synthetic targets raise `TypeError` when called.
 
 ```python
 from deprecate import validate_deprecation_chains, validate_deprecation_expiry, validate_deprecation_policy
