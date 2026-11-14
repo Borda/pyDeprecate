@@ -1,5 +1,6 @@
 """Unit tests for :mod:`deprecate._cli.static`: reading deprecation wrappers from source for ``--static``."""
 
+import json
 import os
 import sys
 import textwrap
@@ -12,6 +13,7 @@ from typing import Any, Callable, Optional
 import pytest
 
 from deprecate import TargetMode
+from deprecate._cli import cli
 from deprecate._cli.report import _record_run
 from deprecate._cli.static.checks import _report_unresolved, _resolved, _static_policy_findings
 from deprecate._cli.static.consts import _GUIDANCE_KEYWORDS
@@ -81,11 +83,13 @@ def _write_namespace_portion(root: Path, module: str) -> None:
     )
 
 
-def _refusing(lister: Callable[..., Any], blocked: Path) -> Callable[..., Any]:
-    """Wrap a directory lister (``os.scandir``, ``os.listdir``) so it raises ``PermissionError`` for *blocked* only."""
+def _refusing(lister: Callable[..., Any], blocked: Path, error: Optional[PermissionError] = None) -> Callable[..., Any]:
+    """Refuse listing *blocked*, optionally using a fixed error without host-specific filename formatting."""
 
     def _list(path: Any, *args: Any) -> Any:  # noqa: ANN401
         if Path(path) == blocked:
+            if error is not None:
+                raise error
             raise PermissionError(13, "Permission denied", str(path))
         return lister(path, *args)
 
@@ -109,6 +113,342 @@ def probe_package(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[C
 # ---------------------------------------------------------------------------
 # Parity with the import scan on real collections
 # ---------------------------------------------------------------------------
+
+
+def _run_static_cli(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    path: str,
+    *options: str,
+    command: str = "expiry",
+) -> tuple[list[str], list[dict[str, Any]]]:
+    """Run the real CLI and return its stderr lines and serialized gaps, preserving their order."""
+    report = tmp_path / "gaps.json"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "pydeprecate",
+            command,
+            path,
+            "--static",
+            *(["--version", "99.0"] if command == "expiry" else ["--min-grace", "0.3", "--message-required"]),
+            "--exit-zero",
+            "--report-json",
+            str(report),
+            *options,
+        ],
+    )
+    with pytest.raises(SystemExit) as exited:
+        cli()
+    assert exited.value.code == 0
+    return capsys.readouterr().err.splitlines(), json.loads(report.read_text())["gaps"]
+
+
+class TestStaticGapOutput:
+    """Pin the CLI gap text, ordering and JSON schema before the reader's gap seam changes."""
+
+    @pytest.mark.parametrize("command", ["expiry", "policy"])
+    def test_collection_lines(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], command: str
+    ) -> None:
+        """Structural uncertainty precedes the per-wrapper settings the selected check cannot resolve.
+
+        The existing static-forms collection mixes unsupported factory use with unsettled removal dates and a
+        computed target. Locate it as a top-level module because static CLI lookup refuses dotted module names.
+        """
+        monkeypatch.chdir(_ROOT / "tests" / "collections")
+        monkeypatch.syspath_prepend(str(_ROOT / "tests" / "collections"))
+        lines, _ = _run_static_cli(tmp_path, monkeypatch, capsys, "static_forms", command=command)
+        expected = [
+            "pydeprecate gap: not statically resolvable: static_forms.py:237: unrecognized use of `deprecated`",
+            "pydeprecate gap: not statically resolvable: static_forms.py:213: "
+            "`remove_in` is `REMOVAL`, not a literal (Callable `static_forms.ambiguous_removal` not checked)",
+            "pydeprecate gap: not statically resolvable: static_forms.py:225: "
+            "arguments come from `**dict(deprecated_in='1.0', remove_in='2.0')` "
+            "(Callable `static_forms.called_splat` not checked)",
+            "pydeprecate gap: not statically resolvable: static_forms.py:219: "
+            "`remove_in` is `f'{_MAJOR}.0'`, not a literal (Callable `static_forms.formatted_removal` not checked)",
+        ]
+        extra = {
+            "expiry": [],
+            "policy": [
+                "pydeprecate gap: not statically resolvable: static_forms.py:231: "
+                "`target` is `_REPLACEMENTS['double']`, not a literal or a name "
+                "(Callable `static_forms.looked_up_target` not checked)"
+            ],
+        }
+        assert lines == expected + extra[command]
+
+    def test_collection_json(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """The report preserves structural and setting gaps in stderr order without serializing internal subjects.
+
+        Consumers of the existing static-forms expiry report receive a path and remedy for every gap, including
+        structural gaps with no wrapper subject and settings gaps that internally identify a wrapper.
+        """
+        monkeypatch.chdir(_ROOT / "tests" / "collections")
+        monkeypatch.syspath_prepend(str(_ROOT / "tests" / "collections"))
+        _, gaps = _run_static_cli(tmp_path, monkeypatch, capsys, "static_forms")
+        assert gaps == [
+            {
+                "kind": "not statically resolvable",
+                "detail": "static_forms.py:237: unrecognized use of `deprecated`",
+                "hint": "run without `--static` for a full audit, or use literal version strings",
+                "path": "static_forms",
+            },
+            {
+                "kind": "not statically resolvable",
+                "detail": "static_forms.py:213: `remove_in` is `REMOVAL`, not a literal "
+                "(Callable `static_forms.ambiguous_removal` not checked)",
+                "hint": "run without `--static` for a full audit, or use literal version strings",
+                "path": "static_forms",
+            },
+            {
+                "kind": "not statically resolvable",
+                "detail": "static_forms.py:225: arguments come from "
+                "`**dict(deprecated_in='1.0', remove_in='2.0')` (Callable `static_forms.called_splat` not checked)",
+                "hint": "run without `--static` for a full audit, or use literal version strings",
+                "path": "static_forms",
+            },
+            {
+                "kind": "not statically resolvable",
+                "detail": "static_forms.py:219: `remove_in` is `f'{_MAJOR}.0'`, not a literal "
+                "(Callable `static_forms.formatted_removal` not checked)",
+                "hint": "run without `--static` for a full audit, or use literal version strings",
+                "path": "static_forms",
+            },
+        ]
+
+    def test_policy_collection_has_no_gaps(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Literal deprecations produce findings without introducing audit gaps.
+
+        The existing policy collection is the settled counterpart to static_forms; pin its empty gap output as well
+        so the seam refactor cannot accidentally introduce diagnostics on a fully readable collection.
+        """
+        monkeypatch.syspath_prepend(str(_ROOT / "tests" / "collections"))
+        lines, gaps = _run_static_cli(tmp_path, monkeypatch, capsys, "policy", command="policy")
+        assert lines == []
+        assert gaps == []
+
+    @pytest.mark.parametrize(
+        ("lister", "blocked", "expected"),
+        [
+            pytest.param(
+                "scandir",
+                "",
+                "pydeprecate gap: module not audited: staticprobe.*: submodules of staticprobe not listed: "
+                "listing denied",
+                id="package-root",
+            ),
+            pytest.param(
+                "listdir",
+                "sub",
+                "pydeprecate gap: module not audited: staticprobe.sub: submodules of staticprobe/sub not listed: "
+                "listing denied",
+                id="subpackage",
+            ),
+        ],
+    )
+    def test_directory_listing(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+        lister: str,
+        blocked: str,
+        expected: str,
+    ) -> None:
+        """An unlistable root or child directory reports the exact scope left unaudited.
+
+        Reuse the existing discovery fixture and OS listing failure boundary through the CLI, rather than merely
+        checking a substring from the reader. The report must retain the same gap and scan path.
+        """
+        pkg = _write(tmp_path, {"__init__.py": "", "sub/__init__.py": "", "m.py": ""})
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(
+            os, lister, _refusing(getattr(os, lister), pkg / blocked, PermissionError("listing denied"))
+        )
+        lines, gaps = _run_static_cli(tmp_path, monkeypatch, capsys, "staticprobe")
+        assert lines == [expected.replace("/", os.sep)]
+        assert gaps[0]["path"] == "staticprobe"
+
+    @pytest.mark.parametrize("blocked", [False, True])
+    def test_namespace_portions(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], blocked: bool
+    ) -> None:
+        """A namespace reports only the portion whose directory cannot be walked.
+
+        Reuse the two-portion discovery fixture in import-path order. A readable namespace has no root gap;
+        refusing the first portion must produce exactly one gap while the other portion remains readable.
+        """
+        _write_namespace_portion(tmp_path / "first", "alpha")
+        _write_namespace_portion(tmp_path / "second", "beta")
+        monkeypatch.syspath_prepend(str(tmp_path / "first"))
+        monkeypatch.syspath_prepend(str(tmp_path / "second"))
+        monkeypatch.chdir(tmp_path)
+        refused = tmp_path / "second" / _NAMESPACE if blocked else tmp_path / "absent"
+        monkeypatch.setattr(os, "scandir", _refusing(os.scandir, refused, PermissionError("listing denied")))
+        lines, _ = _run_static_cli(tmp_path, monkeypatch, capsys, _NAMESPACE)
+        expected = {
+            False: [],
+            True: [
+                "pydeprecate gap: module not audited: staticnamespaceprobe.*: submodules of "
+                "second/staticnamespaceprobe not listed: listing denied"
+            ],
+        }
+        assert lines == [line.replace("/", os.sep) for line in expected[blocked]]
+
+    def test_plain_directory_nested_files(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A plain-directory scan announces the nested Python files it leaves out.
+
+        The existing discovery fixture has one readable top-level module and one nested module. Pin the complete
+        advisory even though the top-level scan succeeds, so discovery cannot silently drop it during the move.
+        """
+        (tmp_path / "nested").mkdir()
+        (tmp_path / "nested" / "inner.py").write_text("X = 1\n")
+        (tmp_path / "mod.py").write_text("X = 1\n")
+        lines, _ = _run_static_cli(tmp_path, monkeypatch, capsys, str(tmp_path))
+        assert lines == [
+            "pydeprecate gap: nested files not audited: Skipping nested Python files in plain directory scan. "
+            "Use an importable package layout with '__init__.py' files, "
+            "or scan an importable module/package path instead."
+        ]
+
+    def test_reader_and_rows_interleave(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Parse failures encountered through imports precede structural and row-resolution gaps.
+
+        A minimal package combines a broken imported module, an unsupported factory call, an external base and a
+        re-export cycle. A null byte makes the real parser failure independent of Python's syntax-error offsets.
+        These tiny sources supplement the existing fixtures to pin the cross-module emission order in one run.
+        """
+        _write(
+            tmp_path,
+            {
+                "__init__.py": "from .broken import thing\nfrom .a import loop\n"
+                "from external_package import Base\nfrom functools import partial\nfrom deprecate import deprecated\n"
+                "class Child(Base): pass\nfactory = partial(deprecated, remove_in='2.0')\n",
+                "a.py": "from .b import loop\n",
+                "b.py": "from .a import loop\n",
+                "broken.py": "\x00",
+            },
+        )
+        monkeypatch.chdir(tmp_path)
+        lines, _ = _run_static_cli(tmp_path, monkeypatch, capsys, "staticprobe")
+        parse_error = (
+            "ValueError('source code string cannot contain null bytes')"
+            if sys.version_info < (3, 11)
+            else "SyntaxError('source code string cannot contain null bytes')"
+        )
+        expected = [
+            "pydeprecate gap: module not audited: staticprobe.broken: could not read its source: " + parse_error,
+            "pydeprecate gap: not statically resolvable: staticprobe/__init__.py:7: unrecognized use of `deprecated`",
+            "pydeprecate gap: not statically resolvable: staticprobe.Child: members inherited from `Base` "
+            "(imported from `external_package`, whose source is not read) are not audited",
+            "pydeprecate gap: not statically resolvable: staticprobe.loop: "
+            "is re-exported in an import cycle; not followed",
+            "pydeprecate gap: not statically resolvable: staticprobe.a.loop: "
+            "is re-exported in an import cycle; not followed",
+            "pydeprecate gap: not statically resolvable: staticprobe.b.loop: "
+            "is re-exported in an import cycle; not followed",
+        ]
+        assert lines == [line.replace("/", os.sep) for line in expected]
+
+    def test_imported_object_attribution(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """An imported object of unknown kind cannot be assigned a wrapper row silently.
+
+        Reuse the existing attribution fixture: the defining module builds an object with a call, and another
+        module wraps it. The CLI must explain why it cannot choose between class and function attribution.
+        """
+        _write(
+            tmp_path,
+            {
+                "__init__.py": "",
+                "other.py": "def make():\n    return 1\n\nthing = make()\n",
+                "api.py": "from deprecate import deprecated\nfrom .other import thing\n\n"
+                "old = deprecated(deprecated_in='1.0', remove_in='2.0')(thing)\n",
+            },
+        )
+        monkeypatch.chdir(tmp_path)
+        lines, _ = _run_static_cli(tmp_path, monkeypatch, capsys, "staticprobe")
+        assert lines == [
+            "pydeprecate gap: not statically resolvable: staticprobe.api.old: wraps an object imported from "
+            "`staticprobe.other` that the source does not show to be a class or a function, "
+            "so its row cannot be attributed"
+        ]
+
+    @pytest.mark.parametrize(
+        "options",
+        [
+            pytest.param(("--no-recursive",), id="no-recursive"),
+            pytest.param(("--exclude", "staticprobe.core"), id="excluded-reexport"),
+        ],
+    )
+    def test_import_only_structural_gaps(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+        options: tuple[str, ...],
+    ) -> None:
+        """Structural gaps in an imported but unwalked module are flushed after the walked module's gaps.
+
+        Reuse the existing partial-factory re-export fixture under no-recursive and exclude. A second unsupported
+        use in the package root distinguishes the normal emission from the deferred unwalked-module emission.
+        """
+        _write(
+            tmp_path,
+            {
+                "__init__.py": "from .core import old\nfrom functools import partial\n"
+                "from deprecate import deprecated\n"
+                "factory = partial(deprecated, remove_in='2.0')\n",
+                "core.py": "from functools import partial\nfrom deprecate import deprecated\n\n"
+                "old = partial(deprecated, deprecated_in='1.0', remove_in='2.0')(print)\n",
+            },
+        )
+        monkeypatch.chdir(tmp_path)
+        lines, _ = _run_static_cli(tmp_path, monkeypatch, capsys, "staticprobe", *options)
+        expected = [
+            "pydeprecate gap: not statically resolvable: staticprobe/__init__.py:4: unrecognized use of `deprecated`",
+            "pydeprecate gap: not statically resolvable: staticprobe/core.py:4: unrecognized use of `deprecated`",
+        ]
+        assert lines == [line.replace("/", os.sep) for line in expected]
+
+    @pytest.mark.parametrize(
+        "options",
+        [
+            pytest.param((), id="walked-extension"),
+            pytest.param(("--no-recursive",), id="import-only-extension"),
+            pytest.param(("--exclude", "staticprobe.compiled"), id="excluded-extension"),
+        ],
+    )
+    def test_missing_python_source(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+        options: tuple[str, ...],
+    ) -> None:
+        """An extension with no Python source reports one gap whether walked or reached only through an import.
+
+        The existing discovery fixtures cover extensions and imports into unwalked modules. Combine those shapes
+        to pin the missing-source message and deduplication when both traversal and an import encounter it.
+        """
+        pkg = _write(tmp_path, {"__init__.py": "from .compiled import thing\n"})
+        (pkg / f"compiled{EXTENSION_SUFFIXES[0]}").write_bytes(b"")
+        monkeypatch.chdir(tmp_path)
+        lines, _ = _run_static_cli(tmp_path, monkeypatch, capsys, "staticprobe", *options)
+        assert lines == ["pydeprecate gap: module not audited: staticprobe.compiled: no Python source to read"]
 
 
 class TestCollectionParity:
