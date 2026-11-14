@@ -21,6 +21,8 @@ from deprecate import (
 from deprecate import (
     __all__ as _deprecate_all,
 )
+from deprecate.audit import __all__ as _audit_all
+from deprecate.audit import find_deprecation_wrappers_static
 
 _ROOT = Path(__file__).resolve().parents[2]
 _PLUGIN = _ROOT / "plugins" / "pydeprecate"
@@ -86,6 +88,7 @@ _SKILL_CALLABLES = {
         deprecated_class,
         deprecated_instance,
         find_deprecation_wrappers,
+        find_deprecation_wrappers_static,
         validate_deprecation_expiry,
         validate_deprecation_policy,
     )
@@ -102,10 +105,14 @@ def _bare_token_resolves(token: str) -> bool:
     if token in _SKILL_SKIP_TOKENS:
         return True
     if "." not in token:
-        return token in _deprecate_all or token in TargetMode.__members__ or token in _SKILL_KWARGS
+        return (
+            token in _deprecate_all or token in _audit_all or token in TargetMode.__members__ or token in _SKILL_KWARGS
+        )
     prefix, name = token.rsplit(".", 1)
     if prefix == "deprecate":
         return name in _deprecate_all
+    if prefix == "deprecate.audit":
+        return name in _audit_all
     return prefix == "TargetMode" and name in TargetMode.__members__
 
 
