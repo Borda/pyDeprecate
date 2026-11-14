@@ -8,10 +8,30 @@ from collections.abc import Iterator, Sequence
 from pathlib import Path
 from typing import NamedTuple, Optional, Union
 
-from deprecate._cli._pkg import _plain_dir_modules
-from deprecate._cli.static.model import _display
 from deprecate._gaps import _FoundGap, _GapKind, _nested_files_gap
+from deprecate._static.model import _display
 from deprecate.audit._scan import _is_excluded
+
+
+def _plain_dir_modules(directory: Path, exclude: Sequence[str]) -> Iterator[Path]:
+    """Yield the non-dunder Python files a plain-directory scan includes, in filename order.
+
+    Examples:
+        >>> from tempfile import TemporaryDirectory
+        >>> with TemporaryDirectory() as root:
+        ...     directory = Path(root)
+        ...     for name in ("later.py", "first.py", "__init__.py", "ignored.py", "notes.txt"):
+        ...         (directory / name).touch()
+        ...     (directory / "folder.py").mkdir()
+        ...     [entry.name for entry in _plain_dir_modules(directory, ("ignored",))]
+        ['first.py', 'later.py']
+
+    """
+    for entry in sorted(directory.iterdir(), key=lambda ent: ent.name):
+        if not (entry.is_file() and entry.suffix == ".py" and not entry.name.startswith("__")):
+            continue
+        if not _is_excluded(entry.stem, exclude):
+            yield entry
 
 
 class _StaticSource(NamedTuple):

@@ -15,7 +15,7 @@ from importlib.machinery import ModuleSpec, all_suffixes
 from pathlib import Path
 from typing import NamedTuple, Optional, Protocol, TypeVar
 
-from deprecate._cli._pkg import _plain_dir_modules, _safe_module_name, _select_child_package
+from deprecate._cli._pkg import _safe_module_name, _select_child_package
 from deprecate._cli.config import _Config, _ConfigFlag, _resolve_exclude, _source_label
 from deprecate._cli.report import (
     _RUN_RECORD,
@@ -28,9 +28,9 @@ from deprecate._cli.report import (
     _report_nested_files,
     _ScanRecord,
 )
-from deprecate._cli.static.discovery import _locate_static
-from deprecate._cli.static.rows import _read_static
 from deprecate._gaps import _GapKind
+from deprecate._static.discovery import _locate_static, _plain_dir_modules
+from deprecate._static.rows import _read_static
 from deprecate.audit import DeprecationWrapperInfo, find_deprecation_wrappers
 from deprecate.audit._scan import _collect_skipped_modules, _is_excluded
 from deprecate.audit._version import (

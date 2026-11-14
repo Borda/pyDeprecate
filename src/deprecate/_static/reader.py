@@ -7,10 +7,11 @@ from collections.abc import Collection
 from pathlib import Path
 from typing import Optional, Union
 
-from deprecate._cli.static.analyzer import _ModuleAnalyzer
-from deprecate._cli.static.consts import _BASE_DEPTH, _CYCLE
-from deprecate._cli.static.discovery import _StaticSource
-from deprecate._cli.static.model import (
+from deprecate._gaps import _FoundGap, _GapKind
+from deprecate._static.analyzer import _ModuleAnalyzer
+from deprecate._static.consts import _BASE_DEPTH, _CYCLE
+from deprecate._static.discovery import _StaticSource
+from deprecate._static.model import (
     _ImportRef,
     _Lookup,
     _module_scope,
@@ -23,7 +24,7 @@ from deprecate._cli.static.model import (
     _SourceWrapper,
     _Value,
 )
-from deprecate._cli.static.scope import (
+from deprecate._static.scope import (
     _direct_aliases,
     _globals_rebinds,
     _is_dataclass,
@@ -34,8 +35,7 @@ from deprecate._cli.static.scope import (
     _scope_events,
     _single,
 )
-from deprecate._cli.static.targets import _TargetClassifier
-from deprecate._gaps import _FoundGap, _GapKind
+from deprecate._static.targets import _TargetClassifier
 from deprecate.audit._version import _absolute_import, _literal_all, _module_source_file
 
 

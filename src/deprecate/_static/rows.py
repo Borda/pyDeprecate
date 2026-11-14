@@ -7,11 +7,11 @@ The rows are named and ordered as the import scan names and orders them.
 from collections.abc import Sequence
 from dataclasses import replace
 
-from deprecate._cli.static.consts import _CYCLE
-from deprecate._cli.static.discovery import _plain_modules, _StaticSource, _walk_namespace, _walk_package
-from deprecate._cli.static.model import _ModuleFacts, _PlainClass, _SourceWrapper, _StaticWrapperInfo
-from deprecate._cli.static.reader import _TreeReader
 from deprecate._gaps import _FoundGap, _GapKind
+from deprecate._static.consts import _CYCLE
+from deprecate._static.discovery import _plain_modules, _StaticSource, _walk_namespace, _walk_package
+from deprecate._static.model import _ModuleFacts, _PlainClass, _SourceWrapper, _StaticWrapperInfo
+from deprecate._static.reader import _TreeReader
 from deprecate.audit import DeprecationWrapperInfo
 from deprecate.audit._scan import _is_excluded
 

@@ -1,121 +1,51 @@
-"""Unit tests for :mod:`deprecate._cli.static`: reading deprecation wrappers from source for ``--static``."""
+"""CLI checks, gap output and import-scan parity for static rows."""
 
 import json
 import os
 import sys
-import textwrap
 import warnings
-from collections.abc import Iterator
 from importlib.machinery import EXTENSION_SUFFIXES
 from pathlib import Path
 from typing import Any, Callable, Optional
 
 import pytest
 
-from deprecate import TargetMode
 from deprecate._cli import cli
 from deprecate._cli.report import _record_run
 from deprecate._cli.static.checks import _report_unresolved, _resolved, _static_policy_findings
-from deprecate._cli.static.consts import _GUIDANCE_KEYWORDS
-from deprecate._cli.static.discovery import _locate_static, _StaticSource
-from deprecate._cli.static.model import _StaticTarget
-from deprecate._cli.static.rows import _read_static
-from deprecate._gaps import _FoundGap, _GapKind
+from deprecate._gaps import _GapKind
+from deprecate._static.consts import _GUIDANCE_KEYWORDS
 from deprecate.audit import DeprecationWrapperInfo, find_deprecation_wrappers
 from deprecate.audit._lifecycle import _expiry_findings
 from deprecate.audit._policy import _build_policy_spec, _policy_findings
+from tests.unittests.static._helpers import (
+    _DEP,
+    _EXPIRED,
+    _NAMESPACE,
+    _PKG,
+    _ROOT,
+    _line_of,
+    _read_module,
+    _read_package,
+    _refusing,
+    _rows,
+    _write,
+    _write_namespace_portion,
+)
+from tests.unittests.static._helpers import probe_package as probe_package
 
-_ROOT = Path(__file__).resolve().parents[3]
-#: Name of the throwaway package each source-snippet test writes, imports for comparison and then forgets.
-_PKG = "staticprobe"
-#: Name of the namespace package (no ``__init__.py``) the discovery tests split across two import-path entries.
-_NAMESPACE = "staticnamespaceprobe"
-#: The policy with only ``message-required`` on, so a target case is judged on guidance alone.
 _GUIDANCE_ONLY = _build_policy_spec(None, True)
-#: A module deprecating ``old`` with the ``target`` it imports from the package's ``consts`` module.
+
+
 _IMPORTED_TARGET_USE = (
     "from deprecate import deprecated\nfrom .consts import REPL\n\n"
     "@deprecated(target=REPL, deprecated_in='1.0', remove_in='2.0')\ndef old(x):\n    return x\n"
 )
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def _write(root: Path, files: dict[str, str]) -> Path:
-    """Write *files* (``relative path -> source``) under *root* and return the package directory it fills."""
-    for relative, source in files.items():
-        path = root / _PKG / relative
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(textwrap.dedent(source))
-    return root / _PKG
-
-
-def _read_package(
-    pkg: Path, *, recursive: bool = True, exclude: tuple[str, ...] = ()
-) -> tuple[list[DeprecationWrapperInfo], list[_FoundGap]]:
-    """Read wrappers and ordered gaps of the package directory *pkg*."""
-    source = _StaticSource("package", pkg.name, pkg, pkg.parent)
-    return _read_static(source, recursive=recursive, include_members=True, exclude=list(exclude))
-
-
-def _read_module(name: str) -> tuple[list[DeprecationWrapperInfo], list[_FoundGap]]:
-    """Read wrappers and ordered gaps of one module of this repository's test tree."""
-    path = _ROOT.joinpath(*name.split(".")).with_suffix(".py")
-    return _read_static(_StaticSource("module", name, path, _ROOT), recursive=False, include_members=True, exclude=[])
-
-
-def _line_of(module: str, text: str) -> int:
-    """Return the 1-based number of the first line of *module*'s source that contains *text*."""
-    lines = _ROOT.joinpath(*module.split(".")).with_suffix(".py").read_text().splitlines()
-    return next(number for number, line in enumerate(lines, start=1) if text in line)
-
 
 def _expiry_ids(wrappers: list[DeprecationWrapperInfo]) -> list[str]:
     """Return the ids of the ``expired`` findings the wrappers whose removal version resolved produce at ``99.0``."""
     return [f.id for f in _expiry_findings(_resolved(wrappers, ("remove_in",)), "99.0")]
-
-
-def _write_namespace_portion(root: Path, module: str) -> None:
-    """Write one directory of the :data:`_NAMESPACE` package under *root*, holding *module* with one expired wrapper."""
-    pkg_dir = root / _NAMESPACE
-    pkg_dir.mkdir(parents=True)
-    (pkg_dir / f"{module}.py").write_text(
-        "from deprecate import deprecated\n\n@deprecated(deprecated_in='1.0', remove_in='2.0')\ndef old():\n    pass\n"
-    )
-
-
-def _refusing(lister: Callable[..., Any], blocked: Path, error: Optional[PermissionError] = None) -> Callable[..., Any]:
-    """Refuse listing *blocked*, optionally using a fixed error without host-specific filename formatting."""
-
-    def _list(path: Any, *args: Any) -> Any:  # noqa: ANN401
-        if Path(path) == blocked:
-            if error is not None:
-                raise error
-            raise PermissionError(13, "Permission denied", str(path))
-        return lister(path, *args)
-
-    return _list
-
-
-def _rows(wrappers: list[DeprecationWrapperInfo]) -> list[str]:
-    """Return ``module:function`` for each wrapper, in order."""
-    return [f"{info.module}:{info.function}" for info in wrappers]
-
-
-@pytest.fixture
-def probe_package(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Callable[..., Path]]:
-    """Write a throwaway package on an import path, forgetting every module it imported at teardown."""
-    monkeypatch.syspath_prepend(str(tmp_path))
-    yield lambda files: _write(tmp_path, files)
-    for name in [name for name in sys.modules if name == _PKG or name.startswith(f"{_PKG}.")]:
-        del sys.modules[name]
-
-
-# ---------------------------------------------------------------------------
-# Parity with the import scan on real collections
-# ---------------------------------------------------------------------------
 
 
 def _run_static_cli(
@@ -454,69 +384,6 @@ class TestStaticGapOutput:
         assert lines == ["pydeprecate gap: module not audited: staticprobe.compiled: no Python source to read"]
 
 
-class TestStaticGapData:
-    """Internal source reads collect gaps without writing to either output stream."""
-
-    def test_rows_return_gaps_silently(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-        """An unread external base produces a row-building gap as data.
-
-        A library caller reads a class whose base belongs to another distribution. The reader cannot audit its
-        inherited members, so it returns the reason without printing a CLI diagnostic.
-        """
-        pkg = _write(tmp_path, {"__init__.py": "from external_library import Base\nclass Client(Base): pass\n"})
-        wrappers, gaps = _read_static(
-            _StaticSource("package", _PKG, pkg, pkg.parent), recursive=True, include_members=True, exclude=[]
-        )
-        assert wrappers == []
-        assert gaps == [
-            _FoundGap(
-                _GapKind.STATIC_UNRESOLVED,
-                f"{_PKG}.Client: members inherited from `Base` (imported from `external_library`, whose source is not"
-                " read) are not audited",
-            )
-        ]
-        captured = capsys.readouterr()
-        assert captured.out == captured.err == ""
-
-    def test_discovery_returns_gaps_silently(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-        """Nested files produce a discovery gap without printing it.
-
-        A library caller scans a directory of scripts with a nested helper. Discovery reports that the top-level
-        scan omits that helper in the returned gaps, leaving presentation to its caller.
-        """
-        (tmp_path / "nested").mkdir()
-        (tmp_path / "nested" / "helper.py").touch()
-        wrappers, gaps = _read_static(
-            _StaticSource("plain", str(tmp_path), tmp_path, None), recursive=True, include_members=True, exclude=[]
-        )
-        assert wrappers == []
-        assert gaps == [
-            _FoundGap(
-                _GapKind.NESTED_FILES,
-                "Skipping nested Python files in plain directory scan. Use an importable package layout with"
-                " '__init__.py' files, or scan an importable module/package path instead.",
-            )
-        ]
-        captured = capsys.readouterr()
-        assert captured.out == captured.err == ""
-
-    def test_reader_returns_gaps_silently(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-        """A missing source reached through imports produces one reader gap without printing it.
-
-        A package imports two names from the same compiled-only module. The read follows both references, but its
-        per-module deduplication returns the missing-source reason only once and keeps the output streams empty.
-        """
-        pkg = _write(tmp_path, {"__init__.py": "from .compiled import first, second\n"})
-        (pkg / f"compiled{EXTENSION_SUFFIXES[0]}").write_bytes(b"")
-        wrappers, gaps = _read_static(
-            _StaticSource("package", _PKG, pkg, pkg.parent), recursive=True, include_members=True, exclude=[]
-        )
-        assert wrappers == []
-        assert gaps == [_FoundGap(_GapKind.MODULE_NOT_AUDITED, f"{_PKG}.compiled: no Python source to read")]
-        captured = capsys.readouterr()
-        assert captured.out == captured.err == ""
-
-
 class TestCollectionParity:
     """Static and import scans of the same module agree finding by finding, except where a gap says why."""
 
@@ -633,107 +500,6 @@ class TestCollectionParity:
         assert "`target` is `_REPLACEMENTS['double']`, not a literal or a name" in err
         assert "static_forms.py" in err
         assert any("unrecognized use of `deprecated`" in item.detail for item in gaps)
-
-
-# ---------------------------------------------------------------------------
-# Recognizing pyDeprecate names
-# ---------------------------------------------------------------------------
-
-
-class TestFactoryNames:
-    """Every way a module can import a pyDeprecate factory makes its wrappers visible."""
-
-    @pytest.mark.parametrize(
-        "header",
-        [
-            pytest.param("from deprecate import deprecated", id="from-package"),
-            pytest.param("from deprecate import deprecated as deprecated", id="explicit-as"),
-            pytest.param("from deprecate.deprecation import deprecated", id="from-defining-module"),
-            pytest.param("from deprecate import *", id="star-import"),
-        ],
-    )
-    def test_import_forms_bind_the_factory(self, tmp_path: Path, header: str) -> None:
-        """A ``@deprecated`` function is found whatever import statement bound the decorator name.
-
-        Projects import the factory from the package root, from its defining module, through a star import, or keep
-        a reference under another name; each must still lead to the wrapper.
-
-        """
-        pkg = _write(
-            tmp_path,
-            {
-                "__init__.py": f"{header}\n\n@deprecated(deprecated_in='1.0', remove_in='2.0')\n"
-                "def old(x):\n    return x\n"
-            },
-        )
-        found = _read_package(pkg)[0]
-        assert [(info.function, info.deprecated_info.remove_in) for info in found] == [("old", "2.0")]
-
-    @pytest.mark.parametrize(
-        ("header", "decorator"),
-        [
-            pytest.param("import deprecate", "deprecate.deprecated", id="module"),
-            pytest.param("import deprecate as d", "d.deprecated", id="module-alias"),
-            pytest.param("import deprecate.proxy", "deprecate.proxy.deprecated_class", id="submodule"),
-            pytest.param(
-                "import deprecate\nimport deprecate.proxy", "deprecate.deprecated", id="package-imported-twice"
-            ),
-            pytest.param("from deprecate import proxy", "proxy.deprecated_class", id="from-submodule"),
-        ],
-    )
-    def test_attribute_chains_name_the_factory(self, tmp_path: Path, header: str, decorator: str) -> None:
-        """A factory reached through a module attribute chain is recognized.
-
-        ``import deprecate as d`` with ``@d.deprecated(...)`` is as common as the bare name; the reader follows the
-        chain to the pyDeprecate module and the object it exports.
-
-        """
-        source = f"{header}\n\n@{decorator}(deprecated_in='1.0', remove_in='2.0')\nclass Old:\n    pass\n"
-        found = _read_package(_write(tmp_path, {"__init__.py": source}))[0]
-        assert [info.function for info in found] == ["Old"]
-
-    def test_in_tree_factory_reexport(self, tmp_path: Path) -> None:
-        """A factory a project re-exports from its own compatibility module is followed one hop.
-
-        ``mypkg/_compat.py`` imports ``deprecated`` and the rest of the package imports it from there; without the hop
-        the decorator name would look foreign and its wrappers would vanish.
-
-        """
-        pkg = _write(
-            tmp_path,
-            {
-                "__init__.py": "",
-                "_compat.py": "from deprecate import deprecated\n",
-                "api.py": "from ._compat import deprecated\n\n@deprecated(deprecated_in='1.0', remove_in='2.0')\n"
-                "def old(x):\n    return x\n",
-            },
-        )
-        assert _rows(_read_package(pkg)[0]) == [f"{_PKG}.api:old"]
-
-    @pytest.mark.parametrize(
-        ("body", "line"),
-        [
-            pytest.param("def build(fn):\n    return deprecated(deprecated_in='1.0')(fn)\n", 4, id="inside-function"),
-            pytest.param("legacy = deprecated\n", 3, id="rebound-name"),
-            pytest.param("import deprecate\nlegacy = deprecate.deprecated\n", 4, id="rebound-attribute"),
-        ],
-    )
-    def test_unrecognized_use_is_a_gap(self, tmp_path: Path, body: str, line: int) -> None:
-        """A factory used where the reader recognizes no wrapper shape is reported at its line, never ignored.
-
-        Building wrappers inside a function is invisible to an import scan too, and a factory kept under another name
-        could decorate anything later; a static audit cannot tell either from a wrapper it failed to read.
-
-        """
-        source = "from deprecate import deprecated\n\n" + body
-        wrappers, gaps = _read_package(_write(tmp_path, {"__init__.py": source}))
-        assert wrappers == []
-        assert any(f"__init__.py:{line}: unrecognized use of `deprecate" in item.detail for item in gaps)
-
-
-# ---------------------------------------------------------------------------
-# The target each factory stores, judged by ``message-required``
-# ---------------------------------------------------------------------------
 
 
 class TestTargetSemantics:
@@ -947,23 +713,6 @@ class TestTargetSemantics:
         assert findings == []
         assert "not a literal or a name" in capsys.readouterr().err
 
-    def test_static_target_is_never_called(self) -> None:
-        """A replacement read from source is a named placeholder that refuses to run.
-
-        It stands in for the real callable only so the policy rule and the report can see that a replacement is named;
-        calling it would mean static mode executed something it never imported.
-
-        """
-        target = _StaticTarget("pkg.new")
-        with pytest.raises(TypeError, match="was read from source by `--static`"):
-            target()
-        assert (target.__qualname__, target.__module__) == ("pkg.new", "")
-
-
-# ---------------------------------------------------------------------------
-# Rows: which bindings and members report a wrapper
-# ---------------------------------------------------------------------------
-
 
 class TestBindingIdentity:
     """Rows follow the import scan's one-row-per-public-binding rule within the scanned tree."""
@@ -1090,27 +839,6 @@ class TestBindingIdentity:
             imported = _rows(find_deprecation_wrappers(_PKG, recursive=False))
         assert _rows(_read_package(pkg, recursive=False)[0]) == imported == [f"{_PKG}:old_fn"]
 
-    def test_imported_configured_decorator(self, tmp_path: Path) -> None:
-        """A decorator configured in one module and applied in another is read with the settings it was given.
-
-        Projects hoist a shared ``deprecated_class(...)`` instance into one module and apply it across the package; its
-        versions are spelled where it is configured, not where it is applied.
-
-        """
-        pkg = _write(
-            tmp_path,
-            {
-                "__init__.py": "",
-                "shared.py": "from deprecate import deprecated_class\n\n"
-                "legacy = deprecated_class(deprecated_in='1.0', remove_in='2.5')\n",
-                "api.py": "from .shared import legacy\n\n@legacy\nclass Old:\n    pass\n",
-            },
-        )
-        found = _read_package(pkg)[0]
-        assert [(info.module, info.function, info.deprecated_info.remove_in) for info in found] == [
-            (f"{_PKG}.api", "Old", "2.5")
-        ]
-
     def test_deprecated_module_row(self, probe_package: Callable[..., Path]) -> None:
         """``deprecated_module`` called in a module's body reports the module itself, first.
 
@@ -1217,227 +945,6 @@ class TestBindingIdentity:
         assert "`message_template` renders `remove_in`" in capsys.readouterr().err
 
 
-# ---------------------------------------------------------------------------
-# Discovery: which files are read
-# ---------------------------------------------------------------------------
-
-
-class TestDiscovery:
-    """The static walk reads the files the import walk would import, and reports the ones it cannot read."""
-
-    def test_excluded_module_is_never_read(self, tmp_path: Path) -> None:
-        """An excluded submodule is skipped before reading: its syntax error never surfaces.
-
-        ``exclude`` keeps a module out of the audit; reading it anyway could fail the run on a file the user asked
-        to leave alone.
-
-        """
-        pkg = _write(tmp_path, {"__init__.py": "", "skip.py": "def broken(:\n", "keep.py": "X = 1\n"})
-        _, gaps = _read_package(pkg, exclude=(f"{_PKG}.skip",))
-        assert not any(item.kind is _GapKind.MODULE_NOT_AUDITED for item in gaps)
-
-    def test_unreadable_module_is_a_gap(self, tmp_path: Path) -> None:
-        """A file that does not parse is a ``module not audited`` gap, and the rest of the package is still read.
-
-        Import mode reports a submodule that fails to import the same way; one broken file never aborts the audit.
-
-        """
-        pkg = _write(
-            tmp_path,
-            {
-                "__init__.py": "",
-                "broken.py": "def broken(:\n",
-                "good.py": "from deprecate import deprecated\n\n@deprecated(deprecated_in='1.0')\ndef old(x):\n"
-                "    return x\n",
-            },
-        )
-        wrappers, gaps = _read_package(pkg)
-        assert _rows(wrappers) == [f"{_PKG}.good:old"]
-        assert any(f"{_PKG}.broken: could not read its source" in item.detail for item in gaps)
-
-    @pytest.mark.parametrize(
-        ("lister", "blocked", "modules"),
-        [
-            pytest.param("scandir", "", f"{_PKG}.*", id="package-root"),
-            pytest.param("listdir", "sub", f"{_PKG}.sub", id="subpackage"),
-        ],
-    )
-    def test_unlistable_directory_is_a_gap(
-        self,
-        tmp_path: Path,
-        monkeypatch: pytest.MonkeyPatch,
-        lister: str,
-        blocked: str,
-        modules: str,
-    ) -> None:
-        """A package directory the walk cannot list prints a ``module not audited`` gap naming its modules and itself.
-
-        A directory without read permission once looked like a package with no submodules, so every wrapper below it
-        passed the audit unseen; the gap names the directory and the error, while the rest of the tree is still read.
-        The detail opens with the module names left out, as the import scan's does (``<package>.*`` when only the
-        submodules are missing), so a baseline id under them is not taken for a stale one.
-
-        """
-        pkg = _write(tmp_path, {"__init__.py": "", "sub/__init__.py": "", "m.py": ""})
-        monkeypatch.setattr(os, lister, _refusing(getattr(os, lister), pkg / blocked))
-        _, gaps = _read_package(pkg)
-        expected = f"{modules}: submodules of {pkg / blocked} not listed"
-        assert any(expected in item.detail for item in gaps)
-
-    def test_module_without_source_is_a_gap(self, tmp_path: Path) -> None:
-        """A compiled extension module with no ``.py`` beside it is reported, since its wrappers cannot be read.
-
-        Import mode would audit it; static mode has nothing to parse, so it says so.
-
-        """
-        pkg = _write(tmp_path, {"__init__.py": ""})
-        (pkg / f"fast{EXTENSION_SUFFIXES[0]}").write_bytes(b"")  # the running interpreter's own extension suffix
-        _, gaps = _read_package(pkg)
-        assert any(f"{_PKG}.fast: no Python source to read" in item.detail for item in gaps)
-
-    @pytest.mark.parametrize(
-        ("files", "recursive", "exclude", "gap"),
-        [
-            pytest.param(
-                {"__init__.py": "from .broken import thing\n"},
-                False,
-                (),
-                f"{_PKG}.broken: could not read its source",
-                id="no-recursive",
-            ),
-            pytest.param(
-                {"__init__.py": "", "a.py": "from .broken import thing\n"},
-                True,
-                (f"{_PKG}.broken",),
-                f"{_PKG}.broken: could not read its source",
-                id="excluded-module-imported-by-a-walked-one",
-            ),
-            pytest.param(
-                {"__init__.py": "from .compiled import thing\n"},
-                False,
-                (),
-                f"{_PKG}.compiled: no Python source to read",
-                id="imported-module-without-python-source",
-            ),
-        ],
-    )
-    def test_module_reached_only_through_an_import_is_a_gap(
-        self,
-        tmp_path: Path,
-        files: dict[str, str],
-        recursive: bool,
-        exclude: tuple[str, ...],
-        gap: str,
-    ) -> None:
-        """A module the walk never reaches still reports why it was not audited when another module imports it.
-
-        Under ``--no-recursive`` or ``--exclude`` the broken module is read only to follow the importer's names; the
-        reason recorded there is the only signal that the importer's view is incomplete, so it must be printed.
-
-        """
-        pkg = _write(tmp_path, {**files, "broken.py": "def (:\n"})
-        _, gaps = _read_package(pkg, recursive=recursive, exclude=exclude)
-        assert any(f"{gap}" in item.detail for item in gaps)
-
-    @pytest.mark.parametrize(
-        ("recursive", "exclude"),
-        [
-            pytest.param(False, (), id="no-recursive"),
-            pytest.param(True, (f"{_PKG}.core",), id="excluded-module-re-exported-by-a-walked-one"),
-        ],
-    )
-    def test_structural_gaps_of_a_module_reached_only_through_an_import_are_printed(
-        self, tmp_path: Path, recursive: bool, exclude: tuple[str, ...]
-    ) -> None:
-        """A shape the reader cannot place in a module the walk skips is still a gap when another module re-exports it.
-
-        The package re-exports ``old`` from ``core``, which builds its wrapper through ``partial(deprecated, ...)``, a
-        shape static mode does not read. Under ``--no-recursive`` or ``--exclude`` ``core`` is analyzed only to follow
-        the re-export, and the gap that analysis records is the sole sign that ``old`` went unaudited.
-
-        """
-        core = (
-            f"from functools import partial\n{_DEP}\n"
-            "old = partial(deprecated, deprecated_in='1.0', remove_in='2.0')(print)\n"
-        )
-        pkg = _write(tmp_path, {"__init__.py": "from .core import old\n", "core.py": core})
-        _, gaps = _read_package(pkg, recursive=recursive, exclude=exclude)
-        assert any("core.py:4: unrecognized use of `deprecated`" in item.detail for item in gaps)
-
-    def test_plain_directory_reads_top_level_files(self, tmp_path: Path) -> None:
-        """A plain directory reads its top-level modules by file name and reports nested files as not audited.
-
-        This mirrors the import scan of a directory without ``__init__.py``, which only imports top-level modules.
-
-        """
-        (tmp_path / "nested").mkdir()
-        (tmp_path / "nested" / "inner.py").write_text("X = 1\n")
-        (tmp_path / "mod.py").write_text(
-            "from deprecate import deprecated\n\n@deprecated(deprecated_in='1.0')\ndef old(x):\n    return x\n"
-        )
-        source = _locate_static(str(tmp_path), None)
-        assert isinstance(source, _StaticSource)
-        found, gaps = _read_static(source, recursive=True, include_members=True, exclude=[])
-        assert _rows(found) == ["mod:old"]
-        assert any(item.kind is _GapKind.NESTED_FILES for item in gaps)
-
-    def test_namespace_package_reads_every_portion(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        """A namespace package split over two import-path entries is read from both, with no gap for its root.
-
-        The import scan walks every directory of ``__path__`` and has no root module to report; reading only the
-        first directory would drop the second one's wrappers silently, and a root gap would cry wolf.
-
-        """
-        _write_namespace_portion(tmp_path / "first", "alpha")
-        _write_namespace_portion(tmp_path / "second", "beta")
-        monkeypatch.syspath_prepend(str(tmp_path / "first"))
-        monkeypatch.syspath_prepend(str(tmp_path / "second"))
-        source = _locate_static(_NAMESPACE, None)
-        assert isinstance(source, _StaticSource)
-        found, gaps = _read_static(source, recursive=True, include_members=True, exclude=[])
-        assert sorted(_rows(found)) == [f"{_NAMESPACE}.alpha:old", f"{_NAMESPACE}.beta:old"]
-        assert not any(item.kind is _GapKind.MODULE_NOT_AUDITED for item in gaps)
-
-    @pytest.mark.parametrize(
-        ("path", "message"),
-        [
-            pytest.param("os.path", "would import its parent packages", id="dotted"),
-            pytest.param("no_such_module_xyz", "No such path or importable module", id="missing"),
-            pytest.param("sys", "has no Python source", id="builtin"),
-        ],
-    )
-    def test_module_names_without_readable_source(self, path: str, message: str) -> None:
-        """A module name static mode cannot read without importing is a usage error, not a silent empty scan.
-
-        Locating a dotted name imports its parents, and a built-in has no source; both would make the scan either run
-        code or audit nothing.
-
-        """
-        located = _locate_static(path, None)
-        assert isinstance(located, str)
-        assert message in located
-
-    def test_top_level_module_name_located_without_import(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """A top-level module name is located on the import path without running the module.
-
-        The module raises when imported; locating it for a static read must not trigger that.
-
-        """
-        (tmp_path / "standalone_static_mod.py").write_text("raise RuntimeError('imported')\n")
-        monkeypatch.syspath_prepend(str(tmp_path))
-        located = _locate_static("standalone_static_mod", None)
-        assert isinstance(located, _StaticSource)
-        assert (located.kind, located.location.name) == ("module", "standalone_static_mod.py")
-        assert "standalone_static_mod" not in sys.modules
-
-
-# ---------------------------------------------------------------------------
-# Rule settings
-# ---------------------------------------------------------------------------
-
-
 class TestResolvedSettings:
     """Each check sees exactly the wrappers whose settings it reads were settled from source."""
 
@@ -1467,21 +974,6 @@ class TestResolvedSettings:
         with _record_run() as record:
             _static_policy_findings(wrappers, _build_policy_spec(grace, message_required))
         assert [gap.detail.split("`")[1] for gap in record.gaps] == list(expected)
-
-    def test_literal_dict_splat_resolves(self, tmp_path: Path) -> None:
-        """Settings splatted from a module-level dict literal are read, as the project's own collections spell them.
-
-        The unification pattern shares ``deprecated_in``/``remove_in`` through ``**_ARGS``; treating every splat as
-        a gap would leave such packages unaudited.
-
-        """
-        source = (
-            "from deprecate import TargetMode, deprecated\n\n_ARGS = {'deprecated_in': '1.0', 'remove_in': '2.0'}\n\n"
-            "@deprecated(target=TargetMode.NOTIFY, **_ARGS)\ndef old(x):\n    return x\n"
-        )
-        (info,) = _read_package(_write(tmp_path, {"__init__.py": source}))[0]
-        assert (info.deprecated_info.deprecated_in, info.deprecated_info.remove_in) == ("1.0", "2.0")
-        assert info.deprecated_info.target is TargetMode.NOTIFY
 
     @pytest.mark.parametrize(
         ("body", "reason"),
@@ -1555,27 +1047,6 @@ class TestShapeParity:
         assert len(imported) == 1
         assert imported[0][2] == line
         assert static == imported
-
-    @pytest.mark.parametrize(
-        "source",
-        [
-            pytest.param("def original(): pass\nalias = original\nalias = original\n", id="rebound-alias"),
-            pytest.param("first = second\nsecond = first\nalias = first\n", id="cycle"),
-        ],
-    )
-    def test_call_form_unsettled_alias_has_no_source_location(
-        self, probe_package: Callable[..., Path], source: str
-    ) -> None:
-        """An ambiguous or cyclic alias never gives a wrapper a guessed source location.
-
-        Static scanning can encounter unimportable or rebound source and must terminate without inventing a location.
-
-        """
-        pkg = probe_package({"__init__.py": f"{_DEP}{source}old = {_EXPIRED}(alias)\n"})
-        wrappers = _read_package(pkg)[0]
-        assert len(wrappers) == 1
-        assert wrappers[0].source_file is None
-        assert wrappers[0].source_line is None
 
     def test_source_locations_match_per_shape(self, probe_package: Callable[..., Path]) -> None:
         """Every wrapper shape gets the file and first line the import scan records, or no location in both modes.
@@ -1767,45 +1238,6 @@ class TestShapeParity:
             warnings.simplefilter("ignore")
             imported = [(i.function, i.api_type) for i in find_deprecation_wrappers(_PKG)]
         assert [(i.function, i.api_type) for i in _read_package(pkg)[0]] == imported
-
-    def test_unattributable_wrapper_is_a_gap(self, tmp_path: Path) -> None:
-        """A wrapper around an imported object the source cannot classify is reported rather than guessed.
-
-        Whether the import scan lists it depends on the object being a class (a proxy, kept) or a function (attributed
-        to its own module, dropped); without that, a silent choice would risk losing a row.
-
-        """
-        pkg = _write(
-            tmp_path,
-            {
-                "__init__.py": "",
-                "other.py": "def make():\n    return 1\n\nthing = make()\n",
-                "api.py": "from deprecate import deprecated\nfrom .other import thing\n\n"
-                "old = deprecated(deprecated_in='1.0', remove_in='2.0')(thing)\n",
-            },
-        )
-        wrappers, gaps = _read_package(pkg)
-        assert wrappers == []
-        assert any(f"{_PKG}.api.old: wraps an object imported from `{_PKG}.other`" in item.detail for item in gaps)
-
-    def test_module_deprecating_another_module_is_a_gap(self, tmp_path: Path) -> None:
-        """``deprecated_module`` naming another module is not this module's row; the call is reported instead.
-
-        The import scan attributes it to the named module when that module is walked; static mode cannot tell when.
-
-        """
-        source = "from deprecate import deprecated_module\n\ndeprecated_module('elsewhere', deprecated_in='1.0')\n"
-        wrappers, gaps = _read_package(_write(tmp_path, {"__init__.py": source}))
-        assert wrappers == []
-        assert any("unrecognized use of `deprecated_module`" in item.detail for item in gaps)
-
-
-# ---------------------------------------------------------------------------
-# No silent miss: every wrapper the import scan finds is a static row or a gap
-# ---------------------------------------------------------------------------
-
-_DEP = "from deprecate import deprecated\n"
-_EXPIRED = "deprecated(deprecated_in='1.0', remove_in='2.0')"
 
 
 class TestNoSilentMiss:
@@ -2258,39 +1690,6 @@ class TestNoSilentMiss:
             imported = [f.id for f in _expiry_findings(find_deprecation_wrappers(_PKG, recursive), "99.0")]
         assert _expiry_ids(_read_package(pkg, recursive=recursive)[0]) == imported
 
-    @pytest.mark.parametrize(
-        ("source", "gap"),
-        [
-            pytest.param(
-                # twice the interpreter's recursion limit: parses, but the analyzer's tree walk cannot follow it
-                "x = a" + ".b" * (2 * sys.getrecursionlimit()) + "\n",
-                f"{_PKG}.deep: its source is nested too deeply to analyze",
-                id="attribute-chain-too-deep-for-the-analyzer",
-            ),
-            pytest.param(
-                # past the tokenizer's 200-level bracket limit: the parser refuses it before any analysis
-                "x = " + "(" * 250 + "1" + ")" * 250 + "\n",
-                f"{_PKG}.deep: could not read its source",
-                id="parentheses-too-deep-for-the-parser",
-            ),
-        ],
-    )
-    def test_module_too_deep_to_read_is_a_gap(self, tmp_path: Path, source: str, gap: str) -> None:
-        """A module too deeply nested to analyze is a ``module not audited`` gap while its sibling is still read.
-
-        A package ships one generated module with an enormous expression next to a module holding an expired
-        wrapper. Skipping the generated module silently would hide whatever it holds, so the gap is printed, and the
-        sibling wrapper must still be found. The analyzer-level case gives up on a tree it parsed; the parse-level
-        case never gets a tree.
-
-        """
-        pkg = _write(
-            tmp_path, {"__init__.py": "", "deep.py": source, "ok.py": f"{_DEP}@{_EXPIRED}\ndef old():\n    pass\n"}
-        )
-        wrappers, gaps = _read_package(pkg)
-        assert _rows(wrappers) == [f"{_PKG}.ok:old"]
-        assert any(gap in item.detail for item in gaps)
-
 
 class TestDynamicSourceBindings:
     """Dynamic bindings cannot be treated as settled replacements or factories."""
@@ -2342,24 +1741,6 @@ class TestDynamicSourceBindings:
             imported = [f.id for f in _expiry_findings(find_deprecation_wrappers(_PKG, True), "99.0")]
         assert _expiry_ids(_read_package(pkg)[0]) == imported
 
-    def test_rebound_base_module_is_not_assumed(self, tmp_path: Path) -> None:
-        """A dynamically replaced base module must not contribute its former class's deprecated members.
-
-        A package replaces an imported base module through its globals before defining the subclass. The original
-        module still has a deprecated method, but the subclass does not inherit it.
-        """
-        pkg = _write(
-            tmp_path,
-            {
-                "__init__.py": "from . import base\nclass Other: pass\n"
-                "globals()['base'] = type('M', (), {'Base': Other})\nclass Derived(base.Base): pass\n",
-                "base.py": f"{_DEP}class Base:\n    @{_EXPIRED}\n    def old(self): pass\n",
-            },
-        )
-        wrappers, gaps = _read_package(pkg)
-        assert _rows(wrappers) == [f"{_PKG}.base:Base.old"]
-        assert any("members inherited from `base.Base`" in item.detail for item in gaps)
-
 
 class TestStaticRegressionBindings:
     """Exercise static scans of bindings whose runtime values differ from their syntax."""
@@ -2379,55 +1760,6 @@ class TestStaticRegressionBindings:
             warnings.simplefilter("ignore")
             imported = [info.function for info in find_deprecation_wrappers(_PKG)]
         assert [info.function for info in _read_package(pkg)[0]] == imported == ["API.alias"]
-
-    def test_suppressed_exception_in_with_reports_gap(self, tmp_path: Path) -> None:
-        """A context manager can suppress an exception before a wrapper is rebound.
-
-        The scan must not silently assume the later assignment ran.
-        """
-        pkg = _write(
-            tmp_path,
-            {
-                "__init__.py": f"from contextlib import suppress\n{_DEP}@{_EXPIRED}\ndef old(): pass\n"
-                "with suppress(ValueError):\n    raise ValueError()\n    old = None\n"
-            },
-        )
-        rows, gaps = _read_package(pkg)
-        assert [info.function for info in rows] == ["old"] or any(
-            item.kind is _GapKind.STATIC_UNRESOLVED for item in gaps
-        )
-
-    def test_first_with_assignment_can_fail(self, tmp_path: Path) -> None:
-        """A failed assignment can be suppressed before it replaces a wrapper.
-
-        An exception in the first statement leaves the original name live at runtime.
-        """
-        pkg = _write(
-            tmp_path,
-            {
-                "__init__.py": f"from contextlib import suppress\n{_DEP}@{_EXPIRED}\ndef old(): pass\n"
-                "with suppress(ValueError):\n    old = int('bad')\n"
-            },
-        )
-        _, gaps = _read_package(pkg)
-        assert any(item.kind is _GapKind.STATIC_UNRESOLVED for item in gaps)
-
-    def test_suppressed_call_does_not_create_phantom(self, tmp_path: Path) -> None:
-        """A suppressed error can prevent a later decorator from running.
-
-        Static analysis must not report a wrapper that may never have been created.
-        """
-        pkg = _write(
-            tmp_path,
-            {
-                "__init__.py": f"from contextlib import suppress\n{_DEP}"
-                "with suppress(ValueError):\n    int('bad')\n"
-                f"    @{_EXPIRED}\n    def old(): pass\n"
-            },
-        )
-        wrappers, gaps = _read_package(pkg)
-        assert wrappers == []
-        assert any(item.kind is _GapKind.STATIC_UNRESOLVED for item in gaps)
 
     def test_module_wrapper_aliased_into_class(self, probe_package: Callable[..., Path]) -> None:
         """A class can expose a deprecated module-level function as a method.
@@ -2492,45 +1824,6 @@ class TestStaticRegressionBindings:
         assert [f.id for f in _static_policy_findings(_read_package(pkg)[0], _GUIDANCE_ONLY)] == imported
         assert imported
 
-    def test_excluded_root_has_no_rows(self, tmp_path: Path) -> None:
-        """An excluded package root must not contribute its deprecated wrappers.
-
-        A root-only scan should honor the same exclusion as an import scan.
-        """
-        pkg = _write(tmp_path, {"__init__.py": f"{_DEP}@{_EXPIRED}\ndef old(): pass\n"})
-        assert _read_package(pkg, exclude=(_PKG,))[0] == []
-
-    def test_suppressed_import_does_not_create_phantom(self, tmp_path: Path) -> None:
-        """A suppressed missing optional import prevents a later wrapper from being created.
-
-        Static scanning must report the uncertainty instead of claiming the skipped wrapper exists.
-        """
-        pkg = _write(
-            tmp_path,
-            {
-                "__init__.py": f"from contextlib import suppress\n{_DEP}"
-                "with suppress(ImportError):\n    import unavailable_optional_dependency\n"
-                f"    @{_EXPIRED}\n    def old(): pass\n"
-            },
-        )
-        wrappers, gaps = _read_package(pkg)
-        assert wrappers == []
-        assert any(item.kind is _GapKind.STATIC_UNRESOLVED for item in gaps)
-
-    def test_explicit_none_names_current_module(self, tmp_path: Path) -> None:
-        """An explicit None module name has the same meaning as an omitted name.
-
-        Projects passing it explicitly still need their module removal deadline audited.
-        """
-        pkg = _write(
-            tmp_path,
-            {
-                "__init__.py": "from deprecate import deprecated_module\n"
-                "deprecated_module(None, deprecated_in='1.0', remove_in='2.0')\n"
-            },
-        )
-        assert [row.function for row in _read_package(pkg)[0]] == [""]
-
     def test_conditional_callable_target_is_unresolved(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
@@ -2548,138 +1841,6 @@ class TestStaticRegressionBindings:
         )
         _static_policy_findings(_read_package(pkg)[0], _GUIDANCE_ONLY)
         assert "not statically resolvable" in capsys.readouterr().err
-
-    def test_plain_directory_sibling_reexport_is_not_silent(self, tmp_path: Path) -> None:
-        """An excluded sibling can still be re-exported by a scanned module.
-
-        A directory scan must report the wrapper or a gap when it cannot follow the import.
-        """
-        (tmp_path / "a.py").write_text("from b import old\n")
-        (tmp_path / "b.py").write_text(f"{_DEP}@{_EXPIRED}\ndef old(): pass\n")
-        rows, gaps = _read_static(
-            _StaticSource("plain", str(tmp_path), tmp_path, None), recursive=True, include_members=True, exclude=["b"]
-        )
-        assert [(row.module, row.function) for row in rows] == [("a", "old")] or (
-            any("import from `b` is not audited" in item.detail for item in gaps)
-        )
-
-    def test_unknown_earlier_base_does_not_claim_inherited_wrapper(self, tmp_path: Path) -> None:
-        """An external base may shadow a later local deprecated method.
-
-        The scanner must retain the unknown-base gap without reporting an uncertain inherited row.
-        """
-        pkg = _write(
-            tmp_path,
-            {
-                "__init__.py": f"{_DEP}from external_package import External\n"
-                f"class Local:\n    @{_EXPIRED}\n    def old(self): pass\n"
-                "class Child(External, Local): pass\n"
-            },
-        )
-        wrappers, gaps = _read_package(pkg)
-        assert "Child.old" not in [row.function for row in wrappers]
-        assert any(item.kind is _GapKind.STATIC_UNRESOLVED for item in gaps)
-
-    def test_import_inside_function_does_not_interrupt_with_body(self, tmp_path: Path) -> None:
-        """An import inside an uncalled function does not interrupt a module-level context manager.
-
-        A wrapper defined after the function is created normally and must remain visible.
-        """
-        pkg = _write(
-            tmp_path,
-            {
-                "__init__.py": f"from contextlib import nullcontext\n{_DEP}"
-                "with nullcontext():\n    def helper():\n        import os\n"
-                f"    @{_EXPIRED}\n    def old(): pass\n"
-            },
-        )
-        assert [row.function for row in _read_package(pkg)[0]] == ["old"]
-
-    def test_function_local_sibling_import_has_no_reexport_gap(self, tmp_path: Path) -> None:
-        """A function-local import does not create a module re-export.
-
-        An uncalled helper importing a sibling should not report a missing module-level wrapper.
-        """
-        (tmp_path / "a.py").write_text("def helper():\n    from b import old\n")
-        (tmp_path / "b.py").write_text("old = 1\n")
-        _, gaps = _read_static(
-            _StaticSource("plain", str(tmp_path), tmp_path, None), recursive=True, include_members=True, exclude=["b"]
-        )
-        assert not any(item.kind is _GapKind.STATIC_UNRESOLVED for item in gaps)
-
-    def test_shared_unknown_base_preserves_visible_member(self, tmp_path: Path) -> None:
-        """A shared external base follows both local branches in the C3 order.
-
-        A method on the later local branch stays visible ahead of their shared unknown ancestor.
-        """
-        pkg = _write(
-            tmp_path,
-            {
-                "__init__.py": f"{_DEP}from external_package import External\n"
-                "class A(External): pass\n"
-                f"class B(External):\n    @{_EXPIRED}\n    def old(self): pass\n"
-                "class Child(A, B): pass\n"
-            },
-        )
-        assert "Child.old" in [row.function for row in _read_package(pkg)[0]]
-
-    def test_plain_directory_sibling_package_reexport_is_not_silent(self, tmp_path: Path) -> None:
-        """A sibling package can be re-exported from a scanned top-level module.
-
-        An excluded sibling package must still produce a gap when its exported wrapper cannot be read.
-        """
-        (tmp_path / "a.py").write_text("from b import old\n")
-        (tmp_path / "b").mkdir()
-        (tmp_path / "b" / "__init__.py").write_text(f"{_DEP}@{_EXPIRED}\ndef old(): pass\n")
-        _, gaps = _read_static(
-            _StaticSource("plain", str(tmp_path), tmp_path, None), recursive=True, include_members=True, exclude=["b"]
-        )
-        assert any(item.kind is _GapKind.STATIC_UNRESOLVED for item in gaps)
-
-    @pytest.mark.parametrize(
-        "helper",
-        [
-            pytest.param("def helper():\n        return object().method()", id="function-body"),
-            pytest.param("async def helper():\n        return object().method()", id="async-function-body"),
-            pytest.param("helper = lambda: object().method()", id="lambda-body"),
-        ],
-    )
-    def test_deferred_call_does_not_interrupt_with_body(self, tmp_path: Path, helper: str) -> None:
-        """A call in a deferred function body cannot stop the surrounding context manager.
-
-        An uncalled helper before a deprecated function must not hide that live wrapper from a static scan.
-        """
-        pkg = _write(
-            tmp_path,
-            {
-                "__init__.py": f"from contextlib import nullcontext\n{_DEP}with nullcontext():\n    {helper}\n"
-                f"    @{_EXPIRED}\n    def old(): pass\n"
-            },
-        )
-        assert [row.function for row in _read_package(pkg)[0]] == ["old"]
-
-    @pytest.mark.parametrize(
-        "helper",
-        [
-            pytest.param("def helper(value=fail()): pass", id="default-argument"),
-            pytest.param("@fail()\n    def helper(): pass", id="decorator"),
-        ],
-    )
-    def test_definition_time_call_can_interrupt_with_body(self, tmp_path: Path, helper: str) -> None:
-        """A function default or decorator executes before a later wrapper is bound.
-
-        A suppressing context manager may stop at that call, so the later wrapper must remain unresolved.
-        """
-        pkg = _write(
-            tmp_path,
-            {
-                "__init__.py": f"from contextlib import suppress\n{_DEP}with suppress(Exception):\n    {helper}\n"
-                f"    @{_EXPIRED}\n    def old(): pass\n"
-            },
-        )
-        wrappers, gaps = _read_package(pkg)
-        assert wrappers == []
-        assert any(item.kind is _GapKind.STATIC_UNRESOLVED for item in gaps)
 
     @pytest.mark.parametrize(
         "nested",
@@ -2736,35 +1897,3 @@ class TestStaticRegressionBindings:
         )
         assert _static_policy_findings(_read_package(pkg)[0], _GUIDANCE_ONLY) == []
         assert "not statically resolvable" in capsys.readouterr().err
-
-    def test_generator_body_does_not_interrupt_with_body(self, tmp_path: Path) -> None:
-        """A generator expression defers its element expression until iteration.
-
-        Creating an unconsumed generator cannot prevent a later wrapper from being bound.
-        """
-        pkg = _write(
-            tmp_path,
-            {
-                "__init__.py": f"from contextlib import nullcontext\n{_DEP}with nullcontext():\n"
-                "    values = (fail() for item in (1, 2))\n"
-                f"    @{_EXPIRED}\n    def old(): pass\n"
-            },
-        )
-        assert [row.function for row in _read_package(pkg)[0]] == ["old"]
-
-    def test_generator_outer_iterable_can_interrupt_with_body(self, tmp_path: Path) -> None:
-        """A generator expression evaluates its first iterable immediately.
-
-        A failing iterable call can be suppressed before a later wrapper is created.
-        """
-        pkg = _write(
-            tmp_path,
-            {
-                "__init__.py": f"from contextlib import suppress\n{_DEP}with suppress(Exception):\n"
-                "    values = (item for item in fail())\n"
-                f"    @{_EXPIRED}\n    def old(): pass\n"
-            },
-        )
-        wrappers, gaps = _read_package(pkg)
-        assert wrappers == []
-        assert any(item.kind is _GapKind.STATIC_UNRESOLVED for item in gaps)
