@@ -55,8 +55,21 @@ def _locate_static(path: str, package_dir: Optional[Path]) -> Union[_StaticSourc
     if package_dir is not None:
         return _StaticSource("package", package_dir.name, package_dir, package_dir.parent)
     pth = Path(path)
+    if pth.is_file():
+        if pth.suffix != ".py":
+            return f"{path!r} has no Python source for `--static` to read."
+        pth = pth.resolve()
+        return _StaticSource("module", pth.stem, pth, pth.parent)
     if pth.is_dir():
+        if (pth / "__init__.py").is_file():
+            pth = pth.resolve()
+            return _StaticSource("package", pth.name, pth, pth.parent)
         return _StaticSource("plain", path, pth.resolve(), None)
+    return _locate_static_name(path)
+
+
+def _locate_static_name(path: str) -> Union[_StaticSource, str]:
+    """Locate a top-level module name without importing it, refusing names that would import their parents."""
     if "." in path:
         return (
             f"`--static` takes a package directory, a plain directory or a top-level module name; locating {path!r}"

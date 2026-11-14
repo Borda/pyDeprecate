@@ -1,22 +1,17 @@
 """The checks' view of static rows: the settings a rule needs, the gaps they leave, and the policy findings."""
 
 from collections.abc import Mapping, Sequence
-from dataclasses import replace
 from typing import Optional
 
 from deprecate._cli.report import _print_gap
 from deprecate._gaps import _GapKind
+from deprecate._static.checks import _static_policy_findings as _compute_policy_findings
+from deprecate._static.checks import _unresolved
 from deprecate._static.consts import _GRACE_KEYWORDS, _GUIDANCE_KEYWORDS
-from deprecate._static.model import _StaticWrapperInfo
 from deprecate.audit import DeprecationWrapperInfo
 from deprecate.audit._findings import _Finding, _Rule
-from deprecate.audit._policy import _OnUnparsableVersion, _policy_findings, _PolicySpec
+from deprecate.audit._policy import _OnUnparsableVersion, _PolicySpec
 from deprecate.audit._wrappers import _format_subject
-
-
-def _unresolved(info: DeprecationWrapperInfo) -> Mapping[str, str]:
-    """Return the settings of *info* the source did not settle (none for an imported wrapper)."""
-    return info.unresolved if isinstance(info, _StaticWrapperInfo) else {}
 
 
 def _report_unresolved(
@@ -41,11 +36,6 @@ def _report_unresolved(
             )
 
 
-def _resolved(wrappers: Sequence[DeprecationWrapperInfo], keywords: Sequence[str]) -> list[DeprecationWrapperInfo]:
-    """Return the wrappers whose settings among *keywords* the source settled."""
-    return [info for info in wrappers if not any(key in _unresolved(info) for key in keywords)]
-
-
 def _static_policy_findings(
     wrappers: list[DeprecationWrapperInfo],
     spec: _PolicySpec,
@@ -68,18 +58,11 @@ def _static_policy_findings(
             and their own call prints the gaps of those.
 
     """
-    findings: list[_Finding] = []
-    if spec.grace is not None:
-        findings += _policy_findings(
-            _resolved(wrappers, _GRACE_KEYWORDS), replace(spec, message_required=False), on_unparsable=on_unparsable
-        )
-    if spec.message_required:
-        findings += _policy_findings(_resolved(wrappers, _GUIDANCE_KEYWORDS), replace(spec, grace=None))
+    findings = _compute_policy_findings(wrappers, spec, on_unparsable=on_unparsable)
     rule_keywords: dict[str, Sequence[str]] = {}
     if spec.grace is not None:
         rule_keywords[_Rule.MIN_GRACE.value] = _GRACE_KEYWORDS
     if spec.message_required:
         rule_keywords[_Rule.MESSAGE_REQUIRED.value] = _GUIDANCE_KEYWORDS
     _report_unresolved(wrappers, rule_keywords)
-    order = {(info.module, info.function): index for index, info in enumerate(wrappers)}
-    return sorted(findings, key=lambda f: (order.get((f.module, f.symbol), 0), f.rule is _Rule.MESSAGE_REQUIRED))
+    return findings

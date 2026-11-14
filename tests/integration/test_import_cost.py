@@ -28,7 +28,7 @@ class TestLazyAuditImport:
     @pytest.mark.subprocess
     @pytest.mark.parametrize("module", ["deprecate", "deprecate.audit"])
     def test_import_skips_static_reader(self, module: str) -> None:
-        """Importing the decorator core or audit API leaves the static reader unloaded.
+        """Importing the decorator core or audit API leaves the static reader and CLI unloaded.
 
         Applications using runtime decorators or import-based audits do not need source analysis. Check the whole
         static package namespace in a fresh interpreter so importing any reader submodule counts as a regression.
@@ -37,7 +37,8 @@ class TestLazyAuditImport:
             "import sys, json\n"
             f"import {module}\n"
             "print(json.dumps(sorted(name for name in sys.modules "
-            "if name == 'deprecate._static' or name.startswith('deprecate._static.'))))\n"
+            "if name in ('deprecate._static', 'deprecate._cli') "
+            "or name.startswith(('deprecate._static.', 'deprecate._cli.')))))\n"
         )
         assert json.loads(run_isolated_python(code)) == []
 

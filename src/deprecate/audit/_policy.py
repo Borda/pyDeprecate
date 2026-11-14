@@ -21,6 +21,7 @@ from deprecate._types import DeprecationConfig, TargetMode
 from deprecate.audit._findings import _MESSAGE_REQUIRED_SLUG, _MIN_GRACE_SLUG, _Check, _Finding, _make_finding, _Rule
 from deprecate.audit._lifecycle import _parse_version, _warn_version_skip
 from deprecate.audit._scan import find_deprecation_wrappers
+from deprecate.audit._static import StaticScanResult, _static_result_rows
 from deprecate.audit._wrappers import DeprecationWrapperInfo, _ApiType, _format_subject
 from deprecate.module import _build_module_warn_msg
 
@@ -636,7 +637,7 @@ def _policy_findings(
 
 
 def validate_deprecation_policy(
-    module: Union[Any, str],  # noqa: ANN401
+    module: Union[Any, str, StaticScanResult],  # noqa: ANN401
     recursive: bool = True,
     include_members: bool = True,
     *,
@@ -659,6 +660,8 @@ def validate_deprecation_policy(
 
     Args:
         module: A Python module or package to scan — an imported module object or a string module path.
+            Also accepts a :class:`~deprecate.audit.StaticScanResult` without imports or another scan; each rule checks
+            only rows whose required settings resolved. Inspect its ``gaps`` for incomplete coverage.
         recursive: If True (default), recursively scan submodules.
         include_members: If True (default), also scan deprecated class members, matching the discovery default
             of :func:`~deprecate.audit.find_deprecation_wrappers`.
@@ -684,7 +687,8 @@ def validate_deprecation_policy(
         ImportError: If ``min_grace`` is enabled, a wrapper carries both version fields, and the ``packaging``
             library is not installed (``pip install pyDeprecate[audit]``). A policy reduced to
             ``message_required`` alone parses no version and runs without it.
-        ValueError: If ``min_grace`` is not a valid specification.
+        ValueError: If ``min_grace`` is not a valid specification, or a static result is given with ``recursive=False``
+            or ``include_members=False`` because its scan options are already fixed.
 
     Examples:
         >>> from deprecate import validate_deprecation_policy
@@ -709,6 +713,12 @@ def validate_deprecation_policy(
 
     """
     spec = _build_policy_spec(min_grace, message_required)
+    if isinstance(module, StaticScanResult):
+        # Import source-specific rules only here; they depend on this module's policy implementation.
+        from deprecate._static.checks import _static_policy_findings
+
+        rows = _static_result_rows(module, recursive=recursive, include_members=include_members, exclude=exclude)
+        return [finding.message for finding in _static_policy_findings(rows, spec)]
     return _check_policy_for_callables(
         find_deprecation_wrappers(module, recursive=recursive, include_members=include_members, exclude=exclude), spec
     )

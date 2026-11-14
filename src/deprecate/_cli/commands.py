@@ -68,9 +68,10 @@ from deprecate._cli.scan import (
     _ScanTarget,
     _select_plans,
 )
-from deprecate._cli.static.checks import _report_unresolved, _resolved, _static_policy_findings
+from deprecate._cli.static.checks import _report_unresolved, _static_policy_findings
 from deprecate._cli.suppress import _Suppressor
 from deprecate._gaps import _GapKind
+from deprecate._static.checks import _resolved
 from deprecate._static.consts import _EXPIRY_KEYWORDS
 from deprecate.audit import (
     DeprecationWrapperInfo,
