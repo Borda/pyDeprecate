@@ -1,4 +1,8 @@
-"""The checks' view of static rows: the settings a rule needs, the gaps they leave, and the policy findings."""
+"""The CLI checks' view of static rows: the settings a rule needs, the gaps they leave, and the policy findings.
+
+The import-free source reader itself lives in :mod:`deprecate._static`.
+
+"""
 
 from collections.abc import Mapping, Sequence
 from typing import Optional

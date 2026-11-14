@@ -12,7 +12,7 @@ import pytest
 
 from deprecate._cli import cli
 from deprecate._cli.report import _record_run
-from deprecate._cli.static.checks import _report_unresolved, _static_policy_findings
+from deprecate._cli.static import _report_unresolved, _static_policy_findings
 from deprecate._gaps import _GapKind
 from deprecate._static.checks import _resolved
 from deprecate._static.consts import _GUIDANCE_KEYWORDS
