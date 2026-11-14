@@ -1445,3 +1445,8 @@ class ReceiverNamedFactory:
 
 class ReceiverNamedFactoryChild(ReceiverNamedFactory):
     """Subclass that inherits the deprecated classmethods, so they receive the subclass."""
+
+
+def keyword_overflow_source(x: int = 1, /, **kwargs: object) -> tuple[str, int, dict[str, object]]:
+    """Source whose positional-only ``x`` leaves a same-named keyword in ``kwargs``."""
+    return "old", x, kwargs

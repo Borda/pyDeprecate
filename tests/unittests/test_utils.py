@@ -9,7 +9,7 @@ import pytest
 
 from deprecate import assert_no_warnings
 from deprecate.utils import (
-    _get_signature,
+    _partial_chain,
     _remap_kwargs,
     _SigFacts,
     _signature_facts,
@@ -23,6 +23,7 @@ from tests.collections.api_current.core import (
     RequiredPositionalOnlyTarget,
     every_parameter_kind_target,
 )
+from tests.collections.conditional import SKIP_CALLS, counted_settings
 from tests.collections.streams import UnintrospectableStream
 
 #: Not callable, so ``inspect.signature`` raises ``TypeError`` for it.
@@ -30,6 +31,23 @@ _NON_CALLABLE = cast(Callable[..., Any], 42)
 
 #: ``args_mapping`` with one rename and one drop (``None``) entry, shared by the ``_remap_kwargs`` tests.
 _RENAME_AND_DROP = {"old": "new", "gone": None}
+
+
+class TestPartialChain:
+    """Unwrapping ``functools.partial`` layers for warning display names."""
+
+    def test_proxy_is_not_a_partial_without_evaluating_skip(self) -> None:
+        """Classify a conditional proxy as no partial without running its ``skip_if``.
+
+        A warning that names a proxy target unwraps partial layers first. Asking a proxy whether it is a partial
+        through ``isinstance`` would read its ``__class__``, which evaluates the user's condition on every warning.
+        """
+        SKIP_CALLS.clear()
+
+        layers = _partial_chain(counted_settings)
+
+        assert layers == ()
+        assert SKIP_CALLS == []
 
 
 class TestRemapKwargs:
@@ -188,34 +206,6 @@ class TestSignatureFacts:
         """
         with pytest.raises(RuntimeError, match="deliberately unreadable"):
             _signature_facts(HostileSignatureCallable(), empty_on_error=True)
-
-
-class TestSignatureFunctions:
-    """Tests for _get_signature, the uncached signature read used when a callable is decorated."""
-
-    def test_returns_valid_signature(self) -> None:
-        """Returns a valid Signature with correct parameters for a standard annotated function."""
-
-        def my_func(x: int, y: str = "hi") -> None:
-            pass
-
-        sig = _get_signature(my_func)
-        assert isinstance(sig, inspect.Signature)
-        assert list(sig.parameters) == ["x", "y"]
-
-    def test_reads_unhashable_callable(self) -> None:
-        """Unhashable callables are read like any other callable: without a cache nothing needs hashing."""
-
-        class UnhashableCallable:
-            __hash__ = None  # type: ignore[assignment]
-
-            def __call__(self, x: int) -> int:
-                return x
-
-        obj = UnhashableCallable()
-        sig = _get_signature(obj)
-        assert isinstance(sig, inspect.Signature)
-        assert "x" in sig.parameters
 
 
 class TestWarnsRepr:

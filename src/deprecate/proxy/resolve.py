@@ -1,7 +1,7 @@
 """Resolve proxy targets and validate attribute mappings without importing the runtime proxy class.
 
-The nominal proxy type is supplied by the runtime class's static compatibility methods, so stacked proxies retain exact
-type checks while this module depends only on lower-level types and utilities. Target resolution, dataclass argument
+The nominal proxy type is supplied by the runtime caller solely for type checks, so stacked proxies retain exact type
+checks while this module depends only on lower-level types and utilities. Target resolution, dataclass argument
 expansion, and positional-only constructor diagnostics run during proxy construction.
 
 """
@@ -18,6 +18,19 @@ from deprecate.utils import _is_dataclass_target
 __all__: list[str] = []
 
 
+def _is_replacement_target(target: Any) -> bool:  # noqa: ANN401
+    """Identify a normalized replacement without invoking a proxy's live ``__class__`` property.
+
+    Examples:
+        >>> _is_replacement_target(None), _is_replacement_target(TargetMode.NOTIFY)
+        (False, False)
+        >>> _is_replacement_target([])
+        True
+
+    """
+    return target is not None and not issubclass(type(target), TargetMode)
+
+
 def _get_static_attr_owner(proxy_type: Any, obj: Any) -> Any:  # noqa: ANN401
     """Return the object whose attributes should be validated without dynamic lookup.
 
@@ -30,7 +43,7 @@ def _get_static_attr_owner(proxy_type: Any, obj: Any) -> Any:  # noqa: ANN401
 
     """
     seen: set[int] = set()
-    while isinstance(obj, proxy_type):
+    while issubclass(type(obj), proxy_type):
         if id(obj) in seen:
             break
         seen.add(id(obj))
@@ -39,8 +52,25 @@ def _get_static_attr_owner(proxy_type: Any, obj: Any) -> Any:  # noqa: ANN401
             break
         cfg = object.__getattribute__(obj, "_DeprecatedProxy__config")
         target = dep.target
-        obj = target if target is not None and not isinstance(target, TargetMode) else cfg.obj
+        obj = target if _is_replacement_target(target) else cfg.obj
     return obj
+
+
+def _has_static_attribute(proxy_type: Any, obj: Any, name: str) -> bool:  # noqa: ANN401
+    """Return whether an attribute exists on the static owner without invoking descriptors.
+
+    Examples:
+        >>> _has_static_attribute(type(None), str, "upper")
+        True
+        >>> _has_static_attribute(type(None), str, "missing")
+        False
+
+    """
+    try:
+        inspect.getattr_static(_get_static_attr_owner(proxy_type, obj), name)
+    except AttributeError:
+        return False
+    return True
 
 
 def _validate_attrs_mapping(
@@ -60,7 +90,7 @@ def _validate_attrs_mapping(
        or *obj* — a key on neither would always raise :class:`AttributeError` on access.
 
     Args:
-        proxy_type: Nominal runtime proxy class supplied by the static compatibility method.
+        proxy_type: Nominal runtime proxy class, used only for type checks.
         attrs_mapping: The redirect map from deprecated attribute names to canonical names
             (or ``None`` for warn-only).
         obj: The wrapped source object — used as a fallback for warn-only key existence.
@@ -91,8 +121,8 @@ def _validate_attrs_mapping(
             f" {sorted(set(cycle_starters))} loops back to a previously visited key."
             " Redirect chains must terminate at an attribute name that does not loop."
         )
-    proxy_type._validate_attrs_redirect_targets(attrs_mapping, attr_check_obj)
-    proxy_type._validate_attrs_warn_only_keys(attrs_mapping, obj, attr_check_obj)
+    _validate_attrs_redirect_targets(proxy_type, attrs_mapping, attr_check_obj)
+    _validate_attrs_warn_only_keys(proxy_type, attrs_mapping, obj, attr_check_obj)
 
 
 def _validate_attrs_redirect_targets(
@@ -107,7 +137,7 @@ def _validate_attrs_redirect_targets(
     *attr_check_obj* at decoration time.
 
     Args:
-        proxy_type: Nominal runtime proxy class supplied by the static compatibility method.
+        proxy_type: Nominal runtime proxy class, used only for type checks.
         attrs_mapping: The redirect map from deprecated attribute names to canonical names
             (or ``None`` for warn-only).
         attr_check_obj: The class against which non-``None`` redirect targets are validated.
@@ -119,14 +149,14 @@ def _validate_attrs_redirect_targets(
     # For @dataclass targets, required fields (no default) are not visible via getattr_static
     # because they have no class-level value — but they DO exist as valid constructor params
     # and instance attributes.  Check __dataclass_fields__ as a fallback.
-    _owner = proxy_type._get_static_attr_owner(attr_check_obj)
+    _owner = _get_static_attr_owner(proxy_type, attr_check_obj)
     _dc_field_names: set[str] = set(getattr(_owner, "__dataclass_fields__", {}))
     _resolved_targets = list(attrs_mapping.items())
     missing_targets = [
         f"{k!r} -> {target!r}"
         for k, target in _resolved_targets
         if target is not None
-        and not proxy_type._has_static_attribute(attr_check_obj, target)
+        and not _has_static_attribute(proxy_type, attr_check_obj, target)
         and target not in _dc_field_names
     ]
     if missing_targets:
@@ -152,7 +182,7 @@ def _validate_attrs_warn_only_keys(
     :class:`AttributeError` on access.
 
     Args:
-        proxy_type: Nominal runtime proxy class supplied by the static compatibility method.
+        proxy_type: Nominal runtime proxy class, used only for type checks.
         attrs_mapping: The redirect map from deprecated attribute names to canonical names
             (or ``None`` for warn-only).
         obj: The wrapped source object — used as a fallback for warn-only key existence.
@@ -167,8 +197,8 @@ def _validate_attrs_warn_only_keys(
         k
         for k, v in attrs_mapping.items()
         if v is None
-        and not proxy_type._has_static_attribute(attr_check_obj, k)
-        and not proxy_type._has_static_attribute(obj, k)
+        and not _has_static_attribute(proxy_type, attr_check_obj, k)
+        and not _has_static_attribute(proxy_type, obj, k)
     ]
     if missing_keys:
         raise ValueError(

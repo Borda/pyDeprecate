@@ -8,6 +8,7 @@ import pytest
 
 from deprecate.proxy import deprecated_class, deprecated_instance
 from deprecate.proxy.core import _DeprecatedProxy, _proxy_source_path
+from deprecate.proxy.resolve import _get_static_attr_owner
 from tests._helpers import captured_warnings
 from tests.collections.api_current.core import AutoExpandDC, PositionalOnlyTarget
 from tests.collections.api_deprecated.core import (
@@ -365,7 +366,7 @@ class TestCircularProxyStacks:
         """Resolving the object attribute validation inspects stops inside the cycle and returns a proxy of it."""
         first, second = _circular_proxy_pair()
 
-        owner = _DeprecatedProxy._get_static_attr_owner(first)
+        owner = _get_static_attr_owner(_DeprecatedProxy, first)
 
         assert owner is first or owner is second
 
@@ -373,7 +374,7 @@ class TestCircularProxyStacks:
         """An object that is no proxy is its own validation owner."""
         plain = object()
 
-        assert _DeprecatedProxy._get_static_attr_owner(plain) is plain
+        assert _get_static_attr_owner(_DeprecatedProxy, plain) is plain
 
     def test_source_path_terminates_on_circular_stack(self) -> None:
         """The ``%(source_path)s`` of a proxy over a self-wrapping stack falls back to the display name."""

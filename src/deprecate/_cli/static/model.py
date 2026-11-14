@@ -121,6 +121,32 @@ class _SourceWrapper:
     #: The ``__name__`` the import scan reads off the wrapper: the name of the decorated ``def``; ``None`` where the
     #: source does not settle it, so such a wrapper never owns a canonical binding.
     own_name: Optional[str] = None
+    #: Absolute path of the file that defines the deprecated object, as the import scan records it; ``None`` where the
+    #: source does not show the definition (an instance, an object imported from another module).
+    source_file: Optional[str] = None
+    #: First line of that definition, its first decorator included; ``None`` with no ``source_file`` and for a module.
+    source_line: Optional[int] = None
+
+
+#: A definition the source shows and the import scan places a wrapper at.
+_Definition = Union[ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda]
+
+
+def _first_line(node: _Definition) -> int:
+    r"""Return the line the import scan places a definition at: its first decorator, else the definition itself.
+
+    That is ``co_firstlineno`` of a function and ``__firstlineno__`` of a class (Python 3.13+), both of which count
+    the decorators.
+
+    Examples:
+        >>> _first_line(ast.parse("x = 1\n@wrap\n@other\ndef f():\n    pass").body[1])
+        2
+        >>> _first_line(ast.parse("class C:\n    pass").body[0])
+        1
+
+    """
+    decorators = [] if isinstance(node, ast.Lambda) else node.decorator_list
+    return decorators[0].lineno if decorators else node.lineno
 
 
 @dataclass(eq=False)

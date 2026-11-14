@@ -191,3 +191,23 @@ class TestMatrixVersionColumns:
             ["D", "", "R"],  # plain: ``1.0`` is the spelling that heads the shared column
             ["D", "", "R"],  # prefixed: ``v1.0`` joins the ``1.0`` column
         ]
+
+
+def test_format_proxy_target_does_not_evaluate_skip() -> None:
+    """Report a conditional proxy without consulting application state.
+
+    A report may name a proxy whose condition is only valid in the running application; formatting needs its
+    metadata, not a live decision.
+    """
+    calls: list[bool] = []
+
+    def _skip() -> bool:
+        """Record an unwanted live decision."""
+        calls.append(True)
+        return True
+
+    target = deprecated_class(skip_if=_skip, deprecated_in="1.0", remove_in="2.0")(NewCls)
+    calls.clear()
+
+    assert _format_report_target(target) == "NewCls"
+    assert calls == []

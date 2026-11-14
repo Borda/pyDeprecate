@@ -589,3 +589,8 @@ class CachedStepIterator:
     def __anext__(self) -> Coroutine[Any, Any, list[int]]:
         """Return the stored coroutine instead of creating a new one per step."""
         return self.cached
+
+
+def keyword_overflow_target(x: int = 0, **kwargs: object) -> tuple[str, int, dict[str, object]]:
+    """Replacement accepting ``x`` as a named argument instead of a positional-only parameter."""
+    return "new", x, kwargs

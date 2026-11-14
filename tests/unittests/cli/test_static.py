@@ -12,7 +12,8 @@ from typing import Any, Callable, Optional
 import pytest
 
 from deprecate import TargetMode
-from deprecate._cli.static.checks import _policy_keywords, _report_unresolved, _resolved, _static_policy_findings
+from deprecate._cli.report import _record_run
+from deprecate._cli.static.checks import _report_unresolved, _resolved, _static_policy_findings
 from deprecate._cli.static.consts import _GUIDANCE_KEYWORDS
 from deprecate._cli.static.discovery import _locate_static, _StaticSource
 from deprecate._cli.static.model import _StaticTarget
@@ -165,6 +166,22 @@ class TestCollectionParity:
         expected = [(i.function, i.api_type) for i in imported if i.function != "partial_built"]
         assert [(info.function, info.api_type) for info in static] == expected
 
+    def test_source_locations_match_import_scan(self) -> None:
+        """Each static row names the file and first line the import scan records for the same wrapper.
+
+        ``expiry --static --report-sarif`` uploads results GitHub code scanning only shows with a location, and a
+        report's ``location`` is what a reviewer clicks; a static read that dropped or shifted it would leave a static
+        CI gate with alerts nobody can place. A wrapper the source cannot place gives ``None`` in both modes.
+
+        """
+        module = "tests.collections.static_forms"
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            imported = find_deprecation_wrappers(module, recursive=False)
+        static = _read_module(module)
+        expected = [(i.function, i.source_file, i.source_line) for i in imported if i.function != "partial_built"]
+        assert [(info.function, info.source_file, info.source_line) for info in static] == expected
+
     def test_every_missing_finding_has_its_gap(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Each import-scan finding the static read lacks is named by a gap, and no other finding is missing.
 
@@ -178,7 +195,7 @@ class TestCollectionParity:
             warnings.simplefilter("ignore")
             imported = {f.symbol for f in _expiry_findings(find_deprecation_wrappers(module, False), "99.0")}
         wrappers = _read_module(module)
-        _report_unresolved(wrappers, ("remove_in",))
+        _report_unresolved(wrappers, {"expired": ("remove_in",)})
         static = {f.symbol for f in _expiry_findings(_resolved(wrappers, ("remove_in",)), "99.0")}
         err = capsys.readouterr().err
         partial_line = _line_of(module, "= partial(deprecated")
@@ -199,7 +216,7 @@ class TestCollectionParity:
 
         """
         wrappers = _read_module("tests.collections.static_forms")
-        _report_unresolved(wrappers, ("remove_in", "target"))
+        _report_unresolved(wrappers, {"expired": ("remove_in",), "message-required": ("target",)})
         err = capsys.readouterr().err
         assert "`remove_in` is `REMOVAL`, not a literal" in err
         assert "`remove_in` is `f'{_MAJOR}.0'`, not a literal" in err
@@ -451,7 +468,6 @@ class TestTargetSemantics:
         wrappers = _read_package(_write(tmp_path, {"__init__.py": source}))
         findings = _static_policy_findings(wrappers, _build_policy_spec("0.3", True))
         assert [f.rule.value for f in findings] == ["min-grace"]
-        assert set(_policy_keywords(_build_policy_spec("0.3", True))) >= set(_GUIDANCE_KEYWORDS)
 
     def test_instance_replacement_matches_import_scan(self, probe_package: Callable[..., Path]) -> None:
         """A data replacement given to ``deprecated_instance`` is judged by ``message-required`` as at runtime.
@@ -1026,17 +1042,26 @@ class TestResolvedSettings:
             pytest.param("0.3", True, ("deprecated_in", "remove_in", *_GUIDANCE_KEYWORDS), id="both"),
             pytest.param(None, True, _GUIDANCE_KEYWORDS, id="guidance-only"),
             pytest.param("0.3", False, ("deprecated_in", "remove_in"), id="grace-only"),
+            pytest.param(None, False, (), id="disabled"),
         ],
     )
-    def test_policy_keywords_follow_enabled_rules(
-        self, grace: Optional[str], message_required: bool, expected: tuple[str, ...]
+    def test_only_enabled_rules_report_unsettled_settings(
+        self, tmp_path: Path, grace: Optional[str], message_required: bool, expected: tuple[str, ...]
     ) -> None:
         """Only the settings an enabled rule reads can make a wrapper a gap for ``policy``.
 
         A version held in a variable must not be reported when ``min-grace`` is switched off.
 
         """
-        assert _policy_keywords(_build_policy_spec(grace, message_required)) == expected
+        source = (
+            "from deprecate import deprecated\n\n"
+            "@deprecated(deprecated_in=VERSION, remove_in=VERSION, target=TARGET['x'], args_mapping=MAPPING, "
+            "attrs_mapping=MAPPING, message_template=MESSAGE)\ndef old(): pass\n"
+        )
+        wrappers = _read_package(_write(tmp_path, {"__init__.py": source}))
+        with _record_run() as record:
+            _static_policy_findings(wrappers, _build_policy_spec(grace, message_required))
+        assert [gap.detail.split("`")[1] for gap in record.gaps] == list(expected)
 
     def test_literal_dict_splat_resolves(self, tmp_path: Path) -> None:
         """Settings splatted from a module-level dict literal are read, as the project's own collections spell them.
@@ -1091,12 +1116,119 @@ class TestResolvedSettings:
         """
         source = f"from deprecate import deprecated\n\n{body}\ndef old(a=0):\n    return a\n"
         wrappers = _read_package(_write(tmp_path, {"__init__.py": source}))
-        _report_unresolved(wrappers, ("deprecated_in", "remove_in", *_GUIDANCE_KEYWORDS))
+        _report_unresolved(
+            wrappers, {"min-grace": ("deprecated_in", "remove_in"), "message-required": _GUIDANCE_KEYWORDS}
+        )
         assert reason in capsys.readouterr().err
 
 
 class TestShapeParity:
     """Less common shapes yield the rows and policy findings of the import scan."""
+
+    @pytest.mark.parametrize(
+        ("source", "definition"),
+        [
+            pytest.param("def original(): pass\nalias = original\n", "def original", id="function-alias"),
+            pytest.param("def original(): pass\nfirst = original\nalias = first\n", "def original", id="alias-chain"),
+            pytest.param("original = lambda: None\nalias = original\n", "original = lambda", id="named-lambda"),
+        ],
+    )
+    def test_call_form_alias_source_location_matches_import(
+        self, probe_package: Callable[..., Path], source: str, definition: str
+    ) -> None:
+        """A wrapper around an alias points to the original callable in both scans.
+
+        An audit baseline should retain its source location when a callable is wrapped through an intermediate name.
+
+        """
+        pkg = probe_package({"__init__.py": f"{_DEP}{source}old = {_EXPIRED}(alias)\n"})
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            imported = [(i.function, i.source_file, i.source_line) for i in find_deprecation_wrappers(_PKG)]
+        static = [(i.function, i.source_file, i.source_line) for i in _read_package(pkg)]
+        line = next(i for i, text in enumerate((pkg / "__init__.py").read_text().splitlines(), 1) if definition in text)
+        assert len(imported) == 1
+        assert imported[0][2] == line
+        assert static == imported
+
+    @pytest.mark.parametrize(
+        "source",
+        [
+            pytest.param("def original(): pass\nalias = original\nalias = original\n", id="rebound-alias"),
+            pytest.param("first = second\nsecond = first\nalias = first\n", id="cycle"),
+        ],
+    )
+    def test_call_form_unsettled_alias_has_no_source_location(
+        self, probe_package: Callable[..., Path], source: str
+    ) -> None:
+        """An ambiguous or cyclic alias never gives a wrapper a guessed source location.
+
+        Static scanning can encounter unimportable or rebound source and must terminate without inventing a location.
+
+        """
+        pkg = probe_package({"__init__.py": f"{_DEP}{source}old = {_EXPIRED}(alias)\n"})
+        wrappers = _read_package(pkg)
+        assert len(wrappers) == 1
+        assert wrappers[0].source_file is None
+        assert wrappers[0].source_line is None
+
+    def test_source_locations_match_per_shape(self, probe_package: Callable[..., Path]) -> None:
+        """Every wrapper shape gets the file and first line the import scan records, or no location in both modes.
+
+        A package mixing a deprecated module, decorated and call-form functions, a lambda, decorated and call-form
+        classes, a ``deprecated_instance`` and deprecated property and classmethod members is read both ways. A
+        report or SARIF result from ``--static`` must point at the line an import run points at, so a baseline or a
+        code-scanning alert does not move when a CI job switches modes.
+
+        """
+        pkg = probe_package(
+            {
+                "__init__.py": """
+                from deprecate import deprecated, deprecated_class, deprecated_instance, deprecated_module
+
+                deprecated_module(__name__, deprecated_in="1.0", remove_in="2.0")
+
+                def new_fn(x):
+                    return x
+
+                @deprecated(target=new_fn, deprecated_in="1.0", remove_in="2.0")
+                def decorated(x):
+                    pass
+
+                def plain(x):
+                    return x
+
+                called = deprecated(target=new_fn, deprecated_in="1.0", remove_in="2.0")(plain)
+                lam = deprecated(target=None, deprecated_in="1.0", remove_in="2.0")(lambda x: x)
+
+                class NewThing:
+                    pass
+
+                @deprecated_class(target=NewThing, deprecated_in="1.0", remove_in="2.0")
+                class OldThing:
+                    pass
+
+                OldAlias = deprecated_class(target=NewThing, deprecated_in="1.0", remove_in="2.0")(NewThing)
+                CONFIG = deprecated_instance({"a": 1}, deprecated_in="1.0", remove_in="2.0")
+
+                class Holder:
+                    @property
+                    @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
+                    def prop(self):
+                        return 1
+
+                    @classmethod
+                    @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
+                    def cm(cls):
+                        return 1
+            """
+            }
+        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            imported = [(i.function, i.source_file, i.source_line) for i in find_deprecation_wrappers(_PKG)]
+        static = [(i.function, i.source_file, i.source_line) for i in _read_package(pkg)]
+        assert static == imported
 
     @pytest.mark.parametrize(
         "files",
@@ -1509,7 +1641,7 @@ class TestNoSilentMiss:
 
         """
         wrappers = _read_package(_write(tmp_path, {"__init__.py": "", **files}))
-        _report_unresolved(wrappers, ("remove_in", *_GUIDANCE_KEYWORDS))
+        _report_unresolved(wrappers, {"expired": ("remove_in",), "message-required": _GUIDANCE_KEYWORDS})
         assert gap in capsys.readouterr().err
 
     @pytest.mark.parametrize(
@@ -1571,7 +1703,9 @@ class TestNoSilentMiss:
 
         """
         wrappers = _read_package(_write(tmp_path, {"__init__.py": "", **files}))
-        _report_unresolved(wrappers, ("deprecated_in", "remove_in", *_GUIDANCE_KEYWORDS))
+        _report_unresolved(
+            wrappers, {"min-grace": ("deprecated_in", "remove_in"), "message-required": _GUIDANCE_KEYWORDS}
+        )
         assert "not statically resolvable" not in capsys.readouterr().err
 
     @pytest.mark.parametrize(
@@ -1770,7 +1904,7 @@ class TestDynamicSourceBindings:
             "@deprecated(target=Settings.target, deprecated_in='1.0', remove_in='2.0')\ndef old(): pass\n"
         )
         wrappers = _read_package(_write(tmp_path, {"__init__.py": source}))
-        _report_unresolved(wrappers, _GUIDANCE_KEYWORDS)
+        _report_unresolved(wrappers, {"message-required": _GUIDANCE_KEYWORDS})
         assert "target" in capsys.readouterr().err
 
     def test_factory_rebound_through_globals_is_a_gap(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -1783,7 +1917,7 @@ class TestDynamicSourceBindings:
             "@deprecated(deprecated_in='1.0', remove_in='2.0')\ndef old(): pass\n"
         )
         wrappers = _read_package(_write(tmp_path, {"__init__.py": source}))
-        _report_unresolved(wrappers, ("remove_in",))
+        _report_unresolved(wrappers, {"expired": ("remove_in",)})
         assert _expiry_ids(wrappers) == []
         assert "not statically resolvable" in capsys.readouterr().err
 

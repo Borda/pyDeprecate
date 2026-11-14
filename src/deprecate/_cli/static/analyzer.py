@@ -2,6 +2,7 @@
 
 import ast
 import builtins
+import os
 from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from typing import Callable, Optional, Union
@@ -17,9 +18,11 @@ from deprecate._cli.static.consts import (
     _TargetRoute,
 )
 from deprecate._cli.static.model import (
+    _Definition,
     _display,
     _FactoryCallArgs,
     _FactorySettings,
+    _first_line,
     _ImportRef,
     _Lookup,
     _module_scope,
@@ -357,6 +360,8 @@ class _ModuleAnalyzer:
         if self.module_wrapper is None:
             settings = self._read_settings(args, call, {})
             self.module_wrapper = self._finish(settings, _TargetRoute.MODULE, lambda _: "module", proxy=False)
+            # the import scan places a deprecated module by its file alone, with no line
+            self.module_wrapper.source_file = self._source_file
 
     def _decorated_def(
         self, node: Union[ast.FunctionDef, ast.AsyncFunctionDef], *, attr: Optional[str], shadow: Mapping[str, list]
@@ -377,7 +382,7 @@ class _ModuleAnalyzer:
             kind, settings = factory
             route = _TargetRoute.CALLABLE if kind is _Factory.DEPRECATED else _TargetRoute.CALLABLE_STRICT
             api_type = _member_api_type(attr, descriptor) if attr is not None else _callable_api_type
-            found = self._finish(settings, route, api_type, proxy=False)
+            found = self._finish(settings, route, api_type, proxy=False, at=node)
             found.own_name = node.name
         return found
 
@@ -418,7 +423,7 @@ class _ModuleAnalyzer:
                 route = _TargetRoute.CLASS_FRONT if kind is _Factory.DEPRECATED else _TargetRoute.CLASS
                 is_dataclass = _is_dataclass(node, self._qualified)
                 api_type = _member_api_type(attr, None) if attr is not None else _class_api_type(is_dataclass)
-                return self._finish(settings, route, api_type, proxy=True)
+                return self._finish(settings, route, api_type, proxy=True, at=node)
         info = _PlainClass(self.parsed.name, {}, list(node.bases))
         body_scope = _scope_events(node.body)
         accessors: dict[str, dict[str, Optional[_SourceWrapper]]] = {}
@@ -552,7 +557,9 @@ class _ModuleAnalyzer:
         own_name = self._callable_name(value.args[0], shadow) if proxy is not True else None
         if route is _TargetRoute.UNKNOWN_FRONT and own_name is not None:
             route, proxy = _TargetRoute.CALLABLE, False
-        return replace(self._finish(settings, route, api_type, proxy=proxy), module=module, own_name=own_name)
+        at = self._definition(value.args[0], shadow) if module == self.parsed.name else None
+        wrapper = self._finish(settings, route, api_type, proxy=proxy, at=at)
+        return replace(wrapper, module=module, own_name=own_name)
 
     def _callable_name(self, obj: ast.expr, shadow: Mapping[str, list]) -> Optional[str]:
         """Resolve the original name copied by a callable wrapper when its preceding bindings settle it."""
@@ -739,9 +746,20 @@ class _ModuleAnalyzer:
         )
 
     def _finish(
-        self, settings: _FactorySettings, route: _TargetRoute, api_type: Callable[[bool], str], *, proxy: Optional[bool]
+        self,
+        settings: _FactorySettings,
+        route: _TargetRoute,
+        api_type: Callable[[bool], str],
+        *,
+        proxy: Optional[bool],
+        at: Optional[_Definition] = None,
     ) -> _SourceWrapper:
-        """Turn read settings into the configuration the factory of *route* stores, recording what stays unsettled."""
+        """Turn read settings into the configuration the factory of *route* stores, recording what stays unsettled.
+
+        *at* is the ``def``, ``class`` or ``lambda`` the wrapper deprecates when this file shows it, which places the
+        wrapper where the import scan places it; without one the wrapper has no source location.
+
+        """
         mappings = (settings.args_mapping.value, settings.attrs_mapping.value)
         target = _store_target(settings.target, route, mappings)
         template = (
@@ -764,7 +782,33 @@ class _ModuleAnalyzer:
             message_template=template.value,
         )
         unresolved = {name: f"{settings.where}: {read.reason}" for name, read in reads.items() if read.reason}
-        return _SourceWrapper(self.parsed.name, proxy, api_type(bool(settings.args_mapping.value)), config, unresolved)
+        wrapper = _SourceWrapper(
+            self.parsed.name, proxy, api_type(bool(settings.args_mapping.value)), config, unresolved
+        )
+        if at is not None:
+            wrapper.source_file, wrapper.source_line = self._source_file, _first_line(at)
+        return wrapper
+
+    @property
+    def _source_file(self) -> str:
+        """Return the absolute path of the parsed file, as the import scan records ``co_filename``."""
+        return os.path.abspath(self.parsed.path)
+
+    def _definition(self, obj: ast.expr, shadow: Mapping[str, list]) -> Optional[_Definition]:
+        """Return the same-file ``def``, ``class`` or ``lambda`` that *obj* of ``factory(...)(obj)`` names, if one."""
+        seen: set[str] = set()
+        while isinstance(obj, ast.Name) and obj.id not in seen:
+            seen.add(obj.id)
+            event = _single(shadow, obj.id) if obj.id in shadow else _single(self.scope, obj.id)
+            # A later binding, a rebinding or an import cannot settle the value at this use.
+            if event is None or not isinstance(event.value, (ast.expr, ast.stmt)) or event.value.lineno >= obj.lineno:
+                return None
+            if isinstance(event.value, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                return event.value
+            if event.kind != "assign":
+                return None
+            obj = event.value
+        return obj if isinstance(obj, ast.Lambda) else None
 
     def _unrecognized(self) -> list[str]:
         """Return one gap detail per factory reference no recognized shape consumed.

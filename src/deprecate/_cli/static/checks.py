@@ -20,22 +20,17 @@ def _unresolved(info: DeprecationWrapperInfo) -> Mapping[str, str]:
 
 def _report_unresolved(
     wrappers: Sequence[DeprecationWrapperInfo],
-    keywords: Sequence[str],
-    *,
-    rule_keywords: Optional[Mapping[str, Sequence[str]]] = None,
+    rule_keywords: Mapping[str, Sequence[str]],
 ) -> None:
-    """Print one ``not statically resolvable`` gap per wrapper and unsettled reason among *keywords*."""
+    """Print one gap per wrapper and unsettled reason among the settings the enabled rules read."""
+    keywords = dict.fromkeys(key for keys in rule_keywords.values() for key in keys)
     for info in wrappers:
         details = dict.fromkeys(_unresolved(info)[key] for key in keywords if key in _unresolved(info))
         for detail in details:
-            rules = (
-                frozenset(
-                    rule
-                    for rule, keys in rule_keywords.items()
-                    if any(_unresolved(info).get(key) == detail for key in keys)
-                )
-                if rule_keywords is not None
-                else None
+            rules = frozenset(
+                rule
+                for rule, keys in rule_keywords.items()
+                if any(_unresolved(info).get(key) == detail for key in keys)
             )
             _print_gap(
                 _GapKind.STATIC_UNRESOLVED,
@@ -48,11 +43,6 @@ def _report_unresolved(
 def _resolved(wrappers: Sequence[DeprecationWrapperInfo], keywords: Sequence[str]) -> list[DeprecationWrapperInfo]:
     """Return the wrappers whose settings among *keywords* the source settled."""
     return [info for info in wrappers if not any(key in _unresolved(info) for key in keywords)]
-
-
-def _policy_keywords(spec: _PolicySpec) -> tuple[str, ...]:
-    """Return the settings the enabled policy rules read."""
-    return (_GRACE_KEYWORDS if spec.grace is not None else ()) + (_GUIDANCE_KEYWORDS if spec.message_required else ())
 
 
 def _static_policy_findings(
@@ -89,6 +79,6 @@ def _static_policy_findings(
         rule_keywords[_Rule.MIN_GRACE.value] = _GRACE_KEYWORDS
     if spec.message_required:
         rule_keywords[_Rule.MESSAGE_REQUIRED.value] = _GUIDANCE_KEYWORDS
-    _report_unresolved(wrappers, _policy_keywords(spec), rule_keywords=rule_keywords)
+    _report_unresolved(wrappers, rule_keywords)
     order = {(info.module, info.function): index for index, info in enumerate(wrappers)}
     return sorted(findings, key=lambda f: (order.get((f.module, f.symbol), 0), f.rule is _Rule.MESSAGE_REQUIRED))

@@ -3,7 +3,6 @@
 import pytest
 
 from deprecate._cli.findings import (
-    _gate_levels,
     _gate_reasons,
     _GateReason,
     _Level,
@@ -111,14 +110,14 @@ class TestExitCode:
         assert _gate_code(findings, "check", exit_zero=exit_zero, strict=strict, gaps=gaps) == expected
 
     def test_all_keeps_the_error_of_a_duplicated_chain(self) -> None:
-        """``all`` sees a chain twice, a warning from ``check`` and an error from ``chains``; it stays an error.
+        """``all`` sees a chain twice, from ``check`` and ``chains``; it stays an error.
 
-        Both passes derive the same finding id, which collapses into one entry at the higher level, so the order the
-        passes ran in cannot turn a failing chain into a pass.
+        Both passes derive the same finding id. The gate needs only one error to fail, so duplicates cannot turn a
+        failing chain into a pass.
 
         """
         findings = [_finding(_Rule.CHAIN, _Check.CHAINS), _finding(_Rule.CHAIN, _Check.CHECK)]
-        assert _gate_levels(findings, "all") == {"chain:pkg:old_fn": _Level.ERROR}
+        assert _gate_reasons(findings, "all") == [_GateReason.FINDINGS]
         assert _gate_code(findings, "all") == 1
 
 

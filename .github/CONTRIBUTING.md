@@ -421,6 +421,7 @@ pyDeprecate/
 │   │   │   ├── regressions.py           # Dispatch, fatal errors and behavior regression wrappers
 │   │   │   └── legacy.py                # Legacy sentinel examples
 │   │   ├── streams.py                   # Stand-ins for the stream= callables passed to the decorators
+│   │   ├── conditional.py               # Proxies whose skip_if raises or counts calls, for audits that must not run it
 │   │   ├── misconfigured.py             # Invalid configs for validation
 │   │   ├── chains.py                    # Chained deprecation patterns
 │   │   ├── policy.py                    # Wrappers breaking one governance policy rule each
@@ -496,6 +497,7 @@ Tests live in `tests/` and follow a **three-layer separation**:
 | `api_current/`                | Target functions and classes (the "new" implementations that deprecated code forwards to): core targets in `core.py`, generator, async and protocol-forwarding targets in `forwarding.py`                                                                                                                  |
 | `api_deprecated/`             | Deprecated wrappers: core/audit/docs in `core.py`, forwarding/async in `forwarding.py`, behavior regressions in `regressions.py`, legacy sentinels in `legacy.py`                                                                                                                                          |
 | `streams.py`                  | Stand-ins for the `stream=` callables, including recording streams that count every invocation                                                                                                                                                                                                             |
+| `conditional.py`              | Proxies whose `skip_if` raises or counts its evaluations, proving audits and warning rendering never run the condition                                                                                                                                                                                     |
 | `misconfigured.py`            | Intentionally invalid/ineffective deprecation configurations for validation testing                                                                                                                                                                                                                        |
 | `chains.py`                   | Multi-hop deprecation chains (deprecated → deprecated → target) for chain-detection tests                                                                                                                                                                                                                  |
 | `policy.py`                   | Correctly configured wrappers scheduled against project policy — one broken governance rule each, for `validate_deprecation_policy`                                                                                                                                                                        |

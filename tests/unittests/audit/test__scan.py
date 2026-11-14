@@ -1,6 +1,7 @@
 """Unit tests for private helpers in :mod:`deprecate.audit._scan`."""
 
 import dataclasses
+import importlib
 import pkgutil
 import types
 from collections.abc import Callable
@@ -12,6 +13,7 @@ import pytest
 
 import tests.collections.api_current.core as targets_module
 import tests.collections.api_deprecated.core as col
+import tests.collections.conditional as conditional_module
 import tests.collections.misconfigured as clean_module
 import tests.collections.pep702 as pep702_module
 from deprecate import (
@@ -72,6 +74,35 @@ class TestFindDeprecationWrappersWarningBudget:
         # Budget should be untouched — scanning must not consume it
         with pytest.warns(FutureWarning):
             proxy.get("x")  # triggers __getattr__ → _warn() → should still fire
+
+
+class TestScanSkipCondition:
+    """Auditing a conditional proxy must not evaluate its ``skip_if``."""
+
+    def test_raising_condition_keeps_wrapper_in_scan(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Report a proxy whose ``skip_if`` raises outside the running application.
+
+        A CI job audits a package whose legacy settings object is skipped only inside a live app, so the condition
+        raises anywhere else. The scan must still list the wrapper instead of failing on a condition it never needs.
+        """
+        monkeypatch.setitem(conditional_module.APP_CONTEXT, "available", False)
+
+        found = find_deprecation_wrappers(conditional_module)
+
+        assert {info.function for info in found} == {"app_settings", "counted_settings"}
+
+    def test_scan_and_validation_never_evaluate_condition(self) -> None:
+        """Leave a counting ``skip_if`` untouched through a module scan and a single-wrapper validation.
+
+        Type checks the audit runs on a proxy (``isinstance``, ``inspect.isclass``) consult its ``__class__``. While
+        auditing, that lookup must read the configuration statically, so no user condition runs during a scan.
+        """
+        conditional_module.SKIP_CALLS.clear()
+
+        find_deprecation_wrappers(conditional_module)
+        validate_deprecation_wrapper(conditional_module.counted_settings)
+
+        assert conditional_module.SKIP_CALLS == []
 
 
 class TestFindDeprecationWrappersPep702:
@@ -1253,3 +1284,51 @@ class TestScanClassPrivateDeprecated:
         results = _scan_class(_AudPrivateMembers, "tests.unittests.audit.test__scan", "_AudPrivateMembers")
         functions = [info.function for info in results]
         assert any(fn.rsplit(".", 1)[-1] == member for fn in functions)
+
+
+def test_imports_use_live_proxy_type_view(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Root and recursive imports observe live proxy behavior while audit inspection stays static.
+
+    A package computes type-dependent settings at import time. Auditing it by name must not change those settings,
+    including settings computed by a submodule imported during the recursive walk.
+    """
+    package = tmp_path / "audit_live_view_case"
+    package.mkdir()
+    code = (
+        "from deprecate import deprecated_instance\n"
+        "proxy = deprecated_instance('source', target=42, name='old', skip_if=True, "
+        "deprecated_in='1.0', remove_in='2.0')\n"
+        "is_source = isinstance(proxy, str)\n"
+    )
+    (package / "__init__.py").write_text(code, encoding="utf-8")
+    (package / "child.py").write_text(code, encoding="utf-8")
+    monkeypatch.syspath_prepend(str(tmp_path))
+
+    find_deprecation_wrappers("audit_live_view_case")
+
+    assert importlib.import_module("audit_live_view_case").is_source is True
+    assert importlib.import_module("audit_live_view_case.child").is_source is True
+
+
+def test_dir_hook_import_uses_live_proxy_type_view(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A module's directory hook imports application code with its normal proxy behavior.
+
+    A lazy package may import a child from its PEP 562 directory hook when an audit lists members.
+    The child's initialization must see the same type as an ordinary import.
+    """
+    package = tmp_path / "audit_dir_view_case"
+    package.mkdir()
+    (package / "__init__.py").write_text(
+        "def __dir__():\n    from . import child\n    return list(globals())\n", encoding="utf-8"
+    )
+    (package / "child.py").write_text(
+        "from deprecate import deprecated_instance\n"
+        "proxy = deprecated_instance('source', target=42, skip_if=True, stream=None)\n"
+        "is_source = isinstance(proxy, str)\n",
+        encoding="utf-8",
+    )
+    monkeypatch.syspath_prepend(str(tmp_path))
+
+    find_deprecation_wrappers("audit_dir_view_case", recursive=False)
+
+    assert importlib.import_module("audit_dir_view_case.child").is_source is True
