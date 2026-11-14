@@ -99,7 +99,7 @@ def _run_static_cli(
     with pytest.raises(SystemExit) as exited:
         cli()
     assert exited.value.code == 0
-    return capsys.readouterr().err.splitlines(), json.loads(report.read_text())["gaps"]
+    return capsys.readouterr().err.splitlines(), json.loads(report.read_text(encoding="utf-8"))["gaps"]
 
 
 class TestStaticGapOutput:
