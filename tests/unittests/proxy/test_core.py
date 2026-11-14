@@ -19,6 +19,7 @@ from deprecate.messaging import deprecation_warning
 from deprecate.proxy import deprecated_class, deprecated_instance
 from deprecate.proxy.core import (
     _BindingDeprecatedProxy,
+    _binds_as_method,
     _DeprecatedProxy,
     _innermost_active,
     _ProxySpec,
@@ -1480,3 +1481,44 @@ class TestProxyTargetIdentityChecks:
         assert type(duplicated) is type(alias)
         assert type(served) is RaisingEqualityData
         assert served is not replacement
+
+
+def test_nested_proxy_binding_classification_does_not_evaluate_skip() -> None:
+    """Classify a nested nonbinding proxy without evaluating its runtime condition.
+
+    Checking whether an inner conditional data proxy binds must not consult its runtime condition.
+    """
+    calls: list[bool] = []
+
+    def _skip() -> bool:
+        """Record an unwanted live decision."""
+        calls.append(True)
+        return True
+
+    inner = deprecated_instance(1, name="inner", skip_if=_skip, **_DEPRS_CASE_STD_ARGS)
+    calls.clear()
+    assert _binds_as_method(inner) is False
+    assert calls == []
+
+
+def test_nested_data_proxy_construction_does_not_evaluate_skip() -> None:
+    """Construct a nested data alias without consulting the inner runtime condition.
+
+    A conditional alias may depend on application state unavailable during import. Wrapping it in another alias
+    should retain static breadcrumbs without evaluating the condition, even when its data is not callable.
+    """
+    calls: list[bool] = []
+
+    def _skip() -> bool:
+        """Record an unwanted live decision."""
+        calls.append(True)
+        return True
+
+    inner = deprecated_instance(1, name="inner", skip_if=_skip, **_DEPRS_CASE_STD_ARGS)
+    calls.clear()
+
+    outer = deprecated_instance(inner, name="outer", **_DEPRS_CASE_STD_ARGS)
+
+    assert object.__getattribute__(outer, "__wrapped__") is inner
+    assert object.__getattribute__(outer, "__signature__") is None
+    assert calls == []

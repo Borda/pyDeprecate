@@ -29,7 +29,7 @@ from deprecate.audit._wrappers import (
     validate_deprecation_wrapper,
 )
 from deprecate.proxy import _DeprecatedProxy
-from deprecate.proxy.core import _static_type_view
+from deprecate.proxy.core import _STATIC_TYPE_VIEW, _static_type_view
 
 
 # Note: Proxy objects are discoverable via the generic ``_has_deprecation_meta(obj)`` gate (no ``callable(obj)``
@@ -45,16 +45,21 @@ def _getmembers_static_compat(obj: Any) -> list[tuple[str, Any]]:  # noqa: ANN40
     3.9/3.10 compatibility, falls back to ``dir()`` + ``inspect.getattr_static``.
 
     """
-    getmembers_static = getattr(inspect, "getmembers_static", None)
-    if callable(getmembers_static):
-        return getmembers_static(obj)
+    # ``dir`` can execute application hooks, including imports; those must observe the live proxy view.
+    token = _STATIC_TYPE_VIEW.set(False)
+    try:
+        getmembers_static = getattr(inspect, "getmembers_static", None)
+        if callable(getmembers_static):
+            return getmembers_static(obj)
 
-    names = dir(obj)
-    members: list[tuple[str, Any]] = []
-    for name in names:
-        with suppress(AttributeError):
-            members.append((name, inspect.getattr_static(obj, name)))
-    return sorted(members, key=lambda item: item[0])
+        names = dir(obj)
+        members: list[tuple[str, Any]] = []
+        for name in names:
+            with suppress(AttributeError):
+                members.append((name, inspect.getattr_static(obj, name)))
+        return sorted(members, key=lambda item: item[0])
+    finally:
+        _STATIC_TYPE_VIEW.reset(token)
 
 
 def _scan_callable(
@@ -512,6 +517,8 @@ def _scan_module_member(
     return results
 
 
+# Inspect only after imports finish, leaving imported application code in the live type view.
+@_static_type_view
 def _scan_module(
     mod: Any,  # noqa: ANN401
     *,
@@ -646,8 +653,6 @@ def _walk_submodules(package: Any, exclude: Sequence[str]) -> Iterator[Any]:  # 
             yield from _walk_submodules(submod, exclude)
 
 
-# Scanning only inspects proxies, so their type checks must not run a user's ``skip_if`` condition.
-@_static_type_view
 def find_deprecation_wrappers(
     module: Union[Any, str],  # noqa: ANN401
     recursive: bool = True,

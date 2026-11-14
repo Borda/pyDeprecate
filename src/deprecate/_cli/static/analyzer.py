@@ -796,14 +796,19 @@ class _ModuleAnalyzer:
 
     def _definition(self, obj: ast.expr, shadow: Mapping[str, list]) -> Optional[_Definition]:
         """Return the same-file ``def``, ``class`` or ``lambda`` that *obj* of ``factory(...)(obj)`` names, if one."""
-        if isinstance(obj, ast.Lambda):
-            return obj
-        if not isinstance(obj, ast.Name):
-            return None
-        event = _single(shadow, obj.id) if obj.id in shadow else _single(self.scope, obj.id)
-        # only a name bound once, by a definition in this file: a rebinding or an import leaves the object unplaced
-        definitions = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
-        return event.value if event is not None and isinstance(event.value, definitions) else None
+        seen: set[str] = set()
+        while isinstance(obj, ast.Name) and obj.id not in seen:
+            seen.add(obj.id)
+            event = _single(shadow, obj.id) if obj.id in shadow else _single(self.scope, obj.id)
+            # A later binding, a rebinding or an import cannot settle the value at this use.
+            if event is None or not isinstance(event.value, (ast.expr, ast.stmt)) or event.value.lineno >= obj.lineno:
+                return None
+            if isinstance(event.value, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                return event.value
+            if event.kind != "assign":
+                return None
+            obj = event.value
+        return obj if isinstance(obj, ast.Lambda) else None
 
     def _unrecognized(self) -> list[str]:
         """Return one gap detail per factory reference no recognized shape consumed.

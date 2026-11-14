@@ -72,15 +72,14 @@ def _format_report_target(target: Any) -> str:  # noqa: ANN401
     """Format replacement target name for report rows."""
     if target is None or target is TargetMode.NOTIFY:
         return "—"
+    if issubclass(type(target), _DeprecatedProxy):
+        # Read proxy metadata before type checks can consult its dynamic __class__.
+        config = get_deprecation_config(target)
+        return config.name if config is not None else type(target).__name__
     if isinstance(target, TargetMode):
         return target.value
     if inspect.ismodule(target):
         return getattr(target, "__name__", str(target))
-    if isinstance(target, _DeprecatedProxy):
-        # A chained-proxy target may have been created before the v0.13 metadata split. The public
-        # accessor checks both layouts without invoking the proxy's dynamic forwarding path.
-        config = get_deprecation_config(target)
-        return config.name if config is not None else type(target).__name__
     if callable(target):
         return _format_callable_target(target)
     # A plain data replacement (``deprecated_instance(target=...)``): its type, never its contents, which may span

@@ -460,7 +460,12 @@ class _DeprecatedProxy:
         """
         object.__setattr__(self, "__wrapped__", obj)
         try:
-            sig: Any = inspect.signature(obj)
+            # A nested proxy already carries the source signature; inspecting it can call its live repr on failure.
+            sig: Any = (
+                object.__getattribute__(obj, "__signature__")
+                if issubclass(type(obj), _DeprecatedProxy)
+                else inspect.signature(obj)
+            )
         except Exception:
             sig = None
         object.__setattr__(self, "__signature__", sig)
@@ -1906,7 +1911,7 @@ def _binds_as_method(obj: Any) -> bool:  # noqa: ANN401
     """
     # ``type()`` rather than ``isinstance`` for the function: a proxy reports its wrapped object's class through
     # ``__class__``, so a plain proxy over a function would pass ``isinstance(obj, types.FunctionType)``.
-    return type(obj) is types.FunctionType or isinstance(obj, _BindingDeprecatedProxy)
+    return type(obj) is types.FunctionType or issubclass(type(obj), _BindingDeprecatedProxy)
 
 
 def _proxy_type_for(obj: Any) -> type[_DeprecatedProxy]:  # noqa: ANN401

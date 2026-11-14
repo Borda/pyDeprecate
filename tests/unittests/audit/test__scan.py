@@ -1,6 +1,7 @@
 """Unit tests for private helpers in :mod:`deprecate.audit._scan`."""
 
 import dataclasses
+import importlib
 import pkgutil
 import types
 from collections.abc import Callable
@@ -1283,3 +1284,51 @@ class TestScanClassPrivateDeprecated:
         results = _scan_class(_AudPrivateMembers, "tests.unittests.audit.test__scan", "_AudPrivateMembers")
         functions = [info.function for info in results]
         assert any(fn.rsplit(".", 1)[-1] == member for fn in functions)
+
+
+def test_imports_use_live_proxy_type_view(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Root and recursive imports observe live proxy behavior while audit inspection stays static.
+
+    A package computes type-dependent settings at import time. Auditing it by name must not change those settings,
+    including settings computed by a submodule imported during the recursive walk.
+    """
+    package = tmp_path / "audit_live_view_case"
+    package.mkdir()
+    code = (
+        "from deprecate import deprecated_instance\n"
+        "proxy = deprecated_instance('source', target=42, name='old', skip_if=True, "
+        "deprecated_in='1.0', remove_in='2.0')\n"
+        "is_source = isinstance(proxy, str)\n"
+    )
+    (package / "__init__.py").write_text(code, encoding="utf-8")
+    (package / "child.py").write_text(code, encoding="utf-8")
+    monkeypatch.syspath_prepend(str(tmp_path))
+
+    find_deprecation_wrappers("audit_live_view_case")
+
+    assert importlib.import_module("audit_live_view_case").is_source is True
+    assert importlib.import_module("audit_live_view_case.child").is_source is True
+
+
+def test_dir_hook_import_uses_live_proxy_type_view(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A module's directory hook imports application code with its normal proxy behavior.
+
+    A lazy package may import a child from its PEP 562 directory hook when an audit lists members.
+    The child's initialization must see the same type as an ordinary import.
+    """
+    package = tmp_path / "audit_dir_view_case"
+    package.mkdir()
+    (package / "__init__.py").write_text(
+        "def __dir__():\n    from . import child\n    return list(globals())\n", encoding="utf-8"
+    )
+    (package / "child.py").write_text(
+        "from deprecate import deprecated_instance\n"
+        "proxy = deprecated_instance('source', target=42, skip_if=True, stream=None)\n"
+        "is_source = isinstance(proxy, str)\n",
+        encoding="utf-8",
+    )
+    monkeypatch.syspath_prepend(str(tmp_path))
+
+    find_deprecation_wrappers("audit_dir_view_case", recursive=False)
+
+    assert importlib.import_module("audit_dir_view_case.child").is_source is True

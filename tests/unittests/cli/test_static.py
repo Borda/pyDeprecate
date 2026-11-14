@@ -1125,6 +1125,53 @@ class TestResolvedSettings:
 class TestShapeParity:
     """Less common shapes yield the rows and policy findings of the import scan."""
 
+    @pytest.mark.parametrize(
+        ("source", "definition"),
+        [
+            pytest.param("def original(): pass\nalias = original\n", "def original", id="function-alias"),
+            pytest.param("def original(): pass\nfirst = original\nalias = first\n", "def original", id="alias-chain"),
+            pytest.param("original = lambda: None\nalias = original\n", "original = lambda", id="named-lambda"),
+        ],
+    )
+    def test_call_form_alias_source_location_matches_import(
+        self, probe_package: Callable[..., Path], source: str, definition: str
+    ) -> None:
+        """A wrapper around an alias points to the original callable in both scans.
+
+        An audit baseline should retain its source location when a callable is wrapped through an intermediate name.
+
+        """
+        pkg = probe_package({"__init__.py": f"{_DEP}{source}old = {_EXPIRED}(alias)\n"})
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            imported = [(i.function, i.source_file, i.source_line) for i in find_deprecation_wrappers(_PKG)]
+        static = [(i.function, i.source_file, i.source_line) for i in _read_package(pkg)]
+        line = next(i for i, text in enumerate((pkg / "__init__.py").read_text().splitlines(), 1) if definition in text)
+        assert len(imported) == 1
+        assert imported[0][2] == line
+        assert static == imported
+
+    @pytest.mark.parametrize(
+        "source",
+        [
+            pytest.param("def original(): pass\nalias = original\nalias = original\n", id="rebound-alias"),
+            pytest.param("first = second\nsecond = first\nalias = first\n", id="cycle"),
+        ],
+    )
+    def test_call_form_unsettled_alias_has_no_source_location(
+        self, probe_package: Callable[..., Path], source: str
+    ) -> None:
+        """An ambiguous or cyclic alias never gives a wrapper a guessed source location.
+
+        Static scanning can encounter unimportable or rebound source and must terminate without inventing a location.
+
+        """
+        pkg = probe_package({"__init__.py": f"{_DEP}{source}old = {_EXPIRED}(alias)\n"})
+        wrappers = _read_package(pkg)
+        assert len(wrappers) == 1
+        assert wrappers[0].source_file is None
+        assert wrappers[0].source_line is None
+
     def test_source_locations_match_per_shape(self, probe_package: Callable[..., Path]) -> None:
         """Every wrapper shape gets the file and first line the import scan records, or no location in both modes.
 
