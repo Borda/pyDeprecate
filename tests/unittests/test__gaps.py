@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+import pytest
+
 from deprecate._gaps import _FoundGap, _GapKind, _nested_files_gap
 
 
@@ -28,3 +30,17 @@ def test_nested_file_has_gap(tmp_path: Path) -> None:
         "Skipping nested Python files in plain directory scan. Use an importable package layout with '__init__.py'"
         " files, or scan an importable module/package path instead.",
     )
+
+
+@pytest.mark.parametrize("filename", ["__init__.py", "__main__.py"])
+def test_nested_dunder_file_has_gap(tmp_path: Path, filename: str) -> None:
+    """Report a nested Python file omitted from a plain-directory scan.
+
+    A nested package may keep its only deprecated API in an initializer or entry point, with no other Python files.
+    """
+    package = tmp_path / "nested" / "pkg"
+    package.mkdir(parents=True)
+    (package / filename).touch()
+    gap = _nested_files_gap(tmp_path)
+    assert gap is not None
+    assert gap.kind is _GapKind.NESTED_FILES

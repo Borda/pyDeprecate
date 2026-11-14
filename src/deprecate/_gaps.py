@@ -59,7 +59,7 @@ class _FoundGap:
 
 def _nested_files_gap(directory: Path) -> Optional[_FoundGap]:
     """Return a gap for Python files below a plain directory that its top-level scan leaves unaudited."""
-    if any(not fpy.name.startswith("__") for fpy in directory.rglob("*.py") if fpy.parent != directory):
+    if any(fpy.is_file() and fpy.parent != directory for fpy in directory.rglob("*.py")):
         return _FoundGap(
             _GapKind.NESTED_FILES,
             "Skipping nested Python files in plain directory scan. Use an importable package layout with '__init__.py'"
