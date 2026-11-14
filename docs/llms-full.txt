@@ -37,7 +37,7 @@ The repository includes a separate `pydeprecate` coding-agent plugin in `plugins
 | Detect POSITIONAL_ONLY-remap incompatibilities | `validate_mapping_compatibility` |
 | Check one wrapper's configuration | `validate_deprecation_wrapper` → `DeprecationWrapperInfo` |
 | Discover wrappers | `find_deprecation_wrappers` → `list[DeprecationWrapperInfo]` |
-| Discover wrappers without importing | `deprecate.audit.find_deprecation_wrappers_static(path, recursive=True, include_members=True, exclude=None)` → `StaticScanResult` (since 0.16) |
+| Discover wrappers without importing | `deprecate.audit.find_deprecation_wrappers_static(path, recursive=True, include_members=True, *, exclude=None)` → `StaticScanResult` (since 0.16) |
 | Hold a source-only audit snapshot | `deprecate.audit.StaticScanResult` (since 0.16), frozen: `wrappers` (tuple), `gaps` (ordered `"<kind>: <detail>"` strings), `version` (string or `None`) |
 | Generate a markdown deprecation table | `generate_deprecation_table` (styles: `TableStyle`; status labels: `DeprecationStatus`) |
 | Legacy audit names, deprecated since v0.6, removed in v1.0 — never write them | `DeprecatedCallableInfo`, `find_deprecated_callables`, `validate_deprecated_callable` |
