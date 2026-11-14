@@ -7,11 +7,11 @@ from collections.abc import Collection
 from pathlib import Path
 from typing import Optional, Union
 
-from deprecate._cli.report import _GapKind, _print_gap
-from deprecate._cli.static.analyzer import _ModuleAnalyzer
-from deprecate._cli.static.consts import _BASE_DEPTH, _CYCLE
-from deprecate._cli.static.discovery import _StaticSource
-from deprecate._cli.static.model import (
+from deprecate._gaps import _FoundGap, _GapKind
+from deprecate._static.analyzer import _ModuleAnalyzer
+from deprecate._static.consts import _BASE_DEPTH, _CYCLE
+from deprecate._static.discovery import _StaticSource
+from deprecate._static.model import (
     _ImportRef,
     _Lookup,
     _module_scope,
@@ -24,7 +24,7 @@ from deprecate._cli.static.model import (
     _SourceWrapper,
     _Value,
 )
-from deprecate._cli.static.scope import (
+from deprecate._static.scope import (
     _direct_aliases,
     _globals_rebinds,
     _is_dataclass,
@@ -35,7 +35,7 @@ from deprecate._cli.static.scope import (
     _scope_events,
     _single,
 )
-from deprecate._cli.static.targets import _TargetClassifier
+from deprecate._static.targets import _TargetClassifier
 from deprecate.audit._version import _absolute_import, _literal_all, _module_source_file
 
 
@@ -51,8 +51,9 @@ class _TreeReader:
     def __init__(self, source: _StaticSource) -> None:
         self.source = source
         self.root_package = source.name if source.kind == "package" else None
+        self.gaps: list[_FoundGap] = []
         self._parsed: dict[str, Optional[_ParsedModule]] = {}
-        #: Why a module's source could not be read or analyzed, printed once as a ``module not audited`` gap.
+        #: Why a module's source could not be read or analyzed, collected once as a ``module not audited`` gap.
         self._errors: dict[str, str] = {}
         self._reported: set[str] = set()
         self._facts: dict[str, Optional[_ModuleFacts]] = {}
@@ -67,9 +68,9 @@ class _TreeReader:
         return root is not None and (module == root or module.startswith(f"{root}."))
 
     def parse(self, module: str, path: Optional[Path] = None) -> Optional[_ParsedModule]:
-        """Parse *module* once; a file that cannot be read is a ``module not audited`` gap, printed when first met.
+        """Parse *module* once; a file that cannot be read is a ``module not audited`` gap, collected when first met.
 
-        The gap is printed where the failure happens, so a module reached only through another module's import (never
+        The gap is collected where the failure happens, so a module reached only through another module's import (never
         walked itself under ``--no-recursive`` or ``--exclude``) still reports why its names were not audited.
 
         """
@@ -97,10 +98,10 @@ class _TreeReader:
         self._report(module)
 
     def _report(self, module: str) -> None:
-        """Print the ``module not audited`` gap of a module that could not be read or analyzed, once."""
+        """Collect the ``module not audited`` gap of a module that could not be read or analyzed, once."""
         if module in self._errors and module not in self._reported:
             self._reported.add(module)
-            _print_gap(_GapKind.MODULE_NOT_AUDITED, f"{module}: {self._errors[module]}")
+            self.gaps.append(_FoundGap(_GapKind.MODULE_NOT_AUDITED, f"{module}: {self._errors[module]}"))
 
     def aliases(self, parsed: _ParsedModule) -> _PyDeprecateNames:
         """Return the pyDeprecate names *parsed* binds, following in-tree modules that re-export them."""

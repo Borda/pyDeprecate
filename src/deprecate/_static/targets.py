@@ -6,8 +6,8 @@ from collections.abc import Mapping
 from typing import Any, Callable, Optional
 
 from deprecate import TargetMode
-from deprecate._cli.static.consts import _TargetRoute
-from deprecate._cli.static.model import (
+from deprecate._static.consts import _TargetRoute
+from deprecate._static.model import (
     _DATA_DISPLAYS,
     _FactorySettings,
     _may_be_callable_class,
@@ -17,7 +17,7 @@ from deprecate._cli.static.model import (
     _StaticDataTarget,
     _StaticTarget,
 )
-from deprecate._cli.static.scope import _NameBinding, _PyDeprecateNames, _single
+from deprecate._static.scope import _NameBinding, _PyDeprecateNames, _single
 from deprecate._types import DeprecationConfig
 from deprecate._validate import _resolve_legacy_proxy_target, _resolve_legacy_target
 from deprecate.audit import DeprecationWrapperInfo

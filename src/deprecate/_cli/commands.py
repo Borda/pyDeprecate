@@ -48,7 +48,6 @@ from deprecate._cli.report import (
     _ensure_run_record,
     _Gap,
     _gap_recorded,
-    _GapKind,
     _join_tables,
     _print,
     _print_gap,
@@ -69,9 +68,11 @@ from deprecate._cli.scan import (
     _ScanTarget,
     _select_plans,
 )
-from deprecate._cli.static.checks import _report_unresolved, _resolved, _static_policy_findings
-from deprecate._cli.static.consts import _EXPIRY_KEYWORDS
+from deprecate._cli.static import _report_unresolved, _static_policy_findings
 from deprecate._cli.suppress import _Suppressor
+from deprecate._gaps import _GapKind
+from deprecate._static.checks import _resolved
+from deprecate._static.consts import _EXPIRY_KEYWORDS
 from deprecate.audit import (
     DeprecationWrapperInfo,
     PolicyRule,
@@ -798,8 +799,8 @@ def _expiry_derive(
     """Record and return the active ``expired`` findings, or ``None`` when the check could not run (gap printed).
 
     A ``--static`` scan (*static*) checks the wrappers whose ``remove_in`` the source settled; a ``not statically
-    resolvable`` gap names each one it left out, printed only once the check has run — when it could not (no version,
-    an invalid one, no ``packaging``) it has already printed why, and a gap per wrapper would imply that the others were
+    resolvable`` gap names each one it left out, printed only once the check has run — when it could not (no version, an
+    invalid one, no ``packaging``) it has already printed why, and a gap per wrapper would imply that the others were
     checked.
 
     """
@@ -845,7 +846,7 @@ def _policy_derive(
         wrappers: The scanned wrappers of one path.
         spec: The resolved policy rules.
         findings: How the rules evaluate the wrappers; a ``--static`` scan runs each rule on the wrappers whose
-            settings for it resolved (:func:`~deprecate._cli.static.checks._static_policy_findings`). ``None`` runs
+            settings for it resolved (:func:`~deprecate._cli.static._static_policy_findings`). ``None`` runs
             :func:`_policy_findings`, looked up at call time.
 
     """

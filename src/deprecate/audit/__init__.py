@@ -1,7 +1,12 @@
 """Audit tools for deprecation lifecycle management.
 
 This module provides several complementary utilities for verifying the health of deprecated callables across a
-codebase. All are designed to be called from pytest or a CI script against an imported package.
+codebase, from pytest or a CI script. Discovery supports imported packages and import-free source scans.
+
+**Import-free discovery** (:func:`~deprecate.audit.find_deprecation_wrappers_static`):
+    Read source without executing the scanned package. The returned :class:`~deprecate.audit.StaticScanResult`
+    carries approximate rows, an optional version, and gaps callers must inspect. Expiry, policy, and table APIs
+    accept this result without importing the package or scanning again.
 
 **Wrapper configuration** (:func:`~deprecate.audit.validate_deprecation_wrapper`,
 :func:`~deprecate.audit.find_deprecation_wrappers`):
@@ -61,6 +66,7 @@ from deprecate.audit._lifecycle import DeprecationStatus, validate_deprecation_e
 from deprecate.audit._policy import GraceWindow, GraceWindowSpec, PolicyRule, VersionBump, validate_deprecation_policy
 from deprecate.audit._report import TableStyle, generate_deprecation_table
 from deprecate.audit._scan import find_deprecation_wrappers, validate_deprecation_chains, validate_mapping_compatibility
+from deprecate.audit._static import StaticScanResult, find_deprecation_wrappers_static
 from deprecate.audit._wrappers import ChainType, DeprecationWrapperInfo, validate_deprecation_wrapper
 from deprecate.deprecation import deprecated
 from deprecate.proxy import deprecated_class
@@ -73,10 +79,12 @@ __all__ = [
     "GraceWindow",
     "GraceWindowSpec",
     "PolicyRule",
+    "StaticScanResult",
     "TableStyle",
     "VersionBump",
     "find_deprecated_callables",
     "find_deprecation_wrappers",
+    "find_deprecation_wrappers_static",
     "generate_deprecation_table",
     "validate_deprecated_callable",
     "validate_deprecation_chains",

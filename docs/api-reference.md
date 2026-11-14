@@ -30,6 +30,10 @@ Auto-generated from source docstrings. For usage examples see the [Use Cases](gu
 
 ::: deprecate.audit.find_deprecation_wrappers
 
+::: deprecate.audit.find_deprecation_wrappers_static
+
+::: deprecate.audit.StaticScanResult
+
 ::: deprecate.audit.validate_deprecation_wrapper
 
 ::: deprecate.audit.validate_deprecation_expiry

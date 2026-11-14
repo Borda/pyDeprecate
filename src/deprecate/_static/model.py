@@ -6,8 +6,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, NamedTuple, Optional, Union
 
-from deprecate._cli.static.consts import _DEPRECATE_MODULES, _Factory
-from deprecate._cli.static.scope import _dotted, _globals_rebinds, _NameBinding, _scope_events, _single
+from deprecate._static.consts import _DEPRECATE_MODULES, _Factory
+from deprecate._static.scope import _dotted, _globals_rebinds, _NameBinding, _scope_events, _single
 from deprecate._types import DeprecationConfig
 from deprecate.audit import DeprecationWrapperInfo
 from deprecate.audit._version import _absolute_import

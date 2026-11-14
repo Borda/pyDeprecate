@@ -14,13 +14,13 @@ from deprecate._cli.report import (
     _build_report,
     _find_location_root,
     _Gap,
-    _GapKind,
     _RunRecord,
     _ScannedPath,
     _ScanRecord,
     _SuppressedFinding,
 )
 from deprecate._cli.sarif import _artifact_location, _build_sarif, _rule_name, _write_sarif
+from deprecate._gaps import _GapKind
 from deprecate.audit import DeprecationWrapperInfo
 from deprecate.audit._findings import _Check, _Finding, _make_finding, _Rule
 

@@ -35,6 +35,63 @@ Four things go wrong with deprecations in practice: a `remove_in` deadline passe
 
     Every wrapper kind is affected — functions, methods, class proxies, instance proxies, and modules. See the [v0.12-to-v0.13 migration guide](migration.md) for the full list.
 
+## Scanning from Python without importing
+
+Use `deprecate.audit.find_deprecation_wrappers_static()` (since 0.16) when dependencies are missing from the audit environment, a docs build must not execute package initialization, or an isolated script needs source-only discovery. It reads Python source with `ast` without importing or executing the scanned package.
+
+Pass a package directory, a Python module file, a plain directory, or a top-level module name. Dotted module names are refused because locating them would import their parents. Package submodules are read recursively by default; plain directories include only top-level Python files. Set `recursive`, `include_members`, and module-name `exclude` globs on the scan itself.
+
+The frozen `StaticScanResult` holds `.wrappers` (a tuple of rows), `.gaps` (ordered `"<kind>: <detail>"` strings), and `.version` (resolved without imports, or `None`). Pass it directly to expiry, policy, and table APIs to reuse the rows without another scan. This example runs from the repository root against the real static collection:
+
+```python
+from deprecate.audit import (
+    find_deprecation_wrappers_static,
+    generate_deprecation_table,
+    validate_deprecation_expiry,
+    validate_deprecation_policy,
+)
+
+scan = find_deprecation_wrappers_static("tests/collections/static_forms.py")
+print("Wrappers:", len(scan.wrappers))
+for gap in scan.gaps:
+    print(gap)
+
+expired = validate_deprecation_expiry(scan, current_version="2.0")
+violations = validate_deprecation_policy(scan)
+report = generate_deprecation_table(scan, current_version="2.0")
+print("Expired:", len(expired))
+print("Policy violations:", len(violations))
+# Show the table header and one source-derived row.
+print(report.splitlines()[1])
+print(next(line for line in report.splitlines() if "static_forms.forward_sum`" in line))
+```
+
+<details>
+  <summary>Output: <code>scan.gaps</code>, validator counts, and a table row</summary>
+
+```text
+Wrappers: 23
+not statically resolvable: tests/collections/static_forms.py:237: unrecognized use of `deprecated`
+not statically resolvable: tests/collections/static_forms.py:213: `remove_in` is `REMOVAL`, not a literal (Callable `static_forms.ambiguous_removal` not checked)
+not statically resolvable: tests/collections/static_forms.py:225: arguments come from `**dict(deprecated_in='1.0', remove_in='2.0')` (Callable `static_forms.called_splat` not checked)
+not statically resolvable: tests/collections/static_forms.py:219: `remove_in` is `f'{_MAJOR}.0'`, not a literal (Callable `static_forms.formatted_removal` not checked)
+not statically resolvable: tests/collections/static_forms.py:231: `target` is `_REPLACEMENTS['double']`, not a literal or a name (Callable `static_forms.looked_up_target` not checked)
+Expired: 17
+Policy violations: 9
+| Original API | API Type | New API | Deprecated | Remove | Current Status |
+| `static_forms.forward_sum` | callable | `base_sum_kwargs` | v1.0 | v2.0 | 💥 Past Removal Date |
+```
+
+</details>
+
+Install `pyDeprecate[audit]` for version comparisons. Expiry and table generation default to `scan.version`; supply `current_version` explicitly when it is unavailable (expiry otherwise raises `ImportError`, while the table shows unknown status). Policy checks only settings resolved for each rule and never reads `pyproject.toml` policy settings. With a completed result, leave consumer `recursive` and `include_members` at their defaults: passing `False` raises `ValueError`.
+
+!!! warning "Source rows are approximations"
+
+    Always read `.gaps`, even when `.wrappers` or the validator results are empty. A gap marks incomplete coverage, and some dynamic forms are invisible without a gap. Row targets are stand-ins: calling `row.deprecated_info.target()` when it is a synthetic target raises `TypeError`. Use an import-mode audit with the package dependencies available for full runtime discovery.
+
+The API shares the [CLI `--static` source reader](cli.md#static-mode) and its [blind spots](../limitations.md#audit-tooling); the Python API also accepts module files and can render a table from the result even though CLI `status` has no `--static` mode.
+
 ## Validating Wrapper Configuration
 
 Use these utilities to verify that a deprecated wrapper is correctly configured: that `args_mapping` keys exist in the function signature, that the mapping has a real effect, and that the target does not point back to the same function. `validate_deprecation_wrapper()` inspects a single function; `find_deprecation_wrappers()` scans an entire package.

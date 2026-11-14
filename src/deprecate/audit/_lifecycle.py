@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 from deprecate._frames import _caller_stacklevel
 from deprecate.audit._findings import _Check, _Finding, _make_finding, _Rule
 from deprecate.audit._scan import find_deprecation_wrappers
+from deprecate.audit._static import StaticScanResult, _static_result_rows
 from deprecate.audit._version import _resolve_package_version
 from deprecate.audit._wrappers import DeprecationWrapperInfo, _format_subject
 
@@ -319,7 +320,7 @@ def _expiry_findings(
 
 
 def validate_deprecation_expiry(
-    module: Union[Any, str],  # noqa: ANN401
+    module: Union[Any, str, StaticScanResult],  # noqa: ANN401
     current_version: Optional[str] = None,
     recursive: bool = True,
     include_members: bool = True,
@@ -332,18 +333,21 @@ def validate_deprecation_expiry(
     their scheduled removal version. It's designed for CI/CD pipelines to automatically detect and report zombie code
     across a codebase.
 
-    The function uses :func:`~deprecate.audit.find_deprecation_wrappers` to discover all deprecated wrappers,
-    then checks each one against
-    the current version. Any wrappers that have reached or passed their removal deadline are collected and reported.
+    For module inputs, the function uses :func:`~deprecate.audit.find_deprecation_wrappers` to discover deprecated
+    wrappers; a static result supplies its already-scanned rows. Wrappers that have reached or passed their removal
+    deadline are collected and reported.
 
     Args:
         module: A Python module or package to scan. Can be:
             - Imported module object (e.g., ``import my_package; validate_deprecation_expiry(my_package, "2.0")``)
             - String module path (e.g., ``validate_deprecation_expiry("my_package.submodule", "2.0")``)
+            - :class:`~deprecate.audit.StaticScanResult`, checked without imports or another scan; only rows with
+              resolved expiry settings are checked. Inspect its ``gaps`` for incomplete coverage.
         current_version: The current version of your package to compare against removal deadlines (e.g., ``"2.0.0"``).
             If None, auto-detects the version of the top-level package of the module path (e.g. ``"mypackage"``
             for ``"mypackage.submodule"``) the way the CLI does: installed metadata under the import name, then
             under the distribution that ships it, then the package's string ``__version__``.
+            For a static result, uses its ``version`` instead, raising ``ImportError`` if it is unavailable.
         recursive: If True (default), recursively scan submodules. If False, only scan the top-level module.
         include_members: If True (default), also scan deprecated class members (methods, constructors,
             classmethods, staticmethods, properties) — matching the discovery default of
@@ -362,7 +366,8 @@ def validate_deprecation_expiry(
             resolved for the package. A string module path that cannot be imported raises ``ModuleNotFoundError``
             (an ``ImportError`` subclass).
         ValueError: If ``current_version`` is not a valid PEP 440 version, if ``module`` is an empty string, or if
-            ``current_version`` is ``None`` and ``module`` is an object without a ``__name__``.
+            ``current_version`` is ``None`` and ``module`` is an object without a ``__name__``. Also raised for a
+            static result with ``recursive=False`` or ``include_members=False``: scan options are already fixed.
         Exception: Any other error raised by the import-time code of a string module path (for example a
             ``RuntimeError``) propagates unchanged, with or without ``current_version``. With ``current_version=None``
             the import runs before the version lookup, so this error is reported instead of a missing version.
@@ -388,8 +393,23 @@ def validate_deprecation_expiry(
         - Can be integrated into test suites or pre-commit hooks
 
     """
-    # Auto-detect version if not provided
-    if current_version is None:
+    static_rows = None
+    if isinstance(module, StaticScanResult):
+        # Import the reader's resolution rules only for static results, preserving ordinary audit import cost.
+        from deprecate._static.checks import _resolved
+        from deprecate._static.consts import _EXPIRY_KEYWORDS
+
+        static_rows = _resolved(
+            _static_result_rows(module, recursive=recursive, include_members=include_members, exclude=exclude),
+            _EXPIRY_KEYWORDS,
+        )
+        if current_version is None:
+            current_version = module.version
+        if current_version is None:
+            raise ImportError(
+                "Could not determine version for the static scan. Please provide current_version explicitly."
+            )
+    elif current_version is None:
         # The package name comes from the path the caller passed, never from the imported object, which may replace
         # itself in ``sys.modules`` or carry another package's ``__name__``.
         module_name = module if isinstance(module, str) else getattr(module, "__name__", None)
@@ -415,7 +435,9 @@ def validate_deprecation_expiry(
         raise ValueError(f"Invalid current_version '{current_version}': {err}") from err
 
     return _check_expiry_for_callables(
-        find_deprecation_wrappers(module, recursive=recursive, include_members=include_members, exclude=exclude),
+        static_rows
+        if static_rows is not None
+        else find_deprecation_wrappers(module, recursive=recursive, include_members=include_members, exclude=exclude),
         current_version,
     )
 

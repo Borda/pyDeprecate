@@ -22,6 +22,7 @@ from deprecate.audit._lifecycle import (
     _safe_parse_version,
 )
 from deprecate.audit._scan import find_deprecation_wrappers
+from deprecate.audit._static import StaticScanResult, _static_result_rows
 from deprecate.audit._wrappers import DeprecationWrapperInfo, _ApiType, _format_report_symbol
 from deprecate.messaging import _callable_display_name
 from deprecate.proxy import _DeprecatedProxy
@@ -165,7 +166,7 @@ def _format_matrix_row(info: DeprecationWrapperInfo, col_idx: dict[str, int], n_
 
 
 def generate_deprecation_table(
-    module: Union[Any, str],  # noqa: ANN401
+    module: Union[Any, str, StaticScanResult],  # noqa: ANN401
     current_version: Optional[str] = None,
     recursive: bool = True,
     style: Union[TableStyle, str] = TableStyle.COMPACT,
@@ -180,11 +181,15 @@ def generate_deprecation_table(
 
     Args:
         module: Imported module/package object or string module path to scan.
+            Also accepts a :class:`~deprecate.audit.StaticScanResult` without imports or another scan. Its source rows
+            are rendered as-is with stand-in target names; inspect ``gaps`` for
+            unresolved settings and incomplete coverage.
         current_version: Optional current package version for lifecycle status
             evaluation in compact style. If ``None``, the version is auto-detected
             like ``validate_deprecation_expiry`` does; status falls back to
             ``"⚪ Status Unknown"`` when it stays unresolved or ``packaging`` is not
             installed.
+            For a static result, defaults to its ``version`` without any further lookup.
         recursive: If True (default), include submodules in the scan.
         style: Table format — ``"compact"`` or ``"matrix"``.
             - ``"compact"``: ``Original API | API Type | New API | Deprecated | Remove | Current Status``
@@ -208,7 +213,8 @@ def generate_deprecation_table(
     Raises:
         ValueError: If ``style`` is not ``"compact"`` or ``"matrix"``, or if
             ``current_version`` is supplied explicitly but is not a valid PEP 440
-            version string and ``packaging`` is installed.
+            version string and ``packaging`` is installed. Also raised for a static result with ``recursive=False``
+            or ``include_members=False`` because its scan options are already fixed.
 
     Example:
         >>> from tests.collections.api_deprecated import core as pkg
@@ -224,8 +230,18 @@ def generate_deprecation_table(
             f"Invalid style {style!r}. Expected one of: {', '.join(s.value for s in TableStyle)}."
         ) from err
 
-    resolved_version, parsed_version = _resolve_table_version(module, current_version=current_version)
-    wrappers = find_deprecation_wrappers(module, recursive=recursive, include_members=include_members, exclude=exclude)
+    if isinstance(module, StaticScanResult):
+        wrappers = _static_result_rows(module, recursive=recursive, include_members=include_members, exclude=exclude)
+        resolved_version, parsed_version = _resolve_table_version(
+            module,
+            current_version=current_version if current_version is not None else module.version,
+            version_explicit=current_version is not None,
+        )
+    else:
+        resolved_version, parsed_version = _resolve_table_version(module, current_version=current_version)
+        wrappers = find_deprecation_wrappers(
+            module, recursive=recursive, include_members=include_members, exclude=exclude
+        )
     return _render_deprecation_table(wrappers, resolved_version, parsed_version, style)
 
 

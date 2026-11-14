@@ -338,18 +338,19 @@ pyDeprecate/
 │   │   ├── report.py           # _print(), the _Reporter finding sections and the --report-json writer
 │   │   ├── sarif.py            # SARIF 2.1.0 writer of --report-sarif
 │   │   ├── scan.py             # Path scanning: file, package, plain directory or module name -> wrappers
-│   │   ├── static/             # --static: read wrappers from source with ast, importing nothing
-│   │   │   ├── __init__.py     # What static mode reads and reports; imports go to the defining submodule, no re-exports
-│   │   │   ├── analyzer.py     # One module's wrappers: factory calls and decorators in a parsed module body
-│   │   │   ├── checks.py       # The checks' view of static rows: settings a rule needs, gaps, policy findings
-│   │   │   ├── consts.py       # Fixed names and tables: recognized factories, routes, limits
-│   │   │   ├── discovery.py    # Locate the source: package directory, namespace package or module file
-│   │   │   ├── model.py        # Values the reader builds: wrappers, per-module facts, one read setting
-│   │   │   ├── reader.py       # A tree of modules: parse once, follow imports and star exports, merge bases
-│   │   │   ├── rows.py         # Rows handed to the checks, named and ordered as the import scan does
-│   │   │   ├── scope.py        # How a source binds names: factory aliases, scope events, rebinding
-│   │   │   └── targets.py      # Turn a `target` expression into what the factory of its route stores
+│   │   ├── static.py           # The checks' view of static rows: settings a rule needs, gaps, policy findings
 │   │   └── suppress.py         # Ignore entries and the --baseline report that accept known findings
+│   ├── _gaps.py                # Shared audit gap kinds, discovered gap data and nested-files detection
+│   ├── _static/                # Import-free source reader shared by audit tooling and the CLI
+│   │   ├── __init__.py         # What static mode reads and reports; imports go to the defining submodule, no re-exports
+│   │   ├── analyzer.py         # One module's wrappers: factory calls and decorators in a parsed module body
+│   │   ├── consts.py           # Fixed names and tables: recognized factories, routes, limits
+│   │   ├── discovery.py        # Locate the source: package directory, namespace package or module file; shared plain-directory walk
+│   │   ├── model.py            # Values the reader builds: wrappers, per-module facts, one read setting
+│   │   ├── reader.py           # A tree of modules: parse once, follow imports and star exports, merge bases
+│   │   ├── rows.py             # Rows handed to the checks, named and ordered as the import scan does
+│   │   ├── scope.py            # How a source binds names: factory aliases, scope events, rebinding
+│   │   └── targets.py          # Turn a `target` expression into what the factory of its route stores
 │   ├── _types.py               # Shared type definitions: DeprecationConfig, _ProxyConfig
 │   ├── deprecation.py          # Front door: deprecated() dispatcher (functions/methods -> routine, classes -> proxy)
 │   ├── routine.py              # Function/method decorator: deprecated_callable() (strict) + packing descriptors
@@ -458,6 +459,7 @@ pyDeprecate/
 │   └── unittests/                       # Focused tests for private/internal helpers
 │       ├── audit/                       # One test__<module>.py per audit submodule (_wrappers, _scan, _lifecycle, _policy, _report)
 │       ├── cli/                         # One test_<module>.py per _cli submodule; test_cli.py covers cli() in __init__.py; conftest.py
+│       ├── static/                      # Private _static source reader, discovery and model tests; _helpers.py
 │       ├── docstring/                   # Mirrors docstring/: test_inject.py, test_griffe_ext.py; extension imports in test___init__.py
 │       └── proxy/                       # Mirrors proxy submodules; core tests split by runtime, attributes, calls, and warnings
 ├── .github/
@@ -507,8 +509,10 @@ Tests live in `tests/` and follow a **three-layer separation**:
 | `modules/`                    | Fixture modules for `deprecated_module()` tests — the deprecated module targets themselves plus their replacement modules                                                                                                                                                                                  |
 | `integration/`                | End-to-end tests exercising the **public API** via the collection modules (plus the GitHub Action runner in `test_action.py`)                                                                                                                                                                              |
 | `unittests/`                  | Focused tests for **private/internal helpers**, each file mirroring one source module                                                                                                                                                                                                                      |
+| `unittests/test__gaps.py`     | Shared gap data and plain-directory nested-files detection for `_gaps.py`                                                                                                                                                                                                                                  |
 | `unittests/test__validate.py` | Decoration-time target resolution, source guards, mode validation, and stacking compatibility for `_validate.py`                                                                                                                                                                                           |
 | `unittests/proxy/`            | Mirrors `src/deprecate/proxy/`: factories and typing in `test_factories.py` (for `factories.py`), runtime in `test_core.py` plus `test_core_attrs.py`, `test_core_calls.py`, and `test_core_warnings.py`, resolution in `test_resolve.py`, protocols in `test_dunders.py`; shared helpers in `_helpers.py` |
+| `unittests/static/`           | Tests the private `src/deprecate/_static/` source reader in `test_reader.py`, source discovery in `test_discovery.py`, and placeholder targets in `test_model.py`; shared source fixtures and row helpers in `_helpers.py`                                                                                 |
 | `unittests/docstring/`        | Mirrors `src/deprecate/docstring/`: `test_inject.py` and `test_griffe_ext.py`, with the extension imports in `test___init__.py`; the Sphinx tests stay in `integration/test_sphinx_ext.py`                                                                                                                 |
 | `_helpers.py`                 | Helpers shared across test packages: `captured_warnings`, `write_pkg` and `run_isolated_python`                                                                                                                                                                                                            |
 
@@ -542,7 +546,7 @@ The integration suite also keeps characterization for positional and keyword for
 >
 > Failing to do this causes the corresponding generated test file(s) under `tests/docs/` or `tests/integration/test_readme.py` to fail in CI. Enumerating specific files here goes stale as soon as a new doc example is added — grep for the fixture module's import if in doubt.
 
-**`unittests/`** — Tests import private symbols directly (e.g. `_raise_warn`, `_parse_version`) and use mocking/monkeypatching to stay isolated from external state. Each file mirrors a source module (`deprecation.py`, `docstring/inject.py` in `unittests/docstring/test_inject.py`, `utils.py`), and a source subpackage becomes a test subpackage with one file per submodule — `unittests/audit/test__policy.py` for `deprecate/audit/_policy.py`; private symbols of the `audit/` subpackage are imported from their defining submodule (`deprecate.audit._policy`), never from the package root. The internal `_cli/` package maps to `unittests/cli/` (`test_commands.py` for `_cli/commands.py`, `test_cli.py` for the `cli()` entry point in `_cli/__init__.py`), with wrapper fixtures shared by several of those files kept in `cli/_helpers.py`. `cli/conftest.py` holds one autouse fixture that lets the path preflight accept the stand-in module name `some_module`, which those tests scan with `find_deprecation_wrappers` mocked; every other name is still looked up for real. The `_cli/static/` subpackage is the one exception to one test file per submodule: `cli/test_static.py` drives its reader end to end (parity with the import scan), so no single submodule owns those tests, and the file imports each private symbol from its defining submodule. It follows the same import rule, and a `patch()` targets the submodule that looks the name up at call time (`deprecate._cli.scan.find_deprecation_wrappers`, not `deprecate._cli.find_deprecation_wrappers`). `cli()` looks the `cmd_*` subcommands up in `deprecate._cli.commands` when it runs, so a test of its dispatch patches `deprecate._cli.commands.cmd_check` with `autospec=True` (the parser is built from the signature it sees), as does a test that runs the real `cmd_all` with a stubbed table (`deprecate._cli.commands._status_table`). A patch on another binding may leave the test green while it runs the real code.
+**`unittests/`** — Tests import private symbols directly (e.g. `_raise_warn`, `_parse_version`) and use mocking/monkeypatching to stay isolated from external state. Each file mirrors a source module (`deprecation.py`, `docstring/inject.py` in `unittests/docstring/test_inject.py`, `utils.py`), and a source subpackage becomes a test subpackage with one file per submodule — `unittests/audit/test__policy.py` for `deprecate/audit/_policy.py`; private symbols of the `audit/` subpackage are imported from their defining submodule (`deprecate.audit._policy`), never from the package root. The internal `_cli/` package maps to `unittests/cli/` (`test_commands.py` for `_cli/commands.py`, `test_cli.py` for the `cli()` entry point in `_cli/__init__.py`), with wrapper fixtures shared by several of those files kept in `cli/_helpers.py`. `cli/conftest.py` holds one autouse fixture that lets the path preflight accept the stand-in module name `some_module`, which those tests scan with `find_deprecation_wrappers` mocked; every other name is still looked up for real. The private `_static/` reader maps to `unittests/static/`: source-reading tests in `test_reader.py`, discovery in `test_discovery.py`, and placeholder targets in `test_model.py`, with shared source fixtures and row helpers in `static/_helpers.py`. `cli/test_static.py` keeps the CLI gap output, `_cli/static.py` tests and parity with the import scan. Each file imports private symbols from their defining submodule. It follows the same import rule, and a `patch()` targets the submodule that looks the name up at call time (`deprecate._cli.scan.find_deprecation_wrappers`, not `deprecate._cli.find_deprecation_wrappers`). `cli()` looks the `cmd_*` subcommands up in `deprecate._cli.commands` when it runs, so a test of its dispatch patches `deprecate._cli.commands.cmd_check` with `autospec=True` (the parser is built from the signature it sees), as does a test that runs the real `cmd_all` with a stubbed table (`deprecate._cli.commands._status_table`). A patch on another binding may leave the test green while it runs the real code.
 
 > [!IMPORTANT]
 >

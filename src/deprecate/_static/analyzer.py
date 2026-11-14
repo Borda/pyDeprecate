@@ -7,7 +7,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from typing import Callable, Optional, Union
 
-from deprecate._cli.static.consts import (
+from deprecate._static.consts import (
     _ACCESSOR_SLOTS,
     _ACCESSORS,
     _CONDITIONAL_STATEMENTS,
@@ -17,7 +17,7 @@ from deprecate._cli.static.consts import (
     _positional_params,
     _TargetRoute,
 )
-from deprecate._cli.static.model import (
+from deprecate._static.model import (
     _Definition,
     _display,
     _FactoryCallArgs,
@@ -34,7 +34,7 @@ from deprecate._cli.static.model import (
     _SourceWrapper,
     _Value,
 )
-from deprecate._cli.static.scope import (
+from deprecate._static.scope import (
     _dotted,
     _escaped_names,
     _is_dataclass,
@@ -44,7 +44,7 @@ from deprecate._cli.static.scope import (
     _scope_events,
     _single,
 )
-from deprecate._cli.static.targets import (
+from deprecate._static.targets import (
     _callable_api_type,
     _class_api_type,
     _member_api_type,
