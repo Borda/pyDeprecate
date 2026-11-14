@@ -100,7 +100,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-06-15",
-  "dateModified": "2026-11-11"
+  "dateModified": "2026-11-14"
 }
 </script>
 
@@ -2243,7 +2243,7 @@
 </details>
 
 <h2 id="conditional-skip">Conditional skip<a class="headerlink" href="#conditional-skip" title="Permanent link">🔗</a></h2>
-<p><code>deprecated_class()</code> and <code>deprecated_instance()</code> accept <code>skip_if</code> — a <code>bool</code> or zero-argument callable returning <code>bool</code>, evaluated at access time. While it evaluates <code>True</code>, the deprecation machinery is inactive and the proxy transparently serves the wrapped source: no warning, no <code>attrs_mapping</code> redirect, no <code>args_mapping</code>/<code>args_extra</code> handling, no <code>target</code> forwarding, and no <code>read_only</code> enforcement. This mirrors <code>skip_if</code> on the callable decorators, where a skipped call executes the source body unchanged. The condition may be consulted more than once per proxy operation, so keep the callable cheap and stable; a callable returning a non-<code>bool</code> raises <code>TypeError</code> at access time.</p>
+<p><code>deprecated_class()</code> and <code>deprecated_instance()</code> accept <code>skip_if</code> — a <code>bool</code> or zero-argument callable returning <code>bool</code>, evaluated at access time. While it evaluates <code>True</code>, the deprecation machinery is inactive and the proxy transparently serves the wrapped source: no warning, no <code>attrs_mapping</code> redirect, no <code>args_mapping</code>/<code>args_extra</code> handling, no <code>target</code> forwarding, and no <code>read_only</code> enforcement. Type checks see the same object: <code>isinstance(proxy, ...)</code>, a class statement that subclasses the alias, and a proxy used as an arithmetic operand all follow the wrapped source while the condition holds. An audit never evaluates the condition, so a condition that needs a running application does not break <code>find_deprecation_wrappers</code> or the CLI. This mirrors <code>skip_if</code> on the callable decorators, where a skipped call executes the source body unchanged. The condition may be consulted more than once per proxy operation, so keep the callable cheap and stable; a callable returning a non-<code>bool</code> raises <code>TypeError</code> at access time. Make it return rather than raise when its context is missing: introspection tools such as <code>help()</code> and <code>pytest --doctest-modules</code> run <code>isinstance</code> on module members, which evaluates the condition of every proxy they meet.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated_class</span>
 <a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>
 <a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="n">MIGRATION_ROLLOUT_DONE</span> <span class="o">=</span> <span class="kc">False</span>
@@ -3079,7 +3079,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 11, 2026 13:46:14 UTC">2026-11-11</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 14, 2026 09:55:46 UTC">2026-11-14</span>
   </span>
 
     

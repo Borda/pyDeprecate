@@ -2326,7 +2326,7 @@ ______________________________________________________________________
 
 **Q:** The GitHub Action's annotation for a finding appears on the run summary instead of on a line of the pull request.
 
-**A:** The finding has no source location the CLI can name: every finding from a `--static` run lacks one, as can a `deprecated_instance` data object (a wrapped value has no defining line), a class built at runtime, or code compiled from a string. Since 0.16 a finding with a source location is annotated with the file and the line of its wrapper's first decorator; a deprecated module is annotated on its file without a line. A file outside the repository checkout (the nearest directory holding `.git` at or above the job's working directory) is named by its absolute path, which GitHub cannot match to the pull request, so scan the package in the checkout rather than an installed copy.
+**A:** The finding has no source location the CLI can name. That holds for a `deprecated_instance` data object (a wrapped value has no defining line), a class built at runtime and code compiled from a string. A `--static` run also cannot place a wrapper of an object defined in another module or bound more than once. Since 0.16 a finding with a source location is annotated with the file and the line of its wrapper's first decorator; a deprecated module is annotated on its file without a line. A file outside the repository checkout (the nearest directory holding `.git` at or above the job's working directory) is named by its absolute path, which GitHub cannot match to the pull request, so scan the package in the checkout rather than an installed copy.
 
 ______________________________________________________________________
 
