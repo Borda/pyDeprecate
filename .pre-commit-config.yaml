@@ -12,6 +12,13 @@ ci:
 repos:
   - repo: local
     hooks:
+      - id: llms-full-sync
+        name: generated full agent context is synchronized
+        entry: python .github/scripts/generate_llms_full.py --check
+        language: python
+        pass_filenames: false
+        files: ^(docs/llms\.txt|src/deprecate/.*\.py)$
+
       - id: plugin-compat-floor
         name: plugin compatible_package_version floor
         # self-contained (no deprecate/packaging import) so it also runs on pre-commit.ci
