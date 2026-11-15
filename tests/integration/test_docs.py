@@ -47,7 +47,7 @@ def test_llms_full_matches_generator() -> None:
     A maintainer edits the authoritative agent contract or changes the public exports.
     The committed full context must match a fresh render so agents receive the current contract and API map.
     """
-    assert (_ROOT / "docs/llms-full.txt").read_bytes() == _GENERATOR.render().encode("utf-8"), (
+    assert (_ROOT / "docs/llms-full.txt").read_text(encoding="utf-8") == _GENERATOR.render(), (
         "Regenerate with: python .github/scripts/generate_llms_full.py"
     )
 

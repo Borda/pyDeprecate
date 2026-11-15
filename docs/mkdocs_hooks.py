@@ -134,7 +134,7 @@ def _pydeprecate_plain_text(markdown: str) -> str:
     return re.sub(r"`([^`]*)`|\[([^\]]+)\]\([^)]*\)|\*\*", _keep, markdown).strip()
 
 
-def _pydeprecate_h2_paragraphs(markdown: str) -> list[tuple[str, list[str]]]:
+def _pydeprecate_faq_sections(markdown: str) -> list[tuple[str, list[str]]]:
     """Collect H3 questions and their paragraphs beneath H2 topics, skipping fenced code and topic introductions."""
     sections: list[tuple[str, list[str]]] = []
     section: tuple[str, list[str]] | None = None
@@ -175,7 +175,7 @@ def _pydeprecate_faq_entries(markdown: str) -> list[dict[str, str]]:
 
     """
     entries: list[dict[str, str]] = []
-    for heading, paragraphs in _pydeprecate_h2_paragraphs(markdown):
+    for heading, paragraphs in _pydeprecate_faq_sections(markdown):
         if heading == _PYDEPRECATE_FAQ_CLOSING_HEADING:
             continue
         prose = [

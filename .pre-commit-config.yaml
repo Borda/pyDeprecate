@@ -17,7 +17,7 @@ repos:
         entry: python .github/scripts/generate_llms_full.py --check
         language: python
         pass_filenames: false
-        files: ^(docs/llms\.txt|src/deprecate/.*\.py)$
+        files: ^(docs/llms(-full)?\.txt|src/deprecate/.*\.py|\.github/scripts/generate_llms_full\.py)$
 
       - id: plugin-compat-floor
         name: plugin compatible_package_version floor
