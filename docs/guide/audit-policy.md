@@ -288,7 +288,7 @@ Found 4 violations
 
     `validate_deprecation_expiry()` also returns plain strings, without a slug. Use `find_deprecation_wrappers()` for structured per-wrapper `DeprecationWrapperInfo` rows.
 
-    The CLI's `--report-json` contains the rendered deprecation table and run gaps, not violation messages. See the [CLI Reference](cli.md).
+    The CLI's `--report-json` contains the rendered deprecation table, run gaps, and structured finding records with violation messages (since v0.16). See the [CLI Reference](cli.md).
 
 !!! note "CLI and Python configuration"
 

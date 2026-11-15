@@ -242,7 +242,7 @@ Each entry states the behaviour in one or two sentences. It links to the section
     - A setting held in a name bound more than once is a gap.
     - A setting splatted from anything but a module-level dict literal is a gap.
 
-    A gap does not fail the run. Static mode cannot see:
+    A gap does not fail the run unless `--strict` is enabled; strict mode exits with status `1` for a recorded gap. Static mode cannot see:
 
     - It cannot see wrappers built in loops or through `getattr`, `importlib` or `exec`.
     - It cannot see a proxy built from the private `_DeprecatedProxy` directly.

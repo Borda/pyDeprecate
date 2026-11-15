@@ -24,14 +24,19 @@ Renaming a function or retiring an argument often means writing a wrapper and ma
 
 ```python
 from deprecate import deprecated
-from tests.collections.api_current import core as current
-from tests.collections.api_deprecated import core
+
 
 # NEW API — compute a sum with the current implementation.
-compute_sum = current.base_sum_kwargs
+def compute_sum(a: int, b: int) -> int:
+    return a + b
+
 
 # DEPRECATED API — addition forwards to compute_sum.
-addition = deprecated(target=compute_sum, deprecated_in="1.0", remove_in="2.0")(core.original_sum)
+@deprecated(target=compute_sum, deprecated_in="1.0", remove_in="2.0")
+def addition(a: int, b: int) -> int:
+    return a + b
+
+
 print(addition(1, 2))  # warns: FutureWarning
 ```
 

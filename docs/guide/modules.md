@@ -173,7 +173,7 @@ The counter is one budget shared across every attribute name on the module. Ther
 
 Star imports (`from old_calculator import *`) still trigger the deprecation warning. CPython's `IMPORT_STAR` bytecode calls `getattr(module, name)` for each public name being pulled in. That call routes through the same `__getattribute__` interception installed by `deprecated_module()`.
 
-A `FutureWarning` therefore fires once per pulled-in public name, exactly as it would for `old_calculator.add(1, 2)`. This closes a gap that a PEP 562 module-level `__getattr__` hook would otherwise leave open. That hook only fires for missing names, and star imports never trigger it.
+A `FutureWarning` therefore fires once per pulled-in public name, exactly as it would for `old_calculator.add(1, 2)`. A PEP 562 module-level `__getattr__` hook fires only for missing names. Star imports can invoke it for dynamic names listed in `__all__`, but not for existing attributes.
 
 ## Audit integration
 

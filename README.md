@@ -166,22 +166,20 @@ Use `$pydeprecate:sunset` / `$pydeprecate:prune` in Codex, or `/pydeprecate:suns
 
 Forward an existing function to its replacement with `deprecated(target=...)`.
 
-This runnable example imports existing callables from the repository's test collections. In your package, import your existing callable and its replacement instead.
-
 ```python
 from deprecate import deprecated
 
+
 # NEW API — the replacement computes the sum
-from tests.collections.api_current.core import base_sum_kwargs as compute_sum
+def compute_sum(a: int, b: int) -> int:
+    return a + b
+
 
 # DEPRECATED API — `addition` now forwards to `compute_sum`
-from tests.collections.api_deprecated.core import original_sum as addition
+@deprecated(target=compute_sum, deprecated_in="1.0", remove_in="2.0")
+def addition(a: int, b: int) -> int:
+    return a + b
 
-addition = deprecated(
-    target=compute_sum,
-    deprecated_in="1.0",
-    remove_in="2.0",
-)(addition)
 
 print(addition(1, 2))  # warns: FutureWarning
 ```

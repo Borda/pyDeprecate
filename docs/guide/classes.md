@@ -368,7 +368,7 @@ On callable objects, `args_mapping` renames keyword arguments. Values renamed on
 
 - Without an explicit `target`, supplying `args_mapping` auto-resolves to `TargetMode.ARGS_REMAP`. Warnings occur **only when an old argument name is used**, matching `@deprecated(target=TargetMode.ARGS_REMAP, args_mapping=...)`.
 
-- Callers using new argument names receive no warnings. Structural checks with `isinstance` and `issubclass` also remain silent.
+- For a no-target `ARGS_REMAP` proxy, calls using new argument names are silent. A callable replacement target still emits the class-level warning. Structural checks with `isinstance` and `issubclass` remain silent.
 
 - Use `args_extra` to inject fixed kwargs into every forwarded call. Use `message_template` to override the warning; both options behave as their `@deprecated` counterparts do.
 

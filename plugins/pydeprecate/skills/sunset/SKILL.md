@@ -94,7 +94,7 @@ Apply the policy when filling the contract:
 
 Present the derived versions with the rule and source behind each before the first edit. The user confirms or overrides them.
 
-After editing, run `pydeprecate policy <path>` (requires `pyDeprecate[audit,cli]`, since v0.13) or `validate_deprecation_policy(module, min_grace="0.3", message_required=True)` (since v0.13) with the table's values. The function never reads `pyproject.toml`. Expect zero violations.
+After editing, run `pydeprecate policy <path>` (requires `pyDeprecate[audit,cli]`, since v0.13) or `validate_deprecation_policy(module, min_grace="0.3", message_required=True)` (since v0.13) with the table's values; map `min-grace = false` to `min_grace=None`, since the Python API rejects the boolean false value. The function never reads `pyproject.toml`. Expect zero violations.
 
 If the consumer package cannot be imported in the available environment, check whether `pydeprecate policy --help` lists `--static` (since v0.16). When it does, run `pydeprecate policy --static <path>` as a fallback. The shipped `pydeprecate-policy-static` and `pydeprecate-expiry-static` pre-commit hooks (since v0.16) use the same static scans.
 
@@ -120,7 +120,7 @@ Use explicit modes, never legacy `target=True` / `target=None` sentinels. Attrib
 
 For properties, descriptors, async/generators, modules or stacked wrappers, read the relevant installed implementation/release documentation before editing.
 
-A deprecated generator or async generator stub must itself contain yield (call void, then yield from an empty tuple). A stub that only does `return void(...)` is a plain function. It gets a plain wrapper, warns at call time and is not a generator function.
+A deprecated generator or async generator stub must itself contain a yield statement. A synchronous generator can use `yield from ()`; an async generator must use a plain yield statement, for example in an unreachable branch. A stub that only does `return void(...)` is a plain function. It gets a plain wrapper, warns at call time and is not a generator function.
 
 For a generator or async generator wrapper (since v0.15), the warning, the `num_warns` budget and the `as_exceptions()` / `as_exception=True` error fire at the first iteration step. This means next or `async for`, not the call. Earlier releases warn at call time and a wrapped async generator fails isgeneratorfunction-style checks.
 
@@ -173,7 +173,7 @@ Provide migration guidance through the replacement/mapping and, when needed, `me
 
 Type checkers and IDEs flag a deprecation only through `warnings.deprecated` (Python 3.13+) or `typing_extensions.deprecated`. pyDeprecate's decorators stay invisible to them on every release.
 
-When the user also wants an editor strikethrough or a mypy/pyright gate, stack `@warnings.deprecated("Use new_name instead.", category=None)` directly above the pyDeprecate decorator:
+When the user also wants an editor strikethrough or a mypy/pyright gate, stack a PEP 702 marker directly above the pyDeprecate decorator: use `@warnings.deprecated("Use new_name instead.", category=None)` on Python 3.13+ and `@typing_extensions.deprecated("Use new_name instead.", category=None)` on Python 3.12 and earlier:
 
 - Keep `category=None`; otherwise every call warns twice.
 - Write the message as a string literal; mypy ignores constants and f-strings.
@@ -186,7 +186,7 @@ To list symbols deprecated with that decorator alone, use `find_deprecation_wrap
 ## Verify and hand off
 
 - Add tests in the consumer's style.
-  - The legacy call still works and warns with the intended migration/deadline.
+  - A nonfatal legacy call still works and warns with the intended migration/deadline; for `as_exception=True`, assert that it raises instead.
   - The replacement works without that warning.
   - Invalid/conflicting inputs retain intended behavior.
   - Exercise affected descriptor/async forms.

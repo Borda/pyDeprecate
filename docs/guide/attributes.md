@@ -374,7 +374,7 @@ Instantiation also forwards to `Config`: `LegacyConfig(lr=0.05)` returns a `Conf
 
 ### Dataclass field renames
 
-For dataclasses, `deprecated_class(attrs_mapping=...)` automatically covers two surfaces. Accessing existing-instance attributes (`obj.old_field`) and passing constructor kwargs (`DC(old_field=5)`) both emit `FutureWarning`.
+For dataclasses, `deprecated_class(attrs_mapping=...)` automatically covers two surfaces. Accessing mapped class attributes through the proxy and passing constructor kwargs (`DC(old_field=5)`) can emit `FutureWarning`. Returned instances are not wrapped, so their attribute reads are not remapped.
 
 The auto-expansion copies entries targeting dataclass fields from `attrs_mapping` into `args_mapping`. Pure field renames therefore need no separate `args_mapping`.
 
@@ -585,13 +585,13 @@ class LegacyConfig:
 
 
 cfg = LegacyConfig()
-print(cfg.lr)  # warns: FutureWarning (deprecated in 1.0, remove in 2.0)
-print(cfg.steps)  # warns: FutureWarning (deprecated in 0.8, remove in 1.0)
+print(LegacyConfig.lr)  # warns: FutureWarning (deprecated in 1.0, remove in 2.0)
+print(LegacyConfig.steps)  # warns: FutureWarning (deprecated in 0.8, remove in 1.0)
 print(isinstance(cfg, LegacyConfig))
 ```
 
 <details>
-  <summary>Output: <code>cfg.lr; cfg.steps; isinstance(cfg, LegacyConfig)</code></summary>
+  <summary>Output: <code>LegacyConfig.lr; LegacyConfig.steps; isinstance(cfg, LegacyConfig)</code></summary>
 
 ```
 0.001
@@ -601,7 +601,7 @@ True
 
 </details>
 
-Each proxy layer carries its own `deprecated_in`/`remove_in` pair. `cfg.lr` reports the v1.0 deadline, while `cfg.steps` reports the earlier v0.8 deadline.
+Each proxy layer carries its own `deprecated_in`/`remove_in` pair. `LegacyConfig.lr` uses the v1.0 deprecation, while `LegacyConfig.steps` uses the earlier v0.8 deprecation. Instance reads are not intercepted.
 
 Stacking supports `isinstance()` and `issubclass()` through the proxy chain. Instantiation fires at most one global warning.
 
@@ -728,8 +728,8 @@ The migration makes these changes:
 
 | Surface                | Change                                                                      |
 | ---------------------- | --------------------------------------------------------------------------- |
-| v1.0 → v2.0 attributes | `lr` becomes `learning_rate`, and `n_epochs` becomes `max_epochs`.          |
-| v2.0 removal           | `size` is removed without a replacement, using a warn-only `None` redirect. |
+| v2.0 → v3.0 attributes | `lr` becomes `learning_rate`, and `n_epochs` becomes `max_epochs`.          |
+| v3.0 removal           | `size` is removed without a replacement, using a warn-only `None` redirect. |
 | Constructor            | `hidden_dim` becomes `hidden_size`.                                         |
 
 ```python
@@ -751,7 +751,7 @@ class TrainingConfig:
     attrs_mapping={
         "lr": "learning_rate",  # v2.0 rename
         "n_epochs": "max_epochs",  # v2.0 rename
-        "size": None,  # removed in v2.0 — warn-only, no replacement
+        "size": None,  # removed in v3.0 — warn-only, no replacement
     },
     args_mapping={"hidden_dim": "hidden_size"},  # constructor rename
     deprecated_in="2.0",
@@ -762,7 +762,7 @@ class LegacyTrainingConfig:
     learning_rate: float = 0.001
     n_epochs: int = 100
     max_epochs: int = 100
-    size: int = 128  # removed in v2.0
+    size: int = 128  # removed in v3.0
     hidden_size: int = 256
 
 

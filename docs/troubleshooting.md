@@ -930,12 +930,12 @@ The same error occurs if a replacement recurses through the deprecated name whil
 from deprecate import deprecated
 
 
+def new_fn(x: int) -> int:
+    return old_fn(x)
+
+
 @deprecated(target=new_fn, deprecated_in="1.0", remove_in="2.0")
 def old_fn(x: int) -> int: ...
-
-
-@deprecated(target=old_fn, deprecated_in="1.0", remove_in="2.0")
-def new_fn(x: int) -> int: ...
 ```
 
 Calling `old_fn(1)` raises:
@@ -947,7 +947,7 @@ Point to a non-deprecated final implementation.
 
 **Why?**
 
-`@deprecated` resolves its `target=` lazily at call time. When targets form a cycle, each call re-enters the same wrapper, which would recurse infinitely. The detector intercepts re-entry and raises `RuntimeError` instead of letting Python reach `RecursionError`.
+The `target=` expression is evaluated when the definition executes. Here the replacement calls the deprecated wrapper again, which would recurse infinitely. The detector intercepts re-entry and raises `RuntimeError` instead of letting Python reach `RecursionError`.
 
 **Fix**
 
@@ -1300,7 +1300,7 @@ See [Nested proxy wrappers](guide/attributes.md#nested-proxy-wrappers) for the p
 
 ### `attrs_mapping` auto-expand skips some fields on a dataclass with a custom `__init__`
 
-For a `@dataclass` target, `deprecated_class()` automatically copies eligible `attrs_mapping` entries into `args_mapping`. Attribute access (`proxy.old_field`) and constructor calls (`DC(old_field=5)`) can then emit `FutureWarning`.
+For a `@dataclass` target, `deprecated_class()` automatically copies eligible `attrs_mapping` entries into `args_mapping`. Class-proxy access (`DC.old_field`) and constructor calls (`DC(old_field=5)`) can then emit `FutureWarning`. Returned instances are not proxied.
 
 **Q:** I added `attrs_mapping` to a `deprecated_class()` wrapping a dataclass that overrides `__init__`. Some deprecated aliases aren't being auto-expanded into `args_mapping` — constructor calls with the old name raise `TypeError` instead of remapping. Why?
 
@@ -1312,7 +1312,7 @@ There are two cases where a field is intentionally excluded:
 
 2. **A custom `__init__` omits a dataclass field.** A field absent from that signature is not a valid kwarg. Auto-expansion excludes it.
 
-Both surfaces still work independently: `attrs_mapping` redirects attribute access for all listed aliases (including `init=False` fields), while `args_mapping` only covers fields present in the actual constructor signature.
+Both surfaces still work independently: `attrs_mapping` redirects class-proxy access for listed class attributes, while `args_mapping` only covers fields present in the actual constructor signature.
 
 ```python
 from dataclasses import dataclass, field
@@ -1349,7 +1349,7 @@ _cache auto-expanded: False
 
 </details>
 
-`store` is excluded from `args_mapping` — calling `DepConfig(store={})` would raise `TypeError`. Use `attrs_mapping` for attribute access and leave the `init=False` field out of constructor calls.
+`store` is excluded from `args_mapping` — calling `DepConfig(store={})` would raise `TypeError`. Leave the `init=False` field out of constructor calls. `attrs_mapping` applies to class-proxy access, not attributes on returned instances.
 
 ## Instances and proxies
 
@@ -1979,6 +1979,18 @@ async def old_fetch(url: str) -> bytes:
 
 ```python
 import pytest
+from deprecate import deprecated
+
+
+# NEW API — fetch returns the encoded URL
+async def new_fetch(url: str) -> bytes:
+    return url.encode()
+
+
+# DEPRECATED API — this wrapper uses the default warnings stream
+@deprecated(target=new_fetch, deprecated_in="0.9", remove_in="1.0")
+async def old_fetch(url: str) -> bytes:
+    pass
 
 
 @pytest.mark.asyncio

@@ -405,7 +405,7 @@ The keys added in v0.16 (per-finding records, `gate`, `mode`, …) did not bump 
 
 !!! note "Report publication"
 
-    The file is written only when the run exits `0` or `1`. A usage error (exit `2`) scanned nothing, and a crash writes no file. A consumer therefore never publishes stale results.
+    The file is written only when the run exits `0` or `1`. A usage error (exit `2`) or crash (exit `3`) leaves any existing report unchanged. Consumers must check the exit code before reading or publishing a report.
 
 The [GitHub Action](ci-integration.md#github-action) builds its gap annotations and job summary from this file.
 

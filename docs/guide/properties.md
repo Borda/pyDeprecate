@@ -52,7 +52,7 @@ The `FutureWarning` fires on **attribute access** (`obj.timeout`), not on a call
 
 !!! note "Cached properties warn on first access only"
 
-    For `@cached_property`, subsequent accesses return the cached value without emitting another warning. The cache is filled after the first read. Later reads of the same object never reach pyDeprecate, so no `num_warns` value can raise the count.
+    For `@cached_property`, subsequent accesses return the cached value without emitting another warning. The cache is filled after the first read. While that value remains cached, later reads of the same object do not reach pyDeprecate. Deleting the cached attribute makes the next read invoke the descriptor again, which can warn when the budget allows.
 
     - With `num_warns=-1`, each new object warns once, on its first access.
     - The default `num_warns=1` budget is shared by all objects, so only the first object to read the property warns.

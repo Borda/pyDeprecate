@@ -438,7 +438,7 @@ These modes differ in whether the function body runs, whether a warning fires, a
 
 | Mode                                     | When to use it                                                                                                                     | Behaviour                                                                                                                                                |
 | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `TargetMode.NOTIFY`                      | The function is going away with no replacement; callers must remove the call.                                                      | The warning fires up to `num_warns` times (default: once), so each caller is notified on first use.                                                      |
+| `TargetMode.NOTIFY`                      | The function is going away with no replacement; callers must remove the call.                                                      | The warning fires up to `num_warns` times per wrapper (default: once); the first call exhausts the default budget.                                       |
 | `target=<callable>`                      | The function is replaced by another callable. Use `args_mapping` to rename arguments and `args_extra` to inject new required args. | The source body never runs under normal forwarding. The exception is `skip_if=True`, which bypasses forwarding and executes the source body as fallback. |
 | `TargetMode.ARGS_REMAP` + `args_mapping` | The function stays but its signature is changing.                                                                                  | The warning fires only when the old argument name is actually used. Callers who already migrated see no noise.                                           |
 
@@ -764,7 +764,7 @@ Tasks created inside the block inherit the scope, because a task copies the cont
 - An inheriting thread, including a pool worker started inside the scope, keeps the scope after the block closes.
 - Otherwise, `asyncio.to_thread` carries the scope into a thread by default.
 - Any other thread inherits it only through explicit propagation: `contextvars.copy_context().run(...)`, or `threading.Thread(context=...)` on Python 3.14+.
-- `loop.run_in_executor` workers see the global setting.
+- `loop.run_in_executor` does not propagate context per call. A worker started outside the scope sees the global setting; an inheriting worker started inside it retains that scope.
 
 Run the thread's target through `contextvars.copy_context().run(...)` when it must inherit the scope.
 

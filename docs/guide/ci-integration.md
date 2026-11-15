@@ -23,15 +23,18 @@ def test_deprecated_wrappers_are_valid():
     """Validate all deprecated wrappers have proper configuration."""
     results = find_deprecation_wrappers(my_package)
 
-    # Collect issues — wrong arg names are errors, identity mappings are worth a warning
-    wrong_args = [r for r in results if r.invalid_args]
+    # Collect hard configuration errors; identity mappings are worth a warning
+    wrong_args = [r for r in results if r.invalid_args or r.misconfigured_target or r.inner_order_property]
     identity_mappings = [r for r in results if r.identity_args_mapping]
 
     # Raise errors for wrong arguments (critical issues)
     if wrong_args:
         for r in wrong_args:
-            print(f"ERROR: {r.module}.{r.function} has invalid args: {r.invalid_args}")
-        pytest.fail(f"Found {len(wrong_args)} deprecated wrappers with invalid arguments")
+            print(
+                f"ERROR: {r.module}.{r.function}: invalid_args={r.invalid_args}, "
+                f"misconfigured_target={r.misconfigured_target}, inner_order_property={r.inner_order_property}"
+            )
+        pytest.fail(f"Found {len(wrong_args)} deprecated wrappers with invalid configuration")
 
     # Warn for identity mappings (less severe)
     for r in identity_mappings:
@@ -244,10 +247,10 @@ See [Static mode](cli.md#static-mode) for import-free scanning.
 
     For import-mode hooks to run on `pyproject.toml`-only changes, override both filters:
 
-    | Filter  | Value                |
-    | ------- | -------------------- |
-    | `types` | Use `types: [file]`. |
-    | `files` | Use \`files: '(.py   |
+    ```yaml
+    types: [file]
+    files: '(\.py|(^|/)pyproject\.toml)$'
+    ```
 
     Otherwise, the manifest's `types: [python]` remains active. pre-commit requires a file to match every filter. A `pyproject.toml`-only commit would skip the hook.
 

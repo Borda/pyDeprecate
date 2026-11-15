@@ -14,8 +14,10 @@ Keep the old entry point while forwarding calls to its replacement.
 ```python
 from deprecate import deprecated, void
 
+
 # NEW API — adds quantities using the replacement implementation
-from tests.collections.api_current.core import base_sum_kwargs
+def base_sum_kwargs(a: int, b: int = 5) -> int:
+    return a + b
 
 
 # DEPRECATED API — `decorated_sum` replaced by `base_sum_kwargs`
@@ -36,7 +38,7 @@ print(decorated_sum(2, 3))  # warns: FutureWarning
 
 </details>
 
-This reproduces the forwarding configuration of `core.decorated_sum` in the test collections. See [Functions](functions.md) for forwarding and argument mapping, or [Classes](classes.md) for class migrations.
+This forwards the compatibility function to the replacement. See [Functions](functions.md) for forwarding and argument mapping, or [Classes](classes.md) for class migrations.
 
 ## 2. Warn callers
 
@@ -65,13 +67,17 @@ Check both the compatibility result and the replacement's warning-free behavior.
 import pytest
 
 from deprecate import assert_no_warnings, deprecated
-from tests.collections.api_deprecated import core
+
 
 # NEW API — adds quantities without a deprecation notice
-from tests.collections.api_current.core import base_sum_kwargs
+def base_sum_kwargs(a: int, b: int = 5) -> int:
+    return a + b
 
-# DEPRECATED API — rebuild the summation wrapper with an independent warning budget
-decorated_sum = deprecated(target=base_sum_kwargs, deprecated_in="0.1", remove_in="0.5")(core.original_sum)
+
+# DEPRECATED API — give the compatibility function an independent warning budget
+@deprecated(target=base_sum_kwargs, deprecated_in="0.1", remove_in="0.5")
+def decorated_sum(a: int, b: int = 5) -> int:
+    return a + b
 
 
 def test_summation_migration() -> None:
@@ -135,17 +141,31 @@ At version `0.5`, the expiry gate reports the summation wrapper because the curr
 Generate the active deprecation inventory before removing wrappers, so release notes can preserve their migration information.
 
 ```python
-from deprecate import generate_deprecation_table
-from tests.collections.api_deprecated import core
+from types import ModuleType
+from deprecate import deprecated, generate_deprecation_table
 
-report = generate_deprecation_table(core, current_version="0.4", recursive=False)
-print(next(row for row in report.splitlines() if "`tests.collections.api_deprecated.core.decorated_sum`" in row))
+
+# NEW API — the replacement adds quantities
+def base_sum_kwargs(a: int, b: int = 5) -> int:
+    return a + b
+
+
+# DEPRECATED API — the old name remains discoverable until removal
+@deprecated(target=base_sum_kwargs, deprecated_in="0.1", remove_in="0.5")
+def decorated_sum(a: int, b: int = 5) -> int:
+    return a + b
+
+
+module = ModuleType("example")
+module.decorated_sum = decorated_sum
+report = generate_deprecation_table(module, current_version="0.4", recursive=False)
+print("Deprecation Active" in report)
 ```
 
-<details><summary>Output: <code>summation row from report</code></summary>
+<details><summary>Output: <code>Deprecation Active in report</code></summary>
 
 ```text
-| `tests.collections.api_deprecated.core.decorated_sum` | callable | `tests.collections.api_current.core.base_sum_kwargs` | v0.1 | v0.5 | 📢 Deprecation Active |
+True
 ```
 
 </details>
