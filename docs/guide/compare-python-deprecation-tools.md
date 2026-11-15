@@ -10,38 +10,39 @@ Python has several ways to signal deprecation. Choose based on whether you need 
 
 This page holds the canonical comparison table.
 
-| Feature               | pyDeprecate | `warnings.warn` |     `deprecation`      |      `Deprecated`       | `warnings.deprecated`† |
-| --------------------- | :---------: | :-------------: | :--------------------: | :---------------------: | :--------------------: |
-| Simple warnings       |     ✅      |       ✅        |           ✅           |           ✅            |           ✅           |
-| Auto call forwarding  |     ✅      |       ❌        |           ❌           |           ❌            |           ❌           |
-| Generator / async     |     ✅      |       ❌        |           ❌           |           ❌            |           ❌           |
-| Argument mapping      |     ✅      |       ❌        |           ❌           |           ❌            |           ❌           |
-| Argument deprecation  |     ✅      |       ✍️        |           ❌           |           ❌            |           ❌           |
-| Class / Enum proxy    |     ✅      |       ❌        |           ❌           |           ❌            |           ❌           |
-| Docstring injection   |     ✅      |       ❌        |           ✅           | via `deprecated.sphinx` |           ❌           |
-| Version tracking      |     ✅      |       ✍️        |           ✅           |           ✅            |           ❌           |
-| Prevent log spam      |     ✅      |       ✍️        |           ❌           |           ❌            |           ❌           |
-| Zero runtime deps     |     ✅      |       ✅        |           ❌           |           ❌            |           †            |
-| Custom streams        |     ✅      |       ✍️        |           ❌           |           ❌            |           ❌           |
-| CI audit tools        |     ✅      |       ❌        |           ❌           |           ❌            |           ❌           |
-| Testing helpers       |     ✅      |       ❌        | `@fail_if_not_removed` |           ❌            |           ❌           |
-| Static checker signal |     ✍️      |       ❌        |           ❌           |           ❌            |           ✅           |
-| Decorator stacking    |     ✅      |       ❌        |           ❌           |           ❌            |           ❌           |
-| Sphinx plugin         |     ✅      |       ❌        |           ❌           |           ❌            |           ❌           |
-| MkDocs plugin         |     ✅      |       ❌        |           ❌           |           ❌            |           ❌           |
+| Feature               | pyDeprecate | `warnings.warn` |     `deprecation`      |                            `Deprecated`                            | `warnings.deprecated`† |
+| --------------------- | :---------: | :-------------: | :--------------------: | :----------------------------------------------------------------: | :--------------------: |
+| Simple warnings       |     ✅      |       ✅        |           ✅           |                                 ✅                                 |           ✅           |
+| Auto call forwarding  |     ✅      |       ❌        |           ❌           |                                 ❌                                 |           ❌           |
+| Generator / async     |     ✅      |       ❌        |           ❌           |                                 ❌                                 |           ❌           |
+| Argument mapping      |     ✅      |       ❌        |           ❌           |                                 ❌                                 |           ❌           |
+| Argument deprecation  |     ✅      |       ✍️        |           ❌           |                      via `deprecated.params`                       |           ❌           |
+| Class / Enum proxy    |     ✅      |       ❌        |           ❌           |                                 ❌                                 |           ❌           |
+| Docstring injection   |     ✅      |       ❌        |           ✅           | via `deprecated.sphinx`, `deprecated.google` or `deprecated.numpy` |           ❌           |
+| Version tracking      |     ✅      |       ✍️        |           ✅           |                                 ✅                                 |           ❌           |
+| Prevent log spam      |     ✅      |       ✍️        |           ❌           |                                 ✍️                                 |           ❌           |
+| Zero runtime deps     |     ✅      |       ✅        |           ❌           |                                 ❌                                 |           †            |
+| Custom streams        |     ✅      |       ✍️        |           ❌           |                                 ❌                                 |           ❌           |
+| CI audit tools        |     ✅      |       ❌        |           ❌           |                                 ❌                                 |           ❌           |
+| Testing helpers       |     ✅      |       ❌        | `@fail_if_not_removed` |                                 ❌                                 |           ❌           |
+| Static checker signal |     ✍️      |       ❌        |           ❌           |                                 ❌                                 |           ✅           |
+| Decorator stacking    |     ✅      |       ❌        |           ❌           |                                 ❌                                 |           ❌           |
+| Sphinx plugin         |     ✅      |       ❌        |           ❌           |                                 ❌                                 |           ❌           |
+| MkDocs plugin         |     ✅      |       ❌        |           ❌           |                                 ❌                                 |           ❌           |
 
 - ✅ = supported, ❌ = not supported, ✍️ = possible but requires manual work. For pyDeprecate's static checker signal, stack `@warnings.deprecated` above `@deprecated`.
+- The `Deprecated` cells were checked against the `Deprecated` 3.0.1 source. Its log-spam control is a warnings filter `action` such as `"once"`.
 - † `warnings.deprecated` is in the standard library on Python 3.13+ (PEP 702) and available as the `typing_extensions.deprecated` backport on older versions.
 
 ### Roles and enforcement
 
-| Tool                                                                                         | Documented role                                                                         | Migration and enforcement                                                                                          | Docstring notices                                                                                              |
-| -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
-| [`warnings.warn`](https://docs.python.org/3/library/warnings.html#warnings.warn)             | Emit one-off internal warnings.                                                         | Write forwarding yourself; warning filters can escalate warnings to errors.                                        | Write notices yourself.                                                                                        |
-| [`warnings.deprecated`](https://docs.python.org/3/library/warnings.html#warnings.deprecated) | Signal deprecation to static checkers, with optional runtime warnings, on Python 3.13+. | PEP 702 does not provide forwarding, argument mapping, or CI audits.                                               | Not assessed here.                                                                                             |
-| [`deprecation`](https://deprecation.readthedocs.io/en/latest/)                               | Decorate functions with version-aware warnings.                                         | Emits `UnsupportedWarning` when `current_version >= removed_in`; `@fail_if_not_removed` fails tests that catch it. | Appends deprecation details.                                                                                   |
-| [`Deprecated`](https://deprecated.readthedocs.io/en/latest/tutorial.html)                    | Decorate functions, classes, or methods with warnings.                                  | `action="error"` escalates warnings; this is not version-driven enforcement.                                       | Yes, via [`deprecated.sphinx`](https://deprecated.readthedocs.io/en/latest/api.html#module-deprecated.sphinx). |
-| **pyDeprecate** *(this library)*                                                             | Keep callers compatible during API migrations.                                          | Forward calls, remap arguments, proxy classes/objects, test warnings, and audit deadlines in CI.                   | Optional Sphinx or MkDocs notices with `update_docstring=True`.                                                |
+| Tool                                                                                         | Documented role                                                                         | Migration and enforcement                                                                                          | Docstring notices                                                                                                                                                                                     |
+| -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`warnings.warn`](https://docs.python.org/3/library/warnings.html#warnings.warn)             | Emit one-off internal warnings.                                                         | Write forwarding yourself; warning filters can escalate warnings to errors.                                        | Write notices yourself.                                                                                                                                                                               |
+| [`warnings.deprecated`](https://docs.python.org/3/library/warnings.html#warnings.deprecated) | Signal deprecation to static checkers, with optional runtime warnings, on Python 3.13+. | PEP 702 does not provide forwarding, argument mapping, or CI audits.                                               | Not assessed here.                                                                                                                                                                                    |
+| [`deprecation`](https://deprecation.readthedocs.io/en/latest/)                               | Decorate functions with version-aware warnings.                                         | Emits `UnsupportedWarning` when `current_version >= removed_in`; `@fail_if_not_removed` fails tests that catch it. | Appends deprecation details.                                                                                                                                                                          |
+| [`Deprecated`](https://deprecated.readthedocs.io/en/latest/tutorial.html)                    | Decorate functions, classes, or methods with warnings.                                  | `action="error"` escalates warnings; this is not version-driven enforcement.                                       | Yes, via [`deprecated.sphinx`](https://deprecated.readthedocs.io/en/latest/api.html#module-deprecated.sphinx), or Google and NumPy docstring sections via `deprecated.google` and `deprecated.numpy`. |
+| **pyDeprecate** *(this library)*                                                             | Keep callers compatible during API migrations.                                          | Forward calls, remap arguments, proxy classes/objects, test warnings, and audit deadlines in CI.                   | Optional Sphinx or MkDocs notices with `update_docstring=True`.                                                                                                                                       |
 
 !!! note "Comparison scope"
 
@@ -432,7 +433,7 @@ print(result)
 
 - **`warnings.deprecated`** provides native static diagnostics in mypy, pyright, and IDEs. With `category=None`, it adds no per-call wrapper overhead.
 - **`deprecation`** includes `@fail_if_not_removed` for test-failure enforcement when removal deadlines are reached.
-- **`Deprecated`** offers `deprecated.sphinx.versionadded` and `deprecated.sphinx.versionchanged` to inject Sphinx lifecycle directives into docstrings.
+- **`Deprecated`** offers `deprecated.sphinx.versionadded` and `deprecated.sphinx.versionchanged` to inject Sphinx lifecycle directives into docstrings. Its `deprecated.params` decorator deprecates individual parameters.
 - **`warnings.warn`** needs no dependency and has a small surface for internal notices.
 
 ## Related pages

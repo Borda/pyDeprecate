@@ -18,8 +18,7 @@ Retire only compatibility due in the requested release. An expired record identi
    - Report stale editable-install metadata; validate capabilities against loaded source.
    - Before importing the consumer package, assess whether its import side effects can be contained as described in step 4.
 3. Consult the [agent guide](https://borda.github.io/pyDeprecate/llms.txt) and installed public API signatures.
-   - Only when the step 4 import-safety condition is met, start from the lifecycle table.
-   - `python -m deprecate status <package> --version "<target_release>"` (requires `[audit,cli]`) lists every wrapper with its `Current Status`.
+   - Only when the step 4 import-safety condition is met, start from the lifecycle table: `python -m deprecate status <package> --version "<target_release>"` (requires `[audit,cli]`) lists every wrapper with its `Current Status`.
    - The path argument takes an importable module name or a directory, never a file.
    - Candidates are rows marked `💥 Past Removal Date`.
    - Rows marked `🔔 Remove Before Release` are due only when the target release is the RC of that `remove_in` base and the user is preparing that final release.

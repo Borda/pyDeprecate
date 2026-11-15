@@ -25,7 +25,7 @@ If you only need a one-line notice with no forwarding and no deadline tracking, 
 
 pyDeprecate requires **Python 3.9 or later** and has zero runtime dependencies. Python 3.9 is past its upstream end of life but is still listed as supported in the package metadata.
 
-<!-- keep this install table in sync with README.md and docs/index.md -->
+<!-- keep this install table in sync with docs/index.md -->
 
 Choose the install that matches the workflow you need:
 

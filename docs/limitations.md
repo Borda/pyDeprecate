@@ -190,7 +190,7 @@ Each entry states the behaviour in one or two sentences. It links to the section
 
     The scope is local to the current thread and `asyncio` task, and tasks created inside it inherit it.
 
-    Whether a thread started inside the block inherits it depends on the interpreter. Run the thread's target through `contextvars.copy_context().run(...)` when it must inherit the scope. Inside a scope `deprecate.AS_EXCEPTIONS` still reports the global value, so do not read it to detect a scope.
+    Whether a thread started inside the block inherits it depends on the interpreter; [The global switch](guide/functions.md#the-global-switch) lists which threads and executors do. Run the thread's target through `contextvars.copy_context().run(...)` when it must inherit the scope. Inside a scope `deprecate.AS_EXCEPTIONS` still reports the global value, so do not read it to detect a scope.
 
 !!! warning
 

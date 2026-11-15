@@ -758,7 +758,15 @@ Use `calculate_total` instead.
 
 The scope is held in a `ContextVar`, local to the current thread and `asyncio` task. Other threads and sibling tasks keep the global setting, and holding a scope across an `await` is safe.
 
-Tasks created inside the block inherit the scope, because a task copies the context when it is created. Whether a new thread inherits it depends on the interpreter. Run the thread's target through `contextvars.copy_context().run(...)` when it must inherit the scope.
+Tasks created inside the block inherit the scope, because a task copies the context when it is created. Whether a new thread inherits it depends on the interpreter:
+
+- A new thread inherits the scope only when the interpreter copies the starting context into it. That is `sys.flags.thread_inherit_context` on Python 3.14+: on by default in free-threaded builds, opt-in with `-X thread_inherit_context=1` otherwise.
+- An inheriting thread, including a pool worker started inside the scope, keeps the scope after the block closes.
+- Otherwise, `asyncio.to_thread` carries the scope into a thread by default.
+- Any other thread inherits it only through explicit propagation: `contextvars.copy_context().run(...)`, or `threading.Thread(context=...)` on Python 3.14+.
+- `loop.run_in_executor` workers see the global setting.
+
+Run the thread's target through `contextvars.copy_context().run(...)` when it must inherit the scope.
 
 The scope never modifies `deprecate.AS_EXCEPTIONS`. Inside the block that attribute still reports the global value, and assigning it there takes effect once the block closes.
 

@@ -272,11 +272,11 @@ pip install 'pyDeprecate[audit,cli]'
 pydeprecate check src/your_package
 
 # all — exits 1 on any check error, chains, or expired wrappers; appends deprecation table
-# policy violations are printed here but change this exit code only with --gate=policy (since 0.16)
+# policy violations are printed here but change this exit code only with --gate=policy (since v0.16)
 pydeprecate all src/your_package
 pydeprecate all --gate=policy src/your_package
 
-# several packages in one run, one exit code (since 0.16)
+# several packages in one run, one exit code (since v0.16)
 pydeprecate all src/pkg_a src/pkg_b
 
 # policy — exits 1 if any deprecation breaks a governance rule

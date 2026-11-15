@@ -27,7 +27,7 @@ pydeprecate all src/mypackage   # run all checks + deprecation table in one pass
 pydeprecate check path/to/your/package   # validate wrapper config
 pydeprecate check mypackage.submodule    # importable module name also accepted
 pydeprecate policy src/mypackage         # gate on your deprecation-governance rules
-pydeprecate all --gate=policy src/pkg_a src/pkg_b   # several packages, policy gated too, one scan each (since 0.16)
+pydeprecate all --gate=policy src/pkg_a src/pkg_b   # several packages, policy gated too, one scan each (since v0.16)
 ```
 
 **Quick demo** using pyDeprecate's own test fixtures (no package setup needed):
@@ -160,7 +160,7 @@ pydeprecate status tests --version 1.2
     # also save the appended table
     pydeprecate all path/to/your/package --output DEPRECATIONS.md
 
-    # also gate on the policy, from the same scan (since 0.16)
+    # also gate on the policy, from the same scan (since v0.16)
     pydeprecate all path/to/your/package --gate=policy
     ```
 
@@ -478,7 +478,7 @@ exclude = ["my_package.tests", "*._legacy*"]   # every subcommand: the scan skip
 strict = true                                  # every gate subcommand: a gap fails the run (`--no-strict` overrides)
 ignore = ["my_package.legacy:old_api"]         # every gate subcommand: findings accepted without a fix
 baseline = "ci/pydeprecate-baseline.json"      # every gate subcommand: findings of an earlier report, by id
-gate = ["policy"]                              # `all` only (since 0.16): also fail on policy violations
+gate = ["policy"]                              # `all` only (since v0.16): also fail on policy violations
 
 [tool.pydeprecate.policy]                      # the `policy` subcommand's rules, keyed by rule slug
 min-grace = "0.3"  # quoted dotted delta; false switches the rule off (TOML has no null)

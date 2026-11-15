@@ -741,8 +741,9 @@ Reading `pyproject.toml` needs a TOML parser: built in on Python 3.11+, the `tom
     - Any usage error on any path exits `2` with nothing scanned. The exception is a missing submodule `pkg.nosuch` of an importable package, found when its path is reached.
     - Two paths importing as the same top-level name from different places exit `2`. A plain directory counts the bare name of each top-level file its `exclude` keeps.
     - A duplicate path is scanned once with a stderr note. So is a package plus a subpackage its recursive scan imports. Every directory between them must have `__init__.py` and not be left out by the package's `exclude`.
-    - Any other subpackage keeps its own scan, subject to the following exceptions. A covered path's own lookup finding a different `[tool.pydeprecate]` file exits `2`. With an auto-detected version (`expiry`/`all`/`status` without `--version`), finding a version source of its own also exits `2`.
-    - That means a nearer `[project]` table, or a `pkg-component` distribution for `pkg.component`. A covered path that finds neither inherits the covering path's.
+        - Such a covered path exits `2` when its own lookup finds a different `[tool.pydeprecate]` file. With an auto-detected version (`expiry`/`all`/`status` without `--version`), it also exits `2` when it finds a version source of its own.
+        - A version source of its own means a nearer `[project]` table, or a `pkg-component` distribution for `pkg.component`. A covered path that finds neither inherits the covering path's.
+    - Any other subpackage keeps its own scan.
     - Each path is then scanned with its own `[tool.pydeprecate]` settings (`exclude`, `strict`, `ignore`, `baseline`, `gate`, policy rules) and its own auto-detected version.
     - When more than one path remains after deduplication, each import-mode scan runs in a fresh Python worker process.
     - Shared imports can initialize once per worker. Live parent-only monkeypatches, custom import finders and `sys.modules` state are not inherited.
