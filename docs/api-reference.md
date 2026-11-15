@@ -1,6 +1,8 @@
 # API Reference
 
-Auto-generated from source docstrings. For usage examples see the [Use Cases](guide/use-cases.md) guide, or [Getting Started](getting-started.md) for installation and a first deprecation. The `pydeprecate` command-line tool is documented in the [CLI Reference](guide/cli.md).
+This reference is auto-generated from source docstrings. For usage examples, see the [Use Cases](guide/use-cases.md) guide. For installation and a first deprecation, see [Getting Started](getting-started.md).
+
+The `pydeprecate` command-line tool is documented in the [CLI Reference](guide/cli.md).
 
 ## Decorator
 
@@ -64,7 +66,7 @@ Auto-generated from source docstrings. For usage examples see the [Use Cases](gu
 
 ### Legacy audit aliases
 
-Deprecated since 0.6 and removed in 1.0; use the replacement named in each entry.
+These aliases are deprecated since 0.6 and removed in 1.0. Use the replacement named in each entry.
 
 ::: deprecate.audit.DeprecatedCallableInfo
 
@@ -88,4 +90,4 @@ Deprecated since 0.6 and removed in 1.0; use the replacement named in each entry
 
 ## Command line
 
-The `pydeprecate` command wraps the audit functions above for CI and pre-commit use; its subcommands, flags and exit codes are listed in the [CLI Reference](guide/cli.md).
+The `pydeprecate` command wraps the audit functions above for CI and pre-commit use. Its subcommands, flags and exit codes are listed in the [CLI Reference](guide/cli.md).
