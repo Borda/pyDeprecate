@@ -12,28 +12,27 @@ description: >-
 
 **Author:** [Jiri Borovec](https://github.com/Borda) · **License:** Apache 2.0 · **Python:** 3.9+ · **Install:** `pip install pyDeprecate` · **Import:** `from deprecate import deprecated` · **PyPI:** https://pypi.org/project/pyDeprecate/
 
-Every time you rename a function or retire an argument, you end up writing the same boilerplate: a wrapper, a `warnings.warn` call with the right category and `stacklevel`, manual argument forwarding, and no way to enforce the removal deadline when it arrives. **pyDeprecate** replaces all of that with a single decorator and gives you CI tools to make sure deprecated code does not quietly outlive its deadline.
+Renaming a function or retiring an argument often means writing a wrapper and manual forwarding. You must also configure the warning category and `stacklevel`, then enforce the removal deadline. **pyDeprecate** replaces that boilerplate with a decorator and CI checks for overdue removals.
 
-> **pyDeprecate has broad PyPI usage**. For current download statistics, see [pepy.tech](https://pepy.tech/project/pyDeprecate).
->
-> **Read:** [Mastering API Deprecation in Python — the pain points and how pyDeprecate can help](https://medium.com/codex/mastering-api-deprecation-in-python-the-pain-points-and-how-pydeprecate-can-help-1dbfd90e2b62) — CodeX / Medium
+!!! note "Usage and background"
+
+    **pyDeprecate has broad PyPI usage**. For current download statistics, see [pepy.tech](https://pepy.tech/project/pyDeprecate).
+
+    Read [Mastering API Deprecation in Python — the pain points and how pyDeprecate can help](https://medium.com/codex/mastering-api-deprecation-in-python-the-pain-points-and-how-pydeprecate-can-help-1dbfd90e2b62) on CodeX / Medium.
 
 ![pyDeprecate — navigate API transitions smoothly without the chaos or crashes](assets/images/path-illustration.webp)
 
 ```python
 from deprecate import deprecated
+from tests.collections.api_current import core as current
+from tests.collections.api_deprecated import core
 
+# NEW API — compute a sum with the current implementation.
+compute_sum = current.base_sum_kwargs
 
-# New function which replaces `addition`
-def compute_sum(x: int, y: int) -> int:
-    return x + y
-
-
-@deprecated(target=compute_sum, deprecated_in="1.0", remove_in="2.0")
-def addition(x: int, y: int) -> int: ...
-
-
-print(addition(1, 2))
+# DEPRECATED API — addition forwards to compute_sum.
+addition = deprecated(target=compute_sum, deprecated_in="1.0", remove_in="2.0")(core.original_sum)
+print(addition(1, 2))  # warns: FutureWarning
 ```
 
 <details>
@@ -51,37 +50,65 @@ Calling `addition(1, 2)` now emits a `FutureWarning` and transparently forwards 
 
 ## Features
 
-- **Automatic call forwarding** — the decorator routes every call to the replacement, including positional and keyword arguments. No manual `*args/**kwargs` plumbing.
-- **Generator and async support** — works natively with generator functions (`def fn(): yield`), `async def` coroutines, and async generators (`async def fn(): yield`). The deprecation warning fires at call time for functions, on `await` for coroutines, and on the first `next()` / `async for` step for generators; every wrapper keeps the `iscoroutinefunction` / `isgeneratorfunction` / `isasyncgenfunction` introspection of the source.
-- **Argument mapping** — `args_mapping={"old": "new"}` handles renames across the API boundary; map to `None` to drop an argument entirely.
-- **Argument deprecation** — `TargetMode.ARGS_REMAP` warns only when the old argument name is actually passed; callers who have already migrated see no noise.
-- **Class and Enum support** — `@deprecated_class` wraps entire classes, Enums, and dataclasses in a transparent proxy where `isinstance` and `issubclass` just work.
-- **Instance / constant proxy** — `deprecated_instance(obj, ...)` wraps module-level objects (dicts, lists, custom objects) with optional `read_only` enforcement and transparent attribute/item access.
-- **Module deprecation** — [`deprecated_module(__name__, ...)`](guide/modules.md) retires an entire module in one call, warning on every public attribute access (including names already in `__dict__` and star-imports, which a PEP 562 `__getattr__` hook cannot reach). Warn in place, redirect to a replacement, or alias from the parent package.
-- **Strict callable-only form** — `@deprecated_callable()` shares every `@deprecated` parameter but raises `TypeError` at decoration time on a class source, for codebases where the implicit class dispatch should be an error.
-- **Mode inference** — `@deprecated` defaults to `TargetMode.AUTO`, resolving the mode at decoration time from the rest of the configuration; the concrete mode is what audit tooling sees, never `AUTO`.
-- **Public proxy protocol** — annotate against [`DeprecationProxy`](api-reference.md) instead of the private `_DeprecatedProxy`; proxies also carry `__wrapped__` / `__signature__` breadcrumbs so `inspect`, Sphinx, griffe, and IDEs resolve through to the source.
-- **Configurable frequency** — `num_warns=1` (default) emits once per function, not on every call. Set `-1` for always or `N` for exactly N times.
-- **Docstring injection** — `update_docstring=True` appends a Sphinx `.. deprecated::` or MkDocs admonition notice automatically, keeping rendered API docs accurate.
-- **Sphinx Plugin** — ships `deprecate.docstring.sphinx_ext` so `_DeprecatedProxy` objects render with their injected deprecation notice in Sphinx autodoc.
-- **MkDocs Plugin** — ships `deprecate.docstring.griffe_ext` for mkdocstrings so runtime-injected `!!! warning` admonitions are visible in MkDocs-generated API docs.
-- **Decorator stacking** — stack `@deprecated` decorators for multi-version migrations: rename arguments across releases (`ARGS_REMAP + ARGS_REMAP`), then deprecate the whole function when a complete replacement arrives (`ARGS_REMAP + NOTIFY`). Unsupported combinations warn at decoration time, not at call time.
-- **Custom streams** — route warnings to `logging`, standard `warnings`, or any callable via the `stream` parameter; `stream=None` silences output while forwarding still occurs.
-- **Custom message templates** — `message_template` overrides the default message with `%`-style placeholders (`source_name`, `target_path`, `deprecated_in`, `remove_in`, `argument_map`).
-- **Conditional skip** — `skip_if=callable` suppresses the deprecation machinery when a runtime condition is met (e.g. caller has migrated to a newer dependency); available on decorators and proxies alike.
-- **CI audit tools** — [`validate_deprecation_expiry()`](guide/audit.md#enforcing-removal-deadlines) catches zombie code past its deadline, [`validate_deprecation_policy()`](guide/audit.md#enforcing-a-deprecation-policy) catches deprecations scheduled against your release policy, [`validate_deprecation_chains()`](guide/audit.md#detecting-deprecation-chains) detects double-deprecation chains, and [`find_deprecation_wrappers()`](guide/audit.md#validating-wrapper-configuration) surfaces misconfigured `args_mapping` keys before they silently do nothing.
-- **Static type-checker signals** — native PEP 702 static diagnostics come from `warnings.deprecated`, which type checkers recognise by name only. For both static-checker hints and runtime call-forwarding, stack `@warnings.deprecated("literal message", category=None)` directly above pyDeprecate's `@deprecated(...)` — see [Static type checkers](guide/functions.md#static-type-checkers-pep-702).
-- **CLI** — `pydeprecate check src/` scans for misconfigured wrappers and chains; `pydeprecate all src/` also runs the expiry and policy checks and appends a deprecation table. Ready-made [pre-commit hooks](guide/audit.md#pre-commit-integration) and a [GitHub Action](guide/audit.md#github-action) run them in CI. See [CLI Reference](guide/cli.md).
-- **Fatal mode** — `as_exception=True` or `deprecate.as_exceptions()` raises `DeprecatedError` instead of warning, so a test run can refuse deprecated calls. See [Fatal deprecations](guide/functions.md#fatal-deprecations).
-- **Testing helpers** — `assert_no_warnings()` context manager asserts no warnings of a given type escape a block; `no_warning_call` retained as legacy alias.
-- **Zero runtime dependencies** — nothing added to `install_requires`.
-- **Python 3.9+** supported.
+- **Automatic call forwarding:** The decorator routes positional and keyword arguments to the replacement. You need no manual `*args/**kwargs` plumbing.
+
+- **Generator and async support:** Wrappers support generator functions (`def fn(): yield`), `async def` coroutines, and async generators (`async def fn(): yield`). They preserve the source's `iscoroutinefunction`, `isgeneratorfunction`, or `isasyncgenfunction` introspection. Functions warn at call time, coroutines on `await`, and generators on their first `next()` or `async for` step.
+
+- **Argument mapping:** `args_mapping={"old": "new"}` handles renames across the API boundary. Map to `None` to drop an argument entirely.
+
+- **Argument deprecation:** `TargetMode.ARGS_REMAP` warns only when callers pass the old argument name. Migrated callers see no noise.
+
+- **Class and Enum support:** `@deprecated_class` wraps classes, Enums, and dataclasses in a transparent proxy. It supports `isinstance` and `issubclass`.
+
+- **Instance / constant proxy:** `deprecated_instance(obj, ...)` wraps module-level dicts, lists, and custom objects. It provides transparent attribute/item access and optional `read_only` enforcement.
+
+- **Module deprecation:** [`deprecated_module(__name__, ...)`](guide/modules.md) retires a module, warning on every public attribute access. This includes names already in `__dict__` and star-imports, which PEP 562's `__getattr__` cannot reach. Warn in place, redirect to a replacement, or alias from the parent package.
+
+- **Strict callable-only form:** `@deprecated_callable()` shares every `@deprecated` parameter. It raises `TypeError` at decoration time on a class source when implicit class dispatch should be an error.
+
+- **Mode inference:** `@deprecated` defaults to `TargetMode.AUTO`. Configuration resolves the mode at decoration time. Audit tools see the concrete mode, never `AUTO`.
+
+- **Public proxy protocol:** Annotate against [`DeprecationProxy`](api-reference.md) instead of private `_DeprecatedProxy`. Proxies carry `__wrapped__` / `__signature__` breadcrumbs. These let `inspect`, Sphinx, griffe, and IDEs resolve the source.
+
+- **Configurable frequency:** `num_warns=1` defaults to one warning per function. Set `-1` for always or `N` for exactly N times.
+
+- **Docstring injection:** `update_docstring=True` automatically appends a Sphinx `.. deprecated::` or MkDocs admonition notice. This keeps rendered API docs accurate.
+
+- **Sphinx Plugin:** `deprecate.docstring.sphinx_ext` renders `_DeprecatedProxy` objects with their injected deprecation notices in Sphinx autodoc.
+
+- **MkDocs Plugin:** `deprecate.docstring.griffe_ext` exposes runtime-injected `!!! warning` admonitions in mkdocstrings-generated API docs.
+
+- **Decorator stacking:** Stack `@deprecated` decorators for multi-version migrations. Rename arguments across releases (`ARGS_REMAP + ARGS_REMAP`), then deprecate the function when a replacement arrives (`ARGS_REMAP + NOTIFY`). Unsupported combinations warn at decoration time.
+
+- **Custom streams:** The `stream` parameter routes warnings to `logging`, standard `warnings`, or any callable. `stream=None` silences output while forwarding continues.
+
+- **Custom message templates:** `message_template` overrides the default message with `%`-style placeholders. Available placeholders include `source_name`, `target_path`, `deprecated_in`, `remove_in`, and `argument_map`.
+
+- **Conditional skip:** `skip_if=callable` suppresses deprecation machinery when a runtime condition holds, such as callers adopting a newer dependency. It works on decorators and proxies.
+
+- **CI audit tools:** [`validate_deprecation_expiry()`](guide/audit.md#enforcing-removal-deadlines) catches overdue removals. [`validate_deprecation_policy()`](guide/audit.md#enforcing-a-deprecation-policy) checks your release policy. [`validate_deprecation_chains()`](guide/audit.md#detecting-deprecation-chains) detects double-deprecation chains.
+
+- **Wrapper validation:** [`find_deprecation_wrappers()`](guide/audit.md#validating-wrapper-configuration) surfaces misconfigured `args_mapping` keys before they silently do nothing.
+
+- **Static type-checker signals:** Native PEP 702 diagnostics come from `warnings.deprecated`, which type checkers recognise by name. For static hints with runtime forwarding, stack `@warnings.deprecated("literal message", category=None)` directly above `@deprecated(...)`. See [Static type checkers](guide/functions.md#static-type-checkers-pep-702).
+
+- **CLI:** `pydeprecate check src/` scans for misconfigured wrappers and chains. `pydeprecate all src/` also checks expiry and policy, then appends a deprecation table. See [CLI Reference](guide/cli.md).
+
+- **CI integration:** Ready-made [pre-commit hooks](guide/audit.md#pre-commit-integration) and a [GitHub Action](guide/audit.md#github-action) run the checks in CI.
+
+- **Fatal mode:** `as_exception=True` or `deprecate.as_exceptions()` raises `DeprecatedError` instead of warning. Test runs can refuse deprecated calls. See [Fatal deprecations](guide/functions.md#fatal-deprecations).
+
+- **Testing helpers:** The `assert_no_warnings()` context manager checks that no warnings of a given type escape a block. `no_warning_call` remains a legacy alias.
+
+- **Zero runtime dependencies:** Nothing is added to `install_requires`.
+
+- **Python compatibility:** Python 3.9+ is supported.
 
 ## Installation
 
 <!-- keep this install table in sync with README.md and docs/getting-started.md -->
 
-Choose the install that matches the workflow you need:
+Choose the install that matches your workflow.
 
 | Workflow                     | Command                                | Includes                                                                                                                                                                                    |
 | ---------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -93,7 +120,7 @@ Choose the install that matches the workflow you need:
 pip install pyDeprecate
 ```
 
-For CI audit features that compare version strings:
+Install the audit extra for CI checks that compare version strings.
 
 ```bash
 pip install 'pyDeprecate[audit]'
@@ -101,65 +128,43 @@ pip install 'pyDeprecate[audit]'
 
 !!! tip "The `[audit]` extra is only needed for `validate_deprecation_expiry` and `validate_deprecation_policy`"
 
-    The base install gives you `@deprecated`, `@deprecated_class`, `deprecated_instance`, and all other audit functions. Only `validate_deprecation_expiry()` and `validate_deprecation_policy()` need the extra because they pull in `packaging` for PEP 440 version comparison.
+    The base install gives you `@deprecated`, `@deprecated_class`, `deprecated_instance`, and all other audit functions. Only `validate_deprecation_expiry()` and `validate_deprecation_policy()` need the extra. They use `packaging` for PEP 440 version comparison.
 
 !!! tip "Use `[audit,cli]` for command-line audit workflows"
 
-    The `pydeprecate` command itself needs no extra (`[cli]` is kept, empty, so existing install lines keep working), but `pydeprecate expiry`, `pydeprecate policy`, and the expiry/policy phases of `pydeprecate all` need `[audit]`. Start with `pip install 'pyDeprecate[audit,cli]'` unless you only need Python API calls.
+    The `pydeprecate` command itself needs no extra. The empty `[cli]` extra preserves existing install commands. `pydeprecate expiry`, `pydeprecate policy`, and the expiry/policy phases of `pydeprecate all` need `[audit]`.
+
+    Start with `pip install 'pyDeprecate[audit,cli]'` unless you only need Python API calls.
 
 ## Comparison with other tools
 
-The alternatives emit a deprecation notice but leave forwarding, argument mapping, and deadline enforcement to you. Here is what each tool covers:
-
-| Feature               | pyDeprecate | `warnings.warn` | `deprecation` | `Deprecated` (wrapt) | `warnings.deprecated`† (py3.13+) |
-| --------------------- | :---------: | :-------------: | :-----------: | :------------------: | :------------------------------: |
-| Simple Warnings       |     ✅      |       ✅        |      ✅       |          ✅          |                ✅                |
-| Auto call forwarding  |     ✅      |       ❌        |      ❌       |          ❌          |                ❌                |
-| Generator / async     |     ✅      |       ❌        |      ❌       |          ❌          |                ❌                |
-| Argument mapping      |     ✅      |       ❌        |      ❌       |          ❌          |                ❌                |
-| Argument Deprecation  |     ✅      |       ✍️        |      ❌       |          ❌          |                ❌                |
-| Class / Enum proxy    |     ✅      |       ❌        |      ❌       |          ❌          |                ❌                |
-| Docstring injection   |     ✅      |       ❌        |      ✅       |          ✅          |                ❌                |
-| Version Tracking      |     ✅      |       ✍️        |      ✅       |          ✅          |                ❌                |
-| Prevent Log Spam      |     ✅      |       ✍️        |      ❌       |          ❌          |                ❌                |
-| Zero runtime deps     |     ✅      |       ✅        |      ❌       |          ❌          |                †                 |
-| Custom Streams        |     ✅      |       ✍️        |      ❌       |          ❌          |                ❌                |
-| CI audit tools        |     ✅      |       ❌        |      ❌       |          ❌          |                ❌                |
-| Testing helpers       |     ✅      |       ❌        |      ❌       |          ❌          |                ❌                |
-| Static checker signal |     ✍️      |       ❌        |      ❌       |          ❌          |                ✅                |
-| Decorator Stacking    |     ✅      |       ❌        |      ❌       |          ❌          |                ❌                |
-| Sphinx Plugin         |     ✅      |       ❌        |      ❌       |          ❌          |                ❌                |
-| MkDocs Plugin         |     ✅      |       ❌        |      ❌       |          ❌          |                ❌                |
-
-✍️ = possible but requires manual implementation <br /> † `warnings.deprecated` in the stdlib on Python 3.13+ (PEP 702); also available as the `typing_extensions.deprecated` backport for Python < 3.13
-
-_Positioning guide last reviewed August 2026. This is not a full cell-by-cell external audit; [open an issue](https://github.com/Borda/pyDeprecate/issues) if you spot an inaccuracy._
-
-> **When to prefer `warnings.deprecated` (PEP 702):** If your project targets Python 3.13+ and you only need simple call-site warnings visible to static type-checkers (mypy, pyright, IDEs), the stdlib decorator is the right choice — zero extra dependency. Choose `pyDeprecate` when you need call-forwarding, argument remapping, proxy wrapping of module-level constants, or CI audit tools — none of those exist in PEP 702.
-
-**Fair strengths in alternative tools worth considering:**
-
-- `warnings.deprecated` is the strongest choice for static-only IDE/type-checker visibility; it also adds no per-call runtime overhead when the warning category is suppressed.
-- `deprecation` includes `@fail_if_not_removed`, a focused test helper for direct test-failure enforcement when removal deadlines are reached.
-- `Deprecated` includes `deprecated.sphinx.versionadded` / `deprecated.sphinx.versionchanged` decorators that inject Sphinx directives into docstrings for lifecycle annotation in Sphinx-built API docs.
-- `warnings.warn` remains the simplest solution for one-off internal warnings without compatibility requirements.
+Choose pyDeprecate for call forwarding, argument mapping, proxies, and CI audits. Use PEP 702 with `category=None` for static checker visibility without per-call wrapper overhead. See the [canonical tool comparison](guide/compare-python-deprecation-tools.md) for alternatives, migration examples, and testing guidance.
 
 ## Where to go next
 
 - [Getting Started](getting-started.md) — install, write your first deprecation, see the full API at a glance.
+
 - [Use Cases](guide/use-cases.md) — overview of all deprecation patterns with links to each topic page.
+
 - [Customization](guide/customization.md) — custom message templates and output redirection to loggers.
+
 - [void() Helper](guide/void-helper.md) — sentinel function for self-documenting deprecated stubs.
+
 - [Audit Tools](guide/audit.md) — enforce removal deadlines and catch deprecation chains in CI.
-- [Compare Python Deprecation Tools](guide/compare-python-deprecation-tools.md) — detailed feature matrix against `warnings.warn`, `deprecation`, `wrapt`, and `warnings.deprecated`.
+
+- [Compare Python Deprecation Tools](guide/compare-python-deprecation-tools.md) — compare `warnings.warn`, `deprecation`, `Deprecated`, and `warnings.deprecated`.
+
 - [Agent Recipes](guide/agent-recipes.md) — copy-paste patterns for AI coding assistants.
+
 - [Troubleshooting](troubleshooting.md) — common errors and how to fix them.
+
 - [Brand](brand.md) — logos, colors, banners, and the "API migration by pyDeprecate" badge.
+
 - [Sphinx demo](demo-sphinx/index.html) · [MkDocs demo](demo-mkdocs/index.html) — live rendered output.
 
 ## Show that you use pyDeprecate
 
-If your project uses pyDeprecate, let others know that it has a clear deprecation path: callers get a warning, a forwarded call, and a removal deadline instead of a sudden break. Add the badge to your README:
+Show callers your project's deprecation path with a README badge. They receive a warning, a forwarded call, and a removal deadline instead of a sudden break.
 
 [![API migration by pyDeprecate](https://img.shields.io/badge/API%20migration%20by-pyDeprecate-EAA238?labelColor=%232E6893)](https://github.com/Borda/pyDeprecate)
 
@@ -182,4 +187,8 @@ Recent PyPI download statistics show broad production use; see pepy.tech for cur
 
 ### When not to use pyDeprecate
 
-Use `warnings.warn` for one-off internal warnings that do not need compatibility behavior. Use `warnings.deprecated` for static-checker-only visibility on Python 3.13+. Use pyDeprecate when callers need forwarding, argument mapping, class or object aliases, warning frequency control, or CI audit checks.
+- Use `warnings.warn` for one-off internal warnings that do not need compatibility behavior.
+
+- Use `warnings.deprecated` for static-checker-only visibility on Python 3.13+.
+
+- Use pyDeprecate when callers need forwarding, argument mapping, class or object aliases, warning frequency control, or CI audit checks.
