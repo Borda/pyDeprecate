@@ -320,9 +320,7 @@ red
 Combine `target=NewClass` and `attrs_mapping` for full class replacement with renamed attributes:
 
 - Listed deprecated aliases resolve against `NewClass`.
-
 - Unlisted attributes and instantiation calls also forward to `NewClass`.
-
 - `None` entries keep their original names. For example, `attrs_mapping={"size": None}` warns before reading, writing, or deleting `NewClass.size`.
 
 ```python
@@ -612,9 +610,7 @@ Stacking supports `isinstance()` and `issubclass()` through the proxy chain. Ins
 `attrs_mapping` accepts multi-hop rename chains such as `{"num_iters": "num_steps", "num_steps": "max_steps"}`:
 
 - `proxy.num_iters` warns once for `num_iters` and reads the active class's `num_steps` value directly.
-
 - `proxy.num_steps` warns once for `num_steps` and resolves to `max_steps`.
-
 - Audit reports the mapping structure as `ChainType.STACKED`.
 
 !!! warning "Cycles are invalid"
@@ -825,11 +821,7 @@ LegacyTrainingConfig 2.0
 ## See also
 
 - [Classes](classes.md) covers classes, constants, Enums, dataclasses, and fatal deprecations.
-
 - [Audit Tools](audit.md) covers scanning and mapping compatibility.
-
 - [Audit Policy](audit-policy.md) covers removal deadlines and policy enforcement.
-
 - [CI Integration](ci-integration.md) covers CI gates, pre-commit, and GitHub Actions.
-
 - [Testing](testing.md) covers testing deprecated code and warning behavior.

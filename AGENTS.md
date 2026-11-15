@@ -23,18 +23,14 @@ For pull request or changed-code reviews, follow the [code-review skill](.github
 > **Before starting any work, agents MUST anchor themselves with the repository context.** Read these files in order:
 
 1. **Configuration files** (source of truth):
-
    - `pyproject.toml` — package metadata, extras, entry point and tool settings (ruff, mypy, pytest)
    - `.pre-commit-config.yaml` — pre-commit hooks configuration
    - `setup.py` — shim that only builds the PyPI long description from `README.md`
    - `.github/workflows/*.yml` — CI/CD pipeline configuration
-
 2. **Documentation and guidelines**:
-
    - [CONTRIBUTING.md](.github/CONTRIBUTING.md) — contribution workflow, coding standards, testing requirements
    - `README.md` — project usage and API
    - `src/deprecate/` — core library code to understand existing patterns
-
 3. **Project structure**: For codebase layout and file organization, explore the repository structure directly or see [Test Organization](.github/CONTRIBUTING.md#test-organization) for test file structure
 
 ### Configuration Files Are Source of Truth
@@ -126,6 +122,7 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 - **New troubleshooting item**: add a `### question` section under the matching topic `##` heading of `docs/troubleshooting.md`, whose first prose paragraph is the answer — the FAQPage JSON-LD is generated from it at build time by `docs/mkdocs_hooks.py`, never edit it by hand
 - **`docs/overrides/main.html`** is Jinja2 (prettier-excluded); do not put content files there
 - **`docs/robots.txt`** — AI crawler access policy; add a `User-agent: <bot> / Allow: /` block when a new mainstream AI crawler is released. The comment referencing the `docs/llms.txt` URL must stay current.
+- **Tight lists in every `*.md`** — no blank line between list items or before a nested list; keep blank lines only when an item holds a block that needs them (code block, table, image, admonition, second paragraph)
 - See [Documentation Site](.github/CONTRIBUTING.md#-documentation-site) for the full consistency rules
 
 ## 🚫 Critical Constraints

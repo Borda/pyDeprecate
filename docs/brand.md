@@ -15,7 +15,6 @@ The pyDeprecate mark is a blue route that turns into a gold arrow: the old API p
 Choose the logo for the background:
 
 - Use the light logo on light backgrounds: [`logo-light.svg`](assets/brand/logo-light.svg).
-
 - Use the dark logo on dark backgrounds: [`logo-dark.svg`](assets/brand/logo-dark.svg).
 
 ## Mark

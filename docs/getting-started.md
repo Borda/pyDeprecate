@@ -14,9 +14,7 @@ pyDeprecate handles all three with a single decorator. You can focus on the new 
 `warnings.warn` tells callers that something is deprecated — but they still have to update their code manually and the old code path keeps running. pyDeprecate adds three things on top:
 
 - **Automatic call forwarding** — every call to the old function is transparently redirected to the replacement; no stale code runs.
-
 - **Argument mapping** — rename or drop arguments across the API boundary with `args_mapping={"old": "new"}` to help callers migrate to the new signature.
-
 - **CI deadline enforcement** — `validate_deprecation_expiry()` returns a message for every wrapper whose removal version has been reached. Install it via `pip install 'pyDeprecate[audit]'`. On any expired wrapper, `pydeprecate expiry` exits `1`, so CI fails and deprecated code cannot quietly outlive its deadline.
 
 If you only need a one-line notice with no forwarding and no deadline tracking, `warnings.warn` is sufficient. Choose pyDeprecate when you need the old name to keep working while callers migrate.
@@ -133,9 +131,7 @@ Prefer passing an explicit `target` (`TargetMode.NOTIFY`, `TargetMode.ARGS_REMAP
 All three decorators (`@deprecated`, `deprecated_callable()`, `deprecated_class()`) share every parameter above. They differ as follows:
 
 - `deprecated_class()` adds `attrs_mapping` for attribute-name remapping. Passing it to the other two raises `TypeError`.
-
 - `@deprecated` dispatches a class source to `deprecated_class`. `deprecated_callable()` rejects a class source with `TypeError`.
-
 - `TargetMode.AUTO` is front-door-only. `deprecated_callable()` defaults `target` to `TargetMode.NOTIFY`, while `deprecated_class()` leaves it unset. Both raise `TypeError` when handed `TargetMode.AUTO` explicitly.
 
 `deprecated_instance()` shares `target`, `args_mapping`, `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_extra`, `message_template`, `skip_if`, and `as_exception`. It takes `attrs_mapping` like `deprecated_class()`. It requires `obj` and adds `name` (display name) and `read_only`.
@@ -145,7 +141,6 @@ All three decorators (`@deprecated`, `deprecated_callable()`, `deprecated_class(
 The matrix lists every parameter each factory accepts, with its default.
 
 - 🚫 marks a parameter the factory does **not** accept — passing it raises `TypeError`.
-
 - **required** marks a parameter with no default.
 
 | Parameter          | `@deprecated`         | `deprecated_callable` | `deprecated_class`    | `deprecated_instance` | `deprecated_module` |
@@ -186,9 +181,7 @@ ______________________________________________________________________
 ![Deprecation lifecycle cycle: old API in blue, new API and decorator in yellow, callers migrate, pre-commit, CI and pytest flag the expired wrapper, delete it and repeat](assets/images/pydeprecate-lifecycle.svg)
 
 - **Fatal deprecations** — `as_exception=True` (or `deprecate.as_exceptions()` / `DEPRECATE_AS_EXCEPTIONS=1`) raises `DeprecatedError` instead of warning, so a test run can refuse deprecated calls. See [Fatal deprecations](guide/functions.md#fatal-deprecations).
-
 - **CLI** — `pydeprecate check`, `expiry`, `policy`, `chains` and `all` audit a package from the shell with CI-friendly exit codes. See the [CLI Reference](guide/cli.md).
-
 - **pre-commit and GitHub Action** — run the same checks as a [pre-commit hook](guide/ci-integration.md#pre-commit-integration) or a [GitHub Action](guide/ci-integration.md#github-action) step.
 
 ______________________________________________________________________

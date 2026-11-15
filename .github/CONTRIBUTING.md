@@ -36,9 +36,7 @@ There are many ways to contribute beyond writing code. Every contribution, no ma
 Taking time to understand the project first helps you contribute more effectively:
 
 - **Documentation** — Learn how the project works and its key concepts. This prevents misunderstandings and ensures your contributions align with project goals.
-
 - **Existing issues** — Your idea might already be discussed or even implemented. Searching first saves you time and effort.
-
 - **Codebase** — Familiarize yourself with the code structure and style. This makes it easier to make changes that fit well with the existing code.
 
 ### Ask Questions
@@ -46,9 +44,7 @@ Taking time to understand the project first helps you contribute more effectivel
 Don't hesitate to ask! Open an issue or use discussions to:
 
 - Clarify project goals and scope — Make sure your contributions are aligned with the project's direction
-
 - Understand implementation details — Get help with specific technical questions
-
 - Get guidance on where to contribute — Find areas where your skills and interests can make the biggest impact
 
 > [!TIP]
@@ -60,11 +56,8 @@ Don't hesitate to ask! Open an issue or use discussions to:
 When reporting a bug, providing clear and detailed information helps us fix it faster. Here's how:
 
 1. **Search existing issues** — The bug might already be reported and being worked on.
-
 2. **Create a minimal reproduction** — Provide a simple example that demonstrates the bug. This makes it easier for us to reproduce and fix the issue.
-
 3. **Include environment details** — Tell us your operating system, Python version, and pyDeprecate version.
-
 4. **Describe expected vs actual behavior** — Be specific about what you expected to happen and what actually occurred.
 
 ## 🔧 Fixing Bugs
@@ -72,25 +65,15 @@ When reporting a bug, providing clear and detailed information helps us fix it f
 Bug fixing is a great way to contribute! Here's how to get started:
 
 1. **Find a bug to fix** — Look for issues labeled `bug` or `help wanted` in the issue tracker.
-
    - Check if the issue is already assigned to someone
-
    - If it's assigned but has no activity for a while, comment to ask if you can take it over
-
 2. **Understand the problem** — Read the issue carefully and try to reproduce the bug.
-
 3. **Write a failing test first (TDD)** — Before fixing the bug, write a test that reproduces the issue. This ensures:
-
    - You understand the problem correctly
-
    - The fix actually resolves the issue
-
    - The bug won't silently reappear in the future
-
 4. **Implement the fix** — Now that you have a failing test, implement the fix to make it pass. Keep your changes focused on the specific issue.
-
 5. **Verify the test passes** — Run the test suite to ensure your fix resolves the issue without breaking anything else.
-
 6. **Submit a PR** — Create a pull request with your fix, linking to the issue it addresses.
 
 > [!IMPORTANT]
@@ -102,25 +85,17 @@ Bug fixing is a great way to contribute! Here's how to get started:
 Improvements are enhancements to existing functionality that make the project better. They could be:
 
 - Performance optimizations
-
 - Code refactoring for better maintainability
-
 - User experience enhancements
-
 - Documentation improvements
-
 - Process or workflow improvements
 
 Here's how to suggest and implement improvements:
 
 1. **Open an issue** — Describe the improvement you're suggesting. Explain the current situation, why it needs improvement, and your proposed solution.
-
 2. **Provide context** — Include examples, use cases, or data to support your suggestion.
-
 3. **Discuss and refine** — Engage in the issue discussion to clarify requirements and explore alternatives.
-
 4. **Get feedback** — Wait for input from maintainers and the community. For small improvements, you may get rapid approval.
-
 5. **Implement if approved** — If your suggestion is accepted, follow the standard development process.
 
 ## ✨ Building Features with Consensus
@@ -128,15 +103,10 @@ Here's how to suggest and implement improvements:
 **Before implementing any new feature:**
 
 1. **Open an issue first** — Clearly describe your idea, use case, and how it benefits the project.
-
    - Check if the issue is already assigned to someone
-
    - If it's assigned but has no activity for a while, comment to ask if you can take it over
-
 2. **Wait for maintainer approval** — Look for a **👍 "go-ahead" reaction** or explicit approval from a maintainer.
-
 3. **Discuss and refine** — Engage in the issue discussion to clarify requirements and explore alternatives.
-
 4. **Get consensus** — Ensure there's general agreement from the community before starting implementation.
 
 > [!CAUTION]
@@ -146,17 +116,11 @@ Here's how to suggest and implement improvements:
 **When you have approval:**
 
 1. **Implement the feature** — Build the feature following the project's coding style and guidelines.
-
 2. **Add comprehensive tests** — Every new feature **must** have tests covering:
-
    - **Happy path** — The feature works correctly with valid inputs
-
    - **Failure path** — The feature handles errors gracefully and raises appropriate exceptions
-
    - **Edge cases** — None values, empty inputs, boundary conditions, circular chains, missing arguments
-
 3. **Update documentation** — Document how to use the new feature.
-
 4. **Submit a PR** — Create a pull request, linking to the approved issue.
 
 > [!IMPORTANT]
@@ -170,23 +134,15 @@ Here's how to suggest and implement improvements:
 Complete this checklist before opening a pull request to ensure quality and smooth review:
 
 - [ ] Followed existing code style (pre-commit hooks enforce this automatically)
-
 - [ ] Added tests for new functionality (happy path, failure path, edge cases)
-
 - [ ] Ran tests locally and they pass (`pytest .`)
-
 - [ ] Updated documentation if needed (README, docs/guide pages, docstrings, inline comments)
-
 - [ ] Updated `CHANGELOG.md` under `[UnReleased]`. Write the entry **at PR-creation time**, once the PR number is known and content is stable.
-
   - Re-assess against the final diff, not individual commits.
   - Include `(#N)` PR link.
   - Exclude docs-only, test-only, CI, and internal refactoring changes.
-
 - [ ] Updated `docs/llms.txt` if public API behavior, patterns, or anti-patterns changed
-
 - [ ] Self-reviewed my code
-
 - [ ] Linked to related issue(s)
 
 ### Linking Issues
@@ -194,7 +150,6 @@ Complete this checklist before opening a pull request to ensure quality and smoo
 **Every PR should reference an issue.** This provides context and helps track progress. Use keywords like:
 
 - `Fixes #123` — Closes the issue when PR is merged
-
 - `Relates to #456` — Links without auto-closing
 
 If no issue exists, open one first to discuss the change before implementing it.
@@ -202,9 +157,7 @@ If no issue exists, open one first to discuss the change before implementing it.
 ### Keep PRs Focused
 
 - **One PR = one logical change** — This makes your PR easier to review and understand
-
 - **Smaller PRs are easier to review** — Large PRs can be overwhelming and take longer to merge
-
 - **Split large changes into multiple PRs** — Break complex features into smaller, manageable pieces
 
 ### Reviewing PRs
@@ -216,9 +169,7 @@ Use the [code-review skill](skills/code-review/SKILL.md) for specialist checks, 
 Tests and quality improvements are **always welcome**! These contributions are highly valuable because they:
 
 - Improve project stability — Well-tested code is more reliable for everyone
-
 - Help catch future regressions — Tests prevent issues from reoccurring
-
 - Reduce maintainer burden — Comprehensive tests require less ongoing debugging
 
 ### Running Tests
@@ -288,11 +239,8 @@ A test that reads a child's `sys.modules` therefore starts it with `run_isolated
 We value all levels of contribution and want to encourage everyone, regardless of skill level or time available. What matters is being reasonable and meaningful about what you can deliver:
 
 - **Start small and iterate** — Better to do smaller tasks piece by piece than take too much and leave it unfinished. Small contributions add up over time.
-
 - **Break work into steps** — This allows others to take over and continue if needed. It also makes your work more approachable for reviewers.
-
 - **Avoid abandoned PRs** — Forked PRs are difficult to carry over except by maintainers, creating significant burden. If you can't complete a PR, let us know.
-
 - **Be meaningful and reasonable** — Contribute what you can realistically complete. Even small improvements make a difference.
 
 We don't expect perfection. We expect genuine effort.
@@ -310,15 +258,10 @@ Follow this pattern for branch names to keep the repository organized:
 **Types:**
 
 - `fix/` — Bug fixes (e.g., `fix/123-deprecation-warning-crash`)
-
 - `feat/` — New features (e.g., `feat/45-add-class-deprecation`)
-
 - `docs/` — Documentation changes (e.g., `docs/update-readme-examples`)
-
 - `refactor/` — Code refactoring (e.g., `refactor/simplify-validation`)
-
 - `test/` — Test additions or improvements (e.g., `test/edge-cases-for-chains`)
-
 - `chore/` — Maintenance tasks (e.g., `chore/update-dependencies`)
 
 > [!TIP]
@@ -363,9 +306,7 @@ git push origin fix/123-your-bug-description
 ### Design Principles
 
 - **Simplicity**: the API surface must be learnable in minutes. Prefer patterns users already know. Do not introduce a new concept unless it solves a real gap that existing primitives cannot address.
-
 - **Robustness**: deprecated code is on the removal path. Correctness must hold regardless of call order or framework integration. Audit tools must surface all live deprecations so nothing slips through to a breaking release.
-
 - **Flexibility**: work with any Python callable — functions, class methods, async, properties, dataclasses, enums — without special-casing the caller. The library adapts to the user's code, not the other way around.
 
 When a proposed feature conflicts with simplicity, complexity wins only when robustness or flexibility requires it.
@@ -373,46 +314,28 @@ When a proposed feature conflicts with simplicity, complexity wins only when rob
 ### Style & Formatting
 
 - Follow [PEP 8](https://pep8.org/) style guidelines — enforced automatically by `ruff` via pre-commit hooks
-
 - Write clear, descriptive docstrings (Google-style convention) for all public **and** private functions, methods, and classes:
-
   - **Private functions** (name starts with `_`): minimum one-line summary — callers and reviewers must be able to understand the function contract without reading the body
-
   - **Public functions**: use full Google-style sections.
-
     - Include `Args:` for every parameter: its name, type if not already in the signature, and what it means.
     - Include `Returns:` describing the return value and its type when non-obvious.
     - Include `Raises:` listing every exception the function intentionally raises, with the condition that triggers it.
     - Omit a section only when it genuinely does not apply (e.g. no parameters, returns `None`, raises nothing).
-
   - Include an `Examples:` section for non-trivial behavior. Omit it only when an example literally cannot run (e.g., requires an external service or produces non-deterministic output).
-
     - Showing the call without output (`>>> result = fn(x)` with no output line) is fine and still counts as a runnable doctest.
     - `# doctest: +SKIP` and `# phmdoctest:skip` are highly discouraged — each instance degrades testability. If you must use one, explain why in a comment on the same line.
-
   - **If a function has no dedicated test**, it must have at least one runnable `Examples:` doctest — the doctest is the minimum proof that the function works as documented
-
 - In docstrings, always reference project symbols with their full import path using Sphinx cross-reference syntax. For example, use `` :func:`~deprecate.deprecation.deprecated` `` rather than just `` :func:`deprecated` ``. Standard library symbols (e.g., `FutureWarning`) do not need a module prefix.
-
 - Use **MkDocs admonition syntax** for docstring notices in `src/deprecate/` by default — `!!! note`, `!!! warning "Deprecated in X.Y"`, etc. Do not use RST directives (`.. note::`, `.. deprecated::`) in package source docstrings unless the module specifically exists to integrate with Sphinx/RST docstrings (for example, `src/deprecate/docstring/sphinx_ext.py` and `src/deprecate/docstring/griffe_ext.py`). For demos, `demo-docs/sphinx/` follows RST conventions and `demo-docs/mkdocs/` follows MkDocs conventions — each demo matches its own renderer.
-
 - Keep functions focused and modular — a function should do one thing; if it needs a long comment to explain what it does, it probably needs to be split
-
 - Add type hints to all function signatures, including return types
-
 - Align type hint syntax with the **minimum supported Python version** (check `requires-python` in `pyproject.toml`)
-
 - If unsure about syntax compatibility, consult the official Python documentation for that version or search for the relevant PEP
-
 - Write meaningful variable and function names — prefer `expired_callables` over `lst`, `source_func` over `f`
-
 - Write Python code that is readable on its own — good names and structure are the primary documentation. Add an inline comment only when it carries context the code cannot:
-
   - Explain **why** a non-obvious choice was made, a hidden constraint, a subtle invariant, or a workaround for a specific external behaviour.
   - Keep it to one short line; never explain what the code does.
-
 - When changing existing behavior, scan changed files for stale inline comments — update or remove them (stale comments mislead more than none)
-
 - No bare `except:` — always catch specific exceptions (e.g., `except ValueError:`, `except ImportError:`)
 
 > [!TIP]
@@ -424,11 +347,8 @@ When a proposed feature conflicts with simplicity, complexity wins only when rob
 ### Architecture Constraints
 
 - **Zero runtime dependencies** — pyDeprecate has no runtime dependencies. Do not add any.
-
 - **Fast imports / low overhead** — avoid expensive computations or premature imports in module-level code or wrapper setup.
-
 - **Circular imports** — when editing `src/deprecate/`, verify new imports don't create cycles. Use `if TYPE_CHECKING:` blocks for type-only imports.
-
 - **Deprecation chains** — if modifying chain validation logic, handle infinite loops (A deprecates B, B deprecates A) gracefully without crashing.
 
 ### Project Structure
@@ -633,9 +553,7 @@ Tests live in `tests/` and follow a **three-layer separation**:
 **`integration/`** — Each file covers one area of the public surface. These areas include functions, classes, audit, utils, docstrings, README examples, agent-plugin manifests, or the GitHub Action runner. Tests call `@deprecated`-decorated code as a user would and assert on warnings, return values, and forwarded types.
 
 - `test_readme.py` is generated by `phmdoctest` from README code blocks.
-
 - `test_agent_plugin.py` verifies that both host catalogs resolve the same local plugin skills and aligned manifests.
-
 - `test_action.py` runs the action runner as a subprocess and checks `action.yml` parity with the runner and CLI.
 
 The integration suite also keeps characterization for positional and keyword forwarding, callable-kind dispatch, warning frame/filter behavior, and proxy pickle compatibility. The optional call-overhead benchmark lives in `.github/scripts/bench_call_overhead.py`; it is not a pytest test.
@@ -677,7 +595,6 @@ The integration suite also keeps characterization for positional and keyword for
 > **Several docs examples import a `tests/collections/` module and print hardcoded counts from it** (currently: `README.md`, `docs/guide/audit.md`, `docs/troubleshooting.md`). When you add or remove entries from a collection module:
 >
 > - Update every doc example's expected-count code block that scans the changed module — check `README.md`, every `docs/guide/*.md` page, and `docs/troubleshooting.md`, not just one of them.
->
 > - Regenerate the affected test files: `make docs-tests`
 >
 > Failing to do this causes the corresponding generated test file(s) under `tests/docs/` or `tests/integration/test_readme.py` to fail in CI. Enumerating specific files here goes stale as soon as a new doc example is added — grep for the fixture module's import if in doubt.
@@ -687,11 +604,8 @@ The integration suite also keeps characterization for positional and keyword for
 Each file mirrors a source module (`deprecation.py`, `docstring/inject.py` in `unittests/docstring/test_inject.py`, `utils.py`). A source subpackage becomes a test subpackage with one file per submodule — `unittests/audit/test__policy.py` for `deprecate/audit/_policy.py`. Import private symbols of the `audit/` subpackage from their defining submodule (`deprecate.audit._policy`), never from the package root.
 
 - The internal `_cli/` package maps to `unittests/cli/`. `test_commands.py` covers `_cli/commands.py`, and `test_cli.py` covers the `cli()` entry point in `_cli/__init__.py`. Wrapper fixtures shared by several of those files stay in `cli/_helpers.py`.
-
 - `cli/conftest.py` holds one autouse fixture that lets the path preflight accept the stand-in module name `some_module`. Those tests scan it with `find_deprecation_wrappers` mocked; every other name is still looked up for real.
-
 - The private `_static/` reader maps to `unittests/static/`. Source-reading tests stay in `test_reader.py`, discovery in `test_discovery.py`, and placeholder targets in `test_model.py`. Shared source fixtures and row helpers stay in `static/_helpers.py`.
-
 - `cli/test_static.py` keeps the CLI gap output, `_cli/static.py` tests and parity with the import scan.
 
 Each file imports private symbols from their defining submodule. It follows the same import rule. A `patch()` targets the submodule that looks the name up at call time (`deprecate._cli.scan.find_deprecation_wrappers`, not `deprecate._cli.find_deprecation_wrappers`).
@@ -709,9 +623,7 @@ A patch on another binding may leave the test green while it runs the real code.
 > Exceptions:
 >
 > - **Unit-level mechanical fixtures:** a test under `tests/unittests/` may define a tiny class or function inline when it exists only to drive the code under test. Examples include a stand-in owner or operand, a source whose attributes the test inspects, or a fresh wrapper for one private helper.
->
 > - **A fresh definition is the behaviour under test:** in any layer, keep the definition inside the test in these cases:
->
 >   - The test asserts a decoration-time warning or error at the definition itself.
 >   - The test creates the class inside `pytest.warns` or `pytest.raises`.
 >   - The test asserts a warning location that is the definition line.
@@ -755,7 +667,6 @@ A patch on another binding may leave the test green while it runs the real code.
 **Asserting warnings.** Use `pytest.warns(Category, match=...)` when the test only needs at least one matching warning. Record with `captured_warnings()` from `tests/_helpers.py` when checking any of the following:
 
 - Check an exact count, the order, or the absence of warnings.
-
 - Check a record's `filename`/`lineno`.
 
 It is `warnings.catch_warnings(record=True)` plus `simplefilter("always")`, so neither the active filters nor the once-per-location registry hide a record.
@@ -763,7 +674,6 @@ It is `warnings.catch_warnings(record=True)` plus `simplefilter("always")`, so n
 A warning the test triggers but does not check must not escape into the run's warnings summary. Use either approach:
 
 - Assert it with a second `pytest.warns` in the same `with`.
-
 - When it is pure setup noise, add a narrow `@pytest.mark.filterwarnings("ignore:<message prefix>:<Category>")` to that test.
 
 `pytest.warns` re-emits unmatched warnings from the `warnings` module, so the `tests`-scoped ignores in `pyproject.toml` no longer apply to them.
@@ -773,9 +683,7 @@ A warning the test triggers but does not check must not escape into the run's wa
 > **Exception — one-off inline fixtures:** inline fixtures are allowed inside a test function when all of the following hold:
 >
 > - **Single use** — used by exactly one test and not reused elsewhere
->
 > - **Non-representational** — does not model real API migration behavior or a named deprecation pattern
->
 > - **Purely mechanical** — exists only to drive a protocol or edge case (for example a malformed `remove_in` string, or a tiny local class used solely for `isinstance`/`issubclass` behavior)
 >
 > If in doubt, extract. Move to a collection module when the fixture is shared across tests, models real migration behavior, or represents a reusable deprecated wrapper or target.
@@ -785,7 +693,6 @@ A warning the test triggers but does not check must not escape into the run's wa
 The prefix encodes whether the fixture exists in one form or two:
 
 - **Single form** (only one way the deprecation is applied — no decorator/wrapper comparison needed): use `depr_<name>` for functions and `Deprecated<Name>` for classes.
-
 - **Both forms** (decorator and wrapper, used together in a parametrized test): reflect the form in the name:
 
 | Form                         | Functions/methods  | Classes (PascalCase) |
@@ -796,9 +703,7 @@ The prefix encodes whether the fixture exists in one form or two:
 Examples:
 
 - `DeprecatedEnum` — single form, no wrapper counterpart
-
 - `decorated_sum_warn_only` / `wrapped_sum_warn_only` — paired for parametrize
-
 - `DecoratedEnum` / `WrappedEnum` — paired class fixtures for the same parametrized comparison
 
 When adding a parametrized test that covers both forms, always add both fixtures and share the same `deprecated(...)` instance to guarantee identical configuration:
@@ -936,27 +841,16 @@ def decorated_sum_warn_only(a: int, b: int = 5) -> int:
 > **All new features and bug fixes must include tests.** This is non-negotiable.
 
 - Every new function or behavior change must have accompanying tests.
-
 - For every new utility or feature, include tests for:
-
   1. Happy path — expected correct behavior with valid inputs
-
   2. Failure path — expected errors are raised with appropriate messages
-
   3. Edge cases — None types, empty inputs, circular chains, missing arguments, boundary conditions
-
 - **Group related tests in classes** — use test classes when you have multiple related tests or need shared fixtures.
-
 - **Avoid redundant naming** — don't repeat class context in test method names (e.g., in `TestDeprecatedWrapper`, use `test_shows_warning` not `test_deprecated_wrapper_shows_warning`).
-
 - **Use fixtures for independence** — use pytest fixtures to reset state between tests. Add `autouse=True` fixtures when a class needs per-test reset.
-
 - **One behavior per test** — each test method should verify one specific aspect.
-
 - **Prefer parametrization for repetitive shapes** — use `pytest.mark.parametrize(...)` when the setup/assertion flow is the same and only inputs/expected outputs differ. This reduces duplication while keeping one behavioral intent per case.
-
 - **Assertions on warnings:** Use `pytest.warns(FutureWarning|DeprecationWarning)` to verify deprecation warnings are emitted correctly.
-
 - **Scenario description in docstrings** — every non-trivial test method must include a prose paragraph after the one-line summary that describes the real-world situation being tested. A one-line summary alone is not sufficient for complex tests.
 
 ```python
@@ -1158,7 +1052,6 @@ Readers understand *why* the rename happened. Never use generic placeholders lik
 **Orientation comments** — every paired example (new API + deprecated wrapper) opens with:
 
 - '# NEW API — <one-line purpose>' above the replacement function
-
 - '# DEPRECATED API — `old_name` replaced by `new_name`' above the deprecated decorator
 
 Use `# NEW/FUTURE API —` when the replacement is defined in the same block immediately before the deprecated wrapper.

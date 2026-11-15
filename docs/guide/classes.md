@@ -59,7 +59,6 @@ Prefer `@deprecated_class()` directly for classes, Enums, and dataclasses. It pr
 Choose one of two common patterns:
 
 - Rename a method with `@deprecated(target=execute)` on the old name; calls forward to the replacement.
-
 - Decorate `__init__` to warn at instantiation, optionally forwarding construction to a successor class.
 
 Rename a method within a class:
@@ -159,9 +158,7 @@ efg
 The proxy carries only protocols supported by the wrapped object:
 
 - A deprecated settings `dict` is neither `callable()`, an `Iterator`, nor `os.PathLike`.
-
 - A deprecated file handle retains context-manager support and iteration.
-
 - A deprecated Enum class retains `len()` and iteration.
 
 Arithmetic, unary, and conversion operators forward to the wrapped object. Data-use operations emit deprecation warnings; ordering comparisons, `format()`, and context exit remain silent structural probes.
@@ -213,13 +210,9 @@ In-place operators (`+=`, `-=`, etc.) return the active object's result rather t
 A `deprecated_instance` over a plain function can act as a method in a class body: `class Model: scale = deprecated_instance(legacy_scale, ...)`.
 
 - Through an instance, the proxy binds like the wrapped function. `Model().scale(2)` calls `legacy_scale(model, 2)` and warns against one `num_warns` budget shared across instances.
-
 - `Model().scale` is a bound method whose `__func__` is the proxy. Consequently, `inspect.signature` drops `self`.
-
 - Through the class, `Model.scale` is the proxy itself, so `Model.scale(model, 2)` also works. Use `staticmethod(...)` around the proxy to keep the function unbound.
-
 - Proxies over data, classes, and non-function descriptors (`property`, `classmethod`, and `staticmethod` objects) remain as stored and never bind.
-
 - Only proxies over functions or `@deprecated` wrappers are descriptors. `inspect.isroutine(proxy)` is `True` for these and `False` for data and class proxies.
 
 Deprecated proxies survive `copy.copy()` and `copy.deepcopy()` round-trips. Copies retain the warning behavior and receive independent counters snapshotted from the original.
@@ -353,7 +346,6 @@ teal
 On callable objects, `args_mapping` renames keyword arguments. Values renamed onto positional-only parameters are passed positionally.
 
 - Without `target`, calls warn only when an old name is used.
-
 - With a callable `target`, every call warns because calling the old name is itself deprecated.
 
 !!! warning "Unused call options"
@@ -365,11 +357,8 @@ On callable objects, `args_mapping` renames keyword arguments. Values renamed on
 `deprecated_class()` wraps an Enum or dataclass in a transparent proxy. It emits deprecation notices and forwards attribute, item, and call operations to the replacement.
 
 - Use `args_mapping` to rename or drop kwargs when calling the deprecated class.
-
 - Without an explicit `target`, supplying `args_mapping` auto-resolves to `TargetMode.ARGS_REMAP`. Warnings occur **only when an old argument name is used**, matching `@deprecated(target=TargetMode.ARGS_REMAP, args_mapping=...)`.
-
 - For a no-target `ARGS_REMAP` proxy, calls using new argument names are silent. A callable replacement target still emits the class-level warning. Structural checks with `isinstance` and `issubclass` remain silent.
-
 - Use `args_extra` to inject fixed kwargs into every forwarded call. Use `message_template` to override the warning; both options behave as their `@deprecated` counterparts do.
 
 ```python
@@ -452,9 +441,7 @@ True
 While the condition evaluates `True`, the proxy serves the wrapped source unchanged:
 
 - Warnings and `attrs_mapping` redirects are disabled.
-
 - `args_mapping`, `args_extra`, `target` forwarding, and `read_only` enforcement are disabled.
-
 - `isinstance(proxy, ...)`, class statements subclassing the alias, and arithmetic operands follow the wrapped source.
 
 Audits never evaluate the condition. Conditions needing a running application therefore do not break `find_deprecation_wrappers` or the CLI. Callable decorators behave similarly: skipped calls execute the source body unchanged.
@@ -546,19 +533,12 @@ True
 Type-checking behavior depends on how the alias is used:
 
 - **Class checks succeed.** `isinstance(x, WidgetColor)` and `issubclass(...)` narrow to `BrandColor`. `WidgetColor(1)`, member and attribute access, and passing the alias as `type[BrandColor]` also type-check. Each forwards to the class at runtime.
-
 - **The alias is a variable, not a type.** Every checker rejects `def paint(color: WidgetColor)`, and mypy also rejects `class Child(WidgetColor)`. Annotate with the replacement class, or use the decorator form in mypy to retain a class statement.
-
 - **Missing old names are flagged.** Renamed kwargs and attributes absent from the wrapped class trigger `call-arg` and `attr-defined` errors, as in the decorator form. Retain old names in a legacy class body to keep calls type-checking during migration.
-
 - **An explicit proxy cast permits old names.** Use `cast(DeprecationProxy[Config], deprecated_class(...)(Config))` for permissive calls and attributes. The trade-off is that `isinstance` against this alias no longer type-checks.
-
 - **A class target determines the type.** With `target=BrandColor`, the alias is `type[BrandColor]` even when wrapping a separate legacy class. `WidgetColor(...)` has the `BrandColor` instance type returned at runtime.
-
 - **Without a class target, the wrapped type remains.** This includes `args_mapping`-only and `attrs_mapping`-only wrappers. With `skip_if`, the type models the steady state; keep the wrapped class compatible with `target` while serving it during skips.
-
 - **The `@deprecated` front door cannot see `target` statically.** A class decorated with `@deprecated(target=BrandColor, ...)` keeps its wrapped-class type despite runtime forwarding. Use `deprecated_class(target=BrandColor, ...)` for `type[BrandColor]`.
-
 - **Proxy-only attributes are invisible on `type[BrandColor]`.** Read `__deprecation_config__` with `get_deprecation_config(WidgetColor)` and unwrap with `inspect.unwrap(WidgetColor)`. Alternatively, use `cast(DeprecationProxy[Any], WidgetColor)` at the site needing these attributes.
 
 `DeprecationProxy[T]` remains the annotation for `deprecated_instance()` proxies, where `T` is the type calling the proxy produces.
@@ -629,7 +609,6 @@ Stack `typing_extensions.deprecated` or `warnings.deprecated` directly above `@d
 With a class `target`, the checkers infer different types:
 
 - Mypy ignores the class decorator's return type, retaining the old class statement. Mirror the replacement's constructor and methods in the old class body for accurate checking.
-
 - Pyright applies the return type, producing `type[ReportWriter]` in the example below. It already checks calls against the replacement.
 
 The PEP 702 message lives on the proxy, leaving the replacement class unmarked. It survives `copy.copy`, `copy.deepcopy`, and `pickle` round-trips of the alias.
@@ -679,9 +658,7 @@ False
 Operations that would warn raise `DeprecatedError` instead:
 
 - Instantiation, warning-producing attribute reads, item access, and calls become fatal.
-
 - Data-use arithmetic and conversion dunders become fatal.
-
 - Writes to names listed in `attrs_mapping` raise before the mapped write.
 
 Ordinary attribute writes and access outside an active `attrs_mapping` stay silent. Constructor-only `TargetMode.ARGS_REMAP` does not make attribute access fatal.
@@ -705,23 +682,13 @@ Next: [Properties](properties.md) — learn how to deprecate `@property` and `@c
 ## See also
 
 - [Attributes](attributes.md) covers selective attribute deprecation and multi-version stacking.
-
 - [Use Cases overview](use-cases.md) provides a guided tour of deprecation patterns.
-
 - [Functions](functions.md) covers function and method deprecation.
-
 - [Properties](properties.md) covers `@property` and `@cached_property` deprecation.
-
 - [Async](async.md) covers async functions and generators.
-
 - [Advanced](advanced.md) covers docstring updates, `args_extra`, testing helpers, and class/static methods.
-
 - [Audit Tools](audit.md) covers Python scanning, validation, and chain detection.
-
 - [Audit Policy](audit-policy.md) covers removal deadlines and policy enforcement.
-
 - [CI Integration](ci-integration.md) covers CI gates, pre-commit, and GitHub Actions.
-
 - [Testing](testing.md) covers testing deprecated code and warning behavior.
-
 - [Troubleshooting](../troubleshooting.md) explains common `deprecated_class` configuration errors and fixes.

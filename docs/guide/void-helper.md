@@ -219,9 +219,7 @@ You do not need to pass `self` to `void(...)` — only the parameters your linte
 `void(...)` returns `None`, which looks incompatible with a function annotated as `-> int`. In practice this is fine because:
 
 1. **The body never runs.** `@deprecated` intercepts the call and forwards to the target before the body executes. The `return void(...)` line is dead code.
-
 2. **Type checkers handle dead code leniently.** Since mypy and pyright can see the decorator, they generally do not flag return type mismatches in unreachable paths.
-
 3. **If your type checker does complain**, two workarounds:
 
 ```python

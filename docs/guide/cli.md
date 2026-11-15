@@ -241,13 +241,9 @@ Flags and the path may come in any order. `pydeprecate check --exit-zero src/myp
 Since v0.16 every subcommand takes several paths — `pydeprecate all src/pkg_a src/pkg_b` — and audits them in one run with one exit code:
 
 1. Every path is checked before anything is imported.
-
 2. Duplicate and recursively covered paths are combined when their settings and versions allow it.
-
 3. The retained paths are scanned one after another, each with its own import root, settings, and auto-detected version.
-
 4. The console prints one scan header per path, then each check's findings of all paths in one section. For `all` and `status`, it then prints one table per path under a `### <package>` heading.
-
 5. One exit code covers all paths. Each path is judged with its own strict mode and `--gate` list; the run fails when any path fails.
 
 #### Path validation
