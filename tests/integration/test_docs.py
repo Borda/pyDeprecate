@@ -65,18 +65,22 @@ def _first_question_answers(markdown: str) -> list[str]:
     """Read each question's opening prose paragraph without including its optional Q label."""
     answers: list[str] = []
     awaiting_answer = False
-    for line in markdown.splitlines():
+    paragraph: list[str] = []
+    for line in [*markdown.splitlines(), ""]:
+        if paragraph and (not line.strip() or line.startswith(("## ", "### "))):
+            answer = " ".join(paragraph)
+            assert not answer.endswith(":"), answer
+            answers.append(_pydeprecate_plain_text(answer))
+            paragraph.clear()
+            awaiting_answer = False
         if line.startswith("### "):
             awaiting_answer = True
         elif line.startswith("## "):
             awaiting_answer = False
         elif awaiting_answer and line.strip() and not line.startswith("**Q:**"):
-            # The page's direct-answer contract requires prose before examples, notes, or detail labels.
+            # The page requires prose before examples, notes, or detail labels.
             assert not line.startswith(("```", "~~~", "!!!", "<", "|", ">", "-")), line
-            answer = line.removeprefix("**A:** ")
-            assert not answer.endswith(":"), answer
-            answers.append(_pydeprecate_plain_text(answer))
-            awaiting_answer = False
+            paragraph.append(line.removeprefix("**A:** ").strip())
     return answers
 
 
@@ -196,6 +200,15 @@ Use its canonical import.
             {"name": "Which target?", "text": "Choose a target: Use its canonical import."},
             {"name": "Which mode?", "text": "Choose one"},
         ]
+
+    def test_wrapped_answer_matches_paragraph(self) -> None:
+        """Compare an answer across physical lines as one paragraph.
+
+        A prose paragraph can be wrapped by an editor without changing the answer shown in the FAQ.
+
+        """
+        markdown = "## Topic\n\n### Question?\n\nFirst line\ncontinues here.\n"
+        assert _first_question_answers(markdown) == ["First line continues here."]
 
     def test_every_page_question_has_an_entry(self) -> None:
         """Every question on the actual troubleshooting page appears exactly once.
