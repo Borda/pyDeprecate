@@ -1,5 +1,8 @@
 """Tests for deprecation documentation strings."""
 
+from importlib.util import module_from_spec, spec_from_file_location
+from pathlib import Path
+
 from tests.collections.docstrings import (
     OldClass,
     OldClassPlain,
@@ -27,6 +30,24 @@ from tests.collections.docstrings import (
     sphinx_args_multiline,
     sphinx_args_removed,
 )
+
+_ROOT = Path(__file__).resolve().parents[2]
+_GENERATOR_SPEC = spec_from_file_location("generate_llms_full", _ROOT / ".github/scripts/generate_llms_full.py")
+assert _GENERATOR_SPEC is not None
+assert _GENERATOR_SPEC.loader is not None
+_GENERATOR = module_from_spec(_GENERATOR_SPEC)
+_GENERATOR_SPEC.loader.exec_module(_GENERATOR)
+
+
+def test_llms_full_matches_generator() -> None:
+    """Keep the committed full agent context synchronized with its sources.
+
+    A maintainer edits the authoritative agent contract or changes the public exports.
+    The committed full context must match a fresh render so agents receive the current contract and API map.
+    """
+    assert (_ROOT / "docs/llms-full.txt").read_bytes() == _GENERATOR.render().encode("utf-8"), (
+        "Regenerate with: python .github/scripts/generate_llms_full.py"
+    )
 
 
 class TestDeprecationDocstrings:
