@@ -21,7 +21,6 @@ surface may change without notice.
 
 The submodules, from the foundations up: ``consts`` (fixed names and routes), ``scope`` (how a source binds names),
 ``model`` (the values the reader builds), ``targets`` (reading a ``target``), ``analyzer`` (one module's wrappers),
-``discovery`` (locating the source), ``reader`` (a tree of modules), ``rows`` (the rows handed to the checks) and
-``checks`` (the checks' view of those rows).
+``discovery`` (locating the source), ``reader`` (a tree of modules) and ``rows`` (the rows handed to the checks).
 
 """

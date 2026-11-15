@@ -26,6 +26,10 @@
 - **`--report-sarif FILE` writes SARIF 2.1.0 for code scanning.** One result per active finding, keyed by finding id; suppressed findings are omitted and gaps become tool notifications. Available on every subcommand except `status`. ([#266](https://github.com/Borda/pyDeprecate/pull/266))
 - **The GitHub Action gains `fail-on-gap` and `sarif` inputs, step outputs and finding annotations.** `fail-on-gap` maps to `--strict` and `sarif` to `--report-sarif`; the step outputs are `exit-code`, `findings`, `errors`, `warnings`, `gaps`, `suppressed`, `report-json` and `sarif-file`. Each finding becomes an annotation on its wrapper's line, at most 50 per run. ([#266](https://github.com/Borda/pyDeprecate/pull/266))
 
+**Audit API**
+
+- **`find_deprecation_wrappers_static()` audits a package from source without importing it.** It reads the source with `ast`, as `--static` does, and returns a frozen `StaticScanResult` with `wrappers`, `gaps` and the version resolved without imports. `validate_deprecation_expiry`, `validate_deprecation_policy` and `generate_deprecation_table` accept the result in place of a module, so a script or docs build can audit a package whose dependencies are missing. Rows are read from source and carry stand-in targets, so read `.gaps` before treating a result as clean. ([#268](https://github.com/Borda/pyDeprecate/pull/268))
+
 ### Changed
 
 - **A second positional argument on `expiry`, `all` and `status` is a path first; read as a version it is deprecated.** With two positionals, the second is read as the version only when it names no path or findable module and parses as a version; that spelling prints a stderr notice and is removed in `1.0`. Pass `--version` instead; passing both exits `2`. ([#266](https://github.com/Borda/pyDeprecate/pull/266))

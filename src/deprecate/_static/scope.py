@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from typing import Callable, NamedTuple, Optional, Union
 
 from deprecate import TargetMode
-from deprecate._cli.static.consts import (
+from deprecate._static.consts import (
     _DATACLASS,
     _DEPRECATE_MODULES,
     _DICT_MUTATORS,

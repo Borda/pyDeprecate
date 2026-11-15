@@ -11,6 +11,7 @@ from typing import Optional
 import jsonschema
 import pytest
 
+from deprecate.audit import find_deprecation_wrappers_static
 from tests._helpers import write_pkg
 
 _SRC_DIR = str(Path(__file__).resolve().parent.parent.parent / "src")
@@ -1984,6 +1985,59 @@ def warn_only(x: int) -> int:
 @pytest.mark.subprocess
 class TestCliStatic:
     """``--static`` audits ``expiry`` and ``policy`` from source alone, importing nothing from the scanned package."""
+
+    @pytest.mark.parametrize(
+        "module", [pytest.param("static_forms", id="static-forms"), pytest.param("policy", id="policy")]
+    )
+    def test_collection_rows_match_api(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, module: str) -> None:
+        """Keep every report row and each located expiry finding aligned with the public static scan.
+
+        A team switching between the CLI and Python API must see the same wrappers in the same order, including
+        wrappers with unresolved settings. Schema 1 stores all wrappers in its Markdown table; findings carry
+        structured subjects and locations only for violations. At version 99.0 every resolved removal is overdue.
+        """
+        collections = Path(_SRC_DIR).parent / "tests" / "collections"
+        monkeypatch.syspath_prepend(str(collections))
+        scan = find_deprecation_wrappers_static(module)
+        report = tmp_path / "report.json"
+        result = _run_cli(
+            "expiry", module, "--static", "--version=99.0", "--exit-zero", f"--report-json={report}", cwd=collections
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+        data = json.loads(report.read_text(encoding="utf-8"))
+        jsonschema.validate(data, json.loads(_REPORT_SCHEMA_FILE.read_text(encoding="utf-8")))
+        assert data["mode"] == "static"
+        cells = [line.split("|")[1:-1] for line in data["table"].splitlines() if line.startswith("| `")]
+        assert [(row[0].strip(" `"), row[3].strip(), row[4].strip()) for row in cells] == [
+            (
+                f"{info.module}.{info.function}",
+                f"v{info.deprecated_info.deprecated_in}" if info.deprecated_info.deprecated_in else "—",
+                f"v{info.deprecated_info.remove_in}" if info.deprecated_info.remove_in else "—",
+            )
+            for info in scan.wrappers
+        ]
+        assert [
+            (
+                finding["subject"]["module"],
+                finding["subject"]["symbol"],
+                finding["deprecated_in"],
+                finding["remove_in"],
+                (Path(_SRC_DIR).parent / finding["location"]["file"]).resolve() if finding["location"] else None,
+                finding["location"]["line"] if finding["location"] else None,
+            )
+            for finding in data["findings"]
+        ] == [
+            (
+                info.module,
+                info.function,
+                info.deprecated_info.deprecated_in,
+                info.deprecated_info.remove_in,
+                Path(info.source_file).resolve() if info.source_file else None,
+                info.source_line,
+            )
+            for info in scan.wrappers
+            if info.deprecated_info.remove_in
+        ]
 
     def test_expiry_static_reads_source_without_importing(self, tmp_path: Path) -> None:
         """``expiry --static`` reports the overdue wrappers of a package whose import would fail.

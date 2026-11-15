@@ -15,12 +15,12 @@ from importlib.machinery import ModuleSpec, all_suffixes
 from pathlib import Path
 from typing import NamedTuple, Optional, Protocol, TypeVar
 
-from deprecate._cli._pkg import _plain_dir_modules, _safe_module_name, _select_child_package
+from deprecate._cli._pkg import _safe_module_name, _select_child_package
 from deprecate._cli.config import _Config, _ConfigFlag, _resolve_exclude, _source_label
 from deprecate._cli.report import (
     _RUN_RECORD,
-    _GapKind,
     _print,
+    _print_found_gaps,
     _print_gap,
     _record_options,
     _record_scan,
@@ -28,10 +28,11 @@ from deprecate._cli.report import (
     _report_nested_files,
     _ScanRecord,
 )
-from deprecate._cli.static.discovery import _locate_static
-from deprecate._cli.static.rows import _read_static
+from deprecate._gaps import _GapKind
+from deprecate._static.discovery import _plain_dir_modules
 from deprecate.audit import DeprecationWrapperInfo, find_deprecation_wrappers
 from deprecate.audit._scan import _collect_skipped_modules, _is_excluded
+from deprecate.audit._static import _scan_static_source
 from deprecate.audit._version import (
     _is_package_dir,
     _managed_sys_path,
@@ -796,23 +797,29 @@ def _static_scan(
         The recorded scan, or ``None`` after printing a usage error (the caller exits 2).
 
     """
-    located = _locate_static(path, package_dir)
-    if isinstance(located, str):
-        _print(located, stderr=True)
+    try:
+        source_scan = _scan_static_source(
+            path,
+            package_dir,
+            recursive=recursive,
+            include_members=include_members,
+            exclude=exclude[0],
+            version_name=_safe_module_name(path),
+            resolve_version=version is None and (resolve_version or record_version),
+        )
+    except ValueError as err:
+        _print(str(err), stderr=True)
         return None
     recorded = version
     if version is None and (resolve_version or record_version):
-        existing = path if Path(path).exists() else None
-        recorded = _resolve_package_version(
-            _safe_module_name(path), path=existing, allow_import=False, import_root=located.import_root
-        )
+        recorded = source_scan.version
         if resolve_version:
             version = recorded
     _print_scan_header(path, version, user_provided=version_explicit, exclude=exclude)
     _print("Mode: static (source read with ast; nothing imported)")
-    wrappers = _read_static(located, recursive=recursive, include_members=include_members, exclude=exclude[0])
+    _print_found_gaps(source_scan.gaps)
     _record_scanned_path(path, recorded, user_provided=version_explicit)
-    scan = _ScanRecord(path, wrappers, recorded, static=True)
+    scan = _ScanRecord(path, source_scan.wrappers, recorded, static=True)
     if record:
         _record_scan(scan)
     return scan

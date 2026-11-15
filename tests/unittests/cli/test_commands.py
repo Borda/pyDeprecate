@@ -22,8 +22,9 @@ from deprecate._cli.commands import (
     cmd_status,
 )
 from deprecate._cli.config import _FROM_PYPROJECT, _POLICY_DEFAULTS, _ConfigFlag
-from deprecate._cli.report import _REPORT_SCHEMA, _build_report, _GapKind, _record_run, _ScanRecord
+from deprecate._cli.report import _REPORT_SCHEMA, _build_report, _record_run, _ScanRecord
 from deprecate._cli.scan import _ScanError
+from deprecate._gaps import _GapKind
 from deprecate._types import DeprecationConfig, TargetMode
 from deprecate.audit import ChainType, DeprecationWrapperInfo, PolicyRule, TableStyle, validate_deprecation_policy
 from tests._helpers import write_pkg

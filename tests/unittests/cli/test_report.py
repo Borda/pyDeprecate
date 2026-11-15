@@ -9,7 +9,17 @@ import jsonschema
 import pytest
 
 from deprecate._cli.commands import cmd_all, cmd_chains, cmd_check, cmd_expiry, cmd_policy
-from deprecate._cli.report import _Gap, _GapKind, _print, _Reporter, _RunRecord, _ScanRecord, _write_report
+from deprecate._cli.report import (
+    _Gap,
+    _print,
+    _print_found_gaps,
+    _record_run,
+    _Reporter,
+    _RunRecord,
+    _ScanRecord,
+    _write_report,
+)
+from deprecate._gaps import _FoundGap, _GapKind
 from deprecate._types import DeprecationConfig, TargetMode
 from deprecate.audit import ChainType, DeprecationWrapperInfo
 from deprecate.audit._findings import _Check, _Finding, _make_finding, _Rule, _wrapper_findings
@@ -23,6 +33,32 @@ from tests.unittests.cli._helpers import _EXPIRED_FINDING, _EXPIRED_MSG, _scanne
 def _findings_of(wrappers: list[DeprecationWrapperInfo]) -> list[_Finding]:
     """Derive the configuration findings of *wrappers*, as ``check`` does before printing them."""
     return [finding for info in wrappers for finding in _wrapper_findings(info)]
+
+
+def test_found_gaps_preserve_order_and_scan_context(capsys: pytest.CaptureFixture[str]) -> None:
+    """The CLI sink prints gaps in order and records their subjects and rules at the active path.
+
+    A static read returns a wrapper-specific omission followed by a missing module. A CLI run over several paths
+    must attach both to the path being scanned when it consumes them, with the rule and subject metadata intact.
+    """
+    gaps = [
+        _FoundGap(_GapKind.STATIC_UNRESOLVED, "pkg.old: unresolved", ("pkg", "old"), frozenset({"expired"})),
+        _FoundGap(_GapKind.MODULE_NOT_AUDITED, "pkg.compiled: no Python source to read"),
+    ]
+    with _record_run() as record:
+        record.current_path = "src/pkg"
+        _print_found_gaps(iter(gaps))
+        record.current_path = "src/other"
+    assert record.gaps == [
+        _Gap(_GapKind.STATIC_UNRESOLVED, "pkg.old: unresolved", "src/pkg", ("pkg", "old"), frozenset({"expired"})),
+        _Gap(_GapKind.MODULE_NOT_AUDITED, "pkg.compiled: no Python source to read", "src/pkg"),
+    ]
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == (
+        "pydeprecate gap: not statically resolvable: pkg.old: unresolved\n"
+        "pydeprecate gap: module not audited: pkg.compiled: no Python source to read\n"
+    )
 
 
 class TestReportChains:
