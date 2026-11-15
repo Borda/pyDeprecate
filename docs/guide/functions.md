@@ -683,13 +683,20 @@ try:
     legacy_checksum("abc")
 except DeprecatedError as err:
     print(err)
+
+# the call is refused again: the `num_warns` budget does not apply to a fatal deprecation
+try:
+    legacy_checksum("again")
+except DeprecatedError as err:
+    print(type(err).__name__)
 ```
 
 <details>
-  <summary>Output: <code>legacy_checksum("abc")</code></summary>
+  <summary>Output: <code>legacy_checksum("abc"); legacy_checksum("again")</code></summary>
 
 ```
 The `legacy_checksum` was deprecated since v1.0. It will be removed in v2.0.
+DeprecatedError
 ```
 
 </details>
@@ -811,6 +818,77 @@ Python already turns warnings into exceptions: `-W error::FutureWarning` or `PYT
 1. **Scope** — fail only on pyDeprecate's own deprecations, not on NumPy's or pandas'.
 2. **Non-warnings streams** — a wrapper with `stream=logging.warning` never reaches the warnings machinery, so no filter can make it fail.
 3. **Per-symbol promotion** — ship one deprecation as fatal while the rest keep warning.
+
+## Strict callable-only deprecation
+
+`@deprecated` dispatches a class source to `@deprecated_class()`. `@deprecated_callable()` is the strict form: it shares every `@deprecated` parameter but raises `TypeError` at decoration time when applied to a class. A mistaken class decoration then fails on import instead of silently becoming a proxy.
+
+Use it where the class path should never be taken implicitly:
+
+- shared library code;
+- internal helpers that only wrap functions;
+- modules whose reviewers want the class case to be an error.
+
+```python
+from deprecate import deprecated_callable
+
+
+# NEW API — renamed to say what it measures
+def elapsed_seconds(start: float, end: float) -> float:
+    return end - start
+
+
+# DEPRECATED API — `duration` was the original name before the rename
+@deprecated_callable(target=elapsed_seconds, deprecated_in="1.4", remove_in="2.0")
+def duration(start: float, end: float) -> float: ...
+
+
+print(duration(10.0, 12.5))  # warns: FutureWarning
+```
+
+<details>
+  <summary>Output: <code>duration(10.0, 12.5)</code></summary>
+
+```
+2.5
+```
+
+</details>
+
+Applied to a class, it refuses at decoration time:
+
+```python
+from deprecate import deprecated_callable
+
+
+class HttpClient:
+    """The replacement class."""
+
+
+try:
+
+    @deprecated_callable(target=HttpClient, deprecated_in="1.4", remove_in="2.0")
+    class Client:
+        """A class handed to the strict callable-only decorator."""
+
+except TypeError as err:
+    print(type(err).__name__)
+```
+
+<details>
+  <summary>Output: <code>type(err).__name__</code></summary>
+
+```
+TypeError
+```
+
+</details>
+
+The error names both alternatives: `@deprecated_class()` for the class itself, or `@deprecated` for automatic dispatch.
+
+!!! note "Different `target` defaults"
+
+    `@deprecated` defaults `target` to `TargetMode.AUTO`, inferred at decoration time. `deprecated_callable()` defaults to `TargetMode.NOTIFY` and rejects an explicit `TargetMode.AUTO` with `TypeError`.
 
 ## Static type checkers (PEP 702)
 

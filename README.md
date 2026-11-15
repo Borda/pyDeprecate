@@ -256,7 +256,7 @@ The guides own the detailed examples, caveats, and migration recipes.
 | Stacked deprecation decorators       | [Handle multiple migration stages](https://borda.github.io/pyDeprecate/stable/guide/functions.html#stacked-deprecation-decorators).  |
 | Conditional skip                     | [Control when deprecation applies](https://borda.github.io/pyDeprecate/stable/guide/functions.html#conditional-skip).                |
 | Fatal deprecations                   | [Turn warnings into errors](https://borda.github.io/pyDeprecate/stable/guide/functions.html#fatal-deprecations).                     |
-| Strict callable-only deprecation     | [Use `deprecated_callable`](https://borda.github.io/pyDeprecate/stable/api-reference.html#decorator).                                |
+| Strict callable-only deprecation     | [Use `deprecated_callable`](https://borda.github.io/pyDeprecate/stable/guide/functions.html#strict-callable-only-deprecation).       |
 
 On the development line, `deprecate.as_exceptions()` makes deprecations fatal for one block and restores the previous setting afterward. See [fatal-deprecation scope limits](https://borda.github.io/pyDeprecate/dev/guide/functions.html#the-global-switch) before using it.
 
