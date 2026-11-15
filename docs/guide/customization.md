@@ -154,7 +154,7 @@ Pass `stream=None` to disable all deprecation output for a specific function. Ca
 
 !!! warning "Testing gotcha: `stream=None` suppresses `FutureWarning`"
 
-    When `stream=None` is set, no `FutureWarning` is emitted, so `pytest.warns(FutureWarning)` will fail. Test the call-forwarding result directly instead of asserting the warning. See [Testing Deprecated Code](audit.md#testing-deprecated-code) for patterns.
+    When `stream=None` is set, no `FutureWarning` is emitted, so `pytest.warns(FutureWarning)` will fail. Test the call-forwarding result directly instead of asserting the warning. See [Testing Deprecated Code](testing.md#testing-deprecated-code) for patterns.
 
 ```python
 from deprecate import deprecated

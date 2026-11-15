@@ -191,13 +191,13 @@ Sent to 'alice@example.com': 'Hello' [normal]
 
 In test setup code (fixtures, helpers, factory functions), you often need to call deprecated functions without flooding the output with `FutureWarning` noise. The first call still emits its warning (default `num_warns=1`; subsequent calls are silent).
 
-Suppress that specific message session-wide with a scoped `filterwarnings` entry in `pyproject.toml` or `conftest.py`. See [Audit Tools → Suppressing warnings in test fixtures](audit.md#suppressing-warnings-in-test-fixtures) for the config snippets.
+Suppress that specific message session-wide with a scoped `filterwarnings` entry in `pyproject.toml` or `conftest.py`. See [Audit Tools → Suppressing warnings in test fixtures](testing.md#suppressing-warnings-in-test-fixtures) for the config snippets.
 
 For assertions, pick the right tool:
 
 - `pytest.warns` asserts a warning IS emitted.
 - A `filterwarnings` ignore entry silences without any assertion.
-- [`assert_no_warnings`](audit.md#testing-deprecated-code) asserts that NO warning of the specified category escapes the block.
+- [`assert_no_warnings`](testing.md#testing-deprecated-code) asserts that NO warning of the specified category escapes the block.
 
 The last option prevents refactored code from silently regressing into calling deprecated APIs. If the code unexpectedly starts emitting a different warning category, that still surfaces.
 

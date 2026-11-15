@@ -47,7 +47,7 @@ To install directly from source (for pre-release or development versions):
 pip install https://github.com/Borda/pyDeprecate/archive/main.zip
 ```
 
-The `audit` extra adds `packaging` for version comparison, needed only by [`validate_deprecation_expiry`](guide/audit.md#enforcing-removal-deadlines) and [`validate_deprecation_policy`](guide/audit.md#enforcing-a-deprecation-policy). Install it when you want to enforce removal deadlines or a deprecation policy in CI:
+The `audit` extra adds `packaging` for version comparison, needed only by [`validate_deprecation_expiry`](guide/audit-policy.md#enforcing-removal-deadlines) and [`validate_deprecation_policy`](guide/audit-policy.md#enforcing-a-deprecation-policy). Install it when you want to enforce removal deadlines or a deprecation policy in CI:
 
 ```bash
 pip install 'pyDeprecate[audit]'
@@ -189,7 +189,7 @@ ______________________________________________________________________
 
 - **CLI** — `pydeprecate check`, `expiry`, `policy`, `chains` and `all` audit a package from the shell with CI-friendly exit codes. See the [CLI Reference](guide/cli.md).
 
-- **pre-commit and GitHub Action** — run the same checks as a [pre-commit hook](guide/audit.md#pre-commit-integration) or a [GitHub Action](guide/audit.md#github-action) step.
+- **pre-commit and GitHub Action** — run the same checks as a [pre-commit hook](guide/ci-integration.md#pre-commit-integration) or a [GitHub Action](guide/ci-integration.md#github-action) step.
 
 ______________________________________________________________________
 

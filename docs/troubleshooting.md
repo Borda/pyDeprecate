@@ -113,7 +113,7 @@ True True
 
 </details>
 
-If you are writing tests and need to verify that a warning fires, use `pytest.warns(FutureWarning)` on the first call and `assert_no_warnings(FutureWarning)` on subsequent calls. See [Testing Deprecated Code](guide/audit.md#testing-deprecated-code) for full examples.
+If you are writing tests and need to verify that a warning fires, use `pytest.warns(FutureWarning)` on the first call and `assert_no_warnings(FutureWarning)` on subsequent calls. See [Testing Deprecated Code](guide/testing.md#testing-deprecated-code) for full examples.
 
 ### Why did the deprecation warning stop appearing in my long-running service?
 
@@ -1296,7 +1296,7 @@ No single proxy both warns on every instantiation and actively remaps arguments.
 
 2. Use an outer layer without mapping (`NOTIFY`) for the blanket notice.
 
-See [Nested proxy wrappers](guide/classes.md#nested-proxy-wrappers) for the pattern.
+See [Nested proxy wrappers](guide/attributes.md#nested-proxy-wrappers) for the pattern.
 
 ### `attrs_mapping` auto-expand skips some fields on a dataclass with a custom `__init__`
 
@@ -2703,7 +2703,7 @@ Choose a setup matching your audit needs:
 
 - For removal deadlines and policy rules only, use the import-free `pydeprecate-expiry-static` and `pydeprecate-policy-static` hooks, which need none of your dependencies (from `v0.16.0`).
 
-The [audit guide](guide/audit.md#pre-commit-integration) contains the hook recipes.
+The [audit guide](guide/ci-integration.md#pre-commit-integration) contains the hook recipes.
 
 ### Can pydeprecate audit a package whose dependencies are not installed?
 
@@ -2756,7 +2756,7 @@ Src-layout repositories and single-package roots resolve automatically. For mult
   args: [mypkg]
 ```
 
-The same error, a usage error with exit `2`, applies to every subcommand; see the [audit guide](guide/audit.md#pre-commit-integration).
+The same error, a usage error with exit `2`, applies to every subcommand; see the [audit guide](guide/ci-integration.md#pre-commit-integration).
 
 ### `pydeprecate gap: other copy audited`
 

@@ -264,4 +264,4 @@ Each entry states the behaviour in one or two sentences. It links to the section
 
     **The GitHub Action's `install: true` re-pins pyDeprecate.**
 
-    The default installs pyDeprecate from the action's own ref into the job's Python, replacing the version your job already had. Set `install: false` when your project pins its own version. See [GitHub Action](guide/audit.md#github-action).
+    The default installs pyDeprecate from the action's own ref into the job's Python, replacing the version your job already had. Set `install: false` when your project pins its own version. See [GitHub Action](guide/ci-integration.md#github-action).

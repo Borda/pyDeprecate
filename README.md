@@ -269,7 +269,7 @@ On the development line, `deprecate.as_exceptions()` makes deprecations fatal fo
 | Enums and dataclasses     | [Forward class access and construction](https://borda.github.io/pyDeprecate/stable/guide/classes.html#enums-and-dataclasses).                            |
 | Typing deprecated proxies | [Annotate class aliases and instance proxies](https://borda.github.io/pyDeprecate/stable/guide/classes.html#type-annotations-and-static-analysis).       |
 | Introspection             | [Preserve signatures and source breadcrumbs](https://borda.github.io/pyDeprecate/stable/guide/classes.html#breadcrumbs-for-documentation-and-ide-tools). |
-| Selective attributes      | [Rename attributes with `attrs_mapping`](https://borda.github.io/pyDeprecate/stable/guide/classes.html#selective-attribute-deprecation).                 |
+| Selective attributes      | [Rename attributes with `attrs_mapping`](https://borda.github.io/pyDeprecate/stable/guide/attributes.html#selective-attribute-deprecation).              |
 
 ### Other patterns
 
@@ -288,22 +288,22 @@ For existing installations, read the [migration guide](https://borda.github.io/p
 
 Audit wrappers before release to catch invalid configuration and expired migration windows.
 
-| Check                                        | Guide                                                                                                                                     |
-| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| Validate wrapper configuration               | [Validate one wrapper](https://borda.github.io/pyDeprecate/stable/guide/audit.html#validating-a-single-function).                         |
-| Discover deprecated wrappers                 | [Scan a package](https://borda.github.io/pyDeprecate/stable/guide/audit.html#scanning-a-package-for-deprecated-wrappers).                 |
-| Generate deprecation tables                  | [Build status reports](https://borda.github.io/pyDeprecate/stable/guide/audit.html#generating-deprecation-tables).                        |
-| Enforce removal deadlines                    | [Find expired wrappers](https://borda.github.io/pyDeprecate/stable/guide/audit.html#enforcing-removal-deadlines).                         |
-| Enforce a deprecation policy                 | [Check grace periods and migration guidance](https://borda.github.io/pyDeprecate/stable/guide/audit.html#enforcing-a-deprecation-policy). |
-| Detect deprecation chains                    | [Find deprecated-to-deprecated forwarding](https://borda.github.io/pyDeprecate/stable/guide/audit.html#detecting-deprecation-chains).     |
-| Detect positional-only incompatible mappings | [Validate mapping compatibility](https://borda.github.io/pyDeprecate/stable/guide/audit.html#detecting-mapping-incompatibilities).        |
-| Test deprecated code                         | [Assert warning behavior](https://borda.github.io/pyDeprecate/stable/guide/audit.html#testing-deprecated-code).                           |
+| Check                                        | Guide                                                                                                                                            |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Validate wrapper configuration               | [Validate one wrapper](https://borda.github.io/pyDeprecate/stable/guide/audit.html#validating-a-single-function).                                |
+| Discover deprecated wrappers                 | [Scan a package](https://borda.github.io/pyDeprecate/stable/guide/audit.html#scanning-a-package-for-deprecated-wrappers).                        |
+| Generate deprecation tables                  | [Build status reports](https://borda.github.io/pyDeprecate/stable/guide/audit.html#generating-deprecation-tables).                               |
+| Enforce removal deadlines                    | [Find expired wrappers](https://borda.github.io/pyDeprecate/stable/guide/audit-policy.html#enforcing-removal-deadlines).                         |
+| Enforce a deprecation policy                 | [Check grace periods and migration guidance](https://borda.github.io/pyDeprecate/stable/guide/audit-policy.html#enforcing-a-deprecation-policy). |
+| Detect deprecation chains                    | [Find deprecated-to-deprecated forwarding](https://borda.github.io/pyDeprecate/stable/guide/audit.html#detecting-deprecation-chains).            |
+| Detect positional-only incompatible mappings | [Validate mapping compatibility](https://borda.github.io/pyDeprecate/stable/guide/audit.html#detecting-mapping-incompatibilities).               |
+| Test deprecated code                         | [Assert warning behavior](https://borda.github.io/pyDeprecate/stable/guide/testing.html#testing-deprecated-code).                                |
 
 ### Automation entry points
 
 - **CLI:** Run `pydeprecate check path/to/your/package`; see the [CLI reference](https://borda.github.io/pyDeprecate/stable/guide/cli.html).
-- **Pre-commit:** Use the `pydeprecate-check` hook; see [pre-commit integration](https://borda.github.io/pyDeprecate/stable/guide/audit.html#pre-commit-integration).
-- **GitHub Action:** Use `Borda/pyDeprecate@v0.15.0`; see the [GitHub Action recipe](https://borda.github.io/pyDeprecate/stable/guide/audit.html#github-action).
+- **Pre-commit:** Use the `pydeprecate-check` hook; see [pre-commit integration](https://borda.github.io/pyDeprecate/stable/guide/ci-integration.html#pre-commit-integration).
+- **GitHub Action:** Use `Borda/pyDeprecate@v0.15.0`; see the [GitHub Action recipe](https://borda.github.io/pyDeprecate/stable/guide/ci-integration.html#github-action).
 
 See [CLI exit codes](https://borda.github.io/pyDeprecate/stable/guide/cli.html#exit-codes) before making an audit command a required CI gate.
 

@@ -67,7 +67,7 @@ pydeprecate status tests --version 1.2
 
 === "expiry"
 
-    This subcommand checks whether any deprecated wrappers have passed their `remove_in` deadline using [`validate_deprecation_expiry()`](audit.md#enforcing-removal-deadlines). It requires the `[audit]` extra, included in `[audit,cli]`.
+    This subcommand checks whether any deprecated wrappers have passed their `remove_in` deadline using [`validate_deprecation_expiry()`](audit-policy.md#enforcing-removal-deadlines). It requires the `[audit]` extra, included in `[audit,cli]`.
 
     ```bash
     # explicit version
@@ -85,7 +85,7 @@ pydeprecate status tests --version 1.2
 
 === "policy"
 
-    This subcommand checks whether each deprecation was *scheduled* responsibly, using [`validate_deprecation_policy()`](audit.md#enforcing-a-deprecation-policy). Every violation message is prefixed with the slug of the rule it broke. `policy` never needs a package version, so it takes no `--version` flag.
+    This subcommand checks whether each deprecation was *scheduled* responsibly, using [`validate_deprecation_policy()`](audit-policy.md#enforcing-a-deprecation-policy). Every violation message is prefixed with the slug of the rule it broke. `policy` never needs a package version, so it takes no `--version` flag.
 
     | Rule               | Default         | Dependency                                                  |
     | ------------------ | --------------- | ----------------------------------------------------------- |
@@ -142,8 +142,8 @@ pydeprecate status tests --version 1.2
     This subcommand runs all four checks in a single scan pass, then appends a compact markdown deprecation table:
 
     - [`find_deprecation_wrappers()`](audit.md#validating-wrapper-configuration) validates wrapper configuration.
-    - [`validate_deprecation_expiry()`](audit.md#enforcing-removal-deadlines) enforces removal deadlines.
-    - [`validate_deprecation_policy()`](audit.md#enforcing-a-deprecation-policy) checks policy.
+    - [`validate_deprecation_expiry()`](audit-policy.md#enforcing-removal-deadlines) enforces removal deadlines.
+    - [`validate_deprecation_policy()`](audit-policy.md#enforcing-a-deprecation-policy) checks policy.
     - [`validate_deprecation_chains()`](audit.md#detecting-deprecation-chains) detects chains.
 
     !!! warning "Missing `packaging` leaves some checks running"
@@ -224,7 +224,7 @@ pydeprecate status tests --version 1.2
 
 A bare `pydeprecate policy src/mypackage` runs a recursive scan and exits `1` on violations. It applies both default-on rules below: `--min-grace=0.3` and `--message-required=True`. The project's `pyproject.toml` can override these defaults; see [Project configuration in `pyproject.toml`](#project-configuration-in-pyprojecttoml).
 
-Flags and the path may come in any order. `pydeprecate check --exit-zero src/mypackage` scans `src/mypackage`, using the order a [pre-commit hook](audit.md#pre-commit-integration) produces from its `args`.
+Flags and the path may come in any order. `pydeprecate check --exit-zero src/mypackage` scans `src/mypackage`, using the order a [pre-commit hook](ci-integration.md#pre-commit-integration) produces from its `args`.
 
 | Syntax               | Behaviour                                                                                                                                                       |
 | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -407,7 +407,7 @@ The keys added in 0.16 (per-finding records, `gate`, `mode`, …) did not bump i
 
     The file is written only when the run exits `0` or `1`. A usage error (exit `2`) scanned nothing, and a crash writes no file. A consumer therefore never publishes stale results.
 
-The [GitHub Action](audit.md#github-action) builds its gap annotations and job summary from this file.
+The [GitHub Action](ci-integration.md#github-action) builds its gap annotations and job summary from this file.
 
 ### SARIF for code scanning
 
@@ -606,7 +606,7 @@ The entry is counted as `summary.baseline_unmatched`; it never fails the run. On
 
 `pydeprecate expiry --static` and `pydeprecate policy --static` read the package's source with Python's `ast` module instead of importing it. Nothing from the scanned package is imported or executed, including for the version and the `--report-json` table.
 
-Use it where the package's runtime dependencies are not installed, such as the isolated environment of a remote [pre-commit hook](audit.md#pre-commit-integration):
+Use it where the package's runtime dependencies are not installed, such as the isolated environment of a remote [pre-commit hook](ci-integration.md#pre-commit-integration):
 
 ```bash
 # phmdoctest:skip — CI template: replace src/mypackage with your package directory
@@ -799,7 +799,7 @@ Unknown or misspelled flags are never silently ignored. For example, `pydeprecat
 
 Use `pydeprecate all --gate=policy` (since 0.16) for one step and one scan. It fails the build on misconfigured wrappers, chains, expired deprecations, and deprecations scheduled in a way the project does not allow. The console sections and the report's `rule` field tell you which problem you have.
 
-A monorepo passes every package to the same step. The full workflow, with the rules declared once in `[tool.pydeprecate.policy]`, is in the [audit guide](audit.md#enforcing-the-policy-in-ci).
+A monorepo passes every package to the same step. The full workflow, with the rules declared once in `[tool.pydeprecate.policy]`, is in the [audit guide](ci-integration.md#enforcing-the-policy-in-ci).
 
 While bringing an existing codebase into line, follow these steps:
 
@@ -810,7 +810,7 @@ While bringing an existing codebase into line, follow these steps:
 pydeprecate policy src/mypackage --exit-zero
 ```
 
-On GitHub Actions the CLI also ships as a ready-made step, `uses: Borda/pyDeprecate@<tag>`; the step exits with the CLI's own code. See the [GitHub Action](audit.md#github-action) section of the audit guide for every input and output.
+On GitHub Actions the CLI also ships as a ready-made step, `uses: Borda/pyDeprecate@<tag>`; the step exits with the CLI's own code. See the [GitHub Action](ci-integration.md#github-action) section of the audit guide for every input and output.
 
 ## Path formats
 

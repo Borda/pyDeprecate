@@ -92,6 +92,7 @@ nav:
   - Getting Started: getting-started.md
   - Use Cases:
       - Overview: guide/use-cases.md
+      - Lifecycle: guide/lifecycle.md
       - Functions: guide/functions.md
       - Classes: guide/classes.md
       - Attributes: guide/attributes.md
@@ -106,6 +107,7 @@ nav:
       - Testing: guide/testing.md
       - CLI: guide/cli.md
       - void() Helper: guide/void-helper.md
+      - Docs Integration: guide/docs-integration.md
   - Configuration:
       - Customization: guide/customization.md
       - Migration Guide: guide/migration.md

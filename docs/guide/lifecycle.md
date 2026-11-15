@@ -99,7 +99,7 @@ Migration checks passed.
 
 </details>
 
-See [Audit Tools](audit.md) for pytest patterns, warning budgets, and `assert_no_warnings` message matching.
+See [Testing](testing.md) for pytest patterns, warning budgets, and `assert_no_warnings` message matching.
 
 ## 4. Audit in CI
 
@@ -110,7 +110,7 @@ Run the same audits locally and in CI before each release.
 3. Run `pydeprecate policy <package-path>` to enforce your configured grace period and metadata requirements.
 4. Configure pre-commit hooks or the GitHub Action to repeat the checks automatically.
 
-Replace `<package-path>` with your package's source path. See [CLI Reference](cli.md) for arguments and exit codes, and [Audit Tools](audit.md) for pre-commit and Action recipes.
+Replace `<package-path>` with your package's source path. See [CLI Reference](cli.md) for arguments and exit codes, and [CI Integration](ci-integration.md) for pre-commit and Action recipes.
 
 !!! warning "Confirm audit coverage"
 

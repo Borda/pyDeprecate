@@ -37,7 +37,7 @@ jobs:
         uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2
         with:
           # default args: "--verbose --no-progress './**/*.md' './**/*.html' './**/*.rst'"
-          # TODO: drop exclude for stable docs (incl. stable/limitations.html) after the next release
+          # TODO: drop exclude for stable docs (incl. stable/limitations.html and the guide pages split out in 0.16) after the next release
           # the `pkg.py` file URIs are illustrative SARIF locations outside a repository (a doctest and unit tests)
           args: |
             --verbose
@@ -62,5 +62,6 @@ jobs:
             --exclude '^file[:]///(elsewhere|other|D[:]/other)/pkg\.py$'
             --exclude '^https[:]//borda[/]$'
             --exclude 'https://borda\.github\.io/pyDeprecate/stable/limitations\.html'
+            --exclude 'https://borda\.github\.io/pyDeprecate/stable/guide/(audit-policy|ci-integration|testing|attributes|lifecycle|docs-integration)\.html'
             --exclude '^[hH]ttps://github\.com/\$(\.git)?$'
           fail: true

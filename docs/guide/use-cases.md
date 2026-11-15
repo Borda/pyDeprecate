@@ -83,7 +83,7 @@ To include symbols deprecated only with `warnings.deprecated` or `typing_extensi
 | Raise instead of warn (fatal deprecation)     | [Functions → Fatal deprecations](functions.md#fatal-deprecations)                                     |
 | Rename a class, Enum, or dataclass            | [Classes → Class deprecation](classes.md#class-deprecation)                                           |
 | Deprecate a module-level constant or object   | [Classes → Constants and instances](classes.md#constants-and-instances)                               |
-| Deprecate selected class attributes           | [Classes → Selective attributes](classes.md#selective-attribute-deprecation)                          |
+| Deprecate selected class attributes           | [Classes → Selective attributes](attributes.md#selective-attribute-deprecation)                       |
 | Deprecate a `@property`                       | [Properties](properties.md)                                                                           |
 | Deprecate an `async def` function             | [Async → Async functions](async.md#async-functions)                                                   |
 | Deprecate an async generator                  | [Async → Async generators](async.md#async-generators)                                                 |

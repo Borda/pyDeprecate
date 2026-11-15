@@ -86,7 +86,7 @@ Calling `addition(1, 2)` now emits a `FutureWarning` and transparently forwards 
 
 - **Conditional skip:** `skip_if=callable` suppresses deprecation machinery when a runtime condition holds, such as callers adopting a newer dependency. It works on decorators and proxies.
 
-- **CI audit tools:** [`validate_deprecation_expiry()`](guide/audit.md#enforcing-removal-deadlines) catches overdue removals. [`validate_deprecation_policy()`](guide/audit.md#enforcing-a-deprecation-policy) checks your release policy. [`validate_deprecation_chains()`](guide/audit.md#detecting-deprecation-chains) detects double-deprecation chains.
+- **CI audit tools:** [`validate_deprecation_expiry()`](guide/audit-policy.md#enforcing-removal-deadlines) catches overdue removals. [`validate_deprecation_policy()`](guide/audit-policy.md#enforcing-a-deprecation-policy) checks your release policy. [`validate_deprecation_chains()`](guide/audit.md#detecting-deprecation-chains) detects double-deprecation chains.
 
 - **Wrapper validation:** [`find_deprecation_wrappers()`](guide/audit.md#validating-wrapper-configuration) surfaces misconfigured `args_mapping` keys before they silently do nothing.
 
@@ -94,7 +94,7 @@ Calling `addition(1, 2)` now emits a `FutureWarning` and transparently forwards 
 
 - **CLI:** `pydeprecate check src/` scans for misconfigured wrappers and chains. `pydeprecate all src/` also checks expiry and policy, then appends a deprecation table. See [CLI Reference](guide/cli.md).
 
-- **CI integration:** Ready-made [pre-commit hooks](guide/audit.md#pre-commit-integration) and a [GitHub Action](guide/audit.md#github-action) run the checks in CI.
+- **CI integration:** Ready-made [pre-commit hooks](guide/ci-integration.md#pre-commit-integration) and a [GitHub Action](guide/ci-integration.md#github-action) run the checks in CI.
 
 - **Fatal mode:** `as_exception=True` or `deprecate.as_exceptions()` raises `DeprecatedError` instead of warning. Test runs can refuse deprecated calls. See [Fatal deprecations](guide/functions.md#fatal-deprecations).
 

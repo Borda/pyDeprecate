@@ -257,7 +257,7 @@ print(addition(1, 2))  # warns: FutureWarning
 
     Rename `removed_in` to `remove_in`. pyDeprecate defaults to `FutureWarning`. It does not use `current_version` to switch warning classes.
 
-    Use [fatal mode](#turning-the-warning-into-an-error-at-a-chosen-version) or [CI expiry checks](audit.md#enforcing-removal-deadlines) for enforcement. Enable `update_docstring=True` if you need injected notices.
+    Use [fatal mode](#turning-the-warning-into-an-error-at-a-chosen-version) or [CI expiry checks](audit-policy.md#enforcing-removal-deadlines) for enforcement. Enable `update_docstring=True` if you need injected notices.
 
 ## Migrating from `Deprecated`
 
