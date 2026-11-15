@@ -135,8 +135,10 @@ def _pydeprecate_plain_text(markdown: str) -> str:
 
 
 def _pydeprecate_h2_paragraphs(markdown: str) -> list[tuple[str, list[str]]]:
-    """Split Markdown into ``(H2 heading, prose paragraphs)`` pairs, skipping fenced code."""
+    """Collect H3 questions and their paragraphs beneath H2 topics, skipping fenced code and topic introductions."""
     sections: list[tuple[str, list[str]]] = []
+    section: tuple[str, list[str]] | None = None
+    in_topic = False
     fence = ""
     buffer: list[str] = []
     for line in [*markdown.splitlines(), ""]:
@@ -147,21 +149,31 @@ def _pydeprecate_h2_paragraphs(markdown: str) -> list[tuple[str, list[str]]]:
             continue
         if marker:
             fence, line = marker.group(1), ""
-        heading = line.startswith("## ")
+        heading = re.match(r"^(#{1,3}) (.+)$", line)
         if buffer and (heading or not line.strip()):
-            if sections:
-                sections[-1][1].append(" ".join(buffer))
+            if section is not None:
+                section[1].append(" ".join(buffer))
             buffer = []
         if heading:
-            sections.append((line[3:].strip(), []))
-        elif line.strip() and sections:
+            level, title = len(heading.group(1)), heading.group(2).strip()
+            if level < 3:
+                in_topic = level == 2 and title != _PYDEPRECATE_FAQ_CLOSING_HEADING
+                section = None
+            elif in_topic:
+                section = (title, [])
+                sections.append(section)
+        elif line.strip() and section is not None:
             buffer.append(line.strip())
     return sections
 
 
 def _pydeprecate_faq_entries(markdown: str) -> list[dict[str, str]]:
-    """Build the FAQPage questions from the troubleshooting page: each H2 is a question, its first prose paragraph the
-    answer."""
+    """Build FAQPage entries from H3 questions under H2 topics and their first prose answers.
+
+    Topic introductions and the closing help section never become entries. Answer filtering and lead-in continuation
+    follow the troubleshooting page's prose conventions.
+
+    """
     entries: list[dict[str, str]] = []
     for heading, paragraphs in _pydeprecate_h2_paragraphs(markdown):
         if heading == _PYDEPRECATE_FAQ_CLOSING_HEADING:

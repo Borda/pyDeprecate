@@ -1,5 +1,10 @@
 """Tests for deprecation documentation strings."""
 
+from importlib.util import module_from_spec, spec_from_file_location
+from pathlib import Path
+
+import pytest
+
 from tests.collections.docstrings import (
     OldClass,
     OldClassPlain,
@@ -27,6 +32,167 @@ from tests.collections.docstrings import (
     sphinx_args_multiline,
     sphinx_args_removed,
 )
+
+_ROOT = Path(__file__).resolve().parents[2]
+_HOOKS_SPEC = spec_from_file_location("mkdocs_hooks", _ROOT / "docs/mkdocs_hooks.py")
+assert _HOOKS_SPEC is not None
+assert _HOOKS_SPEC.loader is not None
+_HOOKS = module_from_spec(_HOOKS_SPEC)
+_HOOKS_SPEC.loader.exec_module(_HOOKS)
+_pydeprecate_faq_entries = _HOOKS._pydeprecate_faq_entries
+_pydeprecate_plain_text = _HOOKS._pydeprecate_plain_text
+
+
+def _first_question_answers(markdown: str) -> list[str]:
+    """Read each question's opening prose paragraph without including its optional Q label."""
+    answers: list[str] = []
+    awaiting_answer = False
+    for line in markdown.splitlines():
+        if line.startswith("### "):
+            awaiting_answer = True
+        elif line.startswith("## "):
+            awaiting_answer = False
+        elif awaiting_answer and line.strip() and not line.startswith("**Q:**"):
+            # The page's direct-answer contract requires prose before examples, notes, or detail labels.
+            assert not line.startswith(("```", "~~~", "!!!", "<", "|", ">", "-")), line
+            answer = line.removeprefix("**A:** ")
+            assert not answer.endswith(":"), answer
+            answers.append(_pydeprecate_plain_text(answer))
+            awaiting_answer = False
+    return answers
+
+
+class TestTroubleshootingFaq:
+    """Check the troubleshooting page's generated FAQ entries."""
+
+    def test_topics_and_fenced_headings_do_not_become_questions(self) -> None:
+        """Only questions beneath topics contribute FAQ entries.
+
+        Topic introductions, example code, and the closing help section must not become answers or questions in
+        search metadata. Each real question retains its own first prose answer across topic boundaries.
+
+        """
+        markdown = """# Troubleshooting
+
+### Orphan question?
+
+Not beneath a topic.
+
+## Functions
+
+This introduction is not an answer.
+
+### Why does `render` warn?
+
+**Q:** A longer description of the problem.
+
+!!! note
+    This note is not an answer.
+
+```python
+## Fake topic
+### Fake question?
+print("not an answer")
+```
+
+**A:** Use [the replacement](guide/functions.md) and **migrate** `render`.
+
+This later paragraph must not be selected.
+
+### Why does it fail?
+
+**Details**
+
+> Quoted context is not an answer.
+
+- A list is not an answer.
+
+Use a supported target.
+
+## Classes
+
+A different topic introduction.
+
+### Can I subclass it?
+
+Yes, subclass the replacement.
+
+### Still stuck?
+
+Contact the maintainers.
+
+## Still stuck?
+
+Closing help is not an answer.
+"""
+        assert _pydeprecate_faq_entries(markdown) == [
+            {"name": "Why does render warn?", "text": "Use the replacement and migrate render."},
+            {"name": "Why does it fail?", "text": "Use a supported target."},
+            {"name": "Can I subclass it?", "text": "Yes, subclass the replacement."},
+        ]
+
+    def test_missing_answer_does_not_borrow_the_next_topic_intro(self) -> None:
+        """A missing answer fails instead of borrowing unrelated topic prose.
+
+        A maintainer can accidentally leave a question with only an example. The following topic introduction must
+        not hide that omission by becoming the question's structured-data answer.
+
+        """
+        markdown = """## Functions
+
+### Why does it fail?
+
+```python
+print("example only")
+```
+
+## Classes
+
+This is not the previous question's answer.
+"""
+        with pytest.raises(ValueError, match="section 'Why does it fail\\?' has no answer paragraph"):
+            _pydeprecate_faq_entries(markdown)
+
+    def test_answer_leadin_preserves_existing_continuation_rules(self) -> None:
+        """Lead-in answers retain the following prose and discard a dangling colon.
+
+        Existing FAQ answers may introduce a list or example with a colon. Moving questions beneath topics must
+        preserve the continuation rule and its fallback when no following prose exists.
+
+        """
+        markdown = """## Functions
+
+### Which target?
+
+**A:** Choose a target:
+
+- A supported function.
+
+Use its canonical import.
+
+### Which mode?
+
+**A:** Choose one:
+"""
+        assert _pydeprecate_faq_entries(markdown) == [
+            {"name": "Which target?", "text": "Choose a target: Use its canonical import."},
+            {"name": "Which mode?", "text": "Choose one"},
+        ]
+
+    def test_every_page_question_has_an_entry(self) -> None:
+        """Every question on the actual troubleshooting page appears exactly once.
+
+        Grouping the page must preserve every existing question while topic headings and the final help section
+        stay outside the FAQ. This checks the real source alongside the parser's controlled examples.
+
+        """
+        page = _ROOT / "docs" / "troubleshooting.md"
+        markdown = page.read_text(encoding="utf-8")
+        questions = [line[4:].replace("`", "") for line in markdown.splitlines() if line.startswith("### ")]
+        entries = _pydeprecate_faq_entries(markdown)
+        assert len(entries) == len(questions)
+        assert [entry["name"] for entry in entries] == questions
+        assert [entry["text"] for entry in entries] == _first_question_answers(markdown)
 
 
 class TestDeprecationDocstrings:
