@@ -5,11 +5,21 @@ description: Deprecating an entire Python module — in-place warn intercepting 
 
 # Modules
 
-`deprecated_module()` marks an entire Python module as deprecated by replacing its `__class__` with an intercepting wrapper, so every public attribute access on the old module name invokes its `FutureWarning` path. Standard warning filters can suppress repeated display. Three patterns are supported: warn in place without moving any code (Mode 1), redirect all attribute access to a replacement module (Mode 2), and expose a deprecated module name as a package attribute (Mode 3). For deprecating individual functions see [Functions](functions.md); for classes see [Classes](classes.md).
+`deprecated_module()` marks an entire Python module as deprecated by replacing its `__class__` with an intercepting wrapper. Every public attribute access on the old module name invokes its `FutureWarning` path. Standard warning filters can suppress repeated display.
+
+Three patterns are supported:
+
+- Mode 1 warns in place without moving any code.
+- Mode 2 redirects attribute access to a replacement module.
+- Mode 3 exposes a deprecated module name as a package attribute.
+
+For deprecating individual functions see [Functions](functions.md); for classes see [Classes](classes.md).
 
 ## When to use `deprecated_module()`
 
-Reach for `deprecated_module()` when a module is being replaced or renamed and you want every attribute access on the old name to invoke the configured warning path automatically. Place the call at the bottom of the file being deprecated: it reassigns the module's `__class__` to an intercepting wrapper and attaches `__deprecation_config__` metadata so that [`find_deprecation_wrappers()`](audit.md) can discover it.
+Reach for `deprecated_module()` when a module is being replaced or renamed. Every attribute access on the old name invokes the configured warning path automatically.
+
+Place the call at the bottom of the file being deprecated. It reassigns the module's `__class__` to an intercepting wrapper and attaches `__deprecation_config__` metadata. This lets [`find_deprecation_wrappers()`](audit.md) discover it.
 
 ## Mode 1 — in-place warn
 
@@ -46,13 +56,23 @@ deprecated_module(
 )
 ```
 
-`import old_calculator; old_calculator.add(1, 2)` invokes the `FutureWarning` path and returns the result. Every public attribute access — real functions, classes, constants — takes that path because `deprecated_module()` replaces the module's `__class__` with an intercepting wrapper; standard filters can suppress repeated display.
+`import old_calculator; old_calculator.add(1, 2)` invokes the `FutureWarning` path and returns the result. Every public attribute access — real functions, classes, constants — takes that path because `deprecated_module()` replaces the module's `__class__` with an intercepting wrapper. Standard filters can suppress repeated display.
 
-> **Call it at module top level when omitting `name`.** Auto-detection reads the caller frame's `__name__`, which only names the intended module when the call sits directly in the module body. Calling it without `name` from inside a function or class body (e.g. a `_setup_deprecations()` helper) raises `TypeError` — the frame's `__name__` would point at the enclosing module and silently deprecate all of it. Pass `name` explicitly to call from any other scope.
+!!! warning "Call it at module top level when omitting `name`"
+
+    Auto-detection reads the caller frame's `__name__`. This only names the intended module when the call sits directly in the module body.
+
+    Calling without `name` from a function or class body (e.g. a `_setup_deprecations()` helper) raises `TypeError`. The frame's `__name__` would point at the enclosing module and silently deprecate all of it. Pass `name` explicitly to call from any other scope.
 
 ## Mode 2 — redirect to a replacement module
 
-Use this when you rename an entire module. Attribute lookups that are missing from the old module's `__dict__` are forwarded to `new_calculator`, so callers get both a warning and the correct value. Real attributes already defined in the old module (functions, constants) are served from its `__dict__` directly — they warn but are not forwarded. Redirect cycle detection uses context-local state and restores the prior state when the outer lookup finishes. Cyclic redirects raise `AttributeError` rather than recursing indefinitely. Contexts copied during a lookup can resolve the same name again after that lookup finishes, whether it returned a value or raised an exception.
+Use this when you rename an entire module. Attribute lookups missing from the old module's `__dict__` are forwarded to `new_calculator`, so callers get both a warning and the correct value. Real attributes already defined in the old module (functions, constants) are served from its `__dict__` directly; they warn but are not forwarded.
+
+!!! note "Redirect cycles"
+
+    Redirect cycle detection uses context-local state and restores the prior state when the outer lookup finishes. Cyclic redirects raise `AttributeError` rather than recursing indefinitely.
+
+    Contexts copied during a lookup can resolve the same name again after that lookup finishes. This applies whether it returned a value or raised an exception.
 
 ```python
 # phmdoctest:skip — CI template; new_calculator is not installed
@@ -95,7 +115,7 @@ deprecated_module(
 
 ## Mode 3 — parent alias via `deprecated_instance`
 
-When you reorganise a package and want the old sub-module name to remain accessible as an attribute on the parent package, use [`deprecated_instance()`](classes.md#constants-and-instances) in the parent `__init__.py`. This does not require a new API — it reuses the existing proxy mechanism.
+When reorganising a package, use [`deprecated_instance()`](classes.md#constants-and-instances) in the parent `__init__.py` to keep the old sub-module name accessible as a parent-package attribute. This does not require a new API; it reuses the existing proxy mechanism.
 
 ```python
 # phmdoctest:skip — CI template; my_package is not installed
@@ -118,7 +138,9 @@ old_utils = deprecated_instance(
 
 ## Limiting warning volume with `num_warns`
 
-By default `deprecated_module()` delivers a warning on **every** public attribute access, matching its behavior before `num_warns` existed. Standard warning filters can still suppress repeated *display* at the same location. Pass `num_warns` to cap deliveries — the same semantics as `@deprecated`'s `num_warns`, but defaulting to `-1` (unlimited) instead of `1` until v1.0, when the default becomes `1` like everywhere else (see the box below):
+By default `deprecated_module()` delivers a warning on **every** public attribute access, matching its behavior before `num_warns` existed. Standard warning filters can still suppress repeated *display* at the same location.
+
+Pass `num_warns` to cap deliveries with the same semantics as `@deprecated`'s `num_warns`. The default is `-1` (unlimited) instead of `1` until v1.0. It then becomes `1` like everywhere else (see the box below).
 
 ```python
 # phmdoctest:skip — old_calculator.py in-place warn template, budgeted variant
@@ -131,15 +153,27 @@ deprecated_module(
 )
 ```
 
-`0` never delivers a warning, a positive `N` delivers exactly `N`, and `-1` (the default) delivers on every access. The counter is one budget shared across every attribute name on the module — there is no per-attribute counter the way `deprecated_class`'s `attrs_mapping` gets one. `-1` avoids budget locking but still performs metadata lookup and warning handling. Use a finite budget for a worker service whose custom stream or warning filter would otherwise record repeated accesses.
+| `num_warns`        | Deliveries                        |
+| ------------------ | --------------------------------- |
+| `0`                | It never delivers a warning.      |
+| A positive `N`     | It delivers exactly `N` warnings. |
+| `-1` (the default) | It delivers on every access.      |
+
+The counter is one budget shared across every attribute name on the module. There is no per-attribute counter the way `deprecated_class`'s `attrs_mapping` gets one.
+
+`-1` avoids budget locking but still performs metadata lookup and warning handling. Use a finite budget for a worker service whose custom stream or warning filter would otherwise record repeated accesses.
 
 !!! warning "`stream=None` and the `num_warns` default change in v1.0"
 
-    Omit `stream` to deliver the module warning through `warnings.warn` (the default; `help(deprecated_module)` shows it as `<warnings.warn>`). An explicit `stream=None` does the same today, but emits a `FutureWarning` at the `deprecated_module(...)` call: in v1.0 `stream=None` will silence the module warning, as it already does for `@deprecated`, `deprecated_class` and `deprecated_instance`. In the same release the `num_warns` default changes from `-1` to `1`; pass `num_warns=-1` explicitly to keep a warning on every access.
+    Omit `stream` to deliver the module warning through `warnings.warn` (the default; `help(deprecated_module)` shows it as `<warnings.warn>`). An explicit `stream=None` does the same today, but emits a `FutureWarning` at the `deprecated_module(...)` call.
+
+    In v1.0 `stream=None` will silence the module warning, as it already does for `@deprecated`, `deprecated_class` and `deprecated_instance`. In the same release the `num_warns` default changes from `-1` to `1`. Pass `num_warns=-1` explicitly to keep a warning on every access.
 
 ## Star imports also warn
 
-Star imports (`from old_calculator import *`) still trigger the deprecation warning. CPython's `IMPORT_STAR` bytecode calls `getattr(module, name)` for each public name being pulled in, and that call routes through the same `__getattribute__` interception installed by `deprecated_module()` — so a `FutureWarning` fires once per pulled-in public name, exactly as it would for `old_calculator.add(1, 2)`. This closes a gap that a PEP 562 module-level `__getattr__` hook would otherwise leave open, since `__getattr__` only fires for missing names and star imports never trigger it.
+Star imports (`from old_calculator import *`) still trigger the deprecation warning. CPython's `IMPORT_STAR` bytecode calls `getattr(module, name)` for each public name being pulled in. That call routes through the same `__getattribute__` interception installed by `deprecated_module()`.
+
+A `FutureWarning` therefore fires once per pulled-in public name, exactly as it would for `old_calculator.add(1, 2)`. This closes a gap that a PEP 562 module-level `__getattr__` hook would otherwise leave open. That hook only fires for missing names, and star imports never trigger it.
 
 ## Audit integration
 
@@ -158,15 +192,19 @@ module_items = [r for r in deprecated_items if r.api_type == "module"]
 
 `deprecated_module(..., as_exception=True)` turns every public attribute access on the module into a raised `DeprecatedError` — see [Fatal deprecations](functions.md#fatal-deprecations) for the full contract, including the process-wide `DEPRECATE_AS_EXCEPTIONS` switch. It ignores `num_warns` (every access raises, not just the first) and does not depend on `stream`.
 
-A module is the broadest surface this feature covers, so expect the blast radius to match: any tool that walks module attributes stops at a fatal module rather than skipping it — pytest collection, Sphinx autodoc, `pickle`, `copy`. pyDeprecate's own audit is unaffected, because `find_deprecation_wrappers()` and the `pydeprecate` CLI read the module's `__dict__` rather than going through attribute access, so a fatal module still appears in discovery and reports like any other.
+!!! warning "Tools that walk module attributes"
+
+    A module is the broadest surface this feature covers, so expect the blast radius to match. Tools that walk module attributes stop at a fatal module rather than skipping it. This includes pytest collection, Sphinx autodoc, `pickle`, and `copy`.
+
+pyDeprecate's own audit is unaffected. `find_deprecation_wrappers()` and the `pydeprecate` CLI read the module's `__dict__` rather than going through attribute access. A fatal module therefore still appears in discovery and reports like any other.
 
 ## See also
 
-- [Use Cases overview](use-cases.md) — start here for a guided tour of all deprecation patterns
-- [Functions](functions.md) — deprecating individual functions and methods
-- [Classes](classes.md) — class, Enum, dataclass, and instance deprecation
-- [Audit Tools](audit.md) — enforce removal deadlines and detect deprecation chains in CI
-- [Troubleshooting](../troubleshooting.md) — common errors and fixes
+- Start with [Use Cases overview](use-cases.md) for a guided tour of all deprecation patterns.
+- [Functions](functions.md) covers deprecating individual functions and methods.
+- [Classes](classes.md) covers class, Enum, dataclass, and instance deprecation.
+- Use [Audit Tools](audit.md) to enforce removal deadlines and detect deprecation chains in CI.
+- [Troubleshooting](../troubleshooting.md) covers common errors and fixes.
 
 ______________________________________________________________________
 

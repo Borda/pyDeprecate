@@ -13,7 +13,9 @@ v0.8 introduced `TargetMode` so deprecation intent no longer depends on the lega
 
 ### `target=None` → `TargetMode.NOTIFY`
 
-`target=None` means "warn, then run the decorated body". It still works, but emits `FutureWarning` at decoration time. Omit `target` for the shortest current form; the `TargetMode.AUTO` default resolves to `TargetMode.NOTIFY` when no mapping is present. Use `target=TargetMode.NOTIFY` when being explicit helps the reader.
+`target=None` means "warn, then run the decorated body". It still works, but emits `FutureWarning` at decoration time.
+
+Omit `target` for the shortest current form; the `TargetMode.AUTO` default resolves to `TargetMode.NOTIFY` when no mapping is present. Use `target=TargetMode.NOTIFY` when being explicit helps the reader.
 
 ```diff
 - # DEPRECATED API — legacy sentinel
@@ -88,7 +90,13 @@ print(configure_cache(cache_ttl=45))
 
 ### `target=False` → `TargetMode.NOTIFY` or a callable target
 
-`target=False` was never a valid target. On a callable it now emits `UserWarning` at decoration time and behaves like warn-only mode. `deprecated_class` treats it like an omitted target while marking the configuration as misconfigured, so a supplied mapping may still be inferred; `deprecated_instance` raises `TypeError`; do not rely on either compatibility path. Choose the behavior you actually need:
+`target=False` was never a valid target. On a callable it now emits `UserWarning` at decoration time and behaves like warn-only mode.
+
+!!! warning "Proxy compatibility paths"
+
+    `deprecated_class` treats it like an omitted target while marking the configuration as misconfigured, so a supplied mapping may still be inferred. `deprecated_instance` raises `TypeError`. Do not rely on either compatibility path.
+
+Choose the behavior you actually need:
 
 ```diff
 - # DEPRECATED API — invalid legacy sentinel
@@ -180,7 +188,10 @@ An explicitly supplied `NOTIFY` is never rewritten: its mapping stays inert. Inf
 
 ### `DeprecationWrapperInfo` field renames
 
-Two audit fields were renamed in v0.8. The old names still work and will be removed in v1.0: reading the old properties emits a `FutureWarning` (and raises `DeprecatedError` in fatal mode), while passing the old names as constructor or `dataclasses.replace()` keywords emits a `DeprecationWarning`:
+Two audit fields were renamed in v0.8. The old names still work and will be removed in v1.0.
+
+- Reading the old properties emits a `FutureWarning` and raises `DeprecatedError` in fatal mode.
+- Passing the old names as constructor or `dataclasses.replace()` keywords emits a `DeprecationWarning`.
 
 ```diff
 - # DEPRECATED API — compatibility properties
@@ -233,7 +244,9 @@ Find the section matching the version you are upgrading **from**. Each section a
 2. Review changed warnings, errors, audit scope, and proxy behavior under **Behavior changes**.
 3. Run your suite with `FutureWarning` promoted to an error, then run your pyDeprecate audit/expiry CI checks.
 
-This guide works at **minor-line granularity**. `v0.N.x` means the latest available bugfix release in that feature line. The paths assume your dependency constraint allows bugfix updates and that you update within `v0.N.x` before crossing to the next feature line. Patch and post releases are folded into their minor interval rather than receiving separate sections.
+This guide works at **minor-line granularity**. `v0.N.x` means the latest available bugfix release in that feature line. The paths assume your dependency constraint allows bugfix updates and that you update within `v0.N.x` before crossing to the next feature line.
+
+Patch and post releases are folded into their minor interval rather than receiving separate sections.
 
 Releases with no migration work are skipped. Where a later release superseded an intermediate behavior, the section describes the final v0.15.x development behavior.
 

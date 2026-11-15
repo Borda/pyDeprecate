@@ -9,7 +9,14 @@ This page covers deprecation of `@property` and `@cached_property` descriptors: 
 
 ## Properties and cached properties
 
-`@deprecated` works with `@property` and `@cached_property`. The decorator only adds a `FutureWarning` at access time — it does **not** forward reads or writes to another property. For a getter-only property, either decorator order is valid. To add a warning to all three accessors (`fget`, `fset`, `fdel`) so that read, write, **and** delete each fire `FutureWarning`, place `@deprecated` on the **outside** (`@deprecated @property` order, or explicit `deprecated(...)(property(fget, fset, fdel))`). The inner-first order (`@property @deprecated`) only adds a warning to `fget` — apply `@deprecated` to setter and deleter separately if you also need them to warn.
+`@deprecated` works with `@property` and `@cached_property`. The decorator only adds a `FutureWarning` at access time; it does **not** forward reads or writes to another property.
+
+| Order                                                                                     | Accessors that warn                                                                             |
+| ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Outer: `@deprecated @property`, or explicit `deprecated(...)(property(fget, fset, fdel))` | All three accessors (`fget`, `fset`, `fdel`) warn on read, write, **and** delete.               |
+| Inner-first: `@property @deprecated`                                                      | Only `fget` warns; apply `@deprecated` to setter and deleter separately if they must also warn. |
+
+For a getter-only property, either decorator order is valid.
 
 ```python
 from functools import cached_property
@@ -41,7 +48,14 @@ print(Config().timeout)
 
 </details>
 
-The `FutureWarning` fires on **attribute access** (`obj.timeout`), not on a call. For `@cached_property`, the warning fires on **first access only** — subsequent accesses return the cached value without emitting another warning. The cache is filled after the first read, so later reads of the same object never reach pyDeprecate and no `num_warns` value can raise the count. With `num_warns=-1` each new object warns once, on its first access; the default `num_warns=1` budget is shared by all objects, so only the first object to read the property warns.
+The `FutureWarning` fires on **attribute access** (`obj.timeout`), not on a call.
+
+!!! note "Cached properties warn on first access only"
+
+    For `@cached_property`, subsequent accesses return the cached value without emitting another warning. The cache is filled after the first read. Later reads of the same object never reach pyDeprecate, so no `num_warns` value can raise the count.
+
+    - With `num_warns=-1`, each new object warns once, on its first access.
+    - The default `num_warns=1` budget is shared by all objects, so only the first object to read the property warns.
 
 !!! tip "Decorator order for getter-only properties"
 
@@ -130,7 +144,9 @@ class Config:
 
 ### Strict mode: `from deprecate import property`
 
-The inner order `@property @deprecated` wraps only `fget`. If you later add a setter or deleter with `@value.setter` / `@value.deleter`, those accessors are rebuilt from the plain `property` base and are **silently unprotected** — writes and deletes never warn. This is easy to introduce by habit, because the standard library puts `@property` outermost.
+The inner order `@property @deprecated` wraps only `fget`. If you later add a setter or deleter with `@value.setter` / `@value.deleter`, those accessors are rebuilt from the plain `property` base. They are **silently unprotected**: writes and deletes never warn.
+
+This is easy to introduce by habit, because the standard library puts `@property` outermost.
 
 To catch this at definition time, import the strict `property` replacement. It raises `TypeError` the moment a getter already carrying `@deprecated` metadata is handed to it — before any instance is created:
 
@@ -171,7 +187,9 @@ The strict `property` is a subclass of the builtin, so `isinstance(obj, property
 
 !!! tip "Auditing existing code: the `inner_order_property` flag"
 
-    Even without the strict import, `find_deprecation_wrappers` flags every inner-order `@property`: each `DeprecationWrapperInfo` carries `inner_order_property=True` when the wrapper is a plain `property` whose `fget` is deprecation-wrapped. The flag fires for the getter-only shape too, because the canonical form is the outer order. CI pipelines can reject any result with this flag set to eliminate the silent write/delete gap across a whole package. See the [Audit guide](audit.md) for the full CI integration pattern.
+    Even without the strict import, `find_deprecation_wrappers` flags every inner-order `@property`. Each `DeprecationWrapperInfo` carries `inner_order_property=True` when the wrapper is a plain `property` whose `fget` is deprecation-wrapped. The flag fires for the getter-only shape too, because the canonical form is the outer order.
+
+    CI pipelines can reject any result with this flag set to eliminate the silent write/delete gap across a whole package. See the [Audit guide](audit.md) for the full CI integration pattern.
 
 ### Deprecated property alias on a dataclass
 
@@ -261,13 +279,13 @@ The same pattern works on regular (non-dataclass) classes — replace field acce
 
 ## See also
 
-- [Use Cases overview](use-cases.md) — start here for a guided tour of all deprecation patterns
-- [Functions](functions.md) — function and method deprecation patterns
-- [Classes](classes.md) — class, Enum, dataclass, and instance deprecation
-- [Async](async.md) — async functions and async generators
-- [Advanced](advanced.md) — class/static methods and generator functions
-- [Audit Tools](audit.md) — enforce removal deadlines in CI
-- [Troubleshooting](../troubleshooting.md) — common errors and fixes
+- Start with [Use Cases overview](use-cases.md) for a guided tour of all deprecation patterns.
+- [Functions](functions.md) covers function and method deprecation patterns.
+- [Classes](classes.md) covers class, Enum, dataclass, and instance deprecation.
+- [Async](async.md) covers async functions and async generators.
+- [Advanced](advanced.md) covers class/static methods and generator functions.
+- Use [Audit Tools](audit.md) to enforce removal deadlines in CI.
+- [Troubleshooting](../troubleshooting.md) covers common errors and fixes.
 
 ______________________________________________________________________
 

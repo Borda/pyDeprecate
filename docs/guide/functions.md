@@ -5,11 +5,24 @@ description: Deprecating Python functions and methods — simple forwarding, arg
 
 # Functions
 
-This page covers all deprecation patterns for Python functions and methods: forwarding to a replacement, renaming arguments, emitting a notice with no replacement, remapping arguments within the same function, stacking multiple decorators, and conditional suppression. For class deprecation see [Classes](classes.md); for async functions see [Async](async.md).
+This page covers these deprecation patterns for Python functions and methods:
+
+- Forward calls to a replacement.
+- Rename arguments.
+- Emit a notice with no replacement.
+- Remap arguments within the same function.
+- Stack multiple decorators.
+- Suppress deprecations conditionally.
+
+For class deprecation see [Classes](classes.md); for async functions see [Async](async.md).
 
 !!! note "`@deprecated` vs. `deprecated_callable`"
 
-    `@deprecated` is the friendly front door: applied to a function, method, or other callable/descriptor it behaves exactly as documented on this page. Applied to a class instead, it dispatches to [`deprecated_class`](classes.md) (with a one-time informational notice) rather than raising an error. If you want a strict, callable-only form that rejects a class up front at decoration time — for example at a call site meant to enforce "only functions here" — use `deprecated_callable()`: it shares every parameter with `@deprecated` and raises `TypeError` immediately when applied to a class.
+    `@deprecated` is the friendly front door. Applied to a function, method, or other callable/descriptor, it behaves exactly as documented on this page.
+
+    Applied to a class, it dispatches to [`deprecated_class`](classes.md) with a one-time informational notice rather than raising an error.
+
+    Use `deprecated_callable()` for a strict, callable-only form, for example to enforce "only functions here". It shares every parameter with `@deprecated` and raises `TypeError` immediately when applied to a class at decoration time.
 
 ## Simple function forwarding
 
@@ -17,7 +30,9 @@ This page covers all deprecation patterns for Python functions and methods: forw
 
 !!! danger "Body is dead code when `target=<callable>`"
 
-    When `target` is set to a callable, pyDeprecate intercepts every call **before** the function body runs — the body is dead code under normal forwarding. **Exception**: if you also use `skip_if` and it evaluates `True` at call time, the source body executes as a fallback. In that case keep a working body; otherwise `skip_if=True` calls silently return `None`.
+    When `target` is a callable, pyDeprecate intercepts every call **before** the function body runs. The body is dead code under normal forwarding.
+
+    **Exception**: if you also use `skip_if` and it evaluates `True` at call time, the source body executes as a fallback. In that case keep a working body; otherwise `skip_if=True` calls silently return `None`.
 
     Do **not** call the target from inside the body:
 
@@ -41,9 +56,27 @@ This page covers all deprecation patterns for Python functions and methods: forw
         return void(val)  # or: pass  or: """Original function description."""
     ```
 
-Apply `@deprecated(target=<callable>)` to the old name and pyDeprecate forwards every call (positional and keyword arguments included) to the new function. Under normal forwarding the body is dead code, so leave it empty or put a docstring there (see also [void() helper](void-helper.md) for a null-forwarding idiom). The one exception is `skip_if=True` at call time — see the danger admonition above — where the source body executes as a fallback; keep a working body when combining `target=<callable>` with `skip_if`.
+Apply `@deprecated(target=<callable>)` to the old name. pyDeprecate forwards every call, including positional and keyword arguments, to the new function.
 
-The warning fires when the deprecated function is **called** (for an `async def` function, when the coroutine is **awaited**; for a generator or async generator function, on the first `next()` / `async for` step — see [Advanced](advanced.md) and [Async](async.md)), not when it is defined or imported, so importing a module that merely defines deprecated functions stays silent. The one exception is a deprecated function that is itself used as a decorator: applying it with `@` calls it at the `def` statement, so it warns at definition time — see [this troubleshooting answer](../troubleshooting.md#my-deprecated-wrappers-warning-fires-when-i-define-a-function-not-when-i-call-it) and [issue #96](https://github.com/Borda/pyDeprecate/issues/96).
+Under normal forwarding the body is dead code, so leave it empty or put a docstring there. See also [void() helper](void-helper.md) for a null-forwarding idiom.
+
+!!! warning "Keep a fallback body with `skip_if`"
+
+    The one exception is `skip_if=True` at call time, when the source body executes as a fallback. Keep a working body when combining `target=<callable>` with `skip_if`; see the danger admonition above.
+
+The warning fires when the deprecated function is used:
+
+| Function kind                         | Warning timing                                                                               |
+| ------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Regular function                      | When the function is **called**.                                                             |
+| `async def` function                  | When the coroutine is **awaited**.                                                           |
+| Generator or async generator function | On the first `next()` / `async for` step; see [Advanced](advanced.md) and [Async](async.md). |
+
+Defining or importing the function does not warn. Importing a module that merely defines deprecated functions therefore stays silent.
+
+!!! note "Deprecated decorators warn at definition time"
+
+    A deprecated function used as a decorator is the one exception. Applying it with `@` calls it at the `def` statement, so it warns at definition time. See [this troubleshooting answer](../troubleshooting.md#my-deprecated-wrappers-warning-fires-when-i-define-a-function-not-when-i-call-it) and [issue #96](https://github.com/Borda/pyDeprecate/issues/96).
 
 ```python
 # NEW/FUTURE API — renamed to be more explicit about what it computes
@@ -87,7 +120,7 @@ print(calculate(1, 2))
 
 </details>
 
-If the deprecated name already exists as a callable (for example, imported from another package), apply `deprecated()` directly as a wrapper call instead of using decorator syntax. This works on any callable, including ones you do not control.
+If the deprecated name already exists as a callable, apply `deprecated()` directly as a wrapper call instead of using decorator syntax. The callable might be imported from another package. This works on any callable, including ones you do not control.
 
 ```python
 from deprecate import deprecated
@@ -124,9 +157,22 @@ print(calculate(1, 2))
 
 ### Partial and callable-instance targets
 
-`target` accepts any callable, not only a named function or class: a `functools.partial` that presets some arguments, or an instance with `__call__`. The warning names what a caller can import — the function or class a partial wraps (innermost, for a nested partial), or the class of a callable instance. `deprecated_class` accepts a partial target too, for example `partial(NewWidget, theme="dark")`.
+`target` accepts any callable, including a named function, a class, a `functools.partial` that presets arguments, or an instance with `__call__`.
 
-A keyword the partial binds is the replacement's intended value, so the source's own default for that argument is not forwarded over it. Per argument the precedence is: a value the caller passes (by keyword or by position) > the keyword the partial binds > the source default.
+The warning names what a caller can import:
+
+- For a partial, it names the wrapped function or class, using the innermost one for a nested partial.
+- For a callable instance, it names the instance's class.
+
+`deprecated_class` accepts a partial target too, for example `partial(NewWidget, theme="dark")`.
+
+A keyword the partial binds is the replacement's intended value, so the source's own default for that argument is not forwarded over it.
+
+Per argument, values take precedence in this order:
+
+1. A value the caller passes, by keyword or by position, takes priority.
+2. The keyword the partial binds takes priority over the source default.
+3. The source default applies last.
 
 ```python
 from functools import partial
@@ -161,14 +207,17 @@ print(round_price(3.14159, digits=3))
 
 The first call gets the partial's `digits=2`, not the source default `digits=4`; the second call's explicit `digits=3` wins over both. The warning names the function the partial wraps: `` The `round_price` was deprecated since v0.5 in favor of `your_module.round_amount`. … ``.
 
-Two limits apply:
+!!! warning "Partial target and source limits"
 
-- **Positional arguments bound by a partial are not supported.** pyDeprecate forwards arguments by name, and a slot the partial binds positionally is no longer a parameter of the partial, so with `partial(round_amount, 3.14159)` the first call raises `` TypeError: Failed mapping of `round_price`, arguments not accepted by target: ['amount'] ``. Bind keywords only (`partial(round_amount, digits=2)`).
-- **A `functools.partial`, `partialmethod` or `singledispatchmethod` cannot be the decorated source.** None of them has a function body for the wrapper to take over, so `@deprecated` raises `TypeError` naming the type. Wrap the alias in a plain `def` that calls it and decorate that function instead.
+    **Positional arguments bound by a partial are not supported.** pyDeprecate forwards arguments by name. A slot the partial binds positionally is no longer a parameter of the partial.
+
+    With `partial(round_amount, 3.14159)`, the first call therefore raises `` TypeError: Failed mapping of `round_price`, arguments not accepted by target: ['amount'] ``. Bind keywords only (`partial(round_amount, digits=2)`).
+
+    **A `functools.partial`, `partialmethod` or `singledispatchmethod` cannot be the decorated source.** None has a function body for the wrapper to take over, so `@deprecated` raises `TypeError` naming the type. Wrap the alias in a plain `def` that calls it and decorate that function instead.
 
 ## Argument renaming and mapping
 
-Use `args_mapping` when the new function accepts the same arguments under different names. The decorator translates old parameter names to new ones at call time, so callers can keep passing the old names during the deprecation window without any manual mapping code.
+Use `args_mapping` when the new function accepts the same arguments under different names. The decorator translates old parameter names to new ones at call time. Callers can keep passing the old names during the deprecation window without any manual mapping code.
 
 ```python
 import logging
@@ -204,7 +253,9 @@ print(depr_accuracy([1, 0, 1, 2], [0, 1, 1, 2], 1.23))
 
 !!! warning "Passing both old and new argument names at once"
 
-    If a caller supplies both the deprecated name and its replacement in the same call (e.g. `fn(val=5, new_val=6)`), the explicit new-name value always wins. The remapped old-name value is silently discarded. To make this visible, pyDeprecate also emits a `UserWarning` alongside the regular `FutureWarning`:
+    If a caller supplies both the deprecated name and its replacement in one call, the explicit new-name value always wins. For example, this applies to `fn(val=5, new_val=6)`. The remapped old-name value is silently discarded.
+
+    To make this visible, pyDeprecate also emits a `UserWarning` alongside the regular `FutureWarning`:
 
     ```
     UserWarning: Both `val` (deprecated) and `new_val` were supplied to `fn()`; `val` is ignored.
@@ -218,9 +269,17 @@ print(depr_accuracy([1, 0, 1, 2], [0, 1, 1, 2], 1.23))
 
 !!! warning "The function body still executes with `TargetMode.NOTIFY` — keep a working implementation"
 
-    Unlike `target=<callable>` (where the body is **dead code** under normal forwarding, but still executes as a fallback when `skip_if=True` at call time), `TargetMode.NOTIFY` runs the original function body after emitting the deprecation notice. You **must** keep a working implementation in the function body. An empty body (`pass`) will cause the function to return `None` instead of the intended value (the deprecation warning still fires).
+    `TargetMode.NOTIFY` runs the original function body after emitting the deprecation notice. You **must** keep a working implementation in the function body. An empty body (`pass`) returns `None` instead of the intended value, although the deprecation warning still fires.
 
-Use warn-only mode when a function is going away but has no replacement yet. The decorator emits a deprecation notice and then runs the function body normally: the source receives the caller's arguments unchanged, so a `functools.singledispatch` function or a source with a custom `__signature__` dispatches exactly as it does undecorated. An invalid call, such as a value passed both positionally and by keyword or a positional-only parameter passed by keyword, raises the same `TypeError` the undecorated function would, after the deprecation notice. This is the right choice when callers need to update their own code, not switch to a different function.
+    With `target=<callable>`, the body is **dead code** under normal forwarding. It still executes as a fallback when `skip_if=True` at call time.
+
+Use warn-only mode when a function is going away but has no replacement yet. This is the right choice when callers need to update their own code, not switch to a different function.
+
+The decorator emits a deprecation notice and then runs the function body normally. The source receives the caller's arguments unchanged. A `functools.singledispatch` function or a source with a custom `__signature__` therefore dispatches exactly as it does undecorated.
+
+!!! note "Invalid calls keep their original errors"
+
+    An invalid call raises the same `TypeError` the undecorated function would, after the deprecation notice. Examples include a value passed both positionally and by keyword, or a positional-only parameter passed by keyword.
 
 Prefer spelling out `target=TargetMode.NOTIFY` — it makes the warn-only intent explicit at the call site. If you omit `target`, the `TargetMode.AUTO` default resolves to `TargetMode.NOTIFY` when no `args_mapping` is given, so this shorter form is equivalent:
 
@@ -252,7 +311,13 @@ print(my_sum(1, 2))
 
 ![Rename an argument: rename the parameter, decorate with ARGS_REMAP, then a call with the old name warns and the value is remapped](../assets/images/pydeprecate-case-argument.svg)
 
-Use `TargetMode.ARGS_REMAP` to rename or drop an argument within the same function. The decorator remaps the old argument name to the new one before the body runs, so your implementation only needs the new name. This is the right pattern when refactoring a signature without moving the function. Pass `target=TargetMode.ARGS_REMAP` explicitly alongside `args_mapping` — the recommended, self-documenting form. (On `@deprecated`, omitting `target` also works: a bare `args_mapping` auto-resolves via the `TargetMode.AUTO` default; the strict `deprecated_callable()` form always requires the explicit `target`.)
+Use `TargetMode.ARGS_REMAP` to rename or drop an argument within the same function. The decorator remaps the old argument name before the body runs, so your implementation only needs the new name. This is the right pattern when refactoring a signature without moving the function.
+
+Pass `target=TargetMode.ARGS_REMAP` explicitly alongside `args_mapping` for the recommended, self-documenting form.
+
+!!! note "Omitting `target`"
+
+    On `@deprecated`, omitting `target` also works: a bare `args_mapping` auto-resolves via the `TargetMode.AUTO` default. The strict `deprecated_callable()` form always requires the explicit `target`.
 
 ```python
 from deprecate import TargetMode, deprecated
@@ -319,7 +384,11 @@ print(my_func(value=42, num_workers=4))
 
 </details>
 
-Only `None` drops an argument. A mapped value of `""` (empty string) keeps the argument under its old name: it is passed through to the function unchanged, and the deprecation notice still fires. `deprecated_class` proxies have always behaved this way; `@deprecated` now matches them. This changed from 0.14, where `@deprecated` dropped an argument mapped to `""` just like one mapped to `None`. If you relied on that, map the argument to `None` instead.
+Only `None` drops an argument. A mapped value of `""` (empty string) keeps the argument under its old name. It is passed through to the function unchanged, and the deprecation notice still fires.
+
+!!! note "Changed from 0.14"
+
+    `deprecated_class` proxies have always behaved this way; `@deprecated` now matches them. This changed from 0.14, where `@deprecated` dropped an argument mapped to `""` just like one mapped to `None`. If you relied on that, map the argument to `None` instead.
 
 ## `TargetMode.NOTIFY` vs `TargetMode.ARGS_REMAP` vs `target=<callable>` — key differences
 
@@ -329,7 +398,16 @@ These modes differ in whether the function body runs, whether a warning fires, a
 
     `TargetMode.NOTIFY` replaces the old `target=None` sentinel and `TargetMode.ARGS_REMAP` replaces the old `target=True` sentinel. The old forms still work but emit a `FutureWarning` at decoration time.
 
-    On `@deprecated`, `target` defaults to `TargetMode.AUTO` — a fallback that resolves an *omitted* `target` at decoration time (a non-empty `args_mapping` → `ARGS_REMAP`, otherwise `NOTIFY`; an empty `{}` counts as no mapping). The resolved mode — never `AUTO` itself — is stored in `DeprecationConfig`. Prefer passing the explicit mode so intent is visible at the call site. The front door accepts `target=TargetMode.AUTO` written out — it is identical to omitting `target` — but it conveys nothing extra; the strict `deprecated_callable()` (default `TargetMode.NOTIFY`) raises `TypeError` if you try.
+    On `@deprecated`, `target` defaults to `TargetMode.AUTO`. This fallback resolves an *omitted* `target` at decoration time:
+
+    | Mapping                             | Resolved mode |
+    | ----------------------------------- | ------------- |
+    | Non-empty `args_mapping`            | `ARGS_REMAP`  |
+    | No mapping, including an empty `{}` | `NOTIFY`      |
+
+    The resolved mode, never `AUTO` itself, is stored in `DeprecationConfig`. Prefer passing the explicit mode so intent is visible at the call site.
+
+    The front door accepts `target=TargetMode.AUTO` written out. It is identical to omitting `target` and conveys nothing extra. The strict `deprecated_callable()`, whose default is `TargetMode.NOTIFY`, raises `TypeError` if you try.
 
 ### Behaviour comparison
 
@@ -345,13 +423,24 @@ These modes differ in whether the function body runs, whether a warning fires, a
 | **`skip_if` effect**              | `⊛`                                                                                                       | `⊛`                                                                        | `⊛`                                                                                                                                                                                            |
 | **`stream=None` effect**          | `⊘` body still runs                                                                                       | `⊘` remapping still runs                                                   | `⊘` forwarding still runs                                                                                                                                                                      |
 
-**Legend:** `✓` applied · `✗` not applied · `⚠` ignored with `UserWarning` (will be `TypeError` in v1.0) · `⊘` warning suppressed, processing continues · `⊛` `skip_if` bypasses everything · `—` not applicable
+**Legend:**
+
+| Symbol | Meaning                                                                     |
+| ------ | --------------------------------------------------------------------------- |
+| `✓`    | The option is applied.                                                      |
+| `✗`    | The option is not applied.                                                  |
+| `⚠`    | The option is ignored with `UserWarning`; this will be `TypeError` in v1.0. |
+| `⊘`    | The warning is suppressed, but processing continues.                        |
+| `⊛`    | `skip_if` bypasses everything.                                              |
+| `—`    | The option is not applicable.                                               |
 
 ### When to use which
 
-- **`TargetMode.NOTIFY`** — function is going away with no replacement. Callers must remove the call. Warning fires up to `num_warns` times (default: once) so each caller is notified on first use.
-- **`target=<callable>`** — function is replaced by another callable. The source body never runs under normal forwarding (exception: `skip_if=True` bypasses forwarding and executes the source body as fallback). Use `args_mapping` to rename arguments and `args_extra` to inject new required args.
-- **`TargetMode.ARGS_REMAP` + `args_mapping`** — function stays but its signature is changing. Warning fires only when the old argument name is actually used, so callers who already migrated see no noise.
+| Mode                                     | When to use it                                                                                                                     | Behaviour                                                                                                                                                |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TargetMode.NOTIFY`                      | The function is going away with no replacement; callers must remove the call.                                                      | The warning fires up to `num_warns` times (default: once), so each caller is notified on first use.                                                      |
+| `target=<callable>`                      | The function is replaced by another callable. Use `args_mapping` to rename arguments and `args_extra` to inject new required args. | The source body never runs under normal forwarding. The exception is `skip_if=True`, which bypasses forwarding and executes the source body as fallback. |
+| `TargetMode.ARGS_REMAP` + `args_mapping` | The function stays but its signature is changing.                                                                                  | The warning fires only when the old argument name is actually used. Callers who already migrated see no noise.                                           |
 
 ### Example — notice the difference in warning behaviour
 
@@ -378,7 +467,12 @@ renamed_arg(val=1)  # warns: FutureWarning — "renamed_arg uses deprecated argu
 
 !!! danger "`target=True` (or `TargetMode.ARGS_REMAP`) without `args_mapping` is a misconfiguration"
 
-    As of v0.8, `target=True` is a deprecated sentinel for `TargetMode.ARGS_REMAP`. Using either without `args_mapping` emits construction-time warnings: a `FutureWarning` for the legacy sentinel, and a `UserWarning` because `ARGS_REMAP` requires `args_mapping` to have any effect. This will become a `TypeError` in v1.0. If your intent is to warn callers with no forwarding or remapping, use `TargetMode.NOTIFY` instead.
+    As of v0.8, `target=True` is a deprecated sentinel for `TargetMode.ARGS_REMAP`. Using either without `args_mapping` emits construction-time warnings:
+
+    - The legacy sentinel emits a `FutureWarning`.
+    - `ARGS_REMAP` emits a `UserWarning` because it requires `args_mapping` to have any effect.
+
+    This will become a `TypeError` in v1.0. If your intent is to warn callers with no forwarding or remapping, use `TargetMode.NOTIFY` instead.
 
 ## Stacked deprecation decorators
 
@@ -431,7 +525,12 @@ print(any_pow(2, 3))
 
 ### Pattern 2 — lifecycle migration (ARGS_REMAP + NOTIFY)
 
-The most common real-world lifecycle: an argument is renamed in an early release (`ARGS_REMAP`), then the entire function is deprecated in a later release once a complete replacement exists (`NOTIFY`). Put `ARGS_REMAP` outermost (top decorator) and `NOTIFY` below it.
+The most common real-world lifecycle has two stages:
+
+1. An argument is renamed in an early release (`ARGS_REMAP`).
+2. The entire function is deprecated in a later release once a complete replacement exists (`NOTIFY`).
+
+Put `ARGS_REMAP` outermost (top decorator) and `NOTIFY` below it.
 
 Callers still using the old argument name receive **both** warnings — the arg-rename notice and the function-deprecated notice. Callers already using the new name receive only the function-deprecated notice.
 
@@ -518,7 +617,9 @@ Use [`validate_deprecation_chains()`](audit.md#detecting-deprecation-chains) in 
 
 ## Conditional skip
 
-`skip_if` accepts a boolean or a zero-argument callable returning a boolean. When it evaluates to `True`, the deprecation notice is suppressed and the call proceeds normally. This is useful when behaviour depends on runtime conditions, for example suppressing the notice once the caller has migrated to a newer dependency. `skip_if` is available on `@deprecated` and `deprecated_callable()` alike (and on the class/instance proxies — see [Classes](classes.md)):
+`skip_if` accepts a boolean or a zero-argument callable returning a boolean. When it evaluates to `True`, the deprecation notice is suppressed and the call proceeds normally.
+
+This is useful when behaviour depends on runtime conditions, for example suppressing the notice once the caller has migrated to a newer dependency. `skip_if` is available on `@deprecated`, `deprecated_callable()`, and the class/instance proxies; see [Classes](classes.md).
 
 ```python
 from deprecate import TargetMode, deprecated_callable
@@ -557,12 +658,15 @@ print(skip_pow(2, 3))
 
 ## Fatal deprecations
 
-`as_exception=True` raises `DeprecatedError` instead of emitting the warning, carrying the same rendered message. The call is refused rather than flagged: the forwarding target is never invoked and the source body never runs, so `TargetMode.NOTIFY` and `TargetMode.ARGS_REMAP` stop instead of falling through to the body. This is the middle step of the warn → raise → delete lifecycle, and it is available on every entry point (`@deprecated`, `deprecated_callable()`, `deprecated_class()`, `deprecated_instance()`, `deprecated_module()`).
+`as_exception=True` raises `DeprecatedError` instead of emitting the warning, carrying the same rendered message. The call is refused: the forwarding target is never invoked and the source body never runs. `TargetMode.NOTIFY` and `TargetMode.ARGS_REMAP` therefore stop instead of falling through to the body.
 
-Two rules differ from the warning path on purpose:
+This is the middle step of the warn → raise → delete lifecycle. It is available on every entry point: `@deprecated`, `deprecated_callable()`, `deprecated_class()`, `deprecated_instance()`, and `deprecated_module()`.
 
-- **`num_warns` does not apply.** A fatal deprecation raises on *every* call. A budget would leave a gate that stops refusing after the first attempt — a caller retrying inside `except` would sail through.
-- **`stream=None` silences the message, not the raise.** Fatal mode is a lifecycle state, not an output channel.
+!!! warning "Fatal mode differs from the warning path"
+
+    **`num_warns` does not apply.** A fatal deprecation raises on *every* call. A budget would stop refusing after the first attempt, allowing a caller retrying inside `except` to sail through.
+
+    **`stream=None` silences the message, not the raise.** Fatal mode is a lifecycle state, not an output channel.
 
 `skip_if` still suppresses everything, fatal deprecations included — a wrapper switched off by configuration is not a deprecation at that moment.
 
@@ -592,13 +696,17 @@ The `legacy_checksum` was deprecated since v1.0. It will be removed in v2.0.
 
 ### The global switch
 
-`deprecate.AS_EXCEPTIONS` is the process-wide default, seeded at import from the `DEPRECATE_AS_EXCEPTIONS` environment variable (`1`, `true`, `yes`, or `on`; anything else is off). It is re-read on every emission, so an application can flip it during bootstrap and a test suite can toggle it per case:
+`deprecate.AS_EXCEPTIONS` is the process-wide default, seeded at import from the `DEPRECATE_AS_EXCEPTIONS` environment variable. Values `1`, `true`, `yes`, or `on` enable it; anything else is off.
+
+It is re-read on every emission. An application can flip it during bootstrap and a test suite can toggle it per case:
 
 ```bash
 DEPRECATE_AS_EXCEPTIONS=1 pytest
 ```
 
-To make deprecations fatal for one stretch of code only, use the `as_exceptions()` context manager. Deprecations that defer to the global switch raise inside the block, and the previous setting applies again on exit, also when the block raises, so nested scopes compose. `as_exceptions(False)` does the reverse and exempts a block from a strict run. It also works as a decorator.
+To make deprecations fatal for one stretch of code only, use the `as_exceptions()` context manager. Deprecations that defer to the global switch raise inside the block. The previous setting applies again on exit, including when the block raises, so nested scopes compose.
+
+`as_exceptions(False)` does the reverse and exempts a block from a strict run. It also works as a decorator.
 
 ```python
 from deprecate import DeprecatedError, as_exceptions, deprecated
@@ -641,13 +749,31 @@ Use `calculate_total` instead.
 
 </details>
 
-The scope is local to the current thread and `asyncio` task: it is held in a `ContextVar`, so other threads and sibling tasks keep the global setting, and holding a scope across an `await` is safe. Tasks created inside the block inherit the scope, because a task copies the context when it is created; whether a new thread inherits it depends on the interpreter, so run the thread's target through `contextvars.copy_context().run(...)` when it must. The scope never modifies `deprecate.AS_EXCEPTIONS`: inside the block that attribute still reports the global value, and assigning it there takes effect once the block closes. A generator or async generator shares its consumer's context, so a scope held across a `yield` also applies to the consumer while the generator is suspended; open and close the scope within one step of the generator (see [Limitations](../limitations.md)). As a decorator it only covers plain synchronous functions: decorating an `async def`, generator or async-generator function raises `TypeError`, because its body would run after the scope closed — use `with as_exceptions():` inside the body instead. A non-`bool` flag, including a bare `@as_exceptions` without parentheses, raises `TypeError` at the call. Like `deprecate.AS_EXCEPTIONS` itself, it is the consumer's switch (an application or test suite); library code should not use `as_exceptions(False)` to escape a caller's strict run.
+The scope is held in a `ContextVar`, local to the current thread and `asyncio` task. Other threads and sibling tasks keep the global setting, and holding a scope across an `await` is safe.
 
-Precedence is **monotonic**: an explicit `as_exception=True` is always fatal, and `as_exception=False` means "not fatal by default" but still yields to a `True` global. A wrapper's own `as_exception=False` therefore cannot opt a consumer's strict run out; only the consumer's own `as_exceptions(False)` scope or `AS_EXCEPTIONS` setting can, while an author can still promote one symbol ahead of the rest.
+Tasks created inside the block inherit the scope, because a task copies the context when it is created. Whether a new thread inherits it depends on the interpreter. Run the thread's target through `contextvars.copy_context().run(...)` when it must inherit the scope.
+
+The scope never modifies `deprecate.AS_EXCEPTIONS`. Inside the block that attribute still reports the global value, and assigning it there takes effect once the block closes.
+
+!!! warning "Scope and decorator limits"
+
+    A generator or async generator shares its consumer's context. A scope held across a `yield` also applies to the consumer while the generator is suspended. Open and close the scope within one step of the generator; see [Limitations](../limitations.md).
+
+    As a decorator it only covers plain synchronous functions. Decorating an `async def`, generator or async-generator function raises `TypeError`, because its body would run after the scope closed. Use `with as_exceptions():` inside the body instead.
+
+    A non-`bool` flag, including a bare `@as_exceptions` without parentheses, raises `TypeError` at the call.
+
+    Like `deprecate.AS_EXCEPTIONS` itself, it is the consumer's switch: an application or test suite. Library code should not use `as_exceptions(False)` to escape a caller's strict run.
+
+Precedence is **monotonic**: an explicit `as_exception=True` is always fatal. `as_exception=False` means "not fatal by default" but still yields to a `True` global.
+
+A wrapper's own `as_exception=False` therefore cannot opt a consumer's strict run out. Only the consumer's own `as_exceptions(False)` scope or `AS_EXCEPTIONS` setting can do that. An author can still promote one symbol ahead of the rest.
 
 ### Recipe: the warning becomes an error at version X
 
-To promote a deprecation from warning to error on a schedule, pass `as_exception` a value computed from your package version and a version of your choosing (here `ERROR_IN`, typically between `deprecated_in` and `remove_in`). `as_exception` is read once, at decoration time, so the switch flips on the first import under the new version. Compare parsed versions rather than strings — tuples below keep the example dependency-free; `packaging.version.Version` works the same.
+To promote a deprecation from warning to error on a schedule, compute `as_exception` from your package version and a version of your choosing. Here that version is `ERROR_IN`, typically between `deprecated_in` and `remove_in`. `as_exception` is read once, at decoration time, so the switch flips on the first import under the new version.
+
+Compare parsed versions rather than strings. Tuples below keep the example dependency-free; `packaging.version.Version` works the same.
 
 ```python
 from deprecate import DeprecatedError, TargetMode, deprecated_callable
@@ -676,7 +802,7 @@ The `legacy_digest` was deprecated since v1.0. It will be removed in v2.0.
 
 </details>
 
-Below `ERROR_IN` the same code only warns. As the release-time backstop, run [`pydeprecate expiry`](cli.md) in CI: it exits `1` when any wrapper is past its `remove_in` deadline, so a deprecation that was never deleted cannot ship by accident.
+Below `ERROR_IN` the same code only warns. As the release-time backstop, run [`pydeprecate expiry`](cli.md) in CI. It exits `1` when any wrapper is past its `remove_in` deadline, so a deprecation that was never deleted cannot ship by accident.
 
 ### When to prefer `-W error` instead
 
@@ -688,7 +814,9 @@ Python already turns warnings into exceptions: `-W error::FutureWarning` or `PYT
 
 ## Static type checkers (PEP 702)
 
-mypy, pyright, and IDEs flag a deprecated symbol only when its decorator is literally `warnings.deprecated` (Python 3.13+) or its backport `typing_extensions.deprecated` — they recognise the decorator by name, not by what it does at runtime. `@deprecated` from pyDeprecate is invisible to them. To get the strikethrough in the editor *and* pyDeprecate's forwarding and warning, stack the PEP 702 decorator directly above pyDeprecate's:
+mypy, pyright, and IDEs flag a deprecated symbol only when its decorator is literally `warnings.deprecated` (Python 3.13+) or its backport `typing_extensions.deprecated`. They recognise the decorator by name, not by what it does at runtime. `@deprecated` from pyDeprecate is invisible to them.
+
+To get the strikethrough in the editor *and* pyDeprecate's forwarding and warning, stack the PEP 702 decorator directly above pyDeprecate's:
 
 ```python
 import typing_extensions  # on Python 3.13+: `import warnings` and `@warnings.deprecated(...)`
@@ -721,10 +849,12 @@ print(get_orders(7))  # warns: FutureWarning
 
 Four rules make the pair work:
 
-- **`category=None`.** The PEP 702 decorator then only marks the symbol for type checkers; without it, every call emits a second `DeprecationWarning` next to pyDeprecate's `FutureWarning`.
-- **A string-literal message.** mypy silently ignores a message held in a constant or built with an f-string; pyright still flags the symbol but drops the text.
-- **Directly above `@deprecated(...)`.** Inside `@staticmethod` / `@classmethod`, and above the outer-order `@deprecated(...) @property` (mypy asks for `# type: ignore[prop-decorator]` on that line, as it does for any decorator above `@property`). Placed *under* `@property`, pyright misses it.
-- **Import the module, not the name.** `from typing_extensions import deprecated` shadows pyDeprecate's `deprecated`; write `@typing_extensions.deprecated(...)` or `@warnings.deprecated(...)`.
+| Rule                                            | Reason or placement                                                                                                                                                                                                                                                  |
+| ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Set **`category=None`**.                        | The PEP 702 decorator then only marks the symbol for type checkers. Otherwise every call emits a second `DeprecationWarning` next to pyDeprecate's `FutureWarning`.                                                                                                  |
+| Use **a string-literal message**.               | mypy silently ignores a message held in a constant or built with an f-string. pyright still flags the symbol but drops the text.                                                                                                                                     |
+| Place it **directly above `@deprecated(...)`**. | Keep it inside `@staticmethod` / `@classmethod`, and above the outer-order `@deprecated(...) @property`. mypy asks for `# type: ignore[prop-decorator]` on that line, as it does for any decorator above `@property`. Placed *under* `@property`, pyright misses it. |
+| **Import the module, not the name**.            | `from typing_extensions import deprecated` shadows pyDeprecate's `deprecated`. Write `@typing_extensions.deprecated(...)` or `@warnings.deprecated(...)`.                                                                                                            |
 
 IDEs strike the symbol through as soon as the decorator is there. To fail CI on new uses, turn the diagnostic into an error — mypy leaves it off by default:
 
@@ -736,21 +866,31 @@ enable_error_code = ["deprecated"]
 reportDeprecated = "error"
 ```
 
-Since `v0.14`, `@deprecated` and `deprecated_callable()` keep the decorated callable's own type and the package ships a `py.typed` marker, so type checkers see the real signature and name the symbol correctly in the diagnostic. For class aliases see [Classes → Type annotations and static analysis](classes.md#type-annotations-and-static-analysis); to list symbols deprecated with the PEP 702 decorator alone, see [`include_pep702`](audit.md#pep-702-only-deprecations).
+Since `v0.14`, `@deprecated` and `deprecated_callable()` keep the decorated callable's own type, and the package ships a `py.typed` marker. Type checkers therefore see the real signature and name the symbol correctly in the diagnostic.
 
-That static type is the *source's* type, and a callable object is not preserved at runtime: decorating a `functools.lru_cache` / `functools.cache` object returns a plain function, so `cache_clear()` and `cache_info()` are gone even though type checkers still offer them. Deprecate the underlying function and put the cache on top (`@functools.lru_cache` above `@deprecated(...)`) — the cache attributes then exist, but a cache hit never reaches the wrapper, so the warning fires only on a miss. Callable objects without a `__name__`, such as `functools.partial`, are rejected at decoration time; wrap those with `deprecated_instance()`.
+For class aliases see [Classes → Type annotations and static analysis](classes.md#type-annotations-and-static-analysis). To list symbols deprecated with the PEP 702 decorator alone, see [`include_pep702`](audit.md#pep-702-only-deprecations).
+
+!!! warning "Static types do not preserve callable objects at runtime"
+
+    That static type is the *source's* type. Decorating a `functools.lru_cache` / `functools.cache` object returns a plain function. `cache_clear()` and `cache_info()` are gone even though type checkers still offer them.
+
+    Deprecate the underlying function and put the cache on top (`@functools.lru_cache` above `@deprecated(...)`). The cache attributes then exist, but a cache hit never reaches the wrapper. The warning therefore fires only on a miss.
+
+    Callable objects without a `__name__`, such as `functools.partial`, are rejected at decoration time; wrap those with `deprecated_instance()`.
 
 ## See also
 
-- [Use Cases overview](use-cases.md) — start here for a guided tour of all deprecation patterns
-- [Classes](classes.md) — class, Enum, dataclass, and instance deprecation
-- [Properties](properties.md) — `@property` and `@cached_property` deprecation
-- [Async](async.md) — async functions and async generators
-- [Advanced](advanced.md) — docstring updates, `args_extra`, testing helpers, class/static methods, generators
-- [Customization](customization.md) — custom message templates and output streams
-- [void() Helper](void-helper.md) — when and why to use `void()` in the function body
-- [Audit Tools](audit.md) — enforce removal deadlines and detect deprecation chains in CI
-- [Troubleshooting](../troubleshooting.md) — common errors and fixes
+| Page                                     | Topic                                                                                           |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| [Use Cases overview](use-cases.md)       | Start here for a guided tour of all deprecation patterns.                                       |
+| [Classes](classes.md)                    | Learn about class, Enum, dataclass, and instance deprecation.                                   |
+| [Properties](properties.md)              | Deprecate `@property` and `@cached_property`.                                                   |
+| [Async](async.md)                        | Deprecate async functions and async generators.                                                 |
+| [Advanced](advanced.md)                  | Explore docstring updates, `args_extra`, testing helpers, class/static methods, and generators. |
+| [Customization](customization.md)        | Customize message templates and output streams.                                                 |
+| [void() Helper](void-helper.md)          | Learn when and why to use `void()` in the function body.                                        |
+| [Audit Tools](audit.md)                  | Enforce removal deadlines and detect deprecation chains in CI.                                  |
+| [Troubleshooting](../troubleshooting.md) | Find common errors and fixes.                                                                   |
 
 ______________________________________________________________________
 

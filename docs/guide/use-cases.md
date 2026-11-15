@@ -11,27 +11,62 @@ The most common reasons to deprecate something are renaming a function, renaming
 
 ### [Functions](functions.md)
 
-Deprecating Python functions and methods: simple call forwarding, argument renaming with `args_mapping`, notice-only deprecation, same-function argument renaming with `TargetMode.ARGS_REMAP`, stacking multiple decorators for multi-release migrations, conditional suppression with `skip_if`, and promoting a deprecation to a raised error with `as_exception`.
+The function guide covers these patterns for Python functions and methods:
+
+- Forward calls to a replacement.
+- Rename arguments with `args_mapping`.
+- Emit a notice-only deprecation.
+- Rename arguments within the same function with `TargetMode.ARGS_REMAP`.
+- Stack multiple decorators for multi-release migrations.
+- Suppress warnings conditionally with `skip_if`.
+- Promote a deprecation to a raised error with `as_exception`.
 
 ### [Classes](classes.md)
 
-Deprecating classes, Enums, dataclasses, and module-level constants: forwarding an old class name to a replacement with `deprecated_class()`, wrapping module-level objects with `deprecated_instance()`, selective attribute deprecation with `attrs_mapping`, and stacking multiple proxy layers for multi-version attribute migrations.
+The class guide covers classes, Enums, dataclasses, and module-level constants:
+
+- Forward an old class name to a replacement with `deprecated_class()`.
+- Wrap module-level objects with `deprecated_instance()`.
+- Deprecate selected attributes with `attrs_mapping`.
+- Stack multiple proxy layers for multi-version attribute migrations.
 
 ### [Modules](modules.md)
 
-Deprecating an entire module via `__class__` reassignment: in-place warn on every public attribute access with normal `AttributeError` for missing names (Mode 1), warn on every public access while redirecting missing-attribute lookups to a replacement module with optional per-attribute `attrs_mapping` (Mode 2), and parent alias via `deprecated_instance()` in `__init__.py` (Mode 3). Includes audit integration.
+The module guide covers whole-module deprecation via `__class__` reassignment and audit integration:
+
+| Mode   | Behavior                                                                                                                                      |
+| ------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Mode 1 | It warns in place on every public attribute access, with normal `AttributeError` for missing names.                                           |
+| Mode 2 | It warns on every public access and redirects missing-attribute lookups to a replacement module, with optional per-attribute `attrs_mapping`. |
+| Mode 3 | It provides a parent alias via `deprecated_instance()` in `__init__.py`.                                                                      |
 
 ### [Properties](properties.md)
 
-Deprecating `@property` and `@cached_property` descriptors: decorator order rules, wrapping all three accessors (`fget`, `fset`, `fdel`) at once, chaining `.setter` / `.deleter`, and the dataclass field alias pattern.
+The property guide covers deprecation of `@property` and `@cached_property` descriptors:
+
+- Follow decorator order rules.
+- Wrap all three accessors (`fget`, `fset`, `fdel`) at once.
+- Chain `.setter` / `.deleter`.
+- Use the dataclass field alias pattern.
 
 ### [Async](async.md)
 
-Deprecating `async def` functions and async generator functions: all three TargetModes, warning timing (coroutines warn when awaited, async generators on the first iteration), coroutine introspection behaviour, and concurrency caveats.
+The async guide covers deprecation of `async def` functions and async generator functions:
+
+- Use all three TargetModes.
+- Understand warning timing: coroutines warn when awaited, and async generators warn on the first iteration.
+- Preserve coroutine introspection behaviour.
+- Account for concurrency caveats.
 
 ### [Advanced](advanced.md)
 
-Advanced patterns: injecting a deprecation notice into the docstring at import time (`update_docstring=True`), supplying a fixed default for a new required argument (`args_extra`), testing helpers (`assert_no_warnings`), deprecating `@classmethod` and `@staticmethod` descriptors, and generator functions.
+The advanced guide covers these patterns:
+
+- Inject a deprecation notice into the docstring at import time (`update_docstring=True`).
+- Supply a fixed default for a new required argument (`args_extra`).
+- Use testing helpers (`assert_no_warnings`).
+- Deprecate `@classmethod` and `@staticmethod` descriptors.
+- Deprecate generator functions.
 
 ## Quick decision table
 
@@ -63,9 +98,9 @@ To include symbols deprecated only with `warnings.deprecated` or `typing_extensi
 
 ## See also
 
-- [Customization](customization.md) — redirect deprecation output to a logger or use a custom message template
-- [void() Helper](void-helper.md) — when and why the deprecated function body should call `void()`
-- [Audit Tools](audit.md) — enforce removal deadlines and detect deprecation chains in CI
-- [Troubleshooting](../troubleshooting.md) — common errors and fixes for `@deprecated` configuration
-- [Compare Python Deprecation Tools](compare-python-deprecation-tools.md) — how pyDeprecate compares to `warnings.warn`, `deprecation`, `wrapt`, and `warnings.deprecated`
-- [Agent Recipes](agent-recipes.md) — copy-paste patterns for AI coding assistants generating deprecation code
+- Use [Customization](customization.md) to redirect deprecation output to a logger or use a custom message template.
+- [void() Helper](void-helper.md) explains when and why the deprecated function body should call `void()`.
+- Use [Audit Tools](audit.md) to enforce removal deadlines and detect deprecation chains in CI.
+- [Troubleshooting](../troubleshooting.md) covers common errors and fixes for `@deprecated` configuration.
+- [Compare Python Deprecation Tools](compare-python-deprecation-tools.md) explains how pyDeprecate compares to `warnings.warn`, `deprecation`, `wrapt`, and `warnings.deprecated`.
+- [Agent Recipes](agent-recipes.md) covers copy-paste patterns for AI coding assistants generating deprecation code.
