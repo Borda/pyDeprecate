@@ -48,7 +48,7 @@ Audit tools catch four common problems before they reach users:
 
 ## Scanning from Python without importing
 
-Use `deprecate.audit.find_deprecation_wrappers_static()` (since 0.16) for source-only discovery through `ast`, without importing or executing the scanned package.
+Use `deprecate.audit.find_deprecation_wrappers_static()` (since v0.16) for source-only discovery through `ast`, without importing or executing the scanned package.
 
 This helps when:
 
@@ -167,7 +167,7 @@ Both functions return `DeprecationWrapperInfo` dataclasses.
 | `empty_deprecated_in`        | `True` when `deprecated_in` is absent or empty; useful for CI version-annotation checks.                       |
 | `api_type`                   | The inferred report kind: for example, `callable`, `args`, `class`, `dataclass attributes`, or `class method`. |
 | `pep702_message`             | `None` on pyDeprecate rows; the decorator's message string, possibly empty, on PEP 702-only rows.              |
-| `source_file`, `source_line` | Since 0.16, the absolute source file and definition line; see the exceptions below.                            |
+| `source_file`, `source_line` | Since v0.16, the absolute source file and definition line; see the exceptions below.                           |
 
 !!! note "Contradictory targets"
 

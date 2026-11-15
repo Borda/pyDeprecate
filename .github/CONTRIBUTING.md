@@ -1163,6 +1163,15 @@ Readers understand *why* the rename happened. Never use generic placeholders lik
 
 Use `# NEW/FUTURE API —` when the replacement is defined in the same block immediately before the deprecated wrapper.
 
+**Release references** — in docs prose and docstrings, write every pyDeprecate release, older or future, with a `v` prefix: "since v0.16", "removed in v1.0", "on v0.11 use `template_mgs`". Exact literals keep the bare number:
+
+- code values such as `deprecated_in="0.16"` and `remove_in="1.0"`;
+- version specifiers such as `>=0.13` and `pydeprecate>=0.16`;
+- printed output and `__version__` values;
+- the SKILL.md sentence "Verified against pyDeprecate `>=X.Y`", which the `plugin-compat-floor` hook parses.
+
+Python and third-party versions never take the prefix ("Python 3.9"), and neither do example versions of a user's own package.
+
 **`attrs_mapping` key naming** — keys must be the original names callers use today (at deprecation time), never a meta-name like `legacy_X` or `deprecated_X`. The key is what callers call *now*; the value is what they should migrate to. If a function was introduced as `compute` and is now renamed to `add`, write `{"compute": "add"}`, not `{"legacy_compute": "add"}` — no one names a function `legacy_compute` at introduction time.
 
 ### Keeping AI-agent documentation in sync

@@ -66,7 +66,7 @@ Present the proposed conversion set and stop before the first edit. Proceed only
 
 ## Read the project's deprecation policy
 
-Before choosing versions, look for a `[tool.pydeprecate.policy]` table in the nearest `pyproject.toml`. Search the directory being edited and up to two parents. This is the same lookup `pydeprecate policy` performs (since 0.13; older releases read no such table, so on them treat this section as absent and ask).
+Before choosing versions, look for a `[tool.pydeprecate.policy]` table in the nearest `pyproject.toml`. Search the directory being edited and up to two parents. This is the same lookup `pydeprecate policy` performs (since v0.13; older releases read no such table, so on them treat this section as absent and ask).
 
 Keys are the rule slugs:
 
@@ -90,19 +90,19 @@ Apply the policy when filling the contract:
   - With `min-grace = false` the window imposes nothing. Still ask for `remove_in` instead of inventing one.
 - With `message-required = true`, every new wrapper must carry a callable or module `target`, a non-empty `args_mapping`/`attrs_mapping`, or a custom `message_template`.
   - A warn-only `TargetMode.NOTIFY` wrapper therefore needs `message_template` naming the replacement or the reason.
-  - So does a `deprecated_instance` whose `target` is a data object (since 0.16), unless it has an `attrs_mapping`.
+  - So does a `deprecated_instance` whose `target` is a data object (since v0.16), unless it has an `attrs_mapping`.
 
 Present the derived versions with the rule and source behind each before the first edit. The user confirms or overrides them.
 
-After editing, run `pydeprecate policy <path>` (requires `pyDeprecate[audit,cli]`, since 0.13) or `validate_deprecation_policy(module, min_grace="0.3", message_required=True)` (since 0.13) with the table's values. The function never reads `pyproject.toml`. Expect zero violations.
+After editing, run `pydeprecate policy <path>` (requires `pyDeprecate[audit,cli]`, since v0.13) or `validate_deprecation_policy(module, min_grace="0.3", message_required=True)` (since v0.13) with the table's values. The function never reads `pyproject.toml`. Expect zero violations.
 
-If the consumer package cannot be imported in the available environment, check whether `pydeprecate policy --help` lists `--static` (since 0.16). When it does, run `pydeprecate policy --static <path>` as a fallback. The shipped `pydeprecate-policy-static` and `pydeprecate-expiry-static` pre-commit hooks (since 0.16) use the same static scans.
+If the consumer package cannot be imported in the available environment, check whether `pydeprecate policy --help` lists `--static` (since v0.16). When it does, run `pydeprecate policy --static <path>` as a fallback. The shipped `pydeprecate-policy-static` and `pydeprecate-expiry-static` pre-commit hooks (since v0.16) use the same static scans.
 
 A static scan reports recognized unresolved forms as gaps without failing. It can miss forms without a gap, including wrappers created in loops or through getattr, importlib or exec. It can also misclassify bare target names imported from outside the package.
 
 Report these coverage limits and run the import-mode check when the dependencies are available. If the package cannot be imported and `pydeprecate policy --help` does not list `--static`, report that the static fallback is unavailable. In that case, also report that the policy could not be machine-checked.
 
-On a release older than 0.13 report that the policy was applied by hand and could not be machine-checked.
+On a release older than v0.13 report that the policy was applied by hand and could not be machine-checked.
 
 ## Choose the smallest compatible form
 
@@ -112,9 +112,9 @@ On a release older than 0.13 report that the policy was applied by hand and coul
 | Warn without forwarding | `@deprecated(target=TargetMode.NOTIFY, ...)` | Keep working implementation |
 | Rename/drop arguments on a surviving API | `TargetMode.ARGS_REMAP`, `args_mapping={"old": "new"}` or `{"old": None}` | Keep new implementation |
 | Class rename | `deprecated_class(target=Replacement, ...)` | Preserve constructor compatibility |
-| Object alias | `deprecated_instance(...)`; `deprecated_instance(old_obj, target=new_obj, ...)` to serve the replacement under the old name (since 0.16; on older releases wrap the replacement itself: `deprecated_instance(new_obj, name="OLD_NAME", ...)`) | Inspect proxy behavior needed by callers; type checks and writes follow the replacement |
+| Object alias | `deprecated_instance(...)`; `deprecated_instance(old_obj, target=new_obj, ...)` to serve the replacement under the old name (since v0.16; on older releases wrap the replacement itself: `deprecated_instance(new_obj, name="OLD_NAME", ...)`) | Inspect proxy behavior needed by callers; type checks and writes follow the replacement |
 | Attribute-only migration | `deprecated_class(target=TargetMode.ATTRS_REMAP, attrs_mapping=..., ...)` | Preserve unaffected class behavior |
-| Final release before removal | add `as_exception=True` (since 0.14) to the existing wrapper | Body unreachable — the call raises |
+| Final release before removal | add `as_exception=True` (since v0.14) to the existing wrapper | Body unreachable — the call raises |
 
 Use explicit modes, never legacy `target=True` / `target=None` sentinels. Attribute mappings belong on `deprecated_class`, not `deprecated`. Keep old calling conventions, including positional arguments, defaults and keyword conflicts; a rename must not silently change binding.
 
@@ -122,13 +122,13 @@ For properties, descriptors, async/generators, modules or stacked wrappers, read
 
 A deprecated generator or async generator stub must itself contain yield (call void, then yield from an empty tuple). A stub that only does `return void(...)` is a plain function. It gets a plain wrapper, warns at call time and is not a generator function.
 
-For a generator or async generator wrapper (since 0.15), the warning, the `num_warns` budget and the `as_exceptions()` / `as_exception=True` error fire at the first iteration step. This means next or `async for`, not the call. Earlier releases warn at call time and a wrapped async generator fails isgeneratorfunction-style checks.
+For a generator or async generator wrapper (since v0.15), the warning, the `num_warns` budget and the `as_exceptions()` / `as_exception=True` error fire at the first iteration step. This means next or `async for`, not the call. Earlier releases warn at call time and a wrapped async generator fails isgeneratorfunction-style checks.
 
 A generator never iterated never warns; tests must wrap the iteration in `pytest.warns()`. Property forwarding is not supported by the decorator: delegate inside the accessor for warn-only property migrations.
 
 Preserve unrelated decorators and future deprecation layers. Check `skip_if`: it can execute the original body instead of forwarding.
 
-A deprecation that is past polite warning can refuse the call instead. `as_exception=True` (since 0.14; no equivalent on 0.12-0.13) raises `DeprecatedError` carrying the same message. It never invokes the target and never runs the source body.
+A deprecation that is past polite warning can refuse the call instead. `as_exception=True` (since v0.14; no equivalent on v0.12-v0.13) raises `DeprecatedError` carrying the same message. It never invokes the target and never runs the source body.
 
 Use it as the warn -> raise -> delete middle step, one release before removal. Record in the changelog that the symbol now raises.
 
@@ -179,9 +179,9 @@ When the user also wants an editor strikethrough or a mypy/pyright gate, stack `
 - Write the message as a string literal; mypy ignores constants and f-strings.
 - Import the module rather than the name so pyDeprecate's `deprecated` is not shadowed.
 
-Over `deprecated_class` both mypy and pyright flag the alias, and before 0.14 the marker leaked onto the replacement class.
+Over `deprecated_class` both mypy and pyright flag the alias, and before v0.14 the marker leaked onto the replacement class.
 
-To list symbols deprecated with that decorator alone, use `find_deprecation_wrappers(..., include_pep702=True)` (since 0.14; no equivalent on 0.12-0.13). Those rows carry no versions and are the ones with `row.pep702_message is not None`. Keep them out of expiry and policy decisions.
+To list symbols deprecated with that decorator alone, use `find_deprecation_wrappers(..., include_pep702=True)` (since v0.14; no equivalent on v0.12-v0.13). Those rows carry no versions and are the ones with `row.pep702_message is not None`. Keep them out of expiry and policy decisions.
 
 ## Verify and hand off
 
@@ -191,9 +191,9 @@ To list symbols deprecated with that decorator alone, use `find_deprecation_wrap
   - Invalid/conflicting inputs retain intended behavior.
   - Exercise affected descriptor/async forms.
 - Warning counters are stateful (default one warning); use the installed version's supported test utilities or isolated test setup, not test ordering.
-- Run relevant tests, lint/types and available wrapper/mapping audits, plus the policy check from the section above. CLI usage needs `pyDeprecate[audit,cli]`; Python expiry and policy helpers need `[audit]`. Verify commands against the loaded version; the `pydeprecate policy` subcommand exists since 0.13 only. Follow the project's dependency workflow if extras are missing.
+- Run relevant tests, lint/types and available wrapper/mapping audits, plus the policy check from the section above. CLI usage needs `pyDeprecate[audit,cli]`; Python expiry and policy helpers need `[audit]`. Verify commands against the loaded version; the `pydeprecate policy` subcommand exists since v0.13 only. Follow the project's dependency workflow if extras are missing.
 - When the package's import fails or must not run, audit from source.
-  - `deprecate.audit.find_deprecation_wrappers_static` returns a frozen `StaticScanResult` (both since 0.16, like `pydeprecate policy --static`).
+  - `deprecate.audit.find_deprecation_wrappers_static` returns a frozen `StaticScanResult` (both since v0.16, like `pydeprecate policy --static`).
   - Older releases have no import-free audit, so run the import-mode checks where dependencies are installed.
   - Pass the result to `validate_deprecation_policy` with the project's policy values, or to `validate_deprecation_expiry` with an explicit `current_version` when `.version` is missing.
   - Always read `.gaps`, even when `.wrappers` or the findings are empty.

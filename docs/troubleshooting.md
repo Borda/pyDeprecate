@@ -2508,10 +2508,10 @@ No. `all` treats policy violations as advisory by default because its policy def
 
 The defaults are `min_grace="0.3"` and `message_required=True`. Violations are printed for visibility but do not contribute to `all`'s exit code unless you opt in.
 
-| Version      | Make policy violations fail `all`                                                                 |
-| ------------ | ------------------------------------------------------------------------------------------------- |
-| Since `0.16` | Use `pydeprecate all --gate=policy src/mypackage` or `gate = ["policy"]` in `[tool.pydeprecate]`. |
-| On `0.15`    | Add a separate `policy` step, as shown below.                                                     |
+| Version     | Make policy violations fail `all`                                                                 |
+| ----------- | ------------------------------------------------------------------------------------------------- |
+| Since v0.16 | Use `pydeprecate all --gate=policy src/mypackage` or `gate = ["policy"]` in `[tool.pydeprecate]`. |
+| On v0.15    | Add a separate `policy` step, as shown below.                                                     |
 
 The opt-in makes `all` exit `1` on policy violations from that same scan. Without it, these findings make `all` exit `1`:
 
@@ -2529,7 +2529,7 @@ The opt-in makes `all` exit `1` on policy violations from that same scan. Withou
 
     An unreadable or unparsable nearest `pyproject.toml`, or malformed `[tool.pydeprecate.policy]` value, still exits `2` inside `all`. The message is `Cannot read <path>: <err>`. This failure is checked before the chains check runs.
 
-On `0.15`, or to keep policy gating separate from `all`, give `pydeprecate policy` its own CI step.
+On v0.15, or to keep policy gating separate from `all`, give `pydeprecate policy` its own CI step.
 
 | Exit code | Meaning                    |
 | --------- | -------------------------- |
@@ -2731,7 +2731,7 @@ Recognized wrappers can be checked when the required settings are statically res
 
 ### How do I audit deprecations without importing my package?
 
-Call `deprecate.audit.find_deprecation_wrappers_static(path)` (since 0.16) to read source with `ast` without importing or executing the scanned package.
+Call `deprecate.audit.find_deprecation_wrappers_static(path)` (since v0.16) to read source with `ast` without importing or executing the scanned package.
 
 Pass its frozen `StaticScanResult` directly to `validate_deprecation_expiry`, `validate_deprecation_policy`, or `generate_deprecation_table`.
 
@@ -2791,11 +2791,11 @@ The audit did not run. Exit `3` represents a scan or internal error, rather than
 
     A submodule import failure produces `pydeprecate gap: module not audited`. It preserves the exit code unless strict mode is enabled.
 
-`--exit-zero` does not mask exit `3`, and no `--report-json` file is written. Before 0.15, both error types exited `1`, like findings.
+`--exit-zero` does not mask exit `3`, and no `--report-json` file is written. Before v0.15, both error types exited `1`, like findings.
 
 ### Why does `pydeprecate check` now fail on a wrapper it used to pass?
 
-Since 0.15, misconfigured targets and inner-order properties are errors, as the CLI guide always promised. The scan exposes them through `misconfigured_target` and `inner_order_property` in `find_deprecation_wrappers`.
+Since v0.15, misconfigured targets and inner-order properties are errors, as the CLI guide always promised. The scan exposes them through `misconfigured_target` and `inner_order_property` in `find_deprecation_wrappers`.
 
 **Q:** After upgrading, `pydeprecate check` (and `all`) exits `1` with *Found deprecated wrappers with a misconfigured target* or *Found inner-order @property @deprecated wrappers*, on code that passed before.
 
@@ -2808,7 +2808,7 @@ Since 0.15, misconfigured targets and inner-order properties are errors, as the 
 
 ### How do I accept one known expired wrapper without excluding its module?
 
-Accept just that finding with `--ignore='expired:mypackage.module:old_fn'`. Alternatively, list the entry under `ignore = [...]` in `[tool.pydeprecate]` (since 0.16).
+Accept just that finding with `--ignore='expired:mypackage.module:old_fn'`. Alternatively, list the entry under `ignore = [...]` in `[tool.pydeprecate]` (since v0.16).
 
 **Q:** `pydeprecate expiry` (or `all`) fails on a wrapper we deliberately keep one more release, and `--exclude` would hide every other wrapper of that module too.
 
@@ -2827,7 +2827,7 @@ Suppressed findings do not fail the gate. Every run prints their count, and repo
 
 ### How do I make the CI gate fail when part of the audit did not run?
 
-Pass `--strict` (since 0.16), set `strict = true` under `[tool.pydeprecate]`, or use `fail-on-gap: true` in the GitHub Action. Any recorded gap then makes the run exit `1`, even without findings.
+Pass `--strict` (since v0.16), set `strict = true` under `[tool.pydeprecate]`, or use `fail-on-gap: true` in the GitHub Action. Any recorded gap then makes the run exit `1`, even without findings.
 
 **Q:** `pydeprecate all src/mypackage` prints `pydeprecate gap: module not audited: …` or `pydeprecate gap: version not resolved: …` and still exits `0`. How do I make such a run fail?
 
@@ -2849,7 +2849,7 @@ Fix the cause named by the gap's hint. Usually this means installing a missing r
 
 ### Why does the GitHub Action say the report is not of layout version 1?
 
-The action runner only reads the report layout its own CLI writes: layout 1 since 0.15. A different layout usually means `install: false` selected another pyDeprecate version.
+The action runner only reads the report layout its own CLI writes: layout 1 since v0.15. A different layout usually means `install: false` selected another pyDeprecate version.
 
 **Q:** The pyDeprecate GitHub Action warns `the pyDeprecate report is not of layout version 1; ignoring it` and adds no gap annotations or job summary, although the CLI ran.
 
@@ -2867,7 +2867,7 @@ The CLI cannot name a source location for every finding. Objects without a defin
 
 Static scans also cannot locate wrappers for objects defined in another module or bound more than once.
 
-Since 0.16, a finding with a location uses the file and line of its wrapper's first decorator. A deprecated module is annotated on its file without a line.
+Since v0.16, a finding with a location uses the file and line of its wrapper's first decorator. A deprecated module is annotated on its file without a line.
 
 !!! note "Only checkout paths match pull requests"
 

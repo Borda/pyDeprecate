@@ -66,7 +66,7 @@ The `pydeprecate` command-line tool is documented in the [CLI Reference](guide/c
 
 ### Legacy audit aliases
 
-These aliases are deprecated since 0.6 and removed in 1.0. Use the replacement named in each entry.
+These aliases are deprecated since v0.6 and removed in v1.0. Use the replacement named in each entry.
 
 ::: deprecate.audit.DeprecatedCallableInfo
 

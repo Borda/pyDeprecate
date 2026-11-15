@@ -216,7 +216,7 @@ Each entry states the behaviour in one or two sentences. It links to the section
 
     **The Python static API shares the CLI `--static` blind spots.**
 
-    `find_deprecation_wrappers_static()` (since 0.16) returns a `StaticScanResult`. Read `.gaps` for recognized unresolved settings and unaudited source, even when `.wrappers` is empty.
+    `find_deprecation_wrappers_static()` (since v0.16) returns a `StaticScanResult`. Read `.gaps` for recognized unresolved settings and unaudited source, even when `.wrappers` is empty.
 
     Dynamic forms such as wrappers built in loops or through `getattr`, `importlib` or `exec` can remain invisible without a gap. Empty `.gaps` therefore does not prove complete coverage. Rows are approximations with stand-in targets that raise `TypeError` when called.
 
