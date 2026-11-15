@@ -97,7 +97,7 @@
   "mainEntityOfPage": { "@type": "WebPage", "@id": "https://borda.github.io/pyDeprecate/stable/changelog.html" },
   "author": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda" },
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
-  "dateModified": "2026-11-13"
+  "dateModified": "2026-11-15"
 }
 </script>
 
@@ -3131,6 +3131,10 @@
 <li><strong><code>--report-sarif FILE</code> writes SARIF 2.1.0 for code scanning.</strong> One result per active finding, keyed by finding id; suppressed findings are omitted and gaps become tool notifications. Available on every subcommand except <code>status</code>. (<a href="https://github.com/Borda/pyDeprecate/pull/266">#266</a>)</li>
 <li><strong>The GitHub Action gains <code>fail-on-gap</code> and <code>sarif</code> inputs, step outputs and finding annotations.</strong> <code>fail-on-gap</code> maps to <code>--strict</code> and <code>sarif</code> to <code>--report-sarif</code>; the step outputs are <code>exit-code</code>, <code>findings</code>, <code>errors</code>, <code>warnings</code>, <code>gaps</code>, <code>suppressed</code>, <code>report-json</code> and <code>sarif-file</code>. Each finding becomes an annotation on its wrapper's line, at most 50 per run. (<a href="https://github.com/Borda/pyDeprecate/pull/266">#266</a>)</li>
 </ul>
+<p><strong>Audit API</strong></p>
+<ul>
+<li><strong><code>find_deprecation_wrappers_static()</code> audits a package from source without importing it.</strong> It reads the source with <code>ast</code>, as <code>--static</code> does, and returns a frozen <code>StaticScanResult</code> with <code>wrappers</code>, <code>gaps</code> and the version resolved without imports. <code>validate_deprecation_expiry</code>, <code>validate_deprecation_policy</code> and <code>generate_deprecation_table</code> accept the result in place of a module, so a script or docs build can audit a package whose dependencies are missing. Rows are read from source and carry stand-in targets, so read <code>.gaps</code> before treating a result as clean. (<a href="https://github.com/Borda/pyDeprecate/pull/268">#268</a>)</li>
+</ul>
 <h3 id="changed_1">Changed<a class="headerlink" href="#changed_1" title="Permanent link">🔗</a></h3>
 <ul>
 <li><strong>A second positional argument on <code>expiry</code>, <code>all</code> and <code>status</code> is a path first; read as a version it is deprecated.</strong> With two positionals, the second is read as the version only when it names no path or findable module and parses as a version; that spelling prints a stderr notice and is removed in <code>1.0</code>. Pass <code>--version</code> instead; passing both exits <code>2</code>. (<a href="https://github.com/Borda/pyDeprecate/pull/266">#266</a>)</li>
@@ -3660,7 +3664,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 13, 2026 21:49:43 UTC">2026-11-13</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 15, 2026 13:44:58 UTC">2026-11-15</span>
   </span>
 
     

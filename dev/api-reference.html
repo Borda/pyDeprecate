@@ -100,7 +100,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-05-23",
-  "dateModified": "2026-10-29"
+  "dateModified": "2026-11-15"
 }
 </script>
 
@@ -1309,6 +1309,28 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#deprecate.audit.find_deprecation_wrappers_static" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;find_deprecation_wrappers_static
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deprecate.audit.StaticScanResult" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;StaticScanResult
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#deprecate.audit.validate_deprecation_wrapper" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2382,6 +2404,28 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deprecate.audit.find_deprecation_wrappers_static" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;find_deprecation_wrappers_static
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deprecate.audit.StaticScanResult" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;StaticScanResult
+      
+    </span>
+  </a>
   
 </li>
       
@@ -5530,6 +5574,300 @@ True</p>
 <div class="doc doc-object doc-function">
 
 
+<h2 id="deprecate.audit.find_deprecation_wrappers_static" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">deprecate</span><span class="o">.</span><span class="n">audit</span><span class="o">.</span><span class="n">find_deprecation_wrappers_static</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">include_members</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+
+<a href="#deprecate.audit.find_deprecation_wrappers_static" class="headerlink" title="Permanent link">🔗</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+        <p>Read deprecated wrappers from Python source without importing or executing the scanned package.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>path</code>
+            </td>
+            <td>
+                  <code><span title="typing.Union">Union</span>[<span title="str">str</span>, <span title="os.PathLike">PathLike</span>[<span title="str">str</span>]]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Package directory, module file, plain directory, or top-level module name located without importing it.
+Dotted module names are refused because locating them would import their parents.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>recursive</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Read package submodules recursively; plain directories include only top-level Python files.</p>
+              </div>
+            </td>
+            <td>
+                  <code>True</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>include_members</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Include deprecated class members.</p>
+              </div>
+            </td>
+            <td>
+                  <code>True</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>exclude</code>
+            </td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="collections.abc.Sequence">Sequence</span>[<span title="str">str</span>]]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Glob patterns over dotted module names, as in
+:func:<code>~deprecate.audit.find_deprecation_wrappers</code>; <code>None</code> excludes nothing.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="            deprecate.audit.StaticScanResult
+
+
+  
+      dataclass
+   (deprecate.audit._static.StaticScanResult)" href="#deprecate.audit.StaticScanResult">StaticScanResult</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Source-derived rows, ordered gaps, and the version resolved without imports. Always inspect <code>gaps</code> before</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="            deprecate.audit.StaticScanResult
+
+
+  
+      dataclass
+   (deprecate.audit._static.StaticScanResult)" href="#deprecate.audit.StaticScanResult">StaticScanResult</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>treating an empty <code>wrappers</code> tuple as clean. Targets are stand-ins, not executable replacements.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If the location has no Python source or requires importing parent packages to locate it.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Examples:</span></p>
+    <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">tempfile</span><span class="w"> </span><span class="kn">import</span> <span class="n">TemporaryDirectory</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="gp">&gt;&gt;&gt; </span><span class="k">with</span> <span class="n">TemporaryDirectory</span><span class="p">()</span> <span class="k">as</span> <span class="n">root</span><span class="p">:</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="gp">... </span>    <span class="n">package</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="s2">"sample"</span><span class="p">)</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="gp">... </span>    <span class="n">package</span><span class="o">.</span><span class="n">mkdir</span><span class="p">()</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="gp">... </span>    <span class="n">_</span> <span class="o">=</span> <span class="p">(</span><span class="n">package</span> <span class="o">/</span> <span class="s2">"__init__.py"</span><span class="p">)</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="gp">... </span>        <span class="s2">"from deprecate import deprecated</span><span class="se">\n</span><span class="s2">"</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="gp">... </span>        <span class="s2">"@deprecated(deprecated_in='1.0', remove_in='2.0')</span><span class="se">\n</span><span class="s2">def old(): pass</span><span class="se">\n</span><span class="s2">"</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="gp">... </span>    <span class="p">)</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="gp">... </span>    <span class="n">result</span> <span class="o">=</span> <span class="n">find_deprecation_wrappers_static</span><span class="p">(</span><span class="n">package</span><span class="p">)</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="gp">... </span>    <span class="p">[</span><span class="n">row</span><span class="o">.</span><span class="n">function</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">wrappers</span><span class="p">],</span> <span class="n">result</span><span class="o">.</span><span class="n">gaps</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="go">(['old'], ())</span>
+</code></pre></div>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="deprecate.audit.StaticScanResult" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>deprecate.audit.StaticScanResult</code>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#deprecate.audit.StaticScanResult" class="headerlink" title="Permanent link">🔗</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Keep the rows, gaps, and version of an import-free source scan together.</p>
+<p>Rows are approximations read from source and carry stand-in targets that raise <code>TypeError</code> when called.
+Callers must read <code>gaps</code>: empty <code>wrappers</code> with non-empty <code>gaps</code> is not a clean result.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="deprecate.audit.StaticScanResult.wrappers">wrappers</span></code></td>
+            <td>
+                  <code><span title="tuple">tuple</span>[<a class="autorefs autorefs-internal" title="            deprecate.audit.DeprecationWrapperInfo
+
+
+  
+      dataclass
+   (deprecate.audit._wrappers.DeprecationWrapperInfo)" href="#deprecate.audit.DeprecationWrapperInfo">DeprecationWrapperInfo</a>, ...]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Static wrapper rows after module exclusions.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="deprecate.audit.StaticScanResult.gaps">gaps</span></code></td>
+            <td>
+                  <code><span title="tuple">tuple</span>[<span title="str">str</span>, ...]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Structural gaps in encounter order, then distinct unresolved-setting details for each row.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="deprecate.audit.StaticScanResult.version">version</span></code></td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="str">str</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Package version resolved without importing, or <code>None</code> when unavailable.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Examples:</span></p>
+    <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">tempfile</span><span class="w"> </span><span class="kn">import</span> <span class="n">TemporaryDirectory</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="gp">&gt;&gt;&gt; </span><span class="k">with</span> <span class="n">TemporaryDirectory</span><span class="p">()</span> <span class="k">as</span> <span class="n">root</span><span class="p">:</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="gp">... </span>    <span class="n">_</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="s2">"module.py"</span><span class="p">)</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="s2">"value = 1</span><span class="se">\n</span><span class="s2">"</span><span class="p">)</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="gp">... </span>    <span class="n">scan</span> <span class="o">=</span> <span class="n">find_deprecation_wrappers_static</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="gp">... </span>    <span class="n">scan</span><span class="o">.</span><span class="n">wrappers</span><span class="p">,</span> <span class="n">scan</span><span class="o">.</span><span class="n">gaps</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="go">((), ())</span>
+</code></pre></div>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
 <h2 id="deprecate.audit.validate_deprecation_wrapper" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">deprecate</span><span class="o">.</span><span class="n">audit</span><span class="o">.</span><span class="n">validate_deprecation_wrapper</span><span class="p">(</span><span class="n">func</span><span class="p">)</span></code>
 
@@ -5702,9 +6040,9 @@ Invalid configurations won't cause runtime errors but will silently have no effe
 <p>This enforcement tool scans an entire module or package for deprecated functions and checks if any have passed
 their scheduled removal version. It's designed for CI/CD pipelines to automatically detect and report zombie code
 across a codebase.</p>
-<p>The function uses :func:<code>~deprecate.audit.find_deprecation_wrappers</code> to discover all deprecated wrappers,
-then checks each one against
-the current version. Any wrappers that have reached or passed their removal deadline are collected and reported.</p>
+<p>For module inputs, the function uses :func:<code>~deprecate.audit.find_deprecation_wrappers</code> to discover deprecated
+wrappers; a static result supplies its already-scanned rows. Wrappers that have reached or passed their removal
+deadline are collected and reported.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -5723,13 +6061,20 @@ the current version. Any wrappers that have reached or passed their removal dead
                 <code>module</code>
             </td>
             <td>
-                  <code><span title="typing.Union">Union</span>[<span title="typing.Any">Any</span>, <span title="str">str</span>]</code>
+                  <code><span title="typing.Union">Union</span>[<span title="typing.Any">Any</span>, <span title="str">str</span>, <a class="autorefs autorefs-internal" title="            deprecate.audit.StaticScanResult
+
+
+  
+      dataclass
+   (deprecate.audit._static.StaticScanResult)" href="#deprecate.audit.StaticScanResult">StaticScanResult</a>]</code>
             </td>
             <td>
               <div class="doc-md-description">
                 <p>A Python module or package to scan. Can be:
 - Imported module object (e.g., <code>import my_package; validate_deprecation_expiry(my_package, "2.0")</code>)
-- String module path (e.g., <code>validate_deprecation_expiry("my_package.submodule", "2.0")</code>)</p>
+- String module path (e.g., <code>validate_deprecation_expiry("my_package.submodule", "2.0")</code>)
+- :class:<code>~deprecate.audit.StaticScanResult</code>, checked without imports or another scan; only rows with
+  resolved expiry settings are checked. Inspect its <code>gaps</code> for incomplete coverage.</p>
               </div>
             </td>
             <td>
@@ -5748,7 +6093,8 @@ the current version. Any wrappers that have reached or passed their removal dead
                 <p>The current version of your package to compare against removal deadlines (e.g., <code>"2.0.0"</code>).
 If None, auto-detects the version of the top-level package of the module path (e.g. <code>"mypackage"</code>
 for <code>"mypackage.submodule"</code>) the way the CLI does: installed metadata under the import name, then
-under the distribution that ships it, then the package's string <code>__version__</code>.</p>
+under the distribution that ships it, then the package's string <code>__version__</code>.
+For a static result, uses its <code>version</code> instead, raising <code>ImportError</code> if it is unavailable.</p>
               </div>
             </td>
             <td>
@@ -5873,7 +6219,8 @@ resolved for the package. A string module path that cannot be imported raises <c
             <td>
               <div class="doc-md-description">
                 <p>If <code>current_version</code> is not a valid PEP 440 version, if <code>module</code> is an empty string, or if
-<code>current_version</code> is <code>None</code> and <code>module</code> is an object without a <code>__name__</code>.</p>
+<code>current_version</code> is <code>None</code> and <code>module</code> is an object without a <code>__name__</code>. Also raised for a
+static result with <code>recursive=False</code> or <code>include_members=False</code>: scan options are already fixed.</p>
               </div>
             </td>
           </tr>
@@ -5967,11 +6314,18 @@ replacement, all at review time instead of in a downstream issue.</p>
                 <code>module</code>
             </td>
             <td>
-                  <code><span title="typing.Union">Union</span>[<span title="typing.Any">Any</span>, <span title="str">str</span>]</code>
+                  <code><span title="typing.Union">Union</span>[<span title="typing.Any">Any</span>, <span title="str">str</span>, <a class="autorefs autorefs-internal" title="            deprecate.audit.StaticScanResult
+
+
+  
+      dataclass
+   (deprecate.audit._static.StaticScanResult)" href="#deprecate.audit.StaticScanResult">StaticScanResult</a>]</code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>A Python module or package to scan — an imported module object or a string module path.</p>
+                <p>A Python module or package to scan — an imported module object or a string module path.
+Also accepts a :class:<code>~deprecate.audit.StaticScanResult</code> without imports or another scan; each rule checks
+only rows whose required settings resolved. Inspect its <code>gaps</code> for incomplete coverage.</p>
               </div>
             </td>
             <td>
@@ -6137,7 +6491,8 @@ library is not installed (<code>pip install pyDeprecate[audit]</code>). A policy
             </td>
             <td>
               <div class="doc-md-description">
-                <p>If <code>min_grace</code> is not a valid specification.</p>
+                <p>If <code>min_grace</code> is not a valid specification, or a static result is given with <code>recursive=False</code>
+or <code>include_members=False</code> because its scan options are already fixed.</p>
               </div>
             </td>
           </tr>
@@ -6547,11 +6902,19 @@ top-level wrappers and deprecated class members (methods/constructors).</p>
                 <code>module</code>
             </td>
             <td>
-                  <code><span title="typing.Union">Union</span>[<span title="typing.Any">Any</span>, <span title="str">str</span>]</code>
+                  <code><span title="typing.Union">Union</span>[<span title="typing.Any">Any</span>, <span title="str">str</span>, <a class="autorefs autorefs-internal" title="            deprecate.audit.StaticScanResult
+
+
+  
+      dataclass
+   (deprecate.audit._static.StaticScanResult)" href="#deprecate.audit.StaticScanResult">StaticScanResult</a>]</code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Imported module/package object or string module path to scan.</p>
+                <p>Imported module/package object or string module path to scan.
+Also accepts a :class:<code>~deprecate.audit.StaticScanResult</code> without imports or another scan. Its source rows
+are rendered as-is with stand-in target names; inspect <code>gaps</code> for
+unresolved settings and incomplete coverage.</p>
               </div>
             </td>
             <td>
@@ -6571,7 +6934,8 @@ top-level wrappers and deprecated class members (methods/constructors).</p>
 evaluation in compact style. If <code>None</code>, the version is auto-detected
 like <code>validate_deprecation_expiry</code> does; status falls back to
 <code>"⚪ Status Unknown"</code> when it stays unresolved or <code>packaging</code> is not
-installed.</p>
+installed.
+For a static result, defaults to its <code>version</code> without any further lookup.</p>
               </div>
             </td>
             <td>
@@ -6734,7 +7098,8 @@ nothing.</p>
               <div class="doc-md-description">
                 <p>If <code>style</code> is not <code>"compact"</code> or <code>"matrix"</code>, or if
 <code>current_version</code> is supplied explicitly but is not a valid PEP 440
-version string and <code>packaging</code> is installed.</p>
+version string and <code>packaging</code> is installed. Also raised for a static result with <code>recursive=False</code>
+or <code>include_members=False</code> because its scan options are already fixed.</p>
               </div>
             </td>
           </tr>
@@ -8642,7 +9007,7 @@ without triggering deprecation warnings.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 29, 2026 09:40:07 UTC">2026-10-29</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 15, 2026 13:44:58 UTC">2026-11-15</span>
   </span>
 
     
