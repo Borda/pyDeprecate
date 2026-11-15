@@ -5,15 +5,19 @@ description: Install pyDeprecate and write your first deprecation in minutes. Co
 
 # Getting Started
 
-You renamed a function (or retired an argument) and now you need the old name to keep working, callers to see a clear deprecation notice, and a firm removal date you can enforce. pyDeprecate does all of that with a single decorator so you can focus on the new API instead of the plumbing.
+You renamed a function or retired an argument. You need the old name to keep working, a clear deprecation notice for callers, and a firm removal date you can enforce.
+
+pyDeprecate handles all three with a single decorator. You can focus on the new API instead of the plumbing.
 
 ## Why pyDeprecate instead of `warnings.warn`?
 
 `warnings.warn` tells callers that something is deprecated — but they still have to update their code manually and the old code path keeps running. pyDeprecate adds three things on top:
 
 - **Automatic call forwarding** — every call to the old function is transparently redirected to the replacement; no stale code runs.
+
 - **Argument mapping** — rename or drop arguments across the API boundary with `args_mapping={"old": "new"}` to help callers migrate to the new signature.
-- **CI deadline enforcement** — `validate_deprecation_expiry()` (via `pip install 'pyDeprecate[audit]'`) returns a message for every wrapper whose removal version has been reached, and `pydeprecate expiry` exits `1` on any, so CI fails and deprecated code cannot quietly outlive its deadline.
+
+- **CI deadline enforcement** — `validate_deprecation_expiry()` returns a message for every wrapper whose removal version has been reached. Install it via `pip install 'pyDeprecate[audit]'`. On any expired wrapper, `pydeprecate expiry` exits `1`, so CI fails and deprecated code cannot quietly outlive its deadline.
 
 If you only need a one-line notice with no forwarding and no deadline tracking, `warnings.warn` is sufficient. Choose pyDeprecate when you need the old name to keep working while callers migrate.
 
@@ -124,15 +128,25 @@ Not sure which API to reach for? This table maps common scenarios to the right t
 | `update_docstring` | `False`               | Append Sphinx `.. deprecated::` notice to docstring                                                                                                                     |
 | `docstring_style`  | `"auto"`              | Style of the injected notice: `"auto"`, `"rst"`, `"mkdocs"`, `"markdown"`                                                                                               |
 
-Prefer passing an explicit `target` (`TargetMode.NOTIFY`, `TargetMode.ARGS_REMAP`, or a callable) so the intent is visible at the call site — `TargetMode.AUTO` is only the front-door default that resolves an omitted `target`, and you never write it yourself.
+Prefer passing an explicit `target` (`TargetMode.NOTIFY`, `TargetMode.ARGS_REMAP`, or a callable) so the intent is visible at the call site. `TargetMode.AUTO` is only the front-door default that resolves an omitted `target`. You never write it yourself.
 
-All three decorators (`@deprecated`, `deprecated_callable()`, `deprecated_class()`) share every parameter above. The only differences: `deprecated_class()` adds `attrs_mapping` (attribute-name remapping — `TypeError` on the other two), and a class source is dispatched to `deprecated_class` by `@deprecated` but rejected with `TypeError` by `deprecated_callable()`. `TargetMode.AUTO` is front-door-only: `deprecated_callable()` defaults `target` to `TargetMode.NOTIFY`, `deprecated_class()` leaves it unset, and both raise `TypeError` when handed `TargetMode.AUTO` explicitly.
+All three decorators (`@deprecated`, `deprecated_callable()`, `deprecated_class()`) share every parameter above. They differ as follows:
 
-`deprecated_instance()` shares `target`, `args_mapping`, `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_extra`, `message_template`, `skip_if`, and `as_exception`, and takes `attrs_mapping` like `deprecated_class()`; it requires `obj` and adds `name` (display name) and `read_only`.
+- `deprecated_class()` adds `attrs_mapping` for attribute-name remapping. Passing it to the other two raises `TypeError`.
+
+- `@deprecated` dispatches a class source to `deprecated_class`. `deprecated_callable()` rejects a class source with `TypeError`.
+
+- `TargetMode.AUTO` is front-door-only. `deprecated_callable()` defaults `target` to `TargetMode.NOTIFY`, while `deprecated_class()` leaves it unset. Both raise `TypeError` when handed `TargetMode.AUTO` explicitly.
+
+`deprecated_instance()` shares `target`, `args_mapping`, `deprecated_in`, `remove_in`, `num_warns`, `stream`, `args_extra`, `message_template`, `skip_if`, and `as_exception`. It takes `attrs_mapping` like `deprecated_class()`. It requires `obj` and adds `name` (display name) and `read_only`.
 
 ### Parameter matrix across the API
 
-Every parameter each factory accepts, with its default. 🚫 marks a parameter the factory does **not** accept — passing it raises `TypeError`. **required** marks a parameter with no default.
+The matrix lists every parameter each factory accepts, with its default.
+
+- 🚫 marks a parameter the factory does **not** accept — passing it raises `TypeError`.
+
+- **required** marks a parameter with no default.
 
 | Parameter          | `@deprecated`         | `deprecated_callable` | `deprecated_class`    | `deprecated_instance` | `deprecated_module` |
 | ------------------ | --------------------- | --------------------- | --------------------- | --------------------- | ------------------- |
@@ -153,7 +167,17 @@ Every parameter each factory accepts, with its default. 🚫 marks a parameter t
 | `update_docstring` | `False`               | `False`               | `False`               | 🚫                    | 🚫                  |
 | `docstring_style`  | `"auto"`              | `"auto"`              | `"auto"`              | 🚫                    | 🚫                  |
 
-Notes: `deprecation_warning` is the default `FutureWarning` sink (`stream=None` silences it). `deprecated_module` is the exception: omit `stream` to warn through `warnings.warn`; an explicit `stream=None` still warns there and emits a `FutureWarning` at the call, because it silences the module warning only from v1.0. `name` is a display label for `deprecated_instance` and the module's `__name__` for `deprecated_module` (auto-detected from the caller when omitted). `message_template` is the custom-notice override on every factory; `template_mgs` is its **deprecated alias** (renamed in v0.12; emits a `FutureWarning`, removed in v1.0) — pass `message_template` instead. The front door `@deprecated` exposes only the parameters common to `deprecated_callable` and `deprecated_class`; the proxy-only `attrs_mapping` is 🚫 there — use `deprecated_class(attrs_mapping=...)` (or `deprecated_instance(obj, attrs_mapping=...)`) directly.
+!!! note
+
+    - `deprecation_warning` is the default `FutureWarning` sink (`stream=None` silences it).
+
+    - `deprecated_module` is the exception: omit `stream` to warn through `warnings.warn`. An explicit `stream=None` still warns there and emits a `FutureWarning` at the call. It silences the module warning only from v1.0.
+
+    - `name` is a display label for `deprecated_instance`. For `deprecated_module`, it is the module's `__name__`, auto-detected from the caller when omitted.
+
+    - `message_template` is the custom-notice override on every factory. `template_mgs` is its **deprecated alias** (renamed in v0.12; emits a `FutureWarning`, removed in v1.0). Pass `message_template` instead.
+
+    - The front door `@deprecated` exposes only the parameters common to `deprecated_callable` and `deprecated_class`. The proxy-only `attrs_mapping` is 🚫 there. Use `deprecated_class(attrs_mapping=...)` (or `deprecated_instance(obj, attrs_mapping=...)`) directly.
 
 ______________________________________________________________________
 
@@ -162,7 +186,9 @@ ______________________________________________________________________
 ![Deprecation lifecycle cycle: old API in blue, new API and decorator in yellow, callers migrate, pre-commit, CI and pytest flag the expired wrapper, delete it and repeat](assets/images/pydeprecate-lifecycle.svg)
 
 - **Fatal deprecations** — `as_exception=True` (or `deprecate.as_exceptions()` / `DEPRECATE_AS_EXCEPTIONS=1`) raises `DeprecatedError` instead of warning, so a test run can refuse deprecated calls. See [Fatal deprecations](guide/functions.md#fatal-deprecations).
+
 - **CLI** — `pydeprecate check`, `expiry`, `policy`, `chains` and `all` audit a package from the shell with CI-friendly exit codes. See the [CLI Reference](guide/cli.md).
+
 - **pre-commit and GitHub Action** — run the same checks as a [pre-commit hook](guide/audit.md#pre-commit-integration) or a [GitHub Action](guide/audit.md#github-action) step.
 
 ______________________________________________________________________

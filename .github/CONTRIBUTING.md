@@ -36,7 +36,9 @@ There are many ways to contribute beyond writing code. Every contribution, no ma
 Taking time to understand the project first helps you contribute more effectively:
 
 - **Documentation** — Learn how the project works and its key concepts. This prevents misunderstandings and ensures your contributions align with project goals.
+
 - **Existing issues** — Your idea might already be discussed or even implemented. Searching first saves you time and effort.
+
 - **Codebase** — Familiarize yourself with the code structure and style. This makes it easier to make changes that fit well with the existing code.
 
 ### Ask Questions
@@ -44,7 +46,9 @@ Taking time to understand the project first helps you contribute more effectivel
 Don't hesitate to ask! Open an issue or use discussions to:
 
 - Clarify project goals and scope — Make sure your contributions are aligned with the project's direction
+
 - Understand implementation details — Get help with specific technical questions
+
 - Get guidance on where to contribute — Find areas where your skills and interests can make the biggest impact
 
 > [!TIP]
@@ -56,8 +60,11 @@ Don't hesitate to ask! Open an issue or use discussions to:
 When reporting a bug, providing clear and detailed information helps us fix it faster. Here's how:
 
 1. **Search existing issues** — The bug might already be reported and being worked on.
+
 2. **Create a minimal reproduction** — Provide a simple example that demonstrates the bug. This makes it easier for us to reproduce and fix the issue.
+
 3. **Include environment details** — Tell us your operating system, Python version, and pyDeprecate version.
+
 4. **Describe expected vs actual behavior** — Be specific about what you expected to happen and what actually occurred.
 
 ## 🔧 Fixing Bugs
@@ -65,15 +72,25 @@ When reporting a bug, providing clear and detailed information helps us fix it f
 Bug fixing is a great way to contribute! Here's how to get started:
 
 1. **Find a bug to fix** — Look for issues labeled `bug` or `help wanted` in the issue tracker.
+
    - Check if the issue is already assigned to someone
+
    - If it's assigned but has no activity for a while, comment to ask if you can take it over
+
 2. **Understand the problem** — Read the issue carefully and try to reproduce the bug.
+
 3. **Write a failing test first (TDD)** — Before fixing the bug, write a test that reproduces the issue. This ensures:
+
    - You understand the problem correctly
+
    - The fix actually resolves the issue
+
    - The bug won't silently reappear in the future
+
 4. **Implement the fix** — Now that you have a failing test, implement the fix to make it pass. Keep your changes focused on the specific issue.
+
 5. **Verify the test passes** — Run the test suite to ensure your fix resolves the issue without breaking anything else.
+
 6. **Submit a PR** — Create a pull request with your fix, linking to the issue it addresses.
 
 > [!IMPORTANT]
@@ -85,17 +102,25 @@ Bug fixing is a great way to contribute! Here's how to get started:
 Improvements are enhancements to existing functionality that make the project better. They could be:
 
 - Performance optimizations
+
 - Code refactoring for better maintainability
+
 - User experience enhancements
+
 - Documentation improvements
+
 - Process or workflow improvements
 
 Here's how to suggest and implement improvements:
 
 1. **Open an issue** — Describe the improvement you're suggesting. Explain the current situation, why it needs improvement, and your proposed solution.
+
 2. **Provide context** — Include examples, use cases, or data to support your suggestion.
+
 3. **Discuss and refine** — Engage in the issue discussion to clarify requirements and explore alternatives.
+
 4. **Get feedback** — Wait for input from maintainers and the community. For small improvements, you may get rapid approval.
+
 5. **Implement if approved** — If your suggestion is accepted, follow the standard development process.
 
 ## ✨ Building Features with Consensus
@@ -103,10 +128,15 @@ Here's how to suggest and implement improvements:
 **Before implementing any new feature:**
 
 1. **Open an issue first** — Clearly describe your idea, use case, and how it benefits the project.
+
    - Check if the issue is already assigned to someone
+
    - If it's assigned but has no activity for a while, comment to ask if you can take it over
+
 2. **Wait for maintainer approval** — Look for a **👍 "go-ahead" reaction** or explicit approval from a maintainer.
+
 3. **Discuss and refine** — Engage in the issue discussion to clarify requirements and explore alternatives.
+
 4. **Get consensus** — Ensure there's general agreement from the community before starting implementation.
 
 > [!CAUTION]
@@ -116,11 +146,17 @@ Here's how to suggest and implement improvements:
 **When you have approval:**
 
 1. **Implement the feature** — Build the feature following the project's coding style and guidelines.
+
 2. **Add comprehensive tests** — Every new feature **must** have tests covering:
+
    - **Happy path** — The feature works correctly with valid inputs
+
    - **Failure path** — The feature handles errors gracefully and raises appropriate exceptions
+
    - **Edge cases** — None values, empty inputs, boundary conditions, circular chains, missing arguments
+
 3. **Update documentation** — Document how to use the new feature.
+
 4. **Submit a PR** — Create a pull request, linking to the approved issue.
 
 > [!IMPORTANT]
@@ -134,12 +170,23 @@ Here's how to suggest and implement improvements:
 Complete this checklist before opening a pull request to ensure quality and smooth review:
 
 - [ ] Followed existing code style (pre-commit hooks enforce this automatically)
+
 - [ ] Added tests for new functionality (happy path, failure path, edge cases)
+
 - [ ] Ran tests locally and they pass (`pytest .`)
+
 - [ ] Updated documentation if needed (README, docs/guide pages, docstrings, inline comments)
-- [ ] Updated `CHANGELOG.md` under `[UnReleased]` — write the entry **at PR-creation time** (once the PR number is known and content is stable); re-assess against the final diff, not individual commits; include `(#N)` PR link; exclude docs-only, test-only, CI, and internal refactoring changes
+
+- [ ] Updated `CHANGELOG.md` under `[UnReleased]`. Write the entry **at PR-creation time**, once the PR number is known and content is stable.
+
+  - Re-assess against the final diff, not individual commits.
+  - Include `(#N)` PR link.
+  - Exclude docs-only, test-only, CI, and internal refactoring changes.
+
 - [ ] Updated `docs/llms.txt` if public API behavior, patterns, or anti-patterns changed
+
 - [ ] Self-reviewed my code
+
 - [ ] Linked to related issue(s)
 
 ### Linking Issues
@@ -147,6 +194,7 @@ Complete this checklist before opening a pull request to ensure quality and smoo
 **Every PR should reference an issue.** This provides context and helps track progress. Use keywords like:
 
 - `Fixes #123` — Closes the issue when PR is merged
+
 - `Relates to #456` — Links without auto-closing
 
 If no issue exists, open one first to discuss the change before implementing it.
@@ -154,7 +202,9 @@ If no issue exists, open one first to discuss the change before implementing it.
 ### Keep PRs Focused
 
 - **One PR = one logical change** — This makes your PR easier to review and understand
+
 - **Smaller PRs are easier to review** — Large PRs can be overwhelming and take longer to merge
+
 - **Split large changes into multiple PRs** — Break complex features into smaller, manageable pieces
 
 ### Reviewing PRs
@@ -166,7 +216,9 @@ Use the [code-review skill](skills/code-review/SKILL.md) for specialist checks, 
 Tests and quality improvements are **always welcome**! These contributions are highly valuable because they:
 
 - Improve project stability — Well-tested code is more reliable for everyone
+
 - Help catch future regressions — Tests prevent issues from reoccurring
+
 - Reduce maintainer burden — Comprehensive tests require less ongoing debugging
 
 ### Running Tests
@@ -192,9 +244,16 @@ pytest .
 pytest . -m "not subprocess"
 ```
 
-A test that starts a Python interpreter or an external CLI as a child process, directly or through the action runner, carries `@pytest.mark.subprocess` on the test or on its class when every test in the class does. The marker states an execution requirement, not a speed tier; CI always runs the full suite. A process a third-party library starts for its own bookkeeping (for example Griffe probing `git` while it loads a module) does not count.
+A test that starts a Python interpreter or an external CLI as a child process carries `@pytest.mark.subprocess`. This applies whether it starts the process directly or through the action runner. Put the marker on the test, or on its class when every test in the class does.
 
-Under `--cov`, `run.patch = ["subprocess"]` starts coverage in every child interpreter, and stripping the `COVERAGE_*` variables is not enough on coverage 7.10.x (the newest release that installs on Python 3.9), which imports coverage and with it `json` from a site `.pth` file. A test that reads `sys.modules` of a child therefore starts it with `run_isolated_python` from `tests/_helpers.py` and carries the `without_coverage` marker (`tests/integration/test_import_cost.py`); CI runs `pytest . --cov=deprecate -m "not without_coverage"` and then `pytest . -m without_coverage` without `--cov`.
+The marker states an execution requirement, not a speed tier; CI always runs the full suite. A process a third-party library starts for its own bookkeeping does not count. For example, Griffe probing `git` while it loads a module does not count.
+
+Under `--cov`, `run.patch = ["subprocess"]` starts coverage in every child interpreter. Stripping the `COVERAGE_*` variables is not enough on coverage 7.10.x, the newest release that installs on Python 3.9. That release imports coverage, and with it `json`, from a site `.pth` file.
+
+A test that reads a child's `sys.modules` therefore starts it with `run_isolated_python` from `tests/_helpers.py`. It carries the `without_coverage` marker (`tests/integration/test_import_cost.py`). CI runs these commands in order:
+
+1. Run `pytest . --cov=deprecate -m "not without_coverage"`.
+2. Then run `pytest . -m without_coverage` without `--cov`.
 
 > [!TIP]
 >
@@ -202,11 +261,23 @@ Under `--cov`, `run.patch = ["subprocess"]` starts coverage in every child inter
 
 > [!NOTE]
 >
-> When updating code examples in README.md, use `phmdoctest` to extract them as runnable tests. This ensures examples stay accurate and working as the codebase evolves. Code blocks paired with an output block must produce exactly that output when executed, which sometimes requires mocking external state (e.g. `unittest.mock.patch`); illustrative patterns that can't run standalone (like CI fixtures) are wrapped in nested functions marked `# Caution- no assertions.` so phmdoctest skips their execution.
+> When updating code examples in README.md, use `phmdoctest` to extract them as runnable tests. This ensures examples stay accurate and working as the codebase evolves.
+>
+> Code blocks paired with an output block must produce exactly that output when executed. This sometimes requires mocking external state (e.g. `unittest.mock.patch`).
+>
+> Illustrative patterns that can't run standalone (like CI fixtures) are wrapped in nested functions marked `# Caution- no assertions.`. This makes phmdoctest skip their execution.
 
 > [!IMPORTANT]
 >
-> **`make docs-tests` is the only supported way to (re)generate the docs example tests** under `tests/docs/` (and `tests/integration/test_readme.py`). It deletes the old generated `test_*.py` files first, so it never leaves stale artifacts behind. These files are gitignored local artifacts — running `pytest tests/docs/` against an out-of-date checkout otherwise produces confusing failures (e.g. `ModuleNotFoundError` for placeholder imports, or assertion drift against reprs that have since changed). A `tests/docs/conftest.py` guard fails collection with a `regenerate via make docs-tests` message when any generated file is older than the `docs/*.md` source it came from; the default `pytest .` run collects `tests/docs/` too, so the guard applies there as well. On a fresh clone no generated file exists yet: `pytest .` still passes, but `tests/conftest.py` adds a `PytestWarning` to the summary saying the documentation examples were not run. Run `make docs-tests` once after cloning. The generated tests check printed output only, so `tests/conftest.py` ignores the `DeprecationWarning`, `FutureWarning` and `UserWarning` their examples demonstrate (each marked `# warns:` in the Markdown); the rest of the suite keeps the configured filters.
+> **`make docs-tests` is the only supported way to (re)generate the docs example tests** under `tests/docs/` (and `tests/integration/test_readme.py`). It deletes the old generated `test_*.py` files first, so it never leaves stale artifacts behind.
+>
+> These files are gitignored local artifacts. Running `pytest tests/docs/` against an out-of-date checkout otherwise produces confusing failures. Examples include `ModuleNotFoundError` for placeholder imports, or assertion drift against reprs that have since changed.
+>
+> A `tests/docs/conftest.py` guard fails collection when any generated file is older than the `docs/*.md` source it came from. It reports a `regenerate via make docs-tests` message. The default `pytest .` run collects `tests/docs/` too, so the guard applies there as well.
+>
+> On a fresh clone no generated file exists yet: `pytest .` still passes. However, `tests/conftest.py` adds a `PytestWarning` to the summary saying the documentation examples were not run. Run `make docs-tests` once after cloning.
+>
+> The generated tests check printed output only. Therefore, `tests/conftest.py` ignores the `DeprecationWarning`, `FutureWarning` and `UserWarning` their examples demonstrate (each marked `# warns:` in the Markdown). The rest of the suite keeps the configured filters.
 
 ## 💎 Quality Expectations
 
@@ -217,11 +288,16 @@ Under `--cov`, `run.patch = ["subprocess"]` starts coverage in every child inter
 We value all levels of contribution and want to encourage everyone, regardless of skill level or time available. What matters is being reasonable and meaningful about what you can deliver:
 
 - **Start small and iterate** — Better to do smaller tasks piece by piece than take too much and leave it unfinished. Small contributions add up over time.
+
 - **Break work into steps** — This allows others to take over and continue if needed. It also makes your work more approachable for reviewers.
+
 - **Avoid abandoned PRs** — Forked PRs are difficult to carry over except by maintainers, creating significant burden. If you can't complete a PR, let us know.
+
 - **Be meaningful and reasonable** — Contribute what you can realistically complete. Even small improvements make a difference.
 
-We don't expect perfection. We expect genuine effort. If you're unsure about something, ask! The community is here to help.
+We don't expect perfection. We expect genuine effort.
+
+If you're unsure about something, ask! The community is here to help.
 
 ## 🌿 Branch Naming Convention
 
@@ -234,10 +310,15 @@ Follow this pattern for branch names to keep the repository organized:
 **Types:**
 
 - `fix/` — Bug fixes (e.g., `fix/123-deprecation-warning-crash`)
+
 - `feat/` — New features (e.g., `feat/45-add-class-deprecation`)
+
 - `docs/` — Documentation changes (e.g., `docs/update-readme-examples`)
+
 - `refactor/` — Code refactoring (e.g., `refactor/simplify-validation`)
+
 - `test/` — Test additions or improvements (e.g., `test/edge-cases-for-chains`)
+
 - `chore/` — Maintenance tasks (e.g., `chore/update-dependencies`)
 
 > [!TIP]
@@ -281,40 +362,73 @@ git push origin fix/123-your-bug-description
 
 ### Design Principles
 
-- **Simplicity**: the API surface must be learnable in minutes; prefer patterns users already know; do not introduce a new concept unless it solves a real gap that existing primitives cannot address.
-- **Robustness**: deprecated code is on the removal path; correctness must hold regardless of call order or framework integration; audit tools must surface all live deprecations so nothing slips through to a breaking release.
-- **Flexibility**: work with any Python callable — functions, class methods, async, properties, dataclasses, enums — without special-casing the caller; the library adapts to the user's code, not the other way around.
+- **Simplicity**: the API surface must be learnable in minutes. Prefer patterns users already know. Do not introduce a new concept unless it solves a real gap that existing primitives cannot address.
+
+- **Robustness**: deprecated code is on the removal path. Correctness must hold regardless of call order or framework integration. Audit tools must surface all live deprecations so nothing slips through to a breaking release.
+
+- **Flexibility**: work with any Python callable — functions, class methods, async, properties, dataclasses, enums — without special-casing the caller. The library adapts to the user's code, not the other way around.
 
 When a proposed feature conflicts with simplicity, complexity wins only when robustness or flexibility requires it.
 
 ### Style & Formatting
 
 - Follow [PEP 8](https://pep8.org/) style guidelines — enforced automatically by `ruff` via pre-commit hooks
+
 - Write clear, descriptive docstrings (Google-style convention) for all public **and** private functions, methods, and classes:
+
   - **Private functions** (name starts with `_`): minimum one-line summary — callers and reviewers must be able to understand the function contract without reading the body
-  - **Public functions**: full Google-style sections — `Args:` for every parameter (name, type if not already in the signature, what it means), `Returns:` describing the return value and its type when non-obvious, `Raises:` listing every exception the function intentionally raises with the condition that triggers it; omit a section only when it genuinely does not apply (e.g. no parameters, returns `None`, raises nothing)
-  - Include an `Examples:` section for non-trivial behavior — omit only when an example literally cannot run (e.g., requires an external service or produces non-deterministic output); showing the call without output (`>>> result = fn(x)` with no output line) is fine and still counts as a runnable doctest; `# doctest: +SKIP` and `# phmdoctest:skip` are highly discouraged — each instance degrades testability; if you must use one, explain why in a comment on the same line
+
+  - **Public functions**: use full Google-style sections.
+
+    - Include `Args:` for every parameter: its name, type if not already in the signature, and what it means.
+    - Include `Returns:` describing the return value and its type when non-obvious.
+    - Include `Raises:` listing every exception the function intentionally raises, with the condition that triggers it.
+    - Omit a section only when it genuinely does not apply (e.g. no parameters, returns `None`, raises nothing).
+
+  - Include an `Examples:` section for non-trivial behavior. Omit it only when an example literally cannot run (e.g., requires an external service or produces non-deterministic output).
+
+    - Showing the call without output (`>>> result = fn(x)` with no output line) is fine and still counts as a runnable doctest.
+    - `# doctest: +SKIP` and `# phmdoctest:skip` are highly discouraged — each instance degrades testability. If you must use one, explain why in a comment on the same line.
+
   - **If a function has no dedicated test**, it must have at least one runnable `Examples:` doctest — the doctest is the minimum proof that the function works as documented
-- In docstrings, always reference project symbols with their full import path using Sphinx cross-reference syntax (e.g., `` :func:`~deprecate.deprecation.deprecated` `` rather than just `` :func:`deprecated` ``); standard library symbols (e.g., `FutureWarning`) do not need a module prefix
+
+- In docstrings, always reference project symbols with their full import path using Sphinx cross-reference syntax. For example, use `` :func:`~deprecate.deprecation.deprecated` `` rather than just `` :func:`deprecated` ``. Standard library symbols (e.g., `FutureWarning`) do not need a module prefix.
+
 - Use **MkDocs admonition syntax** for docstring notices in `src/deprecate/` by default — `!!! note`, `!!! warning "Deprecated in X.Y"`, etc. Do not use RST directives (`.. note::`, `.. deprecated::`) in package source docstrings unless the module specifically exists to integrate with Sphinx/RST docstrings (for example, `src/deprecate/docstring/sphinx_ext.py` and `src/deprecate/docstring/griffe_ext.py`). For demos, `demo-docs/sphinx/` follows RST conventions and `demo-docs/mkdocs/` follows MkDocs conventions — each demo matches its own renderer.
+
 - Keep functions focused and modular — a function should do one thing; if it needs a long comment to explain what it does, it probably needs to be split
+
 - Add type hints to all function signatures, including return types
+
 - Align type hint syntax with the **minimum supported Python version** (check `requires-python` in `pyproject.toml`)
+
 - If unsure about syntax compatibility, consult the official Python documentation for that version or search for the relevant PEP
+
 - Write meaningful variable and function names — prefer `expired_callables` over `lst`, `source_func` over `f`
-- Write Python code that is readable on its own — good names and structure are the primary documentation. Add an inline comment only when it carries context the code cannot: **why** a non-obvious choice was made, a hidden constraint, a subtle invariant, or a workaround for a specific external behaviour. One short line; never explain what the code does
+
+- Write Python code that is readable on its own — good names and structure are the primary documentation. Add an inline comment only when it carries context the code cannot:
+
+  - Explain **why** a non-obvious choice was made, a hidden constraint, a subtle invariant, or a workaround for a specific external behaviour.
+  - Keep it to one short line; never explain what the code does.
+
 - When changing existing behavior, scan changed files for stale inline comments — update or remove them (stale comments mislead more than none)
+
 - No bare `except:` — always catch specific exceptions (e.g., `except ValueError:`, `except ImportError:`)
 
 > [!TIP]
 >
-> **All linting and formatting is automatically handled by pre-commit hooks** on every commit. Tools include `ruff` (formatting/linting) and `mypy` (type checking). Configs live in `pyproject.toml` and `.pre-commit-config.yaml`. The hooks will prevent commits with style violations.
+> **All linting and formatting is automatically handled by pre-commit hooks** on every commit. Tools include `ruff` (formatting/linting) and `mypy` (type checking).
+>
+> Configs live in `pyproject.toml` and `.pre-commit-config.yaml`. The hooks will prevent commits with style violations.
 
 ### Architecture Constraints
 
 - **Zero runtime dependencies** — pyDeprecate has no runtime dependencies. Do not add any.
+
 - **Fast imports / low overhead** — avoid expensive computations or premature imports in module-level code or wrapper setup.
+
 - **Circular imports** — when editing `src/deprecate/`, verify new imports don't create cycles. Use `if TYPE_CHECKING:` blocks for type-only imports.
+
 - **Deprecation chains** — if modifying chain validation logic, handle infinite loops (A deprecates B, B deprecates A) gracefully without crashing.
 
 ### Project Structure
@@ -516,7 +630,13 @@ Tests live in `tests/` and follow a **three-layer separation**:
 | `unittests/docstring/`        | Mirrors `src/deprecate/docstring/`: `test_inject.py` and `test_griffe_ext.py`, with the extension imports in `test___init__.py`; the Sphinx tests stay in `integration/test_sphinx_ext.py`                                                                                                                 |
 | `_helpers.py`                 | Helpers shared across test packages: `captured_warnings`, `write_pkg` and `run_isolated_python`                                                                                                                                                                                                            |
 
-**`integration/`** — Each file covers one area of the public surface (functions, classes, audit, utils, docstrings, README examples, agent-plugin manifests, or the GitHub Action runner). Tests call `@deprecated`-decorated code as a user would and assert on warnings, return values, and forwarded types. `test_readme.py` is generated by `phmdoctest` from README code blocks; `test_agent_plugin.py` verifies that both host catalogs resolve the same local plugin skills and aligned manifests; `test_action.py` runs the action runner as a subprocess and checks `action.yml` parity with the runner and CLI.
+**`integration/`** — Each file covers one area of the public surface. These areas include functions, classes, audit, utils, docstrings, README examples, agent-plugin manifests, or the GitHub Action runner. Tests call `@deprecated`-decorated code as a user would and assert on warnings, return values, and forwarded types.
+
+- `test_readme.py` is generated by `phmdoctest` from README code blocks.
+
+- `test_agent_plugin.py` verifies that both host catalogs resolve the same local plugin skills and aligned manifests.
+
+- `test_action.py` runs the action runner as a subprocess and checks `action.yml` parity with the runner and CLI.
 
 The integration suite also keeps characterization for positional and keyword forwarding, callable-kind dispatch, warning frame/filter behavior, and proxy pickle compatibility. The optional call-overhead benchmark lives in `.github/scripts/bench_call_overhead.py`; it is not a pytest test.
 
@@ -525,43 +645,82 @@ The integration suite also keeps characterization for positional and keyword for
 > **README examples must be runnable.** Every Python code block in `README.md` is extracted by `phmdoctest` and executed as a test. Follow these rules when writing README examples:
 >
 > - Use `print()` for values you want to verify, paired with a `<details><summary>Output: <code>expression</code></summary>` block immediately after the code block. The `<summary>` label shows the **expression** being evaluated (e.g. `cfg.timeout`), not the `print()` wrapper.
+>
 > - Only import and use `pytest.raises` when an example intentionally raises an exception — this prevents the extracted test from crashing. Do **not** use `pytest.warns`; deprecation warnings are emitted to stderr and do not cause test failures.
+>
 > - **Never use `with warnings.catch_warnings(record=True) as w: warnings.simplefilter("always")`** in any `.md` code block (README, docs, docstrings). Use direct calls annotated with `# warns: FutureWarning` or `# silent` instead. Output blocks show only return values — not warning counts or `w[0].category.__name__`.
-> - Do **not** use bare `assert` statements in top-level example code — they crash the test with an unhelpful `AssertionError` if the value changes. **Exception:** bare `assert` statements inside `def test_...` function bodies shown as pytest integration examples are allowed and idiomatic — the test function itself is the test.
+>
+> - Do **not** use bare `assert` statements in top-level example code. They crash the test with an unhelpful `AssertionError` if the value changes.
+>
+>   **Exception:** bare `assert` statements inside `def test_...` function bodies shown as pytest integration examples are allowed and idiomatic. The test function itself is the test.
+>
 > - Regenerate `test_readme.py` after any README change: `phmdoctest README.md --outfile tests/integration/test_readme.py`
 
+> [!IMPORTANT]
+>
 > **Docs examples must use `print()` + output blocks — no `assert`.** For all `docs/**/*.md` blocks that execute code:
 >
 > - Use `print()` to display values; follow immediately with a `<details><summary>Output: <code>expression</code></summary>` block showing expected output.
-> - Do **not** use bare `assert` statements in top-level example code (e.g. `assert pt.x == 1.0`, `assert isinstance(obj, MyClass)`) — use `print()` instead so the value is visible rather than crashing with `AssertionError`. **Exception:** bare `assert` statements inside `def test_...` function bodies shown as pytest integration examples are allowed and idiomatic.
-> - Avoid placeholders that do not validate behavior.
-> - **Never import a fictional package name** in runnable examples — executable examples must import from actual test collection modules (`from tests.collections.api_deprecated import core`, `forwarding` or `regressions`, `misconfigured`, `chains`, `policy`, or `pep702`). For CI-template snippets that intentionally show a placeholder import, add `# phmdoctest:skip — CI template: replace my_package with your actual package` as the first line of the code block so phmdoctest skips execution.
 >
+> - Do **not** use bare `assert` statements in top-level example code (e.g. `assert pt.x == 1.0`, `assert isinstance(obj, MyClass)`). Use `print()` instead so the value is visible rather than crashing with `AssertionError`.
+>
+>   **Exception:** bare `assert` statements inside `def test_...` function bodies shown as pytest integration examples are allowed and idiomatic.
+>
+> - Avoid placeholders that do not validate behavior.
+>
+> - **Never import a fictional package name** in runnable examples. Executable examples must import from actual test collection modules. Use `from tests.collections.api_deprecated import core`, `forwarding` or `regressions`, `misconfigured`, `chains`, `policy`, or `pep702`.
+>
+>   For CI-template snippets that intentionally show a placeholder import, add `# phmdoctest:skip — CI template: replace my_package with your actual package` as the first line of the code block. This makes phmdoctest skip execution.
+
 > [!NOTE]
 >
 > **Several docs examples import a `tests/collections/` module and print hardcoded counts from it** (currently: `README.md`, `docs/guide/audit.md`, `docs/troubleshooting.md`). When you add or remove entries from a collection module:
 >
 > - Update every doc example's expected-count code block that scans the changed module — check `README.md`, every `docs/guide/*.md` page, and `docs/troubleshooting.md`, not just one of them.
+>
 > - Regenerate the affected test files: `make docs-tests`
 >
 > Failing to do this causes the corresponding generated test file(s) under `tests/docs/` or `tests/integration/test_readme.py` to fail in CI. Enumerating specific files here goes stale as soon as a new doc example is added — grep for the fixture module's import if in doubt.
 
-**`unittests/`** — Tests import private symbols directly (e.g. `_raise_warn`, `_parse_version`) and use mocking/monkeypatching to stay isolated from external state. Each file mirrors a source module (`deprecation.py`, `docstring/inject.py` in `unittests/docstring/test_inject.py`, `utils.py`), and a source subpackage becomes a test subpackage with one file per submodule — `unittests/audit/test__policy.py` for `deprecate/audit/_policy.py`; private symbols of the `audit/` subpackage are imported from their defining submodule (`deprecate.audit._policy`), never from the package root. The internal `_cli/` package maps to `unittests/cli/` (`test_commands.py` for `_cli/commands.py`, `test_cli.py` for the `cli()` entry point in `_cli/__init__.py`), with wrapper fixtures shared by several of those files kept in `cli/_helpers.py`. `cli/conftest.py` holds one autouse fixture that lets the path preflight accept the stand-in module name `some_module`, which those tests scan with `find_deprecation_wrappers` mocked; every other name is still looked up for real. The private `_static/` reader maps to `unittests/static/`: source-reading tests in `test_reader.py`, discovery in `test_discovery.py`, and placeholder targets in `test_model.py`, with shared source fixtures and row helpers in `static/_helpers.py`. `cli/test_static.py` keeps the CLI gap output, `_cli/static.py` tests and parity with the import scan. Each file imports private symbols from their defining submodule. It follows the same import rule, and a `patch()` targets the submodule that looks the name up at call time (`deprecate._cli.scan.find_deprecation_wrappers`, not `deprecate._cli.find_deprecation_wrappers`). `cli()` looks the `cmd_*` subcommands up in `deprecate._cli.commands` when it runs, so a test of its dispatch patches `deprecate._cli.commands.cmd_check` with `autospec=True` (the parser is built from the signature it sees), as does a test that runs the real `cmd_all` with a stubbed table (`deprecate._cli.commands._status_table`). A patch on another binding may leave the test green while it runs the real code.
+**`unittests/`** — Tests import private symbols directly (e.g. `_raise_warn`, `_parse_version`) and use mocking/monkeypatching to stay isolated from external state.
+
+Each file mirrors a source module (`deprecation.py`, `docstring/inject.py` in `unittests/docstring/test_inject.py`, `utils.py`). A source subpackage becomes a test subpackage with one file per submodule — `unittests/audit/test__policy.py` for `deprecate/audit/_policy.py`. Import private symbols of the `audit/` subpackage from their defining submodule (`deprecate.audit._policy`), never from the package root.
+
+- The internal `_cli/` package maps to `unittests/cli/`. `test_commands.py` covers `_cli/commands.py`, and `test_cli.py` covers the `cli()` entry point in `_cli/__init__.py`. Wrapper fixtures shared by several of those files stay in `cli/_helpers.py`.
+
+- `cli/conftest.py` holds one autouse fixture that lets the path preflight accept the stand-in module name `some_module`. Those tests scan it with `find_deprecation_wrappers` mocked; every other name is still looked up for real.
+
+- The private `_static/` reader maps to `unittests/static/`. Source-reading tests stay in `test_reader.py`, discovery in `test_discovery.py`, and placeholder targets in `test_model.py`. Shared source fixtures and row helpers stay in `static/_helpers.py`.
+
+- `cli/test_static.py` keeps the CLI gap output, `_cli/static.py` tests and parity with the import scan.
+
+Each file imports private symbols from their defining submodule. It follows the same import rule. A `patch()` targets the submodule that looks the name up at call time (`deprecate._cli.scan.find_deprecation_wrappers`, not `deprecate._cli.find_deprecation_wrappers`).
+
+`cli()` looks the `cmd_*` subcommands up in `deprecate._cli.commands` when it runs. A test of its dispatch therefore patches `deprecate._cli.commands.cmd_check` with `autospec=True`; the parser is built from the signature it sees. A test that runs the real `cmd_all` with a stubbed table (`deprecate._cli.commands._status_table`) does the same.
+
+A patch on another binding may leave the test green while it runs the real code.
 
 > [!IMPORTANT]
 >
-> **Three-layer rule**: do not define target objects or deprecated wrappers directly inside `test_*.py` files. Place targets in `api_current/`, deprecated wrappers in `api_deprecated/`, then import them in tests. Package `__init__.py` files hold only a docstring; declarations go in a named submodule such as `core.py`. This includes class definitions — do not define classes inside test functions; define them in the appropriate collection module instead.
+> **Three-layer rule**: do not define target objects or deprecated wrappers directly inside `test_*.py` files. Place targets in `api_current/`, deprecated wrappers in `api_deprecated/`, then import them in tests.
+>
+> Package `__init__.py` files hold only a docstring; declarations go in a named submodule such as `core.py`. This includes class definitions — do not define classes inside test functions; define them in the appropriate collection module instead.
 >
 > Exceptions:
 >
-> - **Unit-level mechanical fixtures:** a test under `tests/unittests/` may define a tiny class or function inline when it exists only to drive the code under test — a stand-in owner or operand, a source whose attributes the test inspects, or a fresh wrapper for one private helper.
-> - **A fresh definition is the behaviour under test:** in any layer, keep the definition inside the test when the test asserts a decoration-time warning or error at the definition itself, creates the class inside `pytest.warns` or `pytest.raises`, or asserts a warning location that is the definition line.
+> - **Unit-level mechanical fixtures:** a test under `tests/unittests/` may define a tiny class or function inline when it exists only to drive the code under test. Examples include a stand-in owner or operand, a source whose attributes the test inspects, or a fresh wrapper for one private helper.
+>
+> - **A fresh definition is the behaviour under test:** in any layer, keep the definition inside the test in these cases:
+>
+>   - The test asserts a decoration-time warning or error at the definition itself.
+>   - The test creates the class inside `pytest.warns` or `pytest.raises`.
+>   - The test asserts a warning location that is the definition line.
 
 > [!IMPORTANT]
 >
 > **No local imports inside test functions.** All `import` and `from … import` statements must appear at module level, not inside test methods or helper functions. Import each fixture name at the top of the test file and use it directly in the test body.
 >
-> The one exception is the autouse reset fixture in `tests/conftest.py`, which imports `deprecate.deprecation` when it runs. CI installs the package without `-e`; a module-level import there would load the installed copy before `--doctest-modules` collects `src/`, and collection then fails with `import file mismatch`.
+> The one exception is the autouse reset fixture in `tests/conftest.py`, which imports `deprecate.deprecation` when it runs. CI installs the package without `-e`. A module-level import there would load the installed copy before `--doctest-modules` collects `src/`, and collection then fails with `import file mismatch`.
 >
 > ```python
 > # ✗ wrong — local import inside a test method
@@ -585,18 +744,38 @@ The integration suite also keeps characterization for positional and keyword for
 
 > [!IMPORTANT]
 >
-> **Private test helpers.** Every helper function in a `test_*.py` module carries a leading underscore (`_build_target`, not `build_target`), module-level or nested inside a test (`_worker`, `_counting_stream`); only `test_*` functions and pytest fixtures stay public. A nested function that is the subject under test (a source, target or decorated callable whose name reaches the asserted output) keeps its name. A method on a fake class keeps the name of the interface it stands in for (`read_text`, `reconfigure`).
+> **Private test helpers.** Every helper function in a `test_*.py` module carries a leading underscore (`_build_target`, not `build_target`). This applies both at module level and nested inside a test (`_worker`, `_counting_stream`); only `test_*` functions and pytest fixtures stay public.
 >
-> **Public collection objects.** In `tests/collections/`, every target, deprecated source and wrapper carries a public name (`batches_source`, not `_batches_source`), including a placeholder source that exists only to be wrapped. The leading underscore is kept for real helpers (builders, shared private state) and for a source whose public name is already taken by its own wrapper (`SelfMappedEnum = deprecated_class(...)(_SelfMappedEnum)`).
+> A nested function that is the subject under test keeps its name. This means a source, target or decorated callable whose name reaches the asserted output. A method on a fake class keeps the name of the interface it stands in for (`read_text`, `reconfigure`).
+>
+> **Public collection objects.** In `tests/collections/`, every target, deprecated source and wrapper carries a public name (`batches_source`, not `_batches_source`). This includes a placeholder source that exists only to be wrapped.
+>
+> The leading underscore is kept for real helpers (builders, shared private state). It is also kept for a source whose public name is already taken by its own wrapper (`SelfMappedEnum = deprecated_class(...)(_SelfMappedEnum)`).
 
-**Asserting warnings.** Use `pytest.warns(Category, match=...)` when the test only needs at least one matching warning. When it checks an exact count, the order, the absence of warnings, or a record's `filename`/`lineno`, record with `captured_warnings()` from `tests/_helpers.py`. It is `warnings.catch_warnings(record=True)` plus `simplefilter("always")`, so neither the active filters nor the once-per-location registry hide a record. A warning the test triggers but does not check must not escape into the run's warnings summary: assert it with a second `pytest.warns` in the same `with`, or, when it is pure setup noise, add a narrow `@pytest.mark.filterwarnings("ignore:<message prefix>:<Category>")` to that test. `pytest.warns` re-emits unmatched warnings from the `warnings` module, so the `tests`-scoped ignores in `pyproject.toml` no longer apply to them.
+**Asserting warnings.** Use `pytest.warns(Category, match=...)` when the test only needs at least one matching warning. Record with `captured_warnings()` from `tests/_helpers.py` when checking any of the following:
+
+- Check an exact count, the order, or the absence of warnings.
+
+- Check a record's `filename`/`lineno`.
+
+It is `warnings.catch_warnings(record=True)` plus `simplefilter("always")`, so neither the active filters nor the once-per-location registry hide a record.
+
+A warning the test triggers but does not check must not escape into the run's warnings summary. Use either approach:
+
+- Assert it with a second `pytest.warns` in the same `with`.
+
+- When it is pure setup noise, add a narrow `@pytest.mark.filterwarnings("ignore:<message prefix>:<Category>")` to that test.
+
+`pytest.warns` re-emits unmatched warnings from the `warnings` module, so the `tests`-scoped ignores in `pyproject.toml` no longer apply to them.
 
 > [!NOTE]
 >
 > **Exception — one-off inline fixtures:** inline fixtures are allowed inside a test function when all of the following hold:
 >
 > - **Single use** — used by exactly one test and not reused elsewhere
+>
 > - **Non-representational** — does not model real API migration behavior or a named deprecation pattern
+>
 > - **Purely mechanical** — exists only to drive a protocol or edge case (for example a malformed `remove_in` string, or a tiny local class used solely for `isinstance`/`issubclass` behavior)
 >
 > If in doubt, extract. Move to a collection module when the fixture is shared across tests, models real migration behavior, or represents a reusable deprecated wrapper or target.
@@ -606,6 +785,7 @@ The integration suite also keeps characterization for positional and keyword for
 The prefix encodes whether the fixture exists in one form or two:
 
 - **Single form** (only one way the deprecation is applied — no decorator/wrapper comparison needed): use `depr_<name>` for functions and `Deprecated<Name>` for classes.
+
 - **Both forms** (decorator and wrapper, used together in a parametrized test): reflect the form in the name:
 
 | Form                         | Functions/methods  | Classes (PascalCase) |
@@ -616,7 +796,9 @@ The prefix encodes whether the fixture exists in one form or two:
 Examples:
 
 - `DeprecatedEnum` — single form, no wrapper counterpart
+
 - `decorated_sum_warn_only` / `wrapped_sum_warn_only` — paired for parametrize
+
 - `DecoratedEnum` / `WrappedEnum` — paired class fixtures for the same parametrized comparison
 
 When adding a parametrized test that covers both forms, always add both fixtures and share the same `deprecated(...)` instance to guarantee identical configuration:
@@ -677,7 +859,9 @@ class _OriginalWidget:
 WrappedWidget = _class_deprecation_widget(_OriginalWidget)
 ```
 
-> **Rule**: when a `Decorated<Name>` / `Wrapped<Name>` pair exists, both **must** share a single `_class_deprecation_<name>` instance. Duplicating the `deprecated_class(...)` kwargs is a bug — a silent config drift will cause the parametrized test to compare two different deprecations instead of the same one in two application forms.
+> [!NOTE]
+>
+> **Rule**: when a `Decorated<Name>` / `Wrapped<Name>` pair exists, both **must** share a single `_class_deprecation_<name>` instance. Duplicating the `deprecated_class(...)` kwargs is a bug. A silent config drift will make the parametrized test compare two different deprecations instead of the same one in two application forms.
 
 #### Unification pattern — shared version kwargs and hoisted instances
 
@@ -708,14 +892,26 @@ def depr_class_whole_mode_warns_on_call(x: int) -> int: ...
 **Rules:**
 
 - Minimum **3 call sites** before extracting — two occurrences stay inline.
-- Only group call sites where **all three** of `deprecated_in`, `remove_in`, and `num_warns` are identical (or all three omit `num_warns`). Sites that differ on any key stay inline. One existing exception predates this rule: `**_DEPRS_CASE_STD_ARGS, num_warns=1` in `api_deprecated.py`. Do not add more.
-- `_class_deprecation_*` shared instances (see above) and `_DEPRS_CASE_*` constants both go in the **constants block at the top of `api_deprecated.py`**, right after `_SHORT_MSG_FUNC` / `_SHORT_MSG_ARGS`. This makes version metadata scannable in one place. Sibling collection modules import shared constants and instances from there; the original module never imports from its siblings. `misconfigured.py` keeps its own `_DEPRS_CASE_OLD_ARGS`, because `tests/integration/test_action.py` copies that file into a standalone package that can import only from `deprecate`. `policy.py` and `pep702.py` also define module-local constants for their own schedules.
+
+- Only group call sites where **all three** of `deprecated_in`, `remove_in`, and `num_warns` are identical (or all three omit `num_warns`). Sites that differ on any key stay inline.
+
+  One existing exception predates this rule: `**_DEPRS_CASE_STD_ARGS, num_warns=1` in `api_deprecated.py`. Do not add more.
+
+- `_class_deprecation_*` shared instances (see above) and `_DEPRS_CASE_*` constants both go in the **constants block at the top of `api_deprecated.py`**. Place them right after `_SHORT_MSG_FUNC` / `_SHORT_MSG_ARGS`. This makes version metadata scannable in one place.
+
+  Sibling collection modules import shared constants and instances from there; the original module never imports from its siblings.
+
+  `misconfigured.py` keeps its own `_DEPRS_CASE_OLD_ARGS`. `tests/integration/test_action.py` copies that file into a standalone package that can import only from `deprecate`. `policy.py` and `pep702.py` also define module-local constants for their own schedules.
+
 - When adding a new fixture group that would form a third call site for an existing tuple, extract rather than inline.
-- **Exception — fixtures under `assert_type`:** a fixture whose *static* type is pinned by `assert_type` (currently `DeprecatedColorEnumFunctional` and `DeprecatedPaletteFunctionalFallback`, asserted in `tests/unittests/proxy/test_factories.py`) spells its version kwargs out inline. mypy resolves an overloaded call against a `dict[str, Any]` splat by falling back to `Any`, which erases the overload the assertion exists to verify. Do not "unify" these back into a `_DEPRS_CASE_*` splat — the assertion would keep passing while proving nothing.
+
+- **Exception — fixtures under `assert_type`:** a fixture whose *static* type is pinned by `assert_type` spells its version kwargs out inline. Currently this covers `DeprecatedColorEnumFunctional` and `DeprecatedPaletteFunctionalFallback`, asserted in `tests/unittests/proxy/test_factories.py`.
+
+  mypy resolves an overloaded call against a `dict[str, Any]` splat by falling back to `Any`. This erases the overload the assertion exists to verify. Do not "unify" these back into a `_DEPRS_CASE_*` splat — the assertion would keep passing while proving nothing.
 
 **Docstrings in test collections:**
 
-Functions in `api_deprecated/`, `misconfigured.py`, `chains.py`, `policy.py`, `pep702.py`, and `docstrings.py` must have Google-style docstrings with a **user-first focus** — describe the real-world scenario a user would encounter, not just the technical configuration. This keeps tests grounded in actual use cases and helps contributors understand *why* each deprecation pattern exists.
+Functions in `api_deprecated/`, `misconfigured.py`, `chains.py`, `policy.py`, `pep702.py`, and `docstrings.py` must have Google-style docstrings with a **user-first focus**. Describe the real-world scenario a user would encounter, not just the technical configuration. This keeps tests grounded in actual use cases and helps contributors understand *why* each deprecation pattern exists.
 
 Use a one-line summary of the deprecation pattern, then an `Examples:` section describing the user scenario:
 
@@ -740,16 +936,27 @@ def decorated_sum_warn_only(a: int, b: int = 5) -> int:
 > **All new features and bug fixes must include tests.** This is non-negotiable.
 
 - Every new function or behavior change must have accompanying tests.
+
 - For every new utility or feature, include tests for:
+
   1. Happy path — expected correct behavior with valid inputs
+
   2. Failure path — expected errors are raised with appropriate messages
+
   3. Edge cases — None types, empty inputs, circular chains, missing arguments, boundary conditions
+
 - **Group related tests in classes** — use test classes when you have multiple related tests or need shared fixtures.
+
 - **Avoid redundant naming** — don't repeat class context in test method names (e.g., in `TestDeprecatedWrapper`, use `test_shows_warning` not `test_deprecated_wrapper_shows_warning`).
+
 - **Use fixtures for independence** — use pytest fixtures to reset state between tests. Add `autouse=True` fixtures when a class needs per-test reset.
+
 - **One behavior per test** — each test method should verify one specific aspect.
-- **Prefer parametrization for repetitive shapes** — when the setup/assertion flow is the same and only inputs/expected outputs differ, use `pytest.mark.parametrize(...)` to reduce duplication while keeping one behavioral intent per case.
+
+- **Prefer parametrization for repetitive shapes** — use `pytest.mark.parametrize(...)` when the setup/assertion flow is the same and only inputs/expected outputs differ. This reduces duplication while keeping one behavioral intent per case.
+
 - **Assertions on warnings:** Use `pytest.warns(FutureWarning|DeprecationWarning)` to verify deprecation warnings are emitted correctly.
+
 - **Scenario description in docstrings** — every non-trivial test method must include a prose paragraph after the one-line summary that describes the real-world situation being tested. A one-line summary alone is not sufficient for complex tests.
 
 ```python
@@ -791,9 +998,24 @@ class TestMyFeature:
 ### Coding-Agent Plugin (`plugins/pydeprecate/`)
 
 - **Three-way sync**: `src/deprecate/` (code) ↔ `README.md`/`docs/llms.txt`/`docs/guide/*.md` (docs) ↔ `plugins/pydeprecate/skills/*/SKILL.md` (plugin). A public API change updates all three; a `SKILL.md` referencing an identifier not in the installed API is a bug (guarded by `test_skill_docs_reference_real_api` in `tests/integration/test_agent_plugin.py`).
+
 - **Docs and `AGENTS.md` outrank plugin guidance** — `docs/llms.txt` and `AGENTS.md` are the authoritative contract; `plugins/pydeprecate/skills/*/SKILL.md` is a cached, separately-installed copy that can lag the actual installed package version. On any conflict, trust docs/`AGENTS.md` and fix the `SKILL.md`, never the reverse.
+
 - **No extra blank-line spacing in `plugins/**/*.md`** — single blank line between blocks, no blank line between list items in a tight list (see existing `SKILL.md` files for the pattern).
-- **Version policy**: plugin `version` (in both `.claude-plugin/plugin.json` and `.codex-plugin/plugin.json`) bumps on its own cadence — skill content changed — independent of the package's `__version__`. Each manifest also declares `compatible_package_version` (PEP 440 specifier, e.g. `">=0.10"`): a floating support window whose floor is the current minor version minus three, bumped at every minor release. Identifiers the `SKILL.md` files reference that are newer than the floor carry an inline since-note with the older spelling or fallback (check `CHANGELOG.md`, not guesswork). Never collapse the two fields into one shared number — enforced by the `plugin-compat-floor` pre-commit hook (`.github/scripts/check_plugin_compat_floor.py`: manifests agree, floor within three minors of `__version__`, `SKILL.md` prose mirrors it); it is a policy check, so it lives in pre-commit rather than the test suite.
+
+- **Version policy**: plugin `version` (in both `.claude-plugin/plugin.json` and `.codex-plugin/plugin.json`) bumps on its own cadence — skill content changed. It is independent of the package's `__version__`.
+
+  Each manifest also declares `compatible_package_version` (PEP 440 specifier, e.g. `">=0.10"`). This floating support window has a floor of the current minor version minus three, bumped at every minor release.
+
+  Identifiers the `SKILL.md` files reference that are newer than the floor carry an inline since-note with the older spelling or fallback. Check `CHANGELOG.md`, not guesswork.
+
+  Never collapse the two fields into one shared number. The `plugin-compat-floor` pre-commit hook (`.github/scripts/check_plugin_compat_floor.py`) enforces this:
+
+  - The manifests agree.
+  - The floor is within three minors of `__version__`.
+  - The `SKILL.md` prose mirrors it.
+
+  It is a policy check, so it lives in pre-commit rather than the test suite.
 
 ### Common Patterns
 
@@ -902,24 +1124,41 @@ make docs-tests   # regenerate tests/integration/test_readme.py and tests/docs/t
 When making changes, keep all surfaces in sync:
 
 1. **New or renamed public API symbol** — update `README.md` (API reference) **and** the relevant `docs/guide/` page.
+
 2. **New use-case pattern** — add an entry to `docs/guide/use-cases.md`.
+
 3. **New troubleshooting item** — add a Q&A block to `docs/troubleshooting.md`; the `FAQPage` JSON-LD in `docs/overrides/main.html` is generated from its H2 headings and first prose paragraph by `docs/mkdocs_hooks.py`.
+
 4. **README stays authoritative for install and full API** — `docs/index.md` is a curated overview that links out, never a verbatim copy.
+
 5. **Never copy README → docs in CI** — the build workflow (`build-docs.yml`) does not copy `README.md`; tracked `docs/index.md` is used directly.
+
 6. **AI crawler policy** — when a new mainstream AI crawler is released, add a `User-agent: <bot> / Allow: /` pair to `docs/robots.txt`. The comment line referencing `docs/llms.txt` must stay current if the llms.txt URL changes.
-7. **Migration fragments use minor-line granularity** — store required rewrites under `_deltas/breaking/v0.N-to-v0.M.md` and observable changes under `_deltas/behavior/v0.N-to-v0.M.md`. Include only changes that require existing users to rewrite code or account for different behavior; keep addition-only notes in the changelog and relevant topic guide. Patch and post releases are folded into the minor interval whose destination contains them; do not create patch-specific fragments or `Coming from` sections. Fragments intentionally omit headings and outer admonitions: the `Coming from ...` section and its `Breaking changes` / `Behavior changes` tabs provide that context after injection. Keep each compatibility item in exactly one category. Atomic minor intervals can be composed; a verified cumulative file such as `v0.4-to-v0.12.md` may replace a long include chain when it stays self-contained.
+
+7. **Migration fragments use minor-line granularity** — store required rewrites under `_deltas/breaking/v0.N-to-v0.M.md` and observable changes under `_deltas/behavior/v0.N-to-v0.M.md`.
+
+   Include only changes that require existing users to rewrite code or account for different behavior. Keep addition-only notes in the changelog and relevant topic guide.
+
+   Patch and post releases are folded into the minor interval whose destination contains them. Do not create patch-specific fragments or `Coming from` sections.
+
+   Fragments intentionally omit headings and outer admonitions. The `Coming from ...` section and its `Breaking changes` / `Behavior changes` tabs provide that context after injection. Keep each compatibility item in exactly one category.
+
+   Atomic minor intervals can be composed. A verified cumulative file such as `v0.4-to-v0.12.md` may replace a long include chain when it stays self-contained.
 
 ### Code Example Conventions
 
 Two audiences read the docs examples — name accordingly.
 
-**Human-facing docs** (`docs/guide/*.md`, `README.md`, `docs/index.md`) — domain-realistic, story-telling names (e.g. `score` → `score_predictions`, `detect` → `detect_objects`). Readers understand *why* the rename happened. Never use generic placeholders like `old_func` / `new_func`.
+**Human-facing docs** (`docs/guide/*.md`, `README.md`, `docs/index.md`) — domain-realistic, story-telling names (e.g. `score` → `score_predictions`, `detect` → `detect_objects`).
+
+Readers understand *why* the rename happened. Never use generic placeholders like `old_func` / `new_func`.
 
 **AI-facing docs only** (`docs/llms.txt`, `docs/llms-full.txt`, `plugins/pydeprecate/skills/*/SKILL.md`) — generic placeholder names (`old_func`/`new_func`, `old_arg`/`new_arg`). Must not appear in `docs/guide/`, `README.md`, or `docs/index.md`. `SKILL.md` prose task examples (e.g. "Deprecate `old_func` in `package.module`, deprecated_in=1.4, remove_in=2.0.") are fine as-is — the generic-name rule applies to code identifiers, not to natural-language request examples.
 
 **Orientation comments** — every paired example (new API + deprecated wrapper) opens with:
 
 - '# NEW API — <one-line purpose>' above the replacement function
+
 - '# DEPRECATED API — `old_name` replaced by `new_name`' above the deprecated decorator
 
 Use `# NEW/FUTURE API —` when the replacement is defined in the same block immediately before the deprecated wrapper.
