@@ -160,6 +160,8 @@ repos:
 
 `pydeprecate-expiry-static` and `pydeprecate-policy-static` read source with `ast` without importing your package. They need none of its runtime dependencies.
 
+<!-- TODO(v0.16.0): remove this "Release availability" warning once v0.16.0 is tagged; the hooks then exist in the released repo -->
+
 !!! warning "Release availability"
 
     These hooks are available from `v0.16.0`, the upcoming release, not yet tagged. The following recipe fails until that release is published.
