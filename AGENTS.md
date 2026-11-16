@@ -122,7 +122,7 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 - **New troubleshooting item**: add a `### question` section under the matching topic `##` heading of `docs/troubleshooting.md`, whose first prose paragraph is the answer — the FAQPage JSON-LD is generated from it at build time by `docs/mkdocs_hooks.py`, never edit it by hand
 - **`docs/overrides/main.html`** is Jinja2 (prettier-excluded); do not put content files there
 - **`docs/robots.txt`** — AI crawler access policy; add a `User-agent: <bot> / Allow: /` block when a new mainstream AI crawler is released. The comment referencing the `docs/llms.txt` URL must stay current.
-- **Tight lists in every `*.md`** — no blank line between list items or before a nested list; keep blank lines only when an item holds a block that needs them (code block, table, image, admonition, second paragraph)
+- **Tight lists in every `*.md`** — no blank line between list items or before a nested list; keep blank lines only when an item holds a block that needs them (code block, table, image, admonition); write a follow-on point as a nested bullet, not an indented second paragraph
 - See [Documentation Site](.github/CONTRIBUTING.md#-documentation-site) for the full consistency rules
 
 ## 🚫 Critical Constraints
@@ -145,39 +145,25 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 ### Always:
 
 - **Anchor with repository context first** — read config files (`pyproject.toml`, `.pre-commit-config.yaml`) and guidelines before any work
-
 - **Trust config files over documentation** — when mismatches occur, config files are the source of truth
-
 - **Suggest documentation updates** when you find mismatches between docs and actual configuration
-
 - **Update docs immediately after any structural change** — adding, moving, renaming, or deleting files/folders/modules must be followed by updating `.github/CONTRIBUTING.md` (project structure tree, Test Organisation table) and any other `*.md` that references affected paths or names. Do not wait to be asked.
-
 - **Keep README and docs site in sync** — any API addition, rename, or behavior change must be reflected in `README.md` **and** the relevant `docs/guide/` page; new troubleshooting items go in `docs/troubleshooting.md` only (the FAQPage JSON-LD is generated from it)
-
 - **Update `CHANGELOG.md` at PR-creation time** — once the PR number is known and the diff is stable, add or re-assess the entry under `[UnReleased]` (new features → `Added`, fixes → `Fixed`, behavior changes → `Changed`); always include `(#N)` PR link; skip docs-only, test-only, CI, and pure internal refactoring changes; do not write entries during iterative development commits — content may pivot before the PR is opened
-
 - **Update inline comments when changing behavior** — after any logic change, scan changed files for comments describing that behavior; update stale ones (stale comments mislead more than none)
-
-- **Keep AI-agent documentation in sync** — `docs/llms.txt` is a machine-readable contract read by AI agents before generating code; it must reflect actual behavior at all times. Apply this sync table on every relevant change:
-
-  - **Public API behavior change** — affected module docstrings (`routine.py`, `audit/__init__.py`, `proxy/__init__.py`, `utils.py`) · inline comments in changed `src/` files · `README.md` Quick Start · relevant `docs/guide/*.md` topic page · `docs/llms.txt` § Agent Notes · `docs/troubleshooting.md` (add or update Q&A) · FAQPage JSON-LD in `docs/overrides/main.html`
-  - **New deprecation pattern** — `docs/llms.txt` Decision Flowchart · relevant `docs/guide/*.md` topic page (functions, classes, properties, async, or advanced)
-  - **New anti-pattern discovered** — `docs/llms.txt` § Anti-Patterns · relevant `docs/guide/*.md` topic page
-  - **`TargetMode` enum value added or removed** — `docs/llms.txt` Critical Mental Model · Decision Flowchart · relevant `docs/guide/*.md` topic page
-  - **New mainstream AI crawler released** — `docs/robots.txt` (new `User-agent: <bot> / Allow: /` block)
-
-  `docs/llms.txt` is the highest-leverage surface for AI agents — a stale entry there produces wrong code at scale. `docs/robots.txt` is the access gateway — an unlisted bot gets the wildcard `Allow: /` but explicit entries signal intent to AI platforms.
-
+- **Keep AI-agent documentation in sync** — `docs/llms.txt` is a machine-readable contract read by AI agents before generating code; it must reflect actual behavior at all times.
+  - Apply this sync table on every relevant change:
+    - **Public API behavior change** — affected module docstrings (`routine.py`, `audit/__init__.py`, `proxy/__init__.py`, `utils.py`) · inline comments in changed `src/` files · `README.md` Quick Start · relevant `docs/guide/*.md` topic page · `docs/llms.txt` § Agent Notes · `docs/troubleshooting.md` (add or update Q&A) · FAQPage JSON-LD in `docs/overrides/main.html`
+    - **New deprecation pattern** — `docs/llms.txt` Decision Flowchart · relevant `docs/guide/*.md` topic page (functions, classes, properties, async, or advanced)
+    - **New anti-pattern discovered** — `docs/llms.txt` § Anti-Patterns · relevant `docs/guide/*.md` topic page
+    - **`TargetMode` enum value added or removed** — `docs/llms.txt` Critical Mental Model · Decision Flowchart · relevant `docs/guide/*.md` topic page
+    - **New mainstream AI crawler released** — `docs/robots.txt` (new `User-agent: <bot> / Allow: /` block)
+  - `docs/llms.txt` is the highest-leverage surface for AI agents — a stale entry there produces wrong code at scale. `docs/robots.txt` is the access gateway — an unlisted bot gets the wildcard `Allow: /` but explicit entries signal intent to AI platforms.
 - **Follow code example naming conventions** — human-facing docs (`docs/guide/*.md`, `README.md`) use domain-realistic story-telling names; AI-facing docs (`docs/llms.txt`, `docs/llms-full.txt`) use generic names (`old_func`/`new_func`, `old_arg`/`new_arg`); every paired example carries `# NEW API —` / `# DEPRECATED API —` orientation comments. See [Code Example Conventions](.github/CONTRIBUTING.md#code-example-conventions). `attrs_mapping` keys must be the original names callers use today — never a meta-name like `legacy_X` or `deprecated_X`.
-
 - Ensure pre-commit hooks are installed (they run automatically on commit)
-
 - Provide `deprecated_in` and `remove_in` versions
-
 - Include migration messages in deprecation warnings
-
 - Write tests first when fixing bugs (TDD)
-
 - Cover happy path, failure path, and edge cases in tests
 
 ## 🔗 Complete Guidelines

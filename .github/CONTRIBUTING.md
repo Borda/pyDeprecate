@@ -797,22 +797,14 @@ def depr_class_whole_mode_warns_on_call(x: int) -> int: ...
 **Rules:**
 
 - Minimum **3 call sites** before extracting — two occurrences stay inline.
-
 - Only group call sites where **all three** of `deprecated_in`, `remove_in`, and `num_warns` are identical (or all three omit `num_warns`). Sites that differ on any key stay inline.
-
-  One existing exception predates this rule: `**_DEPRS_CASE_STD_ARGS, num_warns=1` in `api_deprecated.py`. Do not add more.
-
+  - One existing exception predates this rule: `**_DEPRS_CASE_STD_ARGS, num_warns=1` in `api_deprecated.py`. Do not add more.
 - `_class_deprecation_*` shared instances (see above) and `_DEPRS_CASE_*` constants both go in the **constants block at the top of `api_deprecated.py`**. Place them right after `_SHORT_MSG_FUNC` / `_SHORT_MSG_ARGS`. This makes version metadata scannable in one place.
-
-  Sibling collection modules import shared constants and instances from there; the original module never imports from its siblings.
-
-  `misconfigured.py` keeps its own `_DEPRS_CASE_OLD_ARGS`. `tests/integration/test_action.py` copies that file into a standalone package that can import only from `deprecate`. `policy.py` and `pep702.py` also define module-local constants for their own schedules.
-
+  - Sibling collection modules import shared constants and instances from there; the original module never imports from its siblings.
+  - `misconfigured.py` keeps its own `_DEPRS_CASE_OLD_ARGS`. `tests/integration/test_action.py` copies that file into a standalone package that can import only from `deprecate`. `policy.py` and `pep702.py` also define module-local constants for their own schedules.
 - When adding a new fixture group that would form a third call site for an existing tuple, extract rather than inline.
-
 - **Exception — fixtures under `assert_type`:** a fixture whose *static* type is pinned by `assert_type` spells its version kwargs out inline. Currently this covers `DeprecatedColorEnumFunctional` and `DeprecatedPaletteFunctionalFallback`, asserted in `tests/unittests/proxy/test_factories.py`.
-
-  mypy resolves an overloaded call against a `dict[str, Any]` splat by falling back to `Any`. This erases the overload the assertion exists to verify. Do not "unify" these back into a `_DEPRS_CASE_*` splat — the assertion would keep passing while proving nothing.
+  - mypy resolves an overloaded call against a `dict[str, Any]` splat by falling back to `Any`. This erases the overload the assertion exists to verify. Do not "unify" these back into a `_DEPRS_CASE_*` splat — the assertion would keep passing while proving nothing.
 
 **Docstrings in test collections:**
 
@@ -892,24 +884,16 @@ class TestMyFeature:
 ### Coding-Agent Plugin (`plugins/pydeprecate/`)
 
 - **Three-way sync**: `src/deprecate/` (code) ↔ `README.md`/`docs/llms.txt`/`docs/guide/*.md` (docs) ↔ `plugins/pydeprecate/skills/*/SKILL.md` (plugin). A public API change updates all three; a `SKILL.md` referencing an identifier not in the installed API is a bug (guarded by `test_skill_docs_reference_real_api` in `tests/integration/test_agent_plugin.py`).
-
 - **Docs and `AGENTS.md` outrank plugin guidance** — `docs/llms.txt` and `AGENTS.md` are the authoritative contract; `plugins/pydeprecate/skills/*/SKILL.md` is a cached, separately-installed copy that can lag the actual installed package version. On any conflict, trust docs/`AGENTS.md` and fix the `SKILL.md`, never the reverse.
-
 - **No extra blank-line spacing in `plugins/**/*.md`** — single blank line between blocks, no blank line between list items in a tight list (see existing `SKILL.md` files for the pattern).
-
 - **Version policy**: plugin `version` (in both `.claude-plugin/plugin.json` and `.codex-plugin/plugin.json`) bumps on its own cadence — skill content changed. It is independent of the package's `__version__`.
-
-  Each manifest also declares `compatible_package_version` (PEP 440 specifier, e.g. `">=0.10"`). This floating support window has a floor of the current minor version minus three, bumped at every minor release.
-
-  Identifiers the `SKILL.md` files reference that are newer than the floor carry an inline since-note with the older spelling or fallback. Check `CHANGELOG.md`, not guesswork.
-
-  Never collapse the two fields into one shared number. The `plugin-compat-floor` pre-commit hook (`.github/scripts/check_plugin_compat_floor.py`) enforces this:
-
-  - The manifests agree.
-  - The floor is within three minors of `__version__`.
-  - The `SKILL.md` prose mirrors it.
-
-  It is a policy check, so it lives in pre-commit rather than the test suite.
+  - Each manifest also declares `compatible_package_version` (PEP 440 specifier, e.g. `">=0.10"`). This floating support window has a floor of the current minor version minus three, bumped at every minor release.
+  - Identifiers the `SKILL.md` files reference that are newer than the floor carry an inline since-note with the older spelling or fallback. Check `CHANGELOG.md`, not guesswork.
+  - Never collapse the two fields into one shared number. The `plugin-compat-floor` pre-commit hook (`.github/scripts/check_plugin_compat_floor.py`) enforces this:
+    - The manifests agree.
+    - The floor is within three minors of `__version__`.
+    - The `SKILL.md` prose mirrors it.
+  - It is a policy check, so it lives in pre-commit rather than the test suite.
 
 ### Common Patterns
 
@@ -1018,26 +1002,16 @@ make docs-tests   # regenerate tests/integration/test_readme.py and tests/docs/t
 When making changes, keep all surfaces in sync:
 
 1. **New or renamed public API symbol** — update `README.md` (API reference) **and** the relevant `docs/guide/` page.
-
 2. **New use-case pattern** — add an entry to `docs/guide/use-cases.md`.
-
 3. **New troubleshooting item** — add a Q&A block to `docs/troubleshooting.md`; the `FAQPage` JSON-LD in `docs/overrides/main.html` is generated by `docs/mkdocs_hooks.py` from each `###` question under a topic `##` heading and its first prose paragraph.
-
 4. **README stays authoritative for install and full API** — `docs/index.md` is a curated overview that links out, never a verbatim copy.
-
 5. **Never copy README → docs in CI** — the build workflow (`build-docs.yml`) does not copy `README.md`; tracked `docs/index.md` is used directly.
-
 6. **AI crawler policy** — when a new mainstream AI crawler is released, add a `User-agent: <bot> / Allow: /` pair to `docs/robots.txt`. The comment line referencing `docs/llms.txt` must stay current if the llms.txt URL changes.
-
 7. **Migration fragments use minor-line granularity** — store required rewrites under `_deltas/breaking/v0.N-to-v0.M.md` and observable changes under `_deltas/behavior/v0.N-to-v0.M.md`.
-
-   Include only changes that require existing users to rewrite code or account for different behavior. Keep addition-only notes in the changelog and relevant topic guide.
-
-   Patch and post releases are folded into the minor interval whose destination contains them. Do not create patch-specific fragments or `Coming from` sections.
-
-   Fragments intentionally omit headings and outer admonitions. The `Coming from ...` section and its `Breaking changes` / `Behavior changes` tabs provide that context after injection. Keep each compatibility item in exactly one category.
-
-   Atomic minor intervals can be composed. A verified cumulative file such as `v0.4-to-v0.12.md` may replace a long include chain when it stays self-contained.
+   - Include only changes that require existing users to rewrite code or account for different behavior. Keep addition-only notes in the changelog and relevant topic guide.
+   - Patch and post releases are folded into the minor interval whose destination contains them. Do not create patch-specific fragments or `Coming from` sections.
+   - Fragments intentionally omit headings and outer admonitions. The `Coming from ...` section and its `Breaking changes` / `Behavior changes` tabs provide that context after injection. Keep each compatibility item in exactly one category.
+   - Atomic minor intervals can be composed. A verified cumulative file such as `v0.4-to-v0.12.md` may replace a long include chain when it stays self-contained.
 
 ### Code Example Conventions
 
