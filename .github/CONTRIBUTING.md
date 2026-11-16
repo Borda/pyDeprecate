@@ -798,8 +798,8 @@ def depr_class_whole_mode_warns_on_call(x: int) -> int: ...
 
 - Minimum **3 call sites** before extracting — two occurrences stay inline.
 - Only group call sites where **all three** of `deprecated_in`, `remove_in`, and `num_warns` are identical (or all three omit `num_warns`). Sites that differ on any key stay inline.
-  - One existing exception predates this rule: `**_DEPRS_CASE_STD_ARGS, num_warns=1` in `api_deprecated.py`. Do not add more.
-- `_class_deprecation_*` shared instances (see above) and `_DEPRS_CASE_*` constants both go in the **constants block at the top of `api_deprecated.py`**. Place them right after `_SHORT_MSG_FUNC` / `_SHORT_MSG_ARGS`. This makes version metadata scannable in one place.
+  - One existing exception predates this rule: `**_DEPRS_CASE_STD_ARGS, num_warns=1` in `tests/collections/api_deprecated/core.py`. Do not add more.
+- `_class_deprecation_*` shared instances (see above) and `_DEPRS_CASE_*` constants both go in the **constants block at the top of `tests/collections/api_deprecated/core.py`**. Place them right after `_SHORT_MSG_FUNC` / `_SHORT_MSG_ARGS`. This makes version metadata scannable in one place.
   - Sibling collection modules import shared constants and instances from there; the original module never imports from its siblings.
   - `misconfigured.py` keeps its own `_DEPRS_CASE_OLD_ARGS`. `tests/integration/test_action.py` copies that file into a standalone package that can import only from `deprecate`. `policy.py` and `pep702.py` also define module-local constants for their own schedules.
 - When adding a new fixture group that would form a third call site for an existing tuple, extract rather than inline.
@@ -887,7 +887,7 @@ class TestMyFeature:
 - **Docs and `AGENTS.md` outrank plugin guidance** — `docs/llms.txt` and `AGENTS.md` are the authoritative contract; `plugins/pydeprecate/skills/*/SKILL.md` is a cached, separately-installed copy that can lag the actual installed package version. On any conflict, trust docs/`AGENTS.md` and fix the `SKILL.md`, never the reverse.
 - **No extra blank-line spacing in `plugins/**/*.md`** — single blank line between blocks, no blank line between list items in a tight list (see existing `SKILL.md` files for the pattern).
 - **Version policy**: plugin `version` (in both `.claude-plugin/plugin.json` and `.codex-plugin/plugin.json`) bumps on its own cadence — skill content changed. It is independent of the package's `__version__`.
-  - Each manifest also declares `compatible_package_version` (PEP 440 specifier, e.g. `">=0.10"`). This floating support window has a floor of the current minor version minus three, bumped at every minor release.
+  - Each manifest also declares `compatible_package_version` (PEP 440 specifier, e.g. `">=0.10"`). This floating support window has a floor of the current minor version minus three, bumped at every minor release. The window never reaches back across a major release: while the current minor is below three (`1.0` to `1.2`), the floor is clamped to `>=X.0` of the current major.
   - Identifiers the `SKILL.md` files reference that are newer than the floor carry an inline since-note with the older spelling or fallback. Check `CHANGELOG.md`, not guesswork.
   - Never collapse the two fields into one shared number. The `plugin-compat-floor` pre-commit hook (`.github/scripts/check_plugin_compat_floor.py`) enforces this:
     - The manifests agree.
@@ -907,7 +907,7 @@ def new_implementation(x: int) -> int:
     return x * 2
 
 
-# tests/collections/api_deprecated.py — the deprecated wrapper
+# tests/collections/api_deprecated/core.py — the deprecated wrapper
 from deprecate import deprecated
 from tests.collections.api_current.core import new_implementation
 
