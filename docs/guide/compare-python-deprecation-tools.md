@@ -10,27 +10,28 @@ Python has several ways to signal deprecation. Choose based on whether you need 
 
 This page holds the canonical comparison table.
 
-| Feature               | pyDeprecate | `warnings.warn` |     `deprecation`      |                            `Deprecated`                            | `warnings.deprecated`† |
-| --------------------- | :---------: | :-------------: | :--------------------: | :----------------------------------------------------------------: | :--------------------: |
-| Simple warnings       |     ✅      |       ✅        |           ✅           |                                 ✅                                 |           ✅           |
-| Auto call forwarding  |     ✅      |       ❌        |           ❌           |                                 ❌                                 |           ❌           |
-| Generator / async     |     ✅      |       ❌        |           ❌           |                                 ❌                                 |           ❌           |
-| Argument mapping      |     ✅      |       ❌        |           ❌           |                                 ❌                                 |           ❌           |
-| Argument deprecation  |     ✅      |       ✍️        |           ❌           |                      via `deprecated.params`                       |           ❌           |
-| Class / Enum proxy    |     ✅      |       ❌        |           ❌           |                                 ❌                                 |           ❌           |
-| Docstring injection   |     ✅      |       ❌        |           ✅           | via `deprecated.sphinx`, `deprecated.google` or `deprecated.numpy` |           ❌           |
-| Version tracking      |     ✅      |       ✍️        |           ✅           |                                 ✅                                 |           ❌           |
-| Prevent log spam      |     ✅      |       ✍️        |           ❌           |                                 ✍️                                 |           ❌           |
-| Zero runtime deps     |     ✅      |       ✅        |           ❌           |                                 ❌                                 |           †            |
-| Custom streams        |     ✅      |       ✍️        |           ❌           |                                 ❌                                 |           ❌           |
-| CI audit tools        |     ✅      |       ❌        |           ❌           |                                 ❌                                 |           ❌           |
-| Testing helpers       |     ✅      |       ❌        | `@fail_if_not_removed` |                                 ❌                                 |           ❌           |
-| Static checker signal |     ✍️      |       ❌        |           ❌           |                                 ❌                                 |           ✅           |
-| Decorator stacking    |     ✅      |       ❌        |           ❌           |                                 ❌                                 |           ❌           |
-| Sphinx plugin         |     ✅      |       ❌        |           ❌           |                                 ❌                                 |           ❌           |
-| MkDocs plugin         |     ✅      |       ❌        |           ❌           |                                 ❌                                 |           ❌           |
+| Feature                 | pyDeprecate | `warnings.warn` |     `deprecation`      |                            `Deprecated`                            | `warnings.deprecated`† |
+| ----------------------- | :---------: | :-------------: | :--------------------: | :----------------------------------------------------------------: | :--------------------: |
+| Simple warnings         |     ✅      |       ✅        |           ✅           |                                 ✅                                 |           ✅           |
+| Auto call forwarding    |     ✅      |       ❌        |           ❌           |                                 ❌                                 |           ❌           |
+| Generator / async       |     ✅      |       ❌        |           ❌           |                                 ❌                                 |           ❌           |
+| Argument mapping        |     ✅      |       ❌        |           ❌           |                                 ❌                                 |           ❌           |
+| Argument deprecation    |     ✅      |       ✍️        |           ❌           |                      via `deprecated.params`                       |           ❌           |
+| Class / Enum proxy      |     ✅      |       ❌        |           ❌           |                                 ❌                                 |           ❌           |
+| Docstring injection     |     ✅      |       ❌        |           ✅           | via `deprecated.sphinx`, `deprecated.google` or `deprecated.numpy` |           ❌           |
+| Version tracking        |     ✅      |       ✍️        |           ✅           |                                 ✅                                 |           ❌           |
+| Prevent log spam        |     ✅      |       ✍️        |           ❌           |                                 ✍️                                 |           ❌           |
+| Zero runtime deps       |     ✅      |       ✅        |           ❌           |                                 ❌                                 |           †            |
+| Custom streams          |     ✅      |       ✍️        |           ❌           |                                 ❌                                 |           ❌           |
+| CI audit tools          |     ✅      |       ❌        |           ❌           |                                 ❌                                 |           ❌           |
+| Testing helpers         |     ✅      |       ❌        | `@fail_if_not_removed` |                                 ❌                                 |           ❌           |
+| Static checker signal   |     ✍️      |       ❌        |           ❌           |                                 ❌                                 |           ✅           |
+| Stacked argument remaps |     ✅      |       ❌        |           ❌           |                                 ❌                                 |           ❌           |
+| Sphinx plugin           |     ✅      |       ❌        |           ❌           |                                 ❌                                 |           ❌           |
+| MkDocs plugin           |     ✅      |       ❌        |           ❌           |                                 ❌                                 |           ❌           |
 
 - ✅ = supported, ❌ = not supported, ✍️ = possible but requires manual work. For pyDeprecate's static checker signal, stack `@warnings.deprecated` above `@deprecated`.
+- Plain warning decorators stack too: each `deprecation.deprecated` layer warns, then calls the next. The "Stacked argument remaps" row covers stacked layers that each remap arguments for one release, with unsupported combinations flagged by a decoration-time `UserWarning`.
 - The `Deprecated` cells were checked against the `Deprecated` 3.0.1 source. Its log-spam control is a warnings filter `action` such as `"once"`.
 - † `warnings.deprecated` is in the standard library on Python 3.13+ (PEP 702) and available as the `typing_extensions.deprecated` backport on older versions.
 

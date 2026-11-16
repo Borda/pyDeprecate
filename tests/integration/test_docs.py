@@ -1,5 +1,6 @@
 """Tests for deprecation documentation strings."""
 
+import sys
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 
@@ -50,6 +51,81 @@ def test_llms_full_matches_generator() -> None:
     assert (_ROOT / "docs/llms-full.txt").read_text(encoding="utf-8") == _GENERATOR.render(), (
         "Regenerate with: python .github/scripts/generate_llms_full.py"
     )
+
+
+def _run_generator(monkeypatch: pytest.MonkeyPatch, *flags: str) -> int:
+    monkeypatch.setattr(sys, "argv", ["generate_llms_full.py", *flags])
+    return _GENERATOR.main()
+
+
+class TestLlmsFullGenerator:
+    """Command-line behaviour of the full agent context generator behind the ``llms-full-sync`` hook."""
+
+    @pytest.fixture
+    def generator_paths(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, Path]:
+        """Point the generator at a temporary contract and output file."""
+        source = tmp_path / "llms.txt"
+        output = tmp_path / "llms-full.txt"
+        source.write_bytes(b"# Contract\n\n- rule one\n")
+        monkeypatch.setattr(_GENERATOR, "SOURCE", source)
+        monkeypatch.setattr(_GENERATOR, "OUTPUT", output)
+        return source, output
+
+    def test_check_passes_when_synchronized(
+        self, generator_paths: tuple[Path, Path], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Pass the check without touching an output that matches a fresh render.
+
+        A contributor commits an unchanged contract and the pre-commit hook runs ``--check``.
+        The hook must succeed and leave the committed file byte-for-byte as it was.
+        """
+        _, output = generator_paths
+        output.write_bytes(_GENERATOR.render().encode("utf-8"))
+        before = output.read_bytes()
+        assert _run_generator(monkeypatch, "--check") == 0
+        assert output.read_bytes() == before
+
+    def test_check_fails_when_stale(
+        self, generator_paths: tuple[Path, Path], monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Fail the check on drift and leave the stale output for the maintainer to regenerate.
+
+        A contributor edits the contract but forgets to regenerate the full context.
+        The hook must fail, name the regeneration command, and not rewrite the file itself.
+        """
+        _, output = generator_paths
+        output.write_bytes(b"stale\n")
+        assert _run_generator(monkeypatch, "--check") == 1
+        assert output.read_bytes() == b"stale\n"
+        assert _GENERATOR.REGENERATE in capsys.readouterr().err
+
+    def test_check_fails_when_missing(
+        self, generator_paths: tuple[Path, Path], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Fail the check when the full context file does not exist, without creating it.
+
+        A fresh checkout loses the generated file, or a contributor deletes it by mistake.
+        The hook must report the gap instead of silently writing a new file.
+        """
+        _, output = generator_paths
+        assert _run_generator(monkeypatch, "--check") == 1
+        assert not output.exists()
+
+    def test_writes_lf_output_from_crlf_source(
+        self, generator_paths: tuple[Path, Path], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Generate LF-only output from a contract checked out with CRLF line endings.
+
+        A maintainer on Windows regenerates the full context from a CRLF checkout.
+        The written file must use LF only and match the render of the same contract with LF endings.
+        """
+        source, output = generator_paths
+        source.write_bytes(b"# Contract\r\n\r\n- rule one\r\n")
+        assert _run_generator(monkeypatch) == 0
+        written = output.read_bytes()
+        assert b"\r" not in written
+        source.write_bytes(b"# Contract\n\n- rule one\n")
+        assert written == _GENERATOR.render().encode("utf-8")
 
 
 _HOOKS_SPEC = spec_from_file_location("mkdocs_hooks", _ROOT / "docs/mkdocs_hooks.py")

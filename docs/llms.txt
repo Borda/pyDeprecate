@@ -353,8 +353,9 @@ What is being deprecated?
   │      `@dataclass`-generated `__init__`).
   ├─ A `@cached_property`?
   │    → use `@deprecated @cached_property` (outer order); wraps the getter function (`.func`) only —
-  │      `cached_property` has no setter or deleter. The warning fires once per instance (first access);
-  │      `num_warns` cannot raise that.
+  │      `cached_property` has no setter or deleter. The warning fires once per instance (first access)
+  │      while the value stays cached; `num_warns` cannot raise that. Deleting the cached attribute
+  │      re-runs the getter, which warns again when the budget allows.
   │
   └─ A function or method (including generator functions — `def gen(): yield` — async functions —
      `async def fn()` — and async generator functions — `async def gen(): yield`)?
@@ -806,7 +807,7 @@ An unresolved version does not fall through to an ancestor project.
     - Read the public fields (`target`, `deprecated_in`, `remove_in`, `args_mapping`, ...) via `get_deprecation_config(obj)`.
 - **Do not import `deprecate.utils.get_func_arguments_types_defaults` or names from `deprecate.docstring.inject`**. They are internal despite their public-looking names (excluded from each module's `__all__`). They gain a leading underscore in v1.0, with no runtime warning before then.
     - Use `inspect.signature` for parameter introspection and `update_docstring=True` for docstring notices.
-- `@cached_property` with `@deprecated` in either order: the warning fires on the **first access of each instance**. Later reads of that instance hit the cached value and do not warn. The setting `num_warns` cannot raise that: `num_warns=-1` still warns once per instance, while the default `num_warns=1` budget is shared across instances.
+- `@cached_property` with `@deprecated` in either order: the warning fires on the **first access of each instance**. Later reads of that instance hit the cached value and do not warn; deleting the cached attribute re-runs the getter, which warns again when the budget allows. The setting `num_warns` cannot raise that: `num_warns=-1` still warns once per instance, while the default `num_warns=1` budget is shared across instances.
     - With the default `num_warns=1`, only the first instance warns.
 - `@deprecated` on `async def` functions: the wrapper is `async def`. `inspect.iscoroutinefunction(wrapper)` returns `True`.
     - All three TargetModes work.

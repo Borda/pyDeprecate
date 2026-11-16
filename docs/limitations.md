@@ -154,9 +154,9 @@ Each entry states the behaviour in one or two sentences. It links to the section
 
 !!! warning
 
-    **`cached_property` warns at most once per instance.**
+    **`cached_property` warns at most once per instance while its value stays cached.**
 
-    The cache is filled by the first read, so later reads of that instance never reach pyDeprecate and `num_warns` cannot raise the count. With `num_warns=-1` every instance warns on its first read; the default `num_warns=1` budget is shared by all instances, so only the first one warns. See [Properties](guide/properties.md).
+    The cache is filled by the first read, so later reads of that instance never reach pyDeprecate and `num_warns` cannot raise the count. Deleting the cached attribute makes the next read call the getter again, which warns again when the budget allows. With `num_warns=-1` every instance warns on its first read; the default `num_warns=1` budget is shared by all instances, so only the first one warns. See [Properties](guide/properties.md).
 
 ## Configuration
 
