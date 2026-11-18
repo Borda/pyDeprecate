@@ -204,8 +204,7 @@ This location rule covers call-time notices, decoration-time configuration warni
 
 Two cases can report a different frame:
 
-- **A custom `stream` written in Python.** pyDeprecate counts `stacklevel` from the frame calling the stream. A Python function forwarding to `warnings.warn` adds a frame, placing the warning one frame short, inside pyDeprecate.
-    - Use `warnings.warn`, its `functools.partial`, or a bound logger method such as `logging.getLogger().warning`. Alternatively, add `1` to the received `stacklevel` before forwarding it.
+- **A custom `stream` written in Python.** pyDeprecate counts `stacklevel` from the frame calling the stream. A Python function forwarding to `warnings.warn` adds a frame, placing the warning one frame short, inside pyDeprecate. Use `warnings.warn`, its `functools.partial`, or a bound logger method such as `logging.getLogger().warning`. Alternatively, add `1` to the received `stacklevel` before forwarding it.
 
 !!! warning "Module-level logging differs by Python version"
 
@@ -959,10 +958,8 @@ Both deprecated names forward to the same non-deprecated implementation with no 
 
 Two cases still differ from calling the source directly:
 
-- **Deprecated names with `TargetMode.ARGS_REMAP`, or any `args_extra`.** Remapping rewrites the whole call into kwargs, whether the old name was passed by keyword or filled positionally. Setting `args_extra` rewrites every call this way.
-    - Positional dispatchers then receive keywords. Keep the dispatcher outside the rename: decorate a plain `def` accepting both names, then call the dispatcher positionally.
-- **A patched `__signature__` omits accepted positional parameters.** The wrapper checks positional argument count against `inspect.signature(source)`. Calls filling more slots than that signature lists raise `TypeError: ... takes N positional argument(s) but got M positional argument(s)`.
-    - This can reject calls the real source accepts. List every positional slot in `__signature__`, or give it a `*args` parameter.
+- **Deprecated names with `TargetMode.ARGS_REMAP`, or any `args_extra`.** Remapping rewrites the whole call into kwargs, whether the old name was passed by keyword or filled positionally. Setting `args_extra` rewrites every call this way. Positional dispatchers then receive keywords. Keep the dispatcher outside the rename: decorate a plain `def` accepting both names, then call the dispatcher positionally.
+- **A patched `__signature__` omits accepted positional parameters.** The wrapper checks positional argument count against `inspect.signature(source)`. Calls filling more slots than that signature lists raise `TypeError: ... takes N positional argument(s) but got M positional argument(s)`. This can reject calls the real source accepts. List every positional slot in `__signature__`, or give it a `*args` parameter.
 
 ### Why does a classmethod receiver keyword raise even when mapped to an empty string?
 

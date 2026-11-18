@@ -797,14 +797,12 @@ def depr_class_whole_mode_warns_on_call(x: int) -> int: ...
 **Rules:**
 
 - Minimum **3 call sites** before extracting — two occurrences stay inline.
-- Only group call sites where **all three** of `deprecated_in`, `remove_in`, and `num_warns` are identical (or all three omit `num_warns`). Sites that differ on any key stay inline.
-  - One existing exception predates this rule: `**_DEPRS_CASE_STD_ARGS, num_warns=1` in `tests/collections/api_deprecated/core.py`. Do not add more.
+- Only group call sites where **all three** of `deprecated_in`, `remove_in`, and `num_warns` are identical (or all three omit `num_warns`). Sites that differ on any key stay inline. One existing exception predates this rule: `**_DEPRS_CASE_STD_ARGS, num_warns=1` in `tests/collections/api_deprecated/core.py`. Do not add more.
 - `_class_deprecation_*` shared instances (see above) and `_DEPRS_CASE_*` constants both go in the **constants block at the top of `tests/collections/api_deprecated/core.py`**. Place them right after `_SHORT_MSG_FUNC` / `_SHORT_MSG_ARGS`. This makes version metadata scannable in one place.
   - Sibling collection modules import shared constants and instances from there; the original module never imports from its siblings.
   - `misconfigured.py` keeps its own `_DEPRS_CASE_OLD_ARGS`. `tests/integration/test_action.py` copies that file into a standalone package that can import only from `deprecate`. `policy.py` and `pep702.py` also define module-local constants for their own schedules.
 - When adding a new fixture group that would form a third call site for an existing tuple, extract rather than inline.
-- **Exception — fixtures under `assert_type`:** a fixture whose *static* type is pinned by `assert_type` spells its version kwargs out inline. Currently this covers `DeprecatedColorEnumFunctional` and `DeprecatedPaletteFunctionalFallback`, asserted in `tests/unittests/proxy/test_factories.py`.
-  - mypy resolves an overloaded call against a `dict[str, Any]` splat by falling back to `Any`. This erases the overload the assertion exists to verify. Do not "unify" these back into a `_DEPRS_CASE_*` splat — the assertion would keep passing while proving nothing.
+- **Exception — fixtures under `assert_type`:** a fixture whose *static* type is pinned by `assert_type` spells its version kwargs out inline. Currently this covers `DeprecatedColorEnumFunctional` and `DeprecatedPaletteFunctionalFallback`, asserted in `tests/unittests/proxy/test_factories.py`. mypy resolves an overloaded call against a `dict[str, Any]` splat by falling back to `Any`. This erases the overload the assertion exists to verify. Do not "unify" these back into a `_DEPRS_CASE_*` splat — the assertion would keep passing while proving nothing.
 
 **Docstrings in test collections:**
 
