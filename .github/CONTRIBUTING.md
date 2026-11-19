@@ -1028,7 +1028,7 @@ Readers understand *why* the rename happened. Never use generic placeholders lik
 
 Use `# NEW/FUTURE API —` when the replacement is defined in the same block immediately before the deprecated wrapper.
 
-**Release references** — in docs prose and docstrings, write every pyDeprecate release, older or future, with a `v` prefix: "since v0.16", "removed in v1.0", "before v0.12 use `template_mgs`". For availability that continues to the latest release write "since vX", never "in vX", "from vX", "vX+" or "vX or later"; for anything lower write "before vX", never "on vX and older" or "pre-vX". Exact literals keep the bare number:
+**Release references** — in docs prose and docstrings, write every pyDeprecate release, older or future, with a `v` prefix: "since v0.16", "removed in v1.0", "before v0.12 use `template_mgs`". For availability that continues to the latest release write "since vX", never "from vX", "vX+", "vX or later" or "in vX" (meaning "since vX"); for anything lower write "before vX", never "on vX and older" or "pre-vX". "In vX" stays correct for a one-time event: "renamed in v0.12", "removed in v1.0". Exact literals keep the bare number:
 
 - code values such as `deprecated_in="0.16"` and `remove_in="1.0"`;
 - version specifiers such as `>=0.13` and `pydeprecate>=0.16`;

@@ -609,7 +609,7 @@ Before v0.8, two patterns produced spurious `TypeError` raises from the guard:
 - **Decorators rewriting `__qualname__`.** A decorator setting `fn.__qualname__ = "OtherClass.method"` before `@deprecated` made the guard infer the wrong owner. Since v0.8, the guard reads `__qualname__` from the enclosing class-body frame, which Python sets before decorators run.
 - **Metaclass-generated classes.** `type("Name", bases, ns)` and similar patterns can produce `"FakeOwner.method"` qualnames for methods outside `FakeOwner`. Since v0.8, the guard checks that the qualname's class name exists in module globals. If it does not, the guard skips the check.
 
-If you are on v0.8 or newer and still seeing an unexpected `TypeError` from the cross-class guard, open an issue with a minimal reproducer.
+Since v0.8 these triggers are fixed. If you still see an unexpected `TypeError` from the cross-class guard, open an issue with a minimal reproducer.
 
 ### UserWarning at decoration time: unsupported stacking combination
 

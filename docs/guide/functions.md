@@ -467,7 +467,7 @@ renamed_arg(val=1)  # warns: FutureWarning — "renamed_arg uses deprecated argu
 
 !!! danger "`target=True` (or `TargetMode.ARGS_REMAP`) without `args_mapping` is a misconfiguration"
 
-    As of v0.8, `target=True` is a deprecated sentinel for `TargetMode.ARGS_REMAP`. Using either without `args_mapping` emits construction-time warnings:
+    Since v0.8, `target=True` is a deprecated sentinel for `TargetMode.ARGS_REMAP`. Using either without `args_mapping` emits construction-time warnings:
 
     - The legacy sentinel emits a `FutureWarning`.
     - `ARGS_REMAP` emits a `UserWarning` because it requires `args_mapping` to have any effect.

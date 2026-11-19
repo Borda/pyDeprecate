@@ -164,7 +164,7 @@ repos:
 
 !!! warning "Release availability"
 
-    These hooks are available since `v0.16.0`, the upcoming release, not yet tagged. The following recipe fails until that release is published.
+    These hooks ship with `v0.16.0`, the upcoming release, not yet tagged. The following recipe fails until that release is published.
 
 ```yaml
 # .pre-commit-config.yaml

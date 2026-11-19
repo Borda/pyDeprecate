@@ -120,7 +120,7 @@ Each entry states the behaviour in one or two sentences. It links to the section
 
     `type(proxy)` is a generated subclass of `_DeprecatedProxy` that carries the proxy's protocols and borrows the base class's module and name. `pickle.dumps(type(proxy))` raises `PicklingError` because the borrowed name resolves to a different class.
 
-    pyDeprecate v0.14 pickled the proxy class by reference. Pickling the proxy itself is unaffected. To detect a proxy, check `isinstance(obj, DeprecationProxy)` rather than storing or pickling its class.
+    Before v0.15, pyDeprecate pickled the proxy class by reference. Pickling the proxy itself is unaffected. To detect a proxy, check `isinstance(obj, DeprecationProxy)` rather than storing or pickling its class.
 
 !!! warning
 
