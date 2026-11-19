@@ -4,6 +4,7 @@ import sys
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Optional
 
 import pytest
 
@@ -646,7 +647,7 @@ class TestRedirectMirrors:
     """Markdown mirrors of moved pages stay reachable at their released addresses."""
 
     @staticmethod
-    def _config(site: Path, redirect_maps: dict[str, str] | None) -> dict:
+    def _config(site: Path, redirect_maps: Optional[dict[str, str]]) -> dict:
         plugins = (
             {} if redirect_maps is None else {"redirects": SimpleNamespace(config={"redirect_maps": redirect_maps})}
         )
